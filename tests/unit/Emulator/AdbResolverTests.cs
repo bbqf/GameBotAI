@@ -1,13 +1,15 @@
+using System.Runtime.Versioning;
 using GameBot.Emulator.Adb;
 using FluentAssertions;
 using Xunit;
 
 namespace GameBot.UnitTests.Emulator;
 
+[SupportedOSPlatform("windows")]
 public class AdbResolverTests
 {
     [Fact]
-    public void Uses_env_override_when_set()
+    public void UsesEnvOverrideWhenSet()
     {
         var tmp = Path.Combine(Path.GetTempPath(), $"adb-{Guid.NewGuid():N}.exe");
         File.WriteAllText(tmp, string.Empty);
@@ -25,7 +27,7 @@ public class AdbResolverTests
     }
 
     [Fact]
-    public void Uses_ldplayer_home_when_present()
+    public void UsesLdplayerHomeWhenPresent()
     {
         var dir = Path.Combine(Path.GetTempPath(), $"ldp-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);

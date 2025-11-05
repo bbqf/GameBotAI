@@ -8,13 +8,13 @@ namespace GameBot.ContractTests;
 public class OpenApiContractTests
 {
     [Fact]
-    public async Task Swagger_document_contains_health_endpoint()
+    public async Task SwaggerDocumentContainsHealthEndpoint()
     {
-        await using var app = new WebApplicationFactory<Program>();
+    using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
-        var resp = await client.GetAsync("/swagger/v1/swagger.json");
+    var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var content = await resp.Content.ReadAsStringAsync();
+    var content = await resp.Content.ReadAsStringAsync().ConfigureAwait(true);
         content.Should().Contain("/health");
     }
 }

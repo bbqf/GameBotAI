@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using Microsoft.Win32;
 
 namespace GameBot.Emulator.Adb;
@@ -5,6 +6,7 @@ namespace GameBot.Emulator.Adb;
 public static class AdbResolver
 {
     // Returns the path to adb.exe using LDPlayer-first strategy, else returns null to use PATH
+    [SupportedOSPlatform("windows")]
     public static string? ResolveAdbPath()
     {
         // 1) Config override via env var
@@ -52,9 +54,15 @@ public static class AdbResolver
                 }
             }
         }
-        catch
+        catch (UnauthorizedAccessException)
         {
             // ignore registry access errors
+        }
+        catch (System.Security.SecurityException)
+        {
+        }
+        catch (IOException)
+        {
         }
 
         // 3) Fallback: null => use PATH

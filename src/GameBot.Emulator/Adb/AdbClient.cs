@@ -1,8 +1,11 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.Versioning;
 using System.Text;
 
 namespace GameBot.Emulator.Adb;
 
+[SupportedOSPlatform("windows")]
 public sealed class AdbClient
 {
     private readonly string _adb;
@@ -38,7 +41,7 @@ public sealed class AdbClient
         proc.BeginOutputReadLine();
         proc.BeginErrorReadLine();
 
-        await proc.WaitForExitAsync(ct);
+    await proc.WaitForExitAsync(ct).ConfigureAwait(false);
         return (proc.ExitCode, stdout.ToString().TrimEnd(), stderr.ToString().TrimEnd());
     }
 
@@ -49,7 +52,7 @@ public sealed class AdbClient
         => ExecAsync($"shell input tap {x} {y}", ct);
 
     public Task<(int ExitCode, string StdOut, string StdErr)> SwipeAsync(int x1, int y1, int x2, int y2, int? durationMs = null, CancellationToken ct = default)
-        => ExecAsync($"shell input swipe {x1} {y1} {x2} {y2} {(durationMs is null ? string.Empty : durationMs.Value.ToString())}", ct);
+    => ExecAsync($"shell input swipe {x1} {y1} {x2} {y2} {(durationMs is null ? string.Empty : durationMs.Value.ToString(CultureInfo.InvariantCulture))}", ct);
 
     public async Task<byte[]> GetScreenshotPngAsync(CancellationToken ct = default)
     {
@@ -65,13 +68,13 @@ public sealed class AdbClient
         };
         using var proc = new Process { StartInfo = psi };
         if (!proc.Start()) throw new InvalidOperationException("Failed to start adb process");
-        await using var ms = new MemoryStream();
-        await proc.StandardOutput.BaseStream.CopyToAsync(ms, ct);
-        await proc.WaitForExitAsync(ct);
+    using var ms = new MemoryStream();
+        await proc.StandardOutput.BaseStream.CopyToAsync(ms, ct).ConfigureAwait(false);
+        await proc.WaitForExitAsync(ct).ConfigureAwait(false);
         var png = ms.ToArray();
         if (png.Length == 0)
         {
-            var err = await proc.StandardError.ReadToEndAsync();
+            var err = await proc.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
             throw new InvalidOperationException($"Failed to capture screenshot: {err}");
         }
         return png;

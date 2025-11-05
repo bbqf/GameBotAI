@@ -2,14 +2,27 @@ using GameBot.Service.Security;
 using GameBot.Service.Middleware;
 using GameBot.Emulator.Session;
 using GameBot.Service.Endpoints;
+using GameBot.Domain.Games;
+using GameBot.Domain.Profiles;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.Configure<SessionOptions>(builder.Configuration.GetSection("Service:Sessions"));
+builder.Services.Configure<GameBot.Emulator.Session.SessionOptions>(builder.Configuration.GetSection("Service:Sessions"));
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
+builder.Services.AddTransient<ErrorHandlingMiddleware>();
+builder.Services.AddSingleton<IProfileExecutor, ProfileExecutor>();
+
+// Data storage configuration (env: GAMEBOT_DATA_DIR or config Service:Storage:Root)
+var storageRoot = builder.Configuration["Service:Storage:Root"]
+                  ?? Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
+                  ?? Path.Combine(AppContext.BaseDirectory, "data");
+Directory.CreateDirectory(storageRoot);
+
+builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
+builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository(storageRoot));
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
 var authToken = builder.Configuration["Service:Auth:Token"]
@@ -36,11 +49,11 @@ if (!string.IsNullOrWhiteSpace(authToken))
         if (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase))
         {
-            await next();
+            await next(context).ConfigureAwait(false);
             return;
         }
 
-        await TokenAuthMiddleware.Invoke(context, next, authToken!);
+        await TokenAuthMiddleware.Invoke(context, next, authToken!).ConfigureAwait(false);
     });
 }
 
@@ -57,7 +70,11 @@ app.MapGet("/", () => Results.Ok(new { name = "GameBot Service", status = "ok" }
 // Sessions endpoints (protected if token set)
 app.MapSessionEndpoints();
 
-// For WebApplicationFactory discovery in tests
-public partial class Program { }
+// Games & Profiles endpoints (protected if token set)
+app.MapGameEndpoints();
+app.MapProfileEndpoints();
 
 app.Run();
+
+// For WebApplicationFactory discovery in tests
+internal partial class Program { }

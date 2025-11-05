@@ -1,0 +1,59 @@
+# .NET / Visual Studio
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug*/
+[Rr]elease*/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDEs
+.idea/
+.vscode/
+
+# Test results & coverage
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+coverage.cobertura.xml
+lcov.info
+
+# NuGet & packages
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# Logs
+*.log
+logs/
+
+# OS junk
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+**/.DS_Store
+
+# Secrets / local env
+.env
+*.env
+*.secret
+*.secrets.json
+appsettings.*.local.json
+appsettings.Local.json
+
+# App-generated data (file repos)
+data/
+**/data/
+
+# ReSharper
+_ReSharper.Caches/

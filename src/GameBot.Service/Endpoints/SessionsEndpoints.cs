@@ -4,7 +4,7 @@ using GameBot.Service.Models;
 
 namespace GameBot.Service.Endpoints;
 
-public static class SessionsEndpoints
+internal static class SessionsEndpoints
 {
     public static IEndpointRouteBuilder MapSessionEndpoints(this IEndpointRouteBuilder app)
     {
@@ -16,12 +16,11 @@ public static class SessionsEndpoints
 
             if (!mgr.CanCreateSession)
             {
-                return Results.StatusCode(StatusCodes.Status429TooManyRequests,
-                    new { error = new { code = "capacity_exceeded", message = "Max concurrent sessions reached.", hint = (string?)null } });
+                return Results.Json(new { error = new { code = "capacity_exceeded", message = "Max concurrent sessions reached.", hint = (string?)null } }, statusCode: StatusCodes.Status429TooManyRequests);
             }
 
             var sess = mgr.CreateSession(game, req.ProfileId);
-            var resp = new CreateSessionResponse { Id = sess.Id, Status = sess.Status.ToString().ToLowerInvariant(), GameId = sess.GameId };
+            var resp = new CreateSessionResponse { Id = sess.Id, Status = sess.Status.ToString().ToUpperInvariant(), GameId = sess.GameId };
             return Results.Created($"/sessions/{sess.Id}", resp);
         }).WithName("CreateSession").WithOpenApi();
 
@@ -30,7 +29,7 @@ public static class SessionsEndpoints
             var s = mgr.GetSession(id);
             return s is null
                 ? Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } })
-                : Results.Ok(new { id = s.Id, status = s.Status.ToString().ToLowerInvariant(), uptime = (long)s.Uptime.TotalSeconds, health = s.Health.ToString().ToLowerInvariant(), gameId = s.GameId });
+                : Results.Ok(new { id = s.Id, status = s.Status.ToString().ToUpperInvariant(), uptime = (long)s.Uptime.TotalSeconds, health = s.Health.ToString().ToUpperInvariant(), gameId = s.GameId });
         }).WithName("GetSession").WithOpenApi();
 
         app.MapPost("/sessions/{id}/inputs", (string id, InputActionsRequest req, ISessionManager mgr) =>
@@ -47,7 +46,7 @@ public static class SessionsEndpoints
         {
             try
             {
-                var png = await mgr.GetSnapshotAsync(id, ct);
+                var png = await mgr.GetSnapshotAsync(id, ct).ConfigureAwait(false);
                 return Results.File(png, contentType: "image/png");
             }
             catch (KeyNotFoundException)
@@ -55,6 +54,24 @@ public static class SessionsEndpoints
                 return Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
             }
         }).WithName("GetSnapshot").WithOpenApi();
+
+        app.MapPost("/sessions/{id}/execute", async (string id, string profileId, IProfileExecutor executor, CancellationToken ct) =>
+        {
+            try
+            {
+                var accepted = await executor.ExecuteAsync(id, profileId, ct).ConfigureAwait(false);
+                return Results.Accepted($"/sessions/{id}", new { accepted });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                var msg = ex.Message.Contains("Profile", StringComparison.OrdinalIgnoreCase) ? "Profile not found" : "Session not found";
+                return Results.NotFound(new { error = new { code = "not_found", message = msg, hint = (string?)null } });
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
+            }
+        }).WithName("ExecuteProfile").WithOpenApi();
 
         app.MapDelete("/sessions/{id}", (string id, ISessionManager mgr) =>
         {

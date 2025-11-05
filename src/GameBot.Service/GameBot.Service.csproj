@@ -7,6 +7,11 @@
     <ProjectReference Include="..\GameBot.Emulator\GameBot.Emulator.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="GameBot.IntegrationTests" />
+    <InternalsVisibleTo Include="GameBot.ContractTests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="*" />
+  <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
   </ItemGroup>
 </Project>

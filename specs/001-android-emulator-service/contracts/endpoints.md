@@ -28,7 +28,7 @@ Date: 2025-11-05
 ## Sessions
 - POST `/sessions`
   - Request: `{ gameId | gamePath, profileId? }`
-  - 201 Created `{ id, status: "running", gameId, startedAt }`
+  - 201 Created `{ id, status: "running", gameId }`
 - GET `/sessions/{id}`
   - 200 OK `{ id, status, uptime, health, gameId }`, `404`
 - POST `/sessions/{id}/inputs`
@@ -36,6 +36,10 @@ Date: 2025-11-05
   - 202 Accepted `{ accepted: n }`, `409` if not running
 - GET `/sessions/{id}/snapshot`
   - 200 OK image/png (binary)
+- POST `/sessions/{id}/execute?profileId=...`
+  - 202 Accepted `{ accepted: n }`
+  - 404 if session or profile not found
+  - 409 if session not running
 - DELETE `/sessions/{id}`
   - 202 Accepted `{ status: "stopping" }`, `404`
 

@@ -14,3 +14,8 @@ public interface ISessionManager
 }
 
 public sealed record InputAction(string Type, Dictionary<string, object> Args, int? DelayMs = null, int? DurationMs = null);
+
+public interface IProfileExecutor
+{
+    Task<int> ExecuteAsync(string sessionId, string profileId, CancellationToken ct = default);
+}

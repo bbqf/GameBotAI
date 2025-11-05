@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using GameBot.Domain.Sessions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GameBot.Emulator.Session;
@@ -16,9 +17,11 @@ public sealed class SessionManager : ISessionManager
 
     public SessionManager(IOptions<SessionOptions> options, ILogger<SessionManager> logger)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
         _options = options.Value;
         _logger = logger;
-        _logger.LogInformation("SessionManager started with MaxConcurrent={Max}, IdleTimeout={Timeout}s", _options.MaxConcurrentSessions, _options.IdleTimeoutSeconds);
+        Log.SessionManagerStarted(_logger, _options.MaxConcurrentSessions, _options.IdleTimeoutSeconds);
     }
 
     public int ActiveCount => _sessions.Count;
@@ -29,7 +32,7 @@ public sealed class SessionManager : ISessionManager
         CleanupIdleSessions();
         if (!CanCreateSession)
         {
-            _logger.LogWarning("Capacity exceeded. Active={Active} Max={Max}", ActiveCount, _options.MaxConcurrentSessions);
+            Log.CapacityExceeded(_logger, ActiveCount, _options.MaxConcurrentSessions);
             throw new InvalidOperationException("capacity_exceeded");
         }
         var id = Guid.NewGuid().ToString("N");
@@ -43,7 +46,7 @@ public sealed class SessionManager : ISessionManager
             LastActivity = DateTimeOffset.UtcNow
         };
         _sessions[id] = sess;
-        _logger.LogInformation("Session {Id} created for {Game}", id, gameIdOrPath);
+        Log.SessionCreated(_logger, id, gameIdOrPath);
         return sess;
     }
 
@@ -64,7 +67,7 @@ public sealed class SessionManager : ISessionManager
         {
             s.Status = SessionStatus.Stopping;
             _sessions.TryRemove(id, out _);
-            _logger.LogInformation("Session {Id} stopped", id);
+            Log.SessionStopped(_logger, id);
             return true;
         }
         return false;
@@ -76,7 +79,7 @@ public sealed class SessionManager : ISessionManager
         if (!_sessions.TryGetValue(id, out var s)) return 0;
         s.LastActivity = DateTimeOffset.UtcNow;
         var count = actions?.Count() ?? 0;
-        _logger.LogDebug("Session {Id} accepted {Count} input actions", id, count);
+        Log.InputsAccepted(_logger, id, count);
         return count;
     }
 
@@ -92,7 +95,7 @@ public sealed class SessionManager : ISessionManager
         var sw = Stopwatch.StartNew();
         bmp.Save(ms, ImageFormat.Png);
         sw.Stop();
-        _logger.LogDebug("Snapshot for {Id} generated in {ElapsedMs} ms", id, sw.ElapsedMilliseconds);
+        Log.SnapshotGenerated(_logger, id, sw.ElapsedMilliseconds);
         return Task.FromResult(ms.ToArray());
     }
 
@@ -106,9 +109,48 @@ public sealed class SessionManager : ISessionManager
             {
                 if (_sessions.TryRemove(kv.Key, out _))
                 {
-                    _logger.LogInformation("Session {Id} evicted due to idle timeout ({Timeout}s)", kv.Key, _options.IdleTimeoutSeconds);
+                    Log.SessionEvicted(_logger, kv.Key, _options.IdleTimeoutSeconds);
                 }
             }
         }
     }
+}
+
+internal static class Log
+{
+    private static readonly Action<ILogger, int, int, Exception?> _sessionManagerStarted =
+        LoggerMessage.Define<int, int>(LogLevel.Information, new EventId(1, nameof(SessionManagerStarted)),
+            "SessionManager started with MaxConcurrent={Max}, IdleTimeout={Timeout}s");
+
+    private static readonly Action<ILogger, int, int, Exception?> _capacityExceeded =
+        LoggerMessage.Define<int, int>(LogLevel.Warning, new EventId(2, nameof(CapacityExceeded)),
+            "Capacity exceeded. Active={Active} Max={Max}");
+
+    private static readonly Action<ILogger, string, string, Exception?> _sessionCreated =
+        LoggerMessage.Define<string, string>(LogLevel.Information, new EventId(3, nameof(SessionCreated)),
+            "Session {Id} created for {Game}");
+
+    private static readonly Action<ILogger, string, Exception?> _sessionStopped =
+        LoggerMessage.Define<string>(LogLevel.Information, new EventId(4, nameof(SessionStopped)),
+            "Session {Id} stopped");
+
+    private static readonly Action<ILogger, string, int, Exception?> _inputsAccepted =
+        LoggerMessage.Define<string, int>(LogLevel.Debug, new EventId(5, nameof(InputsAccepted)),
+            "Session {Id} accepted {Count} input actions");
+
+    private static readonly Action<ILogger, string, long, Exception?> _snapshotGenerated =
+        LoggerMessage.Define<string, long>(LogLevel.Debug, new EventId(6, nameof(SnapshotGenerated)),
+            "Snapshot for {Id} generated in {ElapsedMs} ms");
+
+    private static readonly Action<ILogger, string, int, Exception?> _sessionEvicted =
+        LoggerMessage.Define<string, int>(LogLevel.Information, new EventId(7, nameof(SessionEvicted)),
+            "Session {Id} evicted due to idle timeout ({Timeout}s)");
+
+    public static void SessionManagerStarted(ILogger l, int max, int timeout) => _sessionManagerStarted(l, max, timeout, null);
+    public static void CapacityExceeded(ILogger l, int active, int max) => _capacityExceeded(l, active, max, null);
+    public static void SessionCreated(ILogger l, string id, string game) => _sessionCreated(l, id, game, null);
+    public static void SessionStopped(ILogger l, string id) => _sessionStopped(l, id, null);
+    public static void InputsAccepted(ILogger l, string id, int count) => _inputsAccepted(l, id, count, null);
+    public static void SnapshotGenerated(ILogger l, string id, long elapsedMs) => _snapshotGenerated(l, id, elapsedMs, null);
+    public static void SessionEvicted(ILogger l, string id, int timeout) => _sessionEvicted(l, id, timeout, null);
 }
