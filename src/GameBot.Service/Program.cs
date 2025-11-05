@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.Configure<SessionOptions>(builder.Configuration.GetSection("Service:Sessions"));
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)

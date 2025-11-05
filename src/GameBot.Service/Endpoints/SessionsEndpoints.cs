@@ -14,6 +14,12 @@ public static class SessionsEndpoints
             if (string.IsNullOrWhiteSpace(game))
                 return Results.BadRequest(new { error = new { code = "invalid_request", message = "Provide gameId or gamePath.", hint = (string?)null } });
 
+            if (!mgr.CanCreateSession)
+            {
+                return Results.StatusCode(StatusCodes.Status429TooManyRequests,
+                    new { error = new { code = "capacity_exceeded", message = "Max concurrent sessions reached.", hint = (string?)null } });
+            }
+
             var sess = mgr.CreateSession(game, req.ProfileId);
             var resp = new CreateSessionResponse { Id = sess.Id, Status = sess.Status.ToString().ToLowerInvariant(), GameId = sess.GameId };
             return Results.Created($"/sessions/{sess.Id}", resp);

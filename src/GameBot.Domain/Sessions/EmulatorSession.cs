@@ -12,4 +12,5 @@ public sealed class EmulatorSession
     public TimeSpan Uptime => DateTimeOffset.UtcNow - StartTime;
     public SessionHealth Health { get; set; } = SessionHealth.Ok;
     public int CapacitySlot { get; set; }
+    public DateTimeOffset LastActivity { get; set; } = DateTimeOffset.UtcNow;
 }

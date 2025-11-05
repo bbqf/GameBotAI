@@ -4,6 +4,8 @@ namespace GameBot.Emulator.Session;
 
 public interface ISessionManager
 {
+    int ActiveCount { get; }
+    bool CanCreateSession { get; }
     EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null);
     EmulatorSession? GetSession(string id);
     bool StopSession(string id);
