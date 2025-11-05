@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>GameBot.ContractTests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="*" PrivateAssets="all" />
+    <PackageReference Include="FluentAssertions" Version="*" />
+    <PackageReference Include="coverlet.collector" Version="*" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GameBot.Service\GameBot.Service.csproj" />
+  </ItemGroup>
+</Project>

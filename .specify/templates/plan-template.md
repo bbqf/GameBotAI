@@ -3,7 +3,7 @@
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
+**Note**: This template is filled in by the `/speckit.plan` command. Refer to the command help for execution workflow.
 
 ## Summary
 
@@ -31,7 +31,13 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Validate planned work against the GameBot Constitution:
+- Code Quality: planned tooling (lint/format/static analysis), modularity approach, security scanning.
+- Testing: unit/integration plan, coverage targets, determinism strategy, CI gating.
+- UX Consistency: interface conventions (CLI/API/logs), error messaging, versioning for changes.
+- Performance: declared budgets/targets and measurement approach for hot paths.
+
+[This section is validated against `.specify/memory/constitution.md` during planning.]
 
 ## Project Structure
 
