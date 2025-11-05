@@ -1,11 +1,14 @@
 using GameBot.Service.Security;
 using GameBot.Service.Middleware;
+using GameBot.Emulator.Session;
+using GameBot.Service.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSingleton<ISessionManager, SessionManager>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
 var authToken = builder.Configuration["Service:Auth:Token"]
@@ -49,6 +52,9 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
 app.MapGet("/", () => Results.Ok(new { name = "GameBot Service", status = "ok" }))
    .WithName("Root")
    .WithOpenApi();
+
+// Sessions endpoints (protected if token set)
+app.MapSessionEndpoints();
 
 // For WebApplicationFactory discovery in tests
 public partial class Program { }
