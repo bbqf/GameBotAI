@@ -73,6 +73,8 @@ app.MapSessionEndpoints();
 // Games & Profiles endpoints (protected if token set)
 app.MapGameEndpoints();
 app.MapProfileEndpoints();
+// ADB diagnostics endpoints (protected if token set)
+app.MapAdbEndpoints();
 
 app.Run();
 
