@@ -180,7 +180,21 @@ public sealed class SessionManager : ISessionManager
                     }
                     else if (string.Equals(a.Type, "key", StringComparison.OrdinalIgnoreCase))
                     {
-                        var keyCode = GetInt(a.Args, "keyCode");
+                        // Support either keyCode (int) or key (string symbolic name)
+                        int keyCode;
+                        if (a.Args.ContainsKey("keyCode"))
+                        {
+                            keyCode = GetInt(a.Args, "keyCode");
+                        }
+                        else if (a.Args.TryGetValue("key", out var keyRaw))
+                        {
+                            var keyName = keyRaw is JsonElement je && je.ValueKind == JsonValueKind.String ? je.GetString() : keyRaw?.ToString();
+                            keyCode = ResolveAndroidKeyCode(keyName);
+                        }
+                        else
+                        {
+                            throw new KeyNotFoundException("keyCode or key is required for key action");
+                        }
                         bool ok;
                         if (_useAdb && OperatingSystem.IsWindows())
                         {
@@ -380,6 +394,60 @@ public sealed class SessionManager : ISessionManager
             default:
                 throw new InvalidCastException($"Argument '{key}' of type '{raw.GetType().FullName}' cannot be converted to int.");
         }
+    }
+
+    // Minimal Android key name mapping for common special keys
+    private static readonly Dictionary<string, int> KeyNameMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["HOME"] = 3,
+        ["BACK"] = 4,
+        ["ESCAPE"] = 111, // KEYCODE_ESCAPE
+        ["MENU"] = 82,
+        ["ENTER"] = 66,
+        ["SPACE"] = 62,
+        ["TAB"] = 61,
+        ["DEL"] = 67,
+        ["DELETE"] = 67,
+        ["UP"] = 19,
+        ["DOWN"] = 20,
+        ["LEFT"] = 21,
+        ["RIGHT"] = 22,
+        ["VOLUME_UP"] = 24,
+        ["VOLUME_DOWN"] = 25,
+        ["POWER"] = 26,
+        ["A"] = 29,
+        ["B"] = 30,
+        ["C"] = 31,
+        ["D"] = 32,
+        ["E"] = 33,
+        ["F"] = 34,
+        ["G"] = 35,
+        ["H"] = 36,
+        ["I"] = 37,
+        ["J"] = 38,
+        ["K"] = 39,
+        ["L"] = 40,
+        ["M"] = 41,
+        ["N"] = 42,
+        ["O"] = 43,
+        ["P"] = 44,
+        ["Q"] = 45,
+        ["R"] = 46,
+        ["S"] = 47,
+        ["T"] = 48,
+        ["U"] = 49,
+        ["V"] = 50,
+        ["W"] = 51,
+        ["X"] = 52,
+        ["Y"] = 53,
+        ["Z"] = 54
+    };
+
+    private static int ResolveAndroidKeyCode(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new FormatException("Empty key name");
+        if (KeyNameMap.TryGetValue(name.Trim(), out var code)) return code;
+        throw new KeyNotFoundException($"Unknown key name '{name}'");
     }
 }
 

@@ -29,11 +29,16 @@ public class SessionInputTests
     var created = await createResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var id = created!["id"].ToString();
 
-        var actions = new { actions = new [] { new { type = "key", args = new Dictionary<string, object>{{"keyCode", 19}} }, new { type = "tap", args = new Dictionary<string, object>{{"x", 10},{"y", 10}} } } };
+        var actions = new { actions = new []
+        {
+            new { type = "key", args = new Dictionary<string, object>{{"key", "ESCAPE"}} },
+            new { type = "key", args = new Dictionary<string, object>{{"keyCode", 29}} }, // 'A'
+            new { type = "tap", args = new Dictionary<string, object>{{"x", 10},{"y", 10}} }
+        } };
     using var content = JsonContent.Create(actions);
     var resp = await client.PostAsync(new Uri($"/sessions/{id}/inputs", UriKind.Relative), content).ConfigureAwait(true);
         resp.StatusCode.Should().Be(HttpStatusCode.Accepted);
     var body = await resp.Content.ReadFromJsonAsync<Dictionary<string, int>>().ConfigureAwait(true);
-        body!["accepted"].Should().Be(2);
+        body!["accepted"].Should().Be(3);
     }
 }
