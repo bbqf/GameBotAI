@@ -32,6 +32,20 @@ internal static class SessionsEndpoints
                 : Results.Ok(new { id = s.Id, status = s.Status.ToString().ToUpperInvariant(), uptime = (long)s.Uptime.TotalSeconds, health = s.Health.ToString().ToUpperInvariant(), gameId = s.GameId });
         }).WithName("GetSession").WithOpenApi();
 
+        // Surface chosen device for this session (if ADB mode bound one)
+        app.MapGet("/sessions/{id}/device", (string id, ISessionManager mgr) =>
+        {
+            var s = mgr.GetSession(id);
+            return s is null
+                ? Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } })
+                : Results.Ok(new
+                {
+                    id = s.Id,
+                    deviceSerial = s.DeviceSerial,
+                    mode = string.IsNullOrWhiteSpace(s.DeviceSerial) ? "STUB" : "ADB"
+                });
+        }).WithName("GetSessionDevice").WithOpenApi();
+
         app.MapPost("/sessions/{id}/inputs", (string id, InputActionsRequest req, ISessionManager mgr) =>
         {
             if (req.Actions is null || req.Actions.Count == 0)

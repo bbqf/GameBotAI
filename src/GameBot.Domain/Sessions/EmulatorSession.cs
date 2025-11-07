@@ -13,4 +13,5 @@ public sealed class EmulatorSession
     public SessionHealth Health { get; set; } = SessionHealth.Ok;
     public int CapacitySlot { get; set; }
     public DateTimeOffset LastActivity { get; set; } = DateTimeOffset.UtcNow;
+    public string? DeviceSerial { get; set; }
 }

@@ -9,6 +9,7 @@ namespace GameBot.Emulator.Adb;
 public sealed class AdbClient
 {
     private readonly string _adb;
+    private readonly string? _serial;
 
     public AdbClient()
     {
@@ -20,12 +21,20 @@ public sealed class AdbClient
         _adb = adbPath;
     }
 
+    private AdbClient(string adbPath, string? serial)
+    {
+        _adb = adbPath;
+        _serial = serial;
+    }
+
+    public AdbClient WithSerial(string? serial) => new(_adb, serial);
+
     public async Task<(int ExitCode, string StdOut, string StdErr)> ExecAsync(string arguments, CancellationToken ct = default)
     {
         var psi = new ProcessStartInfo
         {
             FileName = _adb,
-            Arguments = arguments,
+            Arguments = string.IsNullOrWhiteSpace(_serial) ? arguments : $"-s {_serial} {arguments}",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -60,7 +69,7 @@ public sealed class AdbClient
         var psi = new ProcessStartInfo
         {
             FileName = _adb,
-            Arguments = "exec-out screencap -p",
+            Arguments = string.IsNullOrWhiteSpace(_serial) ? "exec-out screencap -p" : $"-s {_serial} exec-out screencap -p",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,

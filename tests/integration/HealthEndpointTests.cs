@@ -8,6 +8,11 @@ namespace GameBot.IntegrationTests;
 
 public class HealthEndpointTests
 {
+    public HealthEndpointTests()
+    {
+        Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
+    }
+
     [Fact]
     public async Task HealthReturnsOk()
     {

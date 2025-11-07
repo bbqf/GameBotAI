@@ -8,11 +8,17 @@ namespace GameBot.IntegrationTests;
 
 public class ResourceLimitsTests
 {
+    public ResourceLimitsTests()
+    {
+        Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
+    }
+
     [Fact]
     public async Task CreatingSessionBeyondCapacityReturns429()
     {
         // Configure capacity to 1 via environment so the app binds it on startup
         Environment.SetEnvironmentVariable("Service__Sessions__MaxConcurrentSessions", "1");
+        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -29,6 +35,7 @@ public class ResourceLimitsTests
     {
         // Set idle timeout to 1 second for test
         Environment.SetEnvironmentVariable("Service__Sessions__IdleTimeoutSeconds", "1");
+        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");

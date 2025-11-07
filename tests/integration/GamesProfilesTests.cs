@@ -8,9 +8,15 @@ namespace GameBot.IntegrationTests;
 
 public class GamesProfilesTests
 {
+    public GamesProfilesTests()
+    {
+        Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
+    }
+
     [Fact]
     public async Task CanCreateAndGetGame()
     {
+        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -30,6 +36,7 @@ public class GamesProfilesTests
     [Fact]
     public async Task CanExecuteProfileAgainstSession()
     {
+        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
         using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -73,6 +80,7 @@ public class GamesProfilesTests
     [Fact]
     public async Task CanCreateAndFilterProfilesByGame()
     {
+        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");

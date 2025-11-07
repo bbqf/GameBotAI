@@ -8,9 +8,15 @@ namespace GameBot.IntegrationTests;
 
 public class SnapshotTests
 {
+    public SnapshotTests()
+    {
+        Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
+    }
+
     [Fact]
     public async Task SnapshotReturnsPng()
     {
+        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
