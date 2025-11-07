@@ -1,6 +1,7 @@
 using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
 using GameBot.Service.Models;
+using GameBot.Emulator.Adb;
 
 namespace GameBot.Service.Endpoints;
 
@@ -67,7 +68,7 @@ internal static class SessionsEndpoints
         }).WithName("SendInputs").WithOpenApi();
 
         // Session health endpoint (checks ADB connectivity if applicable)
-        app.MapGet("/sessions/{id}/health", async (string id, ISessionManager mgr, CancellationToken ct) =>
+    app.MapGet("/sessions/{id}/health", async (string id, ISessionManager mgr, ILogger<AdbClient> adbLogger, CancellationToken ct) =>
         {
             var s = mgr.GetSession(id);
             if (s is null)
@@ -77,7 +78,7 @@ internal static class SessionsEndpoints
             {
                 try
                 {
-                    var adb = new GameBot.Emulator.Adb.AdbClient().WithSerial(s.DeviceSerial);
+                    var adb = new GameBot.Emulator.Adb.AdbClient(adbLogger).WithSerial(s.DeviceSerial);
                     var (code, stdout, stderr) = await adb.ExecAsync("get-state", ct).ConfigureAwait(false);
                     var ok = code == 0 && stdout.Trim().Equals("device", StringComparison.OrdinalIgnoreCase);
                     return Results.Ok(new { id = s.Id, mode = "ADB", deviceSerial = s.DeviceSerial, adb = new { ok, stdout, stderr } });

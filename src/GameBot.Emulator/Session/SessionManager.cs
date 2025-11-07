@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
+using System.Text.Json;
 using GameBot.Domain.Sessions;
 using GameBot.Emulator.Adb;
 using Microsoft.Extensions.Logging;
@@ -13,6 +15,7 @@ public sealed class SessionManager : ISessionManager
 {
     private readonly ConcurrentDictionary<string, EmulatorSession> _sessions = new();
     private readonly ILogger<SessionManager> _logger;
+    private readonly ILogger<AdbClient> _adbLogger;
     private readonly SessionOptions _options;
     private readonly bool _useAdb;
     private readonly int _adbRetries;
@@ -20,12 +23,14 @@ public sealed class SessionManager : ISessionManager
     private TimeSpan IdleTimeout => TimeSpan.FromSeconds(Math.Max(1, _options.IdleTimeoutSeconds));
     private static readonly char[] LineSplit = new[] { '\r', '\n' };
 
-    public SessionManager(IOptions<SessionOptions> options, ILogger<SessionManager> logger)
+    public SessionManager(IOptions<SessionOptions> options, ILogger<SessionManager> logger, ILogger<AdbClient> adbLogger)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(adbLogger);
         _options = options.Value;
         _logger = logger;
+        _adbLogger = adbLogger;
         // Always attempt ADB on Windows by default; allow disabling (tests/CI) with GAMEBOT_USE_ADB=false
         var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
         _useAdb = OperatingSystem.IsWindows() && !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
@@ -118,7 +123,7 @@ public sealed class SessionManager : ISessionManager
         // If ADB enabled and we have a bound device, execute via ADB
         if (_useAdb && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial))
         {
-            var adb = new AdbClient().WithSerial(s.DeviceSerial);
+            var adb = new AdbClient(_adbLogger).WithSerial(s.DeviceSerial);
             var executed = 0;
             foreach (var a in actions ?? Array.Empty<InputAction>())
             {
@@ -126,8 +131,8 @@ public sealed class SessionManager : ISessionManager
                 {
                     if (string.Equals(a.Type, "tap", StringComparison.OrdinalIgnoreCase))
                     {
-                        var x = Convert.ToInt32(a.Args["x"], System.Globalization.CultureInfo.InvariantCulture);
-                        var y = Convert.ToInt32(a.Args["y"], System.Globalization.CultureInfo.InvariantCulture);
+                        var x = GetInt(a.Args, "x");
+                        var y = GetInt(a.Args, "y");
                         bool ok;
                         if (_useAdb && OperatingSystem.IsWindows())
                         {
@@ -149,10 +154,10 @@ public sealed class SessionManager : ISessionManager
                     }
                     else if (string.Equals(a.Type, "swipe", StringComparison.OrdinalIgnoreCase))
                     {
-                        var x1 = Convert.ToInt32(a.Args["x1"], System.Globalization.CultureInfo.InvariantCulture);
-                        var y1 = Convert.ToInt32(a.Args["y1"], System.Globalization.CultureInfo.InvariantCulture);
-                        var x2 = Convert.ToInt32(a.Args["x2"], System.Globalization.CultureInfo.InvariantCulture);
-                        var y2 = Convert.ToInt32(a.Args["y2"], System.Globalization.CultureInfo.InvariantCulture);
+                        var x1 = GetInt(a.Args, "x1");
+                        var y1 = GetInt(a.Args, "y1");
+                        var x2 = GetInt(a.Args, "x2");
+                        var y2 = GetInt(a.Args, "y2");
                         var duration = a.DurationMs;
                         bool ok;
                         if (_useAdb && OperatingSystem.IsWindows())
@@ -175,7 +180,7 @@ public sealed class SessionManager : ISessionManager
                     }
                     else if (string.Equals(a.Type, "key", StringComparison.OrdinalIgnoreCase))
                     {
-                        var keyCode = Convert.ToInt32(a.Args["keyCode"], System.Globalization.CultureInfo.InvariantCulture);
+                        var keyCode = GetInt(a.Args, "keyCode");
                         bool ok;
                         if (_useAdb && OperatingSystem.IsWindows())
                         {
@@ -248,7 +253,7 @@ public sealed class SessionManager : ISessionManager
         {
             try
             {
-                var adb = new AdbClient().WithSerial(s.DeviceSerial);
+                var adb = new AdbClient(_adbLogger).WithSerial(s.DeviceSerial);
                 var swReal = Stopwatch.StartNew();
                 byte[] png;
                 var attempt = 0;
@@ -302,7 +307,7 @@ public sealed class SessionManager : ISessionManager
     {
         if (!_useAdb) return null;
         if (!OperatingSystem.IsWindows()) return preferred; // platform not supported, keep provided value if any
-        var adb = new AdbClient();
+    var adb = new AdbClient(_adbLogger);
         var (code, stdout, _) = adb.ExecAsync("devices -l").GetAwaiter().GetResult();
         var serials = code == 0 && !string.IsNullOrWhiteSpace(stdout) ? ParseDeviceSerials(stdout) : new List<string>();
         if (serials.Count == 0)
@@ -347,6 +352,35 @@ public sealed class SessionManager : ISessionManager
     }
 
     // Note: ADB retries are implemented inline where Windows-only calls are made to satisfy platform analyzers.
+    private static int GetInt(Dictionary<string, object> args, string key)
+    {
+        if (!args.TryGetValue(key, out var raw)) throw new KeyNotFoundException(key);
+        switch (raw)
+        {
+            case int i:
+                return i;
+            case long l:
+                checked { return (int)l; }
+            case double d:
+                return (int)d;
+            case float f:
+                return (int)f;
+            case decimal m:
+                return (int)m;
+            case string s:
+                return int.Parse(s, NumberStyles.Integer, CultureInfo.InvariantCulture);
+            case JsonElement je:
+                if (je.ValueKind == JsonValueKind.Number && je.TryGetInt32(out var num)) return num;
+                if (je.ValueKind == JsonValueKind.String)
+                {
+                    var str = je.GetString();
+                    if (int.TryParse(str, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)) return parsed;
+                }
+                throw new FormatException($"Argument '{key}' is not a valid integer JSON value (kind={je.ValueKind}).");
+            default:
+                throw new InvalidCastException($"Argument '{key}' of type '{raw.GetType().FullName}' cannot be converted to int.");
+        }
+    }
 }
 
 internal static class Log

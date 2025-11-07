@@ -8,7 +8,7 @@ internal static class AdbEndpoints
 
     public static IEndpointRouteBuilder MapAdbEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/adb/version", async () =>
+    app.MapGet("/adb/version", async (ILogger<AdbClient> logger) =>
         {
             if (!OperatingSystem.IsWindows())
             {
@@ -19,14 +19,14 @@ internal static class AdbEndpoints
             {
                 return Results.Ok(new { version = "disabled" });
             }
-            var adb = new AdbClient();
+            var adb = new AdbClient(logger);
             var (code, stdout, stderr) = await adb.ExecAsync("version").ConfigureAwait(false);
             return code == 0
                 ? Results.Ok(new { version = stdout })
                 : Results.Problem(title: "adb_error", detail: string.IsNullOrWhiteSpace(stderr) ? stdout : stderr, statusCode: StatusCodes.Status503ServiceUnavailable);
         }).WithName("AdbVersion").WithOpenApi();
 
-        app.MapGet("/adb/devices", async () =>
+    app.MapGet("/adb/devices", async (ILogger<AdbClient> logger) =>
         {
             if (!OperatingSystem.IsWindows())
             {
@@ -39,7 +39,7 @@ internal static class AdbEndpoints
                 return Results.Ok(Array.Empty<object>());
             }
 
-            var adb = new AdbClient();
+            var adb = new AdbClient(logger);
             var (code, stdout, stderr) = await adb.ExecAsync("devices -l").ConfigureAwait(false);
             if (code != 0)
             {
