@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace GameBot.Service.Middleware;
 
-public sealed class CorrelationIdMiddleware : IMiddleware
+internal sealed class CorrelationIdMiddleware : IMiddleware
 {
     public const string HeaderName = "X-Correlation-ID";
     private readonly ILogger<CorrelationIdMiddleware> _logger;
@@ -16,9 +16,11 @@ public sealed class CorrelationIdMiddleware : IMiddleware
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-        var correlationId = context.Request.Headers.TryGetValue(HeaderName, out var values)
-            && values.Count > 0
-            ? values[0]!.ToString()
+    ArgumentNullException.ThrowIfNull(context);
+    ArgumentNullException.ThrowIfNull(next);
+
+        var correlationId = context.Request.Headers.TryGetValue(HeaderName, out var values) && values.Count > 0
+            ? values[0]!.ToString()!
             : Guid.NewGuid().ToString("N");
 
         context.Response.Headers[HeaderName] = correlationId;
@@ -40,7 +42,7 @@ public sealed class CorrelationIdMiddleware : IMiddleware
     }
 }
 
-public static class CorrelationIdMiddlewareExtensions
+internal static class CorrelationIdMiddlewareExtensions
 {
     public static IApplicationBuilder UseCorrelationIds(this IApplicationBuilder app)
         => app.UseMiddleware<CorrelationIdMiddleware>();
