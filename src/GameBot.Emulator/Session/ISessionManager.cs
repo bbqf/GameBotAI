@@ -9,7 +9,7 @@ public interface ISessionManager
     EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null);
     EmulatorSession? GetSession(string id);
     bool StopSession(string id);
-    int SendInputs(string id, IEnumerable<InputAction> actions);
+    Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default);
     Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default);
 }
 

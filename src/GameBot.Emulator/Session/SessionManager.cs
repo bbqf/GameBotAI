@@ -94,7 +94,7 @@ public sealed class SessionManager : ISessionManager
         return false;
     }
 
-    public int SendInputs(string id, IEnumerable<InputAction> actions)
+    public async Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default)
     {
         if (!_sessions.TryGetValue(id, out var s)) return 0;
         s.LastActivity = DateTimeOffset.UtcNow;
@@ -113,7 +113,7 @@ public sealed class SessionManager : ISessionManager
                     {
                         var x = Convert.ToInt32(a.Args["x"], System.Globalization.CultureInfo.InvariantCulture);
                         var y = Convert.ToInt32(a.Args["y"], System.Globalization.CultureInfo.InvariantCulture);
-                        var (code, _, _) = adb.TapAsync(x, y).GetAwaiter().GetResult();
+                        var (code, _, _) = await adb.TapAsync(x, y, ct).ConfigureAwait(false);
                         if (code == 0) executed++;
                     }
                     else if (string.Equals(a.Type, "swipe", StringComparison.OrdinalIgnoreCase))
@@ -123,21 +123,21 @@ public sealed class SessionManager : ISessionManager
                         var x2 = Convert.ToInt32(a.Args["x2"], System.Globalization.CultureInfo.InvariantCulture);
                         var y2 = Convert.ToInt32(a.Args["y2"], System.Globalization.CultureInfo.InvariantCulture);
                         var duration = a.DurationMs;
-                        var (code, _, _) = adb.SwipeAsync(x1, y1, x2, y2, duration).GetAwaiter().GetResult();
+                        var (code, _, _) = await adb.SwipeAsync(x1, y1, x2, y2, duration, ct).ConfigureAwait(false);
                         if (code == 0) executed++;
                     }
                     else if (string.Equals(a.Type, "key", StringComparison.OrdinalIgnoreCase))
                     {
                         var keyCode = Convert.ToInt32(a.Args["keyCode"], System.Globalization.CultureInfo.InvariantCulture);
-                        var (code, _, _) = adb.KeyEventAsync(keyCode).GetAwaiter().GetResult();
+                        var (code, _, _) = await adb.KeyEventAsync(keyCode, ct).ConfigureAwait(false);
                         if (code == 0) executed++;
                     }
-                    // Optional future: handle delayMs by Thread.Sleep(a.DelayMs.Value)
+                    // Per-action delay handling (cancellable)
                     if (a.DelayMs.HasValue && a.DelayMs.Value > 0)
                     {
-                        // Blocking sleep is acceptable for MVP; future: queue or async pipeline
-                        System.Threading.Thread.Sleep(a.DelayMs.Value);
+                        await Task.Delay(a.DelayMs.Value, ct).ConfigureAwait(false);
                     }
+                    if (ct.IsCancellationRequested) break;
                 }
                 catch (KeyNotFoundException ex)
                 {
@@ -161,6 +161,17 @@ public sealed class SessionManager : ISessionManager
         }
 
         Log.InputsAccepted(_logger, id, count);
+        // Still honor delay pacing in stub mode (optional; only if delays exist)
+        if (actions is not null)
+        {
+            foreach (var a in actions)
+            {
+                if (a.DelayMs.HasValue && a.DelayMs.Value > 0)
+                {
+                    await Task.Delay(a.DelayMs.Value, ct).ConfigureAwait(false);
+                }
+            }
+        }
         return count;
     }
 

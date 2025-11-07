@@ -46,15 +46,40 @@ internal static class SessionsEndpoints
                 });
         }).WithName("GetSessionDevice").WithOpenApi();
 
-        app.MapPost("/sessions/{id}/inputs", (string id, InputActionsRequest req, ISessionManager mgr) =>
+        app.MapPost("/sessions/{id}/inputs", async (string id, InputActionsRequest req, ISessionManager mgr, CancellationToken ct) =>
         {
             if (req.Actions is null || req.Actions.Count == 0)
                 return Results.BadRequest(new { error = new { code = "invalid_request", message = "No actions provided.", hint = (string?)null } });
 
-            var accepted = mgr.SendInputs(id, req.Actions.Select(a => new InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)));
+            var accepted = await mgr.SendInputsAsync(id, req.Actions.Select(a => new InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)), ct).ConfigureAwait(false);
             if (accepted == 0) return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
             return Results.Accepted($"/sessions/{id}", new { accepted });
         }).WithName("SendInputs").WithOpenApi();
+
+        // Session health endpoint (checks ADB connectivity if applicable)
+        app.MapGet("/sessions/{id}/health", async (string id, ISessionManager mgr, CancellationToken ct) =>
+        {
+            var s = mgr.GetSession(id);
+            if (s is null)
+                return Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
+
+            if (OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial))
+            {
+                try
+                {
+                    var adb = new GameBot.Emulator.Adb.AdbClient().WithSerial(s.DeviceSerial);
+                    var (code, stdout, stderr) = await adb.ExecAsync("get-state", ct).ConfigureAwait(false);
+                    var ok = code == 0 && stdout.Trim().Equals("device", StringComparison.OrdinalIgnoreCase);
+                    return Results.Ok(new { id = s.Id, mode = "ADB", deviceSerial = s.DeviceSerial, adb = new { ok, stdout, stderr } });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.Ok(new { id = s.Id, mode = "ADB", deviceSerial = s.DeviceSerial, adb = new { ok = false, error = ex.Message } });
+                }
+            }
+
+            return Results.Ok(new { id = s.Id, mode = "STUB", deviceSerial = (string?)null, adb = new { ok = true } });
+        }).WithName("GetSessionHealth").WithOpenApi();
 
         app.MapGet("/sessions/{id}/snapshot", async (string id, ISessionManager mgr, CancellationToken ct) =>
         {

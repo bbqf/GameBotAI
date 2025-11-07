@@ -34,7 +34,7 @@ public sealed class ProfileExecutor : IProfileExecutor
         var actions = profile.Steps.Select(a => new InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)).ToList();
 
         // Simple MVP: send all inputs at once. Future: honor per-action delays sequentially.
-        var accepted = _sessions.SendInputs(sessionId, actions);
+        var accepted = await _sessions.SendInputsAsync(sessionId, actions, ct).ConfigureAwait(false);
         return accepted;
     }
 }
