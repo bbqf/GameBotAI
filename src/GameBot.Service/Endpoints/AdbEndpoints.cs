@@ -14,6 +14,11 @@ internal static class AdbEndpoints
             {
                 return Results.StatusCode(StatusCodes.Status501NotImplemented);
             }
+            var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+            if (string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Ok(new { version = "disabled" });
+            }
             var adb = new AdbClient();
             var (code, stdout, stderr) = await adb.ExecAsync("version").ConfigureAwait(false);
             return code == 0
@@ -27,6 +32,13 @@ internal static class AdbEndpoints
             {
                 return Results.StatusCode(StatusCodes.Status501NotImplemented);
             }
+            var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+            if (string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase))
+            {
+                // When ADB is disabled (tests/CI), return an empty array to avoid spawning adb server and potential hangs
+                return Results.Ok(Array.Empty<object>());
+            }
+
             var adb = new AdbClient();
             var (code, stdout, stderr) = await adb.ExecAsync("devices -l").ConfigureAwait(false);
             if (code != 0)
@@ -35,7 +47,8 @@ internal static class AdbEndpoints
             }
 
             var devices = ParseDevices(stdout);
-            return Results.Ok(new { devices });
+            // Return devices as a top-level array (tests expect an array, not an object wrapper)
+            return Results.Ok(devices);
         }).WithName("AdbDevices").WithOpenApi();
 
         return app;

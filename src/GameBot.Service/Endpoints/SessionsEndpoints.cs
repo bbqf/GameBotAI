@@ -18,10 +18,20 @@ internal static class SessionsEndpoints
             {
                 return Results.Json(new { error = new { code = "capacity_exceeded", message = "Max concurrent sessions reached.", hint = (string?)null } }, statusCode: StatusCodes.Status429TooManyRequests);
             }
-
-            var sess = mgr.CreateSession(game, req.ProfileId);
-            var resp = new CreateSessionResponse { Id = sess.Id, Status = sess.Status.ToString().ToUpperInvariant(), GameId = sess.GameId };
-            return Results.Created($"/sessions/{sess.Id}", resp);
+            try
+            {
+                var sess = mgr.CreateSession(game, req.ProfileId, req.AdbSerial);
+                var resp = new CreateSessionResponse { Id = sess.Id, Status = sess.Status.ToString().ToUpperInvariant(), GameId = sess.GameId };
+                return Results.Created($"/sessions/{sess.Id}", resp);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "no_adb_devices")
+            {
+                return Results.NotFound(new { error = new { code = "adb_device_not_found", message = "No ADB devices connected.", hint = "Connect a device or emulator and try again." } });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = new { code = "adb_device_not_found", message = ex.Message, hint = "Check /adb/devices for available serials." } });
+            }
         }).WithName("CreateSession").WithOpenApi();
 
         app.MapGet("/sessions/{id}", (string id, ISessionManager mgr) =>

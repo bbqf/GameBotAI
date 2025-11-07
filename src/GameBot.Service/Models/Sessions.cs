@@ -7,6 +7,7 @@ internal sealed class CreateSessionRequest
     public string? GameId { get; set; }
     public string? GamePath { get; set; }
     public string? ProfileId { get; set; }
+    public string? AdbSerial { get; set; }
 }
 
 internal sealed class CreateSessionResponse

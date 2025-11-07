@@ -4,12 +4,36 @@ using GameBot.Emulator.Session;
 using GameBot.Service.Endpoints;
 using GameBot.Domain.Games;
 using GameBot.Domain.Profiles;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Services
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "GameBot Service", Version = "v1" });
+    // Bearer token scheme so Swagger UI can authorize protected endpoints
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Bearer token. Enter: Bearer <token> (the word Bearer and a space are optional here)",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 builder.Services.Configure<GameBot.Emulator.Session.SessionOptions>(builder.Configuration.GetSection("Service:Sessions"));
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
 builder.Services.AddTransient<ErrorHandlingMiddleware>();
@@ -27,6 +51,13 @@ builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
 var authToken = builder.Configuration["Service:Auth:Token"]
                  ?? Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+
+// In CI/tests (or when explicitly requested), avoid fixed ports to prevent socket bind conflicts
+var dynPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
+if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase))
+{
+    builder.WebHost.UseUrls("http://127.0.0.1:0");
+}
 
 var app = builder.Build();
 

@@ -15,6 +15,8 @@ public sealed class SessionManager : ISessionManager
     private readonly ILogger<SessionManager> _logger;
     private readonly SessionOptions _options;
     private readonly bool _useAdb;
+    private readonly int _adbRetries;
+    private readonly int _adbRetryDelayMs;
     private TimeSpan IdleTimeout => TimeSpan.FromSeconds(Math.Max(1, _options.IdleTimeoutSeconds));
     private static readonly char[] LineSplit = new[] { '\r', '\n' };
 
@@ -24,15 +26,18 @@ public sealed class SessionManager : ISessionManager
         ArgumentNullException.ThrowIfNull(logger);
         _options = options.Value;
         _logger = logger;
+        // Always attempt ADB on Windows by default; allow disabling (tests/CI) with GAMEBOT_USE_ADB=false
         var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
-        _useAdb = OperatingSystem.IsWindows() && string.Equals(useAdbEnv, "true", StringComparison.OrdinalIgnoreCase);
+        _useAdb = OperatingSystem.IsWindows() && !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
+        _adbRetries = Math.Max(0, int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES"), out var r) ? r : 2);
+        _adbRetryDelayMs = Math.Max(0, int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS"), out var d) ? d : 100);
         Log.SessionManagerStarted(_logger, _options.MaxConcurrentSessions, _options.IdleTimeoutSeconds);
     }
 
     public int ActiveCount => _sessions.Count;
     public bool CanCreateSession => ActiveCount < _options.MaxConcurrentSessions;
 
-    public EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null)
+    public EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null, string? preferredDeviceSerial = null)
     {
         CleanupIdleSessions();
         if (!CanCreateSession)
@@ -50,16 +55,26 @@ public sealed class SessionManager : ISessionManager
             CapacitySlot = 0,
             LastActivity = DateTimeOffset.UtcNow
         };
-        // Attempt to bind a device serial if ADB mode enabled
+        // Attempt to bind a device serial if ADB enabled
         if (_useAdb)
         {
             try
             {
-                sess.DeviceSerial = ResolveDeviceSerial();
+                sess.DeviceSerial = ResolveOrValidateDeviceSerial(preferredDeviceSerial);
                 if (sess.DeviceSerial is null)
                 {
                     Log.AdbNoDevice(_logger, id);
                 }
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "no_adb_devices")
+            {
+                // propagate for API to turn into 404
+                throw;
+            }
+            catch (KeyNotFoundException)
+            {
+                // propagate for API to turn into 404
+                throw;
             }
             catch (InvalidOperationException ex)
             {
@@ -100,8 +115,8 @@ public sealed class SessionManager : ISessionManager
         s.LastActivity = DateTimeOffset.UtcNow;
         var count = actions?.Count() ?? 0;
 
-        // If ADB mode active and we have a device, try to execute inputs
-        if (OperatingSystem.IsWindows() && _useAdb && !string.IsNullOrWhiteSpace(s.DeviceSerial))
+        // If ADB enabled and we have a bound device, execute via ADB
+        if (_useAdb && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial))
         {
             var adb = new AdbClient().WithSerial(s.DeviceSerial);
             var executed = 0;
@@ -113,8 +128,24 @@ public sealed class SessionManager : ISessionManager
                     {
                         var x = Convert.ToInt32(a.Args["x"], System.Globalization.CultureInfo.InvariantCulture);
                         var y = Convert.ToInt32(a.Args["y"], System.Globalization.CultureInfo.InvariantCulture);
-                        var (code, _, _) = await adb.TapAsync(x, y, ct).ConfigureAwait(false);
-                        if (code == 0) executed++;
+                        bool ok;
+                        if (_useAdb && OperatingSystem.IsWindows())
+                        {
+                            ok = false;
+                            for (var attempt = 0; ; attempt++)
+                            {
+                                var (code, _, _) = await adb.TapAsync(x, y, ct).ConfigureAwait(false);
+                                if (code == 0) { ok = true; break; }
+                                if (attempt >= _adbRetries || ct.IsCancellationRequested) break;
+                                Log.AdbRetry(_logger, id, "tap", attempt + 1);
+                                if (_adbRetryDelayMs > 0) await Task.Delay(_adbRetryDelayMs, ct).ConfigureAwait(false);
+                            }
+                        }
+                        else
+                        {
+                            ok = true; // stub success in non-Windows or non-ADB mode
+                        }
+                        if (ok) executed++;
                     }
                     else if (string.Equals(a.Type, "swipe", StringComparison.OrdinalIgnoreCase))
                     {
@@ -123,14 +154,46 @@ public sealed class SessionManager : ISessionManager
                         var x2 = Convert.ToInt32(a.Args["x2"], System.Globalization.CultureInfo.InvariantCulture);
                         var y2 = Convert.ToInt32(a.Args["y2"], System.Globalization.CultureInfo.InvariantCulture);
                         var duration = a.DurationMs;
-                        var (code, _, _) = await adb.SwipeAsync(x1, y1, x2, y2, duration, ct).ConfigureAwait(false);
-                        if (code == 0) executed++;
+                        bool ok;
+                        if (_useAdb && OperatingSystem.IsWindows())
+                        {
+                            ok = false;
+                            for (var attempt = 0; ; attempt++)
+                            {
+                                var (code, _, _) = await adb.SwipeAsync(x1, y1, x2, y2, duration, ct).ConfigureAwait(false);
+                                if (code == 0) { ok = true; break; }
+                                if (attempt >= _adbRetries || ct.IsCancellationRequested) break;
+                                Log.AdbRetry(_logger, id, "swipe", attempt + 1);
+                                if (_adbRetryDelayMs > 0) await Task.Delay(_adbRetryDelayMs, ct).ConfigureAwait(false);
+                            }
+                        }
+                        else
+                        {
+                            ok = true;
+                        }
+                        if (ok) executed++;
                     }
                     else if (string.Equals(a.Type, "key", StringComparison.OrdinalIgnoreCase))
                     {
                         var keyCode = Convert.ToInt32(a.Args["keyCode"], System.Globalization.CultureInfo.InvariantCulture);
-                        var (code, _, _) = await adb.KeyEventAsync(keyCode, ct).ConfigureAwait(false);
-                        if (code == 0) executed++;
+                        bool ok;
+                        if (_useAdb && OperatingSystem.IsWindows())
+                        {
+                            ok = false;
+                            for (var attempt = 0; ; attempt++)
+                            {
+                                var (code, _, _) = await adb.KeyEventAsync(keyCode, ct).ConfigureAwait(false);
+                                if (code == 0) { ok = true; break; }
+                                if (attempt >= _adbRetries || ct.IsCancellationRequested) break;
+                                Log.AdbRetry(_logger, id, "key", attempt + 1);
+                                if (_adbRetryDelayMs > 0) await Task.Delay(_adbRetryDelayMs, ct).ConfigureAwait(false);
+                            }
+                        }
+                        else
+                        {
+                            ok = true;
+                        }
+                        if (ok) executed++;
                     }
                     // Per-action delay handling (cancellable)
                     if (a.DelayMs.HasValue && a.DelayMs.Value > 0)
@@ -180,14 +243,30 @@ public sealed class SessionManager : ISessionManager
         CleanupIdleSessions();
         if (!_sessions.TryGetValue(id, out var s)) throw new KeyNotFoundException("Session not found");
         s.LastActivity = DateTimeOffset.UtcNow;
-        // If ADB mode active and we have a device, try real screenshot
-        if (OperatingSystem.IsWindows() && _useAdb && !string.IsNullOrWhiteSpace(s.DeviceSerial))
+        // If ADB enabled and we have a device bound, try real screenshot
+        if (_useAdb && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial))
         {
             try
             {
                 var adb = new AdbClient().WithSerial(s.DeviceSerial);
                 var swReal = Stopwatch.StartNew();
-                var png = await adb.GetScreenshotPngAsync(ct).ConfigureAwait(false);
+                byte[] png;
+                var attempt = 0;
+                while (true)
+                {
+                    try
+                    {
+                        png = await adb.GetScreenshotPngAsync(ct).ConfigureAwait(false);
+                        break;
+                    }
+                    catch (InvalidOperationException) when (attempt < _adbRetries && !ct.IsCancellationRequested)
+                    {
+                        attempt++;
+                        Log.AdbRetry(_logger, id, "screencap", attempt);
+                        if (_adbRetryDelayMs > 0) await Task.Delay(_adbRetryDelayMs, ct).ConfigureAwait(false);
+                        continue;
+                    }
+                }
                 swReal.Stop();
                 Log.SnapshotGenerated(_logger, id, swReal.ElapsedMilliseconds);
                 return png;
@@ -219,18 +298,23 @@ public sealed class SessionManager : ISessionManager
         }
     }
 
-    private string? ResolveDeviceSerial()
+    private string? ResolveOrValidateDeviceSerial(string? preferred)
     {
         if (!_useAdb) return null;
-        var preferred = Environment.GetEnvironmentVariable("GAMEBOT_ADB_SERIAL");
-        if (!OperatingSystem.IsWindows()) return preferred;
+        if (!OperatingSystem.IsWindows()) return preferred; // platform not supported, keep provided value if any
         var adb = new AdbClient();
         var (code, stdout, _) = adb.ExecAsync("devices -l").GetAwaiter().GetResult();
-        if (code != 0 || string.IsNullOrWhiteSpace(stdout)) return preferred; // if adb fails, just return preferred (may be null)
-        var serials = ParseDeviceSerials(stdout);
-        if (!string.IsNullOrWhiteSpace(preferred) && serials.Contains(preferred, StringComparer.OrdinalIgnoreCase))
-            return preferred;
-        return serials.FirstOrDefault();
+        var serials = code == 0 && !string.IsNullOrWhiteSpace(stdout) ? ParseDeviceSerials(stdout) : new List<string>();
+        if (serials.Count == 0)
+        {
+            throw new InvalidOperationException("no_adb_devices");
+        }
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            if (serials.Contains(preferred, StringComparer.OrdinalIgnoreCase)) return preferred;
+            throw new KeyNotFoundException($"ADB device '{preferred}' not found");
+        }
+        return serials.First();
     }
 
     private static List<string> ParseDeviceSerials(string stdout)
@@ -261,6 +345,8 @@ public sealed class SessionManager : ISessionManager
         Log.SnapshotGenerated(_logger, id, sw.ElapsedMilliseconds);
         return ms.ToArray();
     }
+
+    // Note: ADB retries are implemented inline where Windows-only calls are made to satisfy platform analyzers.
 }
 
 internal static class Log
@@ -309,6 +395,10 @@ internal static class Log
         LoggerMessage.Define<string>(LogLevel.Warning, new EventId(23, nameof(AdbNoDevice)),
             "ADB mode requested but no 'device' found; session {Id} will run in stub mode.");
 
+    private static readonly Action<ILogger, string, string, int, Exception?> _adbRetry =
+        LoggerMessage.Define<string, string, int>(LogLevel.Debug, new EventId(24, nameof(AdbRetry)),
+            "Session {Id}: retrying ADB {Operation}, attempt {Attempt}");
+
     public static void SessionManagerStarted(ILogger l, int max, int timeout) => _sessionManagerStarted(l, max, timeout, null);
     public static void CapacityExceeded(ILogger l, int active, int max) => _capacityExceeded(l, active, max, null);
     public static void SessionCreated(ILogger l, string id, string game) => _sessionCreated(l, id, game, null);
@@ -320,4 +410,5 @@ internal static class Log
     public static void AdbInputFailed(ILogger l, string id, Exception ex) => _adbInputFailed(l, id, ex);
     public static void AdbSnapshotFailed(ILogger l, string id, Exception ex) => _adbSnapshotFailed(l, id, ex);
     public static void AdbNoDevice(ILogger l, string id) => _adbNoDeviceLog(l, id, null);
+    public static void AdbRetry(ILogger l, string id, string operation, int attempt) => _adbRetry(l, id, operation, attempt, null);
 }

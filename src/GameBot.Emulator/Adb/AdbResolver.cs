@@ -26,6 +26,8 @@ public static class AdbResolver
         var probes = new[]
         {
             @"C:\\Program Files\\LDPlayer\\LDPlayer9\\adb.exe",
+            @"C:\\LDPlayer\\LDPlayer9\\adb.exe",
+            @"C:\\LDPlayer4\\LDPlayer\\adb.exe",
             @"C:\\Program Files\\LDPlayer\\LDPlayer8\\adb.exe",
             @"C:\\Program Files\\LDPlayer\\adb.exe",
             @"C:\\LDPlayer\\adb.exe"

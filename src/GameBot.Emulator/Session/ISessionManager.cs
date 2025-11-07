@@ -6,7 +6,7 @@ public interface ISessionManager
 {
     int ActiveCount { get; }
     bool CanCreateSession { get; }
-    EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null);
+    EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null, string? preferredDeviceSerial = null);
     EmulatorSession? GetSession(string id);
     bool StopSession(string id);
     Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default);

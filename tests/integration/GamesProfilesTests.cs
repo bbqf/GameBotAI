@@ -11,26 +11,27 @@ public class GamesProfilesTests
     public GamesProfilesTests()
     {
         Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
+        Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
     }
 
     [Fact]
     public async Task CanCreateAndGetGame()
     {
         Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
-    using var app = new WebApplicationFactory<Program>();
+        using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    var create = await client.PostAsJsonAsync("/games", new { title = "Game A", path = "C:/roms/game-a.rom", hash = "abc123" }).ConfigureAwait(true);
+        var create = await client.PostAsJsonAsync("/games", new { name = "Game A", description = "desc" }).ConfigureAwait(true);
         create.StatusCode.Should().Be(HttpStatusCode.Created);
-    var game = await create.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
+        var game = await create.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var id = game!["id"].ToString();
         id.Should().NotBeNullOrWhiteSpace();
 
-    var get = await client.GetAsync(new Uri($"/games/{id}", UriKind.Relative)).ConfigureAwait(true);
+        var get = await client.GetAsync(new Uri($"/games/{id}", UriKind.Relative)).ConfigureAwait(true);
         get.StatusCode.Should().Be(HttpStatusCode.OK);
-    var fetched = await get.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-        fetched!["title"].ToString().Should().Be("Game A");
+        var fetched = await get.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
+        fetched!["name"].ToString().Should().Be("Game A");
     }
 
     [Fact]
@@ -41,8 +42,8 @@ public class GamesProfilesTests
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-        // Create a game
-        var gameResp = await client.PostAsJsonAsync("/games", new { title = "Game B", path = "C:/roms/game-b.rom", hash = "xyz789" }).ConfigureAwait(true);
+    // Create a game
+    var gameResp = await client.PostAsJsonAsync("/games", new { name = "Game B", description = "desc" }).ConfigureAwait(true);
         gameResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var gameId = game!["id"]!.ToString();
@@ -86,7 +87,7 @@ public class GamesProfilesTests
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
         // Create a game
-    var g = await client.PostAsJsonAsync("/games", new { title = "Game B", path = "C:/roms/game-b.rom", hash = "def456" }).ConfigureAwait(true);
+        var g = await client.PostAsJsonAsync("/games", new { name = "Game B", description = "desc" }).ConfigureAwait(true);
     var gBody = await g.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var gameId = gBody!["id"].ToString();
 
