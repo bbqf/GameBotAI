@@ -4,6 +4,8 @@ using GameBot.Emulator.Session;
 using GameBot.Service.Endpoints;
 using GameBot.Domain.Games;
 using GameBot.Domain.Profiles;
+using GameBot.Domain.Services;
+using GameBot.Service.Hosted;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -58,6 +60,8 @@ Directory.CreateDirectory(storageRoot);
 
 builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
 builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository(storageRoot));
+builder.Services.AddSingleton<TriggerEvaluationService>();
+builder.Services.AddHostedService<TriggerBackgroundWorker>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
 var authToken = builder.Configuration["Service:Auth:Token"]
@@ -120,6 +124,8 @@ app.MapGameEndpoints();
 app.MapProfileEndpoints();
 // ADB diagnostics endpoints (protected if token set)
 app.MapAdbEndpoints();
+// Triggers endpoints (protected if token set)
+app.MapTriggersEndpoints();
 
 app.Run();
 

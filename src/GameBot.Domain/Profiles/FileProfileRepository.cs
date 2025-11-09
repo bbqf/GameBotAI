@@ -5,7 +5,10 @@ namespace GameBot.Domain.Profiles;
 public sealed class FileProfileRepository : IProfileRepository
 {
     private readonly string _dir;
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = false
+    };
 
     public FileProfileRepository(string root)
     {
@@ -29,7 +32,10 @@ public sealed class FileProfileRepository : IProfileRepository
         var path = Path.Combine(_dir, id + ".json");
         if (!File.Exists(path)) return null;
         using var fs = File.OpenRead(path);
-        return await JsonSerializer.DeserializeAsync<AutomationProfile>(fs, JsonOpts, ct).ConfigureAwait(false);
+        var prof = await JsonSerializer.DeserializeAsync<AutomationProfile>(fs, JsonOpts, ct).ConfigureAwait(false);
+        prof ??= new AutomationProfile { Id = id, Name = id, GameId = string.Empty };
+        prof.Triggers ??= new System.Collections.ObjectModel.Collection<ProfileTrigger>();
+        return prof;
     }
 
     public async Task<IReadOnlyList<AutomationProfile>> ListAsync(string? gameId = null, CancellationToken ct = default)
@@ -39,6 +45,10 @@ public sealed class FileProfileRepository : IProfileRepository
         {
             using var fs = File.OpenRead(file);
             var item = await JsonSerializer.DeserializeAsync<AutomationProfile>(fs, JsonOpts, ct).ConfigureAwait(false);
+            if (item is not null)
+            {
+                item.Triggers ??= new System.Collections.ObjectModel.Collection<ProfileTrigger>();
+            }
             if (item is not null && (gameId is null || string.Equals(item.GameId, gameId, StringComparison.OrdinalIgnoreCase)))
                 list.Add(item);
         }
