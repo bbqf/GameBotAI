@@ -74,31 +74,38 @@ builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluat
 if (OperatingSystem.IsWindows())
 {
     builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IReferenceImageStore, GameBot.Domain.Profiles.Evaluators.MemoryReferenceImageStore>();
-    // Simple screen source stub: returns null screenshot until implemented or replaced in tests
-    builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IScreenSource>(_ =>
+    var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
+    if (useAdb)
     {
-        var b64 = Environment.GetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64");
-        if (!string.IsNullOrWhiteSpace(b64))
+        // ADB-backed dynamic screen source via sessions
+        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IScreenSource, GameBot.Emulator.Session.AdbScreenSource>();
+    }
+    else
+    {
+        // Test/stub mode: optional fixed bitmap via env variable
+        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IScreenSource>(_ =>
         {
-            try
+            var b64 = Environment.GetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64");
+            if (!string.IsNullOrWhiteSpace(b64))
             {
-                var data = b64;
-                var comma = data.IndexOf(',', System.StringComparison.Ordinal);
-                if (comma >= 0) data = data[(comma + 1)..];
-                var bytes = Convert.FromBase64String(data);
-                return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() =>
+                try
                 {
-                    using var ms = new MemoryStream(bytes);
-                    return new System.Drawing.Bitmap(ms);
-                });
+                    var data = b64;
+                    var comma = data.IndexOf(',', System.StringComparison.Ordinal);
+                    if (comma >= 0) data = data[(comma + 1)..];
+                    var bytes = Convert.FromBase64String(data);
+                    return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() =>
+                    {
+                        using var ms = new MemoryStream(bytes);
+                        return new System.Drawing.Bitmap(ms);
+                    });
+                }
+                catch { }
             }
-            catch
-            {
-                // fall through to null provider
-            }
-        }
-        return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() => null);
-    });
+            return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() => null);
+        });
+    }
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ImageMatchEvaluator>();
 }
 builder.Services.AddHostedService<TriggerBackgroundWorker>();
