@@ -29,19 +29,23 @@ public sealed class AdbScreenSource : IScreenSource
     {
         try
         {
-            // Heuristic: pick first active session with a bound device serial
-            var sessionIds = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(
-                System.Linq.Enumerable.Where(
-                    _sessions.GetType().GetField("_sessions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(_sessions) as System.Collections.IDictionary ?? new System.Collections.Hashtable(),
-                    _ => true), _ => ((System.Collections.DictionaryEntry) _).Key.ToString()));
-            // Above reflection is brittle; fallback to snapshot attempt through public API if we can guess one id
-            var chosen = sessionIds.FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(chosen)) return null;
-            // Use public snapshot pathway (will invoke ADB screencap if available) to avoid duplicating retry logic
-            var pngTask = _sessions.GetSnapshotAsync(chosen, default);
-            pngTask.Wait();
-            var png = pngTask.Result;
-            if (png.Length == 0) return null;
+            // Prefer capturing directly via adb: list devices and capture from the first 'device' state
+            var adb = new AdbClient(_adbLogger);
+            var devs = adb.ExecAsync("devices -l").GetAwaiter().GetResult();
+            if (devs.ExitCode != 0 || string.IsNullOrWhiteSpace(devs.StdOut)) return null;
+            var lines = devs.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            string? serial = null;
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("List of devices", StringComparison.OrdinalIgnoreCase)) continue;
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 2) continue;
+                if (string.Equals(parts[1], "device", StringComparison.OrdinalIgnoreCase)) { serial = parts[0]; break; }
+            }
+            if (string.IsNullOrWhiteSpace(serial)) return null;
+
+            var png = new AdbClient(_adbLogger).WithSerial(serial).GetScreenshotPngAsync(default).GetAwaiter().GetResult();
+            if (png is null || png.Length == 0) return null;
             using var ms = new MemoryStream(png);
             return new Bitmap(ms);
         }
