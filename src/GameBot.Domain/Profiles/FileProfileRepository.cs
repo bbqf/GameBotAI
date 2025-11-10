@@ -49,4 +49,15 @@ public sealed class FileProfileRepository : IProfileRepository
         }
         return list;
     }
+
+    public async Task<AutomationProfile?> UpdateAsync(AutomationProfile profile, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (string.IsNullOrWhiteSpace(profile.Id)) return null;
+        var path = Path.Combine(_dir, profile.Id + ".json");
+        if (!File.Exists(path)) return null;
+        using var fs = File.Create(path);
+        await JsonSerializer.SerializeAsync(fs, profile, JsonOpts, ct).ConfigureAwait(false);
+        return profile;
+    }
 }
