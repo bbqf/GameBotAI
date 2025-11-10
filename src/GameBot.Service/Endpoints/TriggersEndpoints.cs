@@ -143,6 +143,16 @@ internal static class TriggersEndpoints
         {
             TriggerType.Delay => new DelayParams { Seconds =  ((JsonElement)dto.Params).GetProperty("seconds").GetInt32() },
             TriggerType.Schedule => new ScheduleParams { Timestamp = DateTimeOffset.Parse(((JsonElement)dto.Params).GetProperty("timestamp").GetString()!, System.Globalization.CultureInfo.InvariantCulture) },
+            TriggerType.ImageMatch => new ImageMatchParams {
+                ReferenceImageId = ((JsonElement)dto.Params).GetProperty("referenceImageId").GetString()!,
+                Region = new Region {
+                    X = ((JsonElement)dto.Params).GetProperty("region").GetProperty("x").GetDouble(),
+                    Y = ((JsonElement)dto.Params).GetProperty("region").GetProperty("y").GetDouble(),
+                    Width = ((JsonElement)dto.Params).GetProperty("region").GetProperty("width").GetDouble(),
+                    Height = ((JsonElement)dto.Params).GetProperty("region").GetProperty("height").GetDouble()
+                },
+                SimilarityThreshold = ((JsonElement)dto.Params).TryGetProperty("similarityThreshold", out var th) && th.ValueKind==JsonValueKind.Number ? th.GetDouble() : 0.85
+            },
             _ => new DelayParams { Seconds = 1 }
         };
         return new ProfileTrigger

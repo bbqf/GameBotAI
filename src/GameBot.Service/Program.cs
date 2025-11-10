@@ -63,6 +63,11 @@ builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository
 builder.Services.AddSingleton<TriggerEvaluationService>();
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.DelayTriggerEvaluator>();
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ScheduleTriggerEvaluator>();
+// Image match evaluator dependencies (in-memory store + screen source placeholder)
+builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IReferenceImageStore, GameBot.Domain.Profiles.Evaluators.MemoryReferenceImageStore>();
+// Simple screen source stub: returns null screenshot until implemented or replaced in tests
+builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IScreenSource>(_ => new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() => null));
+builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ImageMatchEvaluator>();
 builder.Services.AddHostedService<TriggerBackgroundWorker>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
@@ -128,6 +133,8 @@ app.MapProfileEndpoints();
 app.MapAdbEndpoints();
 // Triggers endpoints (protected if token set)
 app.MapTriggersEndpoints();
+// Image references endpoints for image-match triggers
+app.MapImageReferenceEndpoints();
 
 app.Run();
 
