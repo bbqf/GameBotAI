@@ -48,6 +48,7 @@ public sealed class ProfileTrigger
     public required string Id { get; set; }
     public required TriggerType Type { get; set; }
     public bool Enabled { get; set; } = true;
+    public DateTimeOffset? EnabledAt { get; set; }
     public int CooldownSeconds { get; set; } = 60;
     public DateTimeOffset? LastFiredAt { get; set; }
     public DateTimeOffset? LastEvaluatedAt { get; set; }

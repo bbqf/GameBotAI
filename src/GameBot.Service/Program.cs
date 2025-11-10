@@ -61,6 +61,8 @@ Directory.CreateDirectory(storageRoot);
 builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
 builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository(storageRoot));
 builder.Services.AddSingleton<TriggerEvaluationService>();
+builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.DelayTriggerEvaluator>();
+builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ScheduleTriggerEvaluator>();
 builder.Services.AddHostedService<TriggerBackgroundWorker>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
