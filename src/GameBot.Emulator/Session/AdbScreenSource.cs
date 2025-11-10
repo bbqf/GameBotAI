@@ -17,7 +17,6 @@ public sealed class AdbScreenSource : IScreenSource
     private readonly ISessionManager _sessions;
     private readonly ILogger<AdbScreenSource> _logger;
     private readonly ILogger<AdbClient> _adbLogger;
-    static readonly char[] LINEBREAKS = new[] { '\r', '\n' };
 
     public AdbScreenSource(ISessionManager sessions, ILogger<AdbScreenSource> logger, ILogger<AdbClient> adbLogger)
     {
@@ -30,22 +29,14 @@ public sealed class AdbScreenSource : IScreenSource
     {
         try
         {
-            // Prefer capturing directly via adb: list devices and capture from the first 'device' state
-            var adb = new AdbClient(_adbLogger);
-            var devs = adb.ExecAsync("devices -l").GetAwaiter().GetResult();
-            if (devs.ExitCode != 0 || string.IsNullOrWhiteSpace(devs.StdOut)) return null;
-            
-            var lines = devs.StdOut.Split(LINEBREAKS, StringSplitOptions.RemoveEmptyEntries);
-            string? serial = null;
-            foreach (var line in lines)
+            // Session-aware: prefer an active session with a bound device serial
+            var sess = _sessions.ListSessions()
+                                 .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.DeviceSerial) && s.Status == GameBot.Domain.Sessions.SessionStatus.Running);
+            if (sess is null)
             {
-                if (line.StartsWith("List of devices", StringComparison.OrdinalIgnoreCase)) continue;
-                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length < 2) continue;
-                if (string.Equals(parts[1], "device", StringComparison.OrdinalIgnoreCase)) { serial = parts[0]; break; }
+                return null; // No active session with device; skip capture
             }
-            if (string.IsNullOrWhiteSpace(serial)) return null;
-
+            var serial = sess.DeviceSerial!;
             var png = new AdbClient(_adbLogger).WithSerial(serial).GetScreenshotPngAsync(default).GetAwaiter().GetResult();
             if (png is null || png.Length == 0) return null;
             using var ms = new MemoryStream(png);

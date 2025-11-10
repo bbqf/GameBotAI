@@ -105,6 +105,12 @@ public sealed class SessionManager : ISessionManager
         return null;
     }
 
+    public IReadOnlyCollection<EmulatorSession> ListSessions()
+    {
+        CleanupIdleSessions();
+        return _sessions.Values.ToList();
+    }
+
     public bool StopSession(string id)
     {
         if (_sessions.TryGetValue(id, out var s))

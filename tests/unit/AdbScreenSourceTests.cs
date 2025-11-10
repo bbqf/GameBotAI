@@ -1,6 +1,7 @@
 using System.Drawing;
 using GameBot.Emulator.Session;
 using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Sessions; // Needed for EmulatorSession type
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -14,6 +15,7 @@ public class AdbScreenSourceTests
         public bool CanCreateSession => false;
         public EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null, string? preferredDeviceSerial = null) => throw new NotImplementedException();
         public EmulatorSession? GetSession(string id) => null;
+        public IReadOnlyCollection<EmulatorSession> ListSessions() => Array.Empty<EmulatorSession>();
         public bool StopSession(string id) => false;
         public Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) => Task.FromResult(0);
         public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
