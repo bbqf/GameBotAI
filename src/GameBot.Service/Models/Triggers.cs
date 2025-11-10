@@ -33,15 +33,27 @@ internal sealed class ProfileTriggerDto
 
 internal static class TriggerMappings
 {
-    public static ProfileTriggerDto ToDto(ProfileTrigger t) => new()
+    public static ProfileTriggerDto ToDto(ProfileTrigger t)
     {
-        Id = t.Id,
-    Type = t.Type.ToString().Replace("Match","-MATCH", StringComparison.Ordinal).ToUpperInvariant(),
-        Enabled = t.Enabled,
-        CooldownSeconds = t.CooldownSeconds,
-        LastFiredAt = t.LastFiredAt,
-        LastEvaluatedAt = t.LastEvaluatedAt,
-        LastResult = t.LastResult,
-        Params = t.Params
-    };
+        // Normalize to kebab-case strings stable for API consumers
+        var typeString = t.Type switch
+        {
+            TriggerType.Delay => "delay",
+            TriggerType.Schedule => "schedule",
+            TriggerType.ImageMatch => "image-match",
+            TriggerType.TextMatch => "text-match",
+            _ => t.Type.ToString().ToLowerInvariant()
+        };
+        return new ProfileTriggerDto
+        {
+            Id = t.Id,
+            Type = typeString,
+            Enabled = t.Enabled,
+            CooldownSeconds = t.CooldownSeconds,
+            LastFiredAt = t.LastFiredAt,
+            LastEvaluatedAt = t.LastEvaluatedAt,
+            LastResult = t.LastResult,
+            Params = t.Params
+        };
+    }
 }
