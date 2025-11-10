@@ -3,6 +3,8 @@
     <AssemblyName>GameBot.Service</AssemblyName>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <!-- Suppress CA1308: normalization uses ToLowerInvariant intentionally for stable HTTP tokens/type strings -->
+    <NoWarn>$(NoWarn);CA1308</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GameBot.Domain\GameBot.Domain.csproj" />
