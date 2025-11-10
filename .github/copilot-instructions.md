@@ -19,6 +19,9 @@ tests/
 
 # Add commands for .NET 8 (C#)
 
+## Test Failure Analysis
+After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-test-results.ps1` to emit `TESTERROR:` lines for each failing test (name, outcome, message) and exit non-zero. Integrate into CI or local `verify` task to ensure rich failure detection.
+
 ## Code Style
 
 .NET 8 (C#): Follow standard conventions

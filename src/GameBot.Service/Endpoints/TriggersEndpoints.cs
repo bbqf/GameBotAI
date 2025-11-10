@@ -137,21 +137,25 @@ internal static class TriggersEndpoints
 
     private static ProfileTrigger MapCreateDto(ProfileTriggerCreateDto dto)
     {
-        var id = Guid.NewGuid().ToString("N");
-        var typeParsed = Enum.TryParse<TriggerType>(dto.Type, true, out var tt) ? tt : TriggerType.Delay;
+    var id = Guid.NewGuid().ToString("N");
+    var normalizedType = (dto.Type ?? string.Empty).Replace("-", string.Empty, StringComparison.Ordinal)
+                              .Replace("_", string.Empty, StringComparison.Ordinal)
+                              .Replace(" ", string.Empty, StringComparison.Ordinal);
+    var typeParsed = Enum.TryParse<TriggerType>(normalizedType, true, out var tt) ? tt : TriggerType.Delay;
+        var paramsEl = (JsonElement)dto.Params;
         TriggerParams p = typeParsed switch
         {
-            TriggerType.Delay => new DelayParams { Seconds =  ((JsonElement)dto.Params).GetProperty("seconds").GetInt32() },
-            TriggerType.Schedule => new ScheduleParams { Timestamp = DateTimeOffset.Parse(((JsonElement)dto.Params).GetProperty("timestamp").GetString()!, System.Globalization.CultureInfo.InvariantCulture) },
+            TriggerType.Delay => new DelayParams { Seconds =  paramsEl.TryGetProperty("seconds", out var secEl) && secEl.ValueKind==JsonValueKind.Number ? secEl.GetInt32() : 1 },
+            TriggerType.Schedule => new ScheduleParams { Timestamp = paramsEl.TryGetProperty("timestamp", out var tsEl) && tsEl.ValueKind==JsonValueKind.String ? DateTimeOffset.Parse(tsEl.GetString()!, System.Globalization.CultureInfo.InvariantCulture) : DateTimeOffset.UtcNow.AddMinutes(1) },
             TriggerType.ImageMatch => new ImageMatchParams {
-                ReferenceImageId = ((JsonElement)dto.Params).GetProperty("referenceImageId").GetString()!,
+                ReferenceImageId = paramsEl.TryGetProperty("referenceImageId", out var refEl) && refEl.ValueKind==JsonValueKind.String ? refEl.GetString()! : string.Empty,
                 Region = new Region {
-                    X = ((JsonElement)dto.Params).GetProperty("region").GetProperty("x").GetDouble(),
-                    Y = ((JsonElement)dto.Params).GetProperty("region").GetProperty("y").GetDouble(),
-                    Width = ((JsonElement)dto.Params).GetProperty("region").GetProperty("width").GetDouble(),
-                    Height = ((JsonElement)dto.Params).GetProperty("region").GetProperty("height").GetDouble()
+                    X = paramsEl.TryGetProperty("region", out var regEl) && regEl.TryGetProperty("x", out var xEl) && xEl.ValueKind==JsonValueKind.Number ? xEl.GetDouble() : 0,
+                    Y = paramsEl.TryGetProperty("region", out regEl) && regEl.TryGetProperty("y", out var yEl) && yEl.ValueKind==JsonValueKind.Number ? yEl.GetDouble() : 0,
+                    Width = paramsEl.TryGetProperty("region", out regEl) && regEl.TryGetProperty("width", out var wEl) && wEl.ValueKind==JsonValueKind.Number ? wEl.GetDouble() : 1,
+                    Height = paramsEl.TryGetProperty("region", out regEl) && regEl.TryGetProperty("height", out var hEl) && hEl.ValueKind==JsonValueKind.Number ? hEl.GetDouble() : 1
                 },
-                SimilarityThreshold = ((JsonElement)dto.Params).TryGetProperty("similarityThreshold", out var th) && th.ValueKind==JsonValueKind.Number ? th.GetDouble() : 0.85
+                SimilarityThreshold = paramsEl.TryGetProperty("similarityThreshold", out var th) && th.ValueKind==JsonValueKind.Number ? th.GetDouble() : 0.85
             },
             _ => new DelayParams { Seconds = 1 }
         };

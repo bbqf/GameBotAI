@@ -8,9 +8,18 @@ namespace GameBot.Domain.Profiles.Evaluators;
 public sealed class MemoryReferenceImageStore : IReferenceImageStore
 {
     private readonly Dictionary<string, Bitmap> _images = new(StringComparer.OrdinalIgnoreCase);
-    public void Add(string id, Bitmap bmp) => _images[id] = bmp;
+    public void Add(string id, Bitmap bmp)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(bmp);
+        _images[id] = bmp;
+    }
     // Dictionary never stores null values; suppress nullable analysis with '!'
-    public bool TryGet(string id, out Bitmap bmp) => _images.TryGetValue(id, out bmp!);
+    public bool TryGet(string id, out Bitmap bmp)
+    {
+        if (id is null) { bmp = null!; return false; }
+        return _images.TryGetValue(id, out bmp!);
+    }
 }
 
 /// <summary>Screen source backed by a single bitmap provider (primarily for tests).</summary>
@@ -18,6 +27,10 @@ public sealed class MemoryReferenceImageStore : IReferenceImageStore
 public sealed class SingleBitmapScreenSource : IScreenSource
 {
     private readonly Func<Bitmap?> _provider;
-    public SingleBitmapScreenSource(Func<Bitmap?> provider) => _provider = provider;
+    public SingleBitmapScreenSource(Func<Bitmap?> provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        _provider = provider;
+    }
     public Bitmap? GetLatestScreenshot() => _provider();
 }

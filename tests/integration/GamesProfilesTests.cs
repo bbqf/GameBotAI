@@ -23,7 +23,7 @@ public class GamesProfilesTests
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-        var create = await client.PostAsJsonAsync("/games", new { name = "Game A", description = "desc" }).ConfigureAwait(true);
+    var create = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "Game A", description = "desc" }).ConfigureAwait(true);
         create.StatusCode.Should().Be(HttpStatusCode.Created);
         var game = await create.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var id = game!["id"].ToString();
@@ -44,7 +44,7 @@ public class GamesProfilesTests
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     // Create a game
-    var gameResp = await client.PostAsJsonAsync("/games", new { name = "Game B", description = "desc" }).ConfigureAwait(true);
+    var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "Game B", description = "desc" }).ConfigureAwait(true);
         gameResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var gameId = game!["id"]!.ToString();
@@ -88,16 +88,16 @@ public class GamesProfilesTests
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
         // Create a game
-        var g = await client.PostAsJsonAsync("/games", new { name = "Game B", description = "desc" }).ConfigureAwait(true);
+    var g = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "Game B", description = "desc" }).ConfigureAwait(true);
     var gBody = await g.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var gameId = gBody!["id"].ToString();
 
         // Create two profiles, one for this game, one for another
         var profileReq = new { name = "P1", gameId, steps = new object[] { new { type = "tap", args = new { x = 1, y = 2 } } } };
-    var p1 = await client.PostAsJsonAsync("/profiles", profileReq).ConfigureAwait(true);
+    var p1 = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), profileReq).ConfigureAwait(true);
         p1.StatusCode.Should().Be(HttpStatusCode.Created);
 
-    var p2 = await client.PostAsJsonAsync("/profiles", new { name = "P2", gameId = "other-game", steps = Array.Empty<object>() }).ConfigureAwait(true);
+    var p2 = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), new { name = "P2", gameId = "other-game", steps = Array.Empty<object>() }).ConfigureAwait(true);
         p2.StatusCode.Should().Be(HttpStatusCode.Created);
 
         // Filter

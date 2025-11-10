@@ -13,6 +13,7 @@ public sealed class TriggerEvaluationService
 
     public TriggerEvaluationResult Evaluate(ProfileTrigger trigger, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(trigger);
         // Disabled triggers short-circuit
         if (!trigger.Enabled)
         {

@@ -22,15 +22,19 @@ internal static class ImageReferencesEndpoints
 
     public static IEndpointRouteBuilder MapImageReferenceEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/images", async (UploadImageRequest req, IReferenceImageStore store, CancellationToken ct) =>
+        ArgumentNullException.ThrowIfNull(app);
+
+        app.MapPost("/images", (UploadImageRequest req, IReferenceImageStore store) =>
         {
+            ArgumentNullException.ThrowIfNull(req);
+            ArgumentNullException.ThrowIfNull(store);
             if (string.IsNullOrWhiteSpace(req.Id) || string.IsNullOrWhiteSpace(req.Data))
                 return Results.BadRequest(new { error = new { code = "invalid_request", message = "id and data are required", hint = (string?)null } });
 
             try
             {
                 var b64 = req.Data;
-                var comma = b64.IndexOf(',');
+                var comma = b64.IndexOf(',', System.StringComparison.Ordinal);
                 if (comma >= 0) b64 = b64[(comma + 1)..]; // strip data URL header
                 var bytes = Convert.FromBase64String(b64);
                 using var ms = new MemoryStream(bytes);
@@ -47,6 +51,8 @@ internal static class ImageReferencesEndpoints
 
         app.MapGet("/images/{id}", (string id, IReferenceImageStore store) =>
         {
+            ArgumentNullException.ThrowIfNull(id);
+            ArgumentNullException.ThrowIfNull(store);
             if ((store as MemoryReferenceImageStore)?.TryGet(id, out var bmp) == true)
             {
                 return Results.Ok(new { id });

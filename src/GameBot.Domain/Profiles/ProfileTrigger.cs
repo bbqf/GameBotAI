@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace GameBot.Domain.Profiles;
 
 public enum TriggerType
@@ -16,6 +18,11 @@ public sealed class Region
     public required double Height { get; set; } // (0..1]
 }
 
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(DelayParams), "delay")]
+[JsonDerivedType(typeof(ScheduleParams), "schedule")]
+[JsonDerivedType(typeof(ImageMatchParams), "image-match")]
+[JsonDerivedType(typeof(TextMatchParams), "text-match")]
 public abstract class TriggerParams { }
 
 public sealed class DelayParams : TriggerParams

@@ -26,7 +26,7 @@ public class SessionInputTests
     // Check devices and skip if none to avoid flakiness without ADB
     // Force stub mode for inputs test to avoid external ADB process hangs
     // Do NOT request adbSerial so session runs without ADB even if devices exist
-    var createResp = await client.PostAsJsonAsync("/sessions", new { gameId = "test-game" }).ConfigureAwait(true);
+    var createResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "test-game" }).ConfigureAwait(true);
     var created = await createResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var id = created!["id"].ToString();
 

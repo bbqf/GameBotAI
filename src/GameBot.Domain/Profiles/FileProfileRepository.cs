@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace GameBot.Domain.Profiles;
 
@@ -7,7 +8,9 @@ public sealed class FileProfileRepository : IProfileRepository
     private readonly string _dir;
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
     {
-        WriteIndented = false
+        WriteIndented = false,
+        // Needed for TriggerParams polymorphism based on attributes
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver()
     };
 
     public FileProfileRepository(string root)
