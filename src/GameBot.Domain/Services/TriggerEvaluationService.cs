@@ -13,6 +13,32 @@ public sealed class TriggerEvaluationService
 
     public TriggerEvaluationResult Evaluate(ProfileTrigger trigger, DateTimeOffset now)
     {
+        // Disabled triggers short-circuit
+        if (!trigger.Enabled)
+        {
+            return new TriggerEvaluationResult
+            {
+                Status = TriggerStatus.Disabled,
+                Reason = "trigger_disabled",
+                EvaluatedAt = now
+            };
+        }
+
+        // Cooldown enforcement: if fired recently, don't evaluate underlying condition
+        if (trigger.LastFiredAt.HasValue && trigger.CooldownSeconds > 0)
+        {
+            var elapsed = now - trigger.LastFiredAt.Value;
+            if (elapsed.TotalSeconds < trigger.CooldownSeconds)
+            {
+                return new TriggerEvaluationResult
+                {
+                    Status = TriggerStatus.Cooldown,
+                    Reason = "cooldown_active",
+                    EvaluatedAt = now
+                };
+            }
+        }
+
         var evaluator = _evaluators.FirstOrDefault(e => e.CanEvaluate(trigger));
         if (evaluator is null)
         {

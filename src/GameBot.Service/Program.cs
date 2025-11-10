@@ -66,7 +66,30 @@ builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluat
 // Image match evaluator dependencies (in-memory store + screen source placeholder)
 builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IReferenceImageStore, GameBot.Domain.Profiles.Evaluators.MemoryReferenceImageStore>();
 // Simple screen source stub: returns null screenshot until implemented or replaced in tests
-builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IScreenSource>(_ => new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() => null));
+builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IScreenSource>(_ =>
+{
+    var b64 = Environment.GetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64");
+    if (!string.IsNullOrWhiteSpace(b64) && OperatingSystem.IsWindows())
+    {
+        try
+        {
+            var data = b64;
+            var comma = data.IndexOf(',');
+            if (comma >= 0) data = data[(comma + 1)..];
+            var bytes = Convert.FromBase64String(data);
+            return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() =>
+            {
+                using var ms = new MemoryStream(bytes);
+                return new System.Drawing.Bitmap(ms);
+            });
+        }
+        catch
+        {
+            // fall through to null provider
+        }
+    }
+    return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() => null);
+});
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ImageMatchEvaluator>();
 builder.Services.AddHostedService<TriggerBackgroundWorker>();
 

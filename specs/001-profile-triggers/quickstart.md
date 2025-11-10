@@ -15,7 +15,14 @@ POST /profiles/{profileId}/triggers
 Expect 201 with trigger object. Profile will start ~30s after trigger is enabled.
 
 ## 2. Add an Image Match Trigger
-1. Upload/reference an image asset (out of scope here) to get `referenceImageId`.
+1. Upload an image asset to register a `referenceImageId`:
+```
+POST /images
+{
+  "id": "victory-banner",
+  "data": "data:image/png;base64,<Base64PNG>"
+}
+```
 2. Create trigger:
 ```
 POST /profiles/{profileId}/triggers
@@ -62,7 +69,9 @@ POST /profiles/{profileId}/triggers/evaluate
 Runs evaluation cycle on-demand.
 
 ## 7. Cooldown Behavior
-After firing, `status` becomes `cooldown` until `cooldownSeconds` elapse; subsequent potential matches are ignored.
+After firing, `status` becomes `Cooldown` until `cooldownSeconds` elapse; subsequent potential matches are ignored.
+
+Tip: Re-testing a satisfied trigger immediately should return `Cooldown`; after waiting beyond the cooldown window, it can become `Satisfied` again.
 
 ## 8. Updating a Trigger
 ```
@@ -83,3 +92,5 @@ Removes the trigger from the profile definition.
 - Regions are normalized (0..1) for resolution independence.
 - Use conservative thresholds first; lower only if matches are missed.
 - Text `not-found` triggers should expect a slight delay due to confirmation cycle.
+ - For local testing, you can set `GAMEBOT_DATA_DIR` to isolate state and `GAMEBOT_AUTH_TOKEN` to enable bearer auth.
+ - Integration tests can inject a faux screen using `GAMEBOT_TEST_SCREEN_IMAGE_B64` (base64 PNG): the evaluator will compare against this image.
