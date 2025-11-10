@@ -12,6 +12,7 @@ public class GamesProfilesTests
     {
         Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
         Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
+        TestEnvironment.PrepareCleanDataDir();
     }
 
     [Fact]

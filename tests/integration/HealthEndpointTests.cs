@@ -11,6 +11,7 @@ public class HealthEndpointTests
     public HealthEndpointTests()
     {
         Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
+        TestEnvironment.PrepareCleanDataDir();
     }
 
     [Fact]
