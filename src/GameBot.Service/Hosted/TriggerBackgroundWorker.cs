@@ -22,28 +22,29 @@ internal sealed class TriggerBackgroundWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("TriggerBackgroundWorker started");
+    Log.WorkerStarted(_logger);
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
-            {
-                // TODO: iterate active profiles/triggers and evaluate
-                // This is a stub; evaluation wiring will be completed in later tasks.
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during trigger evaluation loop");
-            }
+            // TODO: iterate active profiles/triggers and evaluate (stub)
 
             try
             {
-                await Task.Delay(_interval, stoppingToken);
+                await Task.Delay(_interval, stoppingToken).ConfigureAwait(false);
             }
-            catch (TaskCanceledException)
-            {
-                break;
-            }
+            catch (TaskCanceledException) { break; }
         }
-        _logger.LogInformation("TriggerBackgroundWorker stopped");
+        Log.WorkerStopped(_logger);
     }
+}
+
+internal static class Log
+{
+    private static readonly Action<ILogger, Exception?> _workerStarted =
+        LoggerMessage.Define(LogLevel.Information, new EventId(3001, nameof(WorkerStarted)), "Trigger background worker started");
+    private static readonly Action<ILogger, Exception?> _workerStopped =
+        LoggerMessage.Define(LogLevel.Information, new EventId(3002, nameof(WorkerStopped)), "Trigger background worker stopped");
+
+    public static void WorkerStarted(ILogger l) => _workerStarted(l, null);
+    public static void WorkerStopped(ILogger l) => _workerStopped(l, null);
+    // Intentionally no catch-all log to satisfy CA1031; errors propagate to host if any occur
 }

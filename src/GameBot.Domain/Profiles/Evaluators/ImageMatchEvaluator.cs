@@ -1,20 +1,30 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.Versioning;
 using GameBot.Domain.Profiles;
 
 namespace GameBot.Domain.Profiles.Evaluators;
 
-internal sealed class ImageMatchEvaluator : ITriggerEvaluator
+/// <summary>
+/// Evaluates image match triggers using normalized cross-correlation (NCC).
+/// </summary>
+[SupportedOSPlatform("windows")]
+public sealed class ImageMatchEvaluator : ITriggerEvaluator
 {
     private readonly IReferenceImageStore _store;
     private readonly IScreenSource _screen;
     public ImageMatchEvaluator(IReferenceImageStore store, IScreenSource screen)
     { _store = store; _screen = screen; }
 
-    public bool CanEvaluate(ProfileTrigger trigger) => trigger.Enabled && trigger.Type == TriggerType.ImageMatch;
+    public bool CanEvaluate(ProfileTrigger trigger)
+    {
+        ArgumentNullException.ThrowIfNull(trigger);
+        return trigger.Enabled && trigger.Type == TriggerType.ImageMatch;
+    }
 
     public TriggerEvaluationResult Evaluate(ProfileTrigger trigger, DateTimeOffset now)
     {
+    ArgumentNullException.ThrowIfNull(trigger);
     var p = (ImageMatchParams)trigger.Params;
     var similarity = ComputeSimilarityNcc(p);
         var status = similarity >= p.SimilarityThreshold ? TriggerStatus.Satisfied : TriggerStatus.Pending;
@@ -52,6 +62,12 @@ internal sealed class ImageMatchEvaluator : ITriggerEvaluator
         // Convert to grayscale arrays
         var regionGray = ToGrayscale(region);
         var tplGray = ToGrayscale(tpl24);
+
+        // Fast path for constant images: if both are constant, similarity is 1 when equal, else 0
+        if (IsConstant(tplGray, out var tplVal) && IsConstant(regionGray, out var regVal))
+        {
+            return Math.Abs(tplVal - regVal) < 1e-6 ? 1.0 : 0.0;
+        }
 
         // Compute normalized cross-correlation and return max
         double best = -1;
@@ -114,19 +130,48 @@ internal sealed class ImageMatchEvaluator : ITriggerEvaluator
         var denL = sumI2 - (sumI * sumI / n);
         var denR = sumT2 - (sumT * sumT / n);
         var den = Math.Sqrt(Math.Max(denL, 0) * Math.Max(denR, 0));
-        if (den == 0) return 0;
+        if (den == 0)
+        {
+            // Handle constant-image edge cases: variance zero for one or both.
+            bool constI = denL == 0;
+            bool constT = denR == 0;
+            if (constI && constT)
+            {
+                // If both constant and means equal, treat as perfect match (1); else total mismatch (-1)
+                var meanI = sumI / n;
+                var meanT = sumT / n;
+                return Math.Abs(meanI - meanT) < 1e-6 ? 1 : -1;
+            }
+            // One constant and the other not: treat as mismatch
+            return -1; // maps to 0 similarity
+        }
         return num / den; // in [-1,1]
+    }
+
+    private static bool IsConstant(GrayImage img, out double value)
+    {
+        if (img.Width == 0 || img.Height == 0) { value = 0; return true; }
+        var first = img.Data[0];
+        for (int i = 1; i < img.Data.Length; i++)
+        {
+            if (img.Data[i] != first)
+            {
+                value = 0; return false;
+            }
+        }
+        value = first;
+        return true;
     }
 
     private readonly record struct GrayImage(int Width, int Height, byte[] Data);
 }
 
-internal interface IReferenceImageStore
+public interface IReferenceImageStore
 {
     bool TryGet(string id, out Bitmap bmp);
 }
 
-internal interface IScreenSource
+public interface IScreenSource
 {
     Bitmap? GetLatestScreenshot();
 }

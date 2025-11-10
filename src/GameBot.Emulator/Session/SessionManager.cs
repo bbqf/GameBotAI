@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.Versioning;
 using System.Globalization;
 using System.Text.Json;
 using GameBot.Domain.Sessions;
@@ -11,6 +12,8 @@ using Microsoft.Extensions.Options;
 
 namespace GameBot.Emulator.Session;
 
+/// <summary>Manages emulator sessions and delegates ADB input/screenshot operations (Windows-only).</summary>
+[SupportedOSPlatform("windows")]
 public sealed class SessionManager : ISessionManager
 {
     private readonly ConcurrentDictionary<string, EmulatorSession> _sessions = new();

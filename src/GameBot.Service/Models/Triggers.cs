@@ -36,7 +36,7 @@ internal static class TriggerMappings
     public static ProfileTriggerDto ToDto(ProfileTrigger t) => new()
     {
         Id = t.Id,
-        Type = t.Type.ToString().ToLowerInvariant().Replace("match","-match"),
+    Type = t.Type.ToString().Replace("Match","-MATCH", StringComparison.Ordinal).ToUpperInvariant(),
         Enabled = t.Enabled,
         CooldownSeconds = t.CooldownSeconds,
         LastFiredAt = t.LastFiredAt,

@@ -14,15 +14,12 @@ internal static class TriggersEndpoints
     {
         var group = app.MapGroup("/profiles/{profileId}/triggers");
 
-        group.MapGet("/", async (string profileId, ILoggerFactory lf, CancellationToken ct) =>
-        {
-            // Placeholder: list triggers from repository once wired
-            return Results.Ok(Array.Empty<ProfileTriggerDto>());
-        });
+        group.MapGet("/", (string profileId, ILoggerFactory lf, CancellationToken ct) =>
+            Results.Ok(Array.Empty<ProfileTriggerDto>()))
+            .WithName("ListProfileTriggers");
 
-        group.MapPost("/", async (string profileId, ProfileTriggerCreateDto dto, ILoggerFactory lf, CancellationToken ct) =>
+        group.MapPost("/", (string profileId, ProfileTriggerCreateDto dto, ILoggerFactory lf, CancellationToken ct) =>
         {
-            // Placeholder: validate and create trigger
             var created = new ProfileTrigger
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -32,35 +29,26 @@ internal static class TriggersEndpoints
                 Params = new DelayParams { Seconds = 1 }
             };
             return Results.Created($"/profiles/{profileId}/triggers/{created.Id}", TriggerMappings.ToDto(created));
-        });
+        }).WithName("CreateProfileTrigger");
 
-        group.MapGet("/{triggerId}", async (string profileId, string triggerId, CancellationToken ct) =>
-        {
-            return Results.NotFound();
-        });
+        group.MapGet("/{triggerId}", (string profileId, string triggerId, CancellationToken ct) => Results.NotFound())
+             .WithName("GetProfileTrigger");
 
-        group.MapPatch("/{triggerId}", async (string profileId, string triggerId, HttpRequest req, CancellationToken ct) =>
-        {
-            return Results.NotFound();
-        });
+        group.MapPatch("/{triggerId}", (string profileId, string triggerId, HttpRequest req, CancellationToken ct) => Results.NotFound())
+             .WithName("PatchProfileTrigger");
 
-        group.MapDelete("/{triggerId}", async (string profileId, string triggerId, CancellationToken ct) =>
-        {
-            return Results.NoContent();
-        });
+        group.MapDelete("/{triggerId}", (string profileId, string triggerId, CancellationToken ct) => Results.NoContent())
+             .WithName("DeleteProfileTrigger");
 
-        group.MapPost("/{triggerId}/test", async (string profileId, string triggerId, TriggerEvaluationService svc, CancellationToken ct) =>
+        group.MapPost("/{triggerId}/test", (string profileId, string triggerId, TriggerEvaluationService svc, CancellationToken ct) =>
         {
-            // Placeholder: return pending result
             var res = new TriggerEvaluationResult { Status = TriggerStatus.Pending, EvaluatedAt = DateTimeOffset.UtcNow, Reason = "stub" };
             return Results.Ok(res);
-        });
+        }).WithName("TestProfileTrigger");
 
-        group.MapPost("/evaluate", async (string profileId, CancellationToken ct) =>
-        {
-            // Placeholder: batch evaluate
-            return Results.Ok(Array.Empty<TriggerEvaluationResult>());
-        });
+        group.MapPost("/evaluate", (string profileId, CancellationToken ct) =>
+            Results.Ok(Array.Empty<TriggerEvaluationResult>()))
+            .WithName("EvaluateProfileTriggers");
 
         return app;
     }

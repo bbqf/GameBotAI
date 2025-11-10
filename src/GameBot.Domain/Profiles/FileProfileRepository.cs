@@ -32,9 +32,8 @@ public sealed class FileProfileRepository : IProfileRepository
         var path = Path.Combine(_dir, id + ".json");
         if (!File.Exists(path)) return null;
         using var fs = File.OpenRead(path);
-        var prof = await JsonSerializer.DeserializeAsync<AutomationProfile>(fs, JsonOpts, ct).ConfigureAwait(false);
-        prof ??= new AutomationProfile { Id = id, Name = id, GameId = string.Empty };
-        prof.Triggers ??= new System.Collections.ObjectModel.Collection<ProfileTrigger>();
+    var prof = await JsonSerializer.DeserializeAsync<AutomationProfile>(fs, JsonOpts, ct).ConfigureAwait(false);
+    prof ??= new AutomationProfile { Id = id, Name = id, GameId = string.Empty };
         return prof;
     }
 
@@ -45,10 +44,6 @@ public sealed class FileProfileRepository : IProfileRepository
         {
             using var fs = File.OpenRead(file);
             var item = await JsonSerializer.DeserializeAsync<AutomationProfile>(fs, JsonOpts, ct).ConfigureAwait(false);
-            if (item is not null)
-            {
-                item.Triggers ??= new System.Collections.ObjectModel.Collection<ProfileTrigger>();
-            }
             if (item is not null && (gameId is null || string.Equals(item.GameId, gameId, StringComparison.OrdinalIgnoreCase)))
                 list.Add(item);
         }
