@@ -17,6 +17,7 @@ public sealed class AdbScreenSource : IScreenSource
     private readonly ISessionManager _sessions;
     private readonly ILogger<AdbScreenSource> _logger;
     private readonly ILogger<AdbClient> _adbLogger;
+    static readonly char[] LINEBREAKS = new[] { '\r', '\n' };
 
     public AdbScreenSource(ISessionManager sessions, ILogger<AdbScreenSource> logger, ILogger<AdbClient> adbLogger)
     {
@@ -33,7 +34,8 @@ public sealed class AdbScreenSource : IScreenSource
             var adb = new AdbClient(_adbLogger);
             var devs = adb.ExecAsync("devices -l").GetAwaiter().GetResult();
             if (devs.ExitCode != 0 || string.IsNullOrWhiteSpace(devs.StdOut)) return null;
-            var lines = devs.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            
+            var lines = devs.StdOut.Split(LINEBREAKS, StringSplitOptions.RemoveEmptyEntries);
             string? serial = null;
             foreach (var line in lines)
             {
@@ -51,8 +53,14 @@ public sealed class AdbScreenSource : IScreenSource
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "AdbScreenSource failed to obtain screenshot; returning null");
+            AdbScreenSourceLog.CaptureFail(_logger, ex);
             return null;
         }
     }
+}
+
+internal static partial class AdbScreenSourceLog
+{
+    [LoggerMessage(EventId = 4001, Level = LogLevel.Debug, Message = "AdbScreenSource failed to obtain screenshot; returning null")]
+    public static partial void CaptureFail(ILogger logger, Exception ex);
 }
