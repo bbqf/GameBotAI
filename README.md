@@ -164,6 +164,15 @@ See full request/response shapes in the contracts doc linked above.
   - `MaxConcurrentSessions` (default 3)
   - `IdleTimeoutSeconds` (default 1800)
 
+- Trigger evaluation worker (Options): `Service:Triggers:Worker`
+  - `IntervalSeconds` (default 2): base cadence for evaluating triggers.
+  - `GameFilter` (optional): limit evaluation to a specific `gameId`.
+  - `SkipWhenNoSessions` (default true): if there are no active sessions, skip evaluation to save CPU.
+  - `IdleBackoffSeconds` (default 5): delay used when idle due to no active sessions.
+
+Notes:
+- You can still force ADB-less screen evaluation in tests via `GAMEBOT_TEST_SCREEN_IMAGE_B64` (base64 PNG). When set and `GAMEBOT_USE_ADB=false`, the image-match evaluator compares against this image.
+
 - ADB behavior
   - `GAMEBOT_USE_ADB`: set to `false` to disable ADB integration (useful in tests/CI). By default on Windows, ADB is enabled.
   - `GAMEBOT_ADB_PATH`: optional override path to `adb.exe`.

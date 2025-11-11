@@ -11,14 +11,14 @@ namespace GameBot.Service.Hosted;
 internal sealed class TriggerBackgroundWorker : BackgroundService
 {
     private readonly ILogger<TriggerBackgroundWorker> _logger;
-    private readonly TriggerEvaluationCoordinator _coordinator;
+    private readonly ITriggerEvaluationCoordinator _coordinator;
     private readonly ISessionManager _sessions;
     private readonly IOptionsMonitor<TriggerWorkerOptions> _options;
     private int _running;
 
     public TriggerBackgroundWorker(
         ILogger<TriggerBackgroundWorker> logger,
-        TriggerEvaluationCoordinator coordinator,
+    ITriggerEvaluationCoordinator coordinator,
         ISessionManager sessions,
         IOptionsMonitor<TriggerWorkerOptions> options)
     {

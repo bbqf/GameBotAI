@@ -5,7 +5,7 @@ namespace GameBot.Domain.Services;
 /// <summary>
 /// Coordinates evaluation of all triggers across all profiles. Intended for background execution.
 /// </summary>
-public sealed class TriggerEvaluationCoordinator
+public sealed class TriggerEvaluationCoordinator : ITriggerEvaluationCoordinator
 {
     private readonly IProfileRepository _profiles;
     private readonly TriggerEvaluationService _evaluation;
