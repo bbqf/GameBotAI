@@ -26,8 +26,8 @@ public class TextOcrTesseractTests
     }
 
     [Fact]
-    public void RecognizesSimpleText_When_TesseractEnabled()
-    {
+    public void RecognizesSimpleTextWhenTesseractEnabled()
+        {
         if (!IsTesseractAvailable()) return; // Skip if tesseract not present
         Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
         Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_ENABLED", "true");
