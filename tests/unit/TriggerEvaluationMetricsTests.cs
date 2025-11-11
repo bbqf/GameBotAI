@@ -10,7 +10,7 @@ namespace GameBot.UnitTests;
 public class TriggerEvaluationMetricsTests
 {
     [Fact]
-    public void IncrementsAndDuration_Work()
+    public void IncrementsAndDurationWork()
     {
         var m = new TriggerEvaluationMetrics();
 
@@ -31,7 +31,7 @@ public class TriggerEvaluationMetricsTests
     }
 
     [Fact]
-    public async Task ThreadSafety_ForConcurrentUpdates()
+    public async Task ThreadSafetyForConcurrentUpdates()
     {
         var m = new TriggerEvaluationMetrics();
         var tasks = Enumerable.Range(0, 10).Select(async _ =>

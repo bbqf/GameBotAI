@@ -1,6 +1,6 @@
 namespace GameBot.Service.Hosted;
 
-public interface ITriggerEvaluationMetrics
+internal interface ITriggerEvaluationMetrics
 {
     long Evaluations { get; }
     long SkippedNoSessions { get; }
