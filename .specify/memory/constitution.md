@@ -37,6 +37,8 @@ Testing is required for any executable logic:
 - Tests MUST be deterministic, isolated, and fast (<1s avg per unit test where feasible).
 - Bug fixes MUST include a failing test reproducing the issue before the fix.
 - CI MUST run tests on every PR and block merges on failures or coverage regressions beyond allowed thresholds.
+- An evaluation of test builds and runs results is necessary before each commit.
+- The code quality warnings/errors within the test code can be disabled if needed.
 
 Rationale: A reliable test suite acts as a safety net enabling fast iteration.
 

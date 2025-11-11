@@ -10,4 +10,5 @@ public sealed class AutomationProfile
     public required string GameId { get; set; }
     public Collection<InputAction> Steps { get; init; } = new();
     public Collection<string> Checkpoints { get; init; } = new();
+    public Collection<ProfileTrigger> Triggers { get; init; } = new();
 }

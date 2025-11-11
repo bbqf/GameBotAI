@@ -12,6 +12,7 @@ public class ResourceLimitsTests
     {
         Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
         Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
+        TestEnvironment.PrepareCleanDataDir();
     }
 
     [Fact]
@@ -27,10 +28,10 @@ public class ResourceLimitsTests
     var devs = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri("/adb/devices", UriKind.Relative)).ConfigureAwait(true);
     if (devs is null || devs.Count == 0) return;
     var serial = devs[0]["serial"]!.ToString();
-    var first = await client.PostAsJsonAsync("/sessions", new { gameId = "g1", adbSerial = serial }).ConfigureAwait(true);
+    var first = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "g1", adbSerial = serial }).ConfigureAwait(true);
         first.StatusCode.Should().Be(HttpStatusCode.Created);
 
-    var second = await client.PostAsJsonAsync("/sessions", new { gameId = "g2", adbSerial = serial }).ConfigureAwait(true);
+    var second = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "g2", adbSerial = serial }).ConfigureAwait(true);
         second.StatusCode.Should().Be((HttpStatusCode)429);
     }
 
@@ -47,7 +48,7 @@ public class ResourceLimitsTests
     var devs2 = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri("/adb/devices", UriKind.Relative)).ConfigureAwait(true);
     if (devs2 is null || devs2.Count == 0) return;
     var serial2 = devs2[0]["serial"]!.ToString();
-    var createResp = await client.PostAsJsonAsync("/sessions", new { gameId = "g1", adbSerial = serial2 }).ConfigureAwait(true);
+    var createResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "g1", adbSerial = serial2 }).ConfigureAwait(true);
         createResp.EnsureSuccessStatusCode();
     var created = await createResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var id = created!["id"].ToString();

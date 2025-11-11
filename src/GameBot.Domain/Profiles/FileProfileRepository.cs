@@ -1,11 +1,17 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace GameBot.Domain.Profiles;
 
 public sealed class FileProfileRepository : IProfileRepository
 {
     private readonly string _dir;
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = false,
+        // Needed for TriggerParams polymorphism based on attributes
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+    };
 
     public FileProfileRepository(string root)
     {
@@ -29,7 +35,9 @@ public sealed class FileProfileRepository : IProfileRepository
         var path = Path.Combine(_dir, id + ".json");
         if (!File.Exists(path)) return null;
         using var fs = File.OpenRead(path);
-        return await JsonSerializer.DeserializeAsync<AutomationProfile>(fs, JsonOpts, ct).ConfigureAwait(false);
+    var prof = await JsonSerializer.DeserializeAsync<AutomationProfile>(fs, JsonOpts, ct).ConfigureAwait(false);
+    prof ??= new AutomationProfile { Id = id, Name = id, GameId = string.Empty };
+        return prof;
     }
 
     public async Task<IReadOnlyList<AutomationProfile>> ListAsync(string? gameId = null, CancellationToken ct = default)
@@ -43,5 +51,16 @@ public sealed class FileProfileRepository : IProfileRepository
                 list.Add(item);
         }
         return list;
+    }
+
+    public async Task<AutomationProfile?> UpdateAsync(AutomationProfile profile, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (string.IsNullOrWhiteSpace(profile.Id)) return null;
+        var path = Path.Combine(_dir, profile.Id + ".json");
+        if (!File.Exists(path)) return null;
+        using var fs = File.Create(path);
+        await JsonSerializer.SerializeAsync(fs, profile, JsonOpts, ct).ConfigureAwait(false);
+        return profile;
     }
 }

@@ -4,7 +4,10 @@ using GameBot.Emulator.Session;
 using GameBot.Service.Endpoints;
 using GameBot.Domain.Games;
 using GameBot.Domain.Profiles;
+using GameBot.Domain.Services;
+using GameBot.Service.Hosted;
 using Microsoft.OpenApi.Models;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +47,11 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+// Serialize enums as strings for API responses to match tests and readability
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.Configure<GameBot.Emulator.Session.SessionOptions>(builder.Configuration.GetSection("Service:Sessions"));
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
 builder.Services.AddTransient<ErrorHandlingMiddleware>();
@@ -58,6 +66,52 @@ Directory.CreateDirectory(storageRoot);
 
 builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
 builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository(storageRoot));
+builder.Services.AddSingleton<TriggerEvaluationService>();
+builder.Services.AddSingleton<ITriggerEvaluationCoordinator, TriggerEvaluationCoordinator>();
+builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.DelayTriggerEvaluator>();
+builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ScheduleTriggerEvaluator>();
+// Image match evaluator dependencies (in-memory store + screen source placeholder)
+if (OperatingSystem.IsWindows())
+{
+    builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IReferenceImageStore, GameBot.Domain.Profiles.Evaluators.MemoryReferenceImageStore>();
+    var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
+    if (useAdb)
+    {
+        // ADB-backed dynamic screen source via sessions
+        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IScreenSource, GameBot.Emulator.Session.AdbScreenSource>();
+    }
+    else
+    {
+        // Test/stub mode: optional fixed bitmap via env variable
+        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.IScreenSource>(_ =>
+        {
+            var b64 = Environment.GetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64");
+            if (!string.IsNullOrWhiteSpace(b64))
+            {
+                try
+                {
+                    var data = b64;
+                    var comma = data.IndexOf(',', System.StringComparison.Ordinal);
+                    if (comma >= 0) data = data[(comma + 1)..];
+                    var bytes = Convert.FromBase64String(data);
+                    return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() =>
+                    {
+                        using var ms = new MemoryStream(bytes);
+                        return new System.Drawing.Bitmap(ms);
+                    });
+                }
+                catch { }
+            }
+            return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() => null);
+        });
+    }
+    builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ImageMatchEvaluator>();
+}
+// Bind trigger worker options (env overrides supported via Configuration)
+builder.Services.Configure<GameBot.Service.Hosted.TriggerWorkerOptions>(builder.Configuration.GetSection("Service:Triggers:Worker"));
+builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
+builder.Services.AddHostedService<TriggerBackgroundWorker>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
 var authToken = builder.Configuration["Service:Auth:Token"]
@@ -120,6 +174,16 @@ app.MapGameEndpoints();
 app.MapProfileEndpoints();
 // ADB diagnostics endpoints (protected if token set)
 app.MapAdbEndpoints();
+// Triggers endpoints (protected if token set)
+app.MapTriggersEndpoints();
+// Image references endpoints for image-match triggers
+if (OperatingSystem.IsWindows())
+{
+    app.MapImageReferenceEndpoints();
+}
+
+// Metrics endpoints (protected if token set)
+app.MapMetricsEndpoints();
 
 app.Run();
 
