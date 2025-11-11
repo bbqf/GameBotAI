@@ -14,18 +14,21 @@ internal sealed class TriggerBackgroundWorker : BackgroundService
     private readonly ITriggerEvaluationCoordinator _coordinator;
     private readonly ISessionManager _sessions;
     private readonly IOptionsMonitor<TriggerWorkerOptions> _options;
+    private readonly ITriggerEvaluationMetrics _metrics;
     private int _running;
 
     public TriggerBackgroundWorker(
         ILogger<TriggerBackgroundWorker> logger,
     ITriggerEvaluationCoordinator coordinator,
         ISessionManager sessions,
-        IOptionsMonitor<TriggerWorkerOptions> options)
+        IOptionsMonitor<TriggerWorkerOptions> options,
+        ITriggerEvaluationMetrics metrics)
     {
         _logger = logger;
         _coordinator = coordinator;
         _sessions = sessions;
         _options = options;
+        _metrics = metrics;
         _running = 0;
     }
 
@@ -43,6 +46,7 @@ internal sealed class TriggerBackgroundWorker : BackgroundService
                 if (opts.SkipWhenNoSessions && _sessions.ActiveCount <= 0)
                 {
                     Log.CycleSkippedNoSessions(_logger);
+                    _metrics.IncrementSkippedNoSessions();
                     await Task.Delay(backoff, stoppingToken).ConfigureAwait(false);
                     continue;
                 }
@@ -50,6 +54,7 @@ internal sealed class TriggerBackgroundWorker : BackgroundService
                 if (Interlocked.Exchange(ref _running, 1) == 1)
                 {
                     Log.CycleOverlapSkipped(_logger);
+                    _metrics.IncrementOverlapSkipped();
                     await Task.Delay(interval, stoppingToken).ConfigureAwait(false);
                     continue;
                 }
@@ -58,12 +63,17 @@ internal sealed class TriggerBackgroundWorker : BackgroundService
                 try
                 {
                     var count = await _coordinator.EvaluateAllAsync(opts.GameFilter, stoppingToken).ConfigureAwait(false);
+                    if (count > 0)
+                    {
+                        _metrics.IncrementEvaluations(count);
+                    }
                     Log.WorkerCycle(_logger, count);
                 }
                 finally
                 {
                     sw.Stop();
                     Log.CycleDuration(_logger, sw.ElapsedMilliseconds);
+                    _metrics.RecordCycleDuration(sw.ElapsedMilliseconds);
                     Interlocked.Exchange(ref _running, 0);
                 }
 

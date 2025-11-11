@@ -9,13 +9,14 @@ using GameBot.Domain.Sessions; // Needed for EmulatorSession type
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
+#pragma warning disable CA2000
 
 namespace GameBot.UnitTests;
 
 public class TriggerBackgroundWorkerTests
 {
     [Fact]
-    public async Task Skips_Evaluation_When_No_Sessions()
+    public async Task SkipsEvaluationWhenNoSessions()
     {
         var logger = NullLogger<TriggerBackgroundWorker>.Instance;
         var coordinator = new FakeCoordinator();
@@ -28,7 +29,8 @@ public class TriggerBackgroundWorkerTests
             GameFilter = null
         });
 
-        var worker = new TriggerBackgroundWorker(logger, coordinator, sessions, options);
+        var metrics = new TriggerEvaluationMetrics();
+        var worker = new TriggerBackgroundWorker(logger, coordinator, sessions, options, metrics);
 
         using var cts = new CancellationTokenSource();
         cts.CancelAfter(TimeSpan.FromMilliseconds(1200));
@@ -38,10 +40,11 @@ public class TriggerBackgroundWorkerTests
         await worker.StopAsync(CancellationToken.None);
 
         coordinator.CallCount.Should().Be(0, because: "no sessions should skip evaluation cycles");
+        metrics.SkippedNoSessions.Should().BeGreaterOrEqualTo(1);
     }
 
     [Fact]
-    public async Task Evaluates_When_Sessions_Exist_And_Passes_Filter()
+    public async Task EvaluatesWhenSessionsExistAndPassesFilter()
     {
         var logger = NullLogger<TriggerBackgroundWorker>.Instance;
         var coordinator = new FakeCoordinator();
@@ -54,7 +57,8 @@ public class TriggerBackgroundWorkerTests
             GameFilter = "game-123"
         });
 
-        var worker = new TriggerBackgroundWorker(logger, coordinator, sessions, options);
+        var metrics = new TriggerEvaluationMetrics();
+        var worker = new TriggerBackgroundWorker(logger, coordinator, sessions, options, metrics);
 
         using var cts = new CancellationTokenSource();
         cts.CancelAfter(TimeSpan.FromMilliseconds(1500));
@@ -63,6 +67,7 @@ public class TriggerBackgroundWorkerTests
         await worker.StopAsync(CancellationToken.None);
 
         coordinator.CallCount.Should().BeGreaterOrEqualTo(1);
+        metrics.Evaluations.Should().BeGreaterOrEqualTo(1);
         coordinator.LastFilter.Should().Be("game-123");
     }
 
@@ -75,7 +80,7 @@ public class TriggerBackgroundWorkerTests
         {
             CallCount++;
             LastFilter = gameIdFilter;
-            return Task.FromResult(0);
+            return Task.FromResult(1);
         }
     }
 

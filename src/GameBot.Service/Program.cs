@@ -110,6 +110,7 @@ if (OperatingSystem.IsWindows())
 }
 // Bind trigger worker options (env overrides supported via Configuration)
 builder.Services.Configure<GameBot.Service.Hosted.TriggerWorkerOptions>(builder.Configuration.GetSection("Service:Triggers:Worker"));
+builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
 builder.Services.AddHostedService<TriggerBackgroundWorker>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
