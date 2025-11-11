@@ -182,6 +182,9 @@ if (OperatingSystem.IsWindows())
     app.MapImageReferenceEndpoints();
 }
 
+// Metrics endpoints (protected if token set)
+app.MapMetricsEndpoints();
+
 app.Run();
 
 // For WebApplicationFactory discovery in tests
