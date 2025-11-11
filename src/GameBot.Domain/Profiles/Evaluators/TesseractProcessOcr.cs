@@ -27,6 +27,9 @@ public sealed class TesseractProcessOcr : ITextOcr
     }
 
     public OcrResult Recognize(Bitmap image)
+        => Recognize(image, null);
+
+    public OcrResult Recognize(Bitmap image, string? language)
     {
         ArgumentNullException.ThrowIfNull(image);
 
@@ -38,10 +41,12 @@ public sealed class TesseractProcessOcr : ITextOcr
 
             // Request TSV to capture confidences; output to stdout
             // tesseract input.png stdout -l eng tsv
+            var lang = string.IsNullOrWhiteSpace(language) ? _lang : language!
+                .Replace("\"", string.Empty, StringComparison.Ordinal);
             var psi = new ProcessStartInfo
             {
                 FileName = _exe,
-                Arguments = $"\"{tmp}\" stdout -l {_lang} tsv",
+                Arguments = $"\"{tmp}\" stdout -l {lang} tsv",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,

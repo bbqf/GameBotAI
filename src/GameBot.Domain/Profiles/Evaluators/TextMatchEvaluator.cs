@@ -4,8 +4,10 @@ using System.Runtime.Versioning;
 
 namespace GameBot.Domain.Profiles.Evaluators;
 
-public interface ITextOcr {
+public interface ITextOcr
+{
     OcrResult Recognize(Bitmap image);
+    OcrResult Recognize(Bitmap image, string? language);
 }
 
 public readonly record struct OcrResult(string Text, double Confidence);
@@ -41,7 +43,8 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
                 Reason = "no_screen"
             };
         }
-        var res = _ocr.Recognize(cropped);
+    var lang = p.Language;
+    var res = lang is not null ? _ocr.Recognize(cropped, lang) : _ocr.Recognize(cropped);
 
         bool contains = !string.IsNullOrEmpty(p.Target)
             && res.Text?.IndexOf(p.Target, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -92,4 +95,6 @@ public sealed class EnvTextOcr : ITextOcr
         var confStr = Environment.GetEnvironmentVariable("GAMEBOT_TEST_OCR_CONF");
         return new OcrResult(text, double.TryParse(confStr, out var c) ? c : (string.IsNullOrEmpty(text) ? 0.0 : 0.99));
     }
+
+    public OcrResult Recognize(Bitmap image, string? language) => Recognize(image);
 }

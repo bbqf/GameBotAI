@@ -166,7 +166,8 @@ internal static class TriggersEndpoints
                     Height = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("height", out var h2El) && h2El.ValueKind==JsonValueKind.Number ? h2El.GetDouble() : 1
                 },
                 ConfidenceThreshold = paramsEl.TryGetProperty("confidenceThreshold", out var cth) && cth.ValueKind==JsonValueKind.Number ? cth.GetDouble() : 0.80,
-                Mode = paramsEl.TryGetProperty("mode", out var modeEl) && modeEl.ValueKind==JsonValueKind.String ? (modeEl.GetString() ?? "found") : "found"
+                Mode = paramsEl.TryGetProperty("mode", out var modeEl) && modeEl.ValueKind==JsonValueKind.String ? (modeEl.GetString() ?? "found") : "found",
+                Language = paramsEl.TryGetProperty("language", out var langEl) && langEl.ValueKind==JsonValueKind.String ? langEl.GetString() : null
             },
             _ => new DelayParams { Seconds = 1 }
         };
