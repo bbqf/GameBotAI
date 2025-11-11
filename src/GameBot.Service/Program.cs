@@ -107,8 +107,16 @@ if (OperatingSystem.IsWindows())
         });
     }
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ImageMatchEvaluator>();
-    // Text match evaluator (OCR) - environment backed OCR for now
-    builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Domain.Profiles.Evaluators.EnvTextOcr>();
+    // Text match evaluator (OCR): prefer Tesseract if enabled and available, else env-backed stub
+    var enableTess = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_ENABLED");
+    if (string.Equals(enableTess, "true", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Domain.Profiles.Evaluators.TesseractProcessOcr>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Domain.Profiles.Evaluators.EnvTextOcr>();
+    }
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator>();
 }
 // Bind trigger worker options (env overrides supported via Configuration)
