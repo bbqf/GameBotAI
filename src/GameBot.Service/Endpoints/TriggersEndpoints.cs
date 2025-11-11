@@ -157,6 +157,17 @@ internal static class TriggersEndpoints
                 },
                 SimilarityThreshold = paramsEl.TryGetProperty("similarityThreshold", out var th) && th.ValueKind==JsonValueKind.Number ? th.GetDouble() : 0.85
             },
+            TriggerType.TextMatch => new TextMatchParams {
+                Target = paramsEl.TryGetProperty("target", out var tgtEl) && tgtEl.ValueKind==JsonValueKind.String ? tgtEl.GetString()! : string.Empty,
+                Region = new Region {
+                    X = paramsEl.TryGetProperty("region", out var reg2El) && reg2El.TryGetProperty("x", out var x2El) && x2El.ValueKind==JsonValueKind.Number ? x2El.GetDouble() : 0,
+                    Y = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("y", out var y2El) && y2El.ValueKind==JsonValueKind.Number ? y2El.GetDouble() : 0,
+                    Width = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("width", out var w2El) && w2El.ValueKind==JsonValueKind.Number ? w2El.GetDouble() : 1,
+                    Height = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("height", out var h2El) && h2El.ValueKind==JsonValueKind.Number ? h2El.GetDouble() : 1
+                },
+                ConfidenceThreshold = paramsEl.TryGetProperty("confidenceThreshold", out var cth) && cth.ValueKind==JsonValueKind.Number ? cth.GetDouble() : 0.80,
+                Mode = paramsEl.TryGetProperty("mode", out var modeEl) && modeEl.ValueKind==JsonValueKind.String ? (modeEl.GetString() ?? "found") : "found"
+            },
             _ => new DelayParams { Seconds = 1 }
         };
         return new ProfileTrigger

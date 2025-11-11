@@ -107,6 +107,9 @@ if (OperatingSystem.IsWindows())
         });
     }
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ImageMatchEvaluator>();
+    // Text match evaluator (OCR) - environment backed OCR for now
+    builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Domain.Profiles.Evaluators.EnvTextOcr>();
+    builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator>();
 }
 // Bind trigger worker options (env overrides supported via Configuration)
 builder.Services.Configure<GameBot.Service.Hosted.TriggerWorkerOptions>(builder.Configuration.GetSection("Service:Triggers:Worker"));
