@@ -4,8 +4,7 @@ using System.Runtime.Versioning;
 
 namespace GameBot.Domain.Profiles.Evaluators;
 
-public interface ITextOcr
-{
+public interface ITextOcr {
     OcrResult Recognize(Bitmap image);
 }
 
@@ -33,7 +32,16 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
         ArgumentNullException.ThrowIfNull(trigger);
         var p = (TextMatchParams)trigger.Params;
         using var cropped = CropRegion(_screen.GetLatestScreenshot(), p.Region);
-        var res = _ocr.Recognize(cropped ?? new Bitmap(1,1));
+        if (cropped is null)
+        {
+            return new TriggerEvaluationResult
+            {
+                Status = TriggerStatus.Pending,
+                EvaluatedAt = now,
+                Reason = "no_screen"
+            };
+        }
+        var res = _ocr.Recognize(cropped);
 
         bool contains = !string.IsNullOrEmpty(p.Target)
             && res.Text?.IndexOf(p.Target, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -44,8 +52,7 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
             ? (isFoundSatisfied ? TriggerStatus.Pending : TriggerStatus.Satisfied)
             : (isFoundSatisfied ? TriggerStatus.Satisfied : TriggerStatus.Pending);
 
-        return new TriggerEvaluationResult
-        {
+        var result = new TriggerEvaluationResult {
             Status = status,
             EvaluatedAt = now,
             Reason = p.Mode.Equals("not-found", StringComparison.OrdinalIgnoreCase)
@@ -53,6 +60,8 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
                         : (contains ? "text_found" : "text_not_found"),
             Similarity = res.Confidence
         };
+
+        return result;
     }
 
     private static Bitmap? CropRegion(Bitmap? screenBmp, Region region)
