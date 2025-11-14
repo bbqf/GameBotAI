@@ -362,8 +362,18 @@ public sealed class SessionManager : ISessionManager
         return list;
     }
 
+    private static readonly byte[] NonWindowsStubPng = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="); // 1x1 black pixel
+
     private byte[] GenerateStubPng(string id)
     {
+        // System.Drawing is Windows-only in .NET; avoid PlatformNotSupportedException on CI/Linux runners.
+        if (!OperatingSystem.IsWindows())
+        {
+            // Simulate generation timing for logging consistency
+            Log.SnapshotGenerated(_logger, id, 0);
+            return NonWindowsStubPng;
+        }
         using var bmp = new Bitmap(1, 1);
         bmp.SetPixel(0, 0, Color.Black);
         using var ms = new MemoryStream();

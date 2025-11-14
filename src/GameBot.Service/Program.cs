@@ -6,7 +6,8 @@ using GameBot.Domain.Games;
 using GameBot.Domain.Profiles;
 using GameBot.Domain.Services;
 using GameBot.Service.Hosted;
-// Note: Avoid direct dependency on Microsoft.OpenApi.Models to keep CI restore simple
+// Swagger/OpenAPI
+using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,7 +27,16 @@ builder.Logging.AddFilter("GameBot.Service.Hosted.TriggerBackgroundWorker", LogL
 builder.Logging.AddFilter("GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator", LogLevel.Debug);
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// Explicitly register v1 document so tests can fetch /swagger/v1/swagger.json across environments (CI may not be Development)
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "GameBot Service API",
+        Version = "v1",
+        Description = "GameBot automation and trigger evaluation service"
+    });
+});
 // Serialize enums as strings for API responses to match tests and readability
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -117,11 +127,9 @@ if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase))
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Enable Swagger in all environments for contract tests & debugging (locked down by token auth for non-health if configured)
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Global error handling
 app.UseMiddleware<ErrorHandlingMiddleware>();
