@@ -71,7 +71,7 @@ An operator can trigger a manual refresh of the persisted configuration snapshot
 
 - Missing or empty environment variables: snapshot must include explicit null/default markers.
 - Conflicting sources (env vs config file): define precedence (assumption: env overrides file, file overrides defaults).
-- Secret values (tokens, credentials): must be masked (e.g. "***") not stored in clear text. [NEEDS CLARIFICATION: masking format and which keys constitute secrets]
+- Secret values (tokens, credentials): must be fully redacted as "***" and never stored in clear text. Secret keys are those whose names contain `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-insensitive, prefix/suffix/contains).
 - Data directory relocation while running: refresh should capture new effective path but still exclude its absolute value from persisted JSON.
 - Unwritable `data/config` directory: service should log error and continue running; endpoint returns 500 with clear diagnostic.
 - Partial write/interrupted snapshot: atomic write strategy (temp file + move) to avoid corrupt JSON (assumption).
@@ -89,12 +89,12 @@ An operator can trigger a manual refresh of the persisted configuration snapshot
 
 - **FR-001**: System MUST compile an "effective configuration" on startup from defaults, configuration files, and environment variables.
 - **FR-002**: System MUST persist the effective configuration as JSON to `data/config/config.json` excluding the absolute data directory path.
-- **FR-003**: System MUST mask secret/sensitive values in the persisted file. [NEEDS CLARIFICATION: precise list of secret keys vs heuristic]
+- **FR-003**: System MUST fully redact secret/sensitive values as "***" in the persisted file and endpoint output. Secrets are any keys whose names contain `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-insensitive, prefix/suffix/contains).
 - **FR-004**: System MUST expose an authenticated GET endpoint `/config` returning the effective configuration JSON.
 - **FR-005**: System MUST ensure the endpoint output matches persisted snapshot (except metadata fields like generated timestamp).
 - **FR-006**: System MUST handle snapshot persistence failures gracefully (log error, endpoint returns structured error without crashing service).
 - **FR-007**: System MUST perform writes atomically to avoid partial/corrupt files.
-- **FR-008**: System SHOULD provide an optional manual refresh endpoint `/config/refresh` (auth required) to regenerate and persist snapshot. [NEEDS CLARIFICATION: is manual refresh required or optional]
+- **FR-008**: System MUST provide a manual refresh endpoint `/config/refresh` (auth required) to regenerate and persist the snapshot at runtime.
 - **FR-009**: System MUST document all captured configuration keys referencing ENVIRONMENT.md names and any derived values.
 - **FR-010**: System MUST exclude transient runtime-only values unless explicitly designated (e.g. internal caches) but MAY include dynamic assigned port if helpful (assumption: include dynamic port).
 - **FR-011**: System MUST represent absent values explicitly as null rather than omitting keys.
@@ -124,14 +124,11 @@ An operator can trigger a manual refresh of the persisted configuration snapshot
 ## Assumptions
 
 1. Environment variables take precedence over config file values; config file over defaults.
-2. Secrets list includes any variable containing `TOKEN`, `SECRET`, `PASSWORD`, `KEY` (suffix/prefix match) unless clarified.
+2. Secrets list includes any variable containing `TOKEN`, `SECRET`, `PASSWORD`, `KEY` (suffix/prefix/contains, case-insensitive).
 3. Dynamic port, if chosen, is included as a non-secret parameter.
-4. Manual refresh is allowed via endpoint if confirmed; otherwise omitted without failing success criteria tied to refresh.
+4. Manual refresh is included as part of scope per decision.
 5. Data directory absolute path is excluded; relative logical name may be included (e.g. `dataDirName": "data").
 
 ## Open Clarifications Needed
 
-1. Masking strategy & secret list definition (e.g., full redaction vs partial). (Secret handling impacts security & scope)
-2. Requirement for manual refresh functionality vs deferring to restart.
-
-Pending answers these remain placeholders; spec otherwise ready for planning.
+None. All prior clarifications resolved (full redaction; refresh endpoint in scope).
