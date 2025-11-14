@@ -35,6 +35,22 @@ On service startup the system assembles the "effective configuration" from envir
 
 ---
 
+### User Story 1b - Load Existing Configuration On Startup (Priority: P1)
+
+On service startup, if a saved configuration exists at `data/config/config.json`, the system loads it as the baseline configuration, then applies environment variables on top (environment overrides file values), and finally fills any missing values from defaults. The resulting "effective configuration" is what gets persisted and served by the endpoint.
+
+**Why this priority**: Ensures continuity across restarts while still honoring operational overrides via environment variables; enables GitOps-style or baked image defaults complemented by env-based adjustments.
+
+**Independent Test**: Place a `data/config/config.json` with known values, then start the service with overlapping environment variables; verify that overlaps take the environment value, non-overlapping keys come from the file, and the remainder are defaults.
+
+**Acceptance Scenarios**:
+
+1. **Given** `data/config/config.json` contains `{"FOO":"file"}` and env sets `FOO=env`, **When** service starts, **Then** effective configuration has `FOO="env"` and the persisted snapshot reflects the override.
+2. **Given** `data/config/config.json` sets `BAR="file"` and no env for `BAR`, **When** service starts, **Then** effective configuration has `BAR="file"`.
+3. **Given** the file is malformed or unreadable, **When** service starts, **Then** the service logs a clear error and proceeds using env + defaults (no crash), and the endpoint returns a structured error if snapshot persistence subsequently fails.
+
+---
+
 ### User Story 2 - Expose Read-Only Configuration Endpoint (Priority: P2)
 
 Operators can query an authenticated endpoint (e.g. `/config`) to retrieve the current effective configuration (same normalized view as persisted) for live diagnostics without opening files on disk.
@@ -87,7 +103,7 @@ An operator can trigger a manual refresh of the persisted configuration snapshot
 
 ### Functional Requirements
 
-- **FR-001**: System MUST compile an "effective configuration" on startup from defaults, configuration files, and environment variables.
+ - **FR-001**: System MUST compile an "effective configuration" on startup from defaults, the saved configuration file at `data/config/config.json` (if present), any other configuration files, and environment variables, with precedence: Environment variables > Saved file > Other files > Defaults.
 - **FR-002**: System MUST persist the effective configuration as JSON to `data/config/config.json` excluding the absolute data directory path.
 - **FR-003**: System MUST fully redact secret/sensitive values as "***" in the persisted file and endpoint output. Secrets are any keys whose names contain `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-insensitive, prefix/suffix/contains).
 - **FR-004**: System MUST expose an authenticated GET endpoint `/config` returning the effective configuration JSON.
@@ -99,6 +115,7 @@ An operator can trigger a manual refresh of the persisted configuration snapshot
 - **FR-010**: System MUST exclude transient runtime-only values unless explicitly designated (e.g. internal caches) but MAY include dynamic assigned port if helpful (assumption: include dynamic port).
 - **FR-011**: System MUST represent absent values explicitly as null rather than omitting keys.
 - **FR-012**: System MUST include a snapshot metadata section (timestamp, version) without leaking filesystem paths.
+ - **FR-013**: On startup, if `data/config/config.json` is missing, unreadable, or invalid JSON, the service MUST log a clear error, ignore the file, and continue using environment variables, other configuration files, and defaults to build the effective configuration. The service MUST NOT fail to start due to this condition.
 
 ### Key Entities *(include if feature involves data)*
 
