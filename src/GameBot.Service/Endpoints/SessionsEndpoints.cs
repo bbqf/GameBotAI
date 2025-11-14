@@ -33,7 +33,7 @@ internal static class SessionsEndpoints
             {
                 return Results.NotFound(new { error = new { code = "adb_device_not_found", message = ex.Message, hint = "Check /adb/devices for available serials." } });
             }
-        }).WithName("CreateSession").WithOpenApi();
+        }).WithName("CreateSession");
 
         app.MapGet("/sessions/{id}", (string id, ISessionManager mgr) =>
         {
@@ -41,7 +41,7 @@ internal static class SessionsEndpoints
             return s is null
                 ? Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } })
                 : Results.Ok(new { id = s.Id, status = s.Status.ToString().ToUpperInvariant(), uptime = (long)s.Uptime.TotalSeconds, health = s.Health.ToString().ToUpperInvariant(), gameId = s.GameId });
-        }).WithName("GetSession").WithOpenApi();
+        }).WithName("GetSession");
 
         // Surface chosen device for this session (if ADB mode bound one)
         app.MapGet("/sessions/{id}/device", (string id, ISessionManager mgr) =>
@@ -55,7 +55,7 @@ internal static class SessionsEndpoints
                     deviceSerial = s.DeviceSerial,
                     mode = string.IsNullOrWhiteSpace(s.DeviceSerial) ? "STUB" : "ADB"
                 });
-        }).WithName("GetSessionDevice").WithOpenApi();
+        }).WithName("GetSessionDevice");
 
         app.MapPost("/sessions/{id}/inputs", async (string id, InputActionsRequest req, ISessionManager mgr, CancellationToken ct) =>
         {
@@ -65,7 +65,7 @@ internal static class SessionsEndpoints
             var accepted = await mgr.SendInputsAsync(id, req.Actions.Select(a => new InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)), ct).ConfigureAwait(false);
             if (accepted == 0) return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
             return Results.Accepted($"/sessions/{id}", new { accepted });
-        }).WithName("SendInputs").WithOpenApi();
+        }).WithName("SendInputs");
 
         // Session health endpoint (checks ADB connectivity if applicable)
     app.MapGet("/sessions/{id}/health", async (string id, ISessionManager mgr, ILogger<AdbClient> adbLogger, CancellationToken ct) =>
@@ -90,7 +90,7 @@ internal static class SessionsEndpoints
             }
 
             return Results.Ok(new { id = s.Id, mode = "STUB", deviceSerial = (string?)null, adb = new { ok = true } });
-        }).WithName("GetSessionHealth").WithOpenApi();
+        }).WithName("GetSessionHealth");
 
         app.MapGet("/sessions/{id}/snapshot", async (string id, ISessionManager mgr, CancellationToken ct) =>
         {
@@ -103,7 +103,7 @@ internal static class SessionsEndpoints
             {
                 return Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
             }
-        }).WithName("GetSnapshot").WithOpenApi();
+        }).WithName("GetSnapshot");
 
         app.MapPost("/sessions/{id}/execute", async (string id, string profileId, IProfileExecutor executor, CancellationToken ct) =>
         {
@@ -121,14 +121,14 @@ internal static class SessionsEndpoints
             {
                 return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
             }
-        }).WithName("ExecuteProfile").WithOpenApi();
+        }).WithName("ExecuteProfile");
 
         app.MapDelete("/sessions/{id}", (string id, ISessionManager mgr) =>
         {
             var stopped = mgr.StopSession(id);
             return stopped ? Results.Accepted($"/sessions/{id}", new { status = "stopping" })
                            : Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
-        }).WithName("StopSession").WithOpenApi();
+        }).WithName("StopSession");
 
         return app;
     }

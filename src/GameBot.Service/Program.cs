@@ -147,13 +147,11 @@ if (!string.IsNullOrWhiteSpace(authToken))
 
 // Health endpoint (anonymous)
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
-   .WithName("Health")
-   .WithOpenApi();
+   .WithName("Health");
 
 // Placeholder root endpoint (protected if token set)
 app.MapGet("/", () => Results.Ok(new { name = "GameBot Service", status = "ok" }))
-   .WithName("Root")
-   .WithOpenApi();
+   .WithName("Root");
 
 // Sessions endpoints (protected if token set)
 app.MapSessionEndpoints();
