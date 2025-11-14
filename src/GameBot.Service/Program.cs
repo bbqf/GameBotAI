@@ -6,8 +6,6 @@ using GameBot.Domain.Games;
 using GameBot.Domain.Profiles;
 using GameBot.Domain.Services;
 using GameBot.Service.Hosted;
-// Swagger/OpenAPI
-using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,15 +26,7 @@ builder.Logging.AddFilter("GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator
 
 builder.Services.AddEndpointsApiExplorer();
 // Explicitly register v1 document so tests can fetch /swagger/v1/swagger.json across environments (CI may not be Development)
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "GameBot Service API",
-        Version = "v1",
-        Description = "GameBot automation and trigger evaluation service"
-    });
-});
+builder.Services.AddSwaggerGen();
 // Serialize enums as strings for API responses to match tests and readability
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
