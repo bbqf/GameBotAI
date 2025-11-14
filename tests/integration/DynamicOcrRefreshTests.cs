@@ -34,6 +34,12 @@ public class DynamicOcrRefreshTests
         if (!IsTesseractAvailable()) return; // skip when tesseract not available
 
         // Environment & data dir
+        var prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+        var prevDynPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
+        var prevAuth = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+        var prevTessEnabled = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_ENABLED");
+        var prevTestOcrText = Environment.GetEnvironmentVariable("GAMEBOT_TEST_OCR_TEXT");
+        var prevDataDirVar = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR");
         Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
         Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
         Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
@@ -55,9 +61,11 @@ public class DynamicOcrRefreshTests
             Environment.SetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64", "data:image/png;base64," + b64);
         }
 
-        using var app = new WebApplicationFactory<Program>();
-        var client = app.CreateClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+        try
+        {
+            using var app = new WebApplicationFactory<Program>();
+            var client = app.CreateClient();
+            client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
         // Create game & profile
         var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "G-DOCR", description = "d" });
@@ -107,9 +115,19 @@ public class DynamicOcrRefreshTests
         refresh.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Second test: with Tesseract OCR and a HELLO screen, should be Satisfied
-        var test2 = await client.PostAsync(new Uri($"/profiles/{profileId}/triggers/{triggerId}/test", UriKind.Relative), null);
-        test2.StatusCode.Should().Be(HttpStatusCode.OK);
-        var res2 = await test2.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-        ((System.Text.Json.JsonElement)res2!["status"]).GetString().Should().Be("Satisfied");
+            var test2 = await client.PostAsync(new Uri($"/profiles/{profileId}/triggers/{triggerId}/test", UriKind.Relative), null);
+            test2.StatusCode.Should().Be(HttpStatusCode.OK);
+            var res2 = await test2.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+            ((System.Text.Json.JsonElement)res2!["status"]).GetString().Should().Be("Satisfied");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", prevUseAdb);
+            Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", prevDynPort);
+            Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", prevAuth);
+            Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_ENABLED", prevTessEnabled);
+            Environment.SetEnvironmentVariable("GAMEBOT_TEST_OCR_TEXT", prevTestOcrText);
+            Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", prevDataDirVar);
+        }
     }
 }

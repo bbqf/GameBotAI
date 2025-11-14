@@ -7,13 +7,27 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-public class ConfigEndpointTests
+public sealed class ConfigEndpointTests : IDisposable
 {
+    private readonly string? _prevUseAdb;
+    private readonly string? _prevAuthToken;
+    private readonly string? _prevDataDir;
     public ConfigEndpointTests()
     {
+        _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+        _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+        _prevDataDir = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR");
         Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
         Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
         TestEnvironment.PrepareCleanDataDir();
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
+        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevAuthToken);
+        Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _prevDataDir);
+        GC.SuppressFinalize(this);
     }
 
     private static HttpClient CreateAuthedClient(WebApplicationFactory<Program> app)
@@ -51,17 +65,25 @@ public class ConfigEndpointTests
     [Fact]
     public async Task MasksSecretValuesFromEnvironment()
     {
+        var prev = Environment.GetEnvironmentVariable("GAMEBOT_MY_SECRET_TOKEN");
         Environment.SetEnvironmentVariable("GAMEBOT_MY_SECRET_TOKEN", "supersecret");
-        using var app = new WebApplicationFactory<Program>();
-        using var client = CreateAuthedClient(app);
+        try
+        {
+            using var app = new WebApplicationFactory<Program>();
+            using var client = CreateAuthedClient(app);
 
-        var resp = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
-        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
-        using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
-        var parameters = doc!.RootElement.GetProperty("parameters");
-        parameters.TryGetProperty("GAMEBOT_MY_SECRET_TOKEN", out var tokenParam).Should().BeTrue();
-        tokenParam.GetProperty("isSecret").GetBoolean().Should().BeTrue();
-        tokenParam.GetProperty("value").GetString().Should().Be("***");
+            var resp = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+            resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+            using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
+            var parameters = doc!.RootElement.GetProperty("parameters");
+            parameters.TryGetProperty("GAMEBOT_MY_SECRET_TOKEN", out var tokenParam).Should().BeTrue();
+            tokenParam.GetProperty("isSecret").GetBoolean().Should().BeTrue();
+            tokenParam.GetProperty("value").GetString().Should().Be("***");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GAMEBOT_MY_SECRET_TOKEN", prev);
+        }
     }
 
     [Fact]
@@ -75,22 +97,31 @@ public class ConfigEndpointTests
         var json = "{\n  \"parameters\": {\n    \"GAMEBOT_FOO\": { \"value\": \"file\" }\n  }\n}";
         await File.WriteAllTextAsync(cfgFile, json).ConfigureAwait(true);
         // Env overrides
+        var prevFoo = Environment.GetEnvironmentVariable("GAMEBOT_FOO");
         Environment.SetEnvironmentVariable("GAMEBOT_FOO", "env");
 
-        using var app = new WebApplicationFactory<Program>();
-        using var client = CreateAuthedClient(app);
-        var resp = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
-        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
-        using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
-        var parameters = doc!.RootElement.GetProperty("parameters");
-        parameters.TryGetProperty("GAMEBOT_FOO", out var foo).Should().BeTrue();
-        foo.GetProperty("source").GetString().Should().Be("Environment");
-        foo.GetProperty("value").GetString().Should().Be("env");
+        try
+        {
+            using var app = new WebApplicationFactory<Program>();
+            using var client = CreateAuthedClient(app);
+            var resp = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+            resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+            using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
+            var parameters = doc!.RootElement.GetProperty("parameters");
+            parameters.TryGetProperty("GAMEBOT_FOO", out var foo).Should().BeTrue();
+            foo.GetProperty("source").GetString().Should().Be("Environment");
+            foo.GetProperty("value").GetString().Should().Be("env");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GAMEBOT_FOO", prevFoo);
+        }
     }
 
     [Fact]
     public async Task RefreshReflectsUpdatedEnvironment()
     {
+        var prev = Environment.GetEnvironmentVariable("GAMEBOT_MY_VALUE");
         Environment.SetEnvironmentVariable("GAMEBOT_MY_VALUE", "A");
         using var app = new WebApplicationFactory<Program>();
         using var client = CreateAuthedClient(app);
@@ -105,6 +136,7 @@ public class ConfigEndpointTests
         var parameters = doc!.RootElement.GetProperty("parameters");
         parameters.TryGetProperty("GAMEBOT_MY_VALUE", out var myVar).Should().BeTrue();
         myVar.GetProperty("value").GetString().Should().Be("B");
+        Environment.SetEnvironmentVariable("GAMEBOT_MY_VALUE", prev);
     }
 
     [Fact]
@@ -112,6 +144,7 @@ public class ConfigEndpointTests
     {
         // Use a fresh, isolated data directory and ensure no env override
         var dataDir = TestEnvironment.PrepareCleanDataDir();
+        var prevLang = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_LANG");
         Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_LANG", null);
 
         using var app = new WebApplicationFactory<Program>();
@@ -156,5 +189,6 @@ public class ConfigEndpointTests
             await Task.Delay(50).ConfigureAwait(true);
         }
         savedValueEl.GetString().Should().Be("deu");
+        Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_LANG", prevLang);
     }
 }
