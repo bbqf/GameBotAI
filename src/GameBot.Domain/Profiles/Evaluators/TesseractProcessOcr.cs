@@ -26,6 +26,12 @@ public sealed class TesseractProcessOcr : ITextOcr
             : Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_LANG")!;
     }
 
+    public TesseractProcessOcr(string exe, string lang)
+    {
+        _exe = string.IsNullOrWhiteSpace(exe) ? "tesseract" : exe;
+        _lang = string.IsNullOrWhiteSpace(lang) ? "eng" : lang;
+    }
+
     public OcrResult Recognize(Bitmap image)
         => Recognize(image, null);
 

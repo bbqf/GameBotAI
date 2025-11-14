@@ -16,14 +16,21 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
     private readonly string _configFile;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private int _refreshCount;
+    private readonly IConfigApplier _applier;
 
     public ConfigurationSnapshot? Current { get; private set; }
 
-    public ConfigSnapshotService(string storageRoot)
+    public ConfigSnapshotService(string storageRoot, IConfigApplier applier)
     {
         _storageRoot = storageRoot;
         _configDir = Path.Combine(_storageRoot, "config");
         _configFile = Path.Combine(_configDir, "config.json");
+        _applier = applier;
+    }
+
+    public ConfigSnapshotService(string storageRoot)
+        : this(storageRoot, new NoopConfigApplier())
+    {
     }
 
     public async Task<ConfigurationSnapshot> RefreshAsync(CancellationToken ct = default)
@@ -32,9 +39,11 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
         try
         {
             var baseline = await LoadSavedConfigAsync(ct).ConfigureAwait(false);
-            var env = LoadEnvironment();
+            var envInfo = LoadEnvironmentFiltered();
+            var env = envInfo.env;
+            var defaults = BuildDefaultRelevantKeys();
             var merged = MergeWithPrecedence(
-                defaults: new Dictionary<string, object?>(),
+                defaults: defaults,
                 otherFiles: new Dictionary<string, object?>(),
                 saved: baseline,
                 env: env);
@@ -47,22 +56,6 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
                 var value = kvp.Value;
                 var isSecret = ConfigurationMasking.IsSecretKey(name);
                 object? masked = ConfigurationMasking.MaskIfSecret(name, value);
-
-                // Exclude absolute storage path value from persisted output (represent as null)
-                if (masked is string s && !string.IsNullOrWhiteSpace(s))
-                {
-                    try
-                    {
-                        if (string.Equals(Path.GetFullPath(s), Path.GetFullPath(_storageRoot), StringComparison.OrdinalIgnoreCase))
-                        {
-                            masked = null;
-                        }
-                    }
-                    catch
-                    {
-                        // If path is invalid/empty, ignore comparison and keep original value
-                    }
-                }
 
                 parameters[name] = new ConfigurationParameter
                 {
@@ -79,9 +72,14 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
                 ServiceVersion = typeof(ConfigSnapshotService).Assembly.GetName().Version?.ToString(),
                 DynamicPort = null,
                 RefreshCount = _refreshCount++,
+                EnvScanned = envInfo.scanned,
+                EnvIncluded = envInfo.included,
+                EnvExcluded = envInfo.excluded,
                 Parameters = parameters
             };
 
+            // Apply configuration to the running service before persisting
+            _applier.Apply(snapshot);
             await PersistSnapshotAsync(snapshot, ct).ConfigureAwait(false);
             Current = snapshot;
             return snapshot;
@@ -140,15 +138,61 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
         };
     }
 
-    private static Dictionary<string, object?> LoadEnvironment()
+    private static (Dictionary<string, object?> env, int scanned, int included, int excluded) LoadEnvironmentFiltered()
     {
         var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        int scanned = 0, included = 0, excluded = 0;
         foreach (System.Collections.DictionaryEntry e in Environment.GetEnvironmentVariables())
         {
+            scanned++;
             var key = e.Key?.ToString();
-            if (string.IsNullOrEmpty(key)) continue;
-            dict[key] = e.Value?.ToString();
+            if (string.IsNullOrEmpty(key)) { excluded++; continue; }
+            // Only include GameBot-relevant variables: GAMEBOT_*
+            if (key.StartsWith("GAMEBOT_", StringComparison.OrdinalIgnoreCase))
+            {
+                dict[key] = e.Value?.ToString();
+                included++;
+            }
+            else
+            {
+                excluded++;
+            }
         }
+        return (dict, scanned, included, excluded);
+    }
+
+    private Dictionary<string, object?> BuildDefaultRelevantKeys()
+    {
+        // Always include known GameBot-relevant env vars, even if not set
+        var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            // GAMEBOT_* keys and their effective defaults
+            ["GAMEBOT_DATA_DIR"] = _storageRoot,
+            ["GAMEBOT_DYNAMIC_PORT"] = "false",
+            ["GAMEBOT_AUTH_TOKEN"] = null, // secret; will be masked if set
+            ["GAMEBOT_USE_ADB"] = "true", // default enabled unless explicitly "false"
+            ["GAMEBOT_TEST_SCREEN_IMAGE_B64"] = null,
+            ["GAMEBOT_TESSERACT_ENABLED"] = "false",
+            ["GAMEBOT_TESSERACT_PATH"] = "tesseract",
+            ["GAMEBOT_TESSERACT_LANG"] = "eng",
+            ["GAMEBOT_TEST_OCR_TEXT"] = "",
+            ["GAMEBOT_TEST_OCR_CONF"] = 0.0,
+            ["GAMEBOT_ADB_PATH"] = null,
+            ["GAMEBOT_ADB_RETRIES"] = 2,
+            ["GAMEBOT_ADB_RETRY_DELAY_MS"] = 100,
+            ["GAMEBOT_HTTP_LOG_LEVEL_MINIMUM"] = "Warning",
+
+            // ASP.NET Core configuration env keys and their documented defaults/effective values
+            ["Service__Storage__Root"] = _storageRoot,
+            ["Service__Auth__Token"] = null,
+            ["Service__Sessions__MaxConcurrentSessions"] = 3,
+            ["Service__Sessions__IdleTimeoutSeconds"] = 1800,
+            ["Service__Triggers__Worker__IntervalSeconds"] = 2,
+            ["Service__Triggers__Worker__GameFilter"] = null,
+            ["Service__Triggers__Worker__SkipWhenNoSessions"] = "true",
+            ["Service__Triggers__Worker__IdleBackoffSeconds"] = 5,
+            ["Logging__LogLevel__Default"] = null,
+        };
         return dict;
     }
 
@@ -185,7 +229,8 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
         WriteIndented = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never,
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
     };
 
     private async Task PersistSnapshotAsync(ConfigurationSnapshot snapshot, CancellationToken ct)
