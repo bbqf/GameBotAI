@@ -11,15 +11,18 @@ internal static class ConfigEndpoints
     {
         var group = app.MapGroup("/config");
 
-        group.MapGet("/", (IConfigSnapshotService svc) =>
+        group.MapGet("", async (IConfigSnapshotService svc, HttpContext ctx) =>
         {
             var snap = svc.Current;
-            if (snap is null) return Results.NotFound(new { error = new { code = "not_ready", message = "Configuration snapshot not generated yet." } });
+            if (snap is null)
+            {
+                snap = await svc.RefreshAsync(ctx.RequestAborted).ConfigureAwait(false);
+            }
             return Results.Ok(snap);
         })
         .WithName("GetConfiguration");
 
-        group.MapPost("/refresh", async (IConfigSnapshotService svc, HttpContext ctx) =>
+        group.MapPost("refresh", async (IConfigSnapshotService svc, HttpContext ctx) =>
         {
             var snap = await svc.RefreshAsync(ctx.RequestAborted).ConfigureAwait(false);
             return Results.Ok(snap);

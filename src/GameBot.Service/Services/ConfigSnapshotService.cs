@@ -49,9 +49,19 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
                 object? masked = ConfigurationMasking.MaskIfSecret(name, value);
 
                 // Exclude absolute storage path value from persisted output (represent as null)
-                if (masked is string s && string.Equals(Path.GetFullPath(s), Path.GetFullPath(_storageRoot), StringComparison.OrdinalIgnoreCase))
+                if (masked is string s && !string.IsNullOrWhiteSpace(s))
                 {
-                    masked = null;
+                    try
+                    {
+                        if (string.Equals(Path.GetFullPath(s), Path.GetFullPath(_storageRoot), StringComparison.OrdinalIgnoreCase))
+                        {
+                            masked = null;
+                        }
+                    }
+                    catch
+                    {
+                        // If path is invalid/empty, ignore comparison and keep original value
+                    }
                 }
 
                 parameters[name] = new ConfigurationParameter
