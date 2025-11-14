@@ -6,7 +6,7 @@ using GameBot.Domain.Games;
 using GameBot.Domain.Profiles;
 using GameBot.Domain.Services;
 using GameBot.Service.Hosted;
-using Microsoft.OpenApi.Models;
+// Note: Avoid direct dependency on Microsoft.OpenApi.Models to keep CI restore simple
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,30 +26,7 @@ builder.Logging.AddFilter("GameBot.Service.Hosted.TriggerBackgroundWorker", LogL
 builder.Logging.AddFilter("GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator", LogLevel.Debug);
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "GameBot Service", Version = "v1" });
-    // Bearer token scheme so Swagger UI can authorize protected endpoints
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "Bearer token. Enter: Bearer <token> (the word Bearer and a space are optional here)",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
-    });
-});
+builder.Services.AddSwaggerGen();
 // Serialize enums as strings for API responses to match tests and readability
 builder.Services.ConfigureHttpJsonOptions(options =>
 {

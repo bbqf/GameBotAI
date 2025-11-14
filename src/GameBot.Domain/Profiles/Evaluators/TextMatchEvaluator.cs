@@ -95,7 +95,28 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
         rw = Math.Clamp(rw, 1, screenBmp.Width - rx);
         rh = Math.Clamp(rh, 1, screenBmp.Height - ry);
         Log.RegionMapped(_logger, screenBmp.Width, screenBmp.Height, rx, ry, rw, rh);
-        return screenBmp.Clone(new Rectangle(rx, ry, rw, rh), PixelFormat.Format24bppRgb);
+        try
+        {
+            var dest = new Bitmap(rw, rh, PixelFormat.Format24bppRgb);
+            using (var g = Graphics.FromImage(dest))
+            {
+                g.DrawImage(
+                    screenBmp,
+                    new Rectangle(0, 0, rw, rh),
+                    new Rectangle(rx, ry, rw, rh),
+                    GraphicsUnit.Pixel);
+            }
+            return dest;
+        }
+        catch (Exception ex)
+        {
+            Log.CropFailed(_logger, ex);
+            return null;
+        }
+        finally
+        {
+            screenBmp.Dispose();
+        }
     }
 }
 
@@ -128,9 +149,13 @@ internal static class Log
     private static readonly Action<ILogger, int, double, bool, string, Exception?> _ocrOutcome =
         LoggerMessage.Define<int, double, bool, string>(LogLevel.Debug, new EventId(4104, nameof(OcrOutcome)),
             "OCR result len={Len} conf={Conf} contains={Contains} -> status={Status}");
+    private static readonly Action<ILogger, string, Exception?> _cropFailed =
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(4105, nameof(CropFailed)),
+            "Failed to crop region for OCR: {Message}");
 
     public static void Evaluating(ILogger l, string target, double threshold, string language) => _evaluating(l, target, threshold, language, null);
     public static void RegionMapped(ILogger l, int w, int h, int x, int y, int w2, int h2) => _regionMapped(l, w, h, x, y, w2, h2, null);
     public static void NoScreen(ILogger l) => _noScreen(l, null);
     public static void OcrOutcome(ILogger l, int len, double conf, bool contains, string status) => _ocrOutcome(l, len, conf, contains, status, null);
+    public static void CropFailed(ILogger l, Exception ex) => _cropFailed(l, ex.Message, ex);
 }
