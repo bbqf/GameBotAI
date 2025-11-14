@@ -137,11 +137,19 @@ internal static class TriggersEndpoints
 
     private static ProfileTrigger MapCreateDto(ProfileTriggerCreateDto dto)
     {
-    var id = Guid.NewGuid().ToString("N");
-    var normalizedType = (dto.Type ?? string.Empty).Replace("-", string.Empty, StringComparison.Ordinal)
-                              .Replace("_", string.Empty, StringComparison.Ordinal)
-                              .Replace(" ", string.Empty, StringComparison.Ordinal);
-    var typeParsed = Enum.TryParse<TriggerType>(normalizedType, true, out var tt) ? tt : TriggerType.Delay;
+        var id = Guid.NewGuid().ToString("N");
+        var rawType = dto.Type?.Trim() ?? string.Empty;
+        var lowered = rawType.ToLowerInvariant();
+        var typeParsed = lowered switch
+        {
+            "delay" => TriggerType.Delay,
+            "schedule" => TriggerType.Schedule,
+            "image-match" => TriggerType.ImageMatch,
+            "imagematch" => TriggerType.ImageMatch,
+            "text-match" => TriggerType.TextMatch,
+            "textmatch" => TriggerType.TextMatch,
+            _ => TriggerType.Delay
+        };
         var paramsEl = (JsonElement)dto.Params;
         TriggerParams p = typeParsed switch
         {

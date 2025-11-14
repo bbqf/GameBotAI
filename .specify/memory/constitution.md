@@ -67,6 +67,7 @@ Rationale: Predictable performance protects user experience and infrastructure c
 
 A change is Done only when all gates pass:
 - Quality: lint/format/static analysis clean; security scan clean or approved with risk notes.
+- Do not use underscores in method names, only CamelCase
 - Tests: all required tests pass in CI; coverage baselines met or improved; flaky tests eliminated or quarantined with owner.
 - UX: interfaces documented; help text/messages updated; any breaking change accompanied by version note and migration path.
 - Performance: declared goals documented; perf note included for hot-path changes; no regression beyond agreed budgets.

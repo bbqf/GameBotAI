@@ -11,7 +11,7 @@ namespace GameBot.UnitTests;
 public class TextMatchEvaluatorTests
 {
     [Fact]
-    public void FoundMode_Satisfied_When_TextPresentAndConfident()
+    public void FoundModeSatisfiedWhenTextPresentAndConfident()
     {
         var ocr = new FakeOcr("Hello World", 0.95);
         using var bmp = new Bitmap(2,2);
@@ -27,7 +27,7 @@ public class TextMatchEvaluatorTests
             Params = new TextMatchParams
             {
                 Target = "world",
-                Region = new Region { X = 0, Y = 0, Width = 1, Height = 1 },
+                Region = new GameBot.Domain.Profiles.Region { X = 0, Y = 0, Width = 1, Height = 1 },
                 ConfidenceThreshold = 0.90,
                 Mode = "found"
             }
@@ -39,7 +39,7 @@ public class TextMatchEvaluatorTests
     }
 
     [Fact]
-    public void NotFoundMode_Satisfied_When_TextAbsentOrLowConfidence()
+    public void NotFoundModeSatisfiedWhenTextAbsentOrLowConfidence()
     {
         var ocr = new FakeOcr("Something else", 0.99);
         using var bmp = new Bitmap(2,2);
@@ -55,7 +55,7 @@ public class TextMatchEvaluatorTests
             Params = new TextMatchParams
             {
                 Target = "world",
-                Region = new Region { X = 0, Y = 0, Width = 1, Height = 1 },
+                Region = new GameBot.Domain.Profiles.Region { X = 0, Y = 0, Width = 1, Height = 1 },
                 ConfidenceThreshold = 0.80,
                 Mode = "not-found"
             }
@@ -71,5 +71,6 @@ public class TextMatchEvaluatorTests
         private readonly string _text; private readonly double _conf;
         public FakeOcr(string text, double conf) { _text = text; _conf = conf; }
         public OcrResult Recognize(Bitmap image) => new OcrResult(_text, _conf);
+        public OcrResult Recognize(Bitmap image, string? language) => new OcrResult(_text, _conf);
     }
 }

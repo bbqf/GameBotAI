@@ -1,6 +1,9 @@
+using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.Versioning;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GameBot.Domain.Profiles.Evaluators;
 
@@ -20,8 +23,11 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
 {
     private readonly ITextOcr _ocr;
     private readonly IScreenSource _screen;
+    private readonly ILogger<TextMatchEvaluator> _logger;
+    public TextMatchEvaluator(ITextOcr ocr, IScreenSource screen, ILogger<TextMatchEvaluator> logger)
+    { _ocr = ocr; _screen = screen; _logger = logger; }
     public TextMatchEvaluator(ITextOcr ocr, IScreenSource screen)
-    { _ocr = ocr; _screen = screen; }
+        : this(ocr, screen, NullLogger<TextMatchEvaluator>.Instance) { }
 
     public bool CanEvaluate(ProfileTrigger trigger)
     {
@@ -32,10 +38,20 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
     public TriggerEvaluationResult Evaluate(ProfileTrigger trigger, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(trigger);
-        var p = (TextMatchParams)trigger.Params;
-        using var cropped = CropRegion(_screen.GetLatestScreenshot(), p.Region);
+        if (trigger.Params is not TextMatchParams p)
+        {
+            return new TriggerEvaluationResult
+            {
+                Status = TriggerStatus.Disabled,
+                EvaluatedAt = now,
+                Reason = "params_type_mismatch"
+            };
+        }
+        Log.Evaluating(_logger, p.Target ?? string.Empty, p.ConfidenceThreshold, p.Language ?? "(default)");
+        using var cropped = CropRegionWithLog(_screen.GetLatestScreenshot(), p.Region);
         if (cropped is null)
         {
+            Log.NoScreen(_logger);
             return new TriggerEvaluationResult
             {
                 Status = TriggerStatus.Pending,
@@ -43,8 +59,8 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
                 Reason = "no_screen"
             };
         }
-    var lang = p.Language;
-    var res = lang is not null ? _ocr.Recognize(cropped, lang) : _ocr.Recognize(cropped);
+        var lang = p.Language;
+        var res = lang is not null ? _ocr.Recognize(cropped, lang) : _ocr.Recognize(cropped);
 
         bool contains = !string.IsNullOrEmpty(p.Target)
             && res.Text?.IndexOf(p.Target, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -55,7 +71,9 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
             ? (isFoundSatisfied ? TriggerStatus.Pending : TriggerStatus.Satisfied)
             : (isFoundSatisfied ? TriggerStatus.Satisfied : TriggerStatus.Pending);
 
-        var result = new TriggerEvaluationResult {
+        Log.OcrOutcome(_logger, res.Text?.Length ?? 0, res.Confidence, contains, status.ToString());
+        return new TriggerEvaluationResult
+        {
             Status = status,
             EvaluatedAt = now,
             Reason = p.Mode.Equals("not-found", StringComparison.OrdinalIgnoreCase)
@@ -63,11 +81,9 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
                         : (contains ? "text_found" : "text_not_found"),
             Similarity = res.Confidence
         };
-
-        return result;
     }
 
-    private static Bitmap? CropRegion(Bitmap? screenBmp, Region region)
+    private Bitmap? CropRegionWithLog(Bitmap? screenBmp, Region region)
     {
         if (screenBmp is null) return null;
         var rx = (int)Math.Round(region.X * screenBmp.Width);
@@ -78,13 +94,13 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
         ry = Math.Clamp(ry, 0, Math.Max(0, screenBmp.Height - 1));
         rw = Math.Clamp(rw, 1, screenBmp.Width - rx);
         rh = Math.Clamp(rh, 1, screenBmp.Height - ry);
+        Log.RegionMapped(_logger, screenBmp.Width, screenBmp.Height, rx, ry, rw, rh);
         return screenBmp.Clone(new Rectangle(rx, ry, rw, rh), PixelFormat.Format24bppRgb);
     }
 }
 
 /// <summary>
 /// Environment-driven OCR implementation for tests/CI without native dependencies.
-/// Reads text from GAMEBOT_TEST_OCR_TEXT and confidence from GAMEBOT_TEST_OCR_CONF.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class EnvTextOcr : ITextOcr
@@ -97,4 +113,24 @@ public sealed class EnvTextOcr : ITextOcr
     }
 
     public OcrResult Recognize(Bitmap image, string? language) => Recognize(image);
+}
+
+internal static class Log
+{
+    private static readonly Action<ILogger, string, double, string, Exception?> _evaluating =
+        LoggerMessage.Define<string, double, string>(LogLevel.Debug, new EventId(4101, nameof(Evaluating)),
+            "TextMatch evaluating target='{Target}' threshold={Threshold} lang='{Language}'");
+    private static readonly Action<ILogger, int, int, int, int, int, int, Exception?> _regionMapped =
+        LoggerMessage.Define<int, int, int, int, int, int>(LogLevel.Trace, new EventId(4102, nameof(RegionMapped)),
+            "OCR region mapped screen({W}x{H}) -> rect x={X} y={Y} w={W2} h={H2}");
+    private static readonly Action<ILogger, Exception?> _noScreen =
+        LoggerMessage.Define(LogLevel.Debug, new EventId(4103, nameof(NoScreen)), "No screen available for OCR");
+    private static readonly Action<ILogger, int, double, bool, string, Exception?> _ocrOutcome =
+        LoggerMessage.Define<int, double, bool, string>(LogLevel.Debug, new EventId(4104, nameof(OcrOutcome)),
+            "OCR result len={Len} conf={Conf} contains={Contains} -> status={Status}");
+
+    public static void Evaluating(ILogger l, string target, double threshold, string language) => _evaluating(l, target, threshold, language, null);
+    public static void RegionMapped(ILogger l, int w, int h, int x, int y, int w2, int h2) => _regionMapped(l, w, h, x, y, w2, h2, null);
+    public static void NoScreen(ILogger l) => _noScreen(l, null);
+    public static void OcrOutcome(ILogger l, int len, double conf, bool contains, string status) => _ocrOutcome(l, len, conf, contains, status, null);
 }

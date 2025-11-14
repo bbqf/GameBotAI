@@ -21,6 +21,9 @@ builder.Logging.AddSimpleConsole(o =>
 });
 // Ensure our ADB category is visible at Debug if Default is higher
 builder.Logging.AddFilter("GameBot.Emulator.Adb.AdbClient", LogLevel.Debug);
+// Ensure trigger worker + text-match evaluator debug logs are visible
+builder.Logging.AddFilter("GameBot.Service.Hosted.TriggerBackgroundWorker", LogLevel.Debug);
+builder.Logging.AddFilter("GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator", LogLevel.Debug);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
