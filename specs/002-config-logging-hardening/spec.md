@@ -2,7 +2,7 @@
 
 Feature Branch: `002-config-logging-hardening`
 Created: 2025-11-14
-Status: Draft
+Status: Implemented (Merged on 2025-11-14)
 
 Context: This spec replaces prior user stories. It focuses narrowly on:
 1) Reducing default HTTP logging verbosity.
@@ -48,12 +48,21 @@ US2: Saving configuration should only consider the environment variables relevan
 ## Notes
 - Prefix list can be extended in future specs if additional namespaces are introduced.
 - Secret masking continues to follow existing rules; this spec only scopes which env vars are considered.
-# Feature Specification: Configuration & Logging Hardening
+## Post-Implementation Review
+Delivered:
+- Reduced default HTTP logging verbosity with dynamic override via `GAMEBOT_HTTP_LOG_LEVEL_MINIMUM`.
+- Saved configuration limited to `GAMEBOT_*` and `Service__*` keys; added `envScanned/envIncluded/envExcluded` metadata.
+- Always-include documented keys with concrete defaults in snapshot.
+- Refresh applies configuration to the running service: HTTP log level, trigger worker options, and dynamic OCR backend (Env/Tesseract).
+- Snapshot persists in camelCase; on-disk edits respected on refresh.
+- Tests added for env filtering, on-disk refresh persistence, and runtime OCR switch.
 
-**Feature Branch**: `002-config-logging-hardening`  
-**Created**: 2025-11-14  
-**Status**: Draft  
-**Context**: Follow-up to implemented Save Configuration feature (`001-save-config`). Addresses observed gaps in configuration snapshot richness, logging consistency, validation transparency, and operational diagnostics.
+Deferred/Out of Scope:
+- Config diff/history endpoints, structured JSON logs with redaction, and standardized error schema.
+
+# (Archived) Feature Specification: Configuration & Logging Hardening
+
+Status: Superseded by focused US1/US2 above; retained for context and future follow-ups.
 
 ## Problem Statement
 Operators need stronger guarantees and tooling around configuration accuracy, log clarity, and change tracking. Current implementation:
