@@ -26,7 +26,7 @@ internal static class MetricsEndpoints
             });
         })
         .WithName("GetTriggerEvaluationMetrics")
-        .WithOpenApi();
+        ;
 
         return app;
     }

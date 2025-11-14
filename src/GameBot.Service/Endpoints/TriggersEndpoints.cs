@@ -137,11 +137,19 @@ internal static class TriggersEndpoints
 
     private static ProfileTrigger MapCreateDto(ProfileTriggerCreateDto dto)
     {
-    var id = Guid.NewGuid().ToString("N");
-    var normalizedType = (dto.Type ?? string.Empty).Replace("-", string.Empty, StringComparison.Ordinal)
-                              .Replace("_", string.Empty, StringComparison.Ordinal)
-                              .Replace(" ", string.Empty, StringComparison.Ordinal);
-    var typeParsed = Enum.TryParse<TriggerType>(normalizedType, true, out var tt) ? tt : TriggerType.Delay;
+        var id = Guid.NewGuid().ToString("N");
+        var rawType = dto.Type?.Trim() ?? string.Empty;
+        var lowered = rawType.ToLowerInvariant();
+        var typeParsed = lowered switch
+        {
+            "delay" => TriggerType.Delay,
+            "schedule" => TriggerType.Schedule,
+            "image-match" => TriggerType.ImageMatch,
+            "imagematch" => TriggerType.ImageMatch,
+            "text-match" => TriggerType.TextMatch,
+            "textmatch" => TriggerType.TextMatch,
+            _ => TriggerType.Delay
+        };
         var paramsEl = (JsonElement)dto.Params;
         TriggerParams p = typeParsed switch
         {
@@ -156,6 +164,18 @@ internal static class TriggersEndpoints
                     Height = paramsEl.TryGetProperty("region", out regEl) && regEl.TryGetProperty("height", out var hEl) && hEl.ValueKind==JsonValueKind.Number ? hEl.GetDouble() : 1
                 },
                 SimilarityThreshold = paramsEl.TryGetProperty("similarityThreshold", out var th) && th.ValueKind==JsonValueKind.Number ? th.GetDouble() : 0.85
+            },
+            TriggerType.TextMatch => new TextMatchParams {
+                Target = paramsEl.TryGetProperty("target", out var tgtEl) && tgtEl.ValueKind==JsonValueKind.String ? tgtEl.GetString()! : string.Empty,
+                Region = new Region {
+                    X = paramsEl.TryGetProperty("region", out var reg2El) && reg2El.TryGetProperty("x", out var x2El) && x2El.ValueKind==JsonValueKind.Number ? x2El.GetDouble() : 0,
+                    Y = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("y", out var y2El) && y2El.ValueKind==JsonValueKind.Number ? y2El.GetDouble() : 0,
+                    Width = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("width", out var w2El) && w2El.ValueKind==JsonValueKind.Number ? w2El.GetDouble() : 1,
+                    Height = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("height", out var h2El) && h2El.ValueKind==JsonValueKind.Number ? h2El.GetDouble() : 1
+                },
+                ConfidenceThreshold = paramsEl.TryGetProperty("confidenceThreshold", out var cth) && cth.ValueKind==JsonValueKind.Number ? cth.GetDouble() : 0.80,
+                Mode = paramsEl.TryGetProperty("mode", out var modeEl) && modeEl.ValueKind==JsonValueKind.String ? (modeEl.GetString() ?? "found") : "found",
+                Language = paramsEl.TryGetProperty("language", out var langEl) && langEl.ValueKind==JsonValueKind.String ? langEl.GetString() : null
             },
             _ => new DelayParams { Seconds = 1 }
         };

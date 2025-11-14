@@ -25,7 +25,7 @@ internal static class GamesEndpoints
                 Name = created.Name,
                 Description = created.Description
             });
-        }).WithName("CreateGame").WithOpenApi();
+        }).WithName("CreateGame");
 
         app.MapGet("/games/{id}", async (string id, IGameRepository repo, CancellationToken ct) =>
         {
@@ -36,14 +36,14 @@ internal static class GamesEndpoints
                 {
                     Id = g.Id, Name = g.Name, Description = g.Description
                 });
-        }).WithName("GetGame").WithOpenApi();
+        }).WithName("GetGame");
 
         app.MapGet("/games", async (IGameRepository repo, CancellationToken ct) =>
         {
             var list = await repo.ListAsync(ct).ConfigureAwait(false);
             var resp = list.Select(g => new GameResponse { Id = g.Id, Name = g.Name, Description = g.Description });
             return Results.Ok(resp);
-        }).WithName("ListGames").WithOpenApi();
+        }).WithName("ListGames");
 
         return app;
     }

@@ -172,6 +172,11 @@ See full request/response shapes in the contracts doc linked above.
 
 Notes:
 - You can still force ADB-less screen evaluation in tests via `GAMEBOT_TEST_SCREEN_IMAGE_B64` (base64 PNG). When set and `GAMEBOT_USE_ADB=false`, the image-match evaluator compares against this image.
+- Text OCR (text-match triggers)
+  - Enable Tesseract backend: `$env:GAMEBOT_TESSERACT_ENABLED = 'true'`
+  - Optional path: `$env:GAMEBOT_TESSERACT_PATH = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'`
+  - Optional language: `$env:GAMEBOT_TESSERACT_LANG = 'eng'` (can be overridden per-trigger via `params.language`)
+  - Fallback (when disabled): Env-based OCR reads `$env:GAMEBOT_TEST_OCR_TEXT` and `$env:GAMEBOT_TEST_OCR_CONF` for deterministic tests.
 
 - ADB behavior
   - `GAMEBOT_USE_ADB`: set to `false` to disable ADB integration (useful in tests/CI). By default on Windows, ADB is enabled.

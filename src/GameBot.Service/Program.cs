@@ -6,7 +6,6 @@ using GameBot.Domain.Games;
 using GameBot.Domain.Profiles;
 using GameBot.Domain.Services;
 using GameBot.Service.Hosted;
-using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,32 +20,13 @@ builder.Logging.AddSimpleConsole(o =>
 });
 // Ensure our ADB category is visible at Debug if Default is higher
 builder.Logging.AddFilter("GameBot.Emulator.Adb.AdbClient", LogLevel.Debug);
+// Ensure trigger worker + text-match evaluator debug logs are visible
+builder.Logging.AddFilter("GameBot.Service.Hosted.TriggerBackgroundWorker", LogLevel.Debug);
+builder.Logging.AddFilter("GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator", LogLevel.Debug);
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "GameBot Service", Version = "v1" });
-    // Bearer token scheme so Swagger UI can authorize protected endpoints
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "Bearer token. Enter: Bearer <token> (the word Bearer and a space are optional here)",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
-    });
-});
+// Explicitly register v1 document so tests can fetch /swagger/v1/swagger.json across environments (CI may not be Development)
+builder.Services.AddSwaggerGen();
 // Serialize enums as strings for API responses to match tests and readability
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -107,6 +87,17 @@ if (OperatingSystem.IsWindows())
         });
     }
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ImageMatchEvaluator>();
+    // Text match evaluator (OCR): prefer Tesseract if enabled and available, else env-backed stub
+    var enableTess = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_ENABLED");
+    if (string.Equals(enableTess, "true", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Domain.Profiles.Evaluators.TesseractProcessOcr>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Domain.Profiles.Evaluators.EnvTextOcr>();
+    }
+    builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator>();
 }
 // Bind trigger worker options (env overrides supported via Configuration)
 builder.Services.Configure<GameBot.Service.Hosted.TriggerWorkerOptions>(builder.Configuration.GetSection("Service:Triggers:Worker"));
@@ -126,11 +117,9 @@ if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase))
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Enable Swagger in all environments for contract tests & debugging (locked down by token auth for non-health if configured)
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Global error handling
 app.UseMiddleware<ErrorHandlingMiddleware>();
@@ -158,13 +147,11 @@ if (!string.IsNullOrWhiteSpace(authToken))
 
 // Health endpoint (anonymous)
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
-   .WithName("Health")
-   .WithOpenApi();
+   .WithName("Health");
 
 // Placeholder root endpoint (protected if token set)
 app.MapGet("/", () => Results.Ok(new { name = "GameBot Service", status = "ok" }))
-   .WithName("Root")
-   .WithOpenApi();
+   .WithName("Root");
 
 // Sessions endpoints (protected if token set)
 app.MapSessionEndpoints();

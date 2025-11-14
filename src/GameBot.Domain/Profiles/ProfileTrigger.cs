@@ -48,6 +48,7 @@ public sealed class TextMatchParams : TriggerParams
     public required Region Region { get; set; } = default!;
     public double ConfidenceThreshold { get; set; } = 0.80;
     public required string Mode { get; set; } = "found"; // found | not-found
+    public string? Language { get; set; } // Optional OCR language (e.g., "eng")
 }
 
 public sealed class ProfileTrigger

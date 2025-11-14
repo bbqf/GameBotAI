@@ -17,3 +17,15 @@ csharp_new_line_before_open_brace = all:warning
 csharp_style_var_for_built_in_types = true:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_var_elsewhere = true:suggestion
+dotnet_diagnostic.IDE1006.severity = warning
+# Custom naming rule: methods should use PascalCase without underscores
+dotnet_naming_rule.no_underscores_in_methods.symbols = method_symbols
+dotnet_naming_rule.no_underscores_in_methods.style = method_style
+dotnet_naming_rule.no_underscores_in_methods.severity = warning
+dotnet_naming_symbols.method_symbols.applicable_kinds = method
+dotnet_naming_symbols.method_symbols.applicable_accessibilities = *
+dotnet_naming_symbols.method_symbols.required_modifiers = *
+dotnet_naming_style.method_style.capitalization = pascal_case
+dotnet_naming_style.method_style.required_prefix = 
+dotnet_naming_style.method_style.required_suffix = 
+dotnet_naming_style.method_style.word_separator = 
