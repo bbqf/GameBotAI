@@ -5,6 +5,7 @@ A .NET 8 (C#) minimal API service that controls Android emulator sessions on Win
 ## Specs and contracts
 - Spec, plans, and research: `specs/001-android-emulator-service/`
 - API endpoints: `specs/001-android-emulator-service/contracts/endpoints.md`
+- Save Configuration spec: `specs/001-save-config/`
 
 ## Requirements
 - Windows 10/11
@@ -191,6 +192,32 @@ Notes:
   - Console logs include timestamps and scopes; ADB operations are logged at Debug.
   - Enable verbose logs: `$env:Logging__LogLevel__Default = 'Debug'`
   - Correlation ID: send `X-Correlation-ID` header; responses include it and it is added to log scopes.
+
+### Configuration Snapshot (Saved Config)
+The service maintains an "effective configuration" snapshot for auditability and diagnostics.
+
+- File: `data/config/config.json` under the storage root (defaults to `<app>/data`; override with `GAMEBOT_DATA_DIR`).
+- Precedence: Environment > Saved file > Other files > Defaults.
+- Secrets: Keys containing `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-insensitive) are fully redacted as `***` in the snapshot and API output.
+- Startup: On start, if a saved file exists it is loaded, env overrides are applied, defaults fill gaps, and the result is persisted. Malformed/missing file is ignored with a log; service continues.
+- Writes: Atomic (temp + move) to avoid partial/corrupt JSON.
+
+Endpoints (auth required when `GAMEBOT_AUTH_TOKEN` is set):
+- GET `/config/` → returns the current effective configuration JSON (generated lazily if missing)
+- POST `/config/refresh` → regenerates and persists the snapshot
+
+Examples (PowerShell):
+
+```powershell
+# Optional: set token used by the service
+$env:GAMEBOT_AUTH_TOKEN = "test-token"
+
+# Read current snapshot
+Invoke-RestMethod -Uri http://localhost:5000/config/ -Headers @{ Authorization = "Bearer $env:GAMEBOT_AUTH_TOKEN" }
+
+# Regenerate snapshot
+Invoke-RestMethod -Uri http://localhost:5000/config/refresh -Method POST -Headers @{ Authorization = "Bearer $env:GAMEBOT_AUTH_TOKEN" }
+```
 
 ## Development
 Run tests:
