@@ -46,6 +46,8 @@ Directory.CreateDirectory(storageRoot);
 
 builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
 builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository(storageRoot));
+// Config snapshot service (for /config endpoints and persisted snapshot generation)
+builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(_ => new GameBot.Service.Services.ConfigSnapshotService(storageRoot));
 builder.Services.AddSingleton<TriggerEvaluationService>();
 builder.Services.AddSingleton<ITriggerEvaluationCoordinator, TriggerEvaluationCoordinator>();
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.DelayTriggerEvaluator>();
@@ -103,6 +105,7 @@ if (OperatingSystem.IsWindows())
 builder.Services.Configure<GameBot.Service.Hosted.TriggerWorkerOptions>(builder.Configuration.GetSection("Service:Triggers:Worker"));
 builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
 builder.Services.AddHostedService<TriggerBackgroundWorker>();
+builder.Services.AddHostedService<GameBot.Service.Hosted.ConfigSnapshotStartupInitializer>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
 var authToken = builder.Configuration["Service:Auth:Token"]
@@ -171,6 +174,9 @@ if (OperatingSystem.IsWindows())
 
 // Metrics endpoints (protected if token set)
 app.MapMetricsEndpoints();
+
+// Config endpoints (protected if token set)
+app.MapConfigEndpoints();
 
 app.Run();
 
