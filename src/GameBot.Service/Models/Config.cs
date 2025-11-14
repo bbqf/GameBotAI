@@ -16,6 +16,9 @@ internal sealed class ConfigurationSnapshot
     public string? ServiceVersion { get; init; }
     public int? DynamicPort { get; init; }
     public int RefreshCount { get; init; }
+    public int EnvScanned { get; init; }
+    public int EnvIncluded { get; init; }
+    public int EnvExcluded { get; init; }
 
     public required Dictionary<string, ConfigurationParameter> Parameters { get; init; } = new();
 }

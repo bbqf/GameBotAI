@@ -15,18 +15,18 @@ public class ConfigMaskingAndMergeTests
         Directory.CreateDirectory(tmp);
         try
         {
-            Environment.SetEnvironmentVariable("TEST_SECRET_KEY", "value123");
+            Environment.SetEnvironmentVariable("GAMEBOT_TEST_SECRET_KEY", "value123");
             using var svc = new ConfigSnapshotService(tmp);
             var snap = await svc.RefreshAsync();
 
-            snap.Parameters.Should().ContainKey("TEST_SECRET_KEY");
-            var p = snap.Parameters["TEST_SECRET_KEY"];
+            snap.Parameters.Should().ContainKey("GAMEBOT_TEST_SECRET_KEY");
+            var p = snap.Parameters["GAMEBOT_TEST_SECRET_KEY"];
             p.IsSecret.Should().BeTrue();
             p.Value.Should().Be("***");
         }
         finally
         {
-            Environment.SetEnvironmentVariable("TEST_SECRET_KEY", null);
+            Environment.SetEnvironmentVariable("GAMEBOT_TEST_SECRET_KEY", null);
             try { Directory.Delete(tmp, recursive: true); } catch { }
         }
     }
@@ -38,22 +38,22 @@ public class ConfigMaskingAndMergeTests
         var cfgDir = Path.Combine(tmp, "config");
         Directory.CreateDirectory(cfgDir);
         var cfgFile = Path.Combine(cfgDir, "config.json");
-        await File.WriteAllTextAsync(cfgFile, "{\n  \"parameters\": { \n    \"FOO\": { \"value\": \"file\" } \n  }\n}");
+        await File.WriteAllTextAsync(cfgFile, "{\n  \"parameters\": { \n    \"GAMEBOT_FOO\": { \"value\": \"file\" } \n  }\n}");
 
         try
         {
-            Environment.SetEnvironmentVariable("FOO", "env");
+            Environment.SetEnvironmentVariable("GAMEBOT_FOO", "env");
             using var svc = new ConfigSnapshotService(tmp);
             var snap = await svc.RefreshAsync();
 
-            snap.Parameters.Should().ContainKey("FOO");
-            var p = snap.Parameters["FOO"];
+            snap.Parameters.Should().ContainKey("GAMEBOT_FOO");
+            var p = snap.Parameters["GAMEBOT_FOO"];
             p.Source.Should().Be("Environment");
             p.Value.Should().Be("env");
         }
         finally
         {
-            Environment.SetEnvironmentVariable("FOO", null);
+            Environment.SetEnvironmentVariable("GAMEBOT_FOO", null);
             try { Directory.Delete(tmp, recursive: true); } catch { }
         }
     }

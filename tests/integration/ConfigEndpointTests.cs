@@ -51,7 +51,7 @@ public class ConfigEndpointTests
     [Fact]
     public async Task MasksSecretValuesFromEnvironment()
     {
-        Environment.SetEnvironmentVariable("MY_SECRET_TOKEN", "supersecret");
+        Environment.SetEnvironmentVariable("GAMEBOT_MY_SECRET_TOKEN", "supersecret");
         using var app = new WebApplicationFactory<Program>();
         using var client = CreateAuthedClient(app);
 
@@ -59,7 +59,7 @@ public class ConfigEndpointTests
         resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
         using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
         var parameters = doc!.RootElement.GetProperty("parameters");
-        parameters.TryGetProperty("MY_SECRET_TOKEN", out var tokenParam).Should().BeTrue();
+        parameters.TryGetProperty("GAMEBOT_MY_SECRET_TOKEN", out var tokenParam).Should().BeTrue();
         tokenParam.GetProperty("isSecret").GetBoolean().Should().BeTrue();
         tokenParam.GetProperty("value").GetString().Should().Be("***");
     }
@@ -72,10 +72,10 @@ public class ConfigEndpointTests
         var cfgDir = Path.Combine(dataDir, "config");
         Directory.CreateDirectory(cfgDir);
         var cfgFile = Path.Combine(cfgDir, "config.json");
-        var json = "{\n  \"parameters\": {\n    \"FOO\": { \"value\": \"file\" }\n  }\n}";
+        var json = "{\n  \"parameters\": {\n    \"GAMEBOT_FOO\": { \"value\": \"file\" }\n  }\n}";
         await File.WriteAllTextAsync(cfgFile, json).ConfigureAwait(true);
         // Env overrides
-        Environment.SetEnvironmentVariable("FOO", "env");
+        Environment.SetEnvironmentVariable("GAMEBOT_FOO", "env");
 
         using var app = new WebApplicationFactory<Program>();
         using var client = CreateAuthedClient(app);
@@ -83,7 +83,7 @@ public class ConfigEndpointTests
         resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
         using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
         var parameters = doc!.RootElement.GetProperty("parameters");
-        parameters.TryGetProperty("FOO", out var foo).Should().BeTrue();
+        parameters.TryGetProperty("GAMEBOT_FOO", out var foo).Should().BeTrue();
         foo.GetProperty("source").GetString().Should().Be("Environment");
         foo.GetProperty("value").GetString().Should().Be("env");
     }
@@ -91,19 +91,70 @@ public class ConfigEndpointTests
     [Fact]
     public async Task RefreshReflectsUpdatedEnvironment()
     {
-        Environment.SetEnvironmentVariable("MY_VALUE", "A");
+        Environment.SetEnvironmentVariable("GAMEBOT_MY_VALUE", "A");
         using var app = new WebApplicationFactory<Program>();
         using var client = CreateAuthedClient(app);
 
         var resp1 = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
         resp1.StatusCode.Should().Be(HttpStatusCode.OK, await resp1.Content.ReadAsStringAsync().ConfigureAwait(true));
 
-        Environment.SetEnvironmentVariable("MY_VALUE", "B");
+        Environment.SetEnvironmentVariable("GAMEBOT_MY_VALUE", "B");
         var refresh = await client.PostAsync(new Uri("/config/refresh", UriKind.Relative), content: null).ConfigureAwait(true);
         refresh.StatusCode.Should().Be(HttpStatusCode.OK, await refresh.Content.ReadAsStringAsync().ConfigureAwait(true));
         using var doc = await refresh.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
         var parameters = doc!.RootElement.GetProperty("parameters");
-        parameters.TryGetProperty("MY_VALUE", out var myVar).Should().BeTrue();
+        parameters.TryGetProperty("GAMEBOT_MY_VALUE", out var myVar).Should().BeTrue();
         myVar.GetProperty("value").GetString().Should().Be("B");
+    }
+
+    [Fact]
+    public async Task RefreshReadsModifiedSavedConfigAndPersistsIt()
+    {
+        // Use a fresh, isolated data directory and ensure no env override
+        var dataDir = TestEnvironment.PrepareCleanDataDir();
+        Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_LANG", null);
+
+        using var app = new WebApplicationFactory<Program>();
+        using var client = CreateAuthedClient(app);
+
+        // Bootstrap initial snapshot and file
+        var first = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+        first.StatusCode.Should().Be(HttpStatusCode.OK, await first.Content.ReadAsStringAsync().ConfigureAwait(true));
+
+        // Modify saved config on disk to a new value
+        var cfgDir = Path.Combine(dataDir, "config");
+        var cfgFile = Path.Combine(cfgDir, "config.json");
+        Directory.CreateDirectory(cfgDir);
+        var newJson = "{\n  \"parameters\": {\n    \"GAMEBOT_TESSERACT_LANG\": { \"value\": \"deu\" }\n  }\n}";
+        await File.WriteAllTextAsync(cfgFile, newJson).ConfigureAwait(true);
+
+        // Refresh and verify new value is applied from file
+        var refresh = await client.PostAsync(new Uri("/config/refresh", UriKind.Relative), content: null).ConfigureAwait(true);
+        refresh.StatusCode.Should().Be(HttpStatusCode.OK, await refresh.Content.ReadAsStringAsync().ConfigureAwait(true));
+        using var doc = await refresh.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
+        var parameters = doc!.RootElement.GetProperty("parameters");
+        parameters.TryGetProperty("GAMEBOT_TESSERACT_LANG", out var lang).Should().BeTrue();
+        lang.GetProperty("source").GetString().Should().Be("File");
+        lang.GetProperty("value").GetString().Should().Be("deu");
+
+        // Verify the persisted snapshot on disk also contains the updated value
+        string savedText = string.Empty;
+        JsonDocument? savedDoc = null;
+        JsonElement savedValueEl = default;
+        for (int i = 0; i < 10; i++)
+        {
+            savedText = await File.ReadAllTextAsync(cfgFile).ConfigureAwait(true);
+            savedDoc?.Dispose();
+            savedDoc = JsonDocument.Parse(savedText);
+            var savedParams = savedDoc.RootElement.GetProperty("parameters");
+            savedParams.TryGetProperty("GAMEBOT_TESSERACT_LANG", out var savedLang).Should().BeTrue();
+            savedValueEl = savedLang.TryGetProperty("value", out var savedVal) ? savedVal : savedLang;
+            if (savedValueEl.ValueKind == JsonValueKind.String && savedValueEl.GetString() == "deu")
+            {
+                break;
+            }
+            await Task.Delay(50).ConfigureAwait(true);
+        }
+        savedValueEl.GetString().Should().Be("deu");
     }
 }

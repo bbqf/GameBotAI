@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-save-config`  
 **Created**: 2025-11-14  
-**Status**: Draft  
+**Status**: Implemented (Feature merged on 2025-11-14)  
 **Input**: User description: "Save configuration. All of the configuration parameters, including but not limited to environment variables collected in ENVIRONMENT.md. The configuration should be stored in a config subdirectory of data directory in JSON format. Respectively the data dir directory shouldn't be part of the saved configuration."
 
 ## User Scenarios & Testing *(mandatory)*
@@ -149,3 +149,25 @@ An operator can trigger a manual refresh of the persisted configuration snapshot
 ## Open Clarifications Needed
 
 None. All prior clarifications resolved (full redaction; refresh endpoint in scope).
+
+## Post-Implementation Review
+
+### What Was Delivered
+- Effective configuration snapshot persisted at `data/config/config.json` with atomic writes.
+- Precedence enforced: Environment > Saved file > Other files > Defaults.
+- Secret masking for keys containing TOKEN/SECRET/PASSWORD/KEY (case-insensitive).
+- Startup load of existing snapshot with graceful fallback on malformed file.
+- Endpoints: `GET /config/` (lazy generation if missing) and `POST /config/refresh`.
+- README documentation section added.
+
+### Gaps / Follow-Up Items
+1. Snapshot metadata could include `refreshCount` and `serviceVersion` consistently (verify presence; code may partially implement).
+2. Missing explicit enumeration of all captured environment/config keys for audit (FR-009 only partially addressed).
+3. No diff endpoint or ability to compare historical snapshots.
+4. Log formatting inconsistent (mix of structured and message-only lines); secrets redaction relies solely on masking layer, not log filtering.
+5. Dynamic log level adjustment not supported (would aid diagnostics).
+6. Validation of required env variables produces implicit behavior; explicit warnings list would improve operability.
+7. Config endpoint error payload shape not standardized (future: add error schema with code/reason details).
+
+### Link to Hardening / Enhancement Spec
+See follow-up spec: `specs/002-config-logging-hardening/spec.md` for planned improvements in logging consistency, snapshot enrichment, validation, and diff capabilities.

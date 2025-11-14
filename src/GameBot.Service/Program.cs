@@ -47,7 +47,8 @@ Directory.CreateDirectory(storageRoot);
 builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
 builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository(storageRoot));
 // Config snapshot service (for /config endpoints and persisted snapshot generation)
-builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(_ => new GameBot.Service.Services.ConfigSnapshotService(storageRoot));
+builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier, GameBot.Service.Services.ConfigApplier>();
+builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
 builder.Services.AddSingleton<TriggerEvaluationService>();
 builder.Services.AddSingleton<ITriggerEvaluationCoordinator, TriggerEvaluationCoordinator>();
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.DelayTriggerEvaluator>();
@@ -89,18 +90,32 @@ if (OperatingSystem.IsWindows())
         });
     }
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.ImageMatchEvaluator>();
-    // Text match evaluator (OCR): prefer Tesseract if enabled and available, else env-backed stub
-    var enableTess = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_ENABLED");
-    if (string.Equals(enableTess, "true", StringComparison.OrdinalIgnoreCase))
-    {
-        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Domain.Profiles.Evaluators.TesseractProcessOcr>();
-    }
-    else
-    {
-        builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Domain.Profiles.Evaluators.EnvTextOcr>();
-    }
+    // Text match evaluator (OCR): dynamic backend selection based on refreshed configuration
+    builder.Services.AddSingleton<GameBot.Domain.Profiles.Evaluators.ITextOcr, GameBot.Service.Services.DynamicTextOcr>();
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator>();
 }
+    // Reduce chatty HTTP logs by default; allow dynamic override via GAMEBOT_HTTP_LOG_LEVEL_MINIMUM applied on refresh
+    var httpMinLevelEnv = Environment.GetEnvironmentVariable("GAMEBOT_HTTP_LOG_LEVEL_MINIMUM");
+    GameBot.Service.Services.DynamicLogFilters.HttpMinLevel = httpMinLevelEnv?.Trim().ToLowerInvariant() switch
+    {
+        "trace" => LogLevel.Trace,
+        "debug" => LogLevel.Debug,
+        "information" => LogLevel.Information,
+        "info" => LogLevel.Information,
+        "warning" => LogLevel.Warning,
+        "warn" => LogLevel.Warning,
+        "error" => LogLevel.Error,
+        "critical" => LogLevel.Critical,
+        _ => LogLevel.Warning
+    };
+    builder.Logging.AddFilter((category, provider, level) =>
+    {
+        if (!string.IsNullOrEmpty(category) && GameBot.Service.Services.DynamicLogFilters.IsHttpCategory(category))
+        {
+            return level >= GameBot.Service.Services.DynamicLogFilters.HttpMinLevel;
+        }
+        return true;
+    });
 // Bind trigger worker options (env overrides supported via Configuration)
 builder.Services.Configure<GameBot.Service.Hosted.TriggerWorkerOptions>(builder.Configuration.GetSection("Service:Triggers:Worker"));
 builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
