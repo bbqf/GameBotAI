@@ -86,10 +86,29 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
     private Bitmap? CropRegionWithLog(Bitmap? screenBmp, Region region)
     {
         if (screenBmp is null) return null;
-        var rx = (int)Math.Round(region.X * screenBmp.Width);
-        var ry = (int)Math.Round(region.Y * screenBmp.Height);
-        var rw = Math.Max(1, (int)Math.Round(region.Width * screenBmp.Width));
-        var rh = Math.Max(1, (int)Math.Round(region.Height * screenBmp.Height));
+
+        // Support both normalized [0..1] regions and pixel-based regions for robustness.
+        bool looksNormalized = region.X <= 1.0 && region.Y <= 1.0 && region.Width <= 1.0 && region.Height <= 1.0;
+
+        int rx, ry, rw, rh;
+        if (looksNormalized)
+        {
+            // Use floor for origin and ceiling for sizes to avoid rounding to 0,
+            // while ensuring we stay within bounds and have at least 1 pixel.
+            rx = (int)Math.Floor(region.X * screenBmp.Width);
+            ry = (int)Math.Floor(region.Y * screenBmp.Height);
+            rw = Math.Max(1, (int)Math.Ceiling(region.Width * screenBmp.Width));
+            rh = Math.Max(1, (int)Math.Ceiling(region.Height * screenBmp.Height));
+        }
+        else
+        {
+            // Treat as pixel coordinates
+            rx = (int)Math.Round(region.X);
+            ry = (int)Math.Round(region.Y);
+            rw = Math.Max(1, (int)Math.Round(region.Width));
+            rh = Math.Max(1, (int)Math.Round(region.Height));
+        }
+
         rx = Math.Clamp(rx, 0, Math.Max(0, screenBmp.Width - 1));
         ry = Math.Clamp(ry, 0, Math.Max(0, screenBmp.Height - 1));
         rw = Math.Clamp(rw, 1, screenBmp.Width - rx);
