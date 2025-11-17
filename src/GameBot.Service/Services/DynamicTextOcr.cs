@@ -10,6 +10,8 @@ internal sealed class DynamicTextOcr : ITextOcr
     private string _currentMode = "env"; // "env" or "tess"
     private string _currentExe = "tesseract";
     private string _currentLang = "eng";
+    private string? _currentPsm;
+    private string? _currentOem;
     private readonly object _gate = new();
 
     public DynamicTextOcr(IConfigSnapshotService config)
@@ -24,6 +26,8 @@ internal sealed class DynamicTextOcr : ITextOcr
         var useTess = false;
         var exe = "tesseract";
         var lang = "eng";
+        string? psm = null;
+        string? oem = null;
 
         if (snap is not null)
         {
@@ -40,19 +44,31 @@ internal sealed class DynamicTextOcr : ITextOcr
             {
                 lang = pl.Value.ToString() ?? lang;
             }
+            if (snap.Parameters.TryGetValue("GAMEBOT_TESSERACT_PSM", out var pp) && pp.Value is not null)
+            {
+                var s = pp.Value.ToString();
+                psm = string.IsNullOrWhiteSpace(s) ? null : s;
+            }
+            if (snap.Parameters.TryGetValue("GAMEBOT_TESSERACT_OEM", out var po) && po.Value is not null)
+            {
+                var s = po.Value.ToString();
+                oem = string.IsNullOrWhiteSpace(s) ? null : s;
+            }
         }
 
         var newMode = useTess ? "tess" : "env";
-        if (newMode != _currentMode || (useTess && (exe != _currentExe || lang != _currentLang)))
+        if (newMode != _currentMode || (useTess && (exe != _currentExe || lang != _currentLang || psm != _currentPsm || oem != _currentOem)))
         {
             lock (_gate)
             {
-                if (newMode != _currentMode || (useTess && (exe != _currentExe || lang != _currentLang)))
+                if (newMode != _currentMode || (useTess && (exe != _currentExe || lang != _currentLang || psm != _currentPsm || oem != _currentOem)))
                 {
-                    _inner = useTess ? new TesseractProcessOcr(exe, lang) : new EnvTextOcr();
+                    _inner = useTess ? new TesseractProcessOcr(exe, lang, psm, oem) : new EnvTextOcr();
                     _currentMode = newMode;
                     _currentExe = exe;
                     _currentLang = lang;
+                    _currentPsm = psm;
+                    _currentOem = oem;
                 }
             }
         }

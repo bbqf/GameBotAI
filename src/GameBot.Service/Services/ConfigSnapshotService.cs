@@ -172,9 +172,12 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
             ["GAMEBOT_AUTH_TOKEN"] = null, // secret; will be masked if set
             ["GAMEBOT_USE_ADB"] = "true", // default enabled unless explicitly "false"
             ["GAMEBOT_TEST_SCREEN_IMAGE_B64"] = null,
+            ["GAMEBOT_DEBUG_DUMP_IMAGES"] = "false",
             ["GAMEBOT_TESSERACT_ENABLED"] = "false",
             ["GAMEBOT_TESSERACT_PATH"] = "tesseract",
             ["GAMEBOT_TESSERACT_LANG"] = "eng",
+            ["GAMEBOT_TESSERACT_PSM"] = null,
+            ["GAMEBOT_TESSERACT_OEM"] = null,
             ["GAMEBOT_TEST_OCR_TEXT"] = "",
             ["GAMEBOT_TEST_OCR_CONF"] = 0.0,
             ["GAMEBOT_ADB_PATH"] = null,

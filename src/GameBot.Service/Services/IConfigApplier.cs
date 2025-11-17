@@ -43,6 +43,9 @@ internal sealed class ConfigApplier : IConfigApplier
             DynamicLogFilters.HttpMinLevel = ParseLogLevel(val, LogLevel.Warning);
         }
 
+        // Apply debug options
+        DynamicDebugOptions.DumpImages = GetBool(snapshot, "GAMEBOT_DEBUG_DUMP_IMAGES", false);
+
         // Apply Trigger worker options (OptionsMonitor will observe cache changes)
         var opts = new GameBot.Service.Hosted.TriggerWorkerOptions();
         opts.IntervalSeconds = GetInt(snapshot, "Service__Triggers__Worker__IntervalSeconds", 2);
