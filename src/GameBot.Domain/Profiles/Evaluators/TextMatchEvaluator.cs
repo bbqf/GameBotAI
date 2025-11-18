@@ -96,11 +96,37 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
     {
         if (screenBmp is null) return null;
         Log.ScreenSize(_logger, screenBmp.Width, screenBmp.Height);
-        Log.PixelMappingPreClamp(_logger, region.X, region.Y, region.Width, region.Height);
-        int rx = (int) Math.Clamp(region.X, 0, Math.Max(0, screenBmp.Width - 1));
-        int ry = (int) Math.Clamp(region.Y, 0, Math.Max(0, screenBmp.Height - 1));
-        int rw = (int) Math.Clamp(region.Width, 1, screenBmp.Width - rx);
-        int rh = (int) Math.Clamp(region.Height, 1, screenBmp.Height - ry);
+        // Determine if region uses normalized (0..1) coordinates or pixel coordinates.
+        bool isNormalized =
+            region.Width > 0 && region.Height > 0 &&
+            region.X >= 0 && region.Y >= 0 &&
+            region.X <= 1 && region.Y <= 1 &&
+            region.Width <= 1 && region.Height <= 1;
+
+        int rx, ry, rw, rh;
+        if (isNormalized)
+        {
+            Log.NormalizedRegion(_logger, region.X, region.Y, region.Width, region.Height);
+            // Map normalized region to pixel coordinates
+            rx = (int)Math.Floor(region.X * screenBmp.Width);
+            ry = (int)Math.Floor(region.Y * screenBmp.Height);
+            rw = (int)Math.Ceiling(region.Width * screenBmp.Width);
+            rh = (int)Math.Ceiling(region.Height * screenBmp.Height);
+
+            // Clamp to image bounds; ensure at least 1x1
+            if (rx < 0) rx = 0; if (ry < 0) ry = 0;
+            if (rw < 1) rw = 1; if (rh < 1) rh = 1;
+            if (rx + rw > screenBmp.Width) rw = screenBmp.Width - rx;
+            if (ry + rh > screenBmp.Height) rh = screenBmp.Height - ry;
+        }
+        else
+        {
+            Log.PixelMappingPreClamp(_logger, region.X, region.Y, region.Width, region.Height);
+            rx = (int)Math.Clamp(region.X, 0, Math.Max(0, screenBmp.Width - 1));
+            ry = (int)Math.Clamp(region.Y, 0, Math.Max(0, screenBmp.Height - 1));
+            rw = (int)Math.Clamp(region.Width, 1, screenBmp.Width - rx);
+            rh = (int)Math.Clamp(region.Height, 1, screenBmp.Height - ry);
+        }
         Log.RegionMapped(_logger, screenBmp.Width, screenBmp.Height, rx, ry, rw, rh);
         try
         {

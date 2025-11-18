@@ -36,8 +36,9 @@ public class TextMatchEvaluatorCropTests
         var now = DateTimeOffset.UtcNow;
         _ = eval.Evaluate(trig, now);
 
-        ocr.LastWidth.Should().Be(20, "pixel-region width should be used for cropping");
-        ocr.LastHeight.Should().Be(10, "pixel-region height should be used for cropping");
+        // Preprocessing upscales to at least height 32; 10 -> 32 (scale 3.2), width 20 -> 64
+        ocr.LastWidth.Should().Be(64, "preprocessed width should reflect scaled pixel-region width");
+        ocr.LastHeight.Should().Be(32, "preprocessed height should reflect MinHeight scaling");
     }
 
     [Fact]
@@ -66,9 +67,10 @@ public class TextMatchEvaluatorCropTests
         var now = DateTimeOffset.UtcNow;
         _ = eval.Evaluate(trig, now);
 
-        // 0.5 * 200 = 100, 0.2 * 100 = 20
-        ocr.LastWidth.Should().Be(100);
-        ocr.LastHeight.Should().Be(20);
+        // 0.5 * 200 = 100, 0.2 * 100 = 20 before preprocessing
+        // Preprocessing scales height 20 by 2.0 => 40; width 100 by 2.0 => 200
+        ocr.LastWidth.Should().Be(200);
+        ocr.LastHeight.Should().Be(40);
     }
 
     private sealed class CapturingOcr : ITextOcr
