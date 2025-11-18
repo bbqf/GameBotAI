@@ -61,21 +61,28 @@ public sealed class TesseractProcessOcr : ITextOcr
             var lang = string.IsNullOrWhiteSpace(language) ? _lang : language!
                 .Replace("\"", string.Empty, StringComparison.Ordinal);
 
-            var args = $"\"{tmp}\" stdout -l {lang} tsv";
+            // Build argument list ensuring 'tsv' (config file) is last per tesseract syntax.
+            // Syntax: tesseract <image> <outputbase|stdout> [options...] [configfile...]
+            var sbArgs = new StringBuilder();
+            sbArgs.Append("\"" + tmp + "\" stdout -l " + lang);
 
             // Optional PSM (Page Segmentation Mode) for single-line or word detection
             var psm = _psm ?? Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_PSM");
             if (!string.IsNullOrWhiteSpace(psm))
             {
-                args += $" --psm {psm}";
+                sbArgs.Append(" --psm " + psm);
             }
 
             // Optional OEM (OCR Engine Mode) for LSTM vs legacy
             var oem = _oem ?? Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_OEM");
             if (!string.IsNullOrWhiteSpace(oem))
             {
-                args += $" --oem {oem}";
+                sbArgs.Append(" --oem " + oem);
             }
+
+            // TSV config file must appear after all options
+            sbArgs.Append(" tsv");
+            var args = sbArgs.ToString();
 
             var psi = new ProcessStartInfo
             {

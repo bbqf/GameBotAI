@@ -80,7 +80,7 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
             ? (isFoundSatisfied ? TriggerStatus.Pending : TriggerStatus.Satisfied)
             : (isFoundSatisfied ? TriggerStatus.Satisfied : TriggerStatus.Pending);
 
-        Log.OcrOutcome(_logger, res.Text?.Length ?? 0, res.Confidence, contains, status.ToString());
+        Log.OcrOutcome(_logger, res.Text?.Length ?? 0, res.Confidence, res.Text ?? "", contains, status.ToString());
         return new TriggerEvaluationResult
         {
             Status = status,
@@ -95,46 +95,12 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
     private Bitmap? CropRegionWithLog(Bitmap? screenBmp, Region region)
     {
         if (screenBmp is null) return null;
-        // Log screen size and normalized region first
         Log.ScreenSize(_logger, screenBmp.Width, screenBmp.Height);
-        Log.NormalizedRegion(_logger, region.X, region.Y, region.Width, region.Height);
-
-        // Pre-rounding pixel coordinates/sizes (double)
-        var rxD = region.X * screenBmp.Width;
-        var ryD = region.Y * screenBmp.Height;
-        var rwD = region.Width * screenBmp.Width;
-        var rhD = region.Height * screenBmp.Height;
-        Log.PixelMappingPreClamp(_logger, rxD, ryD, rwD, rhD);
-
-        // Rounded integers
-        var rx = (int)Math.Round(rxD);
-        var ry = (int)Math.Round(ryD);
-        var rw = Math.Max(1, (int)Math.Round(rwD));
-        var rh = Math.Max(1, (int)Math.Round(rhD));
-
-        // Signal when region collapses by size
-        if (rw <= 1 || rh <= 1)
-        {
-            Log.RegionSmall(_logger, rw, rh);
-        }
-
-        // Clamp to screen bounds
-        var clampedRx = Math.Clamp(rx, 0, Math.Max(0, screenBmp.Width - 1));
-        var clampedRy = Math.Clamp(ry, 0, Math.Max(0, screenBmp.Height - 1));
-        var clampedRw = Math.Clamp(rw, 1, screenBmp.Width - clampedRx);
-        var clampedRh = Math.Clamp(rh, 1, screenBmp.Height - clampedRy);
-
-        // Log adjustments if any
-        if (clampedRx != rx || clampedRy != ry)
-        {
-            Log.RegionPositionClamped(_logger, rx, ry, clampedRx, clampedRy);
-        }
-        if (clampedRw != rw || clampedRh != rh)
-        {
-            Log.RegionSizeClamped(_logger, rw, rh, clampedRw, clampedRh);
-        }
-
-        rx = clampedRx; ry = clampedRy; rw = clampedRw; rh = clampedRh;
+        Log.PixelMappingPreClamp(_logger, region.X, region.Y, region.Width, region.Height);
+        int rx = (int) Math.Clamp(region.X, 0, Math.Max(0, screenBmp.Width - 1));
+        int ry = (int) Math.Clamp(region.Y, 0, Math.Max(0, screenBmp.Height - 1));
+        int rw = (int) Math.Clamp(region.Width, 1, screenBmp.Width - rx);
+        int rh = (int) Math.Clamp(region.Height, 1, screenBmp.Height - ry);
         Log.RegionMapped(_logger, screenBmp.Width, screenBmp.Height, rx, ry, rw, rh);
         try
         {
@@ -200,6 +166,8 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
             }
         }
 
+        // binarized.Save("binarized_debug.png");
+        // upscaled.Save("upscaled_debug.png");
         upscaled.Dispose();
         return binarized;
     }
@@ -271,9 +239,9 @@ internal static class Log
             "Cropped image size {W}x{H}");
     private static readonly Action<ILogger, Exception?> _noScreen =
         LoggerMessage.Define(LogLevel.Debug, new EventId(4103, nameof(NoScreen)), "No screen available for OCR");
-    private static readonly Action<ILogger, int, double, bool, string, Exception?> _ocrOutcome =
-        LoggerMessage.Define<int, double, bool, string>(LogLevel.Debug, new EventId(4104, nameof(OcrOutcome)),
-            "OCR result len={Len} conf={Conf} contains={Contains} -> status={Status}");
+    private static readonly Action<ILogger, int, double, string, bool, string, Exception?> _ocrOutcome =
+        LoggerMessage.Define<int, double, string, bool, string>(LogLevel.Debug, new EventId(4104, nameof(OcrOutcome)),
+            "OCR result len={Len} conf={Conf} res={Res} contains={Contains} -> status={Status}");
     private static readonly Action<ILogger, string, Exception?> _cropFailed =
         LoggerMessage.Define<string>(LogLevel.Warning, new EventId(4105, nameof(CropFailed)),
             "Failed to crop region for OCR: {Message}");
@@ -291,7 +259,7 @@ internal static class Log
     public static void RegionSizeClamped(ILogger l, int rw, int rh, int crw, int crh) => _regionSizeClamped(l, rw, rh, crw, crh, null);
     public static void CroppedSize(ILogger l, int w, int h) => _croppedSize(l, w, h, null);
     public static void NoScreen(ILogger l) => _noScreen(l, null);
-    public static void OcrOutcome(ILogger l, int len, double conf, bool contains, string status) => _ocrOutcome(l, len, conf, contains, status, null);
+    public static void OcrOutcome(ILogger l, int len, double conf, string res, bool contains, string status) => _ocrOutcome(l, len, conf, res, contains, status, null);
     public static void CropFailed(ILogger l, Exception ex) => _cropFailed(l, ex.Message, ex);
     public static void PreprocessOutcome(ILogger l, int w, int h, double whiteRatio) => _preprocessOutcome(l, w, h, whiteRatio, null);
 }
