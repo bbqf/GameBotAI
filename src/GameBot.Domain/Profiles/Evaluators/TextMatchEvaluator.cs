@@ -59,8 +59,17 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
                 Reason = "no_screen"
             };
         }
+
+        // Log cropped image dimensions
+        Log.CroppedSize(_logger, cropped.Width, cropped.Height);
+
+        // Preprocess for small/outlined/aliased text: upscale and binarize
+        using var preprocessed = PreprocessForOcr(cropped);
+        // Log preprocessing outcome stats (dimensions and approximate white pixel ratio)
+        var whiteRatio = EstimateWhiteRatio(preprocessed);
+        Log.PreprocessOutcome(_logger, preprocessed.Width, preprocessed.Height, whiteRatio);
         var lang = p.Language;
-        var res = lang is not null ? _ocr.Recognize(cropped, lang) : _ocr.Recognize(cropped);
+        var res = lang is not null ? _ocr.Recognize(preprocessed, lang) : _ocr.Recognize(preprocessed);
 
         bool contains = !string.IsNullOrEmpty(p.Target)
             && res.Text?.IndexOf(p.Target, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -71,7 +80,7 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
             ? (isFoundSatisfied ? TriggerStatus.Pending : TriggerStatus.Satisfied)
             : (isFoundSatisfied ? TriggerStatus.Satisfied : TriggerStatus.Pending);
 
-        Log.OcrOutcome(_logger, res.Text?.Length ?? 0, res.Confidence, contains, status.ToString());
+        Log.OcrOutcome(_logger, res.Text?.Length ?? 0, res.Confidence, res.Text ?? "", contains, status.ToString());
         return new TriggerEvaluationResult
         {
             Status = status,
@@ -86,33 +95,38 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
     private Bitmap? CropRegionWithLog(Bitmap? screenBmp, Region region)
     {
         if (screenBmp is null) return null;
-
-        // Support both normalized [0..1] regions and pixel-based regions for robustness.
-        bool looksNormalized = region.X <= 1.0 && region.Y <= 1.0 && region.Width <= 1.0 && region.Height <= 1.0;
+        Log.ScreenSize(_logger, screenBmp.Width, screenBmp.Height);
+        // Determine if region uses normalized (0..1) coordinates or pixel coordinates.
+        bool isNormalized =
+            region.Width > 0 && region.Height > 0 &&
+            region.X >= 0 && region.Y >= 0 &&
+            region.X <= 1 && region.Y <= 1 &&
+            region.Width <= 1 && region.Height <= 1;
 
         int rx, ry, rw, rh;
-        if (looksNormalized)
+        if (isNormalized)
         {
-            // Use floor for origin and ceiling for sizes to avoid rounding to 0,
-            // while ensuring we stay within bounds and have at least 1 pixel.
+            Log.NormalizedRegion(_logger, region.X, region.Y, region.Width, region.Height);
+            // Map normalized region to pixel coordinates
             rx = (int)Math.Floor(region.X * screenBmp.Width);
             ry = (int)Math.Floor(region.Y * screenBmp.Height);
-            rw = Math.Max(1, (int)Math.Ceiling(region.Width * screenBmp.Width));
-            rh = Math.Max(1, (int)Math.Ceiling(region.Height * screenBmp.Height));
+            rw = (int)Math.Ceiling(region.Width * screenBmp.Width);
+            rh = (int)Math.Ceiling(region.Height * screenBmp.Height);
+
+            // Clamp to image bounds; ensure at least 1x1
+            if (rx < 0) rx = 0; if (ry < 0) ry = 0;
+            if (rw < 1) rw = 1; if (rh < 1) rh = 1;
+            if (rx + rw > screenBmp.Width) rw = screenBmp.Width - rx;
+            if (ry + rh > screenBmp.Height) rh = screenBmp.Height - ry;
         }
         else
         {
-            // Treat as pixel coordinates
-            rx = (int)Math.Round(region.X);
-            ry = (int)Math.Round(region.Y);
-            rw = Math.Max(1, (int)Math.Round(region.Width));
-            rh = Math.Max(1, (int)Math.Round(region.Height));
+            Log.PixelMappingPreClamp(_logger, region.X, region.Y, region.Width, region.Height);
+            rx = (int)Math.Clamp(region.X, 0, Math.Max(0, screenBmp.Width - 1));
+            ry = (int)Math.Clamp(region.Y, 0, Math.Max(0, screenBmp.Height - 1));
+            rw = (int)Math.Clamp(region.Width, 1, screenBmp.Width - rx);
+            rh = (int)Math.Clamp(region.Height, 1, screenBmp.Height - ry);
         }
-
-        rx = Math.Clamp(rx, 0, Math.Max(0, screenBmp.Width - 1));
-        ry = Math.Clamp(ry, 0, Math.Max(0, screenBmp.Height - 1));
-        rw = Math.Clamp(rw, 1, screenBmp.Width - rx);
-        rh = Math.Clamp(rh, 1, screenBmp.Height - ry);
         Log.RegionMapped(_logger, screenBmp.Width, screenBmp.Height, rx, ry, rw, rh);
         try
         {
@@ -136,6 +150,71 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator
         {
             screenBmp.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Preprocess image for better OCR quality on small/outlined/aliased text.
+    /// Upscales to minimum height and applies binary threshold.
+    /// </summary>
+    private static Bitmap PreprocessForOcr(Bitmap source)
+    {
+        const int MinHeight = 32; // Ensure text is at least this tall
+        const double ScaleFactor = 2.0; // Default upscale
+
+        // Calculate scale needed
+        double scale = source.Height < MinHeight
+            ? Math.Max(ScaleFactor, (double)MinHeight / source.Height)
+            : ScaleFactor;
+
+        int newWidth = (int)(source.Width * scale);
+        int newHeight = (int)(source.Height * scale);
+
+        // Upscale with nearest-neighbor for crisp edges
+        var upscaled = new Bitmap(newWidth, newHeight, PixelFormat.Format24bppRgb);
+        using (var g = Graphics.FromImage(upscaled))
+        {
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            g.DrawImage(source, 0, 0, newWidth, newHeight);
+        }
+
+        // Apply binary threshold to remove anti-aliasing and outlines
+        var binarized = new Bitmap(newWidth, newHeight, PixelFormat.Format24bppRgb);
+        for (int y = 0; y < newHeight; y++)
+        {
+            for (int x = 0; x < newWidth; x++)
+            {
+                var px = upscaled.GetPixel(x, y);
+                // Convert to grayscale and threshold
+                int gray = (int)(0.299 * px.R + 0.587 * px.G + 0.114 * px.B);
+                var bw = gray > 127 ? Color.White : Color.Black;
+                binarized.SetPixel(x, y, bw);
+            }
+        }
+
+        // binarized.Save("binarized_debug.png");
+        // upscaled.Save("upscaled_debug.png");
+        upscaled.Dispose();
+        return binarized;
+    }
+
+    private static double EstimateWhiteRatio(Bitmap bmp)
+    {
+        int w = bmp.Width, h = bmp.Height;
+        if (w == 0 || h == 0) return 0.0;
+        int step = Math.Max(1, Math.Max(w, h) / 64); // sample up to ~64x64 points
+        long total = 0, white = 0;
+        for (int y = 0; y < h; y += step)
+        {
+            for (int x = 0; x < w; x += step)
+            {
+                var px = bmp.GetPixel(x, y);
+                // since binarized, white is near 255; threshold is safe
+                if (px.R > 200 && px.G > 200 && px.B > 200) white++;
+                total++;
+            }
+        }
+        return total > 0 ? (double)white / total : 0.0;
     }
 }
 
@@ -161,20 +240,52 @@ internal static class Log
         LoggerMessage.Define<string, double, string>(LogLevel.Debug, new EventId(4101, nameof(Evaluating)),
             "TextMatch evaluating target='{Target}' threshold={Threshold} lang='{Language}'");
     private static readonly Action<ILogger, int, int, int, int, int, int, Exception?> _regionMapped =
-        LoggerMessage.Define<int, int, int, int, int, int>(LogLevel.Trace, new EventId(4102, nameof(RegionMapped)),
+        LoggerMessage.Define<int, int, int, int, int, int>(LogLevel.Debug, new EventId(4102, nameof(RegionMapped)),
             "OCR region mapped screen({W}x{H}) -> rect x={X} y={Y} w={W2} h={H2}");
+    private static readonly Action<ILogger, int, int, Exception?> _screenSize =
+        LoggerMessage.Define<int, int>(LogLevel.Debug, new EventId(4108, nameof(ScreenSize)),
+            "Screen size {W}x{H}");
+    private static readonly Action<ILogger, double, double, double, double, Exception?> _normalizedRegion =
+        LoggerMessage.Define<double, double, double, double>(LogLevel.Debug, new EventId(4109, nameof(NormalizedRegion)),
+            "Normalized region x={X} y={Y} w={W} h={H}");
+    private static readonly Action<ILogger, double, double, double, double, Exception?> _pixelMappingPreClamp =
+        LoggerMessage.Define<double, double, double, double>(LogLevel.Debug, new EventId(4110, nameof(PixelMappingPreClamp)),
+            "Pixel mapping pre-clamp rx={RX} ry={RY} rw={RW} rh={RH}");
+    private static readonly Action<ILogger, int, int, Exception?> _regionSmall =
+        LoggerMessage.Define<int, int>(LogLevel.Debug, new EventId(4111, nameof(RegionSmall)),
+            "Region too small after rounding rw={RW} rh={RH}");
+    private static readonly Action<ILogger, int, int, int, int, Exception?> _regionPositionClamped =
+        LoggerMessage.Define<int, int, int, int>(LogLevel.Debug, new EventId(4112, nameof(RegionPositionClamped)),
+            "Region position clamped from ({RX},{RY}) to ({CRX},{CRY})");
+    private static readonly Action<ILogger, int, int, int, int, Exception?> _regionSizeClamped =
+        LoggerMessage.Define<int, int, int, int>(LogLevel.Debug, new EventId(4113, nameof(RegionSizeClamped)),
+            "Region size clamped from ({RW},{RH}) to ({CRW},{CRH})");
+    private static readonly Action<ILogger, int, int, Exception?> _croppedSize =
+        LoggerMessage.Define<int, int>(LogLevel.Debug, new EventId(4106, nameof(CroppedSize)),
+            "Cropped image size {W}x{H}");
     private static readonly Action<ILogger, Exception?> _noScreen =
         LoggerMessage.Define(LogLevel.Debug, new EventId(4103, nameof(NoScreen)), "No screen available for OCR");
-    private static readonly Action<ILogger, int, double, bool, string, Exception?> _ocrOutcome =
-        LoggerMessage.Define<int, double, bool, string>(LogLevel.Debug, new EventId(4104, nameof(OcrOutcome)),
-            "OCR result len={Len} conf={Conf} contains={Contains} -> status={Status}");
+    private static readonly Action<ILogger, int, double, string, bool, string, Exception?> _ocrOutcome =
+        LoggerMessage.Define<int, double, string, bool, string>(LogLevel.Debug, new EventId(4104, nameof(OcrOutcome)),
+            "OCR result len={Len} conf={Conf} res={Res} contains={Contains} -> status={Status}");
     private static readonly Action<ILogger, string, Exception?> _cropFailed =
         LoggerMessage.Define<string>(LogLevel.Warning, new EventId(4105, nameof(CropFailed)),
             "Failed to crop region for OCR: {Message}");
+    private static readonly Action<ILogger, int, int, double, Exception?> _preprocessOutcome =
+        LoggerMessage.Define<int, int, double>(LogLevel.Debug, new EventId(4107, nameof(PreprocessOutcome)),
+            "Preprocess result size {W}x{H} whiteRatio={WhiteRatio}");
 
     public static void Evaluating(ILogger l, string target, double threshold, string language) => _evaluating(l, target, threshold, language, null);
     public static void RegionMapped(ILogger l, int w, int h, int x, int y, int w2, int h2) => _regionMapped(l, w, h, x, y, w2, h2, null);
+    public static void ScreenSize(ILogger l, int w, int h) => _screenSize(l, w, h, null);
+    public static void NormalizedRegion(ILogger l, double x, double y, double w, double h) => _normalizedRegion(l, x, y, w, h, null);
+    public static void PixelMappingPreClamp(ILogger l, double rx, double ry, double rw, double rh) => _pixelMappingPreClamp(l, rx, ry, rw, rh, null);
+    public static void RegionSmall(ILogger l, int rw, int rh) => _regionSmall(l, rw, rh, null);
+    public static void RegionPositionClamped(ILogger l, int rx, int ry, int crx, int cry) => _regionPositionClamped(l, rx, ry, crx, cry, null);
+    public static void RegionSizeClamped(ILogger l, int rw, int rh, int crw, int crh) => _regionSizeClamped(l, rw, rh, crw, crh, null);
+    public static void CroppedSize(ILogger l, int w, int h) => _croppedSize(l, w, h, null);
     public static void NoScreen(ILogger l) => _noScreen(l, null);
-    public static void OcrOutcome(ILogger l, int len, double conf, bool contains, string status) => _ocrOutcome(l, len, conf, contains, status, null);
+    public static void OcrOutcome(ILogger l, int len, double conf, string res, bool contains, string status) => _ocrOutcome(l, len, conf, res, contains, status, null);
     public static void CropFailed(ILogger l, Exception ex) => _cropFailed(l, ex.Message, ex);
+    public static void PreprocessOutcome(ILogger l, int w, int h, double whiteRatio) => _preprocessOutcome(l, w, h, whiteRatio, null);
 }

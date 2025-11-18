@@ -11,13 +11,16 @@ using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
 // Services
-// Console logging with timestamps + scopes; allow env override for levels
+// Console logging with timestamps + scopes; ensure no duplicate console providers
+builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(o =>
 {
     o.IncludeScopes = true;
     o.SingleLine = true;
     o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fff zzz ";
 });
+// Reduce noisy/double Kestrel connection logs
+builder.Logging.AddFilter("Microsoft.AspNetCore.Server.Kestrel.Connections", LogLevel.Warning);
 // Ensure our ADB category is visible at Debug if Default is higher
 builder.Logging.AddFilter("GameBot.Emulator.Adb.AdbClient", LogLevel.Debug);
 // Ensure trigger worker + text-match evaluator debug logs are visible
@@ -80,8 +83,10 @@ if (OperatingSystem.IsWindows())
                     var bytes = Convert.FromBase64String(data);
                     return new GameBot.Domain.Profiles.Evaluators.SingleBitmapScreenSource(() =>
                     {
-                        using var ms = new MemoryStream(bytes);
-                        return new System.Drawing.Bitmap(ms);
+                        // Important: detach bitmap from stream to avoid disposed-stream issues
+                        using var ms = new MemoryStream(bytes, writable: false);
+                        using var tmp = new System.Drawing.Bitmap(ms);
+                        return new System.Drawing.Bitmap(tmp);
                     });
                 }
                 catch { }

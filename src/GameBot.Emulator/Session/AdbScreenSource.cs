@@ -39,8 +39,9 @@ public sealed class AdbScreenSource : IScreenSource
             var serial = sess.DeviceSerial!;
             var png = new AdbClient(_adbLogger).WithSerial(serial).GetScreenshotPngAsync(default).GetAwaiter().GetResult();
             if (png is null || png.Length == 0) return null;
-            using var ms = new MemoryStream(png);
-            return new Bitmap(ms);
+            using var ms = new MemoryStream(png, writable: false);
+            using var tmp = new Bitmap(ms);
+            return new Bitmap(tmp);
         }
         catch (Exception ex)
         {
