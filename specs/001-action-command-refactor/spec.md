@@ -31,9 +31,10 @@ Refactor the domain to replace the concept of Profile with Action, fully decoupl
 - Action remains the atomic executable unit (formerly Profile), keeping current action semantics intact (execution details unchanged in this feature).
 - Existing background-trigger worker(s) are removed/disabled as part of this change.
 
-## [NEEDS CLARIFICATION] Backward compatibility strategy
+## Backward Compatibility Strategy (Resolved)
 
-- Should current external API and persistence names using "Profile" be migrated as a breaking change, or should we introduce dual naming/deprecations (e.g., keep existing endpoints temporarily and add new Action-based endpoints)?
+- Decision: Breaking rename now. External API, contracts, and persistence naming migrate from "Profile" to "Action" as part of this feature. No dual naming/deprecation window.
+- Migration notes to include: updated endpoint paths, payload property names, persistence file keys/paths, and client update guidance.
 
 ## User Scenarios & Testing
 

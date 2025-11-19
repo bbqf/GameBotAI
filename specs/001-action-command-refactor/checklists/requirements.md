@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain (Decision: Breaking rename now, Profile→Action across API/contracts/persistence)
 - [ ] Requirements are testable and unambiguous
 - [ ] Success criteria are measurable
 - [ ] Success criteria are technology-agnostic (no implementation details)
