@@ -6,7 +6,7 @@ using Xunit;
 
 namespace GameBot.ContractTests;
 
-internal class SessionsContractTests {
+public class SessionsContractTests {
   [Fact]
   public async Task CreateGetSnapshotDeleteFlowIsExposed() {
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace GameBot.Unit.Emulator.Triggers;
 
-internal sealed class ImageMatchEvaluatorTests {
+public sealed class ImageMatchEvaluatorTests {
   private static Trigger CreateTrigger(double threshold) => new() {
     Id = "t1",
     Type = TriggerType.ImageMatch,

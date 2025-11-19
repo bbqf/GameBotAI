@@ -5,7 +5,7 @@ using Xunit;
 
 namespace GameBot.ContractTests;
 
-internal sealed class OpenApiContractTests : IDisposable {
+public sealed class OpenApiContractTests : IDisposable {
   private readonly string? _prevUseAdb;
   private readonly string? _prevDynPort;
   private readonly string? _prevToken;

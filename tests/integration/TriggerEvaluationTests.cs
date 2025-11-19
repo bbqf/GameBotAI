@@ -8,7 +8,7 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal class TriggerEvaluationTests {
+public class TriggerEvaluationTests {
   public TriggerEvaluationTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");

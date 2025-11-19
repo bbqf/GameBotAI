@@ -42,6 +42,14 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
           saved: baseline,
           env: env);
 
+      // Reinforce precedence: if a key exists in saved config, ensure it wins over defaults
+      // (guards against any edge cases where defaults might leak through)
+      foreach (var kv in baseline) {
+        if (!env.ContainsKey(kv.Key)) {
+          merged[kv.Key] = kv.Value;
+        }
+      }
+
       // Apply masking and special rules
       var parameters = new Dictionary<string, ConfigurationParameter>(StringComparer.OrdinalIgnoreCase);
       foreach (var kvp in merged) {

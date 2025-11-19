@@ -6,7 +6,7 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal class GamesActionsTests {
+public class GamesActionsTests {
   public GamesActionsTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");

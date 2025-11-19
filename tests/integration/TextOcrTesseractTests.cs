@@ -8,7 +8,7 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal class TextOcrTesseractTests {
+public class TextOcrTesseractTests {
   private static bool IsTesseractAvailable() {
     var exe = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_PATH");
     if (!string.IsNullOrWhiteSpace(exe) && System.IO.File.Exists(exe)) return true;

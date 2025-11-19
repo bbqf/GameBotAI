@@ -6,7 +6,7 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal sealed class ResourceLimitsTests : IDisposable {
+public sealed class ResourceLimitsTests : IDisposable {
   private readonly string? _prevUseAdb;
   private readonly string? _prevDynPort;
   private readonly string? _prevDataDir;

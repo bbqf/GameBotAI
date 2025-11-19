@@ -4,7 +4,7 @@ using Xunit;
 
 namespace GameBot.Unit.Emulator.Triggers;
 
-internal sealed class TimeTriggerEvaluatorsTests {
+public sealed class TimeTriggerEvaluatorsTests {
   private static Trigger MakeDelay(int seconds, DateTimeOffset? enabledAt = null) => new() {
     Id = "d1",
     Type = TriggerType.Delay,

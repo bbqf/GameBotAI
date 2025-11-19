@@ -13,7 +13,7 @@ using Xunit;
 
 namespace GameBot.UnitTests;
 
-internal class TriggerBackgroundWorkerTests {
+public class TriggerBackgroundWorkerTests {
   [Fact]
   public async Task SkipsEvaluationWhenNoSessions() {
     var logger = NullLogger<TriggerBackgroundWorker>.Instance;

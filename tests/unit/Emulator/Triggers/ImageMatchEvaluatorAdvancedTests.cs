@@ -6,7 +6,7 @@ using Xunit;
 
 namespace GameBot.Unit.Emulator.Triggers;
 
-internal sealed class ImageMatchEvaluatorAdvancedTests {
+public sealed class ImageMatchEvaluatorAdvancedTests {
   private static Bitmap MakeSolid(int w, int h, Color c) {
     var bmp = new Bitmap(w, h);
     using var g = Graphics.FromImage(bmp);

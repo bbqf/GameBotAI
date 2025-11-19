@@ -11,7 +11,7 @@ using Xunit;
 
 namespace GameBot.UnitTests.Emulator.Triggers;
 
-internal class TextMatchEvaluatorImagePipelineTests {
+public class TextMatchEvaluatorImagePipelineTests {
   public TextMatchEvaluatorImagePipelineTests() { }
   private sealed class CapturingOcr : ITextOcr {
     public int LastWidth { get; private set; }

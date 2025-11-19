@@ -6,7 +6,7 @@ using Xunit;
 namespace GameBot.UnitTests.Emulator;
 
 [SupportedOSPlatform("windows")]
-internal class AdbResolverTests {
+public class AdbResolverTests {
   [Fact]
   public void UsesEnvOverrideWhenSet() {
     var tmp = Path.Combine(Path.GetTempPath(), $"adb-{Guid.NewGuid():N}.exe");

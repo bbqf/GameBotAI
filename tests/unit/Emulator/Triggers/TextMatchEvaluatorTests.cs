@@ -8,7 +8,7 @@ using Xunit;
 
 namespace GameBot.UnitTests;
 
-internal class TextMatchEvaluatorTests {
+public class TextMatchEvaluatorTests {
   [Fact]
   public void FoundModeSatisfiedWhenTextPresentAndConfident() {
     var ocr = new FakeOcr("Hello World", 0.95);

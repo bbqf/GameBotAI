@@ -7,7 +7,8 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal sealed class ConfigEndpointTests : IDisposable {
+[Collection("ConfigIsolation")]
+public sealed class ConfigEndpointTests : IDisposable {
   private readonly string? _prevUseAdb;
   private readonly string? _prevAuthToken;
   private readonly string? _prevDataDir;

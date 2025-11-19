@@ -11,7 +11,7 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal class TextTriggerEvaluationTesseractEndpointTests {
+public class TextTriggerEvaluationTesseractEndpointTests {
   private static bool IsTesseractAvailable() {
     var exe = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_PATH");
     if (!string.IsNullOrWhiteSpace(exe) && File.Exists(exe)) return true;

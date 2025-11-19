@@ -29,7 +29,7 @@ namespace GameBot.UnitTests {
         => new TriggerEvaluationResult { Status = TriggerStatus.Satisfied, EvaluatedAt = now };
   }
 
-  internal class EvaluationCoordinatorTests {
+  public class EvaluationCoordinatorTests {
     [Fact(DisplayName = "Coordinator evaluates and persists timestamps")]
     public async Task EvaluateAndPersist() {
       var trigger = new Trigger { Id = "t1", Type = TriggerType.Delay, Enabled = true, CooldownSeconds = 0, Params = new DelayParams { Seconds = 0 } };

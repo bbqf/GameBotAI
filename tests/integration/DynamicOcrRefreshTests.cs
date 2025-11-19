@@ -11,7 +11,8 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal class DynamicOcrRefreshTests {
+[Collection("ConfigIsolation")]
+public class DynamicOcrRefreshTests {
   private static bool IsTesseractAvailable() {
     var exe = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_PATH");
     if (!string.IsNullOrWhiteSpace(exe) && File.Exists(exe)) return true;

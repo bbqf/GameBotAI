@@ -7,7 +7,7 @@ using Xunit;
 
 namespace GameBot.UnitTests;
 
-internal class TextMatchEvaluatorCropTests {
+public class TextMatchEvaluatorCropTests {
   [Fact]
   public void CropUsesPixelCoordinatesWhenRegionValuesExceedOne() {
     using var screen = new Bitmap(100, 50);

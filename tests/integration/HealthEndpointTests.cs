@@ -6,7 +6,7 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal class HealthEndpointTests {
+public class HealthEndpointTests {
   public HealthEndpointTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     TestEnvironment.PrepareCleanDataDir();

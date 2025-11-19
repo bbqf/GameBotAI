@@ -6,7 +6,7 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-internal class DomainMetricsEndpointTests {
+public class DomainMetricsEndpointTests {
   public DomainMetricsEndpointTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");

@@ -7,7 +7,7 @@ using Xunit;
 
 namespace GameBot.UnitTests;
 
-internal class AdbScreenSourceTests {
+public class AdbScreenSourceTests {
   private sealed class DummySessionManager : ISessionManager {
     public int ActiveCount => 0;
     public bool CanCreateSession => false;

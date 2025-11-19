@@ -7,7 +7,7 @@ using Xunit;
 
 namespace GameBot.UnitTests;
 
-internal class TriggerEvaluationMetricsTests {
+public class TriggerEvaluationMetricsTests {
   [Fact]
   public void IncrementsAndDurationWork() {
     var m = new TriggerEvaluationMetrics();

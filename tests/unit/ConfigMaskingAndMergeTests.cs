@@ -6,7 +6,7 @@ using Xunit;
 
 namespace GameBot.UnitTests;
 
-internal class ConfigMaskingAndMergeTests {
+public class ConfigMaskingAndMergeTests {
   [Fact]
   public async Task SecretKeysAreMasked() {
     var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));

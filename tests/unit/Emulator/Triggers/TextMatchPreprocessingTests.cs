@@ -5,7 +5,7 @@ using Xunit;
 
 namespace GameBot.UnitTests.Emulator.Triggers;
 
-internal sealed class TextMatchPreprocessingTests {
+public sealed class TextMatchPreprocessingTests {
   [Fact(DisplayName = "Preprocessing upscales small images for better OCR")]
   public void PreprocessingUpscalesSmallImages() {
     // Arrange: Create a small 8x8 image (simulating small outlined text)
