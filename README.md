@@ -1,6 +1,6 @@
 # GameBot
 
-A .NET 8 (C#) minimal API service that controls Android emulator sessions on Windows, exposing a REST API for games, profiles, and session automation (snapshots + input execution). UI is a separate deployment.
+A .NET 8 (C#) minimal API service that controls Android emulator sessions on Windows, exposing a REST API for games, actions, commands, triggers, and session automation (snapshots + input execution). UI is a separate deployment.
 
 ## Specs and contracts
 - Spec, plans, and research: `specs/001-android-emulator-service/`
@@ -65,28 +65,71 @@ Example create:
 }
 ```
 
-### Profiles
-A profile is a reusable, named script of input actions for a specific game.
+### Domain Concepts (Post-Refactor)
 
-- Create: `POST /profiles`
-  - Body: `{ name, gameId, steps: InputAction[], checkpoints?: string[] }`
-  - Response: `{ id, name, gameId, steps, checkpoints }`
-- Get: `GET /profiles/{id}`
-- List: `GET /profiles?gameId={gameId}` (filter by game)
+Profiles have been removed. Three first-class concepts now drive automation:
 
-Minimal example:
+#### Actions
+Atomic, file-backed executable units (e.g., a tap sequence or composite of low-level input actions).
+- Create: `POST /actions` → body includes a name and action definition (input steps).
+- Execute against a session: `POST /sessions/{id}/execute-action?actionId={actionId}` → `{ accepted }`.
 
+Example action definition (simplified):
 ```json
 {
-  "name": "TutorialSkip",
-  "gameId": "<game-id>",
+  "name": "OpenMenu",
   "steps": [
-    { "type": "tap", "args": { "x": 320, "y": 640 }, "delayMs": 250 },
+    { "type": "tap", "args": { "x": 50, "y": 50 }, "delayMs": 100 },
     { "type": "key", "args": { "key": "ESCAPE" } }
-  ],
-  "checkpoints": []
+  ]
 }
 ```
+
+#### Triggers
+Standalone evaluators that determine readiness (Satisfied vs NotSatisfied) based on screen/image/text/schedule/delay.
+- CRUD: `POST /triggers`, `GET /triggers/{id}`, `PATCH /triggers/{id}`, `DELETE /triggers/{id}`.
+- Test single trigger (updates internal timestamps/cooldowns): `POST /triggers/{id}/test`.
+- Batch evaluate all enabled triggers: `POST /triggers/evaluate`.
+
+Example text-match trigger:
+```json
+{
+  "name": "ReadyBanner",
+  "type": "text-match",
+  "enabled": true,
+  "params": {
+    "text": "READY",
+    "confidenceThreshold": 0.75
+  }
+}
+```
+
+#### Commands
+Composable orchestration objects referencing Actions (and optionally nested Commands) with cycle detection and optional trigger gating.
+- CRUD: `POST /commands`, `GET /commands/{id}`, `PATCH /commands/{id}`, `DELETE /commands/{id}`.
+- Evaluate triggers then execute eligible actions: `POST /commands/{id}/evaluate-and-execute` → returns counts of accepted steps.
+- Force execution (skip trigger gating): `POST /commands/{id}/force-execute`.
+
+Example command referencing an action and gating on a trigger:
+```json
+{
+  "name": "StartLoop",
+  "steps": [
+    {
+      "type": "action",
+      "refId": "<action-id>",
+      "gateTriggerIds": ["<trigger-id>"]
+    }
+  ]
+}
+```
+
+Common flow now:
+1. Create an Action (`/actions`).
+2. Create a Trigger (`/triggers`).
+3. Create a Command that references the Action and lists the Trigger as a gate.
+4. Run `POST /commands/{id}/evaluate-and-execute` until the trigger becomes `Satisfied` and the Action executes.
+5. Inspect trigger status via `POST /triggers/{id}/test` or batch `POST /triggers/evaluate`.
 
 ### Sessions
 Run-time context used to execute inputs and take snapshots.
@@ -145,11 +188,15 @@ Supported `type` values (case-insensitive). Numeric args may be provided as numb
 
 ## Common flow (HTTP)
 - Create a game → `POST /games` with `{ name, description }`
-- Create a profile → `POST /profiles` with `{ name, gameId, steps: [...] }`
+- Create an action → `POST /actions` with action steps
+- (Optional) Create a trigger → `POST /triggers`
+- (Optional) Create a command → `POST /commands` referencing the action and trigger
 - Start a session → `POST /sessions` with `{ gameId, adbSerial? }`
-- Execute a profile → `POST /sessions/{sessionId}/execute?profileId={profileId}` (returns `{ accepted }`)
-- Or send ad-hoc inputs → `POST /sessions/{id}/inputs` with `{ actions: [...] }`
+- Execute an action directly → `POST /sessions/{sessionId}/execute-action?actionId={actionId}` (returns `{ accepted }`)
+- Or run a command with gating → `POST /commands/{id}/evaluate-and-execute`
+- Send ad-hoc inputs → `POST /sessions/{id}/inputs` with `{ actions: [...] }`
 - Grab a snapshot → `GET /sessions/{id}/snapshot` (image/png)
+- Evaluate triggers → `POST /triggers/evaluate`
 - Stop session → `DELETE /sessions/{id}`
 
 See full request/response shapes in the contracts doc linked above.
