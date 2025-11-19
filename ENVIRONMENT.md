@@ -6,6 +6,40 @@ Applies to: .NET 8 ASP.NET Core service, emulator/ADB integration, OCR backends,
 
 Note on configuration: In addition to direct environment variables (e.g., `GAMEBOT_*`), the service uses standard ASP.NET Core configuration. Any configuration key like `Service:Storage:Root` can be supplied via environment variables by replacing `:` with `__` (double underscore), e.g., `Service__Storage__Root`.
 
+## Configuration Precedence
+
+Effective configuration is built by merging multiple sources in a deterministic order:
+1. Defaults (hard-coded option defaults and implicit fallbacks)
+2. Saved config snapshot file (`data/config/config.json`) if present
+3. Environment variables (`GAMEBOT_*` and `Service__*` forms)
+
+Higher layers override lower layers. Environment variables always win. The merged result is then persisted back as a snapshot for observability (with secrets redacted).
+
+Example:
+Assume defaults contain `MaxConcurrentSessions = 3`.
+Saved file (`data/config/config.json`):
+```json
+{
+  "Service:Sessions:MaxConcurrentSessions": 5,
+  "Service:Auth:Token": "file-token"
+}
+```
+Environment:
+```powershell
+$env:Service__Sessions__MaxConcurrentSessions = 8
+$env:Service__Auth__Token = "env-token"
+```
+Resulting effective config:
+```json
+{
+  "Service:Sessions:MaxConcurrentSessions": 8,
+  "Service:Auth:Token": "***"  // redacted when surfaced
+}
+```
+If the environment does not provide an override, the saved file value (5) would apply; if neither file nor env provided a value, the default (3) would apply.
+
+Redaction: Any key containing `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-insensitive) is masked as `***` in the snapshot and API responses.
+
 ## Service and Hosting
 
 - GAMEBOT_DATA_DIR
