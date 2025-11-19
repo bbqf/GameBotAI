@@ -79,7 +79,7 @@ Eliminating automatic polling reduces:
 4. WebSocket push for trigger status changes.
 
 ## Verification Snapshot
-- Commit: current head `da9d006`.
+- Commit: current head `2ff675d`.
 - Tests: full suite 54 succeeded (integration, unit, contract); coordinator tests reflect trigger-centric flow.
 - No remaining references to legacy endpoint names in codebase (verified post-OpenAPI regeneration).
 
