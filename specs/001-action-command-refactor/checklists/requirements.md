@@ -32,3 +32,13 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`
+ 
+## Implementation Progress Snapshot (non-spec)
+
+- [x] Domain scaffolding for Actions/Commands
+- [x] DI + CRUD endpoints for Actions/Commands
+- [x] Command executor (sequential, cycle detection)
+- [x] Remove background evaluation worker
+- [ ] Profile → Action breaking rename in API/contracts
+- [ ] Trigger decoupling and evaluate-and-execute gating
+- [ ] Data migration and docs

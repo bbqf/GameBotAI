@@ -28,7 +28,7 @@
     - `POST /commands/{id}/force-execute` → bypass Trigger
 
 ## Work Breakdown
-1. Repo Preparation
+1. Repo Preparation [DONE]
    - Create new DTOs/models: `Action`, `Command`, `CommandStep`.
    - Introduce repositories: `IActionRepository`, `ICommandRepository`; update `ITriggerRepository` if needed.
    - Implement cycle detection utility for commands.
@@ -39,16 +39,16 @@
    - API Contracts: request/response models and endpoint routes.
    - Tests: rename and adjust fixtures/data files.
 
-3. Remove Background Evaluation
+3. Remove Background Evaluation [DONE]
    - Remove `TriggerBackgroundWorker` and related hosted services/config.
    - Delete related tests.
    - Ensure no timers/cron-like loops remain.
 
-4. Command Feature
+4. Command Feature [PARTIAL]
    - Domain: `Command` aggregate, step list, composition validation.
    - Persistence: JSON repo for commands.
-   - Services: executor that runs a command sequentially; stop on first failure with result.
-   - API: CRUD + evaluate-and-execute + force-execute.
+   - Services: executor that runs a command sequentially; stop on first failure with result. [DONE]
+   - API: CRUD + evaluate-and-execute + force-execute. [DONE]
 
 5. Trigger Decoupling
    - Ensure triggers are not tied to actions; keep explicit association only on command (optional).
