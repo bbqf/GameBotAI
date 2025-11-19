@@ -70,7 +70,7 @@ Eliminating automatic polling reduces:
 
 ## Security & Observability
 - Logging retains trigger evaluation detail (debug-level for text-match evaluators).
-- Metrics surface unchanged; triggers can still be aggregated externally after calling manual evaluation endpoints.
+- Metrics now include `/metrics/domain` with counts for actions, commands, and triggers.
 
 ## Future Enhancements (Out of Scope for 001)
 1. Add image reference upload & management improvements (bulk, checksum validation).
@@ -79,9 +79,16 @@ Eliminating automatic polling reduces:
 4. WebSocket push for trigger status changes.
 
 ## Verification Snapshot
-- Commit: current head `2ff675d`.
-- Tests: full suite 54 succeeded (integration, unit, contract); coordinator tests reflect trigger-centric flow.
+- Commit: current head `2ff675d` (subsequent docs/tests updates included).
+- Tests: full suite 56 succeeded (integration, unit, contract), including cycle detection and domain metrics endpoints.
 - No remaining references to legacy endpoint names in codebase (verified post-OpenAPI regeneration).
+
+## Release Notes (Draft)
+Highlights of this change set suitable for CHANGELOG and release tagging:
+- Added: Actions, Commands, Triggers as first-class resources; `/metrics/domain` endpoint; migration script `scripts/migrate-profiles-to-actions.ps1`.
+- Changed: Configuration precedence clarified (Environment > Saved file > Defaults); OCR pipeline improvements and documentation.
+- Removed (Breaking): All `/profiles` endpoints; `/sessions/{id}/execute`; background trigger worker and nested trigger routes.
+Migration summary: run the migration script (dry-run or destructive), switch clients to `/actions`, `/triggers`, and `/commands`, and use `evaluate-and-execute` or `force-execute` for orchestration.
 
 ## Rollback Strategy
 To revert temporarily:
