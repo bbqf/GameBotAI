@@ -1,0 +1,167 @@
+{
+  "generatedAtUtc": "2025-11-18T15:50:11.5542933+00:00",
+  "serviceVersion": "1.0.0.0",
+  "dynamicPort": null,
+  "refreshCount": 0,
+  "envScanned": 61,
+  "envIncluded": 3,
+  "envExcluded": 58,
+  "parameters": {
+    "GAMEBOT_DATA_DIR": {
+      "name": "GAMEBOT_DATA_DIR",
+      "source": "Environment",
+      "value": "C:\\src\\GameBot/data",
+      "isSecret": false
+    },
+    "GAMEBOT_DYNAMIC_PORT": {
+      "name": "GAMEBOT_DYNAMIC_PORT",
+      "source": "File",
+      "value": "false",
+      "isSecret": false
+    },
+    "GAMEBOT_AUTH_TOKEN": {
+      "name": "GAMEBOT_AUTH_TOKEN",
+      "source": "Environment",
+      "value": "***",
+      "isSecret": true
+    },
+    "GAMEBOT_USE_ADB": {
+      "name": "GAMEBOT_USE_ADB",
+      "source": "File",
+      "value": "true",
+      "isSecret": false
+    },
+    "GAMEBOT_TEST_SCREEN_IMAGE_B64": {
+      "name": "GAMEBOT_TEST_SCREEN_IMAGE_B64",
+      "source": "File",
+      "value": null,
+      "isSecret": false
+    },
+    "GAMEBOT_DEBUG_DUMP_IMAGES": {
+      "name": "GAMEBOT_DEBUG_DUMP_IMAGES",
+      "source": "File",
+      "value": "false",
+      "isSecret": false
+    },
+    "GAMEBOT_TESSERACT_ENABLED": {
+      "name": "GAMEBOT_TESSERACT_ENABLED",
+      "source": "File",
+      "value": "true",
+      "isSecret": false
+    },
+    "GAMEBOT_TESSERACT_PATH": {
+      "name": "GAMEBOT_TESSERACT_PATH",
+      "source": "Environment",
+      "value": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+      "isSecret": false
+    },
+    "GAMEBOT_TESSERACT_LANG": {
+      "name": "GAMEBOT_TESSERACT_LANG",
+      "source": "File",
+      "value": "eng",
+      "isSecret": false
+    },
+    "GAMEBOT_TESSERACT_PSM": {
+      "name": "GAMEBOT_TESSERACT_PSM",
+      "source": "File",
+      "value": "11",
+      "isSecret": false
+    },
+    "GAMEBOT_TESSERACT_OEM": {
+      "name": "GAMEBOT_TESSERACT_OEM",
+      "source": "File",
+      "value": "1",
+      "isSecret": false
+    },
+    "GAMEBOT_TEST_OCR_TEXT": {
+      "name": "GAMEBOT_TEST_OCR_TEXT",
+      "source": "File",
+      "value": "",
+      "isSecret": false
+    },
+    "GAMEBOT_TEST_OCR_CONF": {
+      "name": "GAMEBOT_TEST_OCR_CONF",
+      "source": "File",
+      "value": 0,
+      "isSecret": false
+    },
+    "GAMEBOT_ADB_PATH": {
+      "name": "GAMEBOT_ADB_PATH",
+      "source": "File",
+      "value": null,
+      "isSecret": false
+    },
+    "GAMEBOT_ADB_RETRIES": {
+      "name": "GAMEBOT_ADB_RETRIES",
+      "source": "File",
+      "value": 2,
+      "isSecret": false
+    },
+    "GAMEBOT_ADB_RETRY_DELAY_MS": {
+      "name": "GAMEBOT_ADB_RETRY_DELAY_MS",
+      "source": "File",
+      "value": 100,
+      "isSecret": false
+    },
+    "GAMEBOT_HTTP_LOG_LEVEL_MINIMUM": {
+      "name": "GAMEBOT_HTTP_LOG_LEVEL_MINIMUM",
+      "source": "File",
+      "value": "Warning",
+      "isSecret": false
+    },
+    "Service__Storage__Root": {
+      "name": "Service__Storage__Root",
+      "source": "File",
+      "value": "C:\\src\\GameBot\\src\\GameBot.Service\\bin\\Debug\\net9.0\\data",
+      "isSecret": false
+    },
+    "Service__Auth__Token": {
+      "name": "Service__Auth__Token",
+      "source": "File",
+      "value": "***",
+      "isSecret": true
+    },
+    "Service__Sessions__MaxConcurrentSessions": {
+      "name": "Service__Sessions__MaxConcurrentSessions",
+      "source": "File",
+      "value": 3,
+      "isSecret": false
+    },
+    "Service__Sessions__IdleTimeoutSeconds": {
+      "name": "Service__Sessions__IdleTimeoutSeconds",
+      "source": "File",
+      "value": 1800,
+      "isSecret": false
+    },
+    "Service__Triggers__Worker__IntervalSeconds": {
+      "name": "Service__Triggers__Worker__IntervalSeconds",
+      "source": "File",
+      "value": 2,
+      "isSecret": false
+    },
+    "Service__Triggers__Worker__GameFilter": {
+      "name": "Service__Triggers__Worker__GameFilter",
+      "source": "File",
+      "value": null,
+      "isSecret": false
+    },
+    "Service__Triggers__Worker__SkipWhenNoSessions": {
+      "name": "Service__Triggers__Worker__SkipWhenNoSessions",
+      "source": "File",
+      "value": "true",
+      "isSecret": false
+    },
+    "Service__Triggers__Worker__IdleBackoffSeconds": {
+      "name": "Service__Triggers__Worker__IdleBackoffSeconds",
+      "source": "File",
+      "value": 5,
+      "isSecret": false
+    },
+    "Logging__LogLevel__Default": {
+      "name": "Logging__LogLevel__Default",
+      "source": "File",
+      "value": null,
+      "isSecret": false
+    }
+  }
+}

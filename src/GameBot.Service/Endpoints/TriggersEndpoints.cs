@@ -1,191 +1,123 @@
-using GameBot.Domain.Profiles;
-using GameBot.Domain.Services;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using GameBot.Domain.Triggers;
+using GameBot.Domain.Services;
 using GameBot.Service.Models;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.OpenApi;
 
 namespace GameBot.Service.Endpoints;
 
-internal static class TriggersEndpoints
-{
-    public static IEndpointRouteBuilder MapTriggersEndpoints(this IEndpointRouteBuilder app)
-    {
-        var group = app.MapGroup("/profiles/{profileId}/triggers");
+internal static class TriggersEndpoints {
+  public static IEndpointRouteBuilder MapTriggerEndpoints(this IEndpointRouteBuilder app) {
+    ArgumentNullException.ThrowIfNull(app);
 
-        group.MapGet("/", async (string profileId, IProfileRepository repo, CancellationToken ct) =>
-        {
-            var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
-            if (prof is null) return Results.NotFound();
-            var dtos = prof.Triggers.Select(TriggerMappings.ToDto).ToArray();
-            return Results.Ok(dtos);
-        })
-            .WithName("ListProfileTriggers");
+    app.MapPost("/triggers", async (TriggerCreateDto req, ITriggerRepository repo, CancellationToken ct) => {
+      if (string.IsNullOrWhiteSpace(req.Type))
+        return Results.BadRequest(new { error = new { code = "invalid_request", message = "type is required", hint = (string?)null } });
+      if (req.Params is null)
+        return Results.BadRequest(new { error = new { code = "invalid_request", message = "params is required", hint = (string?)null } });
 
-        group.MapPost("/", async (string profileId, ProfileTriggerCreateDto dto, IProfileRepository repo, CancellationToken ct) =>
-        {
-            var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
-            if (prof is null) return Results.NotFound();
-            var trigger = MapCreateDto(dto);
-            trigger.EnabledAt = trigger.Enabled ? DateTimeOffset.UtcNow : null;
-            prof.Triggers.Add(trigger);
-            await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
-            return Results.Created($"/profiles/{profileId}/triggers/{trigger.Id}", TriggerMappings.ToDto(trigger));
-        }).WithName("CreateProfileTrigger");
-
-        group.MapGet("/{triggerId}", async (string profileId, string triggerId, IProfileRepository repo, CancellationToken ct) =>
-        {
-            var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
-            if (prof is null) return Results.NotFound();
-            var trig = prof.Triggers.FirstOrDefault(t => t.Id == triggerId);
-            return trig is null ? Results.NotFound() : Results.Ok(TriggerMappings.ToDto(trig));
-        })
-             .WithName("GetProfileTrigger");
-
-        group.MapPatch("/{triggerId}", async (string profileId, string triggerId, HttpRequest req, IProfileRepository repo, CancellationToken ct) =>
-        {
-            var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
-            if (prof is null) return Results.NotFound();
-            var trig = prof.Triggers.FirstOrDefault(t => t.Id == triggerId);
-            if (trig is null) return Results.NotFound();
-            using var doc = await JsonDocument.ParseAsync(req.Body, cancellationToken: ct).ConfigureAwait(false);
-            var root = doc.RootElement;
-            if (root.TryGetProperty("enabled", out var enabledEl) && enabledEl.ValueKind == JsonValueKind.True || enabledEl.ValueKind == JsonValueKind.False)
-            {
-                var newEnabled = enabledEl.GetBoolean();
-                if (trig.Enabled != newEnabled)
-                {
-                    trig.Enabled = newEnabled;
-                    trig.EnabledAt = newEnabled ? DateTimeOffset.UtcNow : null;
-                }
-            }
-            if (root.TryGetProperty("cooldownSeconds", out var cdEl) && cdEl.ValueKind == JsonValueKind.Number && cdEl.TryGetInt32(out var cd))
-            {
-                trig.CooldownSeconds = Math.Max(0, cd);
-            }
-            // Simple params patch for Delay (seconds) and Schedule (timestamp)
-            if (root.TryGetProperty("params", out var paramsEl))
-            {
-                if (trig.Params is DelayParams d && paramsEl.TryGetProperty("seconds", out var secEl) && secEl.ValueKind == JsonValueKind.Number && secEl.TryGetInt32(out var sec))
-                {
-                    d.Seconds = Math.Max(0, sec);
-                }
-                if (trig.Params is ScheduleParams s && paramsEl.TryGetProperty("timestamp", out var tsEl) && tsEl.ValueKind == JsonValueKind.String)
-                {
-                    if (DateTimeOffset.TryParse(tsEl.GetString(), out var ts)) s.Timestamp = ts;
-                }
-            }
-            await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
-            return Results.Ok(TriggerMappings.ToDto(trig));
-        })
-             .WithName("PatchProfileTrigger");
-
-        group.MapDelete("/{triggerId}", async (string profileId, string triggerId, IProfileRepository repo, CancellationToken ct) =>
-        {
-            var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
-            if (prof is null) return Results.NotFound();
-            var removed = prof.Triggers.FirstOrDefault(t => t.Id == triggerId);
-            if (removed is null) return Results.NotFound();
-            prof.Triggers.Remove(removed);
-            await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
-            return Results.NoContent();
-        })
-             .WithName("DeleteProfileTrigger");
-
-        group.MapPost("/{triggerId}/test", async (string profileId, string triggerId, IProfileRepository repo, TriggerEvaluationService svc, CancellationToken ct) =>
-        {
-            var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
-            if (prof is null) return Results.NotFound();
-            var trig = prof.Triggers.FirstOrDefault(t => t.Id == triggerId);
-            if (trig is null) return Results.NotFound();
-            var res = svc.Evaluate(trig, DateTimeOffset.UtcNow);
-            trig.LastResult = res;
-            trig.LastEvaluatedAt = res.EvaluatedAt;
-            if (res.Status == TriggerStatus.Satisfied)
-            {
-                trig.LastFiredAt = res.EvaluatedAt;
-            }
-            await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
-            return Results.Ok(res);
-        }).WithName("TestProfileTrigger");
-
-        group.MapPost("/evaluate", async (string profileId, IProfileRepository repo, TriggerEvaluationService svc, CancellationToken ct) =>
-        {
-            var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
-            if (prof is null) return Results.NotFound();
-            var results = new List<TriggerEvaluationResult>();
-            foreach (var trig in prof.Triggers.Where(t => t.Enabled))
-            {
-                var r = svc.Evaluate(trig, DateTimeOffset.UtcNow);
-                trig.LastResult = r;
-                trig.LastEvaluatedAt = r.EvaluatedAt;
-                if (r.Status == TriggerStatus.Satisfied)
-                {
-                    trig.LastFiredAt = r.EvaluatedAt;
-                }
-                results.Add(r);
-            }
-            await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
-            return Results.Ok(results);
-        })
-            .WithName("EvaluateProfileTriggers");
-
-        return app;
-    }
-
-    private static ProfileTrigger MapCreateDto(ProfileTriggerCreateDto dto)
-    {
-        var id = Guid.NewGuid().ToString("N");
-        var rawType = dto.Type?.Trim() ?? string.Empty;
-        var lowered = rawType.ToLowerInvariant();
-        var typeParsed = lowered switch
-        {
-            "delay" => TriggerType.Delay,
-            "schedule" => TriggerType.Schedule,
-            "image-match" => TriggerType.ImageMatch,
-            "imagematch" => TriggerType.ImageMatch,
-            "text-match" => TriggerType.TextMatch,
-            "textmatch" => TriggerType.TextMatch,
-            _ => TriggerType.Delay
+      TriggerParams parameters;
+      var typeLower = req.Type.Trim().ToLowerInvariant();
+      try {
+        var elem = (JsonElement)req.Params;
+        parameters = typeLower switch {
+          "delay" => new DelayParams { Seconds = elem.TryGetProperty("seconds", out var s) ? s.GetInt32() : 0 },
+          "schedule" => new ScheduleParams { Timestamp = elem.TryGetProperty("timestamp", out var ts) ? ts.GetDateTimeOffset() : DateTimeOffset.UtcNow },
+          "image-match" => new ImageMatchParams {
+            ReferenceImageId = elem.TryGetProperty("referenceImageId", out var rid) ? rid.GetString() ?? string.Empty : string.Empty,
+            Region = elem.TryGetProperty("region", out var reg) && reg.ValueKind == JsonValueKind.Object
+                  ? new Region {
+                    X = reg.TryGetProperty("x", out var rx) ? rx.GetDouble() : 0,
+                    Y = reg.TryGetProperty("y", out var ry) ? ry.GetDouble() : 0,
+                    Width = reg.TryGetProperty("width", out var rw) ? rw.GetDouble() : 0,
+                    Height = reg.TryGetProperty("height", out var rh) ? rh.GetDouble() : 0
+                  }
+                  : new Region { X = 0, Y = 0, Width = 0, Height = 0 },
+            SimilarityThreshold = elem.TryGetProperty("similarityThreshold", out var st) ? st.GetDouble() : 0.85
+          },
+          "text-match" => new TextMatchParams {
+            Target = elem.TryGetProperty("target", out var tgt) ? tgt.GetString() ?? string.Empty : string.Empty,
+            Region = elem.TryGetProperty("region", out var treg) && treg.ValueKind == JsonValueKind.Object
+                  ? new Region {
+                    X = treg.TryGetProperty("x", out var rx) ? rx.GetDouble() : 0,
+                    Y = treg.TryGetProperty("y", out var ry) ? ry.GetDouble() : 0,
+                    Width = treg.TryGetProperty("width", out var rw) ? rw.GetDouble() : 0,
+                    Height = treg.TryGetProperty("height", out var rh) ? rh.GetDouble() : 0
+                  }
+                  : new Region { X = 0, Y = 0, Width = 0, Height = 0 },
+            ConfidenceThreshold = elem.TryGetProperty("confidenceThreshold", out var ctElem) ? ctElem.GetDouble() : 0.80,
+            Mode = elem.TryGetProperty("mode", out var modeElem) ? modeElem.GetString() ?? "found" : "found",
+            Language = elem.TryGetProperty("language", out var langElem) ? langElem.GetString() : null
+          },
+          _ => throw new InvalidOperationException("unsupported_trigger_type")
         };
-        var paramsEl = (JsonElement)dto.Params;
-        TriggerParams p = typeParsed switch
-        {
-            TriggerType.Delay => new DelayParams { Seconds =  paramsEl.TryGetProperty("seconds", out var secEl) && secEl.ValueKind==JsonValueKind.Number ? secEl.GetInt32() : 1 },
-            TriggerType.Schedule => new ScheduleParams { Timestamp = paramsEl.TryGetProperty("timestamp", out var tsEl) && tsEl.ValueKind==JsonValueKind.String ? DateTimeOffset.Parse(tsEl.GetString()!, System.Globalization.CultureInfo.InvariantCulture) : DateTimeOffset.UtcNow.AddMinutes(1) },
-            TriggerType.ImageMatch => new ImageMatchParams {
-                ReferenceImageId = paramsEl.TryGetProperty("referenceImageId", out var refEl) && refEl.ValueKind==JsonValueKind.String ? refEl.GetString()! : string.Empty,
-                Region = new Region {
-                    X = paramsEl.TryGetProperty("region", out var regEl) && regEl.TryGetProperty("x", out var xEl) && xEl.ValueKind==JsonValueKind.Number ? xEl.GetDouble() : 0,
-                    Y = paramsEl.TryGetProperty("region", out regEl) && regEl.TryGetProperty("y", out var yEl) && yEl.ValueKind==JsonValueKind.Number ? yEl.GetDouble() : 0,
-                    Width = paramsEl.TryGetProperty("region", out regEl) && regEl.TryGetProperty("width", out var wEl) && wEl.ValueKind==JsonValueKind.Number ? wEl.GetDouble() : 1,
-                    Height = paramsEl.TryGetProperty("region", out regEl) && regEl.TryGetProperty("height", out var hEl) && hEl.ValueKind==JsonValueKind.Number ? hEl.GetDouble() : 1
-                },
-                SimilarityThreshold = paramsEl.TryGetProperty("similarityThreshold", out var th) && th.ValueKind==JsonValueKind.Number ? th.GetDouble() : 0.85
-            },
-            TriggerType.TextMatch => new TextMatchParams {
-                Target = paramsEl.TryGetProperty("target", out var tgtEl) && tgtEl.ValueKind==JsonValueKind.String ? tgtEl.GetString()! : string.Empty,
-                Region = new Region {
-                    X = paramsEl.TryGetProperty("region", out var reg2El) && reg2El.TryGetProperty("x", out var x2El) && x2El.ValueKind==JsonValueKind.Number ? x2El.GetDouble() : 0,
-                    Y = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("y", out var y2El) && y2El.ValueKind==JsonValueKind.Number ? y2El.GetDouble() : 0,
-                    Width = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("width", out var w2El) && w2El.ValueKind==JsonValueKind.Number ? w2El.GetDouble() : 1,
-                    Height = paramsEl.TryGetProperty("region", out reg2El) && reg2El.TryGetProperty("height", out var h2El) && h2El.ValueKind==JsonValueKind.Number ? h2El.GetDouble() : 1
-                },
-                ConfidenceThreshold = paramsEl.TryGetProperty("confidenceThreshold", out var cth) && cth.ValueKind==JsonValueKind.Number ? cth.GetDouble() : 0.80,
-                Mode = paramsEl.TryGetProperty("mode", out var modeEl) && modeEl.ValueKind==JsonValueKind.String ? (modeEl.GetString() ?? "found") : "found",
-                Language = paramsEl.TryGetProperty("language", out var langEl) && langEl.ValueKind==JsonValueKind.String ? langEl.GetString() : null
-            },
-            _ => new DelayParams { Seconds = 1 }
-        };
-        return new ProfileTrigger
-        {
-            Id = id,
-            Type = typeParsed,
-            Enabled = dto.Enabled,
-            CooldownSeconds = dto.CooldownSeconds,
-            Params = p
-        };
-    }
+      }
+      catch (Exception ex) {
+        return Results.BadRequest(new { error = new { code = "invalid_params", message = "Failed to parse trigger params", hint = ex.Message } });
+      }
+
+      var triggerType = typeLower switch {
+        "delay" => TriggerType.Delay,
+        "schedule" => TriggerType.Schedule,
+        "image-match" => TriggerType.ImageMatch,
+        "text-match" => TriggerType.TextMatch,
+        _ => TriggerType.Delay
+      };
+
+      var trig = new Trigger {
+        Id = Guid.NewGuid().ToString("N"),
+        Type = triggerType,
+        Enabled = req.Enabled,
+        CooldownSeconds = req.CooldownSeconds,
+        Params = parameters
+      };
+      await repo.UpsertAsync(trig, ct).ConfigureAwait(false);
+      var dto = TriggerMappings.ToDto(trig);
+      return Results.Created($"/triggers/{dto.Id}", dto);
+    })
+    .WithName("CreateTrigger")
+    .WithTags("Triggers");
+
+    app.MapGet("/triggers/{id}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
+      var trig = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      return trig is null
+          ? Results.NotFound(new { error = new { code = "not_found", message = "Trigger not found", hint = (string?)null } })
+          : Results.Ok(TriggerMappings.ToDto(trig));
+    })
+    .WithName("GetTrigger")
+    .WithTags("Triggers");
+
+    app.MapGet("/triggers", async (ITriggerRepository repo, CancellationToken ct) => {
+      var list = await repo.ListAsync(ct).ConfigureAwait(false);
+      return Results.Ok(list.Select(TriggerMappings.ToDto));
+    })
+    .WithName("ListTriggers")
+    .WithTags("Triggers");
+
+    app.MapDelete("/triggers/{id}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
+      var ok = await repo.DeleteAsync(id, ct).ConfigureAwait(false);
+      return ok ? Results.NoContent() : Results.NotFound();
+    })
+    .WithName("DeleteTrigger")
+    .WithTags("Triggers");
+
+    app.MapPost("/triggers/{id}/test", async (string id, ITriggerRepository repo, TriggerEvaluationService evalSvc, CancellationToken ct) => {
+      var trig = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      if (trig is null)
+        return Results.NotFound(new { error = new { code = "not_found", message = "Trigger not found", hint = (string?)null } });
+      var res = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
+      trig.LastResult = res;
+      trig.LastEvaluatedAt = res.EvaluatedAt;
+      if (res.Status == TriggerStatus.Satisfied)
+        trig.LastFiredAt = res.EvaluatedAt;
+      await repo.UpsertAsync(trig, ct).ConfigureAwait(false);
+      return Results.Ok(res);
+    })
+    .WithName("TestTrigger")
+    .WithTags("Triggers");
+
+    return app;
+  }
 }
