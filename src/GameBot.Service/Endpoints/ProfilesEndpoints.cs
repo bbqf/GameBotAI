@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using GameBot.Domain.Profiles;
 using GameBot.Service.Models;
+using System;
 
 namespace GameBot.Service.Endpoints;
 
@@ -33,7 +34,8 @@ internal static class ProfilesEndpoints
             });
         })
         .WithName("CreateProfile")
-        .WithTags("Profiles (legacy)");
+        .WithTags("Profiles (legacy)")
+        .WithMetadata(new ObsoleteAttribute("Legacy profile endpoint; use /actions instead."));
 
         app.MapGet("/profiles/{id}", async (string id, IProfileRepository repo, CancellationToken ct) =>
         {
@@ -50,7 +52,8 @@ internal static class ProfilesEndpoints
                 });
         })
         .WithName("GetProfile")
-        .WithTags("Profiles (legacy)");
+        .WithTags("Profiles (legacy)")
+        .WithMetadata(new ObsoleteAttribute("Legacy profile endpoint; use /actions instead."));
 
         app.MapGet("/profiles", async (string? gameId, IProfileRepository repo, CancellationToken ct) =>
         {
@@ -66,7 +69,8 @@ internal static class ProfilesEndpoints
             return Results.Ok(resp);
         })
         .WithName("ListProfiles")
-        .WithTags("Profiles (legacy)");
+        .WithTags("Profiles (legacy)")
+        .WithMetadata(new ObsoleteAttribute("Legacy profile endpoint; use /actions instead."));
 
         return app;
     }
