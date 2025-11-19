@@ -15,7 +15,7 @@ Spec: `specs/001-action-command-refactor/spec.md`
 Checklist: `specs/001-action-command-refactor/checklists/requirements.md`
 
 ## Final Status (2025-11-19)
-All implementation steps completed on branch `001-action-command-refactor`:
+All implementation steps completed on branch `001-action-command-refactor` (post-regeneration of OpenAPI spec):
 
 - Domain:
 	- Removed legacy types (`AutomationProfile`, `IProfileRepository`, execution helpers) and related DTOs.
@@ -31,8 +31,9 @@ All implementation steps completed on branch `001-action-command-refactor`:
 - Persistence:
 	- File repositories for `actions/`, `triggers/`, `commands/` active; legacy data requires one-time migration (script provided).
 - Testing:
-	- All unit, integration, and contract tests pass (58 integration tests green).
+	- All unit, integration, and contract tests pass (full suite 54 total, 0 failed).
 	- Updated tests to use `/triggers` directly (removed intermediary creation blocks).
+	- OpenAPI spec (`specs/openapi.json`) regenerated after green test run.
 
 ## Breaking Changes
 | Area | Change | Migration Action |
@@ -78,9 +79,9 @@ Eliminating automatic polling reduces:
 4. WebSocket push for trigger status changes.
 
 ## Verification Snapshot
-- Commit: latest refactor `2984e6d`.
-- Tests: 58 integration, all passing; unit coordinator test updated to trigger-centric flow.
-- No remaining references to legacy endpoint names in codebase (verified pre-commit).
+- Commit: current head `5dc9165`.
+- Tests: full suite 54 succeeded (integration, unit, contract); coordinator tests reflect trigger-centric flow.
+- No remaining references to legacy endpoint names in codebase (verified post-OpenAPI regeneration).
 
 ## Rollback Strategy
 To revert temporarily:
