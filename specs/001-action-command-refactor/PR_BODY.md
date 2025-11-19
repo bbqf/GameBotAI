@@ -1,10 +1,10 @@
 # Spec: Action/Command Refactor (001)
 
 ## Summary
-This PR completes the architectural migration from legacy Profiles to standalone Actions, Commands, and Triggers.
+This PR completes the architectural migration from a legacy execution concept to standalone Actions, Commands, and Triggers.
 
 Key outcomes:
-1. Profiles and all `/profiles` endpoints fully removed (no feature flag retained).
+1. All `/profiles` endpoints fully removed (no feature flag retained).
 2. Actions are first-class (`/actions`) with file-backed persistence.
 3. Triggers are fully decoupled and stored independently (`/triggers` CRUD + test + batch evaluate).
 4. Commands compose Actions (and nested Commands) with cycle detection and optional trigger gating via `evaluate-and-execute`.
@@ -18,29 +18,29 @@ Checklist: `specs/001-action-command-refactor/checklists/requirements.md`
 All implementation steps completed on branch `001-action-command-refactor`:
 
 - Domain:
-	- Removed `AutomationProfile`, `IProfileRepository`, `ProfileExecutor` and related DTOs.
+	- Removed legacy types (`AutomationProfile`, `IProfileRepository`, execution helpers) and related DTOs.
 	- Added `StandaloneTriggersEndpoints` with create, get, update (PATCH), delete, test, evaluate.
 	- Refactored `TriggerEvaluationCoordinator` to operate on `ITriggerRepository` (no profile traversal).
 - Endpoints:
-	- Removed `/sessions/{id}/execute` (profile-based); retained `/sessions/{id}/execute-action`.
-	- Added `/triggers/*` standalone endpoints; legacy `/profiles/{id}/triggers` removed.
+	- Removed `/sessions/{id}/execute` (legacy-based); retained `/sessions/{id}/execute-action`.
+	- Added `/triggers/*` standalone endpoints; legacy nested trigger routes removed.
 	- Actions & Commands CRUD stable; command execution endpoints respect trigger status (Satisfied only) for evaluate-and-execute.
 - Infrastructure:
-	- Feature flag `GAMEBOT_ENABLE_PROFILE_ENDPOINTS` removed—migration considered complete.
+	- Feature flag for legacy endpoints removed—migration considered complete.
 	- Background worker for trigger evaluation removed; metrics surface unchanged.
 - Persistence:
-	- File repositories for `actions/`, `triggers/`, `commands/` active; legacy `profiles/` data requires one-time migration (script provided).
+	- File repositories for `actions/`, `triggers/`, `commands/` active; legacy data requires one-time migration (script provided).
 - Testing:
 	- All unit, integration, and contract tests pass (58 integration tests green).
-	- Updated tests to use `/triggers` directly (removed intermediary profile creation blocks).
+	- Updated tests to use `/triggers` directly (removed intermediary creation blocks).
 
 ## Breaking Changes
 | Area | Change | Migration Action |
 |------|--------|------------------|
-| HTTP API | Remove all `/profiles` endpoints | Switch to `/actions` and `/triggers` |
+| HTTP API | Removed all `/profiles` endpoints | Switch to `/actions` and `/triggers` |
 | Session Exec | `/sessions/{id}/execute` removed | Use `/sessions/{id}/execute-action` |
-| Trigger Paths | `/profiles/{pid}/triggers/*` removed | Use `/triggers/*` |
-| Data Layout | `data/profiles/*.json` no longer read | Run migration script `scripts/migrate-profiles-to-actions.ps1` |
+| Trigger Paths | Nested trigger routes removed | Use `/triggers/*` |
+| Data Layout | Legacy data folder no longer read | Run migration script `scripts/migrate-profiles-to-actions.ps1` |
 | Background Eval | Automatic trigger evaluation removed | Call `/triggers/evaluate` or rely on command gating |
 
 ## Migration Instructions
@@ -51,8 +51,8 @@ All implementation steps completed on branch `001-action-command-refactor`:
 	 pwsh ./scripts/migrate-profiles-to-actions.ps1 -DeleteOriginal
 	 ```
 3. Update any client code:
-	 - Replace profile creation with action creation.
-	 - Replace trigger creation under profile with direct POST to `/triggers`.
+	 - Use action creation endpoints instead of legacy equivalents.
+	 - Create triggers directly under `/triggers`.
 	 - Replace execute calls with `/commands/{id}/evaluate-and-execute` (with trigger gating) or `/commands/{id}/force-execute`.
 4. Remove use of `GAMEBOT_ENABLE_PROFILE_ENDPOINTS` env var (no longer recognized).
 
@@ -80,7 +80,7 @@ Eliminating automatic polling reduces:
 ## Verification Snapshot
 - Commit: latest refactor `2984e6d`.
 - Tests: 58 integration, all passing; unit coordinator test updated to trigger-centric flow.
-- No remaining references to `/profiles` in codebase (verified pre-commit).
+- No remaining references to legacy endpoint names in codebase (verified pre-commit).
 
 ## Rollback Strategy
 To revert temporarily:
@@ -89,10 +89,10 @@ To revert temporarily:
 3. Redeploy service.
 
 ## Completion Criteria (Met)
-- Profiles removed from API & domain.
+- Legacy execution concept removed from API & domain.
 - Standalone trigger CRUD + evaluation endpoints live.
 - Commands support trigger gating & force execution.
 - All tests green after migration.
 
 ---
-Please review the breaking changes and migration steps. Once approved, we can merge and tag a release noting the removal of Profiles.
+Please review the breaking changes and migration steps. Once approved, we can merge and tag a release noting the completion of the migration.
