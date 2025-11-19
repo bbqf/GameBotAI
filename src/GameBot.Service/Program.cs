@@ -15,11 +15,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Services
 // Console logging with timestamps + scopes; ensure no duplicate console providers
 builder.Logging.ClearProviders();
-builder.Logging.AddSimpleConsole(o =>
-{
-    o.IncludeScopes = true;
-    o.SingleLine = true;
-    o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fff zzz ";
+builder.Logging.AddSimpleConsole(o => {
+  o.IncludeScopes = true;
+  o.SingleLine = true;
+  o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fff zzz ";
 });
 // Reduce noisy/double Kestrel connection logs
 builder.Logging.AddFilter("Microsoft.AspNetCore.Server.Kestrel.Connections", LogLevel.Warning);
@@ -33,9 +32,8 @@ builder.Services.AddEndpointsApiExplorer();
 // Explicitly register v1 document so tests can fetch /swagger/v1/swagger.json across environments (CI may not be Development)
 builder.Services.AddSwaggerGen();
 // Serialize enums as strings for API responses to match tests and readability
-builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+builder.Services.ConfigureHttpJsonOptions(options => {
+  options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 builder.Services.Configure<GameBot.Emulator.Session.SessionOptions>(builder.Configuration.GetSection("Service:Sessions"));
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
@@ -62,70 +60,60 @@ builder.Services.AddSingleton<ITriggerEvaluationCoordinator, TriggerEvaluationCo
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.DelayTriggerEvaluator>();
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ScheduleTriggerEvaluator>();
 // Image match evaluator dependencies (in-memory store + screen source placeholder)
-if (OperatingSystem.IsWindows())
-{
-    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore, GameBot.Domain.Triggers.Evaluators.MemoryReferenceImageStore>();
-    var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
-    var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
-    if (useAdb)
-    {
-        // ADB-backed dynamic screen source via sessions
-        builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource, GameBot.Emulator.Session.AdbScreenSource>();
-    }
-    else
-    {
-        // Test/stub mode: optional fixed bitmap via env variable
-        builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(_ =>
-        {
-            var b64 = Environment.GetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64");
-            if (!string.IsNullOrWhiteSpace(b64))
-            {
-                try
-                {
-                    var data = b64;
-                    var comma = data.IndexOf(',', System.StringComparison.Ordinal);
-                    if (comma >= 0) data = data[(comma + 1)..];
-                    var bytes = Convert.FromBase64String(data);
-                    return new GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource(() =>
-                    {
-                        // Important: detach bitmap from stream to avoid disposed-stream issues
-                        using var ms = new MemoryStream(bytes, writable: false);
-                        using var tmp = new System.Drawing.Bitmap(ms);
-                        return new System.Drawing.Bitmap(tmp);
-                    });
-                }
-                catch { }
-            }
-            return new GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource(() => null);
-        });
-    }
-    builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ImageMatchEvaluator>();
-    // Text match evaluator (OCR): dynamic backend selection based on refreshed configuration
-    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITextOcr, GameBot.Service.Services.DynamicTextOcr>();
-    builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator>();
-}
-    // Reduce chatty HTTP logs by default; allow dynamic override via GAMEBOT_HTTP_LOG_LEVEL_MINIMUM applied on refresh
-    var httpMinLevelEnv = Environment.GetEnvironmentVariable("GAMEBOT_HTTP_LOG_LEVEL_MINIMUM");
-    GameBot.Service.Services.DynamicLogFilters.HttpMinLevel = httpMinLevelEnv?.Trim().ToLowerInvariant() switch
-    {
-        "trace" => LogLevel.Trace,
-        "debug" => LogLevel.Debug,
-        "information" => LogLevel.Information,
-        "info" => LogLevel.Information,
-        "warning" => LogLevel.Warning,
-        "warn" => LogLevel.Warning,
-        "error" => LogLevel.Error,
-        "critical" => LogLevel.Critical,
-        _ => LogLevel.Warning
-    };
-    builder.Logging.AddFilter((category, provider, level) =>
-    {
-        if (!string.IsNullOrEmpty(category) && GameBot.Service.Services.DynamicLogFilters.IsHttpCategory(category))
-        {
-            return level >= GameBot.Service.Services.DynamicLogFilters.HttpMinLevel;
+if (OperatingSystem.IsWindows()) {
+  builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore, GameBot.Domain.Triggers.Evaluators.MemoryReferenceImageStore>();
+  var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+  var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
+  if (useAdb) {
+    // ADB-backed dynamic screen source via sessions
+    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource, GameBot.Emulator.Session.AdbScreenSource>();
+  }
+  else {
+    // Test/stub mode: optional fixed bitmap via env variable
+    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(_ => {
+      var b64 = Environment.GetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64");
+      if (!string.IsNullOrWhiteSpace(b64)) {
+        try {
+          var data = b64;
+          var comma = data.IndexOf(',', System.StringComparison.Ordinal);
+          if (comma >= 0) data = data[(comma + 1)..];
+          var bytes = Convert.FromBase64String(data);
+          return new GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource(() => {
+            // Important: detach bitmap from stream to avoid disposed-stream issues
+            using var ms = new MemoryStream(bytes, writable: false);
+            using var tmp = new System.Drawing.Bitmap(ms);
+            return new System.Drawing.Bitmap(tmp);
+          });
         }
-        return true;
+        catch { }
+      }
+      return new GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource(() => null);
     });
+  }
+  builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ImageMatchEvaluator>();
+  // Text match evaluator (OCR): dynamic backend selection based on refreshed configuration
+  builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITextOcr, GameBot.Service.Services.DynamicTextOcr>();
+  builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator>();
+}
+// Reduce chatty HTTP logs by default; allow dynamic override via GAMEBOT_HTTP_LOG_LEVEL_MINIMUM applied on refresh
+var httpMinLevelEnv = Environment.GetEnvironmentVariable("GAMEBOT_HTTP_LOG_LEVEL_MINIMUM");
+GameBot.Service.Services.DynamicLogFilters.HttpMinLevel = httpMinLevelEnv?.Trim().ToLowerInvariant() switch {
+  "trace" => LogLevel.Trace,
+  "debug" => LogLevel.Debug,
+  "information" => LogLevel.Information,
+  "info" => LogLevel.Information,
+  "warning" => LogLevel.Warning,
+  "warn" => LogLevel.Warning,
+  "error" => LogLevel.Error,
+  "critical" => LogLevel.Critical,
+  _ => LogLevel.Warning
+};
+builder.Logging.AddFilter((category, provider, level) => {
+  if (!string.IsNullOrEmpty(category) && GameBot.Service.Services.DynamicLogFilters.IsHttpCategory(category)) {
+    return level >= GameBot.Service.Services.DynamicLogFilters.HttpMinLevel;
+  }
+  return true;
+});
 // Expose trigger evaluation metrics (no background evaluation in refactor)
 builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
 builder.Services.AddHostedService<GameBot.Service.Hosted.ConfigSnapshotStartupInitializer>();
@@ -136,9 +124,8 @@ var authToken = builder.Configuration["Service:Auth:Token"]
 
 // In CI/tests (or when explicitly requested), avoid fixed ports to prevent socket bind conflicts
 var dynPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
-if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase))
-{
-    builder.WebHost.UseUrls("http://127.0.0.1:0");
+if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase)) {
+  builder.WebHost.UseUrls("http://127.0.0.1:0");
 }
 
 var app = builder.Build();
@@ -154,21 +141,18 @@ app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseCorrelationIds();
 
 // Token auth for all non-health requests (Bearer <token>) if token configured
-if (!string.IsNullOrWhiteSpace(authToken))
-{
-    app.Use(async (context, next) =>
-    {
-        // Allow anonymous for health and swagger
-        var path = context.Request.Path.Value ?? string.Empty;
-        if (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase))
-        {
-            await next(context).ConfigureAwait(false);
-            return;
-        }
+if (!string.IsNullOrWhiteSpace(authToken)) {
+  app.Use(async (context, next) => {
+    // Allow anonymous for health and swagger
+    var path = context.Request.Path.Value ?? string.Empty;
+    if (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase)) {
+      await next(context).ConfigureAwait(false);
+      return;
+    }
 
-        await TokenAuthMiddleware.Invoke(context, next, authToken!).ConfigureAwait(false);
-    });
+    await TokenAuthMiddleware.Invoke(context, next, authToken!).ConfigureAwait(false);
+  });
 }
 
 // Health endpoint (anonymous)
@@ -191,11 +175,10 @@ app.MapCommandEndpoints();
 app.MapTriggerEndpoints();
 // ADB diagnostics endpoints (protected if token set)
 app.MapAdbEndpoints();
-// Standalone triggers CRUD (legacy endpoints removed)
+// Standalone triggers CRUD
 // Image references endpoints for image-match triggers
-if (OperatingSystem.IsWindows())
-{
-    app.MapImageReferenceEndpoints();
+if (OperatingSystem.IsWindows()) {
+  app.MapImageReferenceEndpoints();
 }
 
 // Metrics endpoints (protected if token set)
