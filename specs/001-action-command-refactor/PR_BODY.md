@@ -28,6 +28,16 @@ Implementation has started on branch `001-action-command-refactor` and is being 
 
 All unit/integration/contract tests are currently green on this branch.
 
+## Updates (2025-11-19)
+- Compatibility flag for legacy endpoints:
+	- Added environment variable `GAMEBOT_ENABLE_PROFILE_ENDPOINTS` (default: `true`). When enabled, the service maps legacy `/profiles` and related `/profiles/{profileId}/triggers` endpoints to keep existing tests and clients working during the migration to `/actions`.
+	- To disable legacy endpoints: set `GAMEBOT_ENABLE_PROFILE_ENDPOINTS=false`.
+	- Documented in `ENVIRONMENT.md` with PowerShell examples.
+- Swagger grouping for clarity:
+	- Tagged new endpoints: `Actions`, `Commands`.
+	- Tagged legacy surfaces: `Profiles (legacy)`, `Triggers (legacy)`.
+	- No runtime behavior changes; this is discoverability-only.
+
 ## Clarification Resolution
 Decision: A — Breaking rename now. External API, contracts, and persistence naming migrate from "Profile" to "Action" as part of this feature (no deprecation window). Migration notes will include updated endpoints, payloads, and client guidance.
 
