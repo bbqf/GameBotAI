@@ -4,6 +4,8 @@ using GameBot.Emulator.Session;
 using GameBot.Service.Endpoints;
 using GameBot.Domain.Games;
 using GameBot.Domain.Profiles;
+using GameBot.Domain.Actions;
+using GameBot.Domain.Commands;
 using GameBot.Domain.Services;
 using GameBot.Service.Hosted;
 using System.Text.Json.Serialization;
@@ -23,8 +25,8 @@ builder.Logging.AddSimpleConsole(o =>
 builder.Logging.AddFilter("Microsoft.AspNetCore.Server.Kestrel.Connections", LogLevel.Warning);
 // Ensure our ADB category is visible at Debug if Default is higher
 builder.Logging.AddFilter("GameBot.Emulator.Adb.AdbClient", LogLevel.Debug);
-// Ensure trigger worker + text-match evaluator debug logs are visible
-builder.Logging.AddFilter("GameBot.Service.Hosted.TriggerBackgroundWorker", LogLevel.Debug);
+// Ensure text-match evaluator debug logs are visible
+builder.Logging.AddFilter("GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator", LogLevel.Debug);
 builder.Logging.AddFilter("GameBot.Domain.Profiles.Evaluators.TextMatchEvaluator", LogLevel.Debug);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -40,6 +42,7 @@ builder.Services.AddSingleton<ISessionManager, SessionManager>();
 builder.Services.AddTransient<ErrorHandlingMiddleware>();
 builder.Services.AddTransient<CorrelationIdMiddleware>();
 builder.Services.AddSingleton<IProfileExecutor, ProfileExecutor>();
+builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();
 
 // Data storage configuration (env: GAMEBOT_DATA_DIR or config Service:Storage:Root)
 var storageRoot = builder.Configuration["Service:Storage:Root"]
@@ -49,6 +52,9 @@ Directory.CreateDirectory(storageRoot);
 
 builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
 builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository(storageRoot));
+// New repositories for Actions and Commands (001-action-command-refactor)
+builder.Services.AddSingleton<IActionRepository>(_ => new FileActionRepository(storageRoot));
+builder.Services.AddSingleton<ICommandRepository>(_ => new FileCommandRepository(storageRoot));
 // Config snapshot service (for /config endpoints and persisted snapshot generation)
 builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier, GameBot.Service.Services.ConfigApplier>();
 builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
@@ -121,10 +127,8 @@ if (OperatingSystem.IsWindows())
         }
         return true;
     });
-// Bind trigger worker options (env overrides supported via Configuration)
-builder.Services.Configure<GameBot.Service.Hosted.TriggerWorkerOptions>(builder.Configuration.GetSection("Service:Triggers:Worker"));
+// Expose trigger evaluation metrics (no background evaluation in refactor)
 builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
-builder.Services.AddHostedService<TriggerBackgroundWorker>();
 builder.Services.AddHostedService<GameBot.Service.Hosted.ConfigSnapshotStartupInitializer>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
@@ -182,6 +186,9 @@ app.MapSessionEndpoints();
 // Games & Profiles endpoints (protected if token set)
 app.MapGameEndpoints();
 app.MapProfileEndpoints();
+// Actions & Commands endpoints (protected if token set)
+app.MapActionEndpoints();
+app.MapCommandEndpoints();
 // ADB diagnostics endpoints (protected if token set)
 app.MapAdbEndpoints();
 // Triggers endpoints (protected if token set)
