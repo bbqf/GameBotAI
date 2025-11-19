@@ -25,7 +25,7 @@ internal static class TriggersEndpoints
         })
             .WithName("ListProfileTriggers");
 
-        group.MapPost("/", async (string profileId, ProfileTriggerCreateDto dto, IProfileRepository repo, CancellationToken ct) =>
+        group.MapPost("/", async (string profileId, ProfileTriggerCreateDto dto, IProfileRepository repo, ITriggerRepository trigRepo, CancellationToken ct) =>
         {
             var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
             if (prof is null) return Results.NotFound();
@@ -33,6 +33,7 @@ internal static class TriggersEndpoints
             trigger.EnabledAt = trigger.Enabled ? DateTimeOffset.UtcNow : null;
             prof.Triggers.Add(trigger);
             await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
+            await trigRepo.UpsertAsync(trigger, ct).ConfigureAwait(false);
             return Results.Created($"/profiles/{profileId}/triggers/{trigger.Id}", TriggerMappings.ToDto(trigger));
         }).WithName("CreateProfileTrigger");
 
@@ -45,7 +46,7 @@ internal static class TriggersEndpoints
         })
              .WithName("GetProfileTrigger");
 
-        group.MapPatch("/{triggerId}", async (string profileId, string triggerId, HttpRequest req, IProfileRepository repo, CancellationToken ct) =>
+        group.MapPatch("/{triggerId}", async (string profileId, string triggerId, HttpRequest req, IProfileRepository repo, ITriggerRepository trigRepo, CancellationToken ct) =>
         {
             var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
             if (prof is null) return Results.NotFound();
@@ -79,11 +80,12 @@ internal static class TriggersEndpoints
                 }
             }
             await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
+            await trigRepo.UpsertAsync(trig, ct).ConfigureAwait(false);
             return Results.Ok(TriggerMappings.ToDto(trig));
         })
              .WithName("PatchProfileTrigger");
 
-        group.MapDelete("/{triggerId}", async (string profileId, string triggerId, IProfileRepository repo, CancellationToken ct) =>
+        group.MapDelete("/{triggerId}", async (string profileId, string triggerId, IProfileRepository repo, ITriggerRepository trigRepo, CancellationToken ct) =>
         {
             var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
             if (prof is null) return Results.NotFound();
@@ -91,11 +93,12 @@ internal static class TriggersEndpoints
             if (removed is null) return Results.NotFound();
             prof.Triggers.Remove(removed);
             await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
+            await trigRepo.DeleteAsync(triggerId, ct).ConfigureAwait(false);
             return Results.NoContent();
         })
              .WithName("DeleteProfileTrigger");
 
-        group.MapPost("/{triggerId}/test", async (string profileId, string triggerId, IProfileRepository repo, TriggerEvaluationService svc, CancellationToken ct) =>
+        group.MapPost("/{triggerId}/test", async (string profileId, string triggerId, IProfileRepository repo, ITriggerRepository trigRepo, TriggerEvaluationService svc, CancellationToken ct) =>
         {
             var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
             if (prof is null) return Results.NotFound();
@@ -109,10 +112,11 @@ internal static class TriggersEndpoints
                 trig.LastFiredAt = res.EvaluatedAt;
             }
             await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
+            await trigRepo.UpsertAsync(trig, ct).ConfigureAwait(false);
             return Results.Ok(res);
         }).WithName("TestProfileTrigger");
 
-        group.MapPost("/evaluate", async (string profileId, IProfileRepository repo, TriggerEvaluationService svc, CancellationToken ct) =>
+        group.MapPost("/evaluate", async (string profileId, IProfileRepository repo, ITriggerRepository trigRepo, TriggerEvaluationService svc, CancellationToken ct) =>
         {
             var prof = await repo.GetAsync(profileId, ct).ConfigureAwait(false);
             if (prof is null) return Results.NotFound();
@@ -127,6 +131,7 @@ internal static class TriggersEndpoints
                     trig.LastFiredAt = r.EvaluatedAt;
                 }
                 results.Add(r);
+                await trigRepo.UpsertAsync(trig, ct).ConfigureAwait(false);
             }
             await repo.UpdateAsync(prof, ct).ConfigureAwait(false);
             return Results.Ok(results);

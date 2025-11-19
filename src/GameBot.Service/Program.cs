@@ -52,6 +52,7 @@ Directory.CreateDirectory(storageRoot);
 
 builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
 builder.Services.AddSingleton<IProfileRepository>(_ => new FileProfileRepository(storageRoot));
+builder.Services.AddSingleton<ITriggerRepository>(_ => new FileTriggerRepository(storageRoot));
 // New repositories for Actions and Commands (001-action-command-refactor)
 builder.Services.AddSingleton<IActionRepository>(_ => new FileActionRepository(storageRoot));
 builder.Services.AddSingleton<ICommandRepository>(_ => new FileCommandRepository(storageRoot));

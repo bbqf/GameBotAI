@@ -1,6 +1,8 @@
 using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Emulator.Session;
+using GameBot.Domain.Services;
+using GameBot.Domain.Profiles;
 
 namespace GameBot.Service.Services;
 
@@ -9,12 +11,16 @@ internal sealed class CommandExecutor : ICommandExecutor
     private readonly ICommandRepository _commands;
     private readonly IActionRepository _actions;
     private readonly ISessionManager _sessions;
+    private readonly ITriggerRepository _triggers;
+    private readonly TriggerEvaluationService _triggerEval;
 
-    public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions)
+    public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval)
     {
         _commands = commands;
         _actions = actions;
         _sessions = sessions;
+        _triggers = triggers;
+        _triggerEval = triggerEval;
     }
 
     public async Task<int> ForceExecuteAsync(string sessionId, string commandId, CancellationToken ct = default)
@@ -27,11 +33,36 @@ internal sealed class CommandExecutor : ICommandExecutor
         return await ExecuteCommandRecursiveAsync(sessionId, commandId, visited, ct).ConfigureAwait(false);
     }
 
-    public Task<int> EvaluateAndExecuteAsync(string sessionId, string commandId, CancellationToken ct = default)
+    public async Task<int> EvaluateAndExecuteAsync(string sessionId, string commandId, CancellationToken ct = default)
     {
-        // Placeholder: trigger evaluation gating will be wired after trigger decoupling is finalized.
-        // For now, behave like force-execute.
-        return ForceExecuteAsync(sessionId, commandId, ct);
+        var session = _sessions.GetSession(sessionId) ?? throw new KeyNotFoundException("Session not found");
+        if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
+            throw new InvalidOperationException("not_running");
+
+        var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false);
+        if (cmd is null) throw new KeyNotFoundException("Command not found");
+
+        if (string.IsNullOrWhiteSpace(cmd.TriggerId))
+        {
+            return await ForceExecuteAsync(sessionId, commandId, ct).ConfigureAwait(false);
+        }
+
+        var trigger = await _triggers.GetAsync(cmd.TriggerId!, ct).ConfigureAwait(false);
+        if (trigger is null) throw new KeyNotFoundException("Trigger not found");
+
+        var res = _triggerEval.Evaluate(trigger, DateTimeOffset.UtcNow);
+        if (res.Status == TriggerStatus.Satisfied)
+        {
+            // Update trigger last fired to respect cooldown semantics next time
+            trigger.LastResult = res;
+            trigger.LastEvaluatedAt = res.EvaluatedAt;
+            trigger.LastFiredAt = res.EvaluatedAt;
+            // Fire
+            return await ForceExecuteAsync(sessionId, commandId, ct).ConfigureAwait(false);
+        }
+
+        // Not satisfied: do not execute
+        return 0;
     }
 
     private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, CancellationToken ct)
@@ -50,7 +81,7 @@ internal sealed class CommandExecutor : ICommandExecutor
                 var act = await _actions.GetAsync(step.TargetId, ct).ConfigureAwait(false);
                 if (act is null) throw new KeyNotFoundException("Action not found");
                 if (act.Steps.Count == 0) continue;
-                var inputs = act.Steps.Select(a => new InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs));
+                var inputs = act.Steps.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs));
                 var accepted = await _sessions.SendInputsAsync(sessionId, inputs, ct).ConfigureAwait(false);
                 totalAccepted += accepted;
             }
