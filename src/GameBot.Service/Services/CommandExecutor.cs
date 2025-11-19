@@ -57,6 +57,8 @@ internal sealed class CommandExecutor : ICommandExecutor
             trigger.LastResult = res;
             trigger.LastEvaluatedAt = res.EvaluatedAt;
             trigger.LastFiredAt = res.EvaluatedAt;
+            // Persist trigger state so cooldown is enforced on subsequent evaluations
+            await _triggers.UpsertAsync(trigger, ct).ConfigureAwait(false);
             // Fire
             return await ForceExecuteAsync(sessionId, commandId, ct).ConfigureAwait(false);
         }
