@@ -14,6 +14,7 @@ internal static class TriggersEndpoints
     public static IEndpointRouteBuilder MapTriggersEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/profiles/{profileId}/triggers");
+        group.WithTags("Triggers (legacy)");
 
         group.MapGet("/", async (string profileId, IProfileRepository repo, CancellationToken ct) =>
         {

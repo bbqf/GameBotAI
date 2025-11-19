@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Profiles;
 using GameBot.Service.Models;
+using Microsoft.AspNetCore.OpenApi;
 
 namespace GameBot.Service.Endpoints;
 
@@ -32,7 +33,9 @@ internal static class ActionsEndpoints
                 Steps = new Collection<InputActionDto>(created.Steps.Select(s => new InputActionDto { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
                 Checkpoints = new Collection<string>(created.Checkpoints.ToList())
             });
-        }).WithName("CreateAction");
+        })
+        .WithName("CreateAction")
+        .WithTags("Actions");
 
         app.MapGet("/actions/{id}", async (string id, IActionRepository repo, CancellationToken ct) =>
         {
@@ -47,7 +50,9 @@ internal static class ActionsEndpoints
                     Steps = new Collection<InputActionDto>(a.Steps.Select(s => new InputActionDto { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
                     Checkpoints = new Collection<string>(a.Checkpoints.ToList())
                 });
-        }).WithName("GetAction");
+        })
+        .WithName("GetAction")
+        .WithTags("Actions");
 
         app.MapGet("/actions", async (string? gameId, IActionRepository repo, CancellationToken ct) =>
         {
@@ -61,7 +66,9 @@ internal static class ActionsEndpoints
                 Checkpoints = new Collection<string>(a.Checkpoints.ToList())
             });
             return Results.Ok(resp);
-        }).WithName("ListActions");
+        })
+        .WithName("ListActions")
+        .WithTags("Actions");
 
         return app;
     }

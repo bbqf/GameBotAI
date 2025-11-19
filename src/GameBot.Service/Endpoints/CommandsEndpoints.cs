@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using GameBot.Domain.Commands;
 using GameBot.Service.Models;
+using Microsoft.AspNetCore.OpenApi;
 
 namespace GameBot.Service.Endpoints;
 
@@ -39,7 +40,9 @@ internal static class CommandsEndpoints
                     Order = s.Order
                 }).ToList())
             });
-        }).WithName("CreateCommand");
+        })
+        .WithName("CreateCommand")
+        .WithTags("Commands");
 
         app.MapGet("/commands/{id}", async (string id, ICommandRepository repo, CancellationToken ct) =>
         {
@@ -58,7 +61,9 @@ internal static class CommandsEndpoints
                         Order = s.Order
                     }).ToList())
                 });
-        }).WithName("GetCommand");
+        })
+        .WithName("GetCommand")
+        .WithTags("Commands");
 
         app.MapGet("/commands", async (ICommandRepository repo, CancellationToken ct) =>
         {
@@ -76,7 +81,9 @@ internal static class CommandsEndpoints
                 }).ToList())
             });
             return Results.Ok(resp);
-        }).WithName("ListCommands");
+        })
+        .WithName("ListCommands")
+        .WithTags("Commands");
 
         app.MapPatch("/commands/{id}", async (string id, UpdateCommandRequest req, ICommandRepository repo, CancellationToken ct) =>
         {
@@ -111,13 +118,17 @@ internal static class CommandsEndpoints
                     Order = s.Order
                 }).ToList())
             });
-        }).WithName("UpdateCommand");
+        })
+        .WithName("UpdateCommand")
+        .WithTags("Commands");
 
         app.MapDelete("/commands/{id}", async (string id, ICommandRepository repo, CancellationToken ct) =>
         {
             var ok = await repo.DeleteAsync(id, ct).ConfigureAwait(false);
             return ok ? Results.NoContent() : Results.NotFound();
-        }).WithName("DeleteCommand");
+        })
+        .WithName("DeleteCommand")
+        .WithTags("Commands");
 
         app.MapPost("/commands/{id}/force-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) =>
         {
@@ -139,7 +150,9 @@ internal static class CommandsEndpoints
             {
                 return Results.BadRequest(new { error = new { code = "cycle_detected", message = "Cycle detected in command graph.", hint = (string?)null } });
             }
-        }).WithName("ForceExecuteCommand");
+        })
+        .WithName("ForceExecuteCommand")
+        .WithTags("Commands");
 
         app.MapPost("/commands/{id}/evaluate-and-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) =>
         {
@@ -161,7 +174,9 @@ internal static class CommandsEndpoints
             {
                 return Results.BadRequest(new { error = new { code = "cycle_detected", message = "Cycle detected in command graph.", hint = (string?)null } });
             }
-        }).WithName("EvaluateAndExecuteCommand");
+        })
+        .WithName("EvaluateAndExecuteCommand")
+        .WithTags("Commands");
 
         return app;
     }

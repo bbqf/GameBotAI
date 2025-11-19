@@ -20,6 +20,13 @@ Note on configuration: In addition to direct environment variables (e.g., `GAMEB
   - Values: `true` | `false` (string comparison, case-insensitive)
   - Default: `false` (unset)
 
+- GAMEBOT_ENABLE_PROFILE_ENDPOINTS
+  - Purpose: Toggle mapping of legacy `/profiles` endpoints (and related trigger routes) for backward compatibility during migration to `/actions`.
+  - Used in: `Program.cs`
+  - Values: `true` | `false` (case-insensitive). Any value other than `"false"` enables the endpoints.
+  - Default: `true` (unset) to preserve compatibility; set to `false` to disable.
+  - Example (PowerShell): `$env:GAMEBOT_ENABLE_PROFILE_ENDPOINTS = "false"`
+
 - GAMEBOT_AUTH_TOKEN
   - Purpose: Enables token-based auth for all non-health endpoints when set.
   - Used in: `Program.cs`

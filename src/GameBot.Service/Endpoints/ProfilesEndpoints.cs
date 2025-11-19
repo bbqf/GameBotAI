@@ -31,7 +31,9 @@ internal static class ProfilesEndpoints
                 Steps = new Collection<InputActionDto>(created.Steps.Select(s => new InputActionDto { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
                 Checkpoints = new Collection<string>(created.Checkpoints.ToList())
             });
-        }).WithName("CreateProfile");
+        })
+        .WithName("CreateProfile")
+        .WithTags("Profiles (legacy)");
 
         app.MapGet("/profiles/{id}", async (string id, IProfileRepository repo, CancellationToken ct) =>
         {
@@ -46,7 +48,9 @@ internal static class ProfilesEndpoints
                     Steps = new Collection<InputActionDto>(p.Steps.Select(s => new InputActionDto { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
                     Checkpoints = new Collection<string>(p.Checkpoints.ToList())
                 });
-        }).WithName("GetProfile");
+        })
+        .WithName("GetProfile")
+        .WithTags("Profiles (legacy)");
 
         app.MapGet("/profiles", async (string? gameId, IProfileRepository repo, CancellationToken ct) =>
         {
@@ -60,7 +64,9 @@ internal static class ProfilesEndpoints
                 Checkpoints = new Collection<string>(p.Checkpoints.ToList())
             });
             return Results.Ok(resp);
-        }).WithName("ListProfiles");
+        })
+        .WithName("ListProfiles")
+        .WithTags("Profiles (legacy)");
 
         return app;
     }

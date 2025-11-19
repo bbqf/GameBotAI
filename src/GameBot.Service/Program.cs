@@ -185,9 +185,17 @@ app.MapSessionEndpoints();
 
 // Games & Profiles endpoints (protected if token set)
 app.MapGameEndpoints();
-app.MapProfileEndpoints();
-// Actions & Commands endpoints (protected if token set)
+// Breaking rename: Profiles → Actions
+// Temporary feature flag to keep legacy /profiles endpoints during migration.
+// Set env GAMEBOT_ENABLE_PROFILE_ENDPOINTS=false to disable mapping.
+var enableProfileEndpointsEnv = Environment.GetEnvironmentVariable("GAMEBOT_ENABLE_PROFILE_ENDPOINTS");
+var enableProfileEndpoints = !string.Equals(enableProfileEndpointsEnv, "false", StringComparison.OrdinalIgnoreCase);
+if (enableProfileEndpoints)
+{
+    app.MapProfileEndpoints();
+}
 app.MapActionEndpoints();
+// Actions & Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
 // ADB diagnostics endpoints (protected if token set)
 app.MapAdbEndpoints();

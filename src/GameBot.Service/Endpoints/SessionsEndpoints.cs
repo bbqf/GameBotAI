@@ -2,6 +2,7 @@ using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
 using GameBot.Service.Models;
 using GameBot.Emulator.Adb;
+using GameBot.Domain.Actions;
 
 namespace GameBot.Service.Endpoints;
 
@@ -122,6 +123,29 @@ internal static class SessionsEndpoints
                 return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
             }
         }).WithName("ExecuteProfile");
+
+        // New: Execute an Action against a session (Profile → Action rename)
+        app.MapPost("/sessions/{id}/execute-action", async (string id, string actionId, IActionRepository actions, ISessionManager mgr, CancellationToken ct) =>
+        {
+            // Validate session exists
+            var session = mgr.GetSession(id);
+            if (session is null)
+                return Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
+
+            if (session.Status != SessionStatus.Running)
+                return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
+
+            var action = await actions.GetAsync(actionId, ct).ConfigureAwait(false);
+            if (action is null)
+                return Results.NotFound(new { error = new { code = "not_found", message = "Action not found", hint = (string?)null } });
+
+            if (action.Steps.Count == 0)
+                return Results.Accepted($"/sessions/{id}", new { accepted = 0 });
+
+            var inputs = action.Steps.Select(a => new InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs));
+            var accepted = await mgr.SendInputsAsync(id, inputs, ct).ConfigureAwait(false);
+            return Results.Accepted($"/sessions/{id}", new { accepted });
+        }).WithName("ExecuteAction");
 
         app.MapDelete("/sessions/{id}", (string id, ISessionManager mgr) =>
         {

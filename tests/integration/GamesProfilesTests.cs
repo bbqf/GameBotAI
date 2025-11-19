@@ -6,9 +6,9 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-public class GamesProfilesTests
+public class GamesActionsTests
 {
-    public GamesProfilesTests()
+    public GamesActionsTests()
     {
         Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
         Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
@@ -36,7 +36,7 @@ public class GamesProfilesTests
     }
 
     [Fact]
-    public async Task CanExecuteProfileAgainstSession()
+    public async Task CanExecuteActionAgainstSession()
     {
         Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
         using var app = new WebApplicationFactory<Program>();
@@ -49,10 +49,10 @@ public class GamesProfilesTests
         var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var gameId = game!["id"]!.ToString();
 
-        // Create a profile with two actions
-        var profileReq = new
+        // Create an action with two steps
+        var actionReq = new
         {
-            name = "P-Exec",
+            name = "A-Exec",
             gameId,
             steps = new[]
             {
@@ -60,10 +60,10 @@ public class GamesProfilesTests
                 new { type = "swipe", args = new Dictionary<string, object>{{"x1", 0}, {"y1", 0}, {"x2", 100}, {"y2", 100}}, delayMs = (int?)null, durationMs = (int?)null }
             }
         };
-        var pResp = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), profileReq).ConfigureAwait(true);
-        pResp.EnsureSuccessStatusCode();
-    var prof = await pResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var profileId = prof!["id"]!.ToString();
+        var aResp = await client.PostAsJsonAsync(new Uri("/actions", UriKind.Relative), actionReq).ConfigureAwait(true);
+        aResp.EnsureSuccessStatusCode();
+    var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
+    var actionId = act!["id"]!.ToString();
 
         // Create a session
         var sResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
@@ -71,8 +71,8 @@ public class GamesProfilesTests
     var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var sessionId = s!["id"]!.ToString();
 
-        // Execute the profile
-        var execResp = await client.PostAsync(new Uri($"/sessions/{sessionId}/execute?profileId={profileId}", UriKind.Relative), content: null).ConfigureAwait(true);
+        // Execute the action
+        var execResp = await client.PostAsync(new Uri($"/sessions/{sessionId}/execute-action?actionId={actionId}", UriKind.Relative), content: null).ConfigureAwait(true);
         execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var execBody = await execResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var accepted = ((System.Text.Json.JsonElement)execBody!["accepted"]).GetInt32();
@@ -80,7 +80,7 @@ public class GamesProfilesTests
     }
 
     [Fact]
-    public async Task CanCreateAndFilterProfilesByGame()
+    public async Task CanCreateAndFilterActionsByGame()
     {
         Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
@@ -92,18 +92,18 @@ public class GamesProfilesTests
     var gBody = await g.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var gameId = gBody!["id"].ToString();
 
-        // Create two profiles, one for this game, one for another
-        var profileReq = new { name = "P1", gameId, steps = new object[] { new { type = "tap", args = new { x = 1, y = 2 } } } };
-    var p1 = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), profileReq).ConfigureAwait(true);
-        p1.StatusCode.Should().Be(HttpStatusCode.Created);
+        // Create two actions, one for this game, one for another
+        var actionReq = new { name = "A1", gameId, steps = new object[] { new { type = "tap", args = new { x = 1, y = 2 } } } };
+    var a1 = await client.PostAsJsonAsync(new Uri("/actions", UriKind.Relative), actionReq).ConfigureAwait(true);
+        a1.StatusCode.Should().Be(HttpStatusCode.Created);
 
-    var p2 = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), new { name = "P2", gameId = "other-game", steps = Array.Empty<object>() }).ConfigureAwait(true);
-        p2.StatusCode.Should().Be(HttpStatusCode.Created);
+    var a2 = await client.PostAsJsonAsync(new Uri("/actions", UriKind.Relative), new { name = "A2", gameId = "other-game", steps = Array.Empty<object>() }).ConfigureAwait(true);
+        a2.StatusCode.Should().Be(HttpStatusCode.Created);
 
         // Filter
-    var list = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri($"/profiles?gameId={gameId}", UriKind.Relative)).ConfigureAwait(true);
+    var list = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri($"/actions?gameId={gameId}", UriKind.Relative)).ConfigureAwait(true);
         list!.Should().NotBeNull();
         list!.Count.Should().Be(1);
-        list[0]["name"].ToString().Should().Be("P1");
+        list[0]["name"].ToString().Should().Be("A1");
     }
 }
