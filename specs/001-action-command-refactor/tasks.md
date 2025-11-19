@@ -13,3 +13,7 @@
 - [ ] Integration tests: endpoints and flows; ensure no background evaluation
 - [ ] Update OpenAPI/contract tests
 - [ ] Add migration script and docs
+	- [ ] Script: migrate existing `data/profiles/*.json` → `data/actions/*.json` + extract embedded `triggers` to `data/triggers/*.json`
+	- [ ] Dry run mode for safety (`-DryRun`) listing planned conversions
+	- [ ] Preserve original profiles directory (do not delete) unless `-DeleteOriginal` passed
+	- [ ] Post-migration verification checklist (counts match, spot-check one action & one trigger)
