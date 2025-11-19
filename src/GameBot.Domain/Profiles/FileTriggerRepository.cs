@@ -42,4 +42,21 @@ public sealed class FileTriggerRepository : ITriggerRepository
         File.Delete(path);
         return Task.FromResult(true);
     }
+
+    public async Task<IReadOnlyList<ProfileTrigger>> ListAsync(CancellationToken ct = default)
+    {
+        var list = new List<ProfileTrigger>();
+        foreach (var file in Directory.EnumerateFiles(_dir, "*.json"))
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                using var fs = File.OpenRead(file);
+                var trig = await JsonSerializer.DeserializeAsync<ProfileTrigger>(fs, JsonOpts, ct).ConfigureAwait(false);
+                if (trig is not null) list.Add(trig);
+            }
+            catch { }
+        }
+        return list;
+    }
 }

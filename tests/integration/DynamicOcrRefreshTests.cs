@@ -67,16 +67,12 @@ public class DynamicOcrRefreshTests
             var client = app.CreateClient();
             client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-        // Create game & profile
+        // Create game
         var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "G-DOCR", description = "d" });
         gameResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var gameId = game!["id"]!.ToString();
 
-        var profResp = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), new { name = "P-DOCR", gameId, steps = Array.Empty<object>() });
-        profResp.StatusCode.Should().Be(HttpStatusCode.Created);
-        var prof = await profResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-        var profileId = prof!["id"]!.ToString();
 
         // Create a text-match trigger for HELLO
         var trigCreate = new
@@ -92,13 +88,13 @@ public class DynamicOcrRefreshTests
                 mode = "found"
             }
         };
-        var tResp = await client.PostAsJsonAsync(new Uri($"/profiles/{profileId}/triggers", UriKind.Relative), trigCreate);
+        var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigCreate);
         tResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var tBody = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var triggerId = tBody!["id"]!.ToString();
 
         // Initial test: with Env OCR and text "NOPE", should NOT be Satisfied
-        var test1 = await client.PostAsync(new Uri($"/profiles/{profileId}/triggers/{triggerId}/test", UriKind.Relative), null);
+        var test1 = await client.PostAsync(new Uri($"/triggers/{triggerId}/test", UriKind.Relative), null);
         test1.StatusCode.Should().Be(HttpStatusCode.OK);
         var res1 = await test1.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         ((System.Text.Json.JsonElement)res1!["status"]).GetString().Should().NotBe("Satisfied");
@@ -115,7 +111,7 @@ public class DynamicOcrRefreshTests
         refresh.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Second test: with Tesseract OCR and a HELLO screen, should be Satisfied
-            var test2 = await client.PostAsync(new Uri($"/profiles/{profileId}/triggers/{triggerId}/test", UriKind.Relative), null);
+            var test2 = await client.PostAsync(new Uri($"/triggers/{triggerId}/test", UriKind.Relative), null);
             test2.StatusCode.Should().Be(HttpStatusCode.OK);
             var res2 = await test2.Content.ReadFromJsonAsync<Dictionary<string, object>>();
             ((System.Text.Json.JsonElement)res2!["status"]).GetString().Should().Be("Satisfied");

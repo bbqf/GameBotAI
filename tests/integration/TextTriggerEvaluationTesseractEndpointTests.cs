@@ -63,11 +63,7 @@ public class TextTriggerEvaluationTesseractEndpointTests
         var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var gameId = game!["id"]!.ToString();
 
-        // Create profile
-        var profResp = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), new { name = "P-Text", gameId, steps = Array.Empty<object>() });
-        profResp.StatusCode.Should().Be(HttpStatusCode.Created);
-        var prof = await profResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-        var profileId = prof!["id"]!.ToString();
+        // (legacy profile removed)
 
         // Create a text-match trigger for HELLO, region full screen
         var trigCreate = new
@@ -83,13 +79,13 @@ public class TextTriggerEvaluationTesseractEndpointTests
                 mode = "found"
             }
         };
-        var tResp = await client.PostAsJsonAsync(new Uri($"/profiles/{profileId}/triggers", UriKind.Relative), trigCreate);
+        var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigCreate);
         tResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var tBody = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var triggerId = tBody!["id"]!.ToString();
 
         // Test trigger - should be Satisfied
-        var testResp = await client.PostAsync(new Uri($"/profiles/{profileId}/triggers/{triggerId}/test", UriKind.Relative), null);
+        var testResp = await client.PostAsync(new Uri($"/triggers/{triggerId}/test", UriKind.Relative), null);
         testResp.StatusCode.Should().Be(HttpStatusCode.OK);
         var res = await testResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         ((System.Text.Json.JsonElement)res!["status"]).GetString().Should().Be("Satisfied");

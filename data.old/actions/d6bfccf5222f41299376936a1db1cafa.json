@@ -1,0 +1,19 @@
+﻿{
+    "id":  "d6bfccf5222f41299376936a1db1cafa",
+    "name":  "Go Home From World",
+    "gameId":  "8ac4dc382f4c42778b33ea1270b669c4",
+    "steps":  [
+                  {
+                      "type":  "tap",
+                      "args":  {
+                                   "x":  "45",
+                                   "y":  "910"
+                               },
+                      "delayMs":  100,
+                      "durationMs":  300
+                  }
+              ],
+    "checkpoints":  [
+
+                    ]
+}

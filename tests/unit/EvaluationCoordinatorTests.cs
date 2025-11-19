@@ -8,21 +8,23 @@ using Xunit;
 
 namespace GameBot.UnitTests
 {
-    internal sealed class InMemoryProfileRepo : IProfileRepository
+    internal sealed class InMemoryTriggerRepo : ITriggerRepository
     {
-        private readonly List<AutomationProfile> _items;
-        public InMemoryProfileRepo(IEnumerable<AutomationProfile> seed) => _items = seed.ToList();
-        public Task<AutomationProfile> AddAsync(AutomationProfile profile, CancellationToken ct = default)
+        private readonly List<ProfileTrigger> _items;
+        public InMemoryTriggerRepo(IEnumerable<ProfileTrigger> seed) => _items = seed.ToList();
+        public Task<ProfileTrigger?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult(_items.FirstOrDefault(t => t.Id == id));
+        public Task UpsertAsync(ProfileTrigger trigger, CancellationToken ct = default)
         {
-            _items.Add(profile);
-            return Task.FromResult(profile);
+            var idx = _items.FindIndex(t => t.Id == trigger.Id);
+            if (idx >= 0) _items[idx] = trigger; else _items.Add(trigger);
+            return Task.CompletedTask;
         }
-        public Task<AutomationProfile?> GetAsync(string id, CancellationToken ct = default)
-            => Task.FromResult(_items.FirstOrDefault(p => p.Id == id));
-        public Task<IReadOnlyList<AutomationProfile>> ListAsync(string? gameId = null, CancellationToken ct = default)
-            => Task.FromResult((IReadOnlyList<AutomationProfile>)_items.Where(p => gameId == null || p.GameId == gameId).ToList());
-        public Task<AutomationProfile?> UpdateAsync(AutomationProfile profile, CancellationToken ct = default)
-            => Task.FromResult<AutomationProfile?>(profile);
+        public Task<bool> DeleteAsync(string id, CancellationToken ct = default)
+        {
+            var removed = _items.RemoveAll(t => t.Id == id) > 0;
+            return Task.FromResult(removed);
+        }
+        public Task<IReadOnlyList<ProfileTrigger>> ListAsync(CancellationToken ct = default) => Task.FromResult((IReadOnlyList<ProfileTrigger>)_items.ToList());
     }
 
     internal sealed class ImmediateDelayEvaluator : ITriggerEvaluator
@@ -37,27 +39,20 @@ namespace GameBot.UnitTests
         [Fact(DisplayName="Coordinator evaluates and persists timestamps")]
         public async Task EvaluateAndPersist()
         {
-            var profile = new AutomationProfile
-            {
-                Id = "p1",
-                Name = "P1",
-                GameId = "g1"
-            };
-            profile.Triggers.Add(new ProfileTrigger
-            {
-                Id = "t1",
-                Type = TriggerType.Delay,
-                Params = new DelayParams { Seconds = 0 }
-            });
-
-            var repo = new InMemoryProfileRepo(new[] { profile });
+            var trigger = new ProfileTrigger { Id = "t1", Type = TriggerType.Delay, Enabled = true, CooldownSeconds = 0, Params = new DelayParams { Seconds = 0 } };
+            var repo = new InMemoryTriggerRepo(new[] { trigger });
             var service = new TriggerEvaluationService(new ITriggerEvaluator[] { new ImmediateDelayEvaluator() });
             var coord = new TriggerEvaluationCoordinator(repo, service);
 
-            var count = await coord.EvaluateAllAsync();
-            Assert.Equal(1, count);
-            Assert.NotNull(profile.Triggers[0].LastEvaluatedAt);
-            Assert.NotNull(profile.Triggers[0].LastFiredAt);
+            var first = await coord.EvaluateAllAsync(null);
+            Assert.Equal(1, first);
+            Assert.NotNull(trigger.LastEvaluatedAt);
+            Assert.NotNull(trigger.LastFiredAt);
+
+            var second = await coord.EvaluateAllAsync();
+            Assert.Equal(1, second);
+            Assert.NotNull(trigger.LastEvaluatedAt);
+            Assert.NotNull(trigger.LastFiredAt);
         }
     }
 }

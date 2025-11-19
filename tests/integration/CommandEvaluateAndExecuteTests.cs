@@ -44,15 +44,10 @@ public class CommandEvaluateAndExecuteTests
         var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var actionId = act!["id"]!.ToString();
 
-        // Create a legacy profile (to create a trigger via legacy endpoints)
-        var pResp = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), new { name = "P1", gameId, steps = Array.Empty<object>(), checkpoints = Array.Empty<string>() }).ConfigureAwait(true);
-        pResp.EnsureSuccessStatusCode();
-        var prof = await pResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-        var profileId = prof!["id"]!.ToString();
 
         // Create a delay trigger with 0 seconds (immediately satisfied)
         var trigReq = new { type = "delay", enabled = true, cooldownSeconds = 0, @params = new { seconds = 0 } };
-        var tResp = await client.PostAsJsonAsync(new Uri($"/profiles/{profileId}/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
+        var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
         tResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var tr = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var triggerId = tr!["id"]!.ToString();
@@ -110,14 +105,10 @@ public class CommandEvaluateAndExecuteTests
         var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var actionId = act!["id"]!.ToString();
 
-        var pResp = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), new { name = "P1", gameId, steps = Array.Empty<object>(), checkpoints = Array.Empty<string>() }).ConfigureAwait(true);
-        pResp.EnsureSuccessStatusCode();
-        var prof = await pResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-        var profileId = prof!["id"]!.ToString();
 
         // Delay trigger pending (seconds > 0)
         var trigReq = new { type = "delay", enabled = true, cooldownSeconds = 0, @params = new { seconds = 5 } };
-        var tResp = await client.PostAsJsonAsync(new Uri($"/profiles/{profileId}/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
+        var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
         tResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var tr = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var triggerId = tr!["id"]!.ToString();
@@ -172,14 +163,10 @@ public class CommandEvaluateAndExecuteTests
         var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var actionId = act!["id"]!.ToString();
 
-        var pResp = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), new { name = "P1", gameId, steps = Array.Empty<object>(), checkpoints = Array.Empty<string>() }).ConfigureAwait(true);
-        pResp.EnsureSuccessStatusCode();
-        var prof = await pResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-        var profileId = prof!["id"]!.ToString();
 
         // Immediate satisfaction but with cooldown
         var trigReq = new { type = "delay", enabled = true, cooldownSeconds = 60, @params = new { seconds = 0 } };
-        var tResp = await client.PostAsJsonAsync(new Uri($"/profiles/{profileId}/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
+        var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
         tResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var tr = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var triggerId = tr!["id"]!.ToString();
@@ -242,14 +229,10 @@ public class CommandEvaluateAndExecuteTests
         var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var actionId = act!["id"]!.ToString();
 
-        var pResp = await client.PostAsJsonAsync(new Uri("/profiles", UriKind.Relative), new { name = "P1", gameId, steps = Array.Empty<object>(), checkpoints = Array.Empty<string>() }).ConfigureAwait(true);
-        pResp.EnsureSuccessStatusCode();
-        var prof = await pResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-        var profileId = prof!["id"]!.ToString();
 
         // Disabled trigger should not fire even if otherwise satisfied
         var trigReq = new { type = "delay", enabled = false, cooldownSeconds = 0, @params = new { seconds = 0 } };
-        var tResp = await client.PostAsJsonAsync(new Uri($"/profiles/{profileId}/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
+        var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
         tResp.StatusCode.Should().Be(HttpStatusCode.Created);
         var tr = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var triggerId = tr!["id"]!.ToString();

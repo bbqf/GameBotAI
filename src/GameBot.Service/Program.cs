@@ -41,7 +41,6 @@ builder.Services.Configure<GameBot.Emulator.Session.SessionOptions>(builder.Conf
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
 builder.Services.AddTransient<ErrorHandlingMiddleware>();
 builder.Services.AddTransient<CorrelationIdMiddleware>();
-builder.Services.AddSingleton<IProfileExecutor, ProfileExecutor>();
 builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();
 
 // Data storage configuration (env: GAMEBOT_DATA_DIR or config Service:Storage:Root)
@@ -186,15 +185,7 @@ app.MapSessionEndpoints();
 
 // Games & Profiles endpoints (protected if token set)
 app.MapGameEndpoints();
-// Breaking rename: Profiles → Actions
-// Temporary feature flag to keep legacy /profiles endpoints during migration.
-// Set env GAMEBOT_ENABLE_PROFILE_ENDPOINTS=false to disable mapping.
-var enableProfileEndpointsEnv = Environment.GetEnvironmentVariable("GAMEBOT_ENABLE_PROFILE_ENDPOINTS");
-var enableProfileEndpoints = !string.Equals(enableProfileEndpointsEnv, "false", StringComparison.OrdinalIgnoreCase);
-if (enableProfileEndpoints)
-{
-    app.MapProfileEndpoints();
-}
+// Legacy /profiles endpoints removed after migration completion.
 app.MapActionEndpoints();
 // Actions & Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
@@ -202,6 +193,8 @@ app.MapCommandEndpoints();
 app.MapAdbEndpoints();
 // Triggers endpoints (protected if token set)
 app.MapTriggersEndpoints();
+// Standalone triggers CRUD (decoupled from legacy profiles)
+app.MapStandaloneTriggerEndpoints();
 // Image references endpoints for image-match triggers
 if (OperatingSystem.IsWindows())
 {

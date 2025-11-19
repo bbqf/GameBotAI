@@ -48,7 +48,9 @@ New-Item -ItemType Directory -Force -Path $actionsDir | Out-Null
 New-Item -ItemType Directory -Force -Path $triggersDir | Out-Null
 
 $profileFiles = Get-ChildItem -LiteralPath $profilesDir -Filter '*.json'
-if ($profileFiles.Count -eq 0) {
+# Normalize to array to avoid Count property errors under StrictMode when a single FileInfo is returned
+$profileFiles = @($profileFiles)
+if ($profileFiles.Length -eq 0) {
     Write-Host "No profile JSON files found under '$profilesDir'."; exit 0
 }
 
@@ -59,7 +61,12 @@ $errors = 0
 foreach ($pf in $profileFiles) {
     try {
         $jsonText = Get-Content -LiteralPath $pf.FullName -Raw
-        $profileObj = $jsonText | ConvertFrom-Json -Depth 100
+        # ConvertFrom-Json -Depth is only supported in newer PowerShell; fall back if unsupported
+        try {
+            $profileObj = $jsonText | ConvertFrom-Json -Depth 100
+        } catch {
+            $profileObj = $jsonText | ConvertFrom-Json
+        }
         if (-not $profileObj.id) { Write-Warning "Skipping file '$($pf.Name)' (missing id)."; continue }
 
         # Build action object (drop triggers)
@@ -75,7 +82,7 @@ foreach ($pf in $profileFiles) {
         if ($DryRun) {
             Write-Host "[DRY-RUN] Would create action: $actionPath" -ForegroundColor Cyan
         } else {
-            ($action | ConvertTo-Json -Depth 100) | Out-File -FilePath $actionPath -Encoding UTF8
+                    ($action | ConvertTo-Json -Depth 100) | Out-File -FilePath $actionPath -Encoding UTF8
         }
         $migratedCount++
 

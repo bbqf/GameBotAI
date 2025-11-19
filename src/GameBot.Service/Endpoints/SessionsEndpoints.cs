@@ -106,24 +106,6 @@ internal static class SessionsEndpoints
             }
         }).WithName("GetSnapshot");
 
-        app.MapPost("/sessions/{id}/execute", async (string id, string profileId, IProfileExecutor executor, CancellationToken ct) =>
-        {
-            try
-            {
-                var accepted = await executor.ExecuteAsync(id, profileId, ct).ConfigureAwait(false);
-                return Results.Accepted($"/sessions/{id}", new { accepted });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                var msg = ex.Message.Contains("Profile", StringComparison.OrdinalIgnoreCase) ? "Profile not found" : "Session not found";
-                return Results.NotFound(new { error = new { code = "not_found", message = msg, hint = (string?)null } });
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
-            }
-        }).WithName("ExecuteProfile");
-
         // New: Execute an Action against a session (Profile → Action rename)
         app.MapPost("/sessions/{id}/execute-action", async (string id, string actionId, IActionRepository actions, ISessionManager mgr, CancellationToken ct) =>
         {

@@ -7,47 +7,35 @@ namespace GameBot.Domain.Services;
 /// </summary>
 public sealed class TriggerEvaluationCoordinator : ITriggerEvaluationCoordinator
 {
-    private readonly IProfileRepository _profiles;
+    private readonly ITriggerRepository _triggers;
     private readonly TriggerEvaluationService _evaluation;
 
-    public TriggerEvaluationCoordinator(IProfileRepository profiles, TriggerEvaluationService evaluation)
+    public TriggerEvaluationCoordinator(ITriggerRepository triggers, TriggerEvaluationService evaluation)
     {
-        _profiles = profiles;
+        _triggers = triggers;
         _evaluation = evaluation;
     }
 
     /// <summary>
-    /// Evaluates all enabled triggers for all profiles (optionally filtered by game) and persists changes.
+    /// Evaluates all enabled triggers (legacy gameId filter ignored after decoupling) and persists state.
     /// </summary>
-    /// <remarks>
-    /// This performs in-memory mutation then issues an UpdateAsync per changed profile.
-    /// Cooldown and disabled triggers are short-circuited by TriggerEvaluationService.
-    /// </remarks>
     public async Task<int> EvaluateAllAsync(string? gameId = null, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
-        var profiles = await _profiles.ListAsync(gameId, ct).ConfigureAwait(false);
-        var evaluatedCount = 0;
-        foreach (var profile in profiles)
+        var all = await _triggers.ListAsync(ct).ConfigureAwait(false);
+        var evaluated = 0;
+        foreach (var trig in all)
         {
-            var changed = false;
-            foreach (var trig in profile.Triggers)
+            var result = _evaluation.Evaluate(trig, now);
+            trig.LastEvaluatedAt = result.EvaluatedAt;
+            trig.LastResult = result;
+            if (result.Status == TriggerStatus.Satisfied)
             {
-                var result = _evaluation.Evaluate(trig, now);
-                trig.LastEvaluatedAt = result.EvaluatedAt;
-                trig.LastResult = result;
-                if (result.Status == TriggerStatus.Satisfied)
-                {
-                    trig.LastFiredAt = result.EvaluatedAt;
-                }
-                changed = true; // We always persist evaluation timestamps
-                evaluatedCount++;
+                trig.LastFiredAt = result.EvaluatedAt;
             }
-            if (changed)
-            {
-                await _profiles.UpdateAsync(profile, ct).ConfigureAwait(false);
-            }
+            await _triggers.UpsertAsync(trig, ct).ConfigureAwait(false);
+            evaluated++;
         }
-        return evaluatedCount;
+        return evaluated;
     }
 }
