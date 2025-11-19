@@ -1,7 +1,7 @@
 using System.Drawing;
-using GameBot.Domain.Profiles;
-using GameBot.Domain.Profiles.Evaluators;
-using DomainRegion = GameBot.Domain.Profiles.Region;
+using GameBot.Domain.Triggers;
+using GameBot.Domain.Triggers.Evaluators;
+using DomainRegion = GameBot.Domain.Triggers.Region;
 using Xunit;
 
 namespace GameBot.Unit.Emulator.Triggers;
@@ -20,12 +20,12 @@ public sealed class ImageMatchEvaluatorAdvancedTests
     public void ExactMatchShouldYieldHighSimilarity()
     {
         var store = new MemoryReferenceImageStore();
-    using var tpl = MakeSolid(10, 10, Color.White);
-    store.Add("tpl", (Bitmap)tpl.Clone());
+        using var tpl = MakeSolid(10, 10, Color.White);
+        store.AddOrUpdate("tpl", (Bitmap)tpl.Clone());
         using var screen = MakeSolid(100, 100, Color.White);
         var screenSrc = new SingleBitmapScreenSource(() => (Bitmap)screen.Clone());
         var eval = new ImageMatchEvaluator(store, screenSrc);
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t1",
             Type = TriggerType.ImageMatch,
@@ -41,12 +41,12 @@ public sealed class ImageMatchEvaluatorAdvancedTests
     public void MismatchShouldYieldLowSimilarity()
     {
         var store = new MemoryReferenceImageStore();
-    using var tpl = MakeSolid(10, 10, Color.White);
-    store.Add("tpl", (Bitmap)tpl.Clone());
+        using var tpl = MakeSolid(10, 10, Color.White);
+        store.AddOrUpdate("tpl", (Bitmap)tpl.Clone());
         using var screen = MakeSolid(100, 100, Color.Black);
         var screenSrc = new SingleBitmapScreenSource(() => (Bitmap)screen.Clone());
         var eval = new ImageMatchEvaluator(store, screenSrc);
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t1",
             Type = TriggerType.ImageMatch,
@@ -62,13 +62,13 @@ public sealed class ImageMatchEvaluatorAdvancedTests
     public void RegionSmallerThanTemplateShouldNotMatch()
     {
         var store = new MemoryReferenceImageStore();
-    using var tpl = MakeSolid(50, 50, Color.White);
-    store.Add("tpl", (Bitmap)tpl.Clone());
+        using var tpl = MakeSolid(50, 50, Color.White);
+        store.AddOrUpdate("tpl", (Bitmap)tpl.Clone());
         using var screen = MakeSolid(100, 100, Color.White);
         // Region 10x10 smaller than 50x50 template
         var screenSrc = new SingleBitmapScreenSource(() => (Bitmap)screen.Clone());
         var eval = new ImageMatchEvaluator(store, screenSrc);
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t1",
             Type = TriggerType.ImageMatch,

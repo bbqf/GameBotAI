@@ -147,16 +147,12 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
             scanned++;
             var key = e.Key?.ToString();
             if (string.IsNullOrEmpty(key)) { excluded++; continue; }
-            // Only include GameBot-relevant variables: GAMEBOT_*
-            if (key.StartsWith("GAMEBOT_", StringComparison.OrdinalIgnoreCase))
-            {
-                dict[key] = e.Value?.ToString();
-                included++;
-            }
-            else
-            {
-                excluded++;
-            }
+            if (!key.StartsWith("GAMEBOT_", StringComparison.OrdinalIgnoreCase)) { excluded++; continue; }
+            // Treat null/empty values as absent so saved file can take precedence (Fix: config source detection)
+            var rawVal = e.Value?.ToString();
+            if (string.IsNullOrEmpty(rawVal)) { excluded++; continue; }
+            dict[key] = rawVal;
+            included++;
         }
         return (dict, scanned, included, excluded);
     }
@@ -175,7 +171,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
             ["GAMEBOT_DEBUG_DUMP_IMAGES"] = "false",
             ["GAMEBOT_TESSERACT_ENABLED"] = "false",
             ["GAMEBOT_TESSERACT_PATH"] = "tesseract",
-            ["GAMEBOT_TESSERACT_LANG"] = "eng",
+            ["GAMEBOT_TESSERACT_LANG"] = "eng", // default language
             ["GAMEBOT_TESSERACT_PSM"] = null,
             ["GAMEBOT_TESSERACT_OEM"] = null,
             ["GAMEBOT_TEST_OCR_TEXT"] = "",
@@ -224,7 +220,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
 
     private static string DetermineSource(string name, Dictionary<string, object?> env, Dictionary<string, object?> saved)
     {
-        if (env.ContainsKey(name)) return "Environment";
+        if (env.TryGetValue(name, out var envVal) && !string.IsNullOrEmpty(envVal?.ToString())) return "Environment";
         if (saved.ContainsKey(name)) return "File";
         return "Default";
     }

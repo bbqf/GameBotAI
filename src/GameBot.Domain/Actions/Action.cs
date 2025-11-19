@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using GameBot.Domain.Profiles;
+using GameBot.Domain.Actions;
 
 namespace GameBot.Domain.Actions;
 

@@ -22,7 +22,7 @@ internal static class SessionsEndpoints
             }
             try
             {
-                var sess = mgr.CreateSession(game, req.ProfileId, req.AdbSerial);
+                var sess = mgr.CreateSession(game, req.AdbSerial);
                 var resp = new CreateSessionResponse { Id = sess.Id, Status = sess.Status.ToString().ToUpperInvariant(), GameId = sess.GameId };
                 return Results.Created($"/sessions/{sess.Id}", resp);
             }
@@ -63,7 +63,7 @@ internal static class SessionsEndpoints
             if (req.Actions is null || req.Actions.Count == 0)
                 return Results.BadRequest(new { error = new { code = "invalid_request", message = "No actions provided.", hint = (string?)null } });
 
-            var accepted = await mgr.SendInputsAsync(id, req.Actions.Select(a => new InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)), ct).ConfigureAwait(false);
+            var accepted = await mgr.SendInputsAsync(id, req.Actions.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)), ct).ConfigureAwait(false);
             if (accepted == 0) return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
             return Results.Accepted($"/sessions/{id}", new { accepted });
         }).WithName("SendInputs");
@@ -106,7 +106,7 @@ internal static class SessionsEndpoints
             }
         }).WithName("GetSnapshot");
 
-        // New: Execute an Action against a session (Profile → Action rename)
+        // Execute an Action against a session
         app.MapPost("/sessions/{id}/execute-action", async (string id, string actionId, IActionRepository actions, ISessionManager mgr, CancellationToken ct) =>
         {
             // Validate session exists
@@ -124,7 +124,7 @@ internal static class SessionsEndpoints
             if (action.Steps.Count == 0)
                 return Results.Accepted($"/sessions/{id}", new { accepted = 0 });
 
-            var inputs = action.Steps.Select(a => new InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs));
+            var inputs = action.Steps.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs));
             var accepted = await mgr.SendInputsAsync(id, inputs, ct).ConfigureAwait(false);
             return Results.Accepted($"/sessions/{id}", new { accepted });
         }).WithName("ExecuteAction");

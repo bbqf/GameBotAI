@@ -1,8 +1,10 @@
-using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Triggers.Evaluators;
+using System.Diagnostics.CodeAnalysis;
 using GameBot.Service.Services;
 
 namespace GameBot.Service.Services;
 
+[SuppressMessage("Performance", "CA1859:Change type of field '_inner'", Justification = "Interface required for runtime swapping between Env and Tesseract implementations")]
 internal sealed class DynamicTextOcr : ITextOcr
 {
     private readonly IConfigSnapshotService _config;

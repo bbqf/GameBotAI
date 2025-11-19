@@ -1,13 +1,13 @@
 using System.Drawing;
-using GameBot.Domain.Profiles;
-using DomainRegion = GameBot.Domain.Profiles.Region;
+using GameBot.Domain.Triggers;
+using DomainRegion = GameBot.Domain.Triggers.Region;
 using Xunit;
 
 namespace GameBot.Unit.Emulator.Triggers;
 
 public sealed class ImageMatchEvaluatorTests
 {
-    private static ProfileTrigger CreateTrigger(double threshold) => new()
+    private static Trigger CreateTrigger(double threshold) => new()
     {
         Id = "t1",
         Type = TriggerType.ImageMatch,
@@ -43,12 +43,12 @@ public sealed class ImageMatchEvaluatorTests
     }
 
     // Simple stub evaluator for unit testing logic boundaries
-    private sealed class StubImageMatchEvaluator : ITriggerEvaluator
+    private sealed class StubImageMatchEvaluator : GameBot.Domain.Triggers.ITriggerEvaluator
     {
         private readonly double _similarity;
         public StubImageMatchEvaluator(double similarity) => _similarity = similarity;
-        public bool CanEvaluate(ProfileTrigger trigger) => trigger.Enabled && trigger.Type == TriggerType.ImageMatch;
-        public TriggerEvaluationResult Evaluate(ProfileTrigger trigger, DateTimeOffset now)
+        public bool CanEvaluate(Trigger trigger) => trigger.Enabled && trigger.Type == TriggerType.ImageMatch;
+        public TriggerEvaluationResult Evaluate(Trigger trigger, DateTimeOffset now)
         {
             var p = (ImageMatchParams)trigger.Params;
             var status = _similarity >= p.SimilarityThreshold ? TriggerStatus.Satisfied : TriggerStatus.Pending;

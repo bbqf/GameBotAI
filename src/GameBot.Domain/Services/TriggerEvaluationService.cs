@@ -1,4 +1,4 @@
-using GameBot.Domain.Profiles;
+using GameBot.Domain.Triggers;
 
 namespace GameBot.Domain.Services;
 
@@ -11,7 +11,7 @@ public sealed class TriggerEvaluationService
         _evaluators = evaluators.ToList();
     }
 
-    public TriggerEvaluationResult Evaluate(ProfileTrigger trigger, DateTimeOffset now)
+    public TriggerEvaluationResult Evaluate(Trigger trigger, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(trigger);
         // Disabled triggers short-circuit
@@ -51,6 +51,12 @@ public sealed class TriggerEvaluationService
             };
         }
 
-        return evaluator.Evaluate(trigger, now);
+        var result = evaluator.Evaluate(trigger, now);
+        // Persist baseline enable timestamp if newly established
+        if (trigger.EnabledAt is null && result.Status == TriggerStatus.Pending && result.Reason == "delay_pending_initial")
+        {
+            trigger.EnabledAt = result.EvaluatedAt;
+        }
+        return result;
     }
 }

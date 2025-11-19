@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using System.IO;
 using System.Text.Json;
-using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Triggers.Evaluators;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -40,7 +40,8 @@ internal static class ImageReferencesEndpoints
                 using var ms = new MemoryStream(bytes);
                 using var bmp = new Bitmap(ms);
                 // Store a clone to decouple from stream lifetime
-                (store as MemoryReferenceImageStore)?.Add(req.Id, (Bitmap)bmp.Clone());
+                // Store reference image (AddOrUpdate to allow overwrite)
+                store.AddOrUpdate(req.Id, (Bitmap)bmp.Clone());
                 return Results.Created($"/images/{req.Id}", new { id = req.Id });
             }
             catch (Exception ex)

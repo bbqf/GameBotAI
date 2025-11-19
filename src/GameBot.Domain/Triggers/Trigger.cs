@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace GameBot.Domain.Profiles;
+namespace GameBot.Domain.Triggers;
 
 public enum TriggerType
 {
@@ -12,10 +12,10 @@ public enum TriggerType
 
 public sealed class Region
 {
-    public required double X { get; set; } // [0..1]
-    public required double Y { get; set; } // [0..1]
-    public required double Width { get; set; } // (0..1]
-    public required double Height { get; set; } // (0..1]
+    public required double X { get; set; }
+    public required double Y { get; set; }
+    public required double Width { get; set; }
+    public required double Height { get; set; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
@@ -47,11 +47,11 @@ public sealed class TextMatchParams : TriggerParams
     public required string Target { get; set; } = string.Empty;
     public required Region Region { get; set; } = default!;
     public double ConfidenceThreshold { get; set; } = 0.80;
-    public required string Mode { get; set; } = "found"; // found | not-found
-    public string? Language { get; set; } // Optional OCR language (e.g., "eng")
+    public required string Mode { get; set; } = "found";
+    public string? Language { get; set; }
 }
 
-public sealed class ProfileTrigger
+public sealed class Trigger
 {
     public required string Id { get; set; }
     public required TriggerType Type { get; set; }

@@ -1,4 +1,4 @@
-namespace GameBot.Domain.Profiles;
+namespace GameBot.Domain.Triggers;
 
 public enum TriggerStatus
 {

@@ -45,7 +45,7 @@ public sealed class SessionManager : ISessionManager
     public int ActiveCount => _sessions.Count;
     public bool CanCreateSession => ActiveCount < _options.MaxConcurrentSessions;
 
-    public EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null, string? preferredDeviceSerial = null)
+    public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null)
     {
         CleanupIdleSessions();
         if (!CanCreateSession)

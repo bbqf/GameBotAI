@@ -6,7 +6,7 @@ public interface ISessionManager
 {
     int ActiveCount { get; }
     bool CanCreateSession { get; }
-    EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null, string? preferredDeviceSerial = null);
+    EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null);
     EmulatorSession? GetSession(string id);
     IReadOnlyCollection<EmulatorSession> ListSessions();
     bool StopSession(string id);
@@ -15,8 +15,3 @@ public interface ISessionManager
 }
 
 public sealed record InputAction(string Type, Dictionary<string, object> Args, int? DelayMs = null, int? DurationMs = null);
-
-public interface IProfileExecutor
-{
-    Task<int> ExecuteAsync(string sessionId, string profileId, CancellationToken ct = default);
-}

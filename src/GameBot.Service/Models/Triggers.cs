@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using GameBot.Domain.Profiles;
+using GameBot.Domain.Triggers;
 
 namespace GameBot.Service.Models;
 
@@ -11,7 +11,7 @@ internal sealed class RegionDto
     [Range(0,1)] public double Height { get; set; }
 }
 
-internal sealed class ProfileTriggerCreateDto
+internal sealed class TriggerCreateDto
 {
     [Required] public required string Type { get; set; }
     public bool Enabled { get; set; } = true;
@@ -19,7 +19,7 @@ internal sealed class ProfileTriggerCreateDto
     [Required] public required object Params { get; set; } = default!;
 }
 
-internal sealed class ProfileTriggerDto
+internal sealed class TriggerDto
 {
     public required string Id { get; set; }
     public required string Type { get; set; }
@@ -33,7 +33,7 @@ internal sealed class ProfileTriggerDto
 
 internal static class TriggerMappings
 {
-    public static ProfileTriggerDto ToDto(ProfileTrigger t)
+    public static TriggerDto ToDto(Trigger t)
     {
         // Normalize to kebab-case strings stable for API consumers
         var typeString = t.Type switch
@@ -44,7 +44,7 @@ internal static class TriggerMappings
             TriggerType.TextMatch => "text-match",
             _ => t.Type.ToString().ToLowerInvariant()
         };
-        return new ProfileTriggerDto
+        return new TriggerDto
         {
             Id = t.Id,
             Type = typeString,

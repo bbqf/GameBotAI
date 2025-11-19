@@ -1,4 +1,4 @@
-using GameBot.Domain.Profiles;
+using GameBot.Domain.Triggers;
 using GameBot.Domain.Services;
 using GameBot.Emulator.Session;
 using Microsoft.Extensions.Hosting;

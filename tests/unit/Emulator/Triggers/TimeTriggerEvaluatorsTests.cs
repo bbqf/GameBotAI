@@ -1,12 +1,12 @@
-using GameBot.Domain.Profiles;
-using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Triggers;
+using GameBot.Domain.Triggers.Evaluators;
 using Xunit;
 
 namespace GameBot.Unit.Emulator.Triggers;
 
 public sealed class TimeTriggerEvaluatorsTests
 {
-    private static ProfileTrigger MakeDelay(int seconds, DateTimeOffset? enabledAt = null) => new()
+    private static Trigger MakeDelay(int seconds, DateTimeOffset? enabledAt = null) => new()
     {
         Id = "d1",
         Type = TriggerType.Delay,
@@ -15,7 +15,7 @@ public sealed class TimeTriggerEvaluatorsTests
         Params = new DelayParams { Seconds = seconds }
     };
 
-    private static ProfileTrigger MakeSchedule(DateTimeOffset ts, DateTimeOffset? enabledAt = null) => new()
+    private static Trigger MakeSchedule(DateTimeOffset ts, DateTimeOffset? enabledAt = null) => new()
     {
         Id = "s1",
         Type = TriggerType.Schedule,

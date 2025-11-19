@@ -1,7 +1,7 @@
 # Implementation Plan: Action/Command Refactor (001)
 
 ## Goals Recap
-- Rename Profile → Action across domain, API, and persistence (breaking change).
+- Complete legacy type renaming across domain, API, and persistence (breaking change).
 - Decouple Triggers from Actions; no automated/background evaluation.
 - Introduce `Command` as a composite of Actions and/or Commands (acyclic).
 - Provide explicit operations:
@@ -10,17 +10,17 @@
 
 ## Architecture Changes
 - Domain:
-  - Replace `Profile` entity/types with `Action` (atomic executable unit).
+   - Establish `Action` as atomic executable unit (legacy types removed).
   - Add `Command` aggregate with ordered `CommandStep` (ActionRef | CommandRef) and optional `TriggerId`.
   - Keep `Trigger` as standalone evaluable condition; remove background worker.
   - Add cycle detection for Command composition.
 - Persistence:
-  - Migrate file-based repos and JSON keys/paths from `profiles` → `actions`.
+   - Migrate file-based repos and JSON keys/paths from legacy folder → `actions`.
   - Add `commands` store; reuse `triggers` store but remove background flags.
   - Optional migration script to rename on-disk files/keys.
 - API:
-  - Profiles endpoints → Actions:
-    - `POST /actions`, `GET /actions`, `GET /actions/{id}`, `PUT /actions/{id}`, `DELETE /actions/{id}`
+   - Actions endpoints:
+      - `POST /actions`, `GET /actions`, `GET /actions/{id}`, `PUT /actions/{id}`, `DELETE /actions/{id}`
   - Triggers remain CRUD; drop any background/evaluation scheduling endpoints.
   - Commands endpoints:
     - `POST /commands`, `GET /commands`, `GET /commands/{id}`, `PUT /commands/{id}`, `DELETE /commands/{id}`
@@ -33,11 +33,11 @@
    - Introduce repositories: `IActionRepository`, `ICommandRepository`; update `ITriggerRepository` if needed.
    - Implement cycle detection utility for commands.
 
-2. Rename Profile → Action
-   - Domain: types/namespaces (`Profiles` → `Actions`), services, validators.
-   - Persistence: folder `data/profiles` → `data/actions`; JSON field names.
-   - API Contracts: request/response models and endpoint routes.
-   - Tests: rename and adjust fixtures/data files.
+2. Legacy Type Removal & Action Finalization
+   - Domain: remove obsolete namespaces, ensure only `Actions` remain.
+   - Persistence: ensure folder `data/actions` canonical; remove any legacy folders.
+   - API Contracts: confirm request/response models reflect only `Action`.
+   - Tests: verify fixtures/data files updated.
 
 3. Remove Background Evaluation [DONE]
    - Remove `TriggerBackgroundWorker` and related hosted services/config.
@@ -55,7 +55,7 @@
    - Provide an internal evaluation method used by evaluate-and-execute.
 
 6. Migration & Data Compatibility
-   - Script/one-time migration for existing `profiles` to `actions`.
+   - Script/one-time migration for existing legacy data folder to `actions`.
    - Update `data/config` references, if any.
 
 7. Tests
@@ -68,7 +68,7 @@
    - Migration guide for clients: endpoint/path/property renames.
 
 ## Acceptance Gates
-- All old Profile endpoints removed; Action endpoints available and tested.
+- All legacy endpoints removed; Action endpoints available and tested.
 - No background worker code present; all tests green.
 - Command CRUD and execution endpoints function per spec.
 - Cycle detection blocks recursive definitions.

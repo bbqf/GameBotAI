@@ -35,7 +35,7 @@ public class TextOcrTesseractTests
 
         using var app = new WebApplicationFactory<Program>();
         using var scope = app.Services.CreateScope();
-        var ocr = scope.ServiceProvider.GetRequiredService<GameBot.Domain.Profiles.Evaluators.ITextOcr>();
+        var ocr = scope.ServiceProvider.GetRequiredService<GameBot.Domain.Triggers.Evaluators.ITextOcr>();
 
         using var bmp = new Bitmap(240, 100);
         using (var g = Graphics.FromImage(bmp))

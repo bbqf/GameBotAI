@@ -2,8 +2,8 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using FluentAssertions;
-using GameBot.Domain.Profiles;
-using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Triggers;
+using GameBot.Domain.Triggers.Evaluators;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using GameBot.UnitTests.Helpers;
@@ -65,7 +65,7 @@ public class TextMatchEvaluatorImagePipelineTests
     //     var logger = factory.CreateLogger<TextMatchEvaluator>();
     //     var eval = new TextMatchEvaluator(ocr, screenSource, logger);
 
-    //     var trig = new ProfileTrigger
+    //     var trig = new Trigger
     //     {
     //         Id = "t1",
     //         Type = TriggerType.TextMatch,
@@ -73,7 +73,7 @@ public class TextMatchEvaluatorImagePipelineTests
     //         Params = new TextMatchParams
     //         {
     //             Target = "HELLO",
-    //             Region = new GameBot.Domain.Profiles.Region { X = 0.25, Y = 0.20, Width = 0.50, Height = 0.50 },
+    //             Region = new GameBot.Domain.Triggers.Region { X = 0.25, Y = 0.20, Width = 0.50, Height = 0.50 },
     //             ConfidenceThreshold = 0.10,
     //             Mode = "found",
     //             Language = null
@@ -110,7 +110,7 @@ public class TextMatchEvaluatorImagePipelineTests
         var logger = factory.CreateLogger<TextMatchEvaluator>();
         var eval = new TextMatchEvaluator(ocr, screenSource, logger);
 
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t2",
             Type = TriggerType.TextMatch,
@@ -118,7 +118,7 @@ public class TextMatchEvaluatorImagePipelineTests
             Params = new TextMatchParams
             {
                 Target = "HELLO",
-                Region = new GameBot.Domain.Profiles.Region { X = 0.0, Y = 0.0, Width = 1.0, Height = 0.2 }, // 60x4 crop
+                Region = new GameBot.Domain.Triggers.Region { X = 0.0, Y = 0.0, Width = 1.0, Height = 0.2 }, // 60x4 crop
                 ConfidenceThreshold = 0.10,
                 Mode = "found",
                 Language = null
@@ -151,7 +151,7 @@ public class TextMatchEvaluatorImagePipelineTests
         var logger = factory.CreateLogger<TextMatchEvaluator>();
         var eval = new TextMatchEvaluator(ocr, screenSource, logger);
 
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t3",
             Type = TriggerType.TextMatch,
@@ -159,7 +159,7 @@ public class TextMatchEvaluatorImagePipelineTests
             Params = new TextMatchParams
             {
                 Target = "HELLO",
-                Region = new GameBot.Domain.Profiles.Region { X = 0.0, Y = 0.0, Width = 1.0, Height = 1.0 },
+                Region = new GameBot.Domain.Triggers.Region { X = 0.0, Y = 0.0, Width = 1.0, Height = 1.0 },
                 ConfidenceThreshold = 0.10,
                 Mode = "found",
                 Language = null

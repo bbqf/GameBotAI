@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using GameBot.Domain.Actions;
-using GameBot.Domain.Profiles;
 using GameBot.Service.Models;
 using Microsoft.AspNetCore.OpenApi;
 

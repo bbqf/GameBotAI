@@ -2,8 +2,8 @@ using System;
 using System.Drawing;
 using System.Threading.Tasks;
 using FluentAssertions;
-using GameBot.Domain.Profiles;
-using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Triggers;
+using GameBot.Domain.Triggers.Evaluators;
 using Xunit;
 
 namespace GameBot.UnitTests;
@@ -18,7 +18,7 @@ public class TextMatchEvaluatorTests
         var screen = new SingleBitmapScreenSource(() => (Bitmap)bmp.Clone());
         var eval = new TextMatchEvaluator(ocr, screen);
 
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t1",
             Type = TriggerType.TextMatch,
@@ -27,7 +27,7 @@ public class TextMatchEvaluatorTests
             Params = new TextMatchParams
             {
                 Target = "world",
-                Region = new GameBot.Domain.Profiles.Region { X = 0, Y = 0, Width = 1, Height = 1 },
+                Region = new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 },
                 ConfidenceThreshold = 0.90,
                 Mode = "found"
             }
@@ -46,7 +46,7 @@ public class TextMatchEvaluatorTests
         var screen = new SingleBitmapScreenSource(() => (Bitmap)bmp.Clone());
         var eval = new TextMatchEvaluator(ocr, screen);
 
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t2",
             Type = TriggerType.TextMatch,
@@ -55,7 +55,7 @@ public class TextMatchEvaluatorTests
             Params = new TextMatchParams
             {
                 Target = "world",
-                Region = new GameBot.Domain.Profiles.Region { X = 0, Y = 0, Width = 1, Height = 1 },
+                Region = new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 },
                 ConfidenceThreshold = 0.80,
                 Mode = "not-found"
             }

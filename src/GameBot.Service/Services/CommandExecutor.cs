@@ -1,8 +1,8 @@
 using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Emulator.Session;
+using GameBot.Domain.Triggers;
 using GameBot.Domain.Services;
-using GameBot.Domain.Profiles;
 
 namespace GameBot.Service.Services;
 
@@ -11,7 +11,7 @@ internal sealed class CommandExecutor : ICommandExecutor
     private readonly ICommandRepository _commands;
     private readonly IActionRepository _actions;
     private readonly ISessionManager _sessions;
-    private readonly ITriggerRepository _triggers;
+    private readonly ITriggerRepository _triggers; // No change here, just context
     private readonly TriggerEvaluationService _triggerEval;
 
     public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval)
@@ -19,7 +19,7 @@ internal sealed class CommandExecutor : ICommandExecutor
         _commands = commands;
         _actions = actions;
         _sessions = sessions;
-        _triggers = triggers;
+        _triggers = triggers; // No change here, just context
         _triggerEval = triggerEval;
     }
 

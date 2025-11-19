@@ -1,8 +1,8 @@
 using System;
 using System.Drawing;
 using FluentAssertions;
-using GameBot.Domain.Profiles;
-using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Triggers;
+using GameBot.Domain.Triggers.Evaluators;
 using Xunit;
 
 namespace GameBot.UnitTests;
@@ -17,7 +17,7 @@ public class TextMatchEvaluatorCropTests
         var ocr = new CapturingOcr("ok", 0.99);
         var eval = new TextMatchEvaluator(ocr, screenSrc);
 
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t-pixel",
             Type = TriggerType.TextMatch,
@@ -27,7 +27,7 @@ public class TextMatchEvaluatorCropTests
             {
                 Target = "irrelevant",
                 // Intentionally pass pixel coordinates
-                Region = new GameBot.Domain.Profiles.Region { X = 10, Y = 5, Width = 20, Height = 10 },
+                Region = new GameBot.Domain.Triggers.Region { X = 10, Y = 5, Width = 20, Height = 10 },
                 ConfidenceThreshold = 0.5,
                 Mode = "found"
             }
@@ -49,7 +49,7 @@ public class TextMatchEvaluatorCropTests
         var ocr = new CapturingOcr("ok", 0.99);
         var eval = new TextMatchEvaluator(ocr, screenSrc);
 
-        var trig = new ProfileTrigger
+        var trig = new Trigger
         {
             Id = "t-norm",
             Type = TriggerType.TextMatch,
@@ -58,7 +58,7 @@ public class TextMatchEvaluatorCropTests
             Params = new TextMatchParams
             {
                 Target = "irrelevant",
-                Region = new GameBot.Domain.Profiles.Region { X = 0.25, Y = 0.1, Width = 0.5, Height = 0.2 },
+                Region = new GameBot.Domain.Triggers.Region { X = 0.25, Y = 0.1, Width = 0.5, Height = 0.2 },
                 ConfidenceThreshold = 0.5,
                 Mode = "found"
             }

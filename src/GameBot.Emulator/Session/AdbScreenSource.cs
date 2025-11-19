@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.IO;
 using System.Runtime.Versioning;
-using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Triggers.Evaluators;
 using GameBot.Emulator.Adb;
 using Microsoft.Extensions.Logging;
 

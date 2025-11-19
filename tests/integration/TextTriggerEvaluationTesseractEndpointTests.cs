@@ -63,7 +63,7 @@ public class TextTriggerEvaluationTesseractEndpointTests
         var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var gameId = game!["id"]!.ToString();
 
-        // (legacy profile removed)
+        // (legacy removed)
 
         // Create a text-match trigger for HELLO, region full screen
         var trigCreate = new

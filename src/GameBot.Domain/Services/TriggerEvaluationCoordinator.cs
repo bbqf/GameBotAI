@@ -1,9 +1,9 @@
-using GameBot.Domain.Profiles;
+using GameBot.Domain.Triggers;
 
 namespace GameBot.Domain.Services;
 
 /// <summary>
-/// Coordinates evaluation of all triggers across all profiles. Intended for background execution.
+/// Coordinates evaluation of all triggers. Intended for background execution.
 /// </summary>
 public sealed class TriggerEvaluationCoordinator : ITriggerEvaluationCoordinator
 {
@@ -17,7 +17,7 @@ public sealed class TriggerEvaluationCoordinator : ITriggerEvaluationCoordinator
     }
 
     /// <summary>
-    /// Evaluates all enabled triggers (legacy gameId filter ignored after decoupling) and persists state.
+    /// Evaluates all enabled triggers and persists state.
     /// </summary>
     public async Task<int> EvaluateAllAsync(string? gameId = null, CancellationToken ct = default)
     {

@@ -89,7 +89,7 @@ public class TriggerBackgroundWorkerTests
         public FakeSessions(int activeCount) { ActiveCount = activeCount; }
         public int ActiveCount { get; set; }
         public bool CanCreateSession => false;
-        public EmulatorSession CreateSession(string gameIdOrPath, string? profileId = null, string? preferredDeviceSerial = null) => throw new NotImplementedException();
+        public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) => throw new NotImplementedException();
         public EmulatorSession? GetSession(string id) => null;
         public IReadOnlyCollection<EmulatorSession> ListSessions() => Array.Empty<EmulatorSession>();
         public bool StopSession(string id) => false;

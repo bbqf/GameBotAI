@@ -1,6 +1,6 @@
 using System.Drawing;
-using GameBot.Domain.Profiles;
-using GameBot.Domain.Profiles.Evaluators;
+using GameBot.Domain.Triggers;
+using GameBot.Domain.Triggers.Evaluators;
 using Xunit;
 
 namespace GameBot.UnitTests.Emulator.Triggers;
@@ -22,7 +22,7 @@ public sealed class TextMatchPreprocessingTests
         var ocr = new EnvTextOcr();
         var eval = new TextMatchEvaluator(ocr, screen);
 
-        var trigger = new ProfileTrigger
+        var trigger = new Trigger
         {
             Id = "test",
             Type = TriggerType.TextMatch,
@@ -30,7 +30,7 @@ public sealed class TextMatchPreprocessingTests
             Params = new TextMatchParams
             {
                 Target = "TEST",
-                Region = new GameBot.Domain.Profiles.Region { X = 0, Y = 0, Width = 1, Height = 1 },
+                Region = new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 },
                 ConfidenceThreshold = 0.5,
                 Mode = "found"
             }
