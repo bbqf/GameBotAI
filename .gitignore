@@ -57,3 +57,5 @@ data/
 
 # ReSharper
 _ReSharper.Caches/
+
+data.old/

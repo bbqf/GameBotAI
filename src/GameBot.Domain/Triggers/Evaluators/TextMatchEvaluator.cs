@@ -50,14 +50,18 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator {
     bool confident = res.Confidence >= p.ConfidenceThreshold;
     bool isFoundSatisfied = contains && confident;
     var status = p.Mode.Equals("not-found", StringComparison.OrdinalIgnoreCase)
-        ? (isFoundSatisfied ? TriggerStatus.Pending : TriggerStatus.Satisfied)
-        : (isFoundSatisfied ? TriggerStatus.Satisfied : TriggerStatus.Pending);
+      ? (isFoundSatisfied ? TriggerStatus.Pending : TriggerStatus.Satisfied)
+      : (isFoundSatisfied ? TriggerStatus.Satisfied : TriggerStatus.Pending);
+    string reason;
+    if (p.Mode.Equals("not-found", StringComparison.OrdinalIgnoreCase)) {
+      reason = contains ? "text_present" : "text_absent";
+    } else {
+      reason = (contains && confident) ? "text_found" : "text_not_found";
+    }
     return new TriggerEvaluationResult {
       Status = status,
       EvaluatedAt = now,
-      Reason = p.Mode.Equals("not-found", StringComparison.OrdinalIgnoreCase)
-                    ? (contains ? "text_present" : "text_absent")
-                    : (contains ? "text_found" : "text_not_found"),
+      Reason = reason,
       Similarity = res.Confidence
     };
   }
