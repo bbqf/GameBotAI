@@ -5,29 +5,39 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GameBot.Domain.Triggers.Evaluators;
 
+public interface ITestOcrProcessRunner {
+  OcrResult Run(Bitmap image, string exePath, string lang, string? psm, string? oem, ILogger logger);
+}
+
 public sealed class TesseractProcessOcr : ITextOcr {
   private readonly ILogger<TesseractProcessOcr> _logger;
   private readonly string _exePath;
   private readonly string _lang;
   private readonly string? _psm;
   private readonly string? _oem;
-  public TesseractProcessOcr(string exe, string lang, string? psm, string? oem) : this(NullLogger<TesseractProcessOcr>.Instance) {
+  private readonly ITestOcrProcessRunner? _runner;
+
+  public TesseractProcessOcr(string exe, string lang, string? psm, string? oem, ITestOcrProcessRunner? runner = null) : this(NullLogger<TesseractProcessOcr>.Instance, runner) {
     _exePath = string.IsNullOrWhiteSpace(exe) ? "tesseract" : exe;
     _lang = string.IsNullOrWhiteSpace(lang) ? "eng" : lang;
     _psm = psm;
     _oem = oem;
   }
-  public TesseractProcessOcr(ILogger<TesseractProcessOcr> logger) {
+  public TesseractProcessOcr(ILogger<TesseractProcessOcr> logger, ITestOcrProcessRunner? runner = null) {
     _logger = logger;
     _exePath = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_PATH") ?? "tesseract";
     _lang = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_LANG") ?? "eng";
     _psm = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_PSM");
     _oem = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_OEM");
+    _runner = runner;
   }
 
   public OcrResult Recognize(Bitmap image) => Recognize(image, _lang);
   public OcrResult Recognize(Bitmap image, string? language) {
     ArgumentNullException.ThrowIfNull(image);
+    if (_runner != null) {
+      return _runner.Run(image, _exePath, language ?? _lang, _psm, _oem, _logger);
+    }
     var tmpDir = Path.Combine(Path.GetTempPath(), "gamebot_ocr");
     Directory.CreateDirectory(tmpDir);
     var inputPath = Path.Combine(tmpDir, Guid.NewGuid().ToString("N") + ".png");
