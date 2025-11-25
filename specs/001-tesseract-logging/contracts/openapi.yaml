@@ -1,0 +1,86 @@
+openapi: 3.0.3
+info:
+  title: GameBot OCR Observability API
+  version: 0.1.0
+  description: |
+    Minimal surface that exposes OCR coverage status so release stakeholders can verify
+    that the Tesseract integration meets the mandated 70% line coverage requirement.
+servers:
+  - url: https://localhost:5001
+paths:
+  /api/ocr/coverage:
+    get:
+      summary: Get latest OCR coverage summary
+      operationId: getOcrCoverage
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Coverage summary payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcrCoverageSummary'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '503':
+          description: Coverage report missing or stale
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    UnauthorizedError:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    OcrCoverageSummary:
+      type: object
+      required: [generatedAtUtc, namespace, lineCoveragePercent, targetPercent, passed]
+      properties:
+        generatedAtUtc:
+          type: string
+          format: date-time
+        namespace:
+          type: string
+          example: GameBot.Domain.Triggers.Evaluators
+        lineCoveragePercent:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        targetPercent:
+          type: number
+          format: float
+          minimum: 50
+          maximum: 100
+          default: 70
+        passed:
+          type: boolean
+        uncoveredScenarios:
+          type: array
+          items:
+            type: string
+          description: Optional hints pointing to uncovered test scenario IDs.
+        reportUrl:
+          type: string
+          format: uri
+          description: Link to the underlying Cobertura artifact when available.
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

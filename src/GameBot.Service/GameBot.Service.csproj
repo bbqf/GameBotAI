@@ -13,6 +13,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="GameBot.IntegrationTests" />
     <InternalsVisibleTo Include="GameBot.ContractTests" />
+    <InternalsVisibleTo Include="GameBot.UnitTests" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />

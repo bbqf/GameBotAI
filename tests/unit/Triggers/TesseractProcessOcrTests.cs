@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Drawing;
 using System.IO;
 using Xunit;
@@ -39,12 +40,7 @@ namespace GameBot.Tests.Unit.Triggers {
                 var runner = new StubOcrProcessRunner((img, exe, lang, psm, oem, logger) => throw new InvalidOperationException("fail"));
             using var bmp = new Bitmap(8, 8);
             var ocr = new TesseractProcessOcr("tesseract", "eng", null, null, runner);
-            OcrResult result;
-            try {
-                result = ocr.Recognize(bmp, "eng");
-            } catch (InvalidOperationException) {
-                result = new OcrResult(string.Empty, 0);
-            }
+            var result = ocr.Recognize(bmp, "eng");
             Assert.Equal(string.Empty, result.Text);
             Assert.Equal(0, result.Confidence);
         }
@@ -68,11 +64,17 @@ namespace GameBot.Tests.Unit.Triggers {
             var ocr = new TesseractProcessOcr("tesseract", "eng", "4", "1", runner);
             var method = typeof(TesseractProcessOcr).GetMethod("BuildArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.NotNull(method);
-            var args = (string?)method.Invoke(ocr, new object[] { "input.png", "output", "eng" });
+            var args = method.Invoke(ocr, new object[] { "input.png", "output", "eng" }) as System.Collections.Generic.IReadOnlyList<string>;
             Assert.NotNull(args);
-            Assert.Contains("--psm 4", args, StringComparison.Ordinal);
-            Assert.Contains("--oem 1", args, StringComparison.Ordinal);
-            Assert.Contains("-l eng", args, StringComparison.Ordinal);
+            Assert.Collection(args!,
+                item => Assert.Equal("input.png", item),
+                item => Assert.Equal("output", item),
+                item => Assert.Equal("-l", item),
+                item => Assert.Equal("eng", item),
+                item => Assert.Equal("--psm", item),
+                item => Assert.Equal("4", item),
+                item => Assert.Equal("--oem", item),
+                item => Assert.Equal("1", item));
         }
 
         [Fact]
@@ -81,10 +83,11 @@ namespace GameBot.Tests.Unit.Triggers {
             var ocr = new TesseractProcessOcr("tesseract", "eng", null, null, runner);
             var method = typeof(TesseractProcessOcr).GetMethod("BuildArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.NotNull(method);
-            var args = (string?)method.Invoke(ocr, new object[] { "input.png", "output", "eng" });
+            var args = method.Invoke(ocr, new object[] { "input.png", "output", "eng" }) as System.Collections.Generic.IReadOnlyList<string>;
             Assert.NotNull(args);
-            Assert.Contains("--psm 6", args, StringComparison.Ordinal);
-            Assert.Contains("--oem 1", args, StringComparison.Ordinal);
+            var argsArray = args!.ToArray();
+            Assert.Equal("6", argsArray[Array.IndexOf(argsArray, "--psm") + 1]);
+            Assert.Equal("1", argsArray[Array.IndexOf(argsArray, "--oem") + 1]);
         }
 
         [Fact]
