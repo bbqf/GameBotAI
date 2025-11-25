@@ -68,14 +68,14 @@ Checkpoint: Running script locally/CI fails when coverage <70%.
 **Independent Test**: Call coverage summary endpoint or command; verify message states coverage, target, pass/fail, uncovered scenarios.
 
 ### Tests
-- [ ] T020 [P] [US3] Add API contract test in `tests/contract/OcrCoverageContractTests.cs` for `/api/ocr/coverage`
-- [ ] T021 [P] [US3] Add integration test hitting `GET /api/ocr/coverage` verifying JSON mirrors latest report file
+- [X] T020 [P] [US3] Add API contract test in `tests/contract/OcrCoverageContractTests.cs` for `/api/ocr/coverage`
+- [X] T021 [P] [US3] Add integration test hitting `GET /api/ocr/coverage` verifying JSON mirrors latest report file
 
 ### Implementation
-- [ ] T022 [US3] Implement coverage summary persistence (write JSON to `data/coverage/latest.json`) inside coverage script
-- [ ] T023 [US3] Add `CoverageSummaryService` in `src/GameBot.Service/Services/Ocr/CoverageSummaryService.cs` to read summary file with fallback when missing/stale
-- [ ] T024 [US3] Add endpoint in `src/GameBot.Service/Endpoints/CoverageEndpoints.cs` matching OpenAPI contract
-- [ ] T025 [US3] Document operator steps in `specs/001-tesseract-logging/quickstart.md` section 4 (already stubbed) with final instructions
+- [X] T022 [US3] Implement coverage summary persistence (write JSON to `data/coverage/latest.json`) inside coverage script
+- [X] T023 [US3] Add `CoverageSummaryService` in `src/GameBot.Service/Services/Ocr/CoverageSummaryService.cs` to read summary file with fallback when missing/stale
+- [X] T024 [US3] Add endpoint in `src/GameBot.Service/Endpoints/CoverageEndpoints.cs` matching OpenAPI contract
+- [X] T025 [US3] Document operator steps in `specs/001-tesseract-logging/quickstart.md` section 4 (already stubbed) with final instructions
 
 Checkpoint: Stakeholders can retrieve latest coverage info without parsing Cobertura manually.
 

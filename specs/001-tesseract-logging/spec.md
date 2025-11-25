@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-tesseract-logging`  
 **Created**: 2025-11-24  
-**Status**: Draft  
+**Status**: In Progress  
 **Input**: User description: "Let's improve logging around Tesseract calls and improve test coverage of Tesseract integration. I need to achieve 70% line coverage via tests as well logging each execution of the tesseract executable with complete cli arguments and output when debug level is enabled for the component"
 
 ## User Scenarios & Testing *(mandatory)*
@@ -51,16 +51,16 @@ Quality engineers need automated tests covering Tesseract integration paths (suc
 
 ### User Story 3 - Surface Coverage Status to Stakeholders (Priority: P3)
 
-Engineering managers need a simple way to confirm that the OCR subsystem meets the mandated coverage target so they can approve releases without manually parsing coverage XML.
+Engineering managers need a simple way to confirm that the OCR subsystem meets the mandated coverage target so they can approve releases without manually parsing coverage XML or hunting down Cobertura artifacts.
 
 **Why this priority**: Communicating readiness requires clear evidence; surfacing coverage status (pass/fail plus gap summary) keeps stakeholders aligned without diving into tooling details.
 
-**Independent Test**: Execute the reporting command and verify it emits a human-readable summary highlighting current coverage percentage, scenarios missing coverage, and actionable next steps when below target.
+**Independent Test**: Execute the reporting command, confirm it writes `data/coverage/latest.json`, then hit `GET /api/ocr/coverage` and verify the API response mirrors the latest report (or returns a 503 with remediation guidance when stale/missing).
 
 **Acceptance Scenarios**:
 
-1. **Given** the coverage goal is met, **When** stakeholders review the generated coverage summary, **Then** it explicitly states the percentage, target, and confirmation that the gate passed.
-2. **Given** coverage falls below 70%, **When** the summary is generated, **Then** it calls out failing components and recommended tests to close the gap.
+1. **Given** the coverage goal is met, **When** stakeholders review the generated coverage summary (stdout + `/api/ocr/coverage`), **Then** it explicitly states the percentage, target, and confirmation that the gate passed.
+2. **Given** coverage falls below 70%, **When** the summary is generated, **Then** the CLI exits non-zero and the endpoint continues to surface the previous summary until a new run succeeds, including error guidance instructing teams to rerun `tools/coverage/report.ps1`.
 
 ---
 
@@ -86,7 +86,7 @@ Engineering managers need a simple way to confirm that the OCR subsystem meets t
 - **FR-002**: The logging framework MUST suppress the detailed entry unless the OCR component (or its parent category) is configured at debug level or lower, while still recording aggregate info-level metrics (counts, success/failure).
 - **FR-003**: The system MUST redact or omit sensitive tokens/passwords from logged arguments or environment variables before writing the debug entry.
 - **FR-004**: OCR integration tests MUST cover success, failure, timeout, and malformed-output scenarios, achieving ≥70% line coverage for the Tesseract integration namespace as enforced in CI.
-- **FR-005**: Tooling MUST provide an automated coverage summary (human-readable) indicating the latest percentage, target, and failing components when below threshold.
+- **FR-005**: Tooling MUST provide an automated coverage summary (human-readable) indicating the latest percentage, target, and failing components when below threshold, persist the JSON payload at `<data>/coverage/latest.json`, and expose it via `GET /api/ocr/coverage` with well-defined success/stale/missing responses.
 - **FR-006**: The test harness MUST expose toggles/mocks to simulate Tesseract responses without relying on the real binary for negative-path cases to ensure determinism.
 - **FR-007**: Coverage and logging results MUST be persisted (e.g., as part of CI artifacts or dashboard) so that stakeholders can review historical compliance trends.
 

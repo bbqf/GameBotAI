@@ -44,7 +44,8 @@ public sealed class OcrCoverageContractTests : IDisposable {
       if (Directory.Exists(_dataDir)) {
         Directory.Delete(_dataDir, recursive: true);
       }
-    } catch { /* ignore */ }
+    }
+    catch { /* ignore */ }
     GC.SuppressFinalize(this);
   }
 

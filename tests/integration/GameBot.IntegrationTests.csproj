@@ -23,6 +23,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="coverlet.msbuild" Version="6.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="ReportGenerator" Version="5.4.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -30,5 +34,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameBot.Service\GameBot.Service.csproj" />
+    <ProjectReference Include="..\TestAssets\TesseractStub\TesseractStub.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
