@@ -85,6 +85,13 @@ Redaction: Any key containing `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-inse
   - Example (env): `$env:Logging__LogLevel__Default = "Debug"`
   - OCR-specific override: `$env:Logging__LogLevel__GameBot__Domain__Triggers__Evaluators__TesseractProcessOcr = "Debug"` to capture detailed Tesseract CLI logs during investigations; leave unset or `Information` for normal operation to avoid noise.
 
+- Runtime logging policy snapshot
+  - Purpose: Persist component-level logging overrides that the new `/config/logging` endpoints read/write at runtime.
+  - File: `data/config/logging-policy.json` (seeded with all components set to `Warning` and `enabled=true`).
+  - Lifecycle: Loaded during service startup, updated whenever an operator calls the logging config endpoints, and reloaded on restart so overrides survive deploys.
+  - Auth: Same token as `GAMEBOT_AUTH_TOKEN` / `Service__Auth__Token` secures the endpoints—set one of those before invoking `PUT /config/logging/...`.
+  - Editing: Prefer using the REST API so audit events are emitted; manual file edits require a service restart or `/config/logging/reset` call to rehydrate the runtime level switches.
+
 ## Screen Capture Source
 
 - GAMEBOT_USE_ADB
