@@ -1,0 +1,214 @@
+openapi: 3.0.3
+info:
+  title: GameBot Runtime Logging Control API
+  version: 0.1.0
+  description: >-
+    REST endpoints that expose component-level logging state so operators can inspect levels,
+    toggle components, and reset defaults without restarting GameBot.Service.
+servers:
+  - url: https://localhost:5001
+paths:
+  /config/logging:
+    get:
+      summary: Get current logging policy snapshot
+      operationId: getLoggingPolicy
+      security:
+        - configToken: []
+      responses:
+        '200':
+          description: Current policy and component overrides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoggingPolicy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      summary: Apply global/aggregate logging changes
+      description: Replaces the entire policy payload, typically used for bulk updates or automation.
+      operationId: putLoggingPolicy
+      security:
+        - configToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoggingPolicyRequest'
+      responses:
+        '202':
+          description: Policy accepted and applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoggingPolicy'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /config/logging/components/{componentName}:
+    put:
+      summary: Update a single component level and enabled flag
+      operationId: updateLoggingComponent
+      security:
+        - configToken: []
+      parameters:
+        - in: path
+          name: componentName
+          required: true
+          schema:
+            type: string
+          description: ILogger category (e.g., GameBot.Domain.Triggers)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoggingComponentPatch'
+      responses:
+        '200':
+          description: Component updated and applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoggingComponent'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Component not recognized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /config/logging/reset:
+    post:
+      summary: Restore all components to default Warning level and enabled=true
+      operationId: resetLoggingPolicy
+      security:
+        - configToken: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetRequest'
+      responses:
+        '200':
+          description: Policy reset completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoggingPolicy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    configToken:
+      type: apiKey
+      in: header
+      name: X-Auth-Token
+  responses:
+    Unauthorized:
+      description: Missing or invalid config token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Payload failed validation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    LogLevel:
+      type: string
+      enum: [Debug, Information, Warning, Error, Critical]
+    LoggingComponent:
+      type: object
+      required: [name, enabled, effectiveLevel, defaultLevel]
+      properties:
+        name:
+          type: string
+        enabled:
+          type: boolean
+        effectiveLevel:
+          $ref: '#/components/schemas/LogLevel'
+        defaultLevel:
+          $ref: '#/components/schemas/LogLevel'
+        lastChangedBy:
+          type: string
+        lastChangedAtUtc:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: default | api | file
+        notes:
+          type: string
+    LoggingPolicy:
+      type: object
+      required: [id, version, defaultLevel, appliedAtUtc, components]
+      properties:
+        id:
+          type: string
+          example: logging-policy
+        version:
+          type: string
+          example: '1.0'
+        defaultLevel:
+          $ref: '#/components/schemas/LogLevel'
+        appliedAtUtc:
+          type: string
+          format: date-time
+        appliedBy:
+          type: string
+        components:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/LoggingComponent'
+    LoggingPolicyRequest:
+      type: object
+      required: [components]
+      properties:
+        components:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/LoggingComponentPatch'
+        defaultLevel:
+          $ref: '#/components/schemas/LogLevel'
+        reason:
+          type: string
+          description: Optional audit note shown in responses
+    LoggingComponentPatch:
+      type: object
+      properties:
+        level:
+          $ref: '#/components/schemas/LogLevel'
+        enabled:
+          type: boolean
+        notes:
+          type: string
+        actor:
+          type: string
+          description: Name of person/system performing the change
+    ResetRequest:
+      type: object
+      properties:
+        actor:
+          type: string
+        reason:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

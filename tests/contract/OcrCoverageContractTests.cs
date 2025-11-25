@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -18,7 +19,7 @@ public sealed class OcrCoverageContractTests : IDisposable {
   private readonly string? _prevUseAdb;
   private readonly string? _prevDynamicPort;
   private readonly string? _prevDataDir;
-  private readonly string _dataDir;
+  private readonly string _coverageDir;
 
   public OcrCoverageContractTests() {
     _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
@@ -30,9 +31,11 @@ public sealed class OcrCoverageContractTests : IDisposable {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
 
-    _dataDir = Path.Combine(Path.GetTempPath(), "GameBotContract", Guid.NewGuid().ToString("N"));
-    Directory.CreateDirectory(Path.Combine(_dataDir, "coverage"));
-    Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _dataDir);
+    var dataRoot = Path.Combine(AppContext.BaseDirectory, "data");
+    Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", dataRoot);
+    _coverageDir = Path.Combine(dataRoot, "coverage");
+    Directory.CreateDirectory(_coverageDir);
+    TryDeleteSummary();
   }
 
   public void Dispose() {
@@ -40,12 +43,7 @@ public sealed class OcrCoverageContractTests : IDisposable {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynamicPort);
     Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _prevDataDir);
-    try {
-      if (Directory.Exists(_dataDir)) {
-        Directory.Delete(_dataDir, recursive: true);
-      }
-    }
-    catch { /* ignore */ }
+    TryDeleteSummary();
     GC.SuppressFinalize(this);
   }
 
@@ -61,7 +59,7 @@ public sealed class OcrCoverageContractTests : IDisposable {
       UncoveredScenarios = new[] { "timeout-path" },
       ReportUrl = "https://example.com/reports/ocr/latest"
     };
-    var summaryPath = Path.Combine(_dataDir, "coverage", "latest.json");
+    var summaryPath = Path.Combine(_coverageDir, "latest.json");
     var json = JsonSerializer.Serialize(sample, SerializerOptions);
     await File.WriteAllTextAsync(summaryPath, json).ConfigureAwait(true);
 
@@ -81,6 +79,16 @@ public sealed class OcrCoverageContractTests : IDisposable {
     payload.Passed.Should().BeTrue();
     payload.UncoveredScenarios.Should().BeEquivalentTo(sample.UncoveredScenarios);
     payload.ReportUrl.Should().Be(sample.ReportUrl);
+  }
+
+  private void TryDeleteSummary() {
+    try {
+      var summaryPath = Path.Combine(_coverageDir, "latest.json");
+      if (File.Exists(summaryPath)) {
+        File.Delete(summaryPath);
+      }
+    }
+    catch { /* ignore */ }
   }
 
   private sealed class CoverageSummaryPayload {

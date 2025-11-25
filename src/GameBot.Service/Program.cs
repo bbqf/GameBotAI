@@ -7,6 +7,8 @@ using GameBot.Domain.Triggers;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Services;
+using GameBot.Domain.Logging;
+using GameBot.Domain.Services.Logging;
 using GameBot.Service.Hosted;
 using GameBot.Service.Logging;
 using GameBot.Service.Services.Ocr;
@@ -15,21 +17,35 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var loggingComponentCatalog = new[]
+{
+  "GameBot.Service",
+  "GameBot.Domain.Triggers",
+  "GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator",
+  "GameBot.Domain.Actions",
+  "GameBot.Domain.Commands",
+  "GameBot.Emulator.Adb.AdbClient",
+  "Microsoft.AspNetCore",
+  "Microsoft.AspNetCore.Server.Kestrel.Connections"
+};
+
+var loggingGate = new LoggingPolicyGate();
+
 // Services
 // Console logging with timestamps + scopes; ensure no duplicate console providers
 builder.Logging.ClearProviders();
+builder.Logging.SetMinimumLevel(LogLevel.Trace);
+builder.Services.Configure<LoggerFilterOptions>(options =>
+{
+  options.Rules.Clear();
+  options.MinLevel = LogLevel.Trace;
+});
 builder.Logging.AddSimpleConsole(o => {
   o.IncludeScopes = true;
   o.SingleLine = true;
   o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fff zzz ";
 });
-// Reduce noisy/double Kestrel connection logs
-builder.Logging.AddFilter("Microsoft.AspNetCore.Server.Kestrel.Connections", LogLevel.Warning);
-// Ensure our ADB category is visible at Debug if Default is higher
-builder.Logging.AddFilter("GameBot.Emulator.Adb.AdbClient", LogLevel.Debug);
-// Ensure text-match evaluator debug logs are visible
-builder.Logging.AddFilter("GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator", LogLevel.Debug);
-builder.Logging.AddFilter("GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator", LogLevel.Debug);
+builder.Logging.AddRuntimeLoggingGate(loggingGate);
 
 builder.Services.AddEndpointsApiExplorer();
 // Explicitly register v1 document so tests can fetch /swagger/v1/swagger.json across environments (CI may not be Development)
@@ -55,6 +71,21 @@ builder.Services.AddSingleton<ITriggerRepository>(_ => new FileTriggerRepository
 // New repositories for Actions and Commands (001-action-command-refactor)
 builder.Services.AddSingleton<IActionRepository>(_ => new FileActionRepository(storageRoot));
 builder.Services.AddSingleton<ICommandRepository>(_ => new FileCommandRepository(storageRoot));
+builder.Services.AddSingleton(loggingGate);
+builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
+builder.Services.AddSingleton<ILoggingPolicyRepository>(sp =>
+{
+  var logger = sp.GetRequiredService<ILogger<LoggingPolicyRepository>>();
+  return new LoggingPolicyRepository(storageRoot, () => LoggingPolicySnapshot.CreateDefault(loggingComponentCatalog, LogLevel.Warning, "system-seed"), logger);
+});
+builder.Services.AddSingleton(sp =>
+{
+  var repo = sp.GetRequiredService<ILoggingPolicyRepository>();
+  var logger = sp.GetRequiredService<ILogger<RuntimeLoggingPolicyService>>();
+  var applier = sp.GetRequiredService<ILoggingPolicyApplier>();
+  return new RuntimeLoggingPolicyService(repo, loggingComponentCatalog, logger, applier);
+});
+builder.Services.AddSingleton<IRuntimeLoggingPolicyService>(sp => sp.GetRequiredService<RuntimeLoggingPolicyService>());
 // Config snapshot service (for /config endpoints and persisted snapshot generation)
 builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier, GameBot.Service.Services.ConfigApplier>();
 builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
@@ -113,15 +144,10 @@ GameBot.Service.Services.DynamicLogFilters.HttpMinLevel = httpMinLevelEnv?.Trim(
   "critical" => LogLevel.Critical,
   _ => LogLevel.Warning
 };
-builder.Logging.AddFilter((category, provider, level) => {
-  if (!string.IsNullOrEmpty(category) && GameBot.Service.Services.DynamicLogFilters.IsHttpCategory(category)) {
-    return level >= GameBot.Service.Services.DynamicLogFilters.HttpMinLevel;
-  }
-  return true;
-});
 // Expose trigger evaluation metrics (no background evaluation in refactor)
 builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
 builder.Services.AddHostedService<GameBot.Service.Hosted.ConfigSnapshotStartupInitializer>();
+builder.Services.AddHostedService<LoggingPolicyStartupInitializer>();
 
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
 var authToken = builder.Configuration["Service:Auth:Token"]
@@ -191,6 +217,7 @@ app.MapMetricsEndpoints();
 
 // Config endpoints (protected if token set)
 app.MapConfigEndpoints();
+app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
 
 app.Run();

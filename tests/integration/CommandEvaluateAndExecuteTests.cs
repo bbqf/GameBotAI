@@ -6,16 +6,35 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
-public class CommandEvaluateAndExecuteTests {
+[Collection("ConfigIsolation")]
+public sealed class CommandEvaluateAndExecuteTests : IDisposable {
+  private readonly string? _prevUseAdb;
+  private readonly string? _prevDynamicPort;
+  private readonly string? _prevAuthToken;
+  private readonly string? _prevDataDir;
+
   public CommandEvaluateAndExecuteTests() {
+    _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    _prevDynamicPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
+    _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+    _prevDataDir = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR");
+
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     TestEnvironment.PrepareCleanDataDir();
+  }
+
+  public void Dispose() {
+    Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
+    Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynamicPort);
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevAuthToken);
+    Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _prevDataDir);
+    GC.SuppressFinalize(this);
   }
 
   [Fact]
   public async Task EvaluateAndExecuteRunsWhenTriggerSatisfied() {
-    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -75,7 +94,6 @@ public class CommandEvaluateAndExecuteTests {
 
   [Fact]
   public async Task EvaluateAndExecuteDoesNotRunWhenTriggerPending() {
-    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -130,7 +148,6 @@ public class CommandEvaluateAndExecuteTests {
 
   [Fact]
   public async Task EvaluateAndExecuteRespectsCooldownDoesNotRunSecondTime() {
-    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -193,7 +210,6 @@ public class CommandEvaluateAndExecuteTests {
 
   [Fact]
   public async Task EvaluateAndExecuteDoesNotRunWhenTriggerDisabled() {
-    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
