@@ -6,12 +6,30 @@ using Xunit;
 
 namespace GameBot.ContractTests;
 
-public class SessionsContractTests {
-  [Fact]
-  public async Task CreateGetSnapshotDeleteFlowIsExposed() {
+public sealed class SessionsContractTests : IDisposable {
+  private readonly string? _prevAuthToken;
+  private readonly string? _prevUseAdb;
+  private readonly string? _prevDynamicPort;
+
+  public SessionsContractTests() {
+    _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+    _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    _prevDynamicPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
+
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
+  }
+
+  public void Dispose() {
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevAuthToken);
+    Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
+    Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynamicPort);
+    GC.SuppressFinalize(this);
+  }
+
+  [Fact]
+  public async Task CreateGetSnapshotDeleteFlowIsExposed() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
