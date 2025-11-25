@@ -26,6 +26,8 @@ TestResults/
 coverage/
 coverage.cobertura.xml
 lcov.info
+tools/coverage/output/
+data/coverage/
 
 # NuGet & packages
 *.nupkg
@@ -58,4 +60,5 @@ data/
 # ReSharper
 _ReSharper.Caches/
 
-data.old/
+data.old/ 
+tools/

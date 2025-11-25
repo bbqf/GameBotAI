@@ -8,6 +8,9 @@ using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Services;
 using GameBot.Service.Hosted;
+using GameBot.Service.Logging;
+using GameBot.Service.Services.Ocr;
+using Microsoft.Extensions.Logging;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -59,6 +62,8 @@ builder.Services.AddSingleton<TriggerEvaluationService>();
 builder.Services.AddSingleton<ITriggerEvaluationCoordinator, TriggerEvaluationCoordinator>();
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.DelayTriggerEvaluator>();
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ScheduleTriggerEvaluator>();
+builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITesseractInvocationLogger, TesseractInvocationLogger>();
+builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummaryService(storageRoot, sp.GetRequiredService<ILogger<CoverageSummaryService>>()));
 // Image match evaluator dependencies (in-memory store + screen source placeholder)
 if (OperatingSystem.IsWindows()) {
   builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore, GameBot.Domain.Triggers.Evaluators.MemoryReferenceImageStore>();
@@ -186,6 +191,7 @@ app.MapMetricsEndpoints();
 
 // Config endpoints (protected if token set)
 app.MapConfigEndpoints();
+app.MapCoverageEndpoints();
 
 app.Run();
 

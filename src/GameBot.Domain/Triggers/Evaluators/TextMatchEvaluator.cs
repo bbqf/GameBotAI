@@ -55,7 +55,8 @@ public sealed class TextMatchEvaluator : ITriggerEvaluator {
     string reason;
     if (p.Mode.Equals("not-found", StringComparison.OrdinalIgnoreCase)) {
       reason = contains ? "text_present" : "text_absent";
-    } else {
+    }
+    else {
       reason = (contains && confident) ? "text_found" : "text_not_found";
     }
     return new TriggerEvaluationResult {

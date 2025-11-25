@@ -5,6 +5,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 ## Active Technologies
 - C# / .NET 8 existing project baseline. Existing: ASP.NET Core Minimal API, ADB integration libs. New: NEEDS CLARIFICATION for image similarity and OCR library choice (001-profile-triggers)
 - File-based JSON repositories (existing) extended to persist triggers alongside profiles (001-profile-triggers)
+- C# 13 / .NET 9 + Tesseract CLI, System.Diagnostics.Process, Microsoft.Extensions.Logging, Serilog, xUnit + coverlet for coverage enforcement (001-tesseract-logging)
+- Local filesystem temp directories for OCR I/O; log output routed to existing sinks (console/Application Insights). No new persistence. (001-tesseract-logging)
 
 - .NET 8 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -27,6 +29,7 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 8 C# conventions
 
 ## Recent Changes
+- 001-tesseract-logging: Added C# 13 / .NET 9 + Tesseract CLI, System.Diagnostics.Process, Microsoft.Extensions.Logging, Serilog, xUnit + coverlet for coverage enforcement
 - 001-profile-triggers: Added C# / .NET 8 (existing project baseline) + Existing: ASP.NET Core Minimal API, ADB integration libs. New: NEEDS CLARIFICATION (image similarity + OCR library choice)
 
 - 001-android-emulator-service: Added .NET 8 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots

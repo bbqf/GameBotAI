@@ -1,0 +1,153 @@
+openapi: 3.0.3
+info:
+	title: GameBot Logging Configuration API
+	version: 0.1.0
+	description: >-
+		Endpoints that allow operators to inspect and modify runtime logging levels for GameBot.Service
+		without restarting the process.
+servers:
+	- url: https://localhost:5001
+paths:
+	/api/logging/config:
+		get:
+			summary: Get current logging configuration
+			operationId: getLoggingConfig
+			security:
+				- bearerAuth: []
+			responses:
+				'200':
+					description: Current effective configuration
+					content:
+						application/json:
+							schema:
+								$ref: '#/components/schemas/LoggingConfig'
+				'401':
+					$ref: '#/components/responses/UnauthorizedError'
+		post:
+			summary: Apply a new logging configuration
+			operationId: applyLoggingConfig
+			security:
+				- bearerAuth: []
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							$ref: '#/components/schemas/LoggingConfigRequest'
+			responses:
+				'202':
+					description: Configuration accepted and applied
+					content:
+						application/json:
+							schema:
+								$ref: '#/components/schemas/LoggingConfig'
+				'400':
+					description: Validation error
+					content:
+						application/json:
+							schema:
+								$ref: '#/components/schemas/ErrorResponse'
+				'401':
+					$ref: '#/components/responses/UnauthorizedError'
+	/api/logging/config/reload:
+		post:
+			summary: Reload logging configuration from disk
+			operationId: reloadLoggingConfig
+			security:
+				- bearerAuth: []
+			responses:
+				'200':
+					description: Configuration reloaded and applied
+					content:
+						application/json:
+							schema:
+								$ref: '#/components/schemas/LoggingConfig'
+				'401':
+					$ref: '#/components/responses/UnauthorizedError'
+
+components:
+	securitySchemes:
+		bearerAuth:
+			type: http
+			scheme: bearer
+			bearerFormat: JWT
+	responses:
+		UnauthorizedError:
+			description: Missing or invalid bearer token
+			content:
+				application/json:
+					schema:
+						$ref: '#/components/schemas/ErrorResponse'
+	schemas:
+		LoggingLevel:
+			type: string
+			enum: [Trace, Debug, Information, Warning, Error, Critical]
+		LoggingComponentConfig:
+			type: object
+			required: [key, level]
+			properties:
+				key:
+					type: string
+					description: ILogger category name
+				level:
+					$ref: '#/components/schemas/LoggingLevel'
+				includeScopes:
+					type: boolean
+					default: false
+				subcomponents:
+					type: array
+					items:
+						$ref: '#/components/schemas/LoggingComponentConfig'
+		LoggingConfig:
+			type: object
+			required: [version, globalLevel, lastUpdatedUtc]
+			properties:
+				id:
+					type: string
+					example: logging
+				version:
+					type: string
+					example: '1.0'
+				globalLevel:
+					$ref: '#/components/schemas/LoggingLevel'
+				components:
+					type: array
+					items:
+						$ref: '#/components/schemas/LoggingComponentConfig'
+				lastUpdatedUtc:
+					type: string
+					format: date-time
+				updatedBy:
+					type: string
+				source:
+					type: string
+					description: file | api | default
+		LoggingConfigRequest:
+			type: object
+			properties:
+				globalLevel:
+					$ref: '#/components/schemas/LoggingLevel'
+				components:
+					type: array
+					items:
+						$ref: '#/components/schemas/LoggingComponentConfig'
+				source:
+					type: string
+					description: Optional reason/audit note
+			example:
+				globalLevel: Information
+				components:
+					- key: Microsoft.AspNetCore
+						level: Warning
+					- key: GameBot.Service.Services.SessionService
+						level: Debug
+				source: api
+		ErrorResponse:
+			type: object
+			required: [error]
+			properties:
+				error:
+					type: string
+				details:
+					type: object
+					additionalProperties: true

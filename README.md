@@ -47,6 +47,35 @@ dotnet run -c Release --project src/GameBot.Service
 Invoke-RestMethod -Uri http://localhost:5080/health -Method GET
 ```
 
+## OCR Logging & Coverage
+
+Tesseract invocations now emit structured logs and have a coverage gate so operators can diagnose OCR issues quickly.
+
+1. **Enable detailed OCR logging** when investigating:
+  ```powershell
+  $env:GAMEBOT_LOG_LEVEL__GameBot__Domain__Triggers__Evaluators__TesseractProcessOcr = "Debug"
+  $env:GAMEBOT_TESSERACT_PATH = "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+  ```
+  Each OCR run generates a single `TesseractInvocationLogger` entry with sanitized CLI args, stdout/stderr (8 KB cap + truncation flag), correlation ID, duration, and exit code. Leave this log level at Info in production unless actively debugging.
+2. **Generate the OCR coverage report** using the bundled script (writes `data/coverage/latest.json` and a timestamped history file):
+  ```powershell
+  pwsh tools/coverage/report.ps1 `
+    -Project tests/integration/GameBot.IntegrationTests.csproj `
+    -NamespaceFilter "[GameBot.Domain]GameBot.Domain.Triggers.Evaluators.Tesseract*" `
+    -TargetPercent 70 `
+    -DataDirectory (Join-Path $PWD 'data')
+  ```
+  The command runs `dotnet test` with coverlet, prints pass/fail status, and exits non-zero if coverage drops below the target.
+3. **Serve the summary via API** by pointing the service at the same data directory:
+  ```powershell
+  $env:GAMEBOT_DATA_DIR = Join-Path $PWD 'data'
+  dotnet run -c Release --project src/GameBot.Service
+  curl https://localhost:5001/api/ocr/coverage -H "Authorization: Bearer dev-token" | jq
+  ```
+  On success the endpoint returns JSON containing the generated timestamp, coverage %, target, uncovered scenarios, and optional report URL. If the summary is missing or >24h old, the endpoint returns HTTP 503 instructing you to rerun the script.
+
+See `specs/001-tesseract-logging/quickstart.md` for the full workflow, including setting a custom `ReportUrl` and troubleshooting stale summaries.
+
 ## Resources and domain
 
 ### Games

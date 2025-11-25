@@ -6,6 +6,19 @@ Applies to: .NET 8 ASP.NET Core service, emulator/ADB integration, OCR backends,
 
 Note on configuration: In addition to direct environment variables (e.g., `GAMEBOT_*`), the service uses standard ASP.NET Core configuration. Any configuration key like `Service:Storage:Root` can be supplied via environment variables by replacing `:` with `__` (double underscore), e.g., `Service__Storage__Root`.
 
+## Host Tooling Verification (2025-11-24)
+
+Latest validation of the local build host:
+
+```
+dotnet --info
+.NET SDK: 9.0.306 (MSBuild 17.14.28)
+OS: Windows 10.0.26200 (win-x64)
+Runtimes: Microsoft.NETCore.App/ASP.NETCore.App/WindowsDesktop.App 9.0.10
+```
+
+Use this section to confirm CI/dev machines meet the .NET 9 baseline required for the Tesseract logging feature.
+
 ## Configuration Precedence
 
 Effective configuration is built by merging multiple sources in a deterministic order:
@@ -70,6 +83,7 @@ Redaction: Any key containing `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-inse
 - Logging (ASP.NET Core built-in)
   - Purpose: Control log levels via configuration.
   - Example (env): `$env:Logging__LogLevel__Default = "Debug"`
+  - OCR-specific override: `$env:Logging__LogLevel__GameBot__Domain__Triggers__Evaluators__TesseractProcessOcr = "Debug"` to capture detailed Tesseract CLI logs during investigations; leave unset or `Information` for normal operation to avoid noise.
 
 ## Screen Capture Source
 
@@ -186,6 +200,17 @@ You can set these via appsettings or environment variables using double undersco
 - Require an auth token and dynamic port:
   - `GAMEBOT_AUTH_TOKEN=your-token`
   - `GAMEBOT_DYNAMIC_PORT=true`
+
+## Coverage Enforcement & Tooling
+
+- `tools/coverage/report.ps1`
+  - Purpose: Runs `dotnet test` with coverlet filters for the Tesseract namespace, prints a summary, and fails when coverage drops below the mandated target (default 70%).
+  - Usage example:
+    ```powershell
+    pwsh tools/coverage/report.ps1 -Project tests/integration/GameBot.IntegrationTests.csproj -NamespaceFilter "[GameBot.Domain]GameBot.Domain.Triggers.Evaluators.Tesseract*" -TargetPercent 70
+    ```
+  - Output files: Cobertura XML written to `tools/coverage/output/coverage.cobertura.xml`. Temporary artifacts under `tools/coverage/output/` are git-ignored.
+  - CI expectation: Invoke this script (or reuse its command) during verification so builds fail fast when OCR coverage regresses.
 
 ## Maintaining this document
 
