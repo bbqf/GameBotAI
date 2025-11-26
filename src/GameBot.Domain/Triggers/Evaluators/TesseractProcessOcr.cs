@@ -120,9 +120,36 @@ public sealed class TesseractProcessOcr : ITextOcr {
         stdout,
         stderr));
       var txtFile = outputPath + ".txt";
+      var tsvFile = outputPath + ".tsv";
+      string text = string.Empty;
+      double confidence = 0;
+      if (File.Exists(tsvFile)) {
+        try {
+          var tsv = File.ReadAllText(tsvFile);
+          var tokens = TesseractTsvParser.Parse(tsv, out var agg, out var reason);
+          if (File.Exists(txtFile)) {
+            text = File.ReadAllText(txtFile);
+          }
+          else {
+            text = BuildTextFromTokens(tokens);
+          }
+          confidence = (agg > 0) ? agg / 100.0 : ComputeConfidence(text);
+          return new OcrResult(text, confidence);
+        }
+        catch {
+          // Fall back to text if TSV parsing fails
+          if (File.Exists(txtFile)) {
+            text = File.ReadAllText(txtFile);
+            confidence = ComputeConfidence(text);
+            return new OcrResult(text, confidence);
+          }
+          return new OcrResult(string.Empty, 0);
+        }
+      }
+      // No TSV file; fall back to TXT only
       if (!File.Exists(txtFile)) return new OcrResult(string.Empty, 0);
-      var text = File.ReadAllText(txtFile);
-      var confidence = ComputeConfidence(text);
+      text = File.ReadAllText(txtFile);
+      confidence = ComputeConfidence(text);
       return new OcrResult(text, confidence);
     }
     catch (Exception ex) {
@@ -132,14 +159,28 @@ public sealed class TesseractProcessOcr : ITextOcr {
     finally {
       TryDelete(inputPath);
       TryDelete(outputPath + ".txt");
+      TryDelete(outputPath + ".tsv");
     }
   }
 
-  internal static double ComputeConfidence(string? text) {
-    if (string.IsNullOrEmpty(text)) return 0;
-    var total = text.Length;
+  internal static double ComputeConfidence(string? textOrTsv) {
+    if (string.IsNullOrEmpty(textOrTsv)) return 0;
+    // If the input looks like TSV (header with columns including 'conf' and 'text'),
+    // compute confidence from TSV aggregate (0-100 scaled to 0-1).
+    if (textOrTsv.AsSpan().IndexOf('\t') >= 0) {
+      var firstLineEnd = textOrTsv.IndexOf('\n', StringComparison.Ordinal);
+      var header = firstLineEnd >= 0 ? textOrTsv.Substring(0, firstLineEnd) : textOrTsv;
+      if (header.Contains("conf", StringComparison.Ordinal) && header.Contains("text", StringComparison.Ordinal)) {
+        try {
+          var _ = TesseractTsvParser.Parse(textOrTsv, out var agg, out var reason);
+          if (agg > 0) return agg / 100.0;
+        } catch { /* fall back to heuristic below */ }
+      }
+    }
+    // Fallback heuristic: alphanumeric ratio for plain text inputs
+    var total = textOrTsv.Length;
     if (total == 0) return 0;
-    var alphaNum = text.Count(char.IsLetterOrDigit);
+    var alphaNum = textOrTsv.Count(char.IsLetterOrDigit);
     if (alphaNum <= 0) return 0;
     var ratio = alphaNum / (double)total;
     if (double.IsNaN(ratio) || double.IsInfinity(ratio) || ratio < 0) return 0;
@@ -168,7 +209,19 @@ public sealed class TesseractProcessOcr : ITextOcr {
       parts.Add("--oem");
       parts.Add("1");
     }
+    // Request TSV output in addition to text file
+    parts.Add("-c");
+    parts.Add("tessedit_create_tsv=1");
     return parts;
+  }
+
+  private static string BuildTextFromTokens(IReadOnlyList<OcrToken> tokens) {
+    if (tokens is null || tokens.Count == 0) return string.Empty;
+    var lines = tokens
+      .GroupBy(t => t.LineIndex)
+      .OrderBy(g => g.Key)
+      .Select(g => string.Join(" ", g.OrderBy(t => t.WordIndex).Select(t => t.Text)));
+    return string.Join("\n", lines);
   }
 
   private static void TryDelete(string path) {

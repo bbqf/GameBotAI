@@ -50,7 +50,7 @@ public sealed class Trigger {
   public required TriggerType Type { get; set; }
   public bool Enabled { get; set; } = true;
   public DateTimeOffset? EnabledAt { get; set; }
-  public int CooldownSeconds { get; set; } = 60;
+  public int CooldownSeconds { get; set; }
   public DateTimeOffset? LastFiredAt { get; set; }
   public DateTimeOffset? LastEvaluatedAt { get; set; }
   public TriggerEvaluationResult? LastResult { get; set; }
