@@ -50,7 +50,7 @@ public sealed class LoggingComponentLevelTests : IDisposable
     using var client = CreateAuthedClient(app);
     using var scope = app.Server.Services.CreateScope();
     var gate = scope.ServiceProvider.GetRequiredService<LoggingPolicyGate>();
-    gate.ShouldLog("GameBot.Service", provider: null, LogLevel.Debug).Should().BeFalse("default policy keeps GameBot.Service at Warning");
+    gate.ShouldLog(provider: null, category: "GameBot.Service", LogLevel.Debug).Should().BeFalse("default policy keeps GameBot.Service at Warning");
 
     var resp = await client.PutAsJsonAsync(
       "/config/logging/components/GameBot.Service",
@@ -65,9 +65,9 @@ public sealed class LoggingComponentLevelTests : IDisposable
       component.Enabled,
       "component override should persist with Debug level");
 
-    gate.ShouldLog("GameBot.Service", provider: null, LogLevel.Debug).Should().BeTrue("runtime logging gate should allow Debug after override");
+    gate.ShouldLog(provider: null, category: "GameBot.Service", LogLevel.Debug).Should().BeTrue("runtime logging gate should allow Debug after override");
 
-    gate.ShouldLog("GameBot.Service", provider: null, LogLevel.Debug).Should().BeTrue("runtime logging gate should allow Debug after override");
+    gate.ShouldLog(provider: null, category: "GameBot.Service", LogLevel.Debug).Should().BeTrue("runtime logging gate should allow Debug after override");
   }
 
   private static HttpClient CreateAuthedClient(WebApplicationFactory<Program> app)
