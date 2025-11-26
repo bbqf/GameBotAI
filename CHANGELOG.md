@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 - OCR: Improved preprocessing and dynamic environment-driven OCR stub; Tesseract integration remains optional but supported.
 - README updated with new domain model and migration guidance.
 - README + specs quickstart now document OCR logging toggles, coverage script usage, and `/api/ocr/coverage` flows (stale/missing behavior, bearer auth).
+- `POST /commands/{id}/evaluate-and-execute` now surfaces `triggerStatus` + `message`, always persists trigger evaluation before dispatching actions, and emits structured telemetry (`TriggerExecuted`, `TriggerSkipped`, `TriggerBypassed`). Integration tests now assert both HTTP metadata and trigger repository state for satisfied, pending, cooldown, and disabled flows; quickstart instructions updated accordingly.
 
 ### Removed (Breaking)
 - All `/profiles` endpoints and nested trigger routes.

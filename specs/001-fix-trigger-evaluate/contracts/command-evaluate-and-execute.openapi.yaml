@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: GameBot Evaluate & Execute Contract
+  version: 1.0.0
+paths:
+  /commands/{commandId}/evaluate-and-execute:
+    post:
+      summary: Evaluate the command trigger and execute if satisfied
+      operationId: EvaluateAndExecuteCommand
+      parameters:
+        - name: commandId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Command evaluated and processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: integer
+                    description: Number of input events accepted by the session
+                  triggerStatus:
+                    type: string
+                    enum: [Satisfied, Pending, Failed]
+                  message:
+                    type: string
+                    description: Human-readable summary
+              examples:
+                satisfied:
+                  summary: Trigger satisfied, execution performed
+                  value:
+                    accepted: 3
+                    triggerStatus: Satisfied
+                    message: Command executed after trigger passed
+                pending:
+                  summary: Trigger pending, execution skipped
+                  value:
+                    accepted: 0
+                    triggerStatus: Pending
+                    message: Command skipped because trigger is cooling down
+        '400':
+          description: Request validation error (missing sessionId, invalid command)
+        '401':
+          description: Authentication token missing or invalid
+        '404':
+          description: Command, session, or trigger not found
+        '409':
+          description: Session not running / trigger disabled
+      security:
+        - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
