@@ -56,6 +56,31 @@ public sealed class CommandExecutorTests {
     triggerRepo.SendInputsObservedUpsertCount.Should().Be(0);
   }
 
+  [Fact]
+  public async Task EvaluateAndExecuteAsyncWithoutTriggerDoesNotExecuteAndReturnsPending() {
+    var triggerRepo = new TriggerRepositorySpy(new Trigger { Id = "trig-unused", Type = TriggerType.Delay, Enabled = true, Params = new DelayParams { Seconds = 0 } });
+    var command = new Command {
+      Id = "cmd-no-trigger",
+      Name = "NoTriggerCommand",
+      TriggerId = null,
+      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.Action, TargetId = "act-1", Order = 1 } }
+    };
+    var action = CreateAction(command.Steps[0].TargetId);
+    var commandRepo = new CommandRepositoryStub(command);
+    var actionRepo = new ActionRepositoryStub(action);
+    var sessionManager = new SessionManagerStub(triggerRepo);
+    var triggerService = new TriggerEvaluationService(new[] { new StaticResultEvaluator(TriggerStatus.Satisfied, "should_not_matter") });
+    var executor = new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance);
+
+    var decision = await executor.EvaluateAndExecuteAsync(sessionManager.Session.Id, command.Id, CancellationToken.None).ConfigureAwait(false);
+
+    decision.Accepted.Should().Be(0);
+    decision.TriggerStatus.Should().Be(TriggerStatus.Pending);
+    decision.Reason.Should().Be("no_trigger_configured");
+    sessionManager.SendInputsCalls.Should().Be(0);
+    triggerRepo.UpsertCount.Should().Be(0);
+  }
+
   private static Command CreateCommand(string triggerId) => new() {
     Id = "cmd-1",
     Name = "TestCommand",
