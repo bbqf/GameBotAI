@@ -18,14 +18,16 @@ internal sealed class LoggingPolicyGate : ILoggingPolicyApplier
     private ComponentGate[] _components = Array.Empty<ComponentGate>();
     private int _defaultLevel = (int)LogLevel.Warning;
 
-    public bool ShouldLog(string? category, string? provider, LogLevel level)
+    public bool ShouldLog(string? provider, string? category, LogLevel level)
     {
         if (level == LogLevel.None)
         {
             return false;
         }
 
-        if (!string.IsNullOrEmpty(category) && DynamicLogFilters.IsHttpCategory(category))
+        var effectiveCategory = string.IsNullOrEmpty(category) ? provider : category;
+
+        if (!string.IsNullOrEmpty(effectiveCategory) && DynamicLogFilters.IsHttpCategory(effectiveCategory))
         {
             if (level < DynamicLogFilters.HttpMinLevel)
             {
@@ -34,11 +36,11 @@ internal sealed class LoggingPolicyGate : ILoggingPolicyApplier
         }
 
         var gates = Volatile.Read(ref _components);
-        if (!string.IsNullOrEmpty(category) && gates.Length > 0)
+        if (!string.IsNullOrEmpty(effectiveCategory) && gates.Length > 0)
         {
             foreach (var gate in gates)
             {
-                if (category.StartsWith(gate.Name, StringComparison.Ordinal))
+                if (effectiveCategory.StartsWith(gate.Name, StringComparison.Ordinal))
                 {
                     if (!gate.Enabled)
                     {
