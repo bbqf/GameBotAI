@@ -2,11 +2,11 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm Tesseract availability and path detection via `GAMEBOT_TESSERACT_PATH` (scripts/local-verify-tesseract.ps1)
-- [ ] T002 Add sample TSV fixture assets (tests/TestAssets/ocr/tsv/clear_text.tsv)
-- [ ] T003 Add mixed-quality TSV fixture (tests/TestAssets/ocr/tsv/mixed_quality.tsv)
-- [ ] T004 Add malformed TSV fixture (tests/TestAssets/ocr/tsv/malformed.tsv)
-- [ ] T005 Document required env vars in `ENVIRONMENT.md` (append OCR section)
+- [X] T001 Confirm Tesseract availability and path detection via `GAMEBOT_TESSERACT_PATH` (scripts/local-verify-tesseract.ps1)
+- [X] T002 Add sample TSV fixture assets (tests/TestAssets/ocr/tsv/clear_text.tsv)
+- [X] T003 Add mixed-quality TSV fixture (tests/TestAssets/ocr/tsv/mixed_quality.tsv)
+- [X] T004 Add malformed TSV fixture (tests/TestAssets/ocr/tsv/malformed.tsv)
+- [X] T005 Document required env vars in `ENVIRONMENT.md` (append OCR section)
 
 ## Phase 2: Foundational
 

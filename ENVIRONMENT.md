@@ -243,3 +243,36 @@ When you add or change environment variables:
 - To find env usages: search for `Environment.GetEnvironmentVariable(` and configuration keys like `Service:`.
 
 This file is the source of truth for environment-driven behavior. Please keep it accurate and up to date with each change.
+
+## OCR TSV Confidence (New Feature)
+
+The OCR confidence refactor introduces per-token confidence derived from Tesseract TSV output.
+
+- GAMEBOT_TESSERACT_PSM
+  - Purpose: Override page segmentation mode (PSM) passed to Tesseract.
+  - Default: `6` when unset.
+  - Notes: PSM influences layout analysis; use `6` (uniform block of text) for speed; higher values may increase latency.
+
+- GAMEBOT_TESSERACT_OEM
+  - Purpose: Override OCR engine mode (`--oem`).
+  - Default: `1` (LSTM only) when unset.
+  - Notes: Adjust only for compatibility; values: 0 (legacy), 1 (LSTM), 2 (legacy+LSTM), 3 (default). Using default ensures consistent confidence behavior.
+
+- GAMEBOT_TESSERACT_LANG (already documented)
+  - Impact (confidence): Language selection affects tokenization and confidence distribution; mismatched language may yield lower confidences.
+
+### Confidence Behavior
+When `GAMEBOT_TESSERACT_ENABLED=true` and Tesseract is available:
+- The service invokes `tesseract input.png stdout -l <lang> --psm <psm> --oem <oem> tsv`.
+- Per-token confidence sourced from TSV `conf` column (integer 0–100 or -1 for noise).
+- Aggregate confidence is arithmetic mean of non -1 and non-empty tokens.
+- Failure (non-zero exit / malformed TSV) sets confidence=0 and reason accordingly (`tesseract_error`, `tsv_format_unexpected`).
+
+### Troubleshooting
+- Low aggregate confidence: Verify `GAMEBOT_TESSERACT_LANG` matches text language and image resolution is adequate.
+- Zero confidence: Check process exit code; ensure Tesseract on PATH or set `GAMEBOT_TESSERACT_PATH`.
+- Unexpected tokens: Adjust `GAMEBOT_TESSERACT_PSM` (e.g., try 3 for fully automatic page segmentation) if layout complexity is high.
+
+### Performance Considerations
+- Typical p95 invocation target: ≤1500ms for 1080p image with PSM 6.
+- Larger or multi-lingual pages may require raising thresholds or pre-cropping images upstream.
