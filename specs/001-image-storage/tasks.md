@@ -31,8 +31,8 @@
 
 ## Final Phase: Polish & Cross-Cutting
 
-- [ ] T015 Validate error messages and status codes in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
-- [ ] T016 Add logging of operations and failures in `src/GameBot.Domain/Logging` (basic persistence logging pending)
+- [x] T015 Validate error messages and status codes in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs` (standardized codes: invalid_request, invalid_image, not_found)
+- [x] T016 Add logging of operations and failures (LoggerMessage patterns added for upload, overwrite, resolve, delete, not-found)
 - [x] T018 Stabilize persistence test with explicit `GAMEBOT_DATA_DIR` across restarts in `tests/integration/ImageStorePersistenceTests.cs`
 - [x] T017 Update `README.md` and `CHANGELOG.md` entries
 

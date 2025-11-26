@@ -12,6 +12,7 @@ namespace GameBot.Service.Endpoints;
 
 [SupportedOSPlatform("windows")]
 internal static class ImageReferencesEndpoints {
+  internal sealed class ImageReferenceEndpointComponent { }
   internal sealed class UploadImageRequest {
     [Required] public required string Id { get; set; }
     // Accept base64 PNG/JPEG payload as data URL or raw base64
@@ -21,11 +22,14 @@ internal static class ImageReferencesEndpoints {
   public static IEndpointRouteBuilder MapImageReferenceEndpoints(this IEndpointRouteBuilder app) {
     ArgumentNullException.ThrowIfNull(app);
 
-    app.MapPost("/images", (UploadImageRequest req, IReferenceImageStore store) => {
+    app.MapPost("/images", (UploadImageRequest req, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(req);
       ArgumentNullException.ThrowIfNull(store);
       if (string.IsNullOrWhiteSpace(req.Id) || string.IsNullOrWhiteSpace(req.Data))
-        return Results.BadRequest(new { error = new { code = "invalid_request", message = "id and data are required", hint = (string?)null } });
+        {
+          logger.LogUploadRejectedMissingFields();
+          return Results.BadRequest(new { error = new { code = "invalid_request", message = "id and data are required", hint = (string?)null } });
+        }
 
       try {
         var b64 = req.Data;
@@ -37,6 +41,7 @@ internal static class ImageReferencesEndpoints {
         // Store a clone to decouple from stream lifetime
         // Store reference image (AddOrUpdate to allow overwrite)
         var cloned = (Bitmap)bmp.Clone();
+        var overwriting = store.Exists(req.Id);
         store.AddOrUpdate(req.Id, cloned);
         // Ensure disk persistence even if underlying store is in-memory
         try {
@@ -47,27 +52,39 @@ internal static class ImageReferencesEndpoints {
           var targetFile = Path.Combine(imagesDir, req.Id + ".png");
           cloned.Save(targetFile);
         } catch { /* best-effort; store may already persist */ }
-        return Results.Created($"/images/{req.Id}", new { id = req.Id });
+        logger.LogImagePersisted(req.Id, bytes.Length, overwriting);
+        return Results.Created($"/images/{req.Id}", new { id = req.Id, overwrite = overwriting });
       }
       catch (Exception ex) {
+        logger.LogUploadFailed(ex, req.Id);
         return Results.BadRequest(new { error = new { code = "invalid_image", message = "Failed to parse image", hint = ex.Message } });
       }
     }).WithName("UploadImageReference");
 
-    app.MapGet("/images/{id}", (string id, IReferenceImageStore store) => {
+    app.MapGet("/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
       ArgumentNullException.ThrowIfNull(store);
-      if (store.Exists(id)) return Results.Ok(new { id });
+      if (store.Exists(id)) {
+        logger.LogImageResolvedFromStore(id);
+        return Results.Ok(new { id });
+      }
       var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
                      ?? Path.Combine(AppContext.BaseDirectory, "data");
       var physical = Path.Combine(dataRoot, "images", id + ".png");
-      return File.Exists(physical) ? Results.Ok(new { id }) : Results.NotFound();
+      if (File.Exists(physical)) {
+        logger.LogImageResolvedFromDiskFallback(id);
+        return Results.Ok(new { id, fallback = true });
+      }
+      logger.LogImageNotFound(id);
+      return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
     }).WithName("GetImageReference");
 
-    app.MapDelete("/images/{id}", (string id, IReferenceImageStore store) => {
+    app.MapDelete("/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
       ArgumentNullException.ThrowIfNull(store);
-      return store.Delete(id) ? Results.NoContent() : Results.NotFound();
+      if (store.Delete(id)) { logger.LogImageDeleted(id); return Results.NoContent(); }
+      logger.LogDeleteRequestMissing(id);
+      return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
     }).WithName("DeleteImageReference");
 
     return app;

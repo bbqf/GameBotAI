@@ -9,7 +9,7 @@ namespace GameBot.Unit.ImageStorage;
 
 public sealed class ImageStoreEvaluatorTests {
   private static Bitmap Solid(Color c) {
-    var bmp = new Bitmap(5, 5);
+    var bmp = new Bitmap(1, 1);
     using var g = Graphics.FromImage(bmp);
     g.Clear(c);
     return bmp;
@@ -28,7 +28,7 @@ public sealed class ImageStoreEvaluatorTests {
       Id = "t1",
       Type = TriggerType.ImageMatch,
       Enabled = true,
-      Params = new ImageMatchParams { ReferenceImageId = "tpl", Region = new Region { X = 0, Y = 0, Width = 1, Height = 1 }, SimilarityThreshold = 0.9 }
+      Params = new ImageMatchParams { ReferenceImageId = "tpl", Region = new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }, SimilarityThreshold = 0.9 }
     };
     var res = eval.Evaluate(trig, DateTimeOffset.UtcNow);
     Assert.Equal(TriggerStatus.Satisfied, res.Status);
@@ -48,7 +48,7 @@ public sealed class ImageStoreEvaluatorTests {
       Id = "t2",
       Type = TriggerType.ImageMatch,
       Enabled = true,
-      Params = new ImageMatchParams { ReferenceImageId = "tpl", Region = new Region { X = 0, Y = 0, Width = 1, Height = 1 }, SimilarityThreshold = 0.9 }
+      Params = new ImageMatchParams { ReferenceImageId = "tpl", Region = new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }, SimilarityThreshold = 0.9 }
     };
     var res = eval.Evaluate(trig, DateTimeOffset.UtcNow);
     Assert.Equal(TriggerStatus.Pending, res.Status);

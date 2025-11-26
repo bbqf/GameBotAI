@@ -41,8 +41,14 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     ry = Math.Clamp(ry, 0, Math.Max(0, screenBmp.Height - 1));
     rw = Math.Clamp(rw, 1, screenBmp.Width - rx);
     rh = Math.Clamp(rh, 1, screenBmp.Height - ry);
-    using var region = screenBmp.Clone(new Rectangle(rx, ry, rw, rh), PixelFormat.Format24bppRgb);
-    using var tpl24 = tpl.PixelFormat == PixelFormat.Format24bppRgb ? (Bitmap)tpl.Clone() : tpl.Clone(new Rectangle(0, 0, tpl.Width, tpl.Height), PixelFormat.Format24bppRgb);
+    using var region = new Bitmap(rw, rh, PixelFormat.Format24bppRgb);
+    using (var g = Graphics.FromImage(region)) {
+      g.DrawImage(screenBmp, new Rectangle(0, 0, rw, rh), new Rectangle(rx, ry, rw, rh), GraphicsUnit.Pixel);
+    }
+    using var tpl24 = new Bitmap(tpl.Width, tpl.Height, PixelFormat.Format24bppRgb);
+    using (var gTpl = Graphics.FromImage(tpl24)) {
+      gTpl.DrawImage(tpl, new Rectangle(0, 0, tpl.Width, tpl.Height), new Rectangle(0, 0, tpl.Width, tpl.Height), GraphicsUnit.Pixel);
+    }
     if (tpl24.Width > region.Width || tpl24.Height > region.Height) return 0d;
     var regionGray = ToGrayscale(region);
     var tplGray = ToGrayscale(tpl24);
