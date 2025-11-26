@@ -95,9 +95,11 @@ builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluat
 builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ScheduleTriggerEvaluator>();
 builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITesseractInvocationLogger, TesseractInvocationLogger>();
 builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummaryService(storageRoot, sp.GetRequiredService<ILogger<CoverageSummaryService>>()));
-// Image match evaluator dependencies (in-memory store + screen source placeholder)
+// Image match evaluator dependencies (disk-backed store + screen source placeholder)
 if (OperatingSystem.IsWindows()) {
-  builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore, GameBot.Domain.Triggers.Evaluators.MemoryReferenceImageStore>();
+  var imagesRoot = Path.Combine(storageRoot, "images");
+  Directory.CreateDirectory(imagesRoot);
+  builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(_ => new GameBot.Domain.Triggers.Evaluators.ReferenceImageStore(imagesRoot));
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
   var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
   if (useAdb) {

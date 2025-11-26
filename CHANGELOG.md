@@ -13,10 +13,15 @@ All notable changes to this project will be documented in this file.
 - Tests and fixtures
   - TSV fixtures under `tests/TestAssets/Ocr/tsv` and unit tests for header/rows/aggregation/malformed cases.
   - Updated `TesseractProcessOcr` tests to assert TSV args and behavior.
+- Persistent reference image storage:
+  - Disk-backed `ReferenceImageStore` under `data/images` with atomic PNG writes.
+  - Endpoints: `POST /images`, `GET /images/{id}`, `DELETE /images/{id}`.
+  - Integration test ensuring persistence across restart.
 
 ### Changed
 - Confidence calculation now prefers TSV aggregate (scaled 0–1) and falls back to legacy text heuristic only when TSV is missing or invalid.
 - Triggers: default `CooldownSeconds` is now 0 (was 60). Added a unit test to lock the default.
+- Image trigger flow now supports persisted reference images across service restarts (no re-upload needed).
 
 ### Notes
 - Backwards compatibility: existing triggers remain unchanged; the cooldown behavior only differs for newly created triggers relying on the default value.

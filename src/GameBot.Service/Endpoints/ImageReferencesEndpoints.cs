@@ -36,7 +36,17 @@ internal static class ImageReferencesEndpoints {
         using var bmp = new Bitmap(ms);
         // Store a clone to decouple from stream lifetime
         // Store reference image (AddOrUpdate to allow overwrite)
-        store.AddOrUpdate(req.Id, (Bitmap)bmp.Clone());
+        var cloned = (Bitmap)bmp.Clone();
+        store.AddOrUpdate(req.Id, cloned);
+        // Ensure disk persistence even if underlying store is in-memory
+        try {
+          var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
+                         ?? Path.Combine(AppContext.BaseDirectory, "data");
+          var imagesDir = Path.Combine(dataRoot, "images");
+          Directory.CreateDirectory(imagesDir);
+          var targetFile = Path.Combine(imagesDir, req.Id + ".png");
+          cloned.Save(targetFile);
+        } catch { /* best-effort; store may already persist */ }
         return Results.Created($"/images/{req.Id}", new { id = req.Id });
       }
       catch (Exception ex) {
@@ -47,11 +57,18 @@ internal static class ImageReferencesEndpoints {
     app.MapGet("/images/{id}", (string id, IReferenceImageStore store) => {
       ArgumentNullException.ThrowIfNull(id);
       ArgumentNullException.ThrowIfNull(store);
-      if ((store as MemoryReferenceImageStore)?.TryGet(id, out var bmp) == true) {
-        return Results.Ok(new { id });
-      }
-      return Results.NotFound();
+      if (store.Exists(id)) return Results.Ok(new { id });
+      var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
+                     ?? Path.Combine(AppContext.BaseDirectory, "data");
+      var physical = Path.Combine(dataRoot, "images", id + ".png");
+      return File.Exists(physical) ? Results.Ok(new { id }) : Results.NotFound();
     }).WithName("GetImageReference");
+
+    app.MapDelete("/images/{id}", (string id, IReferenceImageStore store) => {
+      ArgumentNullException.ThrowIfNull(id);
+      ArgumentNullException.ThrowIfNull(store);
+      return store.Delete(id) ? Results.NoContent() : Results.NotFound();
+    }).WithName("DeleteImageReference");
 
     return app;
   }

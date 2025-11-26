@@ -24,13 +24,15 @@ namespace GameBot.Tests.Unit.Triggers {
   internal sealed class StubReferenceImageStore : IReferenceImageStore {
     private readonly Bitmap _bmp;
     public StubReferenceImageStore(Bitmap bmp) { _bmp = bmp; }
-    public bool TryGet(string id, out Bitmap bmp) {
-      bmp = (Bitmap)_bmp.Clone();
+    public bool TryGet(string id, out Bitmap bitmap) {
+      bitmap = (Bitmap)_bmp.Clone();
       return true;
     }
-    public void AddOrUpdate(string id, Bitmap bmp) {
+    public void AddOrUpdate(string id, Bitmap bitmap) {
       // No-op for stub
     }
+    public bool Exists(string id) => true;
+    public bool Delete(string id) => true;
   }
 
   // Optional: Test clock abstraction

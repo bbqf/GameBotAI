@@ -133,6 +133,39 @@ Example text-match trigger:
 }
 ```
 
+#### Reference Images (Persistent)
+Reference images used by `image-match` triggers can be persisted under the service storage root (`GAMEBOT_DATA_DIR` or `Service:Storage:Root`). Files are saved as PNG in `data/images`.
+
+Endpoints:
+- `POST /images` → `{ id }` (upload or overwrite). Body: `{ "id": "Home", "data": "<base64-png-or-data-url>" }`.
+- `GET /images/{id}` → `200 OK` if persisted; `404` if missing.
+- `DELETE /images/{id}` → removes the file.
+
+Workflow:
+1. Upload once via `POST /images`.
+2. Create an `image-match` trigger referencing `referenceImageId`.
+3. After service restart the image remains available (no re-upload required).
+
+Example image-match trigger referencing a persisted image:
+```json
+{
+  "type": "image-match",
+  "enabled": true,
+  "params": {
+    "referenceImageId": "Home",
+    "region": { "x": 0, "y": 0, "width": 1, "height": 1 },
+    "similarityThreshold": 0.90
+  }
+}
+```
+
+Validation rules:
+- `id` must match `^[A-Za-z0-9_-]{1,128}$`.
+- Image must decode successfully (PNG/JPEG); invalid data returns `400` with `invalid_image`.
+
+Overwrite: re-upload with same `id` atomically replaces the file.
+Delete: `DELETE /images/{id}`; subsequent evaluations treat the reference as missing until replaced.
+
 #### Commands
 Composable orchestration objects referencing Actions (and optionally nested Commands) with cycle detection and optional trigger gating.
 - CRUD: `POST /commands`, `GET /commands/{id}`, `PATCH /commands/{id}`, `DELETE /commands/{id}`.
