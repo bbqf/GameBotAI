@@ -33,6 +33,7 @@
 
 - [ ] T015 Validate error messages and status codes in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
 - [ ] T016 Add logging of operations and failures in `src/GameBot.Domain/Logging` (basic persistence logging pending)
+- [x] T018 Stabilize persistence test with explicit `GAMEBOT_DATA_DIR` across restarts in `tests/integration/ImageStorePersistenceTests.cs`
 - [x] T017 Update `README.md` and `CHANGELOG.md` entries
 
 ## Dependencies
