@@ -21,13 +21,13 @@
 ## Phase 4: User Story 2 (Resolve images by ID)
 
 - [x] T010 [US2] Update image-match evaluator to use disk-backed store in `src/GameBot.Domain/Triggers/Evaluators/ImageMatchEvaluator.cs` (DI swap suffices)
-- [ ] T011 [US2] Unit test: evaluator resolves by id in `tests/unit/ImageStoreEvaluatorTests.cs`
+- [x] T011 [US2] Unit test: evaluator resolves by id in `tests/unit/ImageStoreEvaluatorTests.cs`
 
 ## Phase 5: User Story 3 (Controlled overwrite & cleanup)
 
-- [ ] T012 [US3] Overwrite support in POST `/images` for same `id` in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs` (atomic replace implemented; test pending)
+- [x] T012 [US3] Overwrite support in POST `/images` for same `id` in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs` (atomic replace implemented; unit test added)
 - [x] T013 [US3] Implement `DELETE /images/{id}` in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
-- [ ] T014 [US3] Unit test: overwrite and delete in `tests/unit/ImageStoreDeleteTests.cs`
+- [x] T014 [US3] Unit test: overwrite and delete in `tests/unit/ImageStoreDeleteTests.cs`
 
 ## Final Phase: Polish & Cross-Cutting
 
@@ -42,8 +42,8 @@
 ## Parallel Execution Examples
 
 - [x] T006 [P] [US1] Implement ReferenceImageStore while T007 proceeds in parallel (different files)
-- [ ] T011 [P] [US2] Write evaluator unit test while T010 is implemented
-- [ ] T014 [P] [US3] Delete tests can be scaffolded while endpoint code is finalized
+- [x] T011 [P] [US2] Write evaluator unit test while T010 is implemented
+- [x] T014 [P] [US3] Delete tests can be scaffolded while endpoint code is finalized
 
 ## MVP Scope
 
