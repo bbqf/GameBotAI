@@ -10,10 +10,10 @@
 
 ## Phase 2: Foundational
 
-- [ ] T006 Create `src/GameBot.Domain/Triggers/Evaluators/TesseractTsvParser.cs`
-- [ ] T007 Implement TSV header validation in parser file
-- [ ] T008 Implement TSV row parsing & token construction in parser file
-- [ ] T009 Implement aggregation helper excluding -1 & empty tokens in parser file
+- [X] T006 Create `src/GameBot.Domain/Triggers/Evaluators/TesseractTsvParser.cs`
+- [X] T007 Implement TSV header validation in parser file
+- [X] T008 Implement TSV row parsing & token construction in parser file
+- [X] T009 Implement aggregation helper excluding -1 & empty tokens in parser file
 - [ ] T010 Add unit tests for header validation (tests/unit/Ocr/TesseractTsvParserHeaderTests.cs)
 - [ ] T011 Add unit tests for row parsing (tests/unit/Ocr/TesseractTsvParserRowsTests.cs)
 - [ ] T012 Add unit tests for aggregation (tests/unit/Ocr/TesseractTsvParserAggregationTests.cs)
