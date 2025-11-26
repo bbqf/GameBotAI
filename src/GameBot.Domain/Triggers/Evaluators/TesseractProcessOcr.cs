@@ -121,22 +121,35 @@ public sealed class TesseractProcessOcr : ITextOcr {
         stderr));
       var txtFile = outputPath + ".txt";
       var tsvFile = outputPath + ".tsv";
-      if (!File.Exists(txtFile)) return new OcrResult(string.Empty, 0);
-      var text = File.ReadAllText(txtFile);
-      double confidence;
+      string text = string.Empty;
+      double confidence = 0;
       if (File.Exists(tsvFile)) {
         try {
           var tsv = File.ReadAllText(tsvFile);
-          var _ = TesseractTsvParser.Parse(tsv, out var agg, out var reason);
+          var tokens = TesseractTsvParser.Parse(tsv, out var agg, out var reason);
+          if (File.Exists(txtFile)) {
+            text = File.ReadAllText(txtFile);
+          }
+          else {
+            text = BuildTextFromTokens(tokens);
+          }
           confidence = (agg > 0) ? agg / 100.0 : ComputeConfidence(text);
+          return new OcrResult(text, confidence);
         }
         catch {
-          confidence = ComputeConfidence(text);
+          // Fall back to text if TSV parsing fails
+          if (File.Exists(txtFile)) {
+            text = File.ReadAllText(txtFile);
+            confidence = ComputeConfidence(text);
+            return new OcrResult(text, confidence);
+          }
+          return new OcrResult(string.Empty, 0);
         }
       }
-      else {
-        confidence = ComputeConfidence(text);
-      }
+      // No TSV file; fall back to TXT only
+      if (!File.Exists(txtFile)) return new OcrResult(string.Empty, 0);
+      text = File.ReadAllText(txtFile);
+      confidence = ComputeConfidence(text);
       return new OcrResult(text, confidence);
     }
     catch (Exception ex) {
@@ -187,6 +200,15 @@ public sealed class TesseractProcessOcr : ITextOcr {
     parts.Add("-c");
     parts.Add("tessedit_create_tsv=1");
     return parts;
+  }
+
+  private static string BuildTextFromTokens(IReadOnlyList<OcrToken> tokens) {
+    if (tokens is null || tokens.Count == 0) return string.Empty;
+    var lines = tokens
+      .GroupBy(t => t.LineIndex)
+      .OrderBy(g => g.Key)
+      .Select(g => string.Join(" ", g.OrderBy(t => t.WordIndex).Select(t => t.Text)));
+    return string.Join("\n", lines);
   }
 
   private static void TryDelete(string path) {

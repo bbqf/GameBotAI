@@ -1,0 +1,53 @@
+Usage:
+  tesseract.exe --help | --help-extra | --help-psm | --help-oem | --version
+  tesseract.exe --list-langs [--tessdata-dir PATH]
+  tesseract.exe --print-fonts-table [options...] [configfile...]
+  tesseract.exe --print-parameters [options...] [configfile...]
+  tesseract.exe imagename|imagelist|stdin outputbase|stdout [options...] [configfile...]
+
+OCR options:
+  --tessdata-dir PATH   Specify the location of tessdata path.
+  --user-words PATH     Specify the location of user words file.
+  --user-patterns PATH  Specify the location of user patterns file.
+  --dpi VALUE           Specify DPI for input image.
+  --loglevel LEVEL      Specify logging level. LEVEL can be
+                        ALL, TRACE, DEBUG, INFO, WARN, ERROR, FATAL or OFF.
+  -l LANG[+LANG]        Specify language(s) used for OCR.
+  -c VAR=VALUE          Set value for config variables.
+                        Multiple -c arguments are allowed.
+  --psm PSM|NUM         Specify page segmentation mode.
+  --oem OEM|NUM         Specify OCR Engine mode.
+NOTE: These options must occur before any configfile.
+
+Page segmentation modes (PSM):
+  0|osd_only                Orientation and script detection (OSD) only.
+  1|auto_osd                Automatic page segmentation with OSD.
+  2|auto_only               Automatic page segmentation, but no OSD, or OCR. (not implemented)
+  3|auto                    Fully automatic page segmentation, but no OSD. (Default)
+  4|single_column           Assume a single column of text of variable sizes.
+  5|single_block_vert_text  Assume a single uniform block of vertically aligned text.
+  6|single_block            Assume a single uniform block of text.
+  7|single_line             Treat the image as a single text line.
+  8|single_word             Treat the image as a single word.
+  9|circle_word             Treat the image as a single word in a circle.
+ 10|single_char             Treat the image as a single character.
+ 11|sparse_text             Sparse text. Find as much text as possible in no particular order.
+ 12|sparse_text_osd         Sparse text with OSD.
+ 13|raw_line                Raw line. Treat the image as a single text line,
+                            bypassing hacks that are Tesseract-specific.
+
+OCR Engine modes (OEM):
+  0|tesseract_only          Legacy engine only.
+  1|lstm_only               Neural nets LSTM engine only.
+  2|tesseract_lstm_combined Legacy + LSTM engines.
+  3|default                 Default, based on what is available.
+
+Single options:
+  -h, --help            Show minimal help message.
+  --help-extra          Show extra help for advanced users.
+  --help-psm            Show page segmentation modes.
+  --help-oem            Show OCR Engine modes.
+  -v, --version         Show version information.
+  --list-langs          List available languages for tesseract engine.
+  --print-fonts-table   Print tesseract fonts table.
+  --print-parameters    Print tesseract parameters.
