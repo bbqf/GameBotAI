@@ -163,11 +163,24 @@ public sealed class TesseractProcessOcr : ITextOcr {
     }
   }
 
-  internal static double ComputeConfidence(string? text) {
-    if (string.IsNullOrEmpty(text)) return 0;
-    var total = text.Length;
+  internal static double ComputeConfidence(string? textOrTsv) {
+    if (string.IsNullOrEmpty(textOrTsv)) return 0;
+    // If the input looks like TSV (header with columns including 'conf' and 'text'),
+    // compute confidence from TSV aggregate (0-100 scaled to 0-1).
+    if (textOrTsv.AsSpan().IndexOf('\t') >= 0) {
+      var firstLineEnd = textOrTsv.IndexOf('\n', StringComparison.Ordinal);
+      var header = firstLineEnd >= 0 ? textOrTsv.Substring(0, firstLineEnd) : textOrTsv;
+      if (header.Contains("conf", StringComparison.Ordinal) && header.Contains("text", StringComparison.Ordinal)) {
+        try {
+          var _ = TesseractTsvParser.Parse(textOrTsv, out var agg, out var reason);
+          if (agg > 0) return agg / 100.0;
+        } catch { /* fall back to heuristic below */ }
+      }
+    }
+    // Fallback heuristic: alphanumeric ratio for plain text inputs
+    var total = textOrTsv.Length;
     if (total == 0) return 0;
-    var alphaNum = text.Count(char.IsLetterOrDigit);
+    var alphaNum = textOrTsv.Count(char.IsLetterOrDigit);
     if (alphaNum <= 0) return 0;
     var ratio = alphaNum / (double)total;
     if (double.IsNaN(ratio) || double.IsInfinity(ratio) || ratio < 0) return 0;
