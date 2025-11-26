@@ -120,9 +120,23 @@ public sealed class TesseractProcessOcr : ITextOcr {
         stdout,
         stderr));
       var txtFile = outputPath + ".txt";
+      var tsvFile = outputPath + ".tsv";
       if (!File.Exists(txtFile)) return new OcrResult(string.Empty, 0);
       var text = File.ReadAllText(txtFile);
-      var confidence = ComputeConfidence(text);
+      double confidence;
+      if (File.Exists(tsvFile)) {
+        try {
+          var tsv = File.ReadAllText(tsvFile);
+          var _ = TesseractTsvParser.Parse(tsv, out var agg, out var reason);
+          confidence = (agg > 0) ? agg / 100.0 : ComputeConfidence(text);
+        }
+        catch {
+          confidence = ComputeConfidence(text);
+        }
+      }
+      else {
+        confidence = ComputeConfidence(text);
+      }
       return new OcrResult(text, confidence);
     }
     catch (Exception ex) {
@@ -132,6 +146,7 @@ public sealed class TesseractProcessOcr : ITextOcr {
     finally {
       TryDelete(inputPath);
       TryDelete(outputPath + ".txt");
+      TryDelete(outputPath + ".tsv");
     }
   }
 
@@ -168,6 +183,9 @@ public sealed class TesseractProcessOcr : ITextOcr {
       parts.Add("--oem");
       parts.Add("1");
     }
+    // Request TSV output in addition to text file
+    parts.Add("-c");
+    parts.Add("tessedit_create_tsv=1");
     return parts;
   }
 
