@@ -13,6 +13,7 @@ internal readonly record struct OcrToken(
   int Confidence);
 
 internal static class TesseractTsvParser {
+  private static readonly CultureInfo EnUs = CultureInfo.GetCultureInfo("en-US");
   private static readonly char[] LineSplit = new[] { '\n', '\r' };
 
   public static IReadOnlyList<OcrToken> Parse(string? tsv, out double aggregateConfidence, out string? reason) {
@@ -39,14 +40,14 @@ internal static class TesseractTsvParser {
       var cols = line.Split('\t');
       if (cols.Length < 12) continue; // skip malformed
       // Parse needed columns; tolerate parse failures by skipping row
-      if (!int.TryParse(cols[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var level)) continue; // level
-      if (!int.TryParse(cols[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out var wordNum)) continue; // word_num
-      if (!int.TryParse(cols[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out var lineNum)) continue; // line_num
-      if (!int.TryParse(cols[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out var left)) continue;
-      if (!int.TryParse(cols[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out var top)) continue;
-      if (!int.TryParse(cols[8], NumberStyles.Integer, CultureInfo.InvariantCulture, out var width)) continue;
-      if (!int.TryParse(cols[9], NumberStyles.Integer, CultureInfo.InvariantCulture, out var height)) continue;
-      if (!int.TryParse(cols[10], NumberStyles.Integer, CultureInfo.InvariantCulture, out var conf)) conf = -1;
+      if (!int.TryParse(cols[0], NumberStyles.Integer, EnUs, out var level)) continue; // level
+      if (!int.TryParse(cols[5], NumberStyles.Integer, EnUs, out var wordNum)) continue; // word_num
+      if (!int.TryParse(cols[4], NumberStyles.Integer, EnUs, out var lineNum)) continue; // line_num
+      if (!int.TryParse(cols[6], NumberStyles.Integer, EnUs, out var left)) continue;
+      if (!int.TryParse(cols[7], NumberStyles.Integer, EnUs, out var top)) continue;
+      if (!int.TryParse(cols[8], NumberStyles.Integer, EnUs, out var width)) continue;
+      if (!int.TryParse(cols[9], NumberStyles.Integer, EnUs, out var height)) continue;
+      if (!int.TryParse(cols[10], NumberStyles.Integer, EnUs, out var conf)) conf = -1;
       var text = cols[11] ?? string.Empty;
       var trimmed = text.Trim();
       if (level != 5 || trimmed.Length == 0) continue; // only include word-level tokens with text
