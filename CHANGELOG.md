@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-11-26]
+
+### Added
+- OCR: Tesseract TSV integration
+  - Pass `-c tessedit_create_tsv=1` to emit `output.tsv` alongside `output.txt`.
+  - Parse TSV into word-level tokens (level=5) with floating-point confidences.
+  - Reconstruct text from TSV tokens when `.txt` is not produced.
+  - Force `en-US` numeric parsing to avoid locale-specific failures.
+- Tests and fixtures
+  - TSV fixtures under `tests/TestAssets/Ocr/tsv` and unit tests for header/rows/aggregation/malformed cases.
+  - Updated `TesseractProcessOcr` tests to assert TSV args and behavior.
+
+### Changed
+- Confidence calculation now prefers TSV aggregate (scaled 0–1) and falls back to legacy text heuristic only when TSV is missing or invalid.
+- Triggers: default `CooldownSeconds` is now 0 (was 60). Added a unit test to lock the default.
+
+### Notes
+- Backwards compatibility: existing triggers remain unchanged; the cooldown behavior only differs for newly created triggers relying on the default value.
+- No persistence schema changes; ENV docs updated for OCR TSV usage.
+
 ## [Unreleased] - 2025-11-25
 
 ### Added
