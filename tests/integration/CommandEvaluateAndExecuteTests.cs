@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
@@ -87,9 +88,41 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
     // Evaluate-and-execute should run since trigger is satisfied
     var exec = await client.PostAsync(new Uri($"/commands/{commandId}/evaluate-and-execute?sessionId={sessionId}", UriKind.Relative), content: null).ConfigureAwait(true);
     exec.StatusCode.Should().Be(HttpStatusCode.Accepted);
-    var body = await exec.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var accepted = ((System.Text.Json.JsonElement)body!["accepted"]).GetInt32();
+
+    var execPayload = await exec.Content.ReadAsStringAsync().ConfigureAwait(true);
+    int accepted;
+    string? triggerStatus;
+    string? message;
+    using (var doc = JsonDocument.Parse(execPayload)) {
+      var root = doc.RootElement;
+      accepted = root.GetProperty("accepted").GetInt32();
+      triggerStatus = root.GetProperty("triggerStatus").GetString();
+      message = root.GetProperty("message").GetString();
+    }
     accepted.Should().BeGreaterThan(0);
+    triggerStatus.Should().Be("Satisfied");
+    message.Should().Be("delay_elapsed");
+
+    var triggerResp = await client.GetAsync(new Uri($"/triggers/{triggerId}", UriKind.Relative)).ConfigureAwait(true);
+    triggerResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var triggerPayload = await triggerResp.Content.ReadAsStringAsync().ConfigureAwait(true);
+    DateTimeOffset? lastFiredAt;
+    DateTimeOffset? lastEvaluatedAt;
+    string? lastResultStatus;
+    string? lastResultReason;
+    using (var doc = JsonDocument.Parse(triggerPayload)) {
+      var root = doc.RootElement;
+      lastFiredAt = root.GetProperty("lastFiredAt").GetDateTimeOffset();
+      lastEvaluatedAt = root.GetProperty("lastEvaluatedAt").GetDateTimeOffset();
+      var lastResult = root.GetProperty("lastResult");
+      lastResultStatus = lastResult.GetProperty("status").GetString();
+      lastResultReason = lastResult.GetProperty("reason").GetString();
+    }
+    lastFiredAt.Should().NotBeNull();
+    lastEvaluatedAt.Should().NotBeNull();
+    lastFiredAt.Should().Be(lastEvaluatedAt);
+    lastResultStatus.Should().Be("Satisfied");
+    lastResultReason.Should().Be("delay_elapsed");
   }
 
   [Fact]
@@ -141,9 +174,40 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
 
     var exec = await client.PostAsync(new Uri($"/commands/{commandId}/evaluate-and-execute?sessionId={sessionId}", UriKind.Relative), content: null).ConfigureAwait(true);
     exec.StatusCode.Should().Be(HttpStatusCode.Accepted);
-    var body = await exec.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var accepted = ((System.Text.Json.JsonElement)body!["accepted"]).GetInt32();
+
+    var execPayload = await exec.Content.ReadAsStringAsync().ConfigureAwait(true);
+    int accepted;
+    string? triggerStatus;
+    string? message;
+    using (var doc = JsonDocument.Parse(execPayload)) {
+      var root = doc.RootElement;
+      accepted = root.GetProperty("accepted").GetInt32();
+      triggerStatus = root.GetProperty("triggerStatus").GetString();
+      message = root.GetProperty("message").GetString();
+    }
     accepted.Should().Be(0);
+    triggerStatus.Should().Be("Pending");
+    message.Should().Be("delay_pending_initial");
+
+    var triggerResp = await client.GetAsync(new Uri($"/triggers/{triggerId}", UriKind.Relative)).ConfigureAwait(true);
+    triggerResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var triggerPayload = await triggerResp.Content.ReadAsStringAsync().ConfigureAwait(true);
+    JsonElement lastFiredAtElement;
+    DateTimeOffset lastEvaluatedAt;
+    string? lastResultStatus;
+    string? lastResultReason;
+    using (var doc = JsonDocument.Parse(triggerPayload)) {
+      var root = doc.RootElement;
+      lastFiredAtElement = root.GetProperty("lastFiredAt");
+      lastFiredAtElement.ValueKind.Should().Be(JsonValueKind.Null);
+      lastEvaluatedAt = root.GetProperty("lastEvaluatedAt").GetDateTimeOffset();
+      var lastResult = root.GetProperty("lastResult");
+      lastResultStatus = lastResult.GetProperty("status").GetString();
+      lastResultReason = lastResult.GetProperty("reason").GetString();
+    }
+    lastResultStatus.Should().Be("Pending");
+    lastResultReason.Should().Be("delay_pending_initial");
+    lastEvaluatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
   }
 
   [Fact]
@@ -196,16 +260,47 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
     // First execution should run
     var exec1 = await client.PostAsync(new Uri($"/commands/{commandId}/evaluate-and-execute?sessionId={sessionId}", UriKind.Relative), content: null).ConfigureAwait(true);
     exec1.StatusCode.Should().Be(HttpStatusCode.Accepted);
-    var body1 = await exec1.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var accepted1 = ((System.Text.Json.JsonElement)body1!["accepted"]).GetInt32();
+    var execPayload1 = await exec1.Content.ReadAsStringAsync().ConfigureAwait(true);
+    int accepted1;
+    string? triggerStatus1;
+    using (var doc = JsonDocument.Parse(execPayload1)) {
+      var root = doc.RootElement;
+      accepted1 = root.GetProperty("accepted").GetInt32();
+      triggerStatus1 = root.GetProperty("triggerStatus").GetString();
+    }
     accepted1.Should().BeGreaterThan(0);
+    triggerStatus1.Should().Be("Satisfied");
+
+    var triggerRespAfterFirst = await client.GetAsync(new Uri($"/triggers/{triggerId}", UriKind.Relative)).ConfigureAwait(true);
+    var triggerPayloadAfterFirst = await triggerRespAfterFirst.Content.ReadAsStringAsync().ConfigureAwait(true);
+    DateTimeOffset initialFire;
+    using (var doc = JsonDocument.Parse(triggerPayloadAfterFirst)) {
+      initialFire = doc.RootElement.GetProperty("lastFiredAt").GetDateTimeOffset();
+    }
 
     // Second execution should be suppressed by cooldown
     var exec2 = await client.PostAsync(new Uri($"/commands/{commandId}/evaluate-and-execute?sessionId={sessionId}", UriKind.Relative), content: null).ConfigureAwait(true);
     exec2.StatusCode.Should().Be(HttpStatusCode.Accepted);
-    var body2 = await exec2.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var accepted2 = ((System.Text.Json.JsonElement)body2!["accepted"]).GetInt32();
+    var execPayload2 = await exec2.Content.ReadAsStringAsync().ConfigureAwait(true);
+    int accepted2;
+    string? triggerStatus2;
+    string? message2;
+    using (var doc = JsonDocument.Parse(execPayload2)) {
+      var root = doc.RootElement;
+      accepted2 = root.GetProperty("accepted").GetInt32();
+      triggerStatus2 = root.GetProperty("triggerStatus").GetString();
+      message2 = root.GetProperty("message").GetString();
+    }
     accepted2.Should().Be(0);
+    triggerStatus2.Should().Be("Cooldown");
+    message2.Should().Be("cooldown_active");
+
+    var triggerRespAfterSecond = await client.GetAsync(new Uri($"/triggers/{triggerId}", UriKind.Relative)).ConfigureAwait(true);
+    var triggerPayloadAfterSecond = await triggerRespAfterSecond.Content.ReadAsStringAsync().ConfigureAwait(true);
+    using (var doc = JsonDocument.Parse(triggerPayloadAfterSecond)) {
+      var lastFiredAt = doc.RootElement.GetProperty("lastFiredAt").GetDateTimeOffset();
+      lastFiredAt.Should().Be(initialFire);
+    }
   }
 
   [Fact]
@@ -257,8 +352,18 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
 
     var exec = await client.PostAsync(new Uri($"/commands/{commandId}/evaluate-and-execute?sessionId={sessionId}", UriKind.Relative), content: null).ConfigureAwait(true);
     exec.StatusCode.Should().Be(HttpStatusCode.Accepted);
-    var body = await exec.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var accepted = ((System.Text.Json.JsonElement)body!["accepted"]).GetInt32();
+    var execPayload = await exec.Content.ReadAsStringAsync().ConfigureAwait(true);
+    int accepted;
+    string? triggerStatus;
+    string? message;
+    using (var doc = JsonDocument.Parse(execPayload)) {
+      var root = doc.RootElement;
+      accepted = root.GetProperty("accepted").GetInt32();
+      triggerStatus = root.GetProperty("triggerStatus").GetString();
+      message = root.GetProperty("message").GetString();
+    }
     accepted.Should().Be(0);
+    triggerStatus.Should().Be("Disabled");
+    message.Should().Be("trigger_disabled");
   }
 }

@@ -131,8 +131,12 @@ internal static class CommandsEndpoints {
 
     app.MapPost("/commands/{id}/evaluate-and-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
-        var accepted = await exec.EvaluateAndExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
-        return Results.Accepted($"/sessions/{sessionId}", new { accepted });
+        var decision = await exec.EvaluateAndExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
+        return Results.Accepted($"/sessions/{sessionId}", new {
+          accepted = decision.Accepted,
+          triggerStatus = decision.TriggerStatus.ToString(),
+          message = decision.Reason
+        });
       }
       catch (KeyNotFoundException ex) {
         var msg = ex.Message.Contains("Session", StringComparison.OrdinalIgnoreCase) ? "Session not found" : ex.Message;
