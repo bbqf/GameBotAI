@@ -10,7 +10,7 @@ internal readonly record struct OcrToken(
   int Height,
   int LineIndex,
   int WordIndex,
-  int Confidence);
+  double Confidence);
 
 internal static class TesseractTsvParser {
   private static readonly CultureInfo EnUs = CultureInfo.GetCultureInfo("en-US");
@@ -33,7 +33,7 @@ internal static class TesseractTsvParser {
     }
     var tokens = new List<OcrToken>(Math.Max(4, lines.Length - 1));
     int validForAggregation = 0;
-    int confidenceSum = 0;
+    double confidenceSum = 0;
     for (int i = 1; i < lines.Length; i++) {
       var line = lines[i];
       // Expected 12 columns per spec: level page_num block_num par_num line_num word_num left top width height conf text
@@ -47,7 +47,7 @@ internal static class TesseractTsvParser {
       if (!int.TryParse(cols[7], NumberStyles.Integer, EnUs, out var top)) continue;
       if (!int.TryParse(cols[8], NumberStyles.Integer, EnUs, out var width)) continue;
       if (!int.TryParse(cols[9], NumberStyles.Integer, EnUs, out var height)) continue;
-      if (!int.TryParse(cols[10], NumberStyles.Integer, EnUs, out var conf)) conf = -1;
+      if (!double.TryParse(cols[10], NumberStyles.Float | NumberStyles.AllowThousands, EnUs, out var conf)) conf = -1;
       var text = cols[11] ?? string.Empty;
       var trimmed = text.Trim();
       if (level != 5 || trimmed.Length == 0) continue; // only include word-level tokens with text

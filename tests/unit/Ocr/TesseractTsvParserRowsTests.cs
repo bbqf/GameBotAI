@@ -5,7 +5,7 @@ using Xunit;
 namespace GameBot.UnitTests.Ocr;
 
 public sealed class TesseractTsvParserRowsTests {
-  private static readonly int[] ExpectedClearTextConf = {95,93,92,90};
+  private static readonly double[] ExpectedClearTextConf = {95,93,92,90};
   private static string ReadFixture(string name) {
     var dir = AppContext.BaseDirectory;
     while (!string.IsNullOrEmpty(dir) && !Directory.Exists(Path.Combine(dir, "TestAssets"))) {
