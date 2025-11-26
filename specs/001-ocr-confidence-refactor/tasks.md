@@ -14,10 +14,10 @@
 - [X] T007 Implement TSV header validation in parser file
 - [X] T008 Implement TSV row parsing & token construction in parser file
 - [X] T009 Implement aggregation helper excluding -1 & empty tokens in parser file
-- [ ] T010 Add unit tests for header validation (tests/unit/Ocr/TesseractTsvParserHeaderTests.cs)
-- [ ] T011 Add unit tests for row parsing (tests/unit/Ocr/TesseractTsvParserRowsTests.cs)
-- [ ] T012 Add unit tests for aggregation (tests/unit/Ocr/TesseractTsvParserAggregationTests.cs)
-- [ ] T013 Add unit tests for malformed TSV handling (tests/unit/Ocr/TesseractTsvParserMalformedTests.cs)
+- [X] T010 Add unit tests for header validation (tests/unit/Ocr/TesseractTsvParserHeaderTests.cs)
+- [X] T011 Add unit tests for row parsing (tests/unit/Ocr/TesseractTsvParserRowsTests.cs)
+- [X] T012 Add unit tests for aggregation (tests/unit/Ocr/TesseractTsvParserAggregationTests.cs)
+- [X] T013 Add unit tests for malformed TSV handling (tests/unit/Ocr/TesseractTsvParserMalformedTests.cs)
 - [ ] T014 Integrate parser into `TesseractProcessOcr` (src/GameBot.Domain/Triggers/Evaluators/TesseractProcessOcr.cs)
 - [ ] T015 Replace legacy confidence heuristic with TSV aggregate (src/GameBot.Domain/Triggers/Evaluators/TesseractProcessOcr.cs)
 - [ ] T016 Add fallback to legacy text mode when TSV fails (src/GameBot.Domain/Triggers/Evaluators/TesseractProcessOcr.cs)
