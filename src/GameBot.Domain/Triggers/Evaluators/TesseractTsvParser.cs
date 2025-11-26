@@ -39,6 +39,7 @@ internal static class TesseractTsvParser {
       var cols = line.Split('\t');
       if (cols.Length < 12) continue; // skip malformed
       // Parse needed columns; tolerate parse failures by skipping row
+      if (!int.TryParse(cols[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var level)) continue; // level
       if (!int.TryParse(cols[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out var wordNum)) continue; // word_num
       if (!int.TryParse(cols[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out var lineNum)) continue; // line_num
       if (!int.TryParse(cols[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out var left)) continue;
@@ -48,6 +49,7 @@ internal static class TesseractTsvParser {
       if (!int.TryParse(cols[10], NumberStyles.Integer, CultureInfo.InvariantCulture, out var conf)) conf = -1;
       var text = cols[11] ?? string.Empty;
       var trimmed = text.Trim();
+      if (level != 5 || trimmed.Length == 0) continue; // only include word-level tokens with text
       var token = new OcrToken(trimmed, left, top, width, height, lineNum, wordNum, conf);
       tokens.Add(token);
       if (conf >= 0 && conf <= 100 && trimmed.Length > 0) {

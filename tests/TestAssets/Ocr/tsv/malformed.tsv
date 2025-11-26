@@ -1,0 +1,4 @@
+level	page_num	block_num	par_num	line_num	word_num	left	top	width	height	conf	text
+5	1	1	1	MISSING_FIELD	1	10	20	80	20	90
+BADLINE
+5	1	1	1	1	2	95	20	70	20	50	TEXT

@@ -6,7 +6,7 @@ namespace GameBot.UnitTests.Ocr;
 
 public sealed class TesseractTsvParserHeaderTests {
   [Fact]
-  public void Parse_MissingConfHeader_ReturnsEmptyAndFormatReason() {
+  public void ParseMissingConfHeaderReturnsEmptyAndFormatReason() {
     var tsv = "level\tpage_num\tother\ttext"; // header without conf
     var tokens = TesseractTsvParser.Parse(tsv + "\n", out var agg, out var reason);
     tokens.Should().BeEmpty();
