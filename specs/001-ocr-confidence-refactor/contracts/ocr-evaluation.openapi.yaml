@@ -1,0 +1,64 @@
+openapi: 3.0.3
+info:
+  title: OCR Evaluation
+  version: 1.0.0
+paths:
+  /triggers/{id}/test-ocr:
+    post:
+      summary: Test OCR trigger evaluation with TSV confidence
+      operationId: TestOcrTrigger
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageBase64:
+                  type: string
+                  description: PNG image encoded as Base64
+              required: [imageBase64]
+      responses:
+        '200':
+          description: OCR evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcrEvaluationResult'
+components:
+  schemas:
+    OcrToken:
+      type: object
+      properties:
+        text: { type: string }
+        left: { type: integer, minimum: 0 }
+        top: { type: integer, minimum: 0 }
+        width: { type: integer, minimum: 1 }
+        height: { type: integer, minimum: 1 }
+        lineIndex: { type: integer, minimum: 0 }
+        wordIndex: { type: integer, minimum: 0 }
+        confidence: { type: integer, minimum: -1, maximum: 100 }
+      required: [text,left,top,width,height,lineIndex,wordIndex,confidence]
+    OcrEvaluationResult:
+      type: object
+      properties:
+        tokens:
+          type: array
+          items: { $ref: '#/components/schemas/OcrToken' }
+        confidence:
+          type: number
+          description: Mean per-word confidence (excluding -1 and empty text)
+          minimum: 0
+          maximum: 100
+        text:
+          type: string
+        reason:
+          type: string
+          nullable: true
+      required: [tokens,confidence,text]

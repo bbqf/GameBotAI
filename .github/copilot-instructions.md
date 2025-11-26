@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - Reuse file-based JSON configuration persisted under `data/config` (no new store) (001-runtime-logging-control)
 - C# / .NET 9 + GameBot.Domain repositories, GameBot.Emulator.Session, TriggerEvaluationService (no new external packages) (001-fix-trigger-evaluate)
 - File-based JSON repositories under `data/` (001-fix-trigger-evaluate)
+- C# / .NET 9 (align with existing services) + External Tesseract CLI (no new managed package) (001-ocr-confidence-refactor)
+- None added; transient temp files only (001-ocr-confidence-refactor)
 
 - .NET 8 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -33,9 +35,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 8 C# conventions
 
 ## Recent Changes
+- 001-ocr-confidence-refactor: Added C# / .NET 9 (align with existing services) + External Tesseract CLI (no new managed package)
 - 001-fix-trigger-evaluate: Added C# / .NET 9 + GameBot.Domain repositories, GameBot.Emulator.Session, TriggerEvaluationService (no new external packages)
 - 001-runtime-logging-control: Added C# 13 / .NET 9 + ASP.NET Core Minimal API, Microsoft.Extensions.Logging configuration pipeline, existing JSON config repository
-- 001-tesseract-logging: Added C# 13 / .NET 9 + Tesseract CLI, System.Diagnostics.Process, Microsoft.Extensions.Logging, Serilog, xUnit + coverlet for coverage enforcement
 
 
 <!-- MANUAL ADDITIONS START -->
