@@ -60,6 +60,9 @@ public class ImageStorePersistenceTests : IDisposable {
       var uploadResp = await client1.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "persist", data = oneByOnePngBase64 }).ConfigureAwait(false);
       uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
       var physical = Path.Combine(_persistDir, "images", "persist.png");
+      // Allow brief time for atomic replace/move operations to complete on CI file systems
+      var waitedMs = 0;
+      while (!File.Exists(physical) && waitedMs < 1000) { await Task.Delay(100).ConfigureAwait(false); waitedMs += 100; }
       File.Exists(physical).Should().BeTrue($"Expected file at {physical} after first upload.");
       // Existence check (after confirming physical persistence to reduce timing flakiness)
       var existsResp = await client1.GetAsync(new Uri("/images/persist", UriKind.Relative)).ConfigureAwait(false);
@@ -76,6 +79,8 @@ public class ImageStorePersistenceTests : IDisposable {
       var existsResp2 = await client2.GetAsync(new Uri("/images/persist", UriKind.Relative)).ConfigureAwait(false);
       if (existsResp2.StatusCode == HttpStatusCode.NotFound) {
         var physical2 = Path.Combine(_persistDir, "images", "persist.png");
+        var waited2Ms = 0;
+        while (!File.Exists(physical2) && waited2Ms < 1000) { await Task.Delay(100).ConfigureAwait(false); waited2Ms += 100; }
         File.Exists(physical2).Should().BeTrue($"Physical file should persist across restart at {physical2}");
       } else {
         existsResp2.StatusCode.Should().Be(HttpStatusCode.OK);
