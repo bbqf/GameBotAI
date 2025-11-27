@@ -40,6 +40,7 @@ All notable changes to this project will be documented in this file.
 - Structured Tesseract invocation logging (debug-level) capturing CLI, stdout/stderr with truncation guard, exit code, elapsed time, and correlation IDs.
 - OCR coverage tooling: `tools/coverage/report.ps1` now emits Cobertura-derived summaries, writes `data/coverage/latest.json`, and enforces ≥70% coverage for `GameBot.Domain.Triggers.Evaluators.Tesseract*`.
 - Coverage summary API surface: `GET /api/ocr/coverage` plus contract/integration tests so stakeholders can query latest coverage without parsing XML.
+- 001-image-storage: Persistent reference image storage under `data/images` with atomic writes, structured LoggerMessage logging for `/images` endpoints, standardized error responses (`invalid_request`, `invalid_image`, `not_found`), and increased test coverage (evaluator edge cases and endpoint error paths). CI stability improvements: isolated storage via `Service__Storage__Root` + `GAMEBOT_DATA_DIR`, persistence test robustness, and evaluator GDI+ OOM fix using `Graphics.DrawImage`.
 
 ### Changed
 - Configuration precedence clarified and enforced: Environment > Saved file > Defaults. See `ENVIRONMENT.md`.
