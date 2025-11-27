@@ -8,6 +8,7 @@ using Xunit;
 
 namespace GameBot.IntegrationTests;
 
+[Collection("ConfigIsolation")]
 public class ImageStorePersistenceTests : IDisposable {
   private readonly string? _prevAuth;
   private readonly string? _prevDynPort;
