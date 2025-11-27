@@ -13,10 +13,15 @@ All notable changes to this project will be documented in this file.
 - Tests and fixtures
   - TSV fixtures under `tests/TestAssets/Ocr/tsv` and unit tests for header/rows/aggregation/malformed cases.
   - Updated `TesseractProcessOcr` tests to assert TSV args and behavior.
+- Persistent reference image storage:
+  - Disk-backed `ReferenceImageStore` under `data/images` with atomic PNG writes.
+  - Endpoints: `POST /images`, `GET /images/{id}`, `DELETE /images/{id}`.
+  - Integration test ensuring persistence across restart.
 
 ### Changed
 - Confidence calculation now prefers TSV aggregate (scaled 0–1) and falls back to legacy text heuristic only when TSV is missing or invalid.
 - Triggers: default `CooldownSeconds` is now 0 (was 60). Added a unit test to lock the default.
+- Image trigger flow now supports persisted reference images across service restarts (no re-upload needed).
 
 ### Notes
 - Backwards compatibility: existing triggers remain unchanged; the cooldown behavior only differs for newly created triggers relying on the default value.
@@ -35,6 +40,7 @@ All notable changes to this project will be documented in this file.
 - Structured Tesseract invocation logging (debug-level) capturing CLI, stdout/stderr with truncation guard, exit code, elapsed time, and correlation IDs.
 - OCR coverage tooling: `tools/coverage/report.ps1` now emits Cobertura-derived summaries, writes `data/coverage/latest.json`, and enforces ≥70% coverage for `GameBot.Domain.Triggers.Evaluators.Tesseract*`.
 - Coverage summary API surface: `GET /api/ocr/coverage` plus contract/integration tests so stakeholders can query latest coverage without parsing XML.
+- 001-image-storage: Persistent reference image storage under `data/images` with atomic writes, structured LoggerMessage logging for `/images` endpoints, standardized error responses (`invalid_request`, `invalid_image`, `not_found`), and increased test coverage (evaluator edge cases and endpoint error paths). CI stability improvements: isolated storage via `Service__Storage__Root` + `GAMEBOT_DATA_DIR`, persistence test robustness, and evaluator GDI+ OOM fix using `Graphics.DrawImage`.
 
 ### Changed
 - Configuration precedence clarified and enforced: Environment > Saved file > Defaults. See `ENVIRONMENT.md`.
