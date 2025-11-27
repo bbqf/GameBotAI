@@ -13,6 +13,8 @@ internal static class TestEnvironment {
     }
     Directory.CreateDirectory(dir);
     Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", dir);
+    // Ensure config precedence cannot override isolation directory
+    Environment.SetEnvironmentVariable("Service__Storage__Root", dir);
     return dir;
   }
 }
