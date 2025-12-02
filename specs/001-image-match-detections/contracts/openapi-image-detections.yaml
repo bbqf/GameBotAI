@@ -1,0 +1,109 @@
+openapi: 3.0.3
+info:
+  title: Image Detections API
+  version: 1.0.0
+paths:
+  /images/detect:
+    post:
+      summary: Detect occurrences of a stored reference image in the current screenshot
+      operationId: detectImageMatches
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetectRequest'
+      responses:
+        '200':
+          description: Detection results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetectResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Reference image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    DetectRequest:
+      type: object
+      required: [ referenceImageId ]
+      properties:
+        referenceImageId:
+          type: string
+          description: Identifier of a previously stored reference image
+        threshold:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0.8
+        maxResults:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+        overlap:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0.3
+    DetectResponse:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchResult'
+        limitsHit:
+          type: boolean
+          description: True if limited by maxResults or timeout
+    MatchResult:
+      type: object
+      properties:
+        bbox:
+          $ref: '#/components/schemas/NormalizedRect'
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+    NormalizedRect:
+      type: object
+      required: [ x, y, width, height ]
+      properties:
+        x:
+          type: number
+          minimum: 0
+          maximum: 1
+        y:
+          type: number
+          minimum: 0
+          maximum: 1
+        width:
+          type: number
+          minimum: 0
+          maximum: 1
+        height:
+          type: number
+          minimum: 0
+          maximum: 1
+    Error:
+      type: object
+      required: [ code, message ]
+      properties:
+        code:
+          type: string
+          enum: [ invalid_request, not_found ]
+        message:
+          type: string
