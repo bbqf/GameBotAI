@@ -120,6 +120,21 @@ This PR will implement the foundational pieces for detections (no new endpoint y
 Notes:
 - Stacked on Phase 1 PR; no breaking changes; no public API exposure yet.
 
+---
+
+## Phase 3 PR Scope (US1 – Endpoint + Tests)
+
+This PR will implement the first user story: find all matches above threshold and return normalized bboxes and confidences.
+
+- T013 DTOs for request/response
+- T014 Input validation helpers
+- T015 Endpoint `POST /images/detect`
+- T016 Structured logging (start, result count, truncated, duration)
+- T017 Unit tests: matcher multi-match & empty
+- T018 Unit tests: NMS overlap suppression
+- T019 Integration tests: happy path & empty responses
+- T020 Contract test: schema conformance vs `openapi-image-detections.yaml`
+
 ## Complexity Tracking
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
