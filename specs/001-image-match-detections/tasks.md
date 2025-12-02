@@ -10,7 +10,7 @@ Plan: `specs/001-image-match-detections/plan.md`
 - [x] T002 Verify x64 build configuration and runtime load of OpenCV DLLs (log version on service start) in `src/GameBot.Service/Program.cs`
 - [x] T003 Add configurable detection settings (DefaultThreshold, MaxResults, TimeoutMs, Overlap) to `data/config/config.json` and bind strongly in `src/GameBot.Service/Program.cs`
 - [x] T004 [P] Add logging category constants for detection operations to `src/GameBot.Service/Logging/DetectionLogging.cs`
-- [ ] T005 Add new OpenAPI fragment inclusion for `openapi-image-detections.yaml` in `specs/master/contracts` aggregation (or reference in existing `specs/openapi.json` build script if present)
+- [x] T005 Add new OpenAPI fragment inclusion for `openapi-image-detections.yaml` in `specs/master/contracts` aggregation (or reference in existing `specs/openapi.json` build script if present)
 
 ## Phase 2: Foundational
 
