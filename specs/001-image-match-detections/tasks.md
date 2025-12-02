@@ -60,16 +60,16 @@ Independent Test: Coordinates scale with varying screenshot sizes; confidence cl
 - [x] T029 [US3] Unit tests: coordinate normalization across multiple resolutions in `tests/unit/NormalizationTests.cs`
 - [x] T030 [US3] Unit tests: confidence transform/clamp logic in `tests/unit/NormalizationTests.cs`
 - [x] T031 [US3] Integration tests: normalized boxes values in `tests/integration/ImageDetectionsEndpointTests.cs`
-- [ ] T032 [US3] Document normalization guarantees in `specs/001-image-match-detections/data-model.md`
-- [ ] T033 [US3] Add explanation of confidence semantics to `specs/001-image-match-detections/quickstart.md`
+- [x] T032 [US3] Document normalization guarantees in `specs/001-image-match-detections/data-model.md`
+- [x] T033 [US3] Add explanation of confidence semantics to `specs/001-image-match-detections/quickstart.md`
 
 ## Phase 6: Performance & Hardening
 
-- [ ] T034 Add micro-benchmark harness (template sizes, thresholds) in `tests/unit/Performance/TemplateMatcherBench.cs`
-- [ ] T035 Implement timeout logic with cancellation in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
-- [ ] T036 [P] Add metrics counters (duration, result count) in `src/GameBot.Service/Endpoints/ImageDetectionsMetrics.cs`
-- [ ] T037 Safeguard oversized template early-return in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
-- [ ] T038 Stress test: large screenshot & maxResults overflow handling in `tests/integration/ImageDetectionsEndpointTests.cs`
+- [x] T034 Add micro-benchmark harness (template sizes, thresholds) in `tests/unit/Performance/TemplateMatcherBench.cs`
+- [x] T035 Implement timeout logic with cancellation in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
+- [x] T036 [P] Add metrics counters (duration, result count) in `src/GameBot.Service/Endpoints/ImageDetectionsMetrics.cs`
+- [x] T037 Safeguard oversized template early-return in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
+- [x] T038 Stress test: large screenshot & maxResults overflow handling in `tests/integration/ImageDetectionsStressTests.cs`
 - [ ] T039 Verify memory usage stays < configured budget in test harness log output `tests/integration/ResourceLimitsTests.cs`
 
 ## Phase 7: Docs & Release

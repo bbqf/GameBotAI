@@ -14,6 +14,7 @@ namespace GameBot.Domain.Vision
             ArgumentNullException.ThrowIfNull(screenshot);
             ArgumentNullException.ThrowIfNull(templateMat);
             ArgumentNullException.ThrowIfNull(config);
+            cancellationToken.ThrowIfCancellationRequested();
             if (screenshot.Empty() || templateMat.Empty())
                 return Task.FromResult(new TemplateMatchResult(Array.Empty<TemplateMatch>(), false));
 
@@ -33,6 +34,7 @@ namespace GameBot.Domain.Vision
             var candidates = new List<TemplateMatch>();
             for (int y = 0; y < resultRows; y++)
             {
+                if ((y & 15) == 0) cancellationToken.ThrowIfCancellationRequested();
                 for (int x = 0; x < resultCols; x++)
                 {
                     var score = result.At<float>(y, x);
