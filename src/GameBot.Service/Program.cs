@@ -14,6 +14,9 @@ using GameBot.Service.Logging;
 using GameBot.Service.Services.Ocr;
 using Microsoft.Extensions.Logging;
 using System.Text.Json.Serialization;
+using System.Runtime.InteropServices;
+using GameBot.Service.Services.Detections;
+using GameBot.Domain.Vision;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -151,6 +154,9 @@ builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, 
 builder.Services.AddHostedService<GameBot.Service.Hosted.ConfigSnapshotStartupInitializer>();
 builder.Services.AddHostedService<LoggingPolicyStartupInitializer>();
 
+// Bind detection options (threshold, max results, timeout, overlap)
+builder.Services.Configure<DetectionOptions>(builder.Configuration.GetSection(DetectionOptions.SectionName));
+
 // Configuration binding for auth token (env: GAMEBOT_AUTH_TOKEN)
 var authToken = builder.Configuration["Service:Auth:Token"]
                  ?? Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
@@ -162,6 +168,26 @@ if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase)) {
 }
 
 var app = builder.Build();
+
+// Log basic runtime and OpenCV information at startup for diagnostics
+{
+  var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ImageDetections");
+  var is64 = Environment.Is64BitProcess;
+  var arch = RuntimeInformation.ProcessArchitecture.ToString();
+  var buildInfo = CvRuntime.GetOpenCvBuildInformation();
+  string firstLine;
+  if (string.IsNullOrEmpty(buildInfo))
+  {
+    firstLine = "unavailable";
+  }
+  else
+  {
+    var span = buildInfo.AsSpan();
+    var idx = span.IndexOfAny('\r', '\n');
+    firstLine = idx >= 0 ? new string(span.Slice(0, idx)) : buildInfo;
+  }
+  logger.LogDetectionRuntimeInfo(is64, arch, firstLine);
+}
 
 // Enable Swagger in all environments for contract tests & debugging (locked down by token auth for non-health if configured)
 app.UseSwagger();
