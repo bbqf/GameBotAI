@@ -56,10 +56,10 @@ Independent Test: Existing endpoints behave identical pre/post feature merge.
 Goal: Deliver normalized coordinates & confidence in [0,1]; resolution independent.
 Independent Test: Coordinates scale with varying screenshot sizes; confidence clamped.
 
-- [ ] T028 [US3] Implement normalization helper ensuring float precision in `src/GameBot.Domain/Vision/Normalization.cs`
-- [ ] T029 [US3] Unit tests: coordinate normalization across multiple resolutions in `tests/unit/TemplateMatcherTests.cs`
-- [ ] T030 [US3] Unit tests: confidence transform/clamp logic in `tests/unit/TemplateMatcherTests.cs`
-- [ ] T031 [US3] Integration tests: normalized boxes values in `tests/integration/ImageDetectionsEndpointTests.cs`
+- [x] T028 [US3] Implement normalization helper ensuring float precision in `src/GameBot.Domain/Vision/Normalization.cs`
+- [x] T029 [US3] Unit tests: coordinate normalization across multiple resolutions in `tests/unit/NormalizationTests.cs`
+- [x] T030 [US3] Unit tests: confidence transform/clamp logic in `tests/unit/NormalizationTests.cs`
+- [x] T031 [US3] Integration tests: normalized boxes values in `tests/integration/ImageDetectionsEndpointTests.cs`
 - [ ] T032 [US3] Document normalization guarantees in `specs/001-image-match-detections/data-model.md`
 - [ ] T033 [US3] Add explanation of confidence semantics to `specs/001-image-match-detections/quickstart.md`
 
