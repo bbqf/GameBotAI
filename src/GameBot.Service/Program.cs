@@ -132,6 +132,8 @@ if (OperatingSystem.IsWindows()) {
     });
   }
   builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ImageMatchEvaluator>();
+  // Register template matcher (no endpoint yet; foundational only in Phase 2)
+  builder.Services.AddSingleton<GameBot.Domain.Vision.ITemplateMatcher, GameBot.Domain.Vision.TemplateMatcher>();
   // Text match evaluator (OCR): dynamic backend selection based on refreshed configuration
   builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITextOcr, GameBot.Service.Services.DynamicTextOcr>();
   builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator>();
