@@ -1,0 +1,1 @@
+// Removed: duplicate parallelization attribute. See AssemblyInfo.cs.
