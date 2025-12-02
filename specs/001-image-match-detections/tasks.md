@@ -21,6 +21,8 @@ Plan: `specs/001-image-match-detections/plan.md`
 - [x] T010 Wire `ITemplateMatcher` DI registration in `src/GameBot.Service/Program.cs`
 - [x] T011 Add domain exceptions (InvalidReferenceImageException, DetectionTimeoutException) in `src/GameBot.Domain/Vision/DetectionErrors.cs`
 - [x] T012 [P] Add performance timer helper for detections in `src/GameBot.Domain/Vision/DetectionTiming.cs`
+- [x] T017 [US1] Unit tests: matcher multi-match & empty result in `tests/unit/TemplateMatcherTests.cs`
+- [x] T018 [US1] Unit tests: NMS overlap suppression in `tests/unit/NmsTests.cs`
 
 ## Phase 3: User Story 1 (Find all matches P1)
 
