@@ -103,6 +103,23 @@ tests/
   - Update README and specs quickstart; add examples.
   - Changelog entry; feature flag note if applicable.
 
+---
+
+## Phase 2 PR Scope (Foundational)
+
+This PR will implement the foundational pieces for detections (no new endpoint yet):
+
+- T006 Create `ITemplateMatcher` interface and config record types
+- T007 Add `BoundingBox`/IoU helper
+- T008 Implement `Nms` utility
+- T009 OpenCV-based `TemplateMatcher` (grayscale + NCC + thresholding)
+- T010 DI registration in `Program.cs` (no behavior changes to existing endpoints)
+- T011 Domain exceptions
+- T012 Detection timing helper
+
+Notes:
+- Stacked on Phase 1 PR; no breaking changes; no public API exposure yet.
+
 ## Complexity Tracking
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
