@@ -86,22 +86,15 @@ namespace GameBot.Service.Endpoints
                 // Normalize bbox coordinates
                 var w = screenshotMat.Cols;
                 var h = screenshotMat.Rows;
-                var resp = new DetectResponse
-                {
-                    LimitsHit = result.LimitsHit
-                };
+                var resp = new DetectResponse { LimitsHit = result.LimitsHit };
                 foreach (var m in result.Matches)
                 {
+                    GameBot.Domain.Vision.Normalization.NormalizeRect(m.BBox.X, m.BBox.Y, m.BBox.Width, m.BBox.Height, w, h,
+                        out var nx, out var ny, out var nw, out var nh);
                     resp.Matches.Add(new MatchResult
                     {
-                        Confidence = Math.Clamp(m.Confidence, 0, 1),
-                        Bbox = new NormalizedRect
-                        {
-                            X = Math.Clamp((double)m.BBox.X / w, 0, 1),
-                            Y = Math.Clamp((double)m.BBox.Y / h, 0, 1),
-                            Width = Math.Clamp((double)m.BBox.Width / w, 0, 1),
-                            Height = Math.Clamp((double)m.BBox.Height / h, 0, 1)
-                        }
+                        Confidence = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
+                        Bbox = new NormalizedRect { X = nx, Y = ny, Width = nw, Height = nh }
                     });
                 }
 
