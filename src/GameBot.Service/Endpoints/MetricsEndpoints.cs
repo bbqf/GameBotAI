@@ -40,6 +40,28 @@ internal static class MetricsEndpoints {
     .WithName("GetDomainObjectCounts")
     ;
 
+    group.MapGet("/process", (IConfiguration config) => {
+      // Working set and managed memory snapshot in MB
+      var wsBytes = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
+      var managedBytes = GC.GetTotalMemory(forceFullCollection: false);
+      var wsMb = wsBytes / (1024.0 * 1024.0);
+      var managedMb = managedBytes / (1024.0 * 1024.0);
+
+      // Optional budget from config: Service:ResourceBudget:MaxWorkingSetMB (env Service__ResourceBudget__MaxWorkingSetMB)
+      var budgetStr = config["Service:ResourceBudget:MaxWorkingSetMB"];
+      double? budgetMb = null;
+      if (double.TryParse(budgetStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed)) {
+        budgetMb = parsed;
+      }
+
+      return Results.Ok(new {
+        workingSetMB = Math.Round(wsMb, 2),
+        managedMemoryMB = Math.Round(managedMb, 2),
+        budgetMB = budgetMb
+      });
+    })
+    .WithName("GetProcessMetrics");
+
     return app;
   }
 }

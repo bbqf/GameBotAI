@@ -70,7 +70,7 @@ Independent Test: Coordinates scale with varying screenshot sizes; confidence cl
 - [x] T036 [P] Add metrics counters (duration, result count) in `src/GameBot.Service/Endpoints/ImageDetectionsMetrics.cs`
 - [x] T037 Safeguard oversized template early-return in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
 - [x] T038 Stress test: large screenshot & maxResults overflow handling in `tests/integration/ImageDetectionsStressTests.cs`
-- [ ] T039 Verify memory usage stays < configured budget in test harness log output `tests/integration/ResourceLimitsTests.cs`
+ - [x] T039 Verify memory usage stays < configured budget in `tests/integration/ResourceLimitsTests.cs`
 
 ## Phase 7: Docs & Release
 
