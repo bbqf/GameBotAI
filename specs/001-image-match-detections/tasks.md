@@ -14,13 +14,13 @@ Plan: `specs/001-image-match-detections/plan.md`
 
 ## Phase 2: Foundational
 
-- [ ] T006 Create `src/GameBot.Domain/Vision/ITemplateMatcher.cs` (MatchAll + config record types)
-- [ ] T007 Implement IoU helper and box struct in `src/GameBot.Domain/Vision/BoundingBox.cs`
-- [ ] T008 Implement Non-Maximum Suppression utility `src/GameBot.Domain/Vision/Nms.cs`
-- [ ] T009 [P] Implement grayscale + NCC wrapper using OpenCV in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
-- [ ] T010 Wire `ITemplateMatcher` DI registration in `src/GameBot.Service/Program.cs`
-- [ ] T011 Add domain exceptions (InvalidReferenceImageException, DetectionTimeoutException) in `src/GameBot.Domain/Vision/DetectionErrors.cs`
-- [ ] T012 [P] Add performance timer helper for detections in `src/GameBot.Domain/Vision/DetectionTiming.cs`
+- [x] T006 Create `src/GameBot.Domain/Vision/ITemplateMatcher.cs` (MatchAll + config record types)
+- [x] T007 Implement IoU helper and box struct in `src/GameBot.Domain/Vision/BoundingBox.cs`
+- [x] T008 Implement Non-Maximum Suppression utility `src/GameBot.Domain/Vision/Nms.cs`
+- [x] T009 [P] Implement grayscale + NCC wrapper using OpenCV in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
+- [x] T010 Wire `ITemplateMatcher` DI registration in `src/GameBot.Service/Program.cs`
+- [x] T011 Add domain exceptions (InvalidReferenceImageException, DetectionTimeoutException) in `src/GameBot.Domain/Vision/DetectionErrors.cs`
+- [x] T012 [P] Add performance timer helper for detections in `src/GameBot.Domain/Vision/DetectionTiming.cs`
 
 ## Phase 3: User Story 1 (Find all matches P1)
 
