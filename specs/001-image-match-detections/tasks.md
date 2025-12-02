@@ -74,11 +74,11 @@ Independent Test: Coordinates scale with varying screenshot sizes; confidence cl
 
 ## Phase 7: Docs & Release
 
-- [ ] T040 Update feature plan with final implementation notes in `specs/001-image-match-detections/plan.md`
-- [ ] T041 Add release notes section in `CHANGELOG.md`
-- [ ] T042 Add example detection JSON to README in `README.md`
-- [ ] T043 Prepare feature flag documentation (if gating) in `ENVIRONMENT.md`
-- [ ] T044 Ensure OpenCv license file compliance in `LICENSE_NOTICE.md`
+ - [x] T040 Update feature plan with final implementation notes in `specs/001-image-match-detections/plan.md`
+ - [x] T041 Add release notes section in `CHANGELOG.md`
+ - [x] T042 Add example detection JSON to README in `README.md`
+ - [x] T043 Prepare feature flag documentation (if gating) in `ENVIRONMENT.md`
+ - [x] T044 Ensure OpenCv license file compliance in `LICENSE_NOTICE.md`
 
 ## Phase 8: Polish & Cross-Cutting
 

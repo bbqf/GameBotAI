@@ -8,6 +8,17 @@ All notable changes to this project will be documented in this file.
 - Image detections: Additive endpoint `POST /images/detect` returning normalized bounding boxes and confidences in [0,1]. Includes unit, integration, and contract tests.
 - Operational metrics: `/metrics/process` endpoint exposing `workingSetMB`, `managedMemoryMB`, and `budgetMB`; integration test verifies working set remains under configured budget (T039).
 
+### Release Notes
+Image Match Detections feature shipped across stacked phases:
+- Phase 1–2: Introduced OpenCvSharp4 dependency, template matcher, IoU/NMS utilities, domain exceptions, timing helper, DI wiring.
+- Phase 3: Exposed `POST /images/detect` endpoint with validation, structured logging, and contract + integration tests.
+- Phase 4: Backward compatibility validation—existing `/images` endpoints unchanged; immutability and OpenAPI presence tests.
+- Phase 5: Normalization guarantees—coordinates and confidences now resolution & scale independent with dedicated unit/integration coverage.
+- Phase 6: Performance & hardening—timeouts, metrics (duration/result count + process memory), stress tests, resource safeguards.
+
+Configuration keys (override via env): `Service__Detections__Threshold`, `Service__Detections__MaxResults`, `Service__Detections__TimeoutMs`, `Service__Detections__Overlap`.
+Operational guidance: Raise `Threshold` to reduce noise; monitor `/metrics/process` for memory trends and adjust budget or template sizes accordingly.
+
 ### Notes
 - Backwards compatibility: Existing endpoints and trigger evaluators remain unchanged. Detection feature is additive and does not mutate stored images.
 
