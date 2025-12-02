@@ -20,9 +20,9 @@ namespace GameBot.Service.Endpoints
                 IReferenceImageStore store,
                 ITemplateMatcher matcher,
                 IOptions<GameBot.Service.Services.Detections.DetectionOptions> detOpts,
-                ILogger logger,
                 CancellationToken ct) =>
             {
+                var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("GameBot.Service.ImageDetections");
                 var (ok, error) = ImageDetectionsValidation.ValidateRequest(req);
                 if (!ok)
                 {

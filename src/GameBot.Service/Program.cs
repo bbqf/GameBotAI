@@ -240,6 +240,7 @@ app.MapAdbEndpoints();
 // Image references endpoints for image-match triggers
 if (OperatingSystem.IsWindows()) {
   app.MapImageReferenceEndpoints();
+  app.MapImageDetectionsEndpoints();
 }
 
 // Metrics endpoints (protected if token set)

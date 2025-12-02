@@ -140,3 +140,15 @@ This PR will implement the first user story: find all matches above threshold an
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | New dependency (OpenCvSharp4) | Enables robust, bundled CV without external install | Re-implementing CV is error-prone; ImageSharp lacks fast NCC and peak finding |
+
+---
+
+## Phase 4 PR Scope (US2 – Preserve Existing Endpoints)
+
+Objective: Ensure the detections feature is purely additive and introduces no behavior or contract changes to existing endpoints and evaluators.
+
+- T023 Regression tests: verify legacy `/images` endpoints behave exactly as before (invalid image → 400, missing → 404, overwrite flag on re-upload).
+- T024 Evaluator invariance: No changes were made to `ImageMatchEvaluator` logic; detections use separate services (`ITemplateMatcher`, `/images/detect`). Documented here for traceability.
+- T025 OpenAPI presence check: assert legacy paths (e.g., `/images`, `/images/{id}`, `/health`, `/api/ocr/coverage`) remain present alongside `/images/detect`.
+- T026 Safeguard: `POST /images/detect` must not mutate stored image bytes. Integration test asserts on-disk SHA256 unchanged pre/post call.
+- T027 Docs: CHANGELOG entry stating the new endpoint is additive with no breaking changes.
