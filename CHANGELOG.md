@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-12-02]
+
+### Added
+- Image detections: Additive endpoint `POST /images/detect` returning normalized bounding boxes and confidences in [0,1]. Includes unit, integration, and contract tests.
+
+### Notes
+- Backwards compatibility: Existing endpoints and trigger evaluators remain unchanged. Detection feature is additive and does not mutate stored images.
+
 ## [2025-11-26]
 
 ### Added

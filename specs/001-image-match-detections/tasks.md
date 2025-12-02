@@ -10,44 +10,46 @@ Plan: `specs/001-image-match-detections/plan.md`
 - [x] T002 Verify x64 build configuration and runtime load of OpenCV DLLs (log version on service start) in `src/GameBot.Service/Program.cs`
 - [x] T003 Add configurable detection settings (DefaultThreshold, MaxResults, TimeoutMs, Overlap) to `data/config/config.json` and bind strongly in `src/GameBot.Service/Program.cs`
 - [x] T004 [P] Add logging category constants for detection operations to `src/GameBot.Service/Logging/DetectionLogging.cs`
-- [ ] T005 Add new OpenAPI fragment inclusion for `openapi-image-detections.yaml` in `specs/master/contracts` aggregation (or reference in existing `specs/openapi.json` build script if present)
+- [x] T005 Add new OpenAPI fragment inclusion for `openapi-image-detections.yaml` in `specs/master/contracts` aggregation (or reference in existing `specs/openapi.json` build script if present)
 
 ## Phase 2: Foundational
 
-- [ ] T006 Create `src/GameBot.Domain/Vision/ITemplateMatcher.cs` (MatchAll + config record types)
-- [ ] T007 Implement IoU helper and box struct in `src/GameBot.Domain/Vision/BoundingBox.cs`
-- [ ] T008 Implement Non-Maximum Suppression utility `src/GameBot.Domain/Vision/Nms.cs`
-- [ ] T009 [P] Implement grayscale + NCC wrapper using OpenCV in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
-- [ ] T010 Wire `ITemplateMatcher` DI registration in `src/GameBot.Service/Program.cs`
-- [ ] T011 Add domain exceptions (InvalidReferenceImageException, DetectionTimeoutException) in `src/GameBot.Domain/Vision/DetectionErrors.cs`
-- [ ] T012 [P] Add performance timer helper for detections in `src/GameBot.Domain/Vision/DetectionTiming.cs`
+- [x] T006 Create `src/GameBot.Domain/Vision/ITemplateMatcher.cs` (MatchAll + config record types)
+- [x] T007 Implement IoU helper and box struct in `src/GameBot.Domain/Vision/BoundingBox.cs`
+- [x] T008 Implement Non-Maximum Suppression utility `src/GameBot.Domain/Vision/Nms.cs`
+- [x] T009 [P] Implement grayscale + NCC wrapper using OpenCV in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
+- [x] T010 Wire `ITemplateMatcher` DI registration in `src/GameBot.Service/Program.cs`
+- [x] T011 Add domain exceptions (InvalidReferenceImageException, DetectionTimeoutException) in `src/GameBot.Domain/Vision/DetectionErrors.cs`
+- [x] T012 [P] Add performance timer helper for detections in `src/GameBot.Domain/Vision/DetectionTiming.cs`
+- [x] T017 [US1] Unit tests: matcher multi-match & empty result in `tests/unit/TemplateMatcherTests.cs`
+- [x] T018 [US1] Unit tests: NMS overlap suppression in `tests/unit/NmsTests.cs`
 
 ## Phase 3: User Story 1 (Find all matches P1)
 
 Goal: Return zero or more matches with normalized bounding boxes and confidences ≥ threshold.
 Independent Test: Given known template occurrences, API returns all matches above threshold; empty list when none.
 
-- [ ] T013 [US1] Implement request/response DTOs in `src/GameBot.Service/Endpoints/Dto/ImageDetectionsDtos.cs`
-- [ ] T014 [US1] Implement validation (threshold/maxResults/overlap ranges) in `src/GameBot.Service/Endpoints/ImageDetectionsValidation.cs`
-- [ ] T015 [P] [US1] Implement endpoint `POST /images/detect` in `src/GameBot.Service/Endpoints/ImageDetectionsEndpoints.cs`
-- [ ] T016 [US1] Add structured logger messages (start, result count, truncated, duration) in `src/GameBot.Service/Endpoints/ImageDetectionsEndpoints.Logging.cs`
-- [ ] T017 [US1] Unit tests: matcher multi-match & empty result in `tests/unit/TemplateMatcherTests.cs`
-- [ ] T018 [US1] Unit tests: NMS overlap suppression in `tests/unit/NmsTests.cs`
-- [ ] T019 [US1] Integration tests: happy path & empty responses in `tests/integration/ImageDetectionsEndpointTests.cs`
-- [ ] T020 [US1] Contract test: schema conformance against `specs/001-image-match-detections/contracts/openapi-image-detections.yaml` in `tests/contract/ImageDetectionsContractTests.cs`
-- [ ] T021 [US1] Add example to quickstart `specs/001-image-match-detections/quickstart.md`
-- [ ] T022 [US1] Update README snippet for detection usage in `README.md`
+- [x] T013 [US1] Implement request/response DTOs in `src/GameBot.Service/Endpoints/Dto/ImageDetectionsDtos.cs`
+- [x] T014 [US1] Implement validation (threshold/maxResults/overlap ranges) in `src/GameBot.Service/Endpoints/ImageDetectionsValidation.cs`
+- [x] T015 [P] [US1] Implement endpoint `POST /images/detect` in `src/GameBot.Service/Endpoints/ImageDetectionsEndpoints.cs`
+- [x] T016 [US1] Add structured logger messages (start, result count, truncated, duration) in `src/GameBot.Service/Endpoints/ImageDetectionsEndpoints.Logging.cs`
+- [x] T017 [US1] Unit tests: matcher multi-match & empty result in `tests/unit/TemplateMatcherTests.cs`
+- [x] T018 [US1] Unit tests: NMS overlap suppression in `tests/unit/NmsTests.cs`
+- [x] T019 [US1] Integration tests: happy path & empty responses in `tests/integration/ImageDetectionsEndpointTests.cs`
+- [x] T020 [US1] Contract test: schema conformance against `specs/001-image-match-detections/contracts/openapi-image-detections.yaml` in `tests/contract/ImageDetectionsContractTests.cs`
+- [x] T021 [US1] Add example to quickstart `specs/001-image-match-detections/quickstart.md`
+- [x] T022 [US1] Update README snippet for detection usage in `README.md`
 
 ## Phase 4: User Story 2 (Preserve existing endpoints P2)
 
 Goal: Ensure existing image endpoints and trigger evaluation unchanged; detection is additive.
 Independent Test: Existing endpoints behave identical pre/post feature merge.
 
-- [ ] T023 [US2] Backward compatibility regression tests additions (ensure unchanged responses) in `tests/integration/ImageReferencesBackwardCompatTests.cs`
-- [ ] T024 [US2] Confirm no modifications to existing evaluator logic (`ImageMatchEvaluator.cs`) except additive DI; document invariance in `specs/001-image-match-detections/plan.md`
-- [ ] T025 [US2] Add contract diff check between previous `specs/openapi.json` and updated version in `tests/contract/OpenApiBackwardCompatTests.cs`
-- [ ] T026 [P] [US2] Add safeguard: endpoint does not mutate stored images (assert hash unchanged) in `tests/integration/ImageDetectionsEndpointTests.cs`
-- [ ] T027 [US2] Update CHANGELOG with “Additive detection endpoint (no breaking changes)” in `CHANGELOG.md`
+- [x] T023 [US2] Backward compatibility regression tests additions (ensure unchanged responses) in `tests/integration/ImageReferencesBackwardCompatTests.cs`
+- [x] T024 [US2] Confirm no modifications to existing evaluator logic (`ImageMatchEvaluator.cs`) except additive DI; document invariance in `specs/001-image-match-detections/plan.md`
+- [x] T025 [US2] Add contract diff check between previous `specs/openapi.json` and updated version in `tests/contract/OpenApiBackwardCompatTests.cs`
+- [x] T026 [P] [US2] Add safeguard: endpoint does not mutate stored images (assert hash unchanged) in `tests/integration/ImageDetectionsEndpointTests.cs`
+- [x] T027 [US2] Update CHANGELOG with “Additive detection endpoint (no breaking changes)” in `CHANGELOG.md`
 
 ## Phase 5: User Story 3 (Normalized output P3)
 

@@ -166,6 +166,34 @@ Validation rules:
 Overwrite: re-upload with same `id` atomically replaces the file.
 Delete: `DELETE /images/{id}`; subsequent evaluations treat the reference as missing until replaced.
 
+### Image detections (additive API)
+
+Find all occurrences of a persisted reference image on the current screenshot. Returns normalized bounding boxes and confidences in [0,1].
+
+- Detect matches: `POST /images/detect`
+  - Body:
+    ```json
+    {
+      "referenceImageId": "Home",
+      "threshold": 0.85,
+      "maxResults": 10,
+      "overlap": 0.3
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "matches": [
+        { "bbox": { "x": 0.12, "y": 0.45, "width": 0.08, "height": 0.08 }, "confidence": 0.93 }
+      ],
+      "limitsHit": false
+    }
+    ```
+Notes:
+- Coordinates scale with screenshot size (0–1 range).
+- Confidence is normalized (0–1). Increase `threshold` to reduce false positives.
+- `maxResults` limits returned matches; `overlap` applies NMS to de-duplicate boxes.
+
 #### Commands
 Composable orchestration objects referencing Actions (and optionally nested Commands) with cycle detection and optional trigger gating.
 - CRUD: `POST /commands`, `GET /commands/{id}`, `PATCH /commands/{id}`, `DELETE /commands/{id}`.
