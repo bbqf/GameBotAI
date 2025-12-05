@@ -202,6 +202,13 @@ Notes:
   - `FirstMatch`: choose the first match in the sorted list.
 - With `confidence >= 0.99`, adapter caps results to one.
 
+### Strategy Comparison
+
+| Strategy          | How it selects                        | When to use                                | Trade-offs                                  |
+|-------------------|----------------------------------------|--------------------------------------------|---------------------------------------------|
+| HighestConfidence | Picks the match with the highest score | Noisy screens; multiple similar candidates | Might jump between candidates across frames |
+| FirstMatch        | Picks the first match after sorting    | Stable UIs; deterministic selection needed | May choose a lower-confidence candidate     |
+
 - Detect matches: `POST /images/detect`
   - Body:
     ```json
