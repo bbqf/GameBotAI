@@ -152,3 +152,31 @@ Objective: Ensure the detections feature is purely additive and introduces no be
 - T025 OpenAPI presence check: assert legacy paths (e.g., `/images`, `/images/{id}`, `/health`, `/api/ocr/coverage`) remain present alongside `/images/detect`.
 - T026 Safeguard: `POST /images/detect` must not mutate stored image bytes. Integration test asserts on-disk SHA256 unchanged pre/post call.
 - T027 Docs: CHANGELOG entry stating the new endpoint is additive with no breaking changes.
+
+## Final Implementation Notes (Post Phases 1–6)
+
+Architecture recap:
+- Matching Strategy: OpenCV TM_CCOEFF_NORMED over grayscale screenshot and reference template; candidate points filtered by configured `Threshold` then transformed into bounding boxes.
+- De-duplication: IoU-based NMS using configured `Overlap` (default 0.45 currently); results sorted by confidence descending and truncated to `MaxResults`.
+- Normalization: Bounding boxes normalized to [0,1] relative to screenshot dimensions; confidences clamped to [0,1] prior to serialization.
+- Cancellation & Timeouts: Linked CTS enforces `TimeoutMs` (default 500). `TemplateMatcher` polls `CancellationToken` between major OpenCV calls and early-exits when triggered, returning an empty set with `limitsHit=true` at the endpoint layer.
+- Safeguards: Oversized templates (larger than screenshot or zero-area) short-circuit to avoid expensive work. Stress tests assert deterministic ordering and proper truncation when synthetic images produce high match counts.
+- Metrics: Histogram for detection duration and counter for result counts recorded via `ImageDetectionsMetrics.Record`. Additional process-level memory metrics exposed at `/metrics/process` (working set, managed heap, configured budget) to observe resource usage.
+- Determinism: Given identical screenshot + reference + settings, match ordering remains stable because confidence sorting precedes truncation.
+
+Operational guidance:
+- Tune `Service__Detections__Threshold` upward (>0.9) to reduce false positives in noisy UIs; lower it only when templates are small or partially occluded.
+- Increase `Service__Detections__MaxResults` cautiously; each additional candidate requires IoU comparisons (O(n^2) worst-case pre-truncation) though typical counts remain low.
+- If timeouts occur regularly, raise `Service__Detections__TimeoutMs` or reduce template size; persistent timeouts with small templates may indicate host CPU pressure.
+
+Future considerations (not in scope):
+- Multi-scale pyramid matching for scale-variant detections.
+- GPU acceleration via OpenCL toggles (requires validating OpenCvSharp build capabilities on target hosts).
+- Adaptive thresholding per-template (auto-calibration pass).
+
+License & Third-Party Notice:
+- OpenCvSharp4 and OpenCV native binaries are distributed under the BSD 3-Clause license. A consolidated notice has been added in `LICENSE_NOTICE.md`.
+
+Release Documentation:
+- README updated with request/response examples and parameter guidance.
+- ENVIRONMENT.md now documents detection configuration keys (`Service__Detections__*`).

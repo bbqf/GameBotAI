@@ -84,4 +84,31 @@ public sealed class ResourceLimitsTests : IDisposable {
       Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", prevToken2);
     }
   }
+
+  [Fact]
+  public async Task ProcessWorkingSetStaysUnderBudget() {
+    var prevToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+    var prevBudget = Environment.GetEnvironmentVariable("Service__ResourceBudget__MaxWorkingSetMB");
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
+    // Set a generous budget unlikely to be exceeded in test runs
+    Environment.SetEnvironmentVariable("Service__ResourceBudget__MaxWorkingSetMB", "1024");
+    try {
+      using var app = new WebApplicationFactory<Program>();
+      var client = app.CreateClient();
+      client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+      var resp = await client.GetAsync(new Uri("/metrics/process", UriKind.Relative)).ConfigureAwait(true);
+      resp.EnsureSuccessStatusCode();
+      var raw = await resp.Content.ReadAsStringAsync().ConfigureAwait(true);
+      using var doc = System.Text.Json.JsonDocument.Parse(raw);
+      var root = doc.RootElement;
+      var ws = root.GetProperty("workingSetMB").GetDouble();
+      var budget = root.GetProperty("budgetMB").GetDouble();
+      ws.Should().BeLessThanOrEqualTo(budget);
+    }
+    finally {
+      Environment.SetEnvironmentVariable("Service__ResourceBudget__MaxWorkingSetMB", prevBudget);
+      Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", prevToken);
+    }
+  }
 }

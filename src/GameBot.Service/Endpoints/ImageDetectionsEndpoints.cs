@@ -79,9 +79,27 @@ namespace GameBot.Service.Endpoints
 
                 var cfg = new TemplateMatcherConfig(threshold, maxResults, overlap);
                 var start = System.Diagnostics.Stopwatch.StartNew();
-                var result = await matcher.MatchAllAsync(screenshotMat, templateMat, cfg, ct).ConfigureAwait(false);
+                TemplateMatchResult result;
+                long elapsedMs;
+                try
+                {
+                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1, detOpts.Value.TimeoutMs)));
+                    result = await matcher.MatchAllAsync(screenshotMat, templateMat, cfg, timeoutCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    start.Stop();
+                    elapsedMs = (long)start.Elapsed.TotalMilliseconds;
+                    ImageDetectionsEndpointComponent.LogDetectResults(logger, 0, true, elapsedMs);
+                    ImageDetectionsMetrics.Record(elapsedMs, 0);
+                    var empty = new DetectResponse { LimitsHit = true };
+                    return Results.Ok(empty);
+                }
                 start.Stop();
-                ImageDetectionsEndpointComponent.LogDetectResults(logger, result.Matches.Count, result.LimitsHit, (long)start.Elapsed.TotalMilliseconds);
+                elapsedMs = (long)start.Elapsed.TotalMilliseconds;
+                ImageDetectionsEndpointComponent.LogDetectResults(logger, result.Matches.Count, result.LimitsHit, elapsedMs);
+                ImageDetectionsMetrics.Record(elapsedMs, result.Matches.Count);
 
                 // Normalize bbox coordinates
                 var w = screenshotMat.Cols;

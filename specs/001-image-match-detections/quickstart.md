@@ -36,5 +36,5 @@ Example response:
 ## Notes
 
 - Coordinates are normalized to the current screenshot size.
-- Confidence is in [0,1]; tune `threshold` to balance precision/recall.
+- Confidence is clamped to [0,1]; internally the detector uses NCC (`TM_CCOEFF_NORMED`) and filters by `threshold` (default 0.8) before clamping.
 - Set `maxResults` and `overlap` for stricter de-duplication.
