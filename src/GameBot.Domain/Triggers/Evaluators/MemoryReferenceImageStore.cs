@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Runtime.Versioning;
 
 namespace GameBot.Domain.Triggers.Evaluators;
 
+[SupportedOSPlatform("windows")]
 public sealed class MemoryReferenceImageStore : IReferenceImageStore {
   private readonly ConcurrentDictionary<string, Bitmap> _images = new(StringComparer.OrdinalIgnoreCase);
   public void AddOrUpdate(string id, Bitmap bitmap) => _images.AddOrUpdate(id, bitmap, (_, __) => bitmap);
