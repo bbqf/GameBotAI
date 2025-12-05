@@ -177,7 +177,7 @@ Sample: execute a command that taps using image detection
 - Copy the sample command from `samples/sample-detect-command.json` to your data directory:
   ```powershell
   # Create the commands directory if it doesn't exist
-  mkdir -p $env:GAMEBOT_DATA_DIR/commands
+  New-Item -ItemType Directory -Force -Path "$env:GAMEBOT_DATA_DIR/commands" | Out-Null
   # Copy the sample command
   Copy-Item samples/sample-detect-command.json "$env:GAMEBOT_DATA_DIR/commands/00000000000000000000000000000001.json"
   ```
