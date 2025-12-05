@@ -49,8 +49,18 @@ namespace GameBot.Domain.Vision
             if (candidates.Count == 0)
                 return Task.FromResult(new TemplateMatchResult(Array.Empty<TemplateMatch>(), false));
 
-            // Sort by confidence desc
-            candidates.Sort(static (a, b) => b.Confidence.CompareTo(a.Confidence));
+            // Sort deterministically: confidence desc, then bbox tie-breaker (x, y, width, height asc)
+            candidates.Sort(static (a, b) =>
+            {
+                var byConf = b.Confidence.CompareTo(a.Confidence);
+                if (byConf != 0) return byConf;
+                var ax = a.BBox.X; var ay = a.BBox.Y; var aw = a.BBox.Width; var ah = a.BBox.Height;
+                var bx = b.BBox.X; var by = b.BBox.Y; var bw = b.BBox.Width; var bh = b.BBox.Height;
+                var byX = ax.CompareTo(bx); if (byX != 0) return byX;
+                var byY = ay.CompareTo(by); if (byY != 0) return byY;
+                var byW = aw.CompareTo(bw); if (byW != 0) return byW;
+                return ah.CompareTo(bh);
+            });
 
             var pruned = Nms.Apply(candidates, config.Overlap, config.MaxResults);
             var limitsHit = pruned.Count >= config.MaxResults && candidates.Count > pruned.Count;
