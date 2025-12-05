@@ -173,7 +173,7 @@ var app = builder.Build();
 
 // Log basic runtime and OpenCV information at startup for diagnostics
 {
-  var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ImageDetections");
+  var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(GameBot.Service.Logging.DetectionsLogging.Category);
   var is64 = Environment.Is64BitProcess;
   var arch = RuntimeInformation.ProcessArchitecture.ToString();
   var buildInfo = CvRuntime.GetOpenCvBuildInformation();
