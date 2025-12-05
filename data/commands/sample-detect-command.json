@@ -1,0 +1,17 @@
+{
+  "id": "00000000000000000000000000000001",
+  "name": "Sample Detection Command",
+  "steps": [
+    {
+      "type": "Action",
+      "targetId": "d6bfccf500000000000000000000001",
+      "order": 0
+    }
+  ],
+  "detection": {
+    "referenceImageId": "home_button",
+    "confidence": 0.99,
+    "offsetX": 0,
+    "offsetY": 0
+  }
+}
