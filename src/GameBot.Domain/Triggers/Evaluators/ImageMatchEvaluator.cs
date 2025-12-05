@@ -55,13 +55,12 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     if (IsConstant(tplGray, out var tplVal) && IsConstant(regionGray, out var regVal)) {
       return Math.Abs(tplVal - regVal) < 1e-6 ? 1.0 : 0.0;
     }
-    double best = -1;
+    double best = double.NegativeInfinity;
     for (int y = 0; y <= regionGray.Height - tplGray.Height; y++)
       for (int x = 0; x <= regionGray.Width - tplGray.Width; x++) {
         var ncc = Ncc(regionGray, tplGray, x, y);
         if (ncc > best) best = ncc;
       }
-    if (best < 0) return 0d;
     return Math.Max(0, Math.Min(1, (best + 1) / 2.0));
   }
 

@@ -191,6 +191,26 @@ You can set these via appsettings or environment variables using double undersco
   - Env name: `Service__Triggers__Worker__IdleBackoffSeconds`
   - Default: `5`
 
+- Service:Detections:Threshold
+  - Env name: `Service__Detections__Threshold`
+  - Default: `0.8`
+  - Purpose: Minimum normalized confidence (0–1) required for a match candidate to be considered.
+
+- Service:Detections:MaxResults
+  - Env name: `Service__Detections__MaxResults`
+  - Default: `5`
+  - Purpose: Upper bound on returned matches after sorting by confidence and applying NMS.
+
+- Service:Detections:TimeoutMs
+  - Env name: `Service__Detections__TimeoutMs`
+  - Default: `500`
+  - Purpose: Maximum wall-clock time (milliseconds) allotted to a detection operation before cancellation.
+
+- Service:Detections:Overlap
+  - Env name: `Service__Detections__Overlap`
+  - Default: `0.45`
+  - Purpose: IoU threshold for Non-Maximum Suppression; boxes with IoU >= this value are suppressed.
+
 ## Quick reference (what to set for common scenarios)
 
 - Run with stub screen + deterministic OCR text:

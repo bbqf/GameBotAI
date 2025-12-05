@@ -166,6 +166,72 @@ Validation rules:
 Overwrite: re-upload with same `id` atomically replaces the file.
 Delete: `DELETE /images/{id}`; subsequent evaluations treat the reference as missing until replaced.
 
+### Image detections (additive API)
+
+Find all occurrences of a persisted reference image on the current screenshot. Returns normalized bounding boxes and confidences in [0,1].
+
+- Detect matches: `POST /images/detect`
+  - Body:
+    ```json
+    {
+      "referenceImageId": "Home",
+      "threshold": 0.85,
+      "maxResults": 10,
+      "overlap": 0.3
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "matches": [
+        { "bbox": { "x": 0.12, "y": 0.45, "width": 0.08, "height": 0.08 }, "confidence": 0.93 }
+      ],
+      "limitsHit": false
+    }
+    ```
+Notes:
+- Coordinates scale with screenshot size (0–1 range).
+- Confidence is normalized (0–1). Increase `threshold` to reduce false positives.
+- `maxResults` limits returned matches; `overlap` applies NMS to de-duplicate boxes.
+
+Expanded example with multiple matches and truncation:
+```json
+POST /images/detect
+Request:
+{
+  "referenceImageId": "Home",
+  "threshold": 0.80,
+  "maxResults": 3,
+  "overlap": 0.45
+}
+Response:
+{
+  "matches": [
+    { "bbox": { "x": 0.12, "y": 0.45, "width": 0.08, "height": 0.08 }, "confidence": 0.93 },
+    { "bbox": { "x": 0.70, "y": 0.18, "width": 0.08, "height": 0.08 }, "confidence": 0.89 },
+    { "bbox": { "x": 0.31, "y": 0.52, "width": 0.08, "height": 0.08 }, "confidence": 0.87 }
+  ],
+  "limitsHit": true
+}
+```
+When `limitsHit=true`, more raw matches existed but were truncated after sorting by confidence. Raise `maxResults` or refine the template to reduce oversaturation.
+
+Metrics & resource monitoring:
+- Duration and result count recorded internally (histogram/counter).
+- Process memory: `GET /metrics/process` → `{ workingSetMB, managedMemoryMB, budgetMB }` for headroom tracking.
+
+Configuration overrides (env or saved config snapshot):
+- `Service__Detections__Threshold` (default: 0.8)
+- `Service__Detections__MaxResults` (default: 5)
+- `Service__Detections__TimeoutMs` (default: 500)
+- `Service__Detections__Overlap` (default: 0.45)
+Set via environment using double underscores, e.g.:
+```powershell
+$env:Service__Detections__Threshold = 0.9
+$env:Service__Detections__MaxResults = 10
+```
+Tune `Threshold` upward for noisy UIs; increase `TimeoutMs` only if legitimate detections routinely time out.
+
 #### Commands
 Composable orchestration objects referencing Actions (and optionally nested Commands) with cycle detection and optional trigger gating.
 - CRUD: `POST /commands`, `GET /commands/{id}`, `PATCH /commands/{id}`, `DELETE /commands/{id}`.

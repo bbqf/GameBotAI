@@ -2,10 +2,12 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.Versioning;
 using GameBot.Domain.Logging;
 
 namespace GameBot.Domain.Triggers.Evaluators;
 
+[SupportedOSPlatform("windows")]
 public class ReferenceImageStore : IReferenceImageStore
 {
     private readonly string _root;
