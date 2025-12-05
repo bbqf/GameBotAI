@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Runtime.Versioning;
 
 namespace GameBot.Domain.Triggers.Evaluators;
 
@@ -32,6 +33,7 @@ public readonly record struct TesseractInvocationContext(
   TesseractInvocationCapture StdOut,
   TesseractInvocationCapture StdErr);
 
+[SupportedOSPlatform("windows")]
 public sealed class TesseractProcessOcr : ITextOcr {
   private readonly ILogger<TesseractProcessOcr> _logger;
   private readonly string _exePath;
