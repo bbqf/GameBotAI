@@ -54,8 +54,13 @@ appsettings.*.local.json
 appsettings.Local.json
 
 # App-generated data (file repos)
-data/
-**/data/
+# Ignore all data contents except sample files
+data/**
+!data/
+!data/commands/
+!data/commands/sample-*.json
+!data/actions/
+!data/actions/sample-*.json
 
 # ReSharper
 _ReSharper.Caches/
