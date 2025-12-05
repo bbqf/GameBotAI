@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.Versioning;
-using System.Diagnostics.CodeAnalysis;
+using GameBot.Domain.Vision;
 
 namespace GameBot.Domain.Triggers.Evaluators;
 
@@ -50,8 +50,8 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
       gTpl.DrawImage(tpl, new Rectangle(0, 0, tpl.Width, tpl.Height), new Rectangle(0, 0, tpl.Width, tpl.Height), GraphicsUnit.Pixel);
     }
     if (tpl24.Width > region.Width || tpl24.Height > region.Height) return 0d;
-    var regionGray = ToGrayscale(region);
-    var tplGray = ToGrayscale(tpl24);
+    var regionGray = ImageProcessing.ToGrayscale(region);
+    var tplGray = ImageProcessing.ToGrayscale(tpl24);
     if (IsConstant(tplGray, out var tplVal) && IsConstant(regionGray, out var regVal)) {
       return Math.Abs(tplVal - regVal) < 1e-6 ? 1.0 : 0.0;
     }
@@ -64,28 +64,7 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     return Math.Max(0, Math.Min(1, (best + 1) / 2.0));
   }
 
-  private static GrayImage ToGrayscale(Bitmap bmp) {
-    var w = bmp.Width; var h = bmp.Height;
-    var data = new byte[w * h];
-    var bd = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-    try {
-      unsafe {
-        for (int y = 0; y < h; y++) {
-          byte* row = (byte*)bd.Scan0 + y * bd.Stride;
-          for (int x = 0; x < w; x++) {
-            byte b = row[x * 3 + 0];
-            byte g = row[x * 3 + 1];
-            byte r = row[x * 3 + 2];
-            data[y * w + x] = (byte)((r * 0.299) + (g * 0.587) + (b * 0.114));
-          }
-        }
-      }
-    }
-    finally {
-      bmp.UnlockBits(bd);
-    }
-    return new GrayImage(w, h, data);
-  }
+  
 
   private static double Ncc(GrayImage img, GrayImage tpl, int x0, int y0) {
     double sumI = 0, sumT = 0, sumI2 = 0, sumT2 = 0, sumIT = 0;
@@ -123,12 +102,4 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     value = mean;
     return var < 1e-6;
   }
-}
-
-[SuppressMessage("Performance", "CA1819:Properties should not return arrays")]
-public sealed class GrayImage {
-  public int Width { get; }
-  public int Height { get; }
-  public byte[] Data { get; }
-  public GrayImage(int w, int h, byte[] data) { Width = w; Height = h; Data = data; }
 }
