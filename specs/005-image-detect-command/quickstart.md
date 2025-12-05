@@ -1,52 +1,49 @@
-# Quickstart: Using Detection-Based Coordinates in Commands
+# Quickstart: Sample Detect Command
 
-## Define a Command
+## How to run the sample detection command locally
 
-Add a command JSON including a DetectionTarget (confidence optional, defaults to 0.8). Base point is center-only; use offsets to adjust:
-
-```json
-{
-  "id": "tap-home",
-  "name": "Tap Home Center",
-  "detectionTarget": {
-    "referenceImageId": "home_button_ref",
-    "confidence": 0.8,
-    "offsetX": 0,
-    "offsetY": 0
-  },
-  "actions": [
-    { "type": "tap" }
-  ]
-}
-```
-
-For an offset tap, set `offsetX`/`offsetY` to non-zero values. Coordinates are clamped within screen bounds.
-
-## Run the Service
-
-Use the provided task to run the service:
+### 1. Start the service
 
 ```powershell
 dotnet run -c Debug --project src/GameBot.Service
 ```
 
-## Execute and Observe
+### 2. Create a session
 
-- Exactly one on-screen match ≥ confidence: tap executes at center+offset, clamped to bounds.
-- Multiple matches ≥ confidence: command skips actions; error log includes detection count and threshold.
-- Zero matches: command skips actions; info log indicates no match.
+Create a session to get your session ID:
 
-## Programmatic Usage (Domain)
-
-You can resolve coordinates programmatically using the domain helper (self-contained, no DI required):
-
-```csharp
-var matcher = new GameBot.Domain.Vision.TemplateMatcher();
-var helper = new GameBot.Domain.Services.ActionCoordinateHelper(matcher);
-var target = new GameBot.Domain.Commands.DetectionTarget("home_button_ref", 0.8, 0, 0);
-// screenMat and templateMat are OpenCvSharp.Mat instances
-var coord = helper.ResolveTapCoordinates(target, screenMat, templateMat, 0.8, out var error);
-if (coord != null) {
-  // Use coord.X, coord.Y for tap
-}
+```bash
+curl -X POST "http://localhost:5273/sessions" -H "Content-Type: application/json" -d '{"gameId":"your-game-id"}'
 ```
+
+The response will include an `id` field — this is your session ID.
+
+### 3. Upload your PNG as `home_button` and force-execute the sample
+
+**Option A: Using the helper script**
+
+```powershell
+.\scripts\sample-run-detect.ps1 -SessionId <your-session-id> -ImagePath C:\path\to\home_button.png
+```
+
+Replace `<your-session-id>` with the session ID from step 2, and `C:\path\to\home_button.png` with the path to your reference image.
+
+**Option B: Using curl to force-execute directly**
+
+The sample command is preloaded with ID `00000000000000000000000000000001` (see `data/commands/sample-detect-command.json` if present):
+
+```bash
+curl -X POST "http://localhost:5273/commands/00000000000000000000000000000001/force-execute?sessionId=<your-session-id>"
+```
+
+### Prerequisites
+
+- Windows
+- Service running on port 5273 (or override with `$env:ASPNETCORE_URLS="http://localhost:5273"` before starting)
+- `GAMEBOT_USE_ADB=false` (stub screen source) or an active emulator session for screenshots
+- For stub mode, you can also set `GAMEBOT_TEST_SCREEN_IMAGE_B64` to provide a deterministic screenshot
+
+## Notes
+
+- With `confidence >= 0.99`, adapter caps results to one match and populates tap `x`/`y` with the center + offsets.
+- If detection services are unavailable, coordinates are skipped gracefully and existing `args` are used.
