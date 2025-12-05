@@ -1,0 +1,16 @@
+{
+  "id": "d6bfccf500000000000000000000001",
+  "name": "Sample Tap Action",
+  "gameId": "sample-game",
+  "steps": [
+    {
+      "type": "tap",
+      "args": {
+        "x": 0,
+        "y": 0
+      },
+      "delayMs": 100
+    }
+  ],
+  "checkpoints": []
+}

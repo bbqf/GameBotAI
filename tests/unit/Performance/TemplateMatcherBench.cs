@@ -13,7 +13,7 @@ public sealed class TemplateMatcherBench {
     return img;
   }
 
-  [Fact(Skip = "Benchmark harness - enable locally to measure perf")]
+  [Fact]
   public async Task BenchmarkVariousSizes() {
     using var screen = MakeSolid(640, 480, 200);
     using var tplSmall = MakeSolid(16, 16, 180);
@@ -34,8 +34,9 @@ public sealed class TemplateMatcherBench {
     var medMs = await Run(tplMed).ConfigureAwait(false);
     var largeMs = await Run(tplLarge).ConfigureAwait(false);
 
-    smallMs.Should().BeLessThan(200);
-    medMs.Should().BeLessThan(400);
-    largeMs.Should().BeLessThan(800);
+    // Relaxed thresholds to avoid flakiness on CI machines
+    smallMs.Should().BeLessThan(2000);
+    medMs.Should().BeLessThan(4000);
+    largeMs.Should().BeLessThan(8000);
   }
 }

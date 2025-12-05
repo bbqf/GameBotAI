@@ -811,6 +811,24 @@
         },
         "additionalProperties": false
       },
+      "DetectionSelectionStrategyDto": {
+        "type": "string",
+        "enum": [
+          "HighestConfidence",
+          "FirstMatch"
+        ]
+      },
+      "DetectionTargetDto": {
+        "type": "object",
+        "properties": {
+          "referenceImageId": { "type": "string" },
+          "confidence": { "type": "number", "format": "double" },
+          "offsetX": { "type": "integer", "format": "int32" },
+          "offsetY": { "type": "integer", "format": "int32" },
+          "selectionStrategy": { "$ref": "#/components/schemas/DetectionSelectionStrategyDto" }
+        },
+        "required": [ "referenceImageId" ]
+      },
       "CommandStepTypeDto": {
         "enum": [
           0,
@@ -871,7 +889,8 @@
               "$ref": "#/components/schemas/CommandStepDto"
             },
             "nullable": true
-          }
+          },
+          "detection": { "$ref": "#/components/schemas/DetectionTargetDto" }
         },
         "additionalProperties": false
       },
@@ -995,7 +1014,8 @@
               "$ref": "#/components/schemas/CommandStepDto"
             },
             "nullable": true
-          }
+          },
+          "detection": { "$ref": "#/components/schemas/DetectionTargetDto" }
         },
         "additionalProperties": false
       },

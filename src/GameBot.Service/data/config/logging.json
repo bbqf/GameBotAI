@@ -1,0 +1,7 @@
+{
+  "Components": {
+    "Microsoft.AspNetCore": "Warning"
+  },
+  "LastUpdated": "2025-11-21T16:09:59.1809489Z",
+  "Source": "api"
+}
