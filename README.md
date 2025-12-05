@@ -1,6 +1,6 @@
 # GameBot
 
-A .NET 8 (C#) minimal API service that controls Android emulator sessions on Windows, exposing a REST API for games, actions, commands, triggers, and session automation (snapshots + input execution). UI is a separate deployment.
+A .NET 9 (C#) minimal API service that controls Android emulator sessions on Windows, exposing a REST API for games, actions, commands, triggers, and session automation (snapshots + input execution). UI is a separate deployment.
 
 ## Specs and contracts
 - Spec, plans, and research: `specs/001-android-emulator-service/`
@@ -9,7 +9,7 @@ A .NET 8 (C#) minimal API service that controls Android emulator sessions on Win
 
 ## Requirements
 - Windows 10/11
-- .NET SDK 8.x
+- .NET SDK 9.x
 - LDPlayer installed is preferred (ADB autodetection). Otherwise ensure `adb` is available on PATH.
 
 ## Quick start
@@ -169,6 +169,27 @@ Delete: `DELETE /images/{id}`; subsequent evaluations treat the reference as mis
 ### Image detections (additive API)
 
 Find all occurrences of a persisted reference image on the current screenshot. Returns normalized bounding boxes and confidences in [0,1].
+
+Sample: execute a command that taps using image detection
+
+- Persist a reference image (PNG) for the UI element and note its id (e.g., `home_button`).
+- Ensure Windows with screen source available (ADB or `GAMEBOT_TEST_SCREEN_IMAGE_B64`).
+- Use the provided sample command `data/commands/sample-detect-command.json` which includes:
+  - `detection.referenceImageId` set to `home_button`
+  - `confidence` set to `0.99` (high-confidence enforces a single match)
+  - One action step referencing an existing tap action (`targetId`: `d6bfccf...`).
+
+Run:
+
+```powershell
+dotnet run -c Debug --project src/GameBot.Service
+# Then call force-execute on the sample command
+curl -X POST "http://localhost:5273/commands/00000000000000000000000000000001/force-execute?sessionId=<your-session-id>"
+```
+
+Notes:
+- When detection is present, the service resolves `x`/`y` for `tap` actions using the center of the detected template plus any offsets.
+- With `confidence >= 0.99`, adapter caps results to one; multiple detections will skip coordinate application.
 
 - Detect matches: `POST /images/detect`
   - Body:

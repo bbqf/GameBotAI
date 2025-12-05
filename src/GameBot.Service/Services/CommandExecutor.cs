@@ -14,14 +14,33 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly ITriggerRepository _triggers; // No change here, just context
   private readonly TriggerEvaluationService _triggerEval;
   private readonly ILogger<CommandExecutor> _logger;
+  private readonly GameBot.Domain.Triggers.Evaluators.IReferenceImageStore? _images;
+  private readonly GameBot.Domain.Triggers.Evaluators.IScreenSource? _screen;
+  private readonly GameBot.Domain.Vision.ITemplateMatcher? _matcher;
 
-  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger) {
+  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher) {
     _commands = commands;
     _actions = actions;
     _sessions = sessions;
     _triggers = triggers; // No change here, just context
     _triggerEval = triggerEval;
     _logger = logger;
+    _images = images;
+    _screen = screen;
+    _matcher = matcher;
+  }
+
+  // Fallback constructor for environments without detection services registered (non-Windows or tests)
+  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger) {
+    _commands = commands;
+    _actions = actions;
+    _sessions = sessions;
+    _triggers = triggers;
+    _triggerEval = triggerEval;
+    _logger = logger;
+    _images = null;
+    _screen = null;
+    _matcher = null;
   }
 
   public async Task<int> ForceExecuteAsync(string sessionId, string commandId, CancellationToken ct = default) {
@@ -79,7 +98,50 @@ internal sealed class CommandExecutor : ICommandExecutor {
         var act = await _actions.GetAsync(step.TargetId, ct).ConfigureAwait(false);
         if (act is null) throw new KeyNotFoundException("Action not found");
         if (act.Steps.Count == 0) continue;
-        var inputs = act.Steps.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs));
+        var inputs = act.Steps.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)).ToList();
+        // If the command includes a detection target, attempt to resolve coordinates for tap actions
+        if (cmd.Detection is not null && OperatingSystem.IsWindows()) {
+          try {
+            #nullable disable
+            var detection = cmd.Detection!;
+            var screenSrc = _screen;
+            var images = _images;
+            var matcher = _matcher;
+            if (screenSrc is null || images is null || matcher is null) { Log.DetectionSkip(_logger, "services_unavailable"); }
+            var screenshotBmp = screenSrc?.GetLatestScreenshot();
+            if (screenshotBmp is null) { /* no screenshot; skip */ }
+            else if (images.TryGet(detection.ReferenceImageId, out var templateBmp)) {
+              var tbmp = templateBmp!;
+              using var template = new System.Drawing.Bitmap(tbmp);
+              using var screenMs = new System.IO.MemoryStream();
+              using var templateMs = new System.IO.MemoryStream();
+              screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
+              template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
+              var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+              var templateMat = OpenCvSharp.Mat.FromImageData(templateMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+              if (matcher is null) { Log.DetectionSkip(_logger, "matcher_unavailable"); }
+              else {
+                var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
+              foreach (var inp in inputs) {
+                var ok = adapter.TryApplyDetectionCoordinates(
+                  new GameBot.Domain.Actions.InputAction { Type = inp.Type, Args = inp.Args, DelayMs = inp.DelayMs, DurationMs = inp.DurationMs },
+                  detection,
+                  screenMat,
+                  templateMat,
+                  detection.Confidence,
+                  out var err);
+                if (!ok && err is not null) { Log.DetectionSkip(_logger, err); }
+              }
+              }
+              screenMat.Dispose();
+              templateMat.Dispose();
+              #nullable restore
+            }
+          }
+          catch (Exception ex) {
+            Log.DetectionError(_logger, ex);
+          }
+        }
         var accepted = await _sessions.SendInputsAsync(sessionId, inputs, ct).ConfigureAwait(false);
         totalAccepted += accepted;
       }
@@ -102,4 +164,10 @@ internal static partial class Log {
 
   [LoggerMessage(EventId = 6002, Level = LogLevel.Information, Message = "EvaluateAndExecute bypassed trigger for command {CommandId}; executed via ForceExecute with {Accepted} accepted inputs.")]
   public static partial void TriggerBypassed(ILogger logger, string commandId, int accepted);
+
+  [LoggerMessage(EventId = 6003, Level = LogLevel.Debug, Message = "Detection coordinate resolution skipped: {Err}")]
+  public static partial void DetectionSkip(ILogger logger, string Err);
+
+  [LoggerMessage(EventId = 6004, Level = LogLevel.Debug, Message = "Detection wiring encountered an issue; proceeding without coordinates.")]
+  public static partial void DetectionError(ILogger logger, Exception ex);
 }

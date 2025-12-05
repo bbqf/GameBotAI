@@ -17,7 +17,7 @@ As a command author, I can define a command that, when executed, detects a speci
 
 **Acceptance Scenarios**:
 
-1. Given a screen containing exactly one instance of the reference image, When the command runs with default confidence, Then the system taps the center of the detected image and logs success.
+1. Given a screen containing exactly one instance of the reference image, When the image is detected with default confidence, Then the system taps the center of the detected image and logs success.
 2. Given a screen with no instance of the reference image, When the command runs, Then no tap occurs and an informative message is logged (no detection).
 
 ---
@@ -54,10 +54,10 @@ As a command author, I want the command to run only if exactly one detection is 
 
 ### Edge Cases
 
-- No screenshot available or screen capture fails: command exits gracefully with log.
+- No screenshot available or screen capture fails: command exits gracefully with info log.
 - Reference image missing or unreadable: command exits with error log.
 - Confidence configured outside [0,1]: command validation fails and logs configuration error.
-- Offset values very large: resulting coordinates are clamped to screen bounds; logged at debug level.
+- Offset values very large: resulting coordinates are clamped to screen bounds; logged at info level.
 - Template larger than screen: detection is skipped with info log.
 
 ## Requirements (mandatory)
@@ -90,3 +90,12 @@ As a command author, I want the command to run only if exactly one detection is 
 - **SC-003**: 100% of out-of-bounds computed coordinates are clamped, and clamping is observable via debug logs.
 - **SC-004**: Authors can set confidence per-command; 100% of commands respect configured thresholds between 0.0 and 1.0.
 - **SC-005**: All coordinate-requiring actions (tap, swipe, drag) can consume resolved coordinates without additional user input.
+
+## Clarifications
+
+### Session 2025-12-05
+
+- Q: Which base point modes are supported for coordinate resolution? → A: center only
+
+Applied updates:
+- FR-003 clarified: Base point is center-only; other points are modeled via offsets (no explicit mode flags).
