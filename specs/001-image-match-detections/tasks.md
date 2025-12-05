@@ -82,12 +82,12 @@ Independent Test: Coordinates scale with varying screenshot sizes; confidence cl
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T045 Refactor duplicated grayscale code (if any) into shared util `src/GameBot.Domain/Vision/ImageProcessing.cs`
-- [ ] T046 [P] Verify structured logging keys align with existing naming conventions in `src/GameBot.Service/Endpoints/ImageDetectionsEndpoints.Logging.cs`
+- [x] T045 Refactor duplicated grayscale code (if any) into shared util `src/GameBot.Domain/Vision/ImageProcessing.cs`
+- [x] T046 [P] Verify structured logging keys align with existing naming conventions in `src/GameBot.Service/Endpoints/ImageDetectionsEndpoints.Logging.cs`
 - [ ] T047 Add analyzer suppression (if needed) with justification in `src/GameBot.Domain/GlobalSuppressions.cs`
-- [ ] T048 Final pass: ensure deterministic ordering of matches (confidence desc) in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
-- [ ] T049 Add integration test for deterministic ordering in `tests/integration/ImageDetectionsEndpointTests.cs`
-- [ ] T050 Tag coverage report improvements for new code paths in `tools/coverage/README.md`
+- [x] T048 Final pass: ensure deterministic ordering of matches (confidence desc) in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
+- [x] T049 Add integration test for deterministic ordering in `tests/integration/ImageDetectionsEndpointTests.cs`
+- [x] T050 Tag coverage report improvements for new code paths in `tools/coverage/README.md`
 
 ## Dependencies & Story Ordering
 
