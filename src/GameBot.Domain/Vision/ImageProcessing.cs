@@ -1,10 +1,13 @@
+using System.Runtime.Versioning;
 using System.Drawing;
 using System.Drawing.Imaging;
 
-namespace GameBot.Domain.Vision;
-
-public static class ImageProcessing {
-  public static GrayImage ToGrayscale(Bitmap bmp) {
+namespace GameBot.Domain.Vision
+{
+  [SupportedOSPlatform("windows")]
+  public static class ImageProcessing
+  {
+    public static GrayImage ToGrayscale(Bitmap bmp) {
     ArgumentNullException.ThrowIfNull(bmp);
     var w = bmp.Width; var h = bmp.Height;
     var data = new byte[w * h];
@@ -26,5 +29,6 @@ public static class ImageProcessing {
       bmp.UnlockBits(bd);
     }
     return new GrayImage(w, h, data);
+    }
   }
 }
