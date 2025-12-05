@@ -87,7 +87,7 @@ Independent Test: Coordinates scale with varying screenshot sizes; confidence cl
 - [ ] T047 Add analyzer suppression (if needed) with justification in `src/GameBot.Domain/GlobalSuppressions.cs`
 - [ ] T048 Final pass: ensure deterministic ordering of matches (confidence desc) in `src/GameBot.Domain/Vision/TemplateMatcher.cs`
 - [x] T049 Add integration test for deterministic ordering in `tests/integration/ImageDetectionsEndpointTests.cs`
-- [ ] T050 Tag coverage report improvements for new code paths in `tools/coverage/README.md`
+- [x] T050 Tag coverage report improvements for new code paths in `tools/coverage/README.md`
 
 ## Dependencies & Story Ordering
 
