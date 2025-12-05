@@ -12,6 +12,7 @@
     "referenceImageId": "home_button",
     "confidence": 0.99,
     "offsetX": 0,
-    "offsetY": 0
+    "offsetY": 0,
+    "selectionStrategy": "HighestConfidence"
   }
 }

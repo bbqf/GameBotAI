@@ -21,7 +21,7 @@ namespace GameBot.Domain.Services
         /// Applies detection-based coordinates to a tap action when a DetectionTarget is provided.
         /// Returns false and sets error when coordinates cannot be resolved (zero/multiple).
         /// </summary>
-        public bool TryApplyDetectionCoordinates(InputAction action, DetectionTarget? target, Mat screenMat, Mat templateMat, double threshold, out string? error)
+        public bool TryApplyDetectionCoordinates(InputAction action, DetectionTarget? target, Mat screenMat, Mat templateMat, double threshold, out string? error, DetectionSelectionStrategy strategy = DetectionSelectionStrategy.HighestConfidence)
         {
             error = null;
             if (action == null) { error = "action is null"; return false; }
@@ -29,7 +29,8 @@ namespace GameBot.Domain.Services
             if (target is null) { return true; }
 
             var maxResults = threshold >= 0.99 ? 1 : 10;
-            var coord = _runner.ResolveCoordinates(target, screenMat, templateMat, threshold, out error, maxResults);
+            var effective = target.SelectionStrategy;
+            var coord = _runner.ResolveCoordinates(target!, screenMat, templateMat, threshold, out error, maxResults, effective);
             if (coord is null) return false;
 
             action.Args["x"] = coord.X;

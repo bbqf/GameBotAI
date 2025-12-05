@@ -184,6 +184,7 @@ Sample: execute a command that taps using image detection
 - The sample command includes:
   - `detection.referenceImageId` set to `home_button`
   - `confidence` set to `0.99` (high-confidence enforces a single match)
+  - `selectionStrategy` set to `HighestConfidence` (default). Use `FirstMatch` to choose the first detected match.
   - One action step referencing an existing tap action (`targetId`: `d6bfccf...`).
 
 Run:
@@ -196,7 +197,10 @@ curl -X POST "http://localhost:5273/commands/00000000000000000000000000000001/fo
 
 Notes:
 - When detection is present, the service resolves `x`/`y` for `tap` actions using the center of the detected template plus any offsets.
-- With `confidence >= 0.99`, adapter caps results to one; multiple detections will skip coordinate application.
+- Selection strategy:
+  - `HighestConfidence` (default): choose the match with the greatest confidence.
+  - `FirstMatch`: choose the first match in the sorted list.
+- With `confidence >= 0.99`, adapter caps results to one.
 
 - Detect matches: `POST /images/detect`
   - Body:

@@ -8,8 +8,9 @@ namespace GameBot.Domain.Commands
         public double Confidence { get; }
         public int OffsetX { get; }
         public int OffsetY { get; }
+        public DetectionSelectionStrategy SelectionStrategy { get; }
 
-        public DetectionTarget(string referenceImageId, double confidence = 0.8, int offsetX = 0, int offsetY = 0)
+        public DetectionTarget(string referenceImageId, double confidence = 0.8, int offsetX = 0, int offsetY = 0, DetectionSelectionStrategy selectionStrategy = DetectionSelectionStrategy.HighestConfidence)
         {
             if (string.IsNullOrWhiteSpace(referenceImageId))
                 throw new ArgumentException("referenceImageId is required", nameof(referenceImageId));
@@ -21,6 +22,7 @@ namespace GameBot.Domain.Commands
             Confidence = confidence;
             OffsetX = offsetX;
             OffsetY = offsetY;
+            SelectionStrategy = selectionStrategy;
         }
     }
 }

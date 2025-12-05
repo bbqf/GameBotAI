@@ -17,10 +17,10 @@ namespace GameBot.Domain.Services
             _resolver = new DetectionCoordinateResolver(matcher);
         }
 
-        public ResolvedCoordinate? ResolveCoordinates(DetectionTarget target, Mat screenMat, Mat templateMat, double threshold, out string? error, int maxResults = 10)
+        public ResolvedCoordinate? ResolveCoordinates(DetectionTarget target, Mat screenMat, Mat templateMat, double threshold, out string? error, int maxResults = 10, DetectionSelectionStrategy strategy = DetectionSelectionStrategy.HighestConfidence)
         {
             var config = new TemplateMatcherConfig(threshold, maxResults, 0.3);
-            return _resolver.ResolveCenter(target, screenMat, templateMat, config, out error);
+            return _resolver.ResolveCenter(target, screenMat, templateMat, config, out error, strategy);
         }
     }
 }

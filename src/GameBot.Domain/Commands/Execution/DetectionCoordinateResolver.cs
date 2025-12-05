@@ -63,5 +63,38 @@ namespace GameBot.Domain.Commands.Execution
 
             return new ResolvedCoordinate(x, y, score, target.ReferenceImageId, box);
         }
+        public ResolvedCoordinate? ResolveCenter(DetectionTarget target, Mat screenMat, Mat templateMat, TemplateMatcherConfig config, out string? error, DetectionSelectionStrategy strategy = DetectionSelectionStrategy.HighestConfidence)
+        {
+            // Delegate to main method then apply selection by filtering passing list based on strategy.
+            error = null;
+            ArgumentNullException.ThrowIfNull(target);
+            if (screenMat == null || templateMat == null || config == null)
+            {
+                error = "screen/template/config is null";
+                return null;
+            }
+            var result = _matcher.MatchAllAsync(screenMat, templateMat, config).GetAwaiter().GetResult();
+            var passing = new List<(BoundingBox box, double score)>();
+            foreach (var d in result.Matches)
+            {
+                if (d.Confidence >= target.Confidence)
+                {
+                    passing.Add((d.BBox, d.Confidence));
+                }
+            }
+            if (passing.Count == 0) { error = "no detection above threshold"; return null; }
+            var (box, score) = strategy == DetectionSelectionStrategy.HighestConfidence
+                ? passing.OrderByDescending(p => p.score).First()
+                : passing.First();
+            var centerX = box.X + box.Width / 2;
+            var centerY = box.Y + box.Height / 2;
+            var x = centerX + target.OffsetX;
+            var y = centerY + target.OffsetY;
+            var screenWidth = screenMat.Cols;
+            var screenHeight = screenMat.Rows;
+            if (x < 0) x = 0; else if (x >= screenWidth) x = screenWidth - 1;
+            if (y < 0) y = 0; else if (y >= screenHeight) y = screenHeight - 1;
+            return new ResolvedCoordinate(x, y, score, target.ReferenceImageId, box);
+        }
     }
 }
