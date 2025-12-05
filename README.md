@@ -174,7 +174,14 @@ Sample: execute a command that taps using image detection
 
 - Persist a reference image (PNG) for the UI element and note its id (e.g., `home_button`).
 - Ensure Windows with screen source available (ADB or `GAMEBOT_TEST_SCREEN_IMAGE_B64`).
-- Use the provided sample command `data/commands/sample-detect-command.json` which includes:
+- Copy the sample command from `samples/sample-detect-command.json` to your data directory:
+  ```powershell
+  # Create the commands directory if it doesn't exist
+  New-Item -ItemType Directory -Force -Path "$env:GAMEBOT_DATA_DIR/commands" | Out-Null
+  # Copy the sample command
+  Copy-Item samples/sample-detect-command.json "$env:GAMEBOT_DATA_DIR/commands/00000000000000000000000000000001.json"
+  ```
+- The sample command includes:
   - `detection.referenceImageId` set to `home_button`
   - `confidence` set to `0.99` (high-confidence enforces a single match)
   - One action step referencing an existing tap action (`targetId`: `d6bfccf...`).
