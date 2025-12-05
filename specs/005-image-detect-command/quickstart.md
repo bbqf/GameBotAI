@@ -38,7 +38,7 @@ dotnet run -c Debug --project src/GameBot.Service
 
 ## Programmatic Usage (Domain)
 
-You can resolve coordinates programmatically using the domain helper:
+You can resolve coordinates programmatically using the domain helper (self-contained, no DI required):
 
 ```csharp
 var matcher = new GameBot.Domain.Vision.TemplateMatcher();
