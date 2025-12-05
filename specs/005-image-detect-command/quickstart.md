@@ -45,5 +45,27 @@ curl -X POST "http://localhost:5273/commands/00000000000000000000000000000001/fo
 
 ## Notes
 
+- Selection strategy:
+	- `HighestConfidence` (default): choose the match with the greatest confidence.
+	- `FirstMatch`: choose the first detected match.
 - With `confidence >= 0.99`, adapter caps results to one match and populates tap `x`/`y` with the center + offsets.
 - If detection services are unavailable, coordinates are skipped gracefully and existing `args` are used.
+
+### Sample detection JSON
+
+```json
+{
+	"id": "00000000000000000000000000000001",
+	"name": "Sample Detection Command",
+	"steps": [
+		{ "type": "Action", "targetId": "d6bfccf500000000000000000000001", "order": 0 }
+	],
+	"detection": {
+		"referenceImageId": "home_button",
+		"confidence": 0.99,
+		"offsetX": 0,
+		"offsetY": 0,
+		"selectionStrategy": "HighestConfidence"
+	}
+}
+```
