@@ -99,10 +99,10 @@ builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluat
 builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITesseractInvocationLogger, TesseractInvocationLogger>();
 builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummaryService(storageRoot, sp.GetRequiredService<ILogger<CoverageSummaryService>>()));
 // Image match evaluator dependencies (disk-backed store + screen source placeholder)
+var imagesRoot = Path.Combine(storageRoot, "images");
+Directory.CreateDirectory(imagesRoot);
+builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(_ => new GameBot.Domain.Triggers.Evaluators.ReferenceImageStore(imagesRoot));
 if (OperatingSystem.IsWindows()) {
-  var imagesRoot = Path.Combine(storageRoot, "images");
-  Directory.CreateDirectory(imagesRoot);
-  builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(_ => new GameBot.Domain.Triggers.Evaluators.ReferenceImageStore(imagesRoot));
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
   var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
   if (useAdb) {
@@ -132,12 +132,12 @@ if (OperatingSystem.IsWindows()) {
     });
   }
   builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ImageMatchEvaluator>();
-  // Register template matcher (no endpoint yet; foundational only in Phase 2)
-  builder.Services.AddSingleton<GameBot.Domain.Vision.ITemplateMatcher, GameBot.Domain.Vision.TemplateMatcher>();
   // Text match evaluator (OCR): dynamic backend selection based on refreshed configuration
   builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITextOcr, GameBot.Service.Services.DynamicTextOcr>();
   builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator>();
 }
+// Register template matcher (no endpoint yet; foundational only in Phase 2)
+builder.Services.AddSingleton<GameBot.Domain.Vision.ITemplateMatcher, GameBot.Domain.Vision.TemplateMatcher>();
 // Reduce chatty HTTP logs by default; allow dynamic override via GAMEBOT_HTTP_LOG_LEVEL_MINIMUM applied on refresh
 var httpMinLevelEnv = Environment.GetEnvironmentVariable("GAMEBOT_HTTP_LOG_LEVEL_MINIMUM");
 GameBot.Service.Services.DynamicLogFilters.HttpMinLevel = httpMinLevelEnv?.Trim().ToLowerInvariant() switch {

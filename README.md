@@ -1,6 +1,6 @@
 # GameBot
 
-A .NET 8 (C#) minimal API service that controls Android emulator sessions on Windows, exposing a REST API for games, actions, commands, triggers, and session automation (snapshots + input execution). UI is a separate deployment.
+A .NET 9 (C#) minimal API service that controls Android emulator sessions on Windows, exposing a REST API for games, actions, commands, triggers, and session automation (snapshots + input execution). UI is a separate deployment.
 
 ## Specs and contracts
 - Spec, plans, and research: `specs/001-android-emulator-service/`
@@ -9,7 +9,7 @@ A .NET 8 (C#) minimal API service that controls Android emulator sessions on Win
 
 ## Requirements
 - Windows 10/11
-- .NET SDK 8.x
+- .NET SDK 9.x
 - LDPlayer installed is preferred (ADB autodetection). Otherwise ensure `adb` is available on PATH.
 
 ## Quick start
@@ -169,6 +169,45 @@ Delete: `DELETE /images/{id}`; subsequent evaluations treat the reference as mis
 ### Image detections (additive API)
 
 Find all occurrences of a persisted reference image on the current screenshot. Returns normalized bounding boxes and confidences in [0,1].
+
+Sample: execute a command that taps using image detection
+
+- Persist a reference image (PNG) for the UI element and note its id (e.g., `home_button`).
+- Ensure Windows with screen source available (ADB or `GAMEBOT_TEST_SCREEN_IMAGE_B64`).
+- Copy the sample command from `samples/sample-detect-command.json` to your data directory:
+  ```powershell
+  # Create the commands directory if it doesn't exist
+  New-Item -ItemType Directory -Force -Path "$env:GAMEBOT_DATA_DIR/commands" | Out-Null
+  # Copy the sample command
+  Copy-Item samples/sample-detect-command.json "$env:GAMEBOT_DATA_DIR/commands/00000000000000000000000000000001.json"
+  ```
+- The sample command includes:
+  - `detection.referenceImageId` set to `home_button`
+  - `confidence` set to `0.99` (high-confidence enforces a single match)
+  - `selectionStrategy` set to `HighestConfidence` (default). Use `FirstMatch` to choose the first detected match.
+  - One action step referencing an existing tap action (`targetId`: `d6bfccf...`).
+
+Run:
+
+```powershell
+dotnet run -c Debug --project src/GameBot.Service
+# Then call force-execute on the sample command
+curl -X POST "http://localhost:5273/commands/00000000000000000000000000000001/force-execute?sessionId=<your-session-id>"
+```
+
+Notes:
+- When detection is present, the service resolves `x`/`y` for `tap` actions using the center of the detected template plus any offsets.
+- Selection strategy:
+  - `HighestConfidence` (default): choose the match with the greatest confidence.
+  - `FirstMatch`: choose the first match in the sorted list.
+- With `confidence >= 0.99`, adapter caps results to one.
+
+### Strategy Comparison
+
+| Strategy          | How it selects                        | When to use                                | Trade-offs                                  |
+|-------------------|----------------------------------------|--------------------------------------------|---------------------------------------------|
+| HighestConfidence | Picks the match with the highest score | Noisy screens; multiple similar candidates | Might jump between candidates across frames |
+| FirstMatch        | Picks the first match after sorting    | Stable UIs; deterministic selection needed | May choose a lower-confidence candidate     |
 
 - Detect matches: `POST /images/detect`
   - Body:

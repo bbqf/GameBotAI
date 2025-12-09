@@ -15,6 +15,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - None added; transient temp files only (001-ocr-confidence-refactor)
 - C# / .NET 8 (Service), .NET 9 (Domain alignment) + None new (disk I/O via `System.IO`) (001-image-storage)
 - Disk-backed under `data/images` (001-image-storage)
+- Existing detection pipeline (OpenCvSharp via TemplateMatcher), Windows-only System.Drawing usage guarded with platform attributes; no new external packages. (005-image-detect-command)
+- File-based JSON repositories under `data/` (commands, triggers, config). No new persistence stores; extend command schema to include `DetectionTarget` parameters. (005-image-detect-command)
 
 - .NET 8 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -37,9 +39,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 8 C# conventions
 
 ## Recent Changes
+- 005-image-detect-command: Added Existing detection pipeline (OpenCvSharp via TemplateMatcher), Windows-only System.Drawing usage guarded with platform attributes; no new external packages.
 - 001-image-storage: Added C# / .NET 8 (Service), .NET 9 (Domain alignment) + None new (disk I/O via `System.IO`)
 - 001-ocr-confidence-refactor: Added C# / .NET 9 (align with existing services) + External Tesseract CLI (no new managed package)
-- 001-fix-trigger-evaluate: Added C# / .NET 9 + GameBot.Domain repositories, GameBot.Emulator.Session, TriggerEvaluationService (no new external packages)
 
 
 <!-- MANUAL ADDITIONS START -->
