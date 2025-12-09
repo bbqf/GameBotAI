@@ -7,8 +7,8 @@
 
 ## Phase 2: Foundational
 
-- [ ] T003 Define storage path `data/commands/sequences/` and repository interface stub in `src/GameBot.Domain/Commands`
-- [ ] T004 Add DTOs to `specs/openapi.json` (SequenceDto, StepDto, ExecuteResultDto)
+- [X] T003 Define storage path `data/commands/sequences/` and repository interface stub in `src/GameBot.Domain/Commands`
+- [X] T004 Add DTOs to `specs/openapi.json` (SequenceDto, StepDto, ExecuteResultDto)
 
 ## Phase 3: User Story 1 (P1) — Configure and run a command sequence
 
