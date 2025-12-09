@@ -2,8 +2,8 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Validate constitution gates against `.specify/memory/constitution.md`
-- [ ] T002 Create feature directory structure confirmation `specs/001-command-sequences/`
+- [X] T001 Validate constitution gates against `.specify/memory/constitution.md`
+- [X] T002 Create feature directory structure confirmation `specs/001-command-sequences/`
 
 ## Phase 2: Foundational
 
