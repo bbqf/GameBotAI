@@ -127,5 +127,11 @@ Allow a step to proceed only if an image is detected before a timeout; otherwise
 ## Assumptions
 
 - Default detection timeout is 15 seconds unless overridden by configuration or per-step.
-- Delay range and fixed delay are mutually exclusive per step; if both provided, range takes precedence. [NEEDS CLARIFICATION]
+- Delay range and fixed delay precedence: if both are provided on a step, the delay range OVERRIDES the fixed delay (fixed ignored).
 - Image detection semantics reuse existing detection capabilities and configured selection strategies.
+
+## Clarifications
+
+### Session 2025-12-09
+
+- Q: If both fixed delay and range are specified, which takes precedence? → A: Range overrides fixed
