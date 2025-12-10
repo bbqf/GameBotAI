@@ -11,6 +11,7 @@ namespace GameBot.Domain.Commands
         public DelayRangeMs? DelayRangeMs { get; set; }
         public int? TimeoutMs { get; set; }
         public RetryPolicy? Retry { get; set; }
+        public GateConfig? Gate { get; set; }
     }
 
     public class DelayRangeMs
@@ -23,5 +24,18 @@ namespace GameBot.Domain.Commands
     {
         public int MaxAttempts { get; set; }
         public int? BackoffMs { get; set; }
+    }
+
+    public enum GateCondition
+    {
+        Present,
+        Absent
+    }
+
+    public class GateConfig
+    {
+        public string TargetId { get; set; } = string.Empty;
+        public GateCondition Condition { get; set; } = GateCondition.Present;
+        public double? Confidence { get; set; }
     }
 }

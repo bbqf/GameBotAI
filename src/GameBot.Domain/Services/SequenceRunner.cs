@@ -19,7 +19,11 @@ namespace GameBot.Domain.Services
             _repository = repository;
         }
 
-        public async Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, Func<string, Task> executeCommandAsync, CancellationToken ct)
+        public async Task<SequenceExecutionResult> ExecuteAsync(
+            string sequenceId,
+            Func<string, Task> executeCommandAsync,
+            CancellationToken ct,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator = null)
         {
             ArgumentNullException.ThrowIfNull(executeCommandAsync);
             var sequence = await _repository.GetAsync(sequenceId).ConfigureAwait(false);
@@ -36,6 +40,28 @@ namespace GameBot.Domain.Services
                 if (appliedDelay > 0)
                 {
                     await Task.Delay(appliedDelay, ct).ConfigureAwait(false);
+                }
+
+                if (step.Gate != null && gateEvaluator != null)
+                {
+                    var deadline = step.TimeoutMs.HasValue && step.TimeoutMs.Value > 0
+                        ? DateTimeOffset.UtcNow.AddMilliseconds(step.TimeoutMs.Value)
+                        : (DateTimeOffset?)null;
+                    while (true)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        var ok = await gateEvaluator(step, ct).ConfigureAwait(false);
+                        if (ok)
+                            break;
+
+                        if (deadline.HasValue && DateTimeOffset.UtcNow >= deadline.Value)
+                        {
+                            result.Fail("Gating timeout reached");
+                            return result;
+                        }
+
+                        await Task.Delay(100, ct).ConfigureAwait(false);
+                    }
                 }
 
                 await executeCommandAsync(step.CommandId).ConfigureAwait(false);
@@ -110,6 +136,12 @@ namespace GameBot.Domain.Services
         {
             EndedAt = DateTimeOffset.UtcNow;
             Status = "Succeeded";
+        }
+
+        public void Fail(string? error)
+        {
+            EndedAt = DateTimeOffset.UtcNow;
+            Status = "Failed";
         }
     }
 
