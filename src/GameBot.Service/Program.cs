@@ -74,6 +74,8 @@ builder.Services.AddSingleton<ITriggerRepository>(_ => new FileTriggerRepository
 // New repositories for Actions and Commands (001-action-command-refactor)
 builder.Services.AddSingleton<IActionRepository>(_ => new FileActionRepository(storageRoot));
 builder.Services.AddSingleton<ICommandRepository>(_ => new FileCommandRepository(storageRoot));
+builder.Services.AddSingleton<ISequenceRepository>(_ => new FileSequenceRepository(storageRoot));
+builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
 builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
 builder.Services.AddSingleton<ILoggingPolicyRepository>(sp =>
@@ -250,6 +252,31 @@ app.MapMetricsEndpoints();
 app.MapConfigEndpoints();
 app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
+
+// Sequences endpoints (Phase 3 US1 minimal stubs)
+app.MapPost("/api/sequences", async (ISequenceRepository repo, CommandSequence seq) =>
+{
+  seq.CreatedAt = DateTimeOffset.UtcNow;
+  seq.UpdatedAt = seq.CreatedAt;
+  var created = await repo.CreateAsync(seq).ConfigureAwait(false);
+  return Results.Created($"/api/sequences/{created.Id}", created);
+}).WithName("CreateSequence");
+
+app.MapGet("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
+{
+  var found = await repo.GetAsync(id).ConfigureAwait(false);
+  return found is null ? Results.NotFound() : Results.Ok(found);
+}).WithName("GetSequence");
+
+app.MapPost("/api/sequences/{id}/execute", async (
+  GameBot.Domain.Services.SequenceRunner runner,
+  string id,
+  CancellationToken ct) =>
+{
+  // Minimal stub: delegate is a no-op; command execution integration will be added in later phases
+  var res = await runner.ExecuteAsync(id, _ => Task.CompletedTask, ct).ConfigureAwait(false);
+  return Results.Ok(res);
+}).WithName("ExecuteSequence");
 
 app.Run();
 

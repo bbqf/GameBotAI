@@ -12,10 +12,10 @@
 
 ## Phase 3: User Story 1 (P1) — Configure and run a command sequence
 
-- [ ] T005 [US1] Create `CommandSequence` model in `src/GameBot.Domain/Commands`
-- [ ] T006 [US1] Implement `SequenceRunner` in `src/GameBot.Domain/Services`
-- [ ] T007 [US1] Minimal API: `POST /api/sequences`, `GET /api/sequences/{id}` in `src/GameBot.Service/Program.cs`
-- [ ] T008 [US1] Minimal API: `POST /api/sequences/{id}/execute` in `src/GameBot.Service/Program.cs`
+- [X] T005 [US1] Create `CommandSequence` model in `src/GameBot.Domain/Commands`
+- [X] T006 [US1] Implement `SequenceRunner` in `src/GameBot.Domain/Services`
+- [X] T007 [US1] Minimal API: `POST /api/sequences`, `GET /api/sequences/{id}` in `src/GameBot.Service/Program.cs`
+- [X] T008 [US1] Minimal API: `POST /api/sequences/{id}/execute` in `src/GameBot.Service/Program.cs`
 - [ ] T009 [US1] Integration test for fixed delays in `tests/integration/Sequences/FixedDelayTests.cs`
 
 ## Phase 4: User Story 2 (P2) — Randomized delay ranges
