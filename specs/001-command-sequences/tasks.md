@@ -27,7 +27,7 @@
 
 - [X] T012 [US3] Extend `SequenceStep` for gating config in `src/GameBot.Domain/Commands`
 - [X] T013 [US3] Implement gating logic using detection pipeline in `src/GameBot.Domain/Services/SequenceRunner.cs`
-- [ ] T014 [US3] Integration tests for gating present/absent in `tests/integration/Sequences/GatingIntegrationTests.cs`
+- [X] T014 [US3] Integration tests for gating present/absent in `tests/integration/Sequences/GatingIntegrationTests.cs`
 
 ## Final Phase: Polish & Cross-Cutting
 
