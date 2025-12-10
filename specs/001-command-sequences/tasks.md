@@ -20,8 +20,8 @@
 
 ## Phase 4: User Story 2 (P2) — Randomized delay ranges
 
-- [ ] T010 [US2] Implement delay range precedence logic in `src/GameBot.Domain/Services/SequenceRunner.cs`
-- [ ] T011 [US2] Unit test for delay range selection bounds in `tests/unit/Sequences/DelayRangeTests.cs`
+- [X] T010 [US2] Implement delay range precedence logic in `src/GameBot.Domain/Services/SequenceRunner.cs`
+- [X] T011 [US2] Unit test for delay range selection bounds in `tests/unit/Sequences/DelayRangeTests.cs`
 
 ## Phase 5: User Story 3 (P3) — Detection gating with timeout
 

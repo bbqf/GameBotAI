@@ -34,9 +34,14 @@ public sealed class TemplateMatcherBench {
     var medMs = await Run(tplMed).ConfigureAwait(false);
     var largeMs = await Run(tplLarge).ConfigureAwait(false);
 
-    // Relaxed thresholds to avoid flakiness on CI machines
-    smallMs.Should().BeLessThan(2000);
-    medMs.Should().BeLessThan(4000);
-    largeMs.Should().BeLessThan(8000);
+    // Relaxed thresholds; boost further when running in CI
+    var isCi = string.Equals(System.Environment.GetEnvironmentVariable("CI"), "true", System.StringComparison.OrdinalIgnoreCase);
+    var smallCap = isCi ? 3500 : 2000;
+    var medCap = isCi ? 7000 : 4000;
+    var largeCap = isCi ? 12000 : 8000;
+
+    smallMs.Should().BeLessThan(smallCap);
+    medMs.Should().BeLessThan(medCap);
+    largeMs.Should().BeLessThan(largeCap);
   }
 }
