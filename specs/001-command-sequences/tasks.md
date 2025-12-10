@@ -16,7 +16,7 @@
 - [X] T006 [US1] Implement `SequenceRunner` in `src/GameBot.Domain/Services`
 - [X] T007 [US1] Minimal API: `POST /api/sequences`, `GET /api/sequences/{id}` in `src/GameBot.Service/Program.cs`
 - [X] T008 [US1] Minimal API: `POST /api/sequences/{id}/execute` in `src/GameBot.Service/Program.cs`
-- [ ] T009 [US1] Integration test for fixed delays in `tests/integration/Sequences/FixedDelayTests.cs`
+- [X] T009 [US1] Integration test for fixed delays in `tests/integration/Sequences/FixedDelayTests.cs`
 
 ## Phase 4: User Story 2 (P2) — Randomized delay ranges
 
@@ -41,7 +41,7 @@
 
 ## Parallel Execution Examples
 
-- [ ] T006 [P] [US1] Implement `SequenceRunner` while T007 API stub is created in parallel
+- [X] T006 [P] [US1] Implement `SequenceRunner` while T007 API stub is created in parallel
 - [ ] T011 [P] [US2] Write unit tests while `SequenceRunner` gets range logic
 - [ ] T014 [P] [US3] Prepare integration test scaffolding while gating logic is wired
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace GameBot.Domain.Commands
 {
@@ -12,6 +13,7 @@ namespace GameBot.Domain.Commands
 
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        [JsonIgnore]
         public IReadOnlyList<SequenceStep> Steps => _steps.AsReadOnly();
         public DateTimeOffset? CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }
@@ -21,6 +23,18 @@ namespace GameBot.Domain.Commands
             _steps.Clear();
             if (steps == null) return;
             _steps.AddRange(steps);
+        }
+
+        [JsonInclude]
+        [JsonPropertyName("steps")]
+        public System.Collections.ObjectModel.Collection<SequenceStep> StepsWritable
+        {
+            get => new System.Collections.ObjectModel.Collection<SequenceStep>(_steps);
+            private set
+            {
+                _steps.Clear();
+                if (value != null) foreach (var s in value) _steps.Add(s);
+            }
         }
     }
 }
