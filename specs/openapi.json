@@ -1029,9 +1029,172 @@
           "id": {
             "minLength": 1,
             "type": "string"
+              "/api/sequences": {
+                "post": {
+                  "summary": "Create sequence",
+                  "operationId": "CreateSequence",
+                  "requestBody": {
+                    "required": true,
+                    "content": {
+                      "application/json": {
+                        "schema": { "$ref": "#/components/schemas/SequenceDto" }
+                      }
+                    }
+                  },
+                  "responses": {
+                    "201": {
+                      "description": "Created",
+                      "content": {
+                        "application/json": {
+                          "schema": { "$ref": "#/components/schemas/SequenceDto" }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "/api/sequences/{id}": {
+                "get": {
+                  "summary": "Get sequence",
+                  "operationId": "GetSequence",
+                  "parameters": [
+                    { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+                  ],
+                  "responses": {
+                    "200": {
+                      "description": "OK",
+                      "content": {
+                        "application/json": {
+                          "schema": { "$ref": "#/components/schemas/SequenceDto" }
+                        }
+                      }
+                    },
+                    "404": { "description": "Not Found" }
+                  }
+                },
+                "put": {
+                  "summary": "Update sequence",
+                  "operationId": "UpdateSequence",
+                  "parameters": [
+                    { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+                  ],
+                  "requestBody": {
+                    "required": true,
+                    "content": {
+                      "application/json": {
+                        "schema": { "$ref": "#/components/schemas/SequenceDto" }
+                      }
+                    }
+                  },
+                  "responses": {
+                    "200": {
+                      "description": "OK",
+                      "content": {
+                        "application/json": {
+                          "schema": { "$ref": "#/components/schemas/SequenceDto" }
+                        }
+                      }
+                    },
+                    "404": { "description": "Not Found" }
+                  }
+                },
+                "delete": {
+                  "summary": "Delete sequence",
+                  "operationId": "DeleteSequence",
+                  "parameters": [
+                    { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+                  ],
+                  "responses": {
+                    "204": { "description": "No Content" },
+                    "404": { "description": "Not Found" }
+                  }
+                }
+              },
+              "/api/sequences/{id}/execute": {
+                "post": {
+                  "summary": "Execute sequence",
+                  "operationId": "ExecuteSequence",
+                  "parameters": [
+                    { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+                  ],
+                  "responses": {
+                    "200": {
+                      "description": "Execution result",
+                      "content": {
+                        "application/json": {
+                          "schema": { "$ref": "#/components/schemas/ExecuteResultDto" }
+                        }
+                      }
+                    },
+                    "404": { "description": "Not Found" }
+                  }
+                }
+              }
           },
           "data": {
             "minLength": 1,
+                "SequenceDto": {
+                  "type": "object",
+                  "required": ["name", "steps"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "steps": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/StepDto" }
+                    },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
+                  }
+                },
+                "StepDto": {
+                  "type": "object",
+                  "required": ["order", "commandId"],
+                  "properties": {
+                    "order": { "type": "integer", "minimum": 1 },
+                    "commandId": { "type": "string" },
+                    "delayMs": { "type": "integer", "minimum": 0 },
+                    "delayRangeMs": {
+                      "type": "object",
+                      "properties": {
+                        "min": { "type": "integer", "minimum": 0 },
+                        "max": { "type": "integer", "minimum": 0 }
+                      }
+                    },
+                    "timeoutMs": { "type": "integer", "minimum": 0 },
+                    "retry": {
+                      "type": "object",
+                      "properties": {
+                        "maxAttempts": { "type": "integer", "minimum": 1 },
+                        "backoffMs": { "type": "integer", "minimum": 0 }
+                      }
+                    }
+                  }
+                },
+                "ExecuteResultDto": {
+                  "type": "object",
+                  "required": ["sequenceId", "status", "startedAt", "endedAt", "steps"],
+                  "properties": {
+                    "sequenceId": { "type": "string" },
+                    "status": { "type": "string", "enum": ["Succeeded", "Failed", "Canceled", "PartialSuccess"] },
+                    "startedAt": { "type": "string", "format": "date-time" },
+                    "endedAt": { "type": "string", "format": "date-time" },
+                    "steps": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "order": { "type": "integer" },
+                          "commandId": { "type": "string" },
+                          "status": { "type": "string", "enum": ["Succeeded", "Failed", "Skipped"] },
+                          "attempts": { "type": "integer", "minimum": 1 },
+                          "durationMs": { "type": "integer", "minimum": 0 },
+                          "error": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
             "type": "string"
           }
         },
