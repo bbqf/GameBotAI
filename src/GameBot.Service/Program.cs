@@ -274,7 +274,22 @@ app.MapPost("/api/sequences/{id}/execute", async (
   CancellationToken ct) =>
 {
   // Minimal stub: delegate is a no-op; command execution integration will be added in later phases
-  var res = await runner.ExecuteAsync(id, _ => Task.CompletedTask, ct).ConfigureAwait(false);
+  var res = await runner.ExecuteAsync(
+    id,
+    _ => Task.CompletedTask,
+    ct,
+    gateEvaluator: (step, token) =>
+    {
+      // Temporary evaluator for integration tests:
+      // TargetId "always" => gate passes; "never" => gate fails
+      if (step.Gate == null) return Task.FromResult(true);
+      var tid = step.Gate.TargetId ?? string.Empty;
+      if (string.Equals(tid, "always", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(true);
+      if (string.Equals(tid, "never", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(false);
+      // Default: pass
+      return Task.FromResult(true);
+    }
+  ).ConfigureAwait(false);
   return Results.Ok(res);
 }).WithName("ExecuteSequence");
 
