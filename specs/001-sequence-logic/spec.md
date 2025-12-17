@@ -20,6 +20,12 @@ Loop control supports both `break` (exit loop) and `continue` (skip to next iter
 
 Conditions may reference image/text detection or trigger status by `triggerId`.
 
+## Clarifications
+
+### Session 2025-12-17
+
+- Q: For repeat-until/while loop iteration ordering, when is the condition evaluated relative to executing steps? → A: Check before steps; execute only if not satisfied.
+
 ## Actors
 - Operator: Authors sequences and reviews results.
 - Automation Client: Calls sequence endpoints to create and execute.
@@ -132,6 +138,7 @@ As an Operator, I declare `break` or `continue` within a loop to control executi
 - **FR-14**: Enforce bearer auth on non-health endpoints (`401` on missing/invalid token).
 - **FR-15**: Backward compatibility for sequences without blocks.
 - **FR-16**: Support loop control: `break` to exit the loop; `continue` to skip to the next iteration.
+- **FR-17**: Loop semantics (gate-first): For `repeatUntil` and `while`, evaluate the condition at the beginning of each iteration; if satisfied, exit the loop without executing steps for that iteration (no-op when already satisfied).
 
 ### Key Entities *(include if feature involves data)*
 
