@@ -32,7 +32,7 @@ Branch: 001-sequence-logic
 
 - [x] T011 [US2] Implement `repeatUntil` with `timeoutMs` and `cadenceMs` in src/GameBot.Domain/Services/SequenceRunner.cs
 - [x] T012 [P] [US2] Integrate detection/trigger evaluation services in src/GameBot.Domain/Services/TriggerEvaluationService.cs
-- [ ] T013 [US2] On timeout, mark sequence `Failed` and exit early in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T013 [US2] On timeout, mark sequence `Failed` and exit early in src/GameBot.Domain/Services/SequenceRunner.cs
 
 ## Phase 5: User Story 3 — If/Then/Else Branch (P2)
 
@@ -40,8 +40,8 @@ Branch: 001-sequence-logic
 - Independent Test Criteria: Present → then branch only; Absent → else branch only.
 
 - [x] T014 [US3] Implement `ifElse` branching in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T015 [P] [US3] Validate `elseSteps` only allowed for `ifElse` in src/GameBot.Service/Program.cs
-- [ ] T016 [US3] Record `branchTaken` and timings in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T015 [P] [US3] Validate `elseSteps` only allowed for `ifElse` in src/GameBot.Service/Program.cs
+- [x] T016 [US3] Record `branchTaken` and timings in src/GameBot.Domain/Services/SequenceRunner.cs
 
 ## Phase 6: User Story 4 — Loop Control (P2)
 
