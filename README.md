@@ -368,6 +368,69 @@ Supported `type` values (case-insensitive). Numeric args may be provided as numb
 
 See full request/response shapes in the contracts doc linked above.
 
+## Command Sequences
+
+Orchestrate existing Commands via a file-backed sequence with per-step delays and detection gating.
+
+- Storage: saved under `data/commands/sequences` (configurable via `GAMEBOT_DATA_DIR` or `Service:Storage:Root`).
+- Endpoints:
+  - Create: `POST /api/sequences` → `201 Created` with sequence
+  - Get: `GET /api/sequences/{id}` → sequence or `404`
+  - Execute: `POST /api/sequences/{id}/execute` → `{ sequenceId, status, steps }`
+
+Auth header is required for all non-health endpoints:
+
+```powershell
+$headers = @{ Authorization = 'Bearer test-token' }
+```
+
+Example: create a sequence with a single step that waits a random delay then executes a command only when a gate passes:
+
+```powershell
+$seq = @{
+  id = 'daily-seq-1'
+  name = 'Daily Collection'
+  steps = @(
+    @{
+      order = 1
+      commandId = 'collect-command-id'
+      # Either a fixed delay
+      # delayMs = 250
+      # Or a delay range takes precedence (inclusive)
+      delayRangeMs = @{ min = 200; max = 500 }
+      # Optional: gate until present/absent or timeout fail
+      timeoutMs = 2000
+      gate = @{ targetId = 'always'; condition = 'Present' }
+    }
+  )
+} | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod -Uri "http://localhost:5000/api/sequences" -Method POST -Headers $headers -ContentType 'application/json' -Body $seq
+```
+
+Execute it:
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:5000/api/sequences/daily-seq-1/execute" -Method POST -Headers $headers -Body ''
+```
+
+Response (simplified):
+
+```json
+{
+  "sequenceId": "daily-seq-1",
+  "status": "Succeeded",
+  "steps": [
+    { "commandId": "collect-command-id", "status": "Succeeded", "appliedDelayMs": 327 }
+  ]
+}
+```
+
+Notes:
+- Delay range takes precedence over `delayMs` when provided.
+- If a gate is set and does not pass before `timeoutMs`, the sequence stops and returns `status = "Failed"`.
+- During execution, the service logs sequence start/end, per-step delays, gate decisions, and command durations.
+
 ## Configuration
 - Authentication token:
   - Environment: `GAMEBOT_AUTH_TOKEN`

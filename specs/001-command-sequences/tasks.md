@@ -31,9 +31,9 @@
 
 ## Final Phase: Polish & Cross-Cutting
 
-- [ ] T015 Add logging and telemetry details per step in `src/GameBot.Domain/Services/SequenceRunner.cs`
-- [ ] T016 Update `README.md` with sequences usage and examples
-- [ ] T017 Update `CHANGELOG.md` for feature addition
+- [X] T015 Add logging and telemetry details per step in `src/GameBot.Domain/Services/SequenceRunner.cs`
+- [X] T016 Update `README.md` with sequences usage and examples
+- [X] T017 Update `CHANGELOG.md` for feature addition
 
 ## Dependencies
 
@@ -41,9 +41,8 @@
 
 ## Parallel Execution Examples
 
-- [X] T006 [P] [US1] Implement `SequenceRunner` while T007 API stub is created in parallel
-- [ ] T011 [P] [US2] Write unit tests while `SequenceRunner` gets range logic
-- [ ] T014 [P] [US3] Prepare integration test scaffolding while gating logic is wired
+- [X] T011 [P] [US2] Write unit tests while `SequenceRunner` gets range logic
+- [X] T014 [P] [US3] Prepare integration test scaffolding while gating logic is wired
 
 ## Implementation Strategy
 
