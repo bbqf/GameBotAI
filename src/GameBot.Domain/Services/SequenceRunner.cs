@@ -34,8 +34,9 @@ namespace GameBot.Domain.Services
         public async Task<SequenceExecutionResult> ExecuteAsync(
             string sequenceId,
             Func<string, Task> executeCommandAsync,
-            CancellationToken ct,
-            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator = null)
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator = null,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator = null,
+            CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(executeCommandAsync);
             var sequence = await _repository.GetAsync(sequenceId).ConfigureAwait(false);
@@ -49,7 +50,7 @@ namespace GameBot.Domain.Services
             foreach (var step in sequence.Steps.OrderBy(s => s.Order))
             {
                 ct.ThrowIfCancellationRequested();
-                var earlyStop = await ExecuteSingleStepAsync(step, executeCommandAsync, gateEvaluator, result, ct, sequenceId).ConfigureAwait(false);
+                var earlyStop = await ExecuteSingleStepAsync(step, executeCommandAsync, gateEvaluator, result, sequenceId, ct).ConfigureAwait(false);
                 if (earlyStop)
                 {
                     if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
@@ -60,7 +61,7 @@ namespace GameBot.Domain.Services
             // Execute blocks if any (US1: repeatCount)
             if (sequence is { Blocks: { Count: > 0 } })
             {
-                await ExecuteBlocksAsync(sequence.Blocks, executeCommandAsync, gateEvaluator, result, ct, sequenceId).ConfigureAwait(false);
+                await ExecuteBlocksAsync(sequence.Blocks, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
             }
             result.Complete();
             if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
@@ -72,8 +73,8 @@ namespace GameBot.Domain.Services
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
             SequenceExecutionResult result,
-            CancellationToken ct,
-            string sequenceId)
+            string sequenceId,
+            CancellationToken ct)
         {
             var appliedDelay = GetAppliedDelay(step);
             if (appliedDelay > 0)
@@ -122,9 +123,10 @@ namespace GameBot.Domain.Services
             IReadOnlyList<object> blocks,
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
             SequenceExecutionResult result,
-            CancellationToken ct,
-            string sequenceId)
+            string sequenceId,
+            CancellationToken ct)
         {
             foreach (var block in blocks)
             {
@@ -135,19 +137,273 @@ namespace GameBot.Domain.Services
                     var type = tProp.GetString();
                     if (string.Equals(type, "repeatCount", StringComparison.OrdinalIgnoreCase))
                     {
-                        await ExecuteRepeatCountAsync(je, executeCommandAsync, gateEvaluator, result, ct, sequenceId).ConfigureAwait(false);
+                        await ExecuteRepeatCountAsync(je, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                    }
+                    else if (string.Equals(type, "repeatUntil", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await ExecuteRepeatUntilAsync(je, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                    }
+                    else if (string.Equals(type, "while", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await ExecuteWhileAsync(je, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                    }
+                    else if (string.Equals(type, "ifElse", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await ExecuteIfElseAsync(je, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                    }
+                }
+                // Exit early if sequence was marked failed by a block (T013)
+                if (string.Equals(result.Status, "Failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+        }
+
+        private static bool TryGetArray(JsonElement obj, string prop, out List<object> list)
+        {
+            list = new List<object>();
+            if (obj.TryGetProperty(prop, out var arr) && arr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in arr.EnumerateArray()) list.Add(item);
+                return true;
+            }
+            return false;
+        }
+
+        private async Task ExecuteIfElseAsync(
+            JsonElement block,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            SequenceExecutionResult result,
+            string sequenceId,
+            CancellationToken ct)
+        {
+            var start = DateTimeOffset.UtcNow;
+            if (!block.TryGetProperty("condition", out var condEl) || condEl.ValueKind != JsonValueKind.Object)
+            {
+                result.AddBlock(new BlockResult { BlockType = "ifElse", Iterations = 0, DurationMs = 0, Status = "Failed" });
+                return;
+            }
+            var cond = ParseCondition(condEl);
+            var takeIf = conditionEvaluator != null && await conditionEvaluator(cond, ct).ConfigureAwait(false);
+            var stepsProp = takeIf ? "steps" : "elseSteps";
+            if (TryGetArray(block, stepsProp, out var items) && items.Count > 0)
+            {
+                await ExecuteStepsCollectionAsync(items, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+            }
+            var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+            result.AddBlock(new BlockResult { BlockType = "ifElse", Iterations = 1, Evaluations = 1, BranchTaken = takeIf ? "then" : "else", DurationMs = dur, Status = "Succeeded" });
+        }
+
+        private async Task ExecuteWhileAsync(
+            JsonElement block,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            SequenceExecutionResult result,
+            string sequenceId,
+            CancellationToken ct)
+        {
+            var start = DateTimeOffset.UtcNow;
+            var cadenceMs = block.TryGetProperty("cadenceMs", out var cm) && cm.ValueKind == JsonValueKind.Number ? Math.Clamp(cm.GetInt32(), 50, 5000) : 100;
+            var timeoutMs = block.TryGetProperty("timeoutMs", out var to) && to.ValueKind == JsonValueKind.Number ? Math.Max(0, to.GetInt32()) : (int?)null;
+            var maxIterations = block.TryGetProperty("maxIterations", out var mi) && mi.ValueKind == JsonValueKind.Number ? Math.Max(1, mi.GetInt32()) : (int?)null;
+
+            if (!block.TryGetProperty("condition", out var condEl) || condEl.ValueKind != JsonValueKind.Object)
+            {
+                result.AddBlock(new BlockResult { BlockType = "while", Iterations = 0, DurationMs = 0, Status = "Failed" });
+                return;
+            }
+            var cond = ParseCondition(condEl);
+            var steps = new List<object>();
+            TryGetArray(block, "steps", out steps);
+            var iterations = 0;
+            var startDeadline = timeoutMs.HasValue ? DateTimeOffset.UtcNow.AddMilliseconds(timeoutMs.Value) : (DateTimeOffset?)null;
+
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                var satisfied = conditionEvaluator != null && await conditionEvaluator(cond, ct).ConfigureAwait(false);
+                if (!satisfied)
+                {
+                    var durOk = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+                    result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, DurationMs = durOk, Status = "Succeeded" });
+                    return;
+                }
+
+                iterations++;
+                await ExecuteStepsCollectionAsync(steps, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+
+                if (maxIterations.HasValue && iterations >= maxIterations.Value)
+                {
+                    var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+                    result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, DurationMs = dur, Status = "Failed" });
+                    return;
+                }
+                if (startDeadline.HasValue && DateTimeOffset.UtcNow >= startDeadline.Value)
+                {
+                    var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+                    result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, DurationMs = dur, Status = "Failed" });
+                    return;
+                }
+                await Task.Delay(cadenceMs, ct).ConfigureAwait(false);
+            }
+        }
+
+        private async Task ExecuteStepsCollectionAsync(
+            List<object> items,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            SequenceExecutionResult result,
+            string sequenceId,
+            CancellationToken ct)
+        {
+            foreach (var s in items)
+            {
+                if (s is JsonElement se)
+                {
+                    if (se.ValueKind == JsonValueKind.Object && se.TryGetProperty("type", out var nestedType))
+                    {
+                        await ExecuteBlocksAsync(new List<object> { se }, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                    }
+                    else if (se.ValueKind == JsonValueKind.Object)
+                    {
+                        var step = ToSequenceStep(se);
+                        var earlyStop = await ExecuteSingleStepAsync(step, executeCommandAsync, gateEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                        if (earlyStop) return;
                     }
                 }
             }
+        }
+
+        private async Task ExecuteRepeatUntilAsync(
+            JsonElement block,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            SequenceExecutionResult result,
+            string sequenceId,
+            CancellationToken ct)
+        {
+            var start = DateTimeOffset.UtcNow;
+            var cadenceMs = block.TryGetProperty("cadenceMs", out var cm) && cm.ValueKind == JsonValueKind.Number ? Math.Clamp(cm.GetInt32(), 50, 5000) : 100;
+            var timeoutMs = block.TryGetProperty("timeoutMs", out var to) && to.ValueKind == JsonValueKind.Number ? Math.Max(0, to.GetInt32()) : (int?)null;
+            var maxIterations = block.TryGetProperty("maxIterations", out var mi) && mi.ValueKind == JsonValueKind.Number ? Math.Max(1, mi.GetInt32()) : (int?)null;
+
+            // Parse condition
+            if (!block.TryGetProperty("condition", out var condEl) || condEl.ValueKind != JsonValueKind.Object)
+            {
+                // No condition; treat as failed
+                result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = 0, DurationMs = 0, Status = "Failed" });
+                result.Fail("repeatUntil missing condition");
+                return;
+            }
+            var cond = ParseCondition(condEl);
+
+            var iterations = 0;
+            var startDeadline = timeoutMs.HasValue ? DateTimeOffset.UtcNow.AddMilliseconds(timeoutMs.Value) : (DateTimeOffset?)null;
+            var steps = new List<object>();
+            if (block.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in stepsProp.EnumerateArray()) steps.Add(item);
+            }
+
+            // Gate-first semantics (FR-17): check before executing steps each iteration
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                iterations++;
+                var satisfied = conditionEvaluator != null ? await conditionEvaluator(cond, ct).ConfigureAwait(false) : false;
+                if (satisfied)
+                {
+                    var durOk = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+                    result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations - 1, DurationMs = durOk, Status = "Succeeded" });
+                    return;
+                }
+
+                // Execute steps when not satisfied
+                foreach (var s in steps)
+                {
+                    if (s is JsonElement se)
+                    {
+                        if (se.ValueKind == JsonValueKind.Object && se.TryGetProperty("type", out var nestedType))
+                        {
+                            await ExecuteBlocksAsync(new List<object> { se }, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                        }
+                        else if (se.ValueKind == JsonValueKind.Object)
+                        {
+                            var step = ToSequenceStep(se);
+                            var earlyStop = await ExecuteSingleStepAsync(step, executeCommandAsync, gateEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                            if (earlyStop)
+                            {
+                                var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+                                result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, DurationMs = dur, Status = "Failed" });
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                // Safeguards: first-hit wins (FR-20)
+                if (maxIterations.HasValue && iterations >= maxIterations.Value)
+                {
+                    var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+                    result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, DurationMs = dur, Status = "Failed" });
+                    result.Fail("repeatUntil maxIterations reached");
+                    return;
+                }
+                if (startDeadline.HasValue && DateTimeOffset.UtcNow >= startDeadline.Value)
+                {
+                    var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+                    result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, DurationMs = dur, Status = "Failed" });
+                    result.Fail("repeatUntil timeout");
+                    return;
+                }
+
+                await Task.Delay(cadenceMs, ct).ConfigureAwait(false);
+            }
+        }
+
+        private static Condition ParseCondition(JsonElement je)
+        {
+            string src = je.TryGetProperty("source", out var s) && s.ValueKind == JsonValueKind.String ? (s.GetString() ?? "") : "";
+            string tid = je.TryGetProperty("targetId", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "") : "";
+            string mode = je.TryGetProperty("mode", out var m) && m.ValueKind == JsonValueKind.String ? (m.GetString() ?? "Present") : "Present";
+            double? conf = je.TryGetProperty("confidenceThreshold", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetDouble() : null;
+            Rect? region = null;
+            if (je.TryGetProperty("region", out var r) && r.ValueKind == JsonValueKind.Object)
+            {
+                region = new Rect
+                {
+                    X = r.TryGetProperty("x", out var rx) && rx.ValueKind == JsonValueKind.Number ? rx.GetDouble() : 0,
+                    Y = r.TryGetProperty("y", out var ry) && ry.ValueKind == JsonValueKind.Number ? ry.GetDouble() : 0,
+                    Width = r.TryGetProperty("width", out var rw) && rw.ValueKind == JsonValueKind.Number ? rw.GetDouble() : 0,
+                    Height = r.TryGetProperty("height", out var rh) && rh.ValueKind == JsonValueKind.Number ? rh.GetDouble() : 0
+                };
+            }
+            string? lang = je.TryGetProperty("language", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() : null;
+            return new Condition
+            {
+                Source = src,
+                TargetId = tid,
+                Mode = mode,
+                ConfidenceThreshold = conf,
+                Region = region,
+                Language = lang
+            };
         }
 
         private async Task ExecuteRepeatCountAsync(
             JsonElement block,
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
             SequenceExecutionResult result,
-            CancellationToken ct,
-            string sequenceId)
+            string sequenceId,
+            CancellationToken ct)
         {
             var start = DateTimeOffset.UtcNow;
             var maxIterations = block.TryGetProperty("maxIterations", out var mi) && mi.ValueKind == JsonValueKind.Number ? Math.Max(0, mi.GetInt32()) : 0;
@@ -179,12 +435,12 @@ namespace GameBot.Domain.Services
                         if (se.ValueKind == JsonValueKind.Object && se.TryGetProperty("type", out var nestedType))
                         {
                             // nested block
-                            await ExecuteBlocksAsync(new List<object> { se }, executeCommandAsync, gateEvaluator, result, ct, sequenceId).ConfigureAwait(false);
+                            await ExecuteBlocksAsync(new List<object> { se }, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
                         }
                         else if (se.ValueKind == JsonValueKind.Object)
                         {
                             var step = ToSequenceStep(se);
-                            var earlyStop = await ExecuteSingleStepAsync(step, executeCommandAsync, gateEvaluator, result, ct, sequenceId).ConfigureAwait(false);
+                            var earlyStop = await ExecuteSingleStepAsync(step, executeCommandAsync, gateEvaluator, result, sequenceId, ct).ConfigureAwait(false);
                             if (earlyStop)
                             {
                                 // early stop due to gating timeout
@@ -307,7 +563,10 @@ namespace GameBot.Domain.Services
         public void Complete()
         {
             EndedAt = DateTimeOffset.UtcNow;
-            Status = "Succeeded";
+            if (!string.Equals(Status, "Failed", StringComparison.OrdinalIgnoreCase))
+            {
+                Status = "Succeeded";
+            }
         }
 
         public void Fail(string? error)

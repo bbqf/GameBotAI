@@ -276,6 +276,7 @@ app.MapGet("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
 
 app.MapPost("/api/sequences/{id}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
+  TriggerEvaluationService evalSvc,
   string id,
   CancellationToken ct) =>
 {
@@ -283,7 +284,6 @@ app.MapPost("/api/sequences/{id}/execute", async (
   var res = await runner.ExecuteAsync(
     id,
     _ => Task.CompletedTask,
-    ct,
     gateEvaluator: (step, token) =>
     {
       // Temporary evaluator for integration tests:
@@ -294,15 +294,60 @@ app.MapPost("/api/sequences/{id}/execute", async (
       if (string.Equals(tid, "never", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(false);
       // Default: pass
       return Task.FromResult(true);
-    }
+    },
+    conditionEvaluator: (cond, token) =>
+    {
+      // Map Blocks.Condition to a transient Trigger and evaluate via TriggerEvaluationService
+      if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase))
+      {
+        var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
+                                         : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
+        var trig = new GameBot.Domain.Triggers.Trigger
+        {
+          Id = "inline-image",
+          Type = GameBot.Domain.Triggers.TriggerType.ImageMatch,
+          Enabled = true,
+          Params = new GameBot.Domain.Triggers.ImageMatchParams
+          {
+            ReferenceImageId = cond.TargetId,
+            Region = region,
+            SimilarityThreshold = cond.ConfidenceThreshold ?? 0.85
+          }
+        };
+        var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
+        return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
+      }
+      if (string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase))
+      {
+        var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
+                                         : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
+        var mode = string.Equals(cond.Mode, "Absent", StringComparison.OrdinalIgnoreCase) ? "not-found" : "found";
+        var trig = new GameBot.Domain.Triggers.Trigger
+        {
+          Id = "inline-text",
+          Type = GameBot.Domain.Triggers.TriggerType.TextMatch,
+          Enabled = true,
+          Params = new GameBot.Domain.Triggers.TextMatchParams
+          {
+            Target = cond.TargetId,
+            Region = region,
+            ConfidenceThreshold = cond.ConfidenceThreshold ?? 0.80,
+            Mode = mode,
+            Language = cond.Language
+          }
+        };
+        var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
+        return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
+      }
+      // Unsupported source
+      return Task.FromResult(false);
+    },
+    ct: ct
   ).ConfigureAwait(false);
   return Results.Ok(res);
 }).WithName("ExecuteSequence");
 
 app.Run();
-
-// For WebApplicationFactory discovery in tests
-internal partial class Program { }
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq)
 {
@@ -358,6 +403,17 @@ static void ValidateBlock(object blockObj, List<string> errs, bool isTopLevel)
       {
         errs.Add("ifElse block requires 'condition'.");
       }
+      // Validate elseSteps only for ifElse
+      if (je.TryGetProperty("elseSteps", out var elseProp) && elseProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+      {
+        foreach (var item in elseProp.EnumerateArray())
+        {
+          if (item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("type", out var nestedType))
+          {
+            ValidateBlock(item, errs, isTopLevel: false);
+          }
+        }
+      }
     }
     else if (type.Equals("repeatUntil", StringComparison.OrdinalIgnoreCase) || type.Equals("while", StringComparison.OrdinalIgnoreCase))
     {
@@ -395,5 +451,14 @@ static void ValidateBlock(object blockObj, List<string> errs, bool isTopLevel)
         }
       }
     }
+
+    // If a non-ifElse block provides elseSteps, flag as error (T015)
+    if (!type.Equals("ifElse", StringComparison.OrdinalIgnoreCase) && je.TryGetProperty("elseSteps", out var elseAny) && elseAny.ValueKind == System.Text.Json.JsonValueKind.Array)
+    {
+      errs.Add($"'elseSteps' is only valid for ifElse blocks, not '{type}'.");
+    }
   }
 }
+
+// For WebApplicationFactory discovery in tests
+internal partial class Program { }
