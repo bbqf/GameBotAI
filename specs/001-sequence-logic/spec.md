@@ -14,11 +14,11 @@ Enable richer sequence orchestration using standard control blocks: repeat steps
 - Blocks can group multiple steps and apply delays/gating within the group.
 - Execution results include per-block/per-step telemetry (iterations, condition outcomes, durations).
 
-[NEEDS CLARIFICATION: Should nested blocks be allowed, and if so, what maximum depth (e.g., up to 3 levels) to ensure readability and safety?]
+Nested blocks are allowed without a fixed maximum depth. Authors should prefer shallow nesting for readability; safeguards apply at every level to prevent unbounded execution.
 
-[NEEDS CLARIFICATION: Do we expose `break`/`continue` semantics to authors (e.g., break on error within loop) or keep loops strictly driven by count/condition?]
+Loop control supports both `break` (exit loop) and `continue` (skip to next iteration) when declared within loop blocks.
 
-[NEEDS CLARIFICATION: Beyond image/text, should conditional sources include trigger IDs, simple variables/state (e.g., last command result), or remain limited to detection gates for now?]
+Conditions may reference image/text detection or trigger status by `triggerId`.
 
 ## Actors
 - Operator: Authors sequences and reviews results.
@@ -83,6 +83,19 @@ As an Operator, I define a condition referencing a detection target; if `Present
 1. **Given** `if` with `Present`, **When** condition holds, **Then** branch A executes and B is skipped.
 2. **Given** `if` with `Absent`, **When** condition does not hold, **Then** branch B executes.
 
+### User Story 4 - Loop Control (Priority: P2)
+
+As an Operator, I declare `break` or `continue` within a loop to control execution.
+
+**Why this priority**: Provides precise control during iteration without altering conditions.
+
+**Independent Test**: Configure a loop with `continue` on a non-critical failure and `break` on a critical error; assert iteration counts and exit behavior.
+
+**Acceptance Scenarios**:
+
+1. **Given** a loop with `continue` on a transient detection miss, **When** the miss occurs, **Then** the iteration skips remaining steps and proceeds to the next iteration.
+2. **Given** a loop with `break` on a critical condition, **When** the condition occurs, **Then** the loop exits immediately and subsequent steps do not run.
+
 ---
 
 [Add more user stories as needed, each with an assigned priority]
@@ -108,7 +121,7 @@ As an Operator, I define a condition referencing a detection target; if `Present
 - **FR-03**: Support `while` loops based on condition `Present`/`Absent` with cadence and safety bounds.
 - **FR-04**: Support `if` with optional `else` around step groups; condition sources align with detection gates.
 - **FR-05**: Require at least one safeguard (`timeoutMs` or `maxIterations`) per loop.
-- **FR-06**: Conditions support image/text targets with confidence threshold and optional region/language.
+- **FR-06**: Conditions support image/text targets, trigger status by `triggerId`, confidence threshold, and optional region/language.
 - **FR-07**: Polling cadence defaults to 100ms (configurable; bounds 50–5000ms).
 - **FR-08**: Record per-block metrics: `evaluations`, `iterations`, `branchTaken`, `durationMs`, `appliedDelayMs`.
 - **FR-09**: On condition timeout, set sequence status to `Failed` and stop execution.
@@ -118,12 +131,13 @@ As an Operator, I define a condition referencing a detection target; if `Present
 - **FR-13**: Emit structured logs for block start/end, condition checks, branch decisions, and loop iteration counts.
 - **FR-14**: Enforce bearer auth on non-health endpoints (`401` on missing/invalid token).
 - **FR-15**: Backward compatibility for sequences without blocks.
+- **FR-16**: Support loop control: `break` to exit the loop; `continue` to skip to the next iteration.
 
 ### Key Entities *(include if feature involves data)*
 
 - **Sequence**: Declarative container of steps and blocks.
 - **Block**: `repeatCount`, `repeatUntil`, `while`, `ifElse`; parameters include safeguards and cadence.
-- **Condition**: Target (`image`/`text`), `present`/`absent`, confidence threshold, optional region/language.
+- **Condition**: Target (`image`/`text`) or `triggerId`, `present`/`absent`, confidence threshold, optional region/language.
 - **Telemetry**: Iterations, evaluations, branch decisions, durations, applied delays, status per block.
 
 ## Success Criteria *(mandatory)*
