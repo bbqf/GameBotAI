@@ -256,6 +256,12 @@ app.MapCoverageEndpoints();
 // Sequences endpoints (Phase 3 US1 minimal stubs)
 app.MapPost("/api/sequences", async (ISequenceRepository repo, CommandSequence seq) =>
 {
+  // Basic validation for sequence blocks (if provided)
+  var errors = ValidateSequence(seq);
+  if (errors.Count > 0)
+  {
+    return Results.BadRequest(new { message = "Invalid sequence", errors });
+  }
   seq.CreatedAt = DateTimeOffset.UtcNow;
   seq.UpdatedAt = seq.CreatedAt;
   var created = await repo.CreateAsync(seq).ConfigureAwait(false);
@@ -297,3 +303,97 @@ app.Run();
 
 // For WebApplicationFactory discovery in tests
 internal partial class Program { }
+
+static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq)
+{
+  var errs = new List<string>();
+  // Validate blocks if present
+  if (seq.Blocks is { Count: > 0 })
+  {
+    foreach (var b in seq.Blocks)
+    {
+      ValidateBlock(b, errs, isTopLevel: true);
+    }
+  }
+  return errs;
+}
+
+static void ValidateBlock(object blockObj, List<string> errs, bool isTopLevel)
+{
+  if (blockObj is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Object)
+  {
+    string? type = null;
+    if (je.TryGetProperty("type", out var tProp) && tProp.ValueKind == System.Text.Json.JsonValueKind.String)
+    {
+      type = tProp.GetString();
+    }
+    if (string.IsNullOrWhiteSpace(type))
+    {
+      errs.Add("Block missing required 'type'.");
+      return;
+    }
+    var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "repeatCount", "repeatUntil", "while", "ifElse" };
+    if (!allowed.Contains(type))
+    {
+      errs.Add($"Unsupported block type '{type}'.");
+      return;
+    }
+
+    // Common: steps array for all but else-only
+    if (je.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+    {
+      foreach (var item in stepsProp.EnumerateArray())
+      {
+        // item can be a Step (object without 'type') or a nested Block (object with 'type')
+        if (item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("type", out var nestedType))
+        {
+          ValidateBlock(item, errs, isTopLevel: false);
+        }
+      }
+    }
+
+    if (type.Equals("ifElse", StringComparison.OrdinalIgnoreCase))
+    {
+      if (!je.TryGetProperty("condition", out var cond) || cond.ValueKind != System.Text.Json.JsonValueKind.Object)
+      {
+        errs.Add("ifElse block requires 'condition'.");
+      }
+    }
+    else if (type.Equals("repeatUntil", StringComparison.OrdinalIgnoreCase) || type.Equals("while", StringComparison.OrdinalIgnoreCase))
+    {
+      if (!je.TryGetProperty("condition", out var cond) || cond.ValueKind != System.Text.Json.JsonValueKind.Object)
+      {
+        errs.Add($"{type} block requires 'condition'.");
+      }
+      var hasTimeout = je.TryGetProperty("timeoutMs", out var to) && to.ValueKind == System.Text.Json.JsonValueKind.Number && to.GetInt32() >= 0;
+      var hasMaxIter = je.TryGetProperty("maxIterations", out var mi) && mi.ValueKind == System.Text.Json.JsonValueKind.Number && mi.GetInt32() >= 1;
+      if (!hasTimeout && !hasMaxIter)
+      {
+        errs.Add($"{type} block must set 'timeoutMs' or 'maxIterations'.");
+      }
+      if (je.TryGetProperty("cadenceMs", out var cadence) && cadence.ValueKind == System.Text.Json.JsonValueKind.Number)
+      {
+        var c = cadence.GetInt32();
+        if (c < 50 || c > 5000)
+        {
+          errs.Add($"{type} cadenceMs out of bounds (50-5000): {c}.");
+        }
+      }
+    }
+    else if (type.Equals("repeatCount", StringComparison.OrdinalIgnoreCase))
+    {
+      if (!je.TryGetProperty("maxIterations", out var mi) || mi.ValueKind != System.Text.Json.JsonValueKind.Number || mi.GetInt32() < 0)
+      {
+        errs.Add("repeatCount requires non-negative 'maxIterations'.");
+      }
+      if (je.TryGetProperty("cadenceMs", out var cadence) && cadence.ValueKind == System.Text.Json.JsonValueKind.Number)
+      {
+        var c = cadence.GetInt32();
+        if (c != 0 && (c < 50 || c > 5000))
+        {
+          errs.Add($"repeatCount cadenceMs must be 0 or within 50-5000: {c}.");
+        }
+      }
+    }
+  }
+}
