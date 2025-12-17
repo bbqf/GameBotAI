@@ -26,6 +26,7 @@ Conditions may reference image/text detection or trigger status by `triggerId`.
 
 - Q: For repeat-until/while loop iteration ordering, when is the condition evaluated relative to executing steps? → A: Check before steps; execute only if not satisfied.
 - Q: When should `breakOn`/`continueOn` be evaluated within loop iterations? → A: Evaluate at start and between steps; `breakOn` at start or between steps; `continueOn` only between steps.
+- Q: What telemetry granularity should loops capture? → A: Compact per-iteration summaries: index, decision (normal/break/continue), duration.
 
 ## Actors
 - Operator: Authors sequences and reviews results.
@@ -141,6 +142,7 @@ As an Operator, I declare `break` or `continue` within a loop to control executi
 - **FR-16**: Support loop control: `break` to exit the loop; `continue` to skip to the next iteration.
 - **FR-17**: Loop semantics (gate-first): For `repeatUntil` and `while`, evaluate the condition at the beginning of each iteration; if satisfied, exit the loop without executing steps for that iteration (no-op when already satisfied).
 - **FR-18**: Loop control evaluation order: Evaluate `breakOn` at the start of each iteration and between steps; evaluate `continueOn` only between steps to skip remaining steps in the current iteration and proceed to the next.
+- **FR-19**: Telemetry detail: Emit compact per-iteration summaries for loop blocks including `iterationIndex`, `decision` ("normal" | "break" | "continue"), and `durationMs`; avoid full per-step, per-iteration payloads by default.
 
 ### Key Entities *(include if feature involves data)*
 
