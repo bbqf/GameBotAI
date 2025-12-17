@@ -48,9 +48,9 @@ Branch: 001-sequence-logic
 - Story Goal: Support `break` and `continue` within loops for precise control.
 - Independent Test Criteria: `continue` skips remaining steps this iteration; `break` exits loop immediately.
 
-- [ ] T017 [US4] Implement `breakOn` evaluation in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T018 [P] [US4] Implement `continueOn` evaluation in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T019 [US4] Telemetry for control decisions and iteration counts in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T017 [US4] Implement `breakOn` evaluation in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T018 [P] [US4] Implement `continueOn` evaluation in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T019 [US4] Telemetry for control decisions and iteration counts in src/GameBot.Domain/Services/SequenceRunner.cs
 
 ## Final Phase: Polish & Cross-Cutting
 
