@@ -32,8 +32,8 @@
 ## Final Phase: Polish & Cross-Cutting
 
 - [X] T015 Add logging and telemetry details per step in `src/GameBot.Domain/Services/SequenceRunner.cs`
-- [ ] T016 Update `README.md` with sequences usage and examples
-- [ ] T017 Update `CHANGELOG.md` for feature addition
+- [X] T016 Update `README.md` with sequences usage and examples
+- [X] T017 Update `CHANGELOG.md` for feature addition
 
 ## Dependencies
 
