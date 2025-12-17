@@ -28,6 +28,7 @@ Conditions may reference image/text detection or trigger status by `triggerId`.
 - Q: When should `breakOn`/`continueOn` be evaluated within loop iterations? → A: Evaluate at start and between steps; `breakOn` at start or between steps; `continueOn` only between steps.
 - Q: What telemetry granularity should loops capture? → A: Compact per-iteration summaries: index, decision (normal/break/continue), duration.
 - Q: If both `timeoutMs` and `maxIterations` are provided, how should they be enforced? → A: Enforce both; stop on the first safeguard hit.
+- Q: For `repeatCount`, should `cadenceMs` apply between iterations and what default to use? → A: Apply cadence between iterations; default 0ms for `repeatCount`.
 
 ## Actors
 - Operator: Authors sequences and reviews results.
@@ -145,6 +146,7 @@ As an Operator, I declare `break` or `continue` within a loop to control executi
 - **FR-18**: Loop control evaluation order: Evaluate `breakOn` at the start of each iteration and between steps; evaluate `continueOn` only between steps to skip remaining steps in the current iteration and proceed to the next.
 - **FR-19**: Telemetry detail: Emit compact per-iteration summaries for loop blocks including `iterationIndex`, `decision` ("normal" | "break" | "continue"), and `durationMs`; avoid full per-step, per-iteration payloads by default.
 - **FR-20**: Combined safeguards: If both `timeoutMs` and `maxIterations` are configured, enforce both and terminate the loop on whichever threshold is reached first (first-hit wins).
+- **FR-21**: `repeatCount` pacing: Apply `cadenceMs` between iterations when provided; default to 0ms for `repeatCount` blocks (no implicit delay). When set, cadence bounds (50–5000ms) apply.
 
 ### Key Entities *(include if feature involves data)*
 
