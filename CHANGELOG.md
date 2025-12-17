@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-12-17]
+
+### Added
+- Command Sequences (Phase 1–5)
+  - File-backed sequences persisted under `data/commands/sequences`.
+  - Minimal API endpoints:
+    - `POST /api/sequences` (create)
+    - `GET /api/sequences/{id}` (get)
+    - `POST /api/sequences/{id}/execute` (execute)
+  - Delay handling: fixed `delayMs` and ranged `delayRangeMs { min, max }` with precedence rules (range overrides fixed when present).
+  - Gating: per-step `gate { targetId, condition, confidence? }` evaluated with timeout; on timeout the sequence stops and returns `status = "Failed"`.
+  - Telemetry: structured per-step logging via `LoggerMessage` delegates (sequence start/end, applied delays, gate decisions, command duration).
+  - Tests: unit tests for delay ranges and gating; integration tests covering fixed delays and gating present/absent scenarios.
+
+### Changed
+- README updated with a new “Command Sequences” section including endpoints, auth header usage, and PowerShell examples for create/execute.
+
+### Notes
+- Authentication is required for all non-health endpoints; set `GAMEBOT_AUTH_TOKEN` or `Service:Auth:Token`.
+- Storage root can be overridden via `GAMEBOT_DATA_DIR` or `Service:Storage:Root`.
+
 ## [2025-12-02]
 
 ### Added
