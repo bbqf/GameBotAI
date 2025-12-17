@@ -41,9 +41,8 @@
 
 ## Parallel Execution Examples
 
-- [X] T006 [P] [US1] Implement `SequenceRunner` while T007 API stub is created in parallel
-- [ ] T011 [P] [US2] Write unit tests while `SequenceRunner` gets range logic
-- [ ] T014 [P] [US3] Prepare integration test scaffolding while gating logic is wired
+- [X] T011 [P] [US2] Write unit tests while `SequenceRunner` gets range logic
+- [X] T014 [P] [US3] Prepare integration test scaffolding while gating logic is wired
 
 ## Implementation Strategy
 
