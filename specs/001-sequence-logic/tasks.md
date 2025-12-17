@@ -5,33 +5,33 @@ Branch: 001-sequence-logic
 
 ## Phase 1: Setup
 
-- [ ] T001 Create domain folders for blocks and conditions in src/GameBot.Domain/Commands/Blocks
-- [ ] T002 [P] Create service DTO stubs for blocks in src/GameBot.Service/Contracts/Sequences
+- [x] T001 Create domain folders for blocks and conditions in src/GameBot.Domain/Commands/Blocks
+- [x] T002 [P] Create service DTO stubs for blocks in src/GameBot.Service/Contracts/Sequences
 
 ## Phase 2: Foundational
 
-- [ ] T003 Define `Block` union (`repeatCount`,`repeatUntil`,`while`,`ifElse`) in src/GameBot.Domain/Commands/Blocks/Block.cs
-- [ ] T004 Define `Condition` and `BlockResult` types in src/GameBot.Domain/Commands/Blocks/Condition.cs and src/GameBot.Domain/Commands/Blocks/BlockResult.cs
-- [ ] T005 Extend `CommandSequence` with `blocks` and serialization in src/GameBot.Domain/Commands/CommandSequence.cs
-- [ ] T006 Persist `blocks` in repository load/save in src/GameBot.Domain/Commands/Repositories/SequenceRepository.cs
-- [ ] T007 Add API model binding + validation for `blocks` in src/GameBot.Service/Program.cs
+- [x] T003 Define `Block` union (`repeatCount`,`repeatUntil`,`while`,`ifElse`) in src/GameBot.Domain/Commands/Blocks/Block.cs
+- [x] T004 Define `Condition` and `BlockResult` types in src/GameBot.Domain/Commands/Blocks/Condition.cs and src/GameBot.Domain/Commands/Blocks/BlockResult.cs
+- [x] T005 Extend `CommandSequence` with `blocks` and serialization in src/GameBot.Domain/Commands/CommandSequence.cs
+- [x] T006 Persist `blocks` in repository load/save in src/GameBot.Domain/Commands/Repositories/SequenceRepository.cs
+- [x] T007 Add API model binding + validation for `blocks` in src/GameBot.Service/Program.cs
 
 ## Phase 3: User Story 1 — Repeat N Times (P1)
 
 - Story Goal: Execute grouped steps exactly N iterations.
 - Independent Test Criteria: A sequence with `repeatCount: 3` runs the step group three times; `repeatCount: 0` skips and records 0 iterations.
 
-- [ ] T008 [US1] Implement `repeatCount` execution in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T009 [P] [US1] Validate `repeatCount >= 0` and reject negative in src/GameBot.Service/Program.cs
-- [ ] T010 [US1] Capture `iterations` and `durationMs` telemetry per block in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T008 [US1] Implement `repeatCount` execution in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T009 [P] [US1] Validate `repeatCount >= 0` and reject negative in src/GameBot.Service/Program.cs
+- [x] T010 [US1] Capture `iterations` and `durationMs` telemetry per block in src/GameBot.Domain/Services/SequenceRunner.cs
 
 ## Phase 4: User Story 2 — Repeat Until Detected (P1)
 
 - Story Goal: Poll condition (image/text/trigger) until success or timeout.
 - Independent Test Criteria: Stop-on-success when detection meets `Present`; timeout causes `Failed` status.
 
-- [ ] T011 [US2] Implement `repeatUntil` with `timeoutMs` and `cadenceMs` in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T012 [P] [US2] Integrate detection/trigger evaluation services in src/GameBot.Domain/Services/TriggerEvaluationService.cs
+- [x] T011 [US2] Implement `repeatUntil` with `timeoutMs` and `cadenceMs` in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T012 [P] [US2] Integrate detection/trigger evaluation services in src/GameBot.Domain/Services/TriggerEvaluationService.cs
 - [ ] T013 [US2] On timeout, mark sequence `Failed` and exit early in src/GameBot.Domain/Services/SequenceRunner.cs
 
 ## Phase 5: User Story 3 — If/Then/Else Branch (P2)
@@ -39,7 +39,7 @@ Branch: 001-sequence-logic
 - Story Goal: Execute then/else branches based on condition outcome.
 - Independent Test Criteria: Present → then branch only; Absent → else branch only.
 
-- [ ] T014 [US3] Implement `ifElse` branching in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T014 [US3] Implement `ifElse` branching in src/GameBot.Domain/Services/SequenceRunner.cs
 - [ ] T015 [P] [US3] Validate `elseSteps` only allowed for `ifElse` in src/GameBot.Service/Program.cs
 - [ ] T016 [US3] Record `branchTaken` and timings in src/GameBot.Domain/Services/SequenceRunner.cs
 
@@ -55,7 +55,7 @@ Branch: 001-sequence-logic
 ## Final Phase: Polish & Cross-Cutting
 
 - [ ] T020 [P] Add LoggerMessage events for block start/end, evaluations, and decisions in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T021 Ensure backward compatibility for sequences without `blocks` in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T021 Ensure backward compatibility for sequences without `blocks` in src/GameBot.Domain/Services/SequenceRunner.cs
 - [ ] T022 [P] Refresh contracts doc with examples in specs/001-sequence-logic/contracts/sequences-blocks.md
 
 ## Dependencies (Story Order)
