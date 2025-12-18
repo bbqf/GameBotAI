@@ -37,7 +37,8 @@ namespace GameBot.UnitTests.Sequences
                 ct: CancellationToken.None);
             sw.Stop();
 
-            res.Status.Should().Be("Failed");
+            // While block failure does not mark entire sequence failed; only block is Failed
+            res.Status.Should().Be("Succeeded");
             res.Blocks.Should().HaveCount(1);
             var b = res.Blocks[0];
             b.Status.Should().Be("Failed");
@@ -145,6 +146,84 @@ namespace GameBot.UnitTests.Sequences
             b.BlockType.Should().Be("while");
             b.Iterations.Should().BeGreaterOrEqualTo(2);
             b.DurationMs.Should().BeGreaterOrEqualTo(60); // ~2 * 35ms with tolerance
+        }
+
+        [Fact]
+        public async Task WhileConditionFalseAtStartSucceeds()
+        {
+            var seq = new CommandSequence { Id = "wh-cond-false", Name = "while" };
+            var json = "{\"type\":\"while\",\"timeoutMs\":500,\"cadenceMs\":50,\"condition\":{\"source\":\"trigger\",\"targetId\":\"main\",\"mode\":\"Present\"}}";
+            var blockJson = JsonDocument.Parse(json);
+            seq.SetBlocks(new object[] { blockJson.RootElement });
+
+            var runner = new SequenceRunner(new StubRepo(seq));
+            var res = await runner.ExecuteAsync("wh-cond-false", _ => Task.CompletedTask,
+                conditionEvaluator: (cond, __) => Task.FromResult(false),
+                ct: CancellationToken.None);
+
+            res.Status.Should().Be("Succeeded");
+            var b = res.Blocks[0];
+            b.BlockType.Should().Be("while");
+            b.Iterations.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task WhileMaxIterationsLimitFails()
+        {
+            var seq = new CommandSequence { Id = "wh-max", Name = "while" };
+            var json = "{\"type\":\"while\",\"timeoutMs\":1000,\"cadenceMs\":50,\"maxIterations\":2,\"condition\":{\"source\":\"trigger\",\"targetId\":\"main\",\"mode\":\"Present\"}}";
+            var blockJson = JsonDocument.Parse(json);
+            seq.SetBlocks(new object[] { blockJson.RootElement });
+
+            var runner = new SequenceRunner(new StubRepo(seq));
+            var res = await runner.ExecuteAsync("wh-max", _ => Task.CompletedTask,
+                conditionEvaluator: (cond, __) => Task.FromResult(true),
+                ct: CancellationToken.None);
+
+            res.Status.Should().Be("Failed");
+            var b = res.Blocks[0];
+            b.BlockType.Should().Be("while");
+            b.Iterations.Should().BeGreaterOrEqualTo(2);
+            b.Status.Should().Be("Failed");
+        }
+
+        [Fact]
+        public async Task RepeatUntilMaxIterationsLimitFails()
+        {
+            var seq = new CommandSequence { Id = "ru-max", Name = "repeatUntil" };
+            var json = "{\"type\":\"repeatUntil\",\"timeoutMs\":1000,\"cadenceMs\":10,\"maxIterations\":2,\"condition\":{\"source\":\"trigger\",\"targetId\":\"main\",\"mode\":\"Present\"}}";
+            var blockJson = JsonDocument.Parse(json);
+            seq.SetBlocks(new object[] { blockJson.RootElement });
+
+            var runner = new SequenceRunner(new StubRepo(seq));
+            var res = await runner.ExecuteAsync("ru-max", _ => Task.CompletedTask,
+                conditionEvaluator: (cond, __) => Task.FromResult(false),
+                ct: CancellationToken.None);
+
+            res.Status.Should().Be("Failed");
+            var b = res.Blocks[0];
+            b.BlockType.Should().Be("repeatUntil");
+            b.Iterations.Should().BeGreaterOrEqualTo(2);
+            b.Status.Should().Be("Failed");
+        }
+
+        [Fact]
+        public async Task RepeatUntilConditionTrueAtStartSucceeds()
+        {
+            var seq = new CommandSequence { Id = "ru-start-true", Name = "repeatUntil" };
+            var json = "{\"type\":\"repeatUntil\",\"timeoutMs\":1000,\"cadenceMs\":10,\"condition\":{\"source\":\"trigger\",\"targetId\":\"main\",\"mode\":\"Present\"}}";
+            var blockJson = JsonDocument.Parse(json);
+            seq.SetBlocks(new object[] { blockJson.RootElement });
+
+            var runner = new SequenceRunner(new StubRepo(seq));
+            var res = await runner.ExecuteAsync("ru-start-true", _ => Task.CompletedTask,
+                conditionEvaluator: (cond, __) => Task.FromResult(true),
+                ct: CancellationToken.None);
+
+            res.Status.Should().Be("Succeeded");
+            var b = res.Blocks[0];
+            b.BlockType.Should().Be("repeatUntil");
+            b.Status.Should().Be("Succeeded");
         }
     }
 }
