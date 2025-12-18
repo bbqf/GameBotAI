@@ -77,7 +77,7 @@ namespace GameBot.UnitTests.Sequences
             res.Blocks.Should().HaveCount(1);
             var b = res.Blocks[0];
             b.BlockType.Should().Be("repeatUntil");
-            b.Iterations.Should().BeGreaterOrEqualTo(2);
+            b.Iterations.Should().Be(2); // satisfied on 3rd start => reported as iterations-1
             b.Evaluations.Should().BeGreaterOrEqualTo(5); // 2 start + 2 cont + final start
         }
 
@@ -143,8 +143,28 @@ namespace GameBot.UnitTests.Sequences
             res.Status.Should().Be("Succeeded");
             var b = res.Blocks[0];
             b.BlockType.Should().Be("while");
-            b.Iterations.Should().BeGreaterOrEqualTo(2);
+            b.Iterations.Should().Be(2);
             b.DurationMs.Should().BeGreaterOrEqualTo(60); // ~2 * 35ms with tolerance
+        }
+
+        [Fact]
+        public async Task RepeatUntilConditionTrueAtStartReportsZeroIterations()
+        {
+            var seq = new CommandSequence { Id = "ru-start-true-iter", Name = "repeatUntil" };
+            var json = "{\"type\":\"repeatUntil\",\"timeoutMs\":1000,\"cadenceMs\":10,\"condition\":{\"source\":\"trigger\",\"targetId\":\"main\",\"mode\":\"Present\"}}";
+            var blockJson = JsonDocument.Parse(json);
+            seq.SetBlocks(new object[] { blockJson.RootElement });
+
+            var runner = new SequenceRunner(new StubRepo(seq));
+            var res = await runner.ExecuteAsync("ru-start-true-iter", _ => Task.CompletedTask,
+                conditionEvaluator: (cond, __) => Task.FromResult(true),
+                ct: CancellationToken.None);
+
+            res.Blocks.Should().HaveCount(1);
+            var b = res.Blocks[0];
+            b.BlockType.Should().Be("repeatUntil");
+            b.Status.Should().Be("Succeeded");
+            b.Iterations.Should().Be(0);
         }
 
         [Fact]
@@ -179,10 +199,12 @@ namespace GameBot.UnitTests.Sequences
                 conditionEvaluator: (cond, __) => Task.FromResult(true),
                 ct: CancellationToken.None);
 
-            res.Status.Should().Be("Failed");
+            // Sequence remains succeeded; only the while block marks failure
+            res.Status.Should().Be("Succeeded");
             var b = res.Blocks[0];
             b.BlockType.Should().Be("while");
-            b.Iterations.Should().BeGreaterOrEqualTo(2);
+            b.Iterations.Should().Be(2);
+            b.Evaluations.Should().Be(b.Iterations);
             b.Status.Should().Be("Failed");
         }
 
@@ -199,10 +221,12 @@ namespace GameBot.UnitTests.Sequences
                 conditionEvaluator: (cond, __) => Task.FromResult(false),
                 ct: CancellationToken.None);
 
+            // Sequence marks failure on repeatUntil safeguards
             res.Status.Should().Be("Failed");
             var b = res.Blocks[0];
             b.BlockType.Should().Be("repeatUntil");
-            b.Iterations.Should().BeGreaterOrEqualTo(2);
+            b.Iterations.Should().Be(2);
+            b.Evaluations.Should().Be(b.Iterations);
             b.Status.Should().Be("Failed");
         }
 
