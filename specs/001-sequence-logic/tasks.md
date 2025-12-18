@@ -54,9 +54,9 @@ Branch: 001-sequence-logic
 
 ## Final Phase: Polish & Cross-Cutting
 
-- [ ] T020 [P] Add LoggerMessage events for block start/end, evaluations, and decisions in src/GameBot.Domain/Services/SequenceRunner.cs
+ - [x] T020 [P] Add LoggerMessage events for block start/end, evaluations, and decisions in src/GameBot.Domain/Services/SequenceRunner.cs
 - [x] T021 Ensure backward compatibility for sequences without `blocks` in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T022 [P] Refresh contracts doc with examples in specs/001-sequence-logic/contracts/sequences-blocks.md
+ - [x] T022 [P] Refresh contracts doc with examples in specs/001-sequence-logic/contracts/sequences-blocks.md
 
 ## Dependencies (Story Order)
 

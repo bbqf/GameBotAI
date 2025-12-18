@@ -181,13 +181,16 @@ namespace GameBot.Domain.Services
             CancellationToken ct)
         {
             var start = DateTimeOffset.UtcNow;
+            if (_logger != null) LogBlockStart(_logger, "ifElse", sequenceId, null);
             if (!block.TryGetProperty("condition", out var condEl) || condEl.ValueKind != JsonValueKind.Object)
             {
                 result.AddBlock(new BlockResult { BlockType = "ifElse", Iterations = 0, DurationMs = 0, Status = "Failed" });
+                if (_logger != null) LogBlockEnd(_logger, "ifElse", "Failed", 0, 0, null);
                 return;
             }
             var cond = ParseCondition(condEl);
             var takeIf = conditionEvaluator != null && await conditionEvaluator(cond, ct).ConfigureAwait(false);
+            if (_logger != null) LogBlockEvaluation(_logger, "ifElse", "condition", takeIf, null);
             var stepsProp = takeIf ? "steps" : "elseSteps";
             if (TryGetArray(block, stepsProp, out var items) && items.Count > 0)
             {
@@ -195,6 +198,11 @@ namespace GameBot.Domain.Services
             }
             var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
             result.AddBlock(new BlockResult { BlockType = "ifElse", Iterations = 1, Evaluations = 1, BranchTaken = takeIf ? "then" : "else", DurationMs = dur, Status = "Succeeded" });
+            if (_logger != null)
+            {
+                LogBlockDecision(_logger, "ifElse", takeIf ? "then" : "else", 0, null);
+                LogBlockEnd(_logger, "ifElse", "Succeeded", 1, 1, null);
+            }
         }
 
         private async Task ExecuteWhileAsync(
@@ -207,6 +215,7 @@ namespace GameBot.Domain.Services
             CancellationToken ct)
         {
             var start = DateTimeOffset.UtcNow;
+            if (_logger != null) LogBlockStart(_logger, "while", sequenceId, null);
             var cadenceMs = block.TryGetProperty("cadenceMs", out var cm) && cm.ValueKind == JsonValueKind.Number ? Math.Clamp(cm.GetInt32(), 50, 5000) : 100;
             var timeoutMs = block.TryGetProperty("timeoutMs", out var to) && to.ValueKind == JsonValueKind.Number ? Math.Max(0, to.GetInt32()) : (int?)null;
             var maxIterations = block.TryGetProperty("maxIterations", out var mi) && mi.ValueKind == JsonValueKind.Number ? Math.Max(1, mi.GetInt32()) : (int?)null;
@@ -231,19 +240,27 @@ namespace GameBot.Domain.Services
                 {
                     var brStart = await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
                     evals++;
+                    if (_logger != null) LogBlockEvaluation(_logger, "while", "breakOn-start", brStart, null);
                     if (brStart)
                     {
                         var durBreak = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                         result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = durBreak, Status = "Succeeded" });
+                        if (_logger != null)
+                        {
+                            LogBlockDecision(_logger, "while", "break", iterations, null);
+                            LogBlockEnd(_logger, "while", "Succeeded", iterations, evals, null);
+                        }
                         return;
                     }
                 }
                 var satisfied = conditionEvaluator != null && await conditionEvaluator(cond, ct).ConfigureAwait(false);
                 if (conditionEvaluator != null) evals++;
+                if (_logger != null) LogBlockEvaluation(_logger, "while", "condition", satisfied, null);
                 if (!satisfied)
                 {
                     var durOk = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                     result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = durOk, Status = "Succeeded" });
+                    if (_logger != null) LogBlockEnd(_logger, "while", "Succeeded", iterations, evals, null);
                     return;
                 }
 
@@ -272,10 +289,16 @@ namespace GameBot.Domain.Services
                         {
                             var brMid = await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
                             evals++;
+                            if (_logger != null) LogBlockEvaluation(_logger, "while", "breakOn-mid", brMid, null);
                             if (brMid)
                             {
                                 var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                                 result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
+                                if (_logger != null)
+                                {
+                                    LogBlockDecision(_logger, "while", "break", iterations, null);
+                                    LogBlockEnd(_logger, "while", "Succeeded", iterations, evals, null);
+                                }
                                 return;
                             }
                         }
@@ -283,9 +306,11 @@ namespace GameBot.Domain.Services
                         {
                             var contMid = await conditionEvaluator(continueOn, ct).ConfigureAwait(false);
                             evals++;
+                            if (_logger != null) LogBlockEvaluation(_logger, "while", "continueOn-mid", contMid, null);
                             if (contMid)
                             {
                                 skipRest = true;
+                                if (_logger != null) LogBlockDecision(_logger, "while", "continue", iterations, null);
                                 break;
                             }
                         }
@@ -300,12 +325,14 @@ namespace GameBot.Domain.Services
                 {
                     var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                     result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
+                    if (_logger != null) LogBlockEnd(_logger, "while", "Failed", iterations, evals, null);
                     return;
                 }
                 if (startDeadline.HasValue && DateTimeOffset.UtcNow >= startDeadline.Value)
                 {
                     var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                     result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
+                    if (_logger != null) LogBlockEnd(_logger, "while", "Failed", iterations, evals, null);
                     return;
                 }
                 await Task.Delay(cadenceMs, ct).ConfigureAwait(false);
@@ -349,6 +376,7 @@ namespace GameBot.Domain.Services
             CancellationToken ct)
         {
             var start = DateTimeOffset.UtcNow;
+            if (_logger != null) LogBlockStart(_logger, "repeatUntil", sequenceId, null);
             var cadenceMs = block.TryGetProperty("cadenceMs", out var cm) && cm.ValueKind == JsonValueKind.Number ? Math.Clamp(cm.GetInt32(), 50, 5000) : 100;
             var timeoutMs = block.TryGetProperty("timeoutMs", out var to) && to.ValueKind == JsonValueKind.Number ? Math.Max(0, to.GetInt32()) : (int?)null;
             var maxIterations = block.TryGetProperty("maxIterations", out var mi) && mi.ValueKind == JsonValueKind.Number ? Math.Max(1, mi.GetInt32()) : (int?)null;
@@ -359,6 +387,7 @@ namespace GameBot.Domain.Services
                 // No condition; treat as failed
                 result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = 0, DurationMs = 0, Status = "Failed" });
                 result.Fail("repeatUntil missing condition");
+                if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Failed", 0, 0, null);
                 return;
             }
             var cond = ParseCondition(condEl);
@@ -382,10 +411,16 @@ namespace GameBot.Domain.Services
                 {
                     var brStart = await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
                     evals++;
+                    if (_logger != null) LogBlockEvaluation(_logger, "repeatUntil", "breakOn-start", brStart, null);
                     if (brStart)
                     {
                         var durBreak = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                         result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, Evaluations = evals, DurationMs = durBreak, Status = "Succeeded" });
+                        if (_logger != null)
+                        {
+                            LogBlockDecision(_logger, "repeatUntil", "break", iterations, null);
+                            LogBlockEnd(_logger, "repeatUntil", "Succeeded", iterations, evals, null);
+                        }
                         return;
                     }
                 }
@@ -394,11 +429,13 @@ namespace GameBot.Domain.Services
                 {
                     satisfied = await conditionEvaluator(cond, ct).ConfigureAwait(false);
                     evals++;
+                    if (_logger != null) LogBlockEvaluation(_logger, "repeatUntil", "condition", satisfied, null);
                 }
                 if (satisfied)
                 {
                     var durOk = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                     result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations - 1, Evaluations = evals, DurationMs = durOk, Status = "Succeeded" });
+                    if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Succeeded", iterations - 1, evals, null);
                     return;
                 }
 
@@ -427,10 +464,16 @@ namespace GameBot.Domain.Services
                         {
                             var brMid = await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
                             evals++;
+                            if (_logger != null) LogBlockEvaluation(_logger, "repeatUntil", "breakOn-mid", brMid, null);
                             if (brMid)
                             {
                                 var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                                 result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
+                                if (_logger != null)
+                                {
+                                    LogBlockDecision(_logger, "repeatUntil", "break", iterations, null);
+                                    LogBlockEnd(_logger, "repeatUntil", "Succeeded", iterations, evals, null);
+                                }
                                 return;
                             }
                         }
@@ -438,9 +481,11 @@ namespace GameBot.Domain.Services
                         {
                             var contMid = await conditionEvaluator(continueOn, ct).ConfigureAwait(false);
                             evals++;
+                            if (_logger != null) LogBlockEvaluation(_logger, "repeatUntil", "continueOn-mid", contMid, null);
                             if (contMid)
                             {
                                 skipRest = true;
+                                if (_logger != null) LogBlockDecision(_logger, "repeatUntil", "continue", iterations, null);
                                 break;
                             }
                         }
@@ -457,6 +502,7 @@ namespace GameBot.Domain.Services
                     var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                     result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
                     result.Fail("repeatUntil maxIterations reached");
+                    if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Failed", iterations, evals, null);
                     return;
                 }
                 if (startDeadline.HasValue && DateTimeOffset.UtcNow >= startDeadline.Value)
@@ -464,6 +510,7 @@ namespace GameBot.Domain.Services
                     var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                     result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
                     result.Fail("repeatUntil timeout");
+                    if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Failed", iterations, evals, null);
                     return;
                 }
 
@@ -525,13 +572,16 @@ namespace GameBot.Domain.Services
             CancellationToken ct)
         {
             var start = DateTimeOffset.UtcNow;
+            if (_logger != null) LogBlockStart(_logger, "repeatCount", sequenceId, null);
+
             var maxIterations = block.TryGetProperty("maxIterations", out var mi) && mi.ValueKind == JsonValueKind.Number ? Math.Max(0, mi.GetInt32()) : 0;
             var cadenceMs = block.TryGetProperty("cadenceMs", out var cm) && cm.ValueKind == JsonValueKind.Number ? Math.Max(0, cm.GetInt32()) : 0;
             var iterations = 0;
+
             if (maxIterations <= 0)
             {
-                // no iterations; record block result
                 result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = 0, DurationMs = 0, Status = "Skipped" });
+                if (_logger != null) LogBlockEnd(_logger, "repeatCount", "Skipped", 0, 0, null);
                 return;
             }
 
@@ -550,25 +600,33 @@ namespace GameBot.Domain.Services
             for (var i = 0; i < maxIterations; i++)
             {
                 ct.ThrowIfCancellationRequested();
+
                 if (breakOn != null && conditionEvaluator != null)
                 {
                     var brStart = await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
                     evals++;
+                    if (_logger != null) LogBlockEvaluation(_logger, "repeatCount", "breakOn-start", brStart, null);
                     if (brStart)
                     {
                         var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                         result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
+                        if (_logger != null)
+                        {
+                            LogBlockDecision(_logger, "repeatCount", "break", iterations, null);
+                            LogBlockEnd(_logger, "repeatCount", "Succeeded", iterations, evals, null);
+                        }
                         return;
                     }
                 }
+
                 var skipRest = false;
+
                 foreach (var s in steps)
                 {
                     if (s is JsonElement se)
                     {
                         if (se.ValueKind == JsonValueKind.Object && se.TryGetProperty("type", out var nestedType))
                         {
-                            // nested block
                             await ExecuteBlocksAsync(new List<object> { se }, executeCommandAsync, gateEvaluator, conditionEvaluator, result, sequenceId, ct).ConfigureAwait(false);
                         }
                         else if (se.ValueKind == JsonValueKind.Object)
@@ -577,47 +635,66 @@ namespace GameBot.Domain.Services
                             var earlyStop = await ExecuteSingleStepAsync(step, executeCommandAsync, gateEvaluator, result, sequenceId, ct).ConfigureAwait(false);
                             if (earlyStop)
                             {
-                                // early stop due to gating timeout
                                 var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                                 result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
+                                if (_logger != null) LogBlockEnd(_logger, "repeatCount", "Failed", iterations, evals, null);
                                 return;
                             }
                         }
+
                         if (breakOn != null && conditionEvaluator != null)
                         {
                             var brMid = await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
                             evals++;
+                            if (_logger != null) LogBlockEvaluation(_logger, "repeatCount", "breakOn-mid", brMid, null);
                             if (brMid)
                             {
                                 var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
                                 result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
+                                if (_logger != null)
+                                {
+                                    LogBlockDecision(_logger, "repeatCount", "break", iterations, null);
+                                    LogBlockEnd(_logger, "repeatCount", "Succeeded", iterations, evals, null);
+                                }
                                 return;
                             }
                         }
+
                         if (continueOn != null && conditionEvaluator != null)
                         {
                             var contMid = await conditionEvaluator(continueOn, ct).ConfigureAwait(false);
                             evals++;
+                            if (_logger != null) LogBlockEvaluation(_logger, "repeatCount", "continueOn-mid", contMid, null);
                             if (contMid)
                             {
                                 skipRest = true;
+                                if (_logger != null) LogBlockDecision(_logger, "repeatCount", "continue", iterations, null);
                                 break;
                             }
                         }
                     }
                 }
+
                 if (skipRest)
                 {
-                    // continue to next iteration
+                    iterations++;
+                    if (i < maxIterations - 1 && cadenceMs > 0)
+                    {
+                        await Task.Delay(cadenceMs, ct).ConfigureAwait(false);
+                    }
+                    continue;
                 }
+
                 iterations++;
                 if (i < maxIterations - 1 && cadenceMs > 0)
                 {
                     await Task.Delay(cadenceMs, ct).ConfigureAwait(false);
                 }
             }
+
             var durationMs = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
             result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = iterations, Evaluations = evals, DurationMs = durationMs, Status = "Succeeded" });
+            if (_logger != null) LogBlockEnd(_logger, "repeatCount", "Succeeded", iterations, evals, null);
         }
 
         private static SequenceStep ToSequenceStep(JsonElement obj)
@@ -650,6 +727,16 @@ namespace GameBot.Domain.Services
             LoggerMessage.Define<string, int>(LogLevel.Information, new EventId(51006, nameof(LogCommandEnd)), "Command execute end {CommandId} duration {DurationMs}ms");
         private static readonly Action<ILogger, string, string, Exception?> LogSequenceEnd =
             LoggerMessage.Define<string, string>(LogLevel.Information, new EventId(51007, nameof(LogSequenceEnd)), "Sequence end {SequenceId} with status {Status}");
+
+        // Block-level logging (T020)
+        private static readonly Action<ILogger, string, string, Exception?> LogBlockStart =
+            LoggerMessage.Define<string, string>(LogLevel.Information, new EventId(51008, nameof(LogBlockStart)), "Block start {BlockType} for {SequenceId}");
+        private static readonly Action<ILogger, string, string, int, int, Exception?> LogBlockEnd =
+            LoggerMessage.Define<string, string, int, int>(LogLevel.Information, new EventId(51009, nameof(LogBlockEnd)), "Block end {BlockType} status {Status} iterations {Iterations} evaluations {Evaluations}");
+        private static readonly Action<ILogger, string, string, int, Exception?> LogBlockDecision =
+            LoggerMessage.Define<string, string, int>(LogLevel.Debug, new EventId(51010, nameof(LogBlockDecision)), "Block decision {BlockType} {Decision} at iteration {Iteration}");
+        private static readonly Action<ILogger, string, string, bool, Exception?> LogBlockEvaluation =
+            LoggerMessage.Define<string, string, bool>(LogLevel.Debug, new EventId(51011, nameof(LogBlockEvaluation)), "Block eval {BlockType} {Evaluation} outcome {Outcome}");
 
         private static int GetAppliedDelay(SequenceStep step)
         {
