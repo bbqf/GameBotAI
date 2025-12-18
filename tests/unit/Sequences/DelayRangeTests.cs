@@ -31,7 +31,7 @@ namespace GameBot.UnitTests.Sequences
                 new SequenceStep { Order = 1, CommandId = "c1", DelayMs = 999, DelayRangeMs = new DelayRangeMs { Min = 10, Max = 20 } }
             });
             var runner = new SequenceRunner(new StubRepo(seq));
-            var res = await runner.ExecuteAsync("s1", _ => Task.CompletedTask, CancellationToken.None);
+            var res = await runner.ExecuteAsync("s1", _ => Task.CompletedTask, ct: CancellationToken.None);
             res.Status.Should().Be("Succeeded");
             res.Steps.Should().HaveCount(1);
             res.Steps[0].AppliedDelayMs.Should().BeGreaterOrEqualTo(10).And.BeLessOrEqualTo(20);
@@ -47,7 +47,7 @@ namespace GameBot.UnitTests.Sequences
                 new SequenceStep { Order = 2, CommandId = "c2", DelayRangeMs = new DelayRangeMs { Min = 5, Max = 5 } }
             });
             var runner = new SequenceRunner(new StubRepo(seq));
-            var res = await runner.ExecuteAsync("s2", _ => Task.CompletedTask, CancellationToken.None);
+            var res = await runner.ExecuteAsync("s2", _ => Task.CompletedTask, ct: CancellationToken.None);
             res.Steps[0].AppliedDelayMs.Should().BeGreaterOrEqualTo(0).And.BeLessOrEqualTo(0);
             res.Steps[1].AppliedDelayMs.Should().Be(5);
         }
@@ -61,7 +61,7 @@ namespace GameBot.UnitTests.Sequences
                 new SequenceStep { Order = 1, CommandId = "c1", DelayMs = 7 }
             });
             var runner = new SequenceRunner(new StubRepo(seq));
-            var res = await runner.ExecuteAsync("s3", _ => Task.CompletedTask, CancellationToken.None);
+            var res = await runner.ExecuteAsync("s3", _ => Task.CompletedTask, ct: CancellationToken.None);
             res.Steps[0].AppliedDelayMs.Should().Be(7);
         }
     }

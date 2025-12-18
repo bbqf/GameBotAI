@@ -3,7 +3,7 @@ namespace GameBot.Domain.Commands.Blocks;
 public abstract class Block
 {
     public required string Type { get; init; } // repeatCount | repeatUntil | while | ifElse
-    public List<object> Steps { get; init; } = new(); // heterogeneous: Step | Block
+    public System.Collections.ObjectModel.Collection<object> Steps { get; init; } = new(); // heterogeneous: Step | Block
 }
 
 public sealed class RepeatCountBlock : Block
@@ -49,7 +49,7 @@ public sealed class WhileBlock : Block
 public sealed class IfElseBlock : Block
 {
     public Condition? Condition { get; init; }
-    public List<object> ElseSteps { get; init; } = new();
+    public System.Collections.ObjectModel.Collection<object> ElseSteps { get; init; } = new();
 
     public IfElseBlock()
     {
