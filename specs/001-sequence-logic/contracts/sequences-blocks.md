@@ -77,3 +77,100 @@ components:
 - `POST /api/sequences` — accepts extended schema
 - `GET /api/sequences/{id}` — returns extended schema
 - `POST /api/sequences/{id}/execute` — returns extended `BlockResult` telemetry
+
+## Examples
+
+Repeat Count:
+
+```json
+{
+  "type": "repeatCount",
+  "maxIterations": 3,
+  "cadenceMs": 250,
+  "control": {
+    "breakOn": { "source": "trigger", "targetId": "battle-won", "mode": "Present" },
+    "continueOn": { "source": "image", "targetId": "low-health", "mode": "Absent" }
+  },
+  "steps": [ { "order": 1, "commandId": "tap-heal" }, { "order": 2, "commandId": "tap-attack" } ]
+}
+```
+
+Repeat Until:
+
+```json
+{
+  "type": "repeatUntil",
+  "timeoutMs": 10000,
+  "cadenceMs": 300,
+  "condition": { "source": "image", "targetId": "boss-defeated", "mode": "Present" },
+  "control": {
+    "breakOn": { "source": "trigger", "targetId": "abort", "mode": "Present" },
+    "continueOn": { "source": "text", "targetId": "energy", "mode": "Equals", "value": "0" }
+  },
+  "steps": [ { "order": 1, "commandId": "tap-attack" } ]
+}
+```
+
+While:
+
+```json
+{
+  "type": "while",
+  "timeoutMs": 8000,
+  "cadenceMs": 200,
+  "condition": { "source": "trigger", "targetId": "in-combat", "mode": "Present" },
+  "control": {
+    "breakOn": { "source": "image", "targetId": "disconnect", "mode": "Present" },
+    "continueOn": { "source": "image", "targetId": "loading", "mode": "Present" }
+  },
+  "steps": [ { "order": 1, "commandId": "tap-skill-1" }, { "order": 2, "commandId": "tap-skill-2" } ]
+}
+```
+
+If/Else:
+
+```json
+{
+  "type": "ifElse",
+  "condition": { "source": "text", "targetId": "menu", "mode": "Contains", "value": "Settings" },
+  "thenSteps": [ { "order": 1, "commandId": "tap-settings" } ],
+  "elseSteps": [ { "order": 1, "commandId": "tap-back" } ]
+}
+```
+
+## Telemetry
+
+BlockResult example:
+
+```json
+{
+  "blockType": "repeatCount",
+  "iterations": 3,
+  "evaluations": 5,
+  "durationMs": 1240,
+  "status": "Succeeded"
+}
+```
+
+If/Else telemetry:
+
+```json
+{
+  "blockType": "ifElse",
+  "branchTaken": "then",
+  "evaluations": 1,
+  "durationMs": 75,
+  "status": "Succeeded"
+}
+```
+
+## Structured Logging
+
+Emitted by `SequenceRunner` via `LoggerMessage` delegates:
+
+- BlockStart: `{BlockType} for {SequenceId}`
+- BlockEnd: `{BlockType} status {Status} iterations {Iterations} evaluations {Evaluations}`
+- BlockEvaluation: `{BlockType} {Evaluation} outcome {Outcome}`
+  - Evaluations: `condition-start`, `condition-mid`, `breakOn-start`, `breakOn-mid`, `continueOn-mid`
+- BlockDecision: `{BlockType} {Decision} at iteration {Iteration}`
+  - Decisions: `break`, `continue`

@@ -1,5 +1,11 @@
 # Quickstart — Sequence Logic Blocks
 
+## Status Update (2025-12-18)
+
+- US4 loop control implemented: `breakOn` and `continueOn` supported in `repeatCount`, `repeatUntil`, and `while`.
+- Telemetry updated: per-block `Evaluations`, iteration counts captured; builds/tests passing.
+- Tasks T017–T019 completed; next planned: T020 (logging events) and T022 (docs refresh).
+
 ## Setup
 
 ```powershell

@@ -29,7 +29,7 @@ namespace GameBot.UnitTests.Sequences
                 new SequenceStep { Order = 1, CommandId = "c1", TimeoutMs = 200, Gate = new GateConfig { TargetId = "t1", Condition = GateCondition.Present } }
             });
             var runner = new SequenceRunner(new StubRepo(seq));
-            var res = await runner.ExecuteAsync("g1", _ => Task.CompletedTask, CancellationToken.None, gateEvaluator: async (_, __) => { await Task.Yield(); return false; });
+            var res = await runner.ExecuteAsync("g1", _ => Task.CompletedTask, gateEvaluator: async (_, __) => { await Task.Yield(); return false; }, ct: CancellationToken.None);
             res.Status.Should().Be("Failed");
         }
 
@@ -42,7 +42,7 @@ namespace GameBot.UnitTests.Sequences
                 new SequenceStep { Order = 1, CommandId = "c1", TimeoutMs = 500, Gate = new GateConfig { TargetId = "t1", Condition = GateCondition.Present } }
             });
             var runner = new SequenceRunner(new StubRepo(seq));
-            var res = await runner.ExecuteAsync("g2", _ => Task.CompletedTask, CancellationToken.None, gateEvaluator: (_, __) => Task.FromResult(true));
+            var res = await runner.ExecuteAsync("g2", _ => Task.CompletedTask, gateEvaluator: (_, __) => Task.FromResult(true), ct: CancellationToken.None);
             res.Status.Should().Be("Succeeded");
             res.Steps.Should().HaveCount(1);
         }
