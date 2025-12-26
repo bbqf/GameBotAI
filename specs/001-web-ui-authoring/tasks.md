@@ -26,8 +26,8 @@
 
 ## Phase 5: User Story US3 (P2) — Validation feedback on invalid blocks
 
-- [ ] T013 [US3] Implement validation parser in src/web-ui/src/lib/validation.ts
-- [ ] T014 [P] [US3] Highlight field errors in src/web-ui/src/pages/*
+- [x] T013 [US3] Implement validation parser in src/web-ui/src/lib/validation.ts
+- [x] T014 [P] [US3] Highlight field errors in src/web-ui/src/pages/*
 
 ## Phase 6: User Story US4 (P3) — Browse triggers/images to select targetId
 

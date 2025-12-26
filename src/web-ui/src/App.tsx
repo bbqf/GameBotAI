@@ -11,9 +11,6 @@ export const App: React.FC = () => {
   const [token, setTokenState] = useState<string>(token$.get() ?? '');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 
-  const goEdit = () => { setRoute('edit'); };
-  const [route, setRoute] = useState<'create' | 'view'>('create');
-  const [token, setTokenState] = useState<string>(token$.get() ?? '');
 
   useEffect(() => {
     const unsub = token$.subscribe((t) => setTokenState(t ?? ''));
