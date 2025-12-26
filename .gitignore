@@ -71,3 +71,5 @@ tools/
 # PR helper files (do not commit)
 PR_BODY.md
 PR_BODY*.md
+
+**/*.Metrics.xml
