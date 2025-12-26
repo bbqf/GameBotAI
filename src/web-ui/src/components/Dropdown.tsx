@@ -13,6 +13,8 @@ type DropdownProps = {
   placeholder?: string;
   disabled?: boolean;
   onChange: (value: string | undefined) => void;
+  error?: string;
+  describedById?: string;
 };
 
 export const Dropdown: React.FC<DropdownProps> = ({
@@ -23,6 +25,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
   placeholder = 'Select…',
   disabled,
   onChange,
+  error,
+  describedById,
 }) => {
   return (
     <div className="dropdown-field">
@@ -36,6 +40,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
         className="dropdown"
         value={value ?? ''}
         disabled={disabled}
+        aria-invalid={!!error}
+        aria-describedby={describedById}
         onChange={(e) => {
           const val = e.target.value;
           onChange(val === '' ? undefined : val);
@@ -48,6 +54,11 @@ export const Dropdown: React.FC<DropdownProps> = ({
           </option>
         ))}
       </select>
+      {error && (
+        <div id={describedById} className="field-error" role="alert">
+          {error}
+        </div>
+      )}
     </div>
   );
 };

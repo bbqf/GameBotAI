@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
 
 export const validateRequired = (value: string, label: string): string | null => {
   if (!value || value.trim().length === 0) return `${label} is required`;
@@ -23,4 +23,26 @@ export const FormError: React.FC<{ message?: string }> = ({ message }) => {
       {message}
     </div>
   );
+};
+
+export type FieldValidator = (value: string) => string | null;
+
+export const useFormFocusOnError = () => {
+  const firstErrorRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const registerErrorField = useCallback((el: HTMLInputElement | HTMLTextAreaElement | null) => {
+    if (el && !firstErrorRef.current) firstErrorRef.current = el;
+  }, []);
+  const focusFirstError = useCallback(() => {
+    firstErrorRef.current?.focus();
+    firstErrorRef.current = null;
+  }, []);
+  return { registerErrorField, focusFirstError };
+};
+
+export const useFieldValidation = (value: string, validators: FieldValidator[]): { error?: string } => {
+  for (const v of validators) {
+    const res = v(value);
+    if (res) return { error: res };
+  }
+  return {};
 };

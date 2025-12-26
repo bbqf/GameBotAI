@@ -53,7 +53,7 @@
 - [x] T020 [P] [US1] Create `src/web-ui/src/pages/SequencesPage.tsx` list-only view using `List` and `services/sequences.ts`
 - [x] T021 [P] [US1] Create `src/web-ui/src/pages/TriggersPage.tsx` list-only view using `List` and `services/triggers.ts`
 - [x] T022 [US1] Wire `Nav` tab selection to switch pages in `src/web-ui/src/App.tsx`
-- [ ] T023 [US1] Add client-side sorting by name in `List.tsx` and optional filter when items > 50
+- [x] T023 [US1] Add client-side sorting by name in `List.tsx` and optional filter when items > 50
 
 **Checkpoint**: User Story 1 independently testable.
 
@@ -67,7 +67,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T024 [P] [US2] Add `src/web-ui/src/components/Form.tsx` with validation hooks (required fields, constraints)
+- [x] T024 [P] [US2] Add `src/web-ui/src/components/Form.tsx` with validation hooks (required fields, constraints)
 - [x] T025 [P] [US2] Implement `src/web-ui/src/pages/ActionsPage.tsx` create form modal (uses `services/actions.ts`)
 - [x] T026 [P] [US2] Implement `src/web-ui/src/pages/GamesPage.tsx` create form modal (uses `services/games.ts`)
 - [x] T027 [P] [US2] Implement `src/web-ui/src/pages/CommandsPage.tsx` create form modal with dropdown of Actions (names → IDs)
@@ -101,12 +101,12 @@
 
 ## Phase N: Polish & Cross-Cutting Concerns
 
-- [ ] T038 [P] Documentation updates in `specs/001-authoring-crud-ui/quickstart.md`
-- [ ] T039 Add empty-state messaging across pages (when no objects exist)
-- [ ] T040 Performance tuning: batch fetch reference dropdown data per page
-- [ ] T041 Accessibility: labels, focus management, color contrast in `Form.tsx`, `Dropdown.tsx`
-- [ ] T042 Error messages: actionable guidance; use `ErrorBoundary` consistently
-- [ ] T043 Add basic unit tests for `List.tsx`, `Form.tsx`, `Dropdown.tsx`, `ConfirmDeleteModal.tsx`
+- [x] T038 [P] Documentation updates in `specs/001-authoring-crud-ui/quickstart.md`
+- [x] T039 Add empty-state messaging across pages (when no objects exist)
+- [x] T040 Performance tuning: batch fetch reference dropdown data per page
+- [x] T041 Accessibility: labels, focus management, color contrast in `Form.tsx`, `Dropdown.tsx`
+- [x] T042 Error messages: actionable guidance; use `ErrorBoundary` consistently
+- [x] T043 Add basic unit tests for `List.tsx`, `Form.tsx`, `Dropdown.tsx`, `ConfirmDeleteModal.tsx`
 
 ---
 

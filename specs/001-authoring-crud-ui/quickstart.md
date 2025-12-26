@@ -19,6 +19,7 @@ npm run dev
 - List views with name and key attributes.
 - Create/Edit forms with reference dropdowns showing names; IDs used in requests.
 - Delete actions with confirmation; deletion blocked when referenced.
+- Accessible form controls with labels, error states, and focus management. ErrorBoundary provides actionable guidance.
 
 ## Testing (frontend)
 - Run unit tests:

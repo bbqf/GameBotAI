@@ -23,6 +23,9 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Erro
         <div role="alert" className="error-boundary">
           <h2>Something went wrong</h2>
           <p>{this.state.error?.message ?? 'Unexpected error occurred.'}</p>
+          <p className="guidance">
+            Try refreshing the page. If the problem persists, check your network connection and the backend API status. You can also retry the last action.
+          </p>
         </div>
       );
     }
