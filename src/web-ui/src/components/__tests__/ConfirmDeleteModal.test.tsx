@@ -18,7 +18,10 @@ describe('ConfirmDeleteModal', () => {
         onCancel={() => {}}
       />
     );
-    expect(screen.getByText(/delete Item X/i)).toBeInTheDocument();
+    // Text is split across elements (strong tags), use a function matcher
+    expect(
+      screen.getByText((_, node) => !!node && /delete\s+Item X/i.test(node.textContent || ''))
+    ).toBeInTheDocument();
     expect(screen.getByText('Referenced by:')).toBeInTheDocument();
     expect(screen.getByText('Cmd One')).toBeInTheDocument();
   });
