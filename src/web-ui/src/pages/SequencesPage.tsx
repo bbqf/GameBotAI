@@ -23,23 +23,22 @@ export const SequencesPage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
-    listSequences()
-      .then((data: SequenceDto[]) => {
+    Promise.all([listSequences(), listCommands()])
+      .then(([seqs, cmds]: [SequenceDto[], CommandDto[]]) => {
         if (!mounted) return;
-        const mapped: ListItem[] = data.map((s) => ({
+        const mapped: ListItem[] = seqs.map((s) => ({
           id: s.id,
           name: s.name,
           details: { steps: s.steps?.length ?? 0 }
         }));
         setItems(mapped);
-      })
-      .catch(() => setItems([]));
-    listCommands()
-      .then((cmds: CommandDto[]) => {
-        if (!mounted) return;
         setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
       })
-      .catch(() => setCommandOptions([]));
+      .catch(() => {
+        if (!mounted) return;
+        setItems([]);
+        setCommandOptions([]);
+      });
     return () => {
       mounted = false;
     };

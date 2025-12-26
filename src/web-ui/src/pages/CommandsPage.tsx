@@ -26,23 +26,22 @@ export const CommandsPage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
-    listCommands()
-      .then((data: CommandDto[]) => {
+    Promise.all([listCommands(), listActions()])
+      .then(([cmds, acts]: [CommandDto[], ActionDto[]]) => {
         if (!mounted) return;
-        const mapped: ListItem[] = data.map((c) => ({
+        const mapped: ListItem[] = cmds.map((c) => ({
           id: c.id,
           name: c.name,
           details: { actions: c.actions?.length ?? 0 }
         }));
         setItems(mapped);
-      })
-      .catch(() => setItems([]));
-    listActions()
-      .then((acts: ActionDto[]) => {
-        if (!mounted) return;
         setActionOptions(acts.map((a) => ({ value: a.id, label: a.name })));
       })
-      .catch(() => setActionOptions([]));
+      .catch(() => {
+        if (!mounted) return;
+        setItems([]);
+        setActionOptions([]);
+      });
     return () => {
       mounted = false;
     };
