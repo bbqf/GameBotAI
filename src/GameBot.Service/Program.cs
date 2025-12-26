@@ -294,6 +294,17 @@ app.MapGet("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
   return found is null ? Results.NotFound() : Results.Ok(found);
 }).WithName("GetSequence");
 
+app.MapPut("/api/sequences/{id}", async (ISequenceRepository repo, string id, CommandSequence update) =>
+{
+  var existing = await repo.GetAsync(id).ConfigureAwait(false);
+  if (existing is null) return Results.NotFound();
+  update.Id = id;
+  update.CreatedAt = existing.CreatedAt;
+  update.UpdatedAt = DateTimeOffset.UtcNow;
+  var saved = await repo.UpdateAsync(update).ConfigureAwait(false);
+  return Results.Ok(saved);
+}).WithName("UpdateSequence");
+
 app.MapPost("/api/sequences/{id}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,

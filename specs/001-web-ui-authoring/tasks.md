@@ -14,15 +14,15 @@
 
 ## Phase 3: User Story US1 (P1) — Create a new sequence
 
-- [ ] T007 [US1] Build Create page form in src/web-ui/src/pages/SequencesCreate.tsx
-- [ ] T008 [P] [US1] Wire POST /api/sequences in src/web-ui/src/pages/SequencesCreate.tsx
-- [ ] T009 [US1] Route to View after success in src/web-ui/src/App.tsx
+- [x] T007 [US1] Build Create page form in src/web-ui/src/pages/SequencesCreate.tsx
+- [x] T008 [P] [US1] Wire POST /api/sequences in src/web-ui/src/pages/SequencesCreate.tsx
+- [x] T009 [US1] Route to View after success in src/web-ui/src/App.tsx
 
 ## Phase 4: User Story US2 (P2) — Edit an existing sequence
 
-- [ ] T010 [US2] Create Edit page in src/web-ui/src/pages/SequenceEdit.tsx
-- [ ] T011 [P] [US2] Wire update endpoint (PUT/PATCH) in src/web-ui/src/pages/SequenceEdit.tsx
-- [ ] T012 [US2] Persist and show validation on save in src/web-ui/src/pages/SequenceEdit.tsx
+- [x] T010 [US2] Create Edit page in src/web-ui/src/pages/SequenceEdit.tsx
+- [x] T011 [P] [US2] Wire update endpoint (PUT/PATCH) in src/web-ui/src/pages/SequenceEdit.tsx
+- [x] T012 [US2] Persist and show validation on save in src/web-ui/src/pages/SequenceEdit.tsx
 
 ## Phase 5: User Story US3 (P2) — Validation feedback on invalid blocks
 
