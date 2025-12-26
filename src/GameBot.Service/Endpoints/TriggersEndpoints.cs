@@ -12,7 +12,7 @@ internal static class TriggersEndpoints {
   public static IEndpointRouteBuilder MapTriggerEndpoints(this IEndpointRouteBuilder app) {
     ArgumentNullException.ThrowIfNull(app);
 
-    app.MapPost("/triggers", async (TriggerCreateDto req, ITriggerRepository repo, CancellationToken ct) => {
+    app.MapPost("/api/triggers", async (TriggerCreateDto req, ITriggerRepository repo, CancellationToken ct) => {
       if (string.IsNullOrWhiteSpace(req.Type))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "type is required", hint = (string?)null } });
       if (req.Params is null)
@@ -80,7 +80,7 @@ internal static class TriggersEndpoints {
     .WithName("CreateTrigger")
     .WithTags("Triggers");
 
-    app.MapGet("/triggers/{id}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
+    app.MapGet("/api/triggers/{id}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
       var trig = await repo.GetAsync(id, ct).ConfigureAwait(false);
       return trig is null
           ? Results.NotFound(new { error = new { code = "not_found", message = "Trigger not found", hint = (string?)null } })
@@ -89,21 +89,21 @@ internal static class TriggersEndpoints {
     .WithName("GetTrigger")
     .WithTags("Triggers");
 
-    app.MapGet("/triggers", async (ITriggerRepository repo, CancellationToken ct) => {
+    app.MapGet("/api/triggers", async (ITriggerRepository repo, CancellationToken ct) => {
       var list = await repo.ListAsync(ct).ConfigureAwait(false);
       return Results.Ok(list.Select(TriggerMappings.ToDto));
     })
     .WithName("ListTriggers")
     .WithTags("Triggers");
 
-    app.MapDelete("/triggers/{id}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
+    app.MapDelete("/api/triggers/{id}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
       var ok = await repo.DeleteAsync(id, ct).ConfigureAwait(false);
       return ok ? Results.NoContent() : Results.NotFound();
     })
     .WithName("DeleteTrigger")
     .WithTags("Triggers");
 
-    app.MapPost("/triggers/{id}/test", async (string id, ITriggerRepository repo, TriggerEvaluationService evalSvc, CancellationToken ct) => {
+    app.MapPost("/api/triggers/{id}/test", async (string id, ITriggerRepository repo, TriggerEvaluationService evalSvc, CancellationToken ct) => {
       var trig = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (trig is null)
         return Results.NotFound(new { error = new { code = "not_found", message = "Trigger not found", hint = (string?)null } });

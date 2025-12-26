@@ -7,7 +7,7 @@ namespace GameBot.Service.Endpoints;
 
 internal static class ActionsEndpoints {
   public static IEndpointRouteBuilder MapActionEndpoints(this IEndpointRouteBuilder app) {
-    app.MapPost("/actions", async (CreateActionRequest req, IActionRepository repo, CancellationToken ct) => {
+    app.MapPost("/api/actions", async (CreateActionRequest req, IActionRepository repo, CancellationToken ct) => {
       if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.GameId))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name, gameId are required", hint = (string?)null } });
 
@@ -31,7 +31,7 @@ internal static class ActionsEndpoints {
     .WithName("CreateAction")
     .WithTags("Actions");
 
-    app.MapGet("/actions/{id}", async (string id, IActionRepository repo, CancellationToken ct) => {
+    app.MapGet("/api/actions/{id}", async (string id, IActionRepository repo, CancellationToken ct) => {
       var a = await repo.GetAsync(id, ct).ConfigureAwait(false);
       return a is null
           ? Results.NotFound(new { error = new { code = "not_found", message = "Action not found", hint = (string?)null } })
@@ -46,7 +46,7 @@ internal static class ActionsEndpoints {
     .WithName("GetAction")
     .WithTags("Actions");
 
-    app.MapGet("/actions", async (string? gameId, IActionRepository repo, CancellationToken ct) => {
+    app.MapGet("/api/actions", async (string? gameId, IActionRepository repo, CancellationToken ct) => {
       var list = await repo.ListAsync(gameId, ct).ConfigureAwait(false);
       var resp = list.Select(a => new ActionResponse {
         Id = a.Id,

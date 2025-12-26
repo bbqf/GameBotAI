@@ -7,7 +7,7 @@ namespace GameBot.Service.Endpoints;
 
 internal static class CommandsEndpoints {
   public static IEndpointRouteBuilder MapCommandEndpoints(this IEndpointRouteBuilder app) {
-    app.MapPost("/commands", async (CreateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
+    app.MapPost("/api/commands", async (CreateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
       if (string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
 
@@ -37,7 +37,7 @@ internal static class CommandsEndpoints {
     .WithName("CreateCommand")
     .WithTags("Commands");
 
-    app.MapGet("/commands/{id}", async (string id, ICommandRepository repo, CancellationToken ct) => {
+    app.MapGet("/api/commands/{id}", async (string id, ICommandRepository repo, CancellationToken ct) => {
       var c = await repo.GetAsync(id, ct).ConfigureAwait(false);
       return c is null
           ? Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } })
@@ -55,7 +55,7 @@ internal static class CommandsEndpoints {
     .WithName("GetCommand")
     .WithTags("Commands");
 
-    app.MapGet("/commands", async (ICommandRepository repo, CancellationToken ct) => {
+    app.MapGet("/api/commands", async (ICommandRepository repo, CancellationToken ct) => {
       var list = await repo.ListAsync(ct).ConfigureAwait(false);
       var resp = list.Select(c => new CommandResponse {
         Id = c.Id,
@@ -72,7 +72,7 @@ internal static class CommandsEndpoints {
     .WithName("ListCommands")
     .WithTags("Commands");
 
-    app.MapPatch("/commands/{id}", async (string id, UpdateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
+    app.MapPatch("/api/commands/{id}", async (string id, UpdateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound();
       if (!string.IsNullOrWhiteSpace(req.Name)) existing.Name = req.Name!;
@@ -103,14 +103,14 @@ internal static class CommandsEndpoints {
     .WithName("UpdateCommand")
     .WithTags("Commands");
 
-    app.MapDelete("/commands/{id}", async (string id, ICommandRepository repo, CancellationToken ct) => {
+    app.MapDelete("/api/commands/{id}", async (string id, ICommandRepository repo, CancellationToken ct) => {
       var ok = await repo.DeleteAsync(id, ct).ConfigureAwait(false);
       return ok ? Results.NoContent() : Results.NotFound();
     })
     .WithName("DeleteCommand")
     .WithTags("Commands");
 
-    app.MapPost("/commands/{id}/force-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
+    app.MapPost("/api/commands/{id}/force-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
         var accepted = await exec.ForceExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
         return Results.Accepted($"/sessions/{sessionId}", new { accepted });
@@ -129,7 +129,7 @@ internal static class CommandsEndpoints {
     .WithName("ForceExecuteCommand")
     .WithTags("Commands");
 
-    app.MapPost("/commands/{id}/evaluate-and-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
+    app.MapPost("/api/commands/{id}/evaluate-and-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
         var decision = await exec.EvaluateAndExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
         return Results.Accepted($"/sessions/{sessionId}", new {

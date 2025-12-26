@@ -5,7 +5,7 @@ namespace GameBot.Service.Endpoints;
 
 internal static class GamesEndpoints {
   public static IEndpointRouteBuilder MapGameEndpoints(this IEndpointRouteBuilder app) {
-    app.MapPost("/games", async (CreateGameRequest req, IGameRepository repo, CancellationToken ct) => {
+    app.MapPost("/api/games", async (CreateGameRequest req, IGameRepository repo, CancellationToken ct) => {
       if (string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
 
@@ -22,7 +22,7 @@ internal static class GamesEndpoints {
       });
     }).WithName("CreateGame");
 
-    app.MapGet("/games/{id}", async (string id, IGameRepository repo, CancellationToken ct) => {
+    app.MapGet("/api/games/{id}", async (string id, IGameRepository repo, CancellationToken ct) => {
       var g = await repo.GetAsync(id, ct).ConfigureAwait(false);
       return g is null
           ? Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } })
@@ -33,7 +33,7 @@ internal static class GamesEndpoints {
           });
     }).WithName("GetGame");
 
-    app.MapGet("/games", async (IGameRepository repo, CancellationToken ct) => {
+    app.MapGet("/api/games", async (IGameRepository repo, CancellationToken ct) => {
       var list = await repo.ListAsync(ct).ConfigureAwait(false);
       var resp = list.Select(g => new GameResponse { Id = g.Id, Name = g.Name, Description = g.Description });
       return Results.Ok(resp);
