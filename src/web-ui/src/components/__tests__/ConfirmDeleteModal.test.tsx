@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 describe('ConfirmDeleteModal', () => {
@@ -18,12 +18,11 @@ describe('ConfirmDeleteModal', () => {
         onCancel={() => {}}
       />
     );
-    // Text is split across elements (strong tags), use a function matcher
-    expect(
-      screen.getByText((_, node) => !!node && /delete\s+Item X/i.test(node.textContent || ''))
-    ).toBeInTheDocument();
-    expect(screen.getByText('Referenced by:')).toBeInTheDocument();
-    expect(screen.getByText('Cmd One')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: /confirm delete/i });
+    expect(within(dialog).getByText(/are you sure you want to delete/i)).toBeInTheDocument();
+    expect(within(dialog).getByText('Item X')).toBeInTheDocument();
+    expect(within(dialog).getByText('Referenced by:')).toBeInTheDocument();
+    expect(within(dialog).getByText('Cmd One')).toBeInTheDocument();
   });
 
   it('invokes callbacks on buttons', () => {
