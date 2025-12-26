@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ApiError, getJson, putJson } from '../lib/api';
 import { parseFromError, ParsedValidation } from '../lib/validation';
 import { FormField } from '../components/FormField';
+import { ImagePicker } from '../components/ImagePicker';
+import { TriggerPicker } from '../components/TriggerPicker';
 
 type Sequence = {
   id: string;
@@ -19,6 +21,8 @@ export const SequenceEdit: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null);
   const [model, setModel] = useState<Sequence | null>(null);
   const [fieldErrors, setFieldErrors] = useState<ParsedValidation | null>(null);
+  const [pickedImageId, setPickedImageId] = useState<string | null>(null);
+  const [pickedTriggerId, setPickedTriggerId] = useState<string | null>(null);
 
   const onFetch = async () => {
     setLoading(true);
@@ -84,6 +88,19 @@ export const SequenceEdit: React.FC = () => {
           <div className="actions">
             <button disabled={saving} onClick={onSave}>Save</button>
           </div>
+          <section style={{ marginTop: 16 }}>
+            <h3>Select Target IDs</h3>
+            <div className="row">
+              <label>Selected Image ID</label>
+              <span>{pickedImageId ?? '(none)'}</span>
+            </div>
+            <ImagePicker onSelect={(id) => setPickedImageId(id)} />
+            <div className="row">
+              <label>Selected Trigger ID</label>
+              <span>{pickedTriggerId ?? '(none)'}</span>
+            </div>
+            <TriggerPicker onSelect={(id) => setPickedTriggerId(id)} />
+          </section>
           {fieldErrors && (
             <div className="message">
               {fieldErrors.general.length > 0 && (

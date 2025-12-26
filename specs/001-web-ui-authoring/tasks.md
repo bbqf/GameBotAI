@@ -31,8 +31,8 @@
 
 ## Phase 6: User Story US4 (P3) — Browse triggers/images to select targetId
 
-- [ ] T015 [US4] Implement TriggerPicker in src/web-ui/src/components/TriggerPicker.tsx
-- [ ] T016 [P] [US4] Implement ImagePicker in src/web-ui/src/components/ImagePicker.tsx
+- [x] T015 [US4] Implement TriggerPicker in src/web-ui/src/components/TriggerPicker.tsx
+- [x] T016 [P] [US4] Implement ImagePicker in src/web-ui/src/components/ImagePicker.tsx
 
 ## Phase 7: User Story US5 (P1) — Mobile viewport
 
