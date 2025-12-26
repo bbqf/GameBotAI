@@ -41,8 +41,8 @@
 
 ## Final Phase: Polish & Cross-Cutting
 
-- [ ] T019 Add VS Code launch configs for service+web UI in .vscode/launch.json
-- [ ] T020 Update quickstart with tasks and endpoints in specs/001-web-ui-authoring/quickstart.md
+- [x] T019 Add VS Code launch configs for service+web UI in .vscode/launch.json
+- [x] T020 Update quickstart with tasks and endpoints in specs/001-web-ui-authoring/quickstart.md
 
 ## Dependencies
 
