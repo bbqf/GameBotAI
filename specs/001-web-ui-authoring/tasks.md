@@ -8,9 +8,9 @@
 
 ## Phase 2: Foundational
 
-- [ ] T004 Implement API client error mapping in src/web-ui/src/lib/api.ts
-- [ ] T005 Finalize TokenGate behavior (remember toggle) in src/web-ui/src/components/TokenGate.tsx
-- [ ] T006 Create reusable labeled input component in src/web-ui/src/components/FormField.tsx
+- [x] T004 Implement API client error mapping in src/web-ui/src/lib/api.ts
+- [x] T005 Finalize TokenGate behavior (remember toggle) in src/web-ui/src/components/TokenGate.tsx
+- [x] T006 Create reusable labeled input component in src/web-ui/src/components/FormField.tsx
 
 ## Phase 3: User Story US1 (P1) — Create a new sequence
 

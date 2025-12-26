@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { baseUrl$, getBaseUrl, setBaseUrl } from '../lib/config';
+import { setToken } from '../lib/token';
 
 export const TokenGate: React.FC<{
   token: string;
@@ -13,6 +14,13 @@ export const TokenGate: React.FC<{
   useEffect(() => {
     const unsub = baseUrl$.subscribe((u) => setLocalBaseUrl(u));
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const r = localStorage.getItem('gamebot.rememberToken') === 'true';
+      setRemember(r);
+    } catch { /* no-op */ }
   }, []);
 
   return (
@@ -47,6 +55,10 @@ export const TokenGate: React.FC<{
             onChange={(e) => {
               setRemember(e.target.checked);
               onRememberChange(e.target.checked);
+              // If enabling remember and we already have a token, persist it now
+              if (e.target.checked && token) {
+                setToken(token);
+              }
             }}
           />
           Remember token (localStorage)

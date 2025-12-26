@@ -1,6 +1,21 @@
 import { getBaseUrl } from './config';
 import { token$ } from './token';
 
+export type ApiValidationError = {
+  field?: string;
+  message: string;
+};
+
+export class ApiError extends Error {
+  status: number;
+  errors?: ApiValidationError[];
+  constructor(status: number, message: string, errors?: ApiValidationError[]) {
+    super(message);
+    this.status = status;
+    this.errors = errors;
+  }
+}
+
 const buildUrl = (path: string) => {
   const base = getBaseUrl().trim();
   if (!base) return path; // same-origin
@@ -35,3 +50,41 @@ export const apiDelete = (path: string) => {
     headers: buildHeaders()
   });
 };
+
+// JSON helpers with error mapping
+const parseJsonSafe = async <T>(res: Response): Promise<T | undefined> => {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return undefined;
+  }
+};
+
+const request = async <T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> => {
+  const res = await fetch(buildUrl(path), {
+    method,
+    headers: buildHeaders(),
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+
+  if (res.ok) {
+    // 204 no content
+    if (res.status === 204) return undefined as unknown as T;
+    const data = await parseJsonSafe<T>(res);
+    return (data as T) ?? (undefined as unknown as T);
+  }
+
+  const data = await parseJsonSafe<any>(res);
+  if (res.status === 400) {
+    const errors: ApiValidationError[] | undefined = Array.isArray(data?.errors)
+      ? data.errors.map((e: any) => ({ field: e.field, message: e.message ?? String(e) }))
+      : undefined;
+    throw new ApiError(400, 'Validation error', errors);
+  }
+  const message = data?.message ?? `HTTP ${res.status}`;
+  throw new ApiError(res.status, message);
+};
+
+export const getJson = async <T>(path: string) => request<T>('GET', path);
+export const postJson = async <T>(path: string, body: unknown) => request<T>('POST', path, body);
+export const deleteJson = async <T>(path: string) => request<T>('DELETE', path);
