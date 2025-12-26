@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { TokenGate } from './components/TokenGate';
 import { SequencesCreate } from './pages/SequencesCreate';
 import { SequenceView } from './pages/SequenceView';
@@ -7,7 +7,12 @@ import { setBaseUrl } from './lib/config';
 
 export const App: React.FC = () => {
   const [route, setRoute] = useState<'create' | 'view'>('create');
-  const token = token$.get();
+  const [token, setTokenState] = useState<string>(token$.get() ?? '');
+
+  useEffect(() => {
+    const unsub = token$.subscribe((t) => setTokenState(t ?? ''));
+    return () => unsub();
+  }, []);
 
   const Navbar = useMemo(() => (
     <nav className="navbar">
@@ -23,7 +28,7 @@ export const App: React.FC = () => {
     <div className="app">
       {Navbar}
       <TokenGate
-        token={token ?? ''}
+        token={token}
         onTokenChange={(t) => setToken(t)}
         onRememberChange={(r) => setRememberToken(r)}
         onBaseUrlChange={(u) => setBaseUrl(u)}

@@ -53,6 +53,21 @@ builder.Logging.AddRuntimeLoggingGate(loggingGate);
 builder.Services.AddEndpointsApiExplorer();
 // Explicitly register v1 document so tests can fetch /swagger/v1/swagger.json across environments (CI may not be Development)
 builder.Services.AddSwaggerGen();
+// CORS for local web UI development (default: allow http://localhost:5173)
+var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
+                  ?? Environment.GetEnvironmentVariable("GAMEBOT_CORS_ORIGINS")
+                  ?? "http://localhost:5173")
+                  .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.AddCors(options =>
+{
+  options.AddPolicy("WebUiCors", policy =>
+  {
+    if (corsOrigins.Length > 0)
+      policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod();
+    else
+      policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+  });
+});
 // Serialize enums as strings for API responses to match tests and readability
 builder.Services.ConfigureHttpJsonOptions(options => {
   options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -203,12 +218,17 @@ app.UseMiddleware<ErrorHandlingMiddleware>();
 // Correlation IDs & scopes (added before auth so all logs include it)
 app.UseCorrelationIds();
 
+// CORS must run before auth to ensure preflight requests succeed
+app.UseCors("WebUiCors");
+
 // Token auth for all non-health requests (Bearer <token>) if token configured
 if (!string.IsNullOrWhiteSpace(authToken)) {
   app.Use(async (context, next) => {
     // Allow anonymous for health and swagger
     var path = context.Request.Path.Value ?? string.Empty;
-    if (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
+    // Allow CORS preflight requests and public endpoints without auth
+    if (HttpMethods.IsOptions(context.Request.Method) ||
+        path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
         path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase)) {
       await next(context).ConfigureAwait(false);
       return;
