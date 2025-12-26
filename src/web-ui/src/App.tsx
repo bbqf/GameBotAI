@@ -1,15 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { TokenGate } from './components/TokenGate';
-import { SequencesCreate } from './pages/SequencesCreate';
-import { SequenceView } from './pages/SequenceView';
-import { SequenceEdit } from './pages/SequenceEdit';
 import { setRememberToken, setToken, token$ } from './lib/token';
 import { setBaseUrl } from './lib/config';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Nav, AuthoringTab } from './components/Nav';
+import { ActionsPage } from './pages/ActionsPage';
+import { CommandsPage } from './pages/CommandsPage';
+import { GamesPage } from './pages/GamesPage';
+import { SequencesPage } from './pages/SequencesPage';
+import { TriggersPage } from './pages/TriggersPage';
 
 export const App: React.FC = () => {
-  const [route, setRoute] = useState<'create' | 'view' | 'edit'>('create');
   const [token, setTokenState] = useState<string>(token$.get() ?? '');
-  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [tab, setTab] = useState<AuthoringTab>('Actions');
 
 
   useEffect(() => {
@@ -20,11 +23,6 @@ export const App: React.FC = () => {
   const Navbar = useMemo(() => (
     <nav className="navbar">
       <div className="brand">GameBot Web UI</div>
-      <div className="links">
-        <button onClick={() => setRoute('create')}>Create Sequence</button>
-        <button onClick={() => setRoute('view')}>View Sequence</button>
-        <button onClick={() => setRoute('edit')}>Edit Sequence</button>
-      </div>
     </nav>
   ), []);
 
@@ -38,18 +36,17 @@ export const App: React.FC = () => {
         onBaseUrlChange={(u) => setBaseUrl(u)}
       />
       <main className="content">
-        {route === 'create' && (
-          <SequencesCreate
-            onCreated={(id) => {
-              setSelectedId(id);
-              setRoute('view');
-            }}
-          />
-        )}
-        {route === 'view' && <SequenceView defaultId={selectedId} />}
-        {route === 'edit' && (
-          <SequenceEdit />
-        )}
+        <section className="authoring">
+          <h1>Authoring</h1>
+          <Nav active={tab} onChange={setTab} />
+          <ErrorBoundary>
+            {tab === 'Actions' && <ActionsPage />}
+            {tab === 'Commands' && <CommandsPage />}
+            {tab === 'Games' && <GamesPage />}
+            {tab === 'Sequences' && <SequencesPage />}
+            {tab === 'Triggers' && <TriggersPage />}
+          </ErrorBoundary>
+        </section>
       </main>
     </div>
   );

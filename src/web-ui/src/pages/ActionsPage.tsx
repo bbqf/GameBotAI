@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { List, ListItem } from '../components/List';
-import { listActions, ActionDto, createAction, ActionCreate } from '../services/actions';
+import { listActions, ActionDto, createAction, ActionCreate, getAction, updateAction, deleteAction } from '../services/actions';
+import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
+import { ApiError } from '../lib/api';
 
 export const ActionsPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
@@ -8,6 +10,10 @@ export const ActionsPage: React.FC = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | undefined>(undefined);
+  const [editingId, setEditingId] = useState<string | undefined>(undefined);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -76,7 +82,87 @@ export const ActionsPage: React.FC = () => {
           </div>
         </form>
       )}
-      <List items={items} emptyMessage="No actions found." />
+      <List
+        items={items}
+        emptyMessage="No actions found."
+        onSelect={async (id) => {
+          setError(undefined);
+          try {
+            const a = await getAction(id);
+            setEditingId(id);
+            setEditName(a.name);
+            setEditDescription(a.description ?? '');
+          } catch (err: any) {
+            setError(err?.message ?? 'Failed to load action');
+          }
+        }}
+      />
+      {editingId && (
+        <form
+          className="edit-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setError(undefined);
+            const input: ActionCreate = { name: editName.trim(), description: editDescription.trim() || undefined };
+            if (!input.name) {
+              setError('Name is required');
+              return;
+            }
+            try {
+              await updateAction(editingId, input);
+              setEditingId(undefined);
+              const data = await listActions();
+              const mapped: ListItem[] = data.map((a) => ({
+                id: a.id,
+                name: a.name,
+                details: a.description ? { description: a.description } : undefined
+              }));
+              setItems(mapped);
+            } catch (err: any) {
+              setError(err?.message ?? 'Failed to update action');
+            }
+          }}
+        >
+          <h3>Edit Action</h3>
+          <div>
+            <label>Name</label>
+            <input value={editName} onChange={(e) => setEditName(e.target.value)} />
+          </div>
+          <div>
+            <label>Description</label>
+            <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+          </div>
+          {error && <div className="form-error" role="alert">{error}</div>}
+          <div className="form-actions">
+            <button type="submit">Save</button>
+            <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>
+            <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)}>Delete</button>
+          </div>
+        </form>
+      )}
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        itemName={editName}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={async () => {
+          setDeleteOpen(false);
+          if (!editingId) return;
+          try {
+            await deleteAction(editingId);
+            setEditingId(undefined);
+            const data = await listActions();
+            const mapped: ListItem[] = data.map((a) => ({
+              id: a.id,
+              name: a.name,
+              details: a.description ? { description: a.description } : undefined
+            }));
+            setItems(mapped);
+          } catch (err: any) {
+            const msg = err instanceof ApiError && err.status === 409 ? 'Cannot delete: action is referenced. Unlink or migrate before deleting.' : (err?.message ?? 'Failed to delete action');
+            setError(msg);
+          }
+        }}
+      />
     </section>
   );
 };
