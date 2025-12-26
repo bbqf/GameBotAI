@@ -1,16 +1,33 @@
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+:root {
+	--text: #111111;
+	--bg: #ffffff;
+	--border: #6b7280; /* gray-500 */
+	--primary: #0a66c2; /* accessible blue */
+	--focus: #ffbf47; /* high-visibility focus */
+}
+body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: var(--text); background: var(--bg); }
 .app { display: flex; flex-direction: column; min-height: 100%; }
-.navbar { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #ddd; }
+.navbar { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .brand { font-weight: 600; }
 .links button { margin-right: 8px; }
 .content { padding: 12px; max-width: 960px; width: 100%; margin: 0 auto; }
 .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
 .row label { min-width: 120px; }
-.row input[type="text"], .row input[type="password"] { flex: 1 1 320px; padding: 8px; }
+.row input[type="text"], .row input[type="password"] { flex: 1 1 320px; padding: 10px; border: 1px solid var(--border); border-radius: 4px; }
+.row input[type="text"]:focus-visible, .row input[type="password"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .actions { margin: 12px 0; }
-button { padding: 8px 12px; }
-.message { margin-top: 8px; color: #333; }
+button { padding: 10px 14px; border: 1px solid var(--border); border-radius: 4px; background: #f8fafc; }
+button:hover { background: #eef2f7; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.message { margin-top: 8px; color: var(--text); }
 pre.json { background: #f7f7f9; border: 1px solid #e1e1e8; padding: 10px; overflow: auto; }
-@media (max-width: 480px) { .row label { min-width: 100px; } }
+
+/* Mobile: single-column layout with full-width controls */
+@media (max-width: 480px) {
+	.row { flex-direction: column; align-items: stretch; }
+	.row label { min-width: 0; }
+	.row input[type="text"], .row input[type="password"] { flex: 1 1 auto; width: 100%; }
+	.links button { margin-right: 6px; }
+}

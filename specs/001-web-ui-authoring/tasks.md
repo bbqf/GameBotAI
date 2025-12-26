@@ -26,18 +26,18 @@
 
 ## Phase 5: User Story US3 (P2) — Validation feedback on invalid blocks
 
-- [ ] T013 [US3] Implement validation parser in src/web-ui/src/lib/validation.ts
-- [ ] T014 [P] [US3] Highlight field errors in src/web-ui/src/pages/*
+- [x] T013 [US3] Implement validation parser in src/web-ui/src/lib/validation.ts
+- [x] T014 [P] [US3] Highlight field errors in src/web-ui/src/pages/*
 
 ## Phase 6: User Story US4 (P3) — Browse triggers/images to select targetId
 
-- [ ] T015 [US4] Implement TriggerPicker in src/web-ui/src/components/TriggerPicker.tsx
-- [ ] T016 [P] [US4] Implement ImagePicker in src/web-ui/src/components/ImagePicker.tsx
+- [x] T015 [US4] Implement TriggerPicker in src/web-ui/src/components/TriggerPicker.tsx
+- [x] T016 [P] [US4] Implement ImagePicker in src/web-ui/src/components/ImagePicker.tsx
 
 ## Phase 7: User Story US5 (P1) — Mobile viewport
 
-- [ ] T017 [US5] Update responsive CSS in src/web-ui/src/styles.css
-- [ ] T018 [P] [US5] Ensure labels/a11y (WCAG AA) across src/web-ui/src/**
+- [x] T017 [US5] Update responsive CSS in src/web-ui/src/styles.css
+- [x] T018 [P] [US5] Ensure labels/a11y (WCAG AA) across src/web-ui/src/**
 
 ## Final Phase: Polish & Cross-Cutting
 

@@ -22,6 +22,18 @@ internal static class ImageReferencesEndpoints {
   public static IEndpointRouteBuilder MapImageReferenceEndpoints(this IEndpointRouteBuilder app) {
     ArgumentNullException.ThrowIfNull(app);
 
+    app.MapGet("/images", () => {
+      var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
+                     ?? Path.Combine(AppContext.BaseDirectory, "data");
+      var imagesDir = Path.Combine(dataRoot, "images");
+      Directory.CreateDirectory(imagesDir);
+      var ids = Directory.GetFiles(imagesDir, "*.png")
+                         .Select(fn => Path.GetFileNameWithoutExtension(fn))
+                         .Distinct(StringComparer.OrdinalIgnoreCase)
+                         .Select(id => new { id });
+      return Results.Ok(ids);
+    }).WithName("ListImageReferences");
+
     app.MapPost("/images", (UploadImageRequest req, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(req);
       ArgumentNullException.ThrowIfNull(store);
