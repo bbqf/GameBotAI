@@ -134,6 +134,7 @@ public sealed class CommandExecutorTests {
     public Task<GameBot.Domain.Actions.Action?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult<GameBot.Domain.Actions.Action?>(id == _action.Id ? _action : null);
     public Task<IReadOnlyList<GameBot.Domain.Actions.Action>> ListAsync(string? gameId = null, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<GameBot.Domain.Actions.Action>>(new[] { _action });
     public Task<GameBot.Domain.Actions.Action?> UpdateAsync(GameBot.Domain.Actions.Action action, CancellationToken ct = default) => Task.FromResult<GameBot.Domain.Actions.Action?>(action);
+    public Task<bool> DeleteAsync(string id, CancellationToken ct = default) => Task.FromResult(false);
   }
 
   private sealed class TriggerRepositorySpy : ITriggerRepository {

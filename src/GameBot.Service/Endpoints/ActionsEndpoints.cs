@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using GameBot.Domain.Actions;
+using GameBot.Domain.Commands;
 using GameBot.Service.Models;
 using Microsoft.AspNetCore.OpenApi;
 
@@ -95,7 +96,19 @@ internal static class ActionsEndpoints {
       return Results.Ok(new { id = updated.Id, name = updated.Name });
     }).WithName("UpdateAction").WithTags("Actions");
 
-    app.MapDelete("/api/actions/{id}", (string id) => Results.Conflict(new { error = new { code = "delete_blocked", message = "Deletion not supported for actions via authoring API.", hint = (string?)null } }))
+    app.MapDelete("/api/actions/{id}", async (string id, IActionRepository actions, ICommandRepository commands, CancellationToken ct) => {
+      var existing = await actions.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Action not found", hint = (string?)null } });
+      var cmdList = await commands.ListAsync(ct).ConfigureAwait(false);
+      var referencingCommands = cmdList.Where(c => c.Steps.Any(s => s.Type == GameBot.Domain.Commands.CommandStepType.Action && string.Equals(s.TargetId, id, StringComparison.OrdinalIgnoreCase)))
+                                       .Select(c => new { id = c.Id, name = c.Name })
+                                       .ToArray();
+      if (referencingCommands.Length > 0) {
+        return Results.Conflict(new { error = new { code = "delete_blocked", message = "Action is referenced by commands.", hint = (string?)null }, references = new { commands = referencingCommands } });
+      }
+      var deleted = await actions.DeleteAsync(id, ct).ConfigureAwait(false);
+      return deleted ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Action not found", hint = (string?)null } });
+    })
       .WithName("DeleteAction")
       .WithTags("Actions");
 

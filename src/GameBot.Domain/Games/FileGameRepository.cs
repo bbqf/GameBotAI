@@ -37,4 +37,11 @@ public sealed class FileGameRepository : IGameRepository {
     }
     return list;
   }
+
+  public Task<bool> DeleteAsync(string id, CancellationToken ct = default) {
+    var path = Path.Combine(_dir, id + ".json");
+    if (!File.Exists(path)) return Task.FromResult(false);
+    File.Delete(path);
+    return Task.FromResult(true);
+  }
 }

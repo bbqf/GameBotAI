@@ -62,6 +62,21 @@ internal static class GamesEndpoints {
       return Results.Ok(resp);
     }).WithName("ListGames");
 
+    // Authoring delete: allow when game is unreferenced; otherwise return 409 with references.
+    app.MapDelete("/api/games/{id}", async (string id, IGameRepository games, GameBot.Domain.Actions.IActionRepository actions, CancellationToken ct) => {
+      var existing = await games.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
+      var actionList = await actions.ListAsync(id, ct).ConfigureAwait(false);
+      if (actionList.Count > 0) {
+        var refs = actionList.Select(a => new { id = a.Id, name = a.Name }).ToArray();
+        return Results.Conflict(new { error = new { code = "delete_blocked", message = "Game is referenced by actions.", hint = (string?)null }, references = new { actions = refs } });
+      }
+      var deleted = await games.DeleteAsync(id, ct).ConfigureAwait(false);
+      return deleted ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
+    })
+      .WithName("DeleteGame")
+      .WithTags("Games");
+
     return app;
   }
 
