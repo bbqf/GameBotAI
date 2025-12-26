@@ -1,0 +1,188 @@
+openapi: 3.0.3
+info:
+  title: GameBot Sequences API (MVP)
+  version: 0.1.0
+servers:
+  - url: /
+paths:
+  /api/sequences:
+    post:
+      summary: Create a command sequence
+      operationId: createSequence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandSequence'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandSequence'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+  /api/sequences/{id}:
+    get:
+      summary: Get sequence by id
+      operationId: getSequence
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandSequence'
+        '404':
+          description: Not found
+    
+  /api/sequences/{id}/execute:
+    post:
+      summary: Execute a sequence
+      operationId: executeSequence
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  telemetry:
+                    type: object
+components:
+  schemas:
+    CommandSequence:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Step'
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Block'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Step:
+      type: object
+      properties:
+        order:
+          type: integer
+        commandId:
+          type: string
+        delayMs:
+          type: integer
+          minimum: 0
+        delayRangeMs:
+          $ref: '#/components/schemas/DelayRange'
+        gate:
+          $ref: '#/components/schemas/Gate'
+    DelayRange:
+      type: object
+      properties:
+        min:
+          type: integer
+          minimum: 0
+        max:
+          type: integer
+          minimum: 0
+    Gate:
+      type: object
+      properties:
+        targetId:
+          type: string
+        condition:
+          $ref: '#/components/schemas/Condition'
+    Block:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [repeatCount, repeatUntil, while, ifElse]
+        maxIterations:
+          type: integer
+          minimum: 0
+        cadenceMs:
+          type: integer
+          minimum: 0
+        timeoutMs:
+          type: integer
+          minimum: 0
+        condition:
+          $ref: '#/components/schemas/Condition'
+        thenSteps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Step'
+        elseSteps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Step'
+    Condition:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [image, text, other]
+        targetId:
+          type: string
+        mode:
+          type: string
+          enum: [equals, contains, match, detect]
+        confidenceThreshold:
+          type: number
+          minimum: 0
+          maximum: 1
+        region:
+          $ref: '#/components/schemas/Rect'
+        language:
+          type: string
+    Rect:
+      type: object
+      properties:
+        x: { type: integer }
+        y: { type: integer }
+        width: { type: integer }
+        height: { type: integer }
+    ValidationError:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
