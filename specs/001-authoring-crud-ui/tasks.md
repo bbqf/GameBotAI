@@ -11,14 +11,14 @@
 
 **Purpose**: Initialize shared UI structure in `src/web-ui` per plan.
 
-- [ ] T001 Create `src/web-ui/src/components` directory and index setup
-- [ ] T002 Create `src/web-ui/src/pages` directory scaffold
-- [ ] T003 Create `src/web-ui/src/services` directory scaffold
-- [ ] T004 [P] Add `src/web-ui/src/components/Nav.tsx` with tabs for Actions, Commands, Games, Sequences, Triggers
-- [ ] T005 [P] Add `src/web-ui/src/components/List.tsx` reusable list component (name, key attributes)
-- [ ] T006 [P] Add `src/web-ui/src/components/Dropdown.tsx` reusable dropdown (name display, id value)
-- [ ] T007 [P] Add `src/web-ui/src/components/ConfirmDeleteModal.tsx` confirmation modal component
-- [ ] T008 Configure ESLint to include new directories in `src/web-ui/.eslintrc.cjs`
+- [x] T001 Create `src/web-ui/src/components` directory and index setup
+- [x] T002 Create `src/web-ui/src/pages` directory scaffold
+- [x] T003 Create `src/web-ui/src/services` directory scaffold
+- [x] T004 [P] Add `src/web-ui/src/components/Nav.tsx` with tabs for Actions, Commands, Games, Sequences, Triggers
+- [x] T005 [P] Add `src/web-ui/src/components/List.tsx` reusable list component (name, key attributes)
+- [x] T006 [P] Add `src/web-ui/src/components/Dropdown.tsx` reusable dropdown (name display, id value)
+- [x] T007 [P] Add `src/web-ui/src/components/ConfirmDeleteModal.tsx` confirmation modal component
+- [x] T008 Configure ESLint to include new directories in `src/web-ui/.eslintrc.cjs`
 
 ---
 
@@ -26,14 +26,14 @@
 
 **Purpose**: Core infrastructure that MUST be complete before user stories.
 
-- [ ] T009 Implement `src/web-ui/src/services/apiClient.ts` (base fetch, JSON handling, error normalization)
-- [ ] T010 [P] Implement `src/web-ui/src/services/actions.ts` CRUD functions mapped to contracts/openapi.yaml
-- [ ] T011 [P] Implement `src/web-ui/src/services/commands.ts` CRUD functions mapped to contracts/openapi.yaml
-- [ ] T012 [P] Implement `src/web-ui/src/services/games.ts` CRUD functions mapped to contracts/openapi.yaml
-- [ ] T013 [P] Implement `src/web-ui/src/services/sequences.ts` CRUD functions mapped to contracts/openapi.yaml
-- [ ] T014 [P] Implement `src/web-ui/src/services/triggers.ts` CRUD functions mapped to contracts/openapi.yaml
+- [x] T009 Implement `src/web-ui/src/services/apiClient.ts` (base fetch, JSON handling, error normalization)
+- [x] T010 [P] Implement `src/web-ui/src/services/actions.ts` CRUD functions mapped to contracts/openapi.yaml
+- [x] T011 [P] Implement `src/web-ui/src/services/commands.ts` CRUD functions mapped to contracts/openapi.yaml
+- [x] T012 [P] Implement `src/web-ui/src/services/games.ts` CRUD functions mapped to contracts/openapi.yaml
+- [x] T013 [P] Implement `src/web-ui/src/services/sequences.ts` CRUD functions mapped to contracts/openapi.yaml
+- [x] T014 [P] Implement `src/web-ui/src/services/triggers.ts` CRUD functions mapped to contracts/openapi.yaml
 - [ ] T015 Wire `src/web-ui/src/main.tsx` to render `Nav` and active page container
-- [ ] T016 Add error boundary in `src/web-ui/src/components/ErrorBoundary.tsx` (friendly messages)
+- [x] T016 Add error boundary in `src/web-ui/src/components/ErrorBoundary.tsx` (friendly messages)
 
 **Checkpoint**: Foundation ready — user story implementation can begin.
 
@@ -47,12 +47,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T017 [P] [US1] Create `src/web-ui/src/pages/ActionsPage.tsx` list-only view using `List` and `services/actions.ts`
-- [ ] T018 [P] [US1] Create `src/web-ui/src/pages/CommandsPage.tsx` list-only view using `List` and `services/commands.ts`
-- [ ] T019 [P] [US1] Create `src/web-ui/src/pages/GamesPage.tsx` list-only view using `List` and `services/games.ts`
-- [ ] T020 [P] [US1] Create `src/web-ui/src/pages/SequencesPage.tsx` list-only view using `List` and `services/sequences.ts`
-- [ ] T021 [P] [US1] Create `src/web-ui/src/pages/TriggersPage.tsx` list-only view using `List` and `services/triggers.ts`
-- [ ] T022 [US1] Wire `Nav` tab selection to switch pages in `src/web-ui/src/App.tsx`
+- [x] T017 [P] [US1] Create `src/web-ui/src/pages/ActionsPage.tsx` list-only view using `List` and `services/actions.ts`
+- [x] T018 [P] [US1] Create `src/web-ui/src/pages/CommandsPage.tsx` list-only view using `List` and `services/commands.ts`
+- [x] T019 [P] [US1] Create `src/web-ui/src/pages/GamesPage.tsx` list-only view using `List` and `services/games.ts`
+- [x] T020 [P] [US1] Create `src/web-ui/src/pages/SequencesPage.tsx` list-only view using `List` and `services/sequences.ts`
+- [x] T021 [P] [US1] Create `src/web-ui/src/pages/TriggersPage.tsx` list-only view using `List` and `services/triggers.ts`
+- [x] T022 [US1] Wire `Nav` tab selection to switch pages in `src/web-ui/src/App.tsx`
 - [ ] T023 [US1] Add client-side sorting by name in `List.tsx` and optional filter when items > 50
 
 **Checkpoint**: User Story 1 independently testable.
