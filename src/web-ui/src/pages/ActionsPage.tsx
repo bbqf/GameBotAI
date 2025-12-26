@@ -14,6 +14,8 @@ export const ActionsPage: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
+  const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -143,12 +145,16 @@ export const ActionsPage: React.FC = () => {
       <ConfirmDeleteModal
         open={deleteOpen}
         itemName={editName}
+        message={deleteMessage}
+        references={deleteReferences}
         onCancel={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          setDeleteOpen(false);
           if (!editingId) return;
           try {
             await deleteAction(editingId);
+            setDeleteMessage(undefined);
+            setDeleteReferences(undefined);
+            setDeleteOpen(false);
             setEditingId(undefined);
             const data = await listActions();
             const mapped: ListItem[] = data.map((a) => ({
@@ -158,8 +164,14 @@ export const ActionsPage: React.FC = () => {
             }));
             setItems(mapped);
           } catch (err: any) {
-            const msg = err instanceof ApiError && err.status === 409 ? 'Cannot delete: action is referenced. Unlink or migrate before deleting.' : (err?.message ?? 'Failed to delete action');
-            setError(msg);
+            if (err instanceof ApiError && err.status === 409) {
+              setDeleteMessage(err.message || 'Cannot delete: action is referenced. Unlink or migrate before deleting.');
+              setDeleteReferences(err.references || undefined);
+              setDeleteOpen(true);
+            } else {
+              setDeleteOpen(false);
+              setError(err?.message ?? 'Failed to delete action');
+            }
           }
         }}
       />

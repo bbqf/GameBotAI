@@ -12,6 +12,8 @@ export const GamesPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [editName, setEditName] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
+  const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -131,12 +133,16 @@ export const GamesPage: React.FC = () => {
       <ConfirmDeleteModal
         open={deleteOpen}
         itemName={editName}
+        message={deleteMessage}
+        references={deleteReferences}
         onCancel={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          setDeleteOpen(false);
           if (!editingId) return;
           try {
             await deleteGame(editingId);
+            setDeleteMessage(undefined);
+            setDeleteReferences(undefined);
+            setDeleteOpen(false);
             setEditingId(undefined);
             const data = await listGames();
             const mapped: ListItem[] = data.map((g) => ({
@@ -146,8 +152,14 @@ export const GamesPage: React.FC = () => {
             }));
             setItems(mapped);
           } catch (err: any) {
-            const msg = err instanceof ApiError && err.status === 409 ? 'Cannot delete: game is referenced. Unlink or migrate before deleting.' : (err?.message ?? 'Failed to delete game');
-            setError(msg);
+            if (err instanceof ApiError && err.status === 409) {
+              setDeleteMessage(err.message || 'Cannot delete: game is referenced. Unlink or migrate before deleting.');
+              setDeleteReferences(err.references || undefined);
+              setDeleteOpen(true);
+            } else {
+              setDeleteOpen(false);
+              setError(err?.message ?? 'Failed to delete game');
+            }
           }
         }}
       />

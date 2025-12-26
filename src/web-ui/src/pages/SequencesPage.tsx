@@ -17,6 +17,8 @@ export const SequencesPage: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editSelectedCommands, setEditSelectedCommands] = useState<string[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
+  const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -146,19 +148,29 @@ export const SequencesPage: React.FC = () => {
       <ConfirmDeleteModal
         open={deleteOpen}
         itemName={editName}
+        message={deleteMessage}
+        references={deleteReferences}
         onCancel={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          setDeleteOpen(false);
           if (!editingId) return;
           try {
             await deleteSequence(editingId);
+            setDeleteMessage(undefined);
+            setDeleteReferences(undefined);
+            setDeleteOpen(false);
             setEditingId(undefined);
             const data = await listSequences();
             const mapped: ListItem[] = data.map((s) => ({ id: s.id, name: s.name, details: { steps: s.steps?.length ?? 0 } }));
             setItems(mapped);
           } catch (err: any) {
-            const msg = err instanceof ApiError && err.status === 409 ? 'Cannot delete: sequence is referenced. Unlink or migrate before deleting.' : (err?.message ?? 'Failed to delete sequence');
-            setError(msg);
+            if (err instanceof ApiError && err.status === 409) {
+              setDeleteMessage(err.message || 'Cannot delete: sequence is referenced. Unlink or migrate before deleting.');
+              setDeleteReferences(err.references || undefined);
+              setDeleteOpen(true);
+            } else {
+              setDeleteOpen(false);
+              setError(err?.message ?? 'Failed to delete sequence');
+            }
           }
         }}
       />

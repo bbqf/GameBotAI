@@ -20,6 +20,8 @@ export const CommandsPage: React.FC = () => {
   const [editParametersText, setEditParametersText] = useState('');
   const [editSelectedActions, setEditSelectedActions] = useState<string[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
+  const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -181,12 +183,16 @@ export const CommandsPage: React.FC = () => {
       <ConfirmDeleteModal
         open={deleteOpen}
         itemName={editName}
+        message={deleteMessage}
+        references={deleteReferences}
         onCancel={() => setDeleteOpen(false)}
         onConfirm={async () => {
-          setDeleteOpen(false);
           if (!editingId) return;
           try {
             await deleteCommand(editingId);
+            setDeleteMessage(undefined);
+            setDeleteReferences(undefined);
+            setDeleteOpen(false);
             setEditingId(undefined);
             const data = await listCommands();
             const mapped: ListItem[] = data.map((c) => ({
@@ -196,8 +202,14 @@ export const CommandsPage: React.FC = () => {
             }));
             setItems(mapped);
           } catch (err: any) {
-            const msg = err instanceof ApiError && err.status === 409 ? 'Cannot delete: command is referenced. Unlink or migrate before deleting.' : (err?.message ?? 'Failed to delete command');
-            setError(msg);
+            if (err instanceof ApiError && err.status === 409) {
+              setDeleteMessage(err.message || 'Cannot delete: command is referenced. Unlink or migrate before deleting.');
+              setDeleteReferences(err.references || undefined);
+              setDeleteOpen(true);
+            } else {
+              setDeleteOpen(false);
+              setError(err?.message ?? 'Failed to delete command');
+            }
           }
         }}
       />
