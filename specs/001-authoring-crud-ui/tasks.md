@@ -32,7 +32,7 @@
 - [x] T012 [P] Implement `src/web-ui/src/services/games.ts` CRUD functions mapped to contracts/openapi.yaml
 - [x] T013 [P] Implement `src/web-ui/src/services/sequences.ts` CRUD functions mapped to contracts/openapi.yaml
 - [x] T014 [P] Implement `src/web-ui/src/services/triggers.ts` CRUD functions mapped to contracts/openapi.yaml
-- [ ] T015 Wire `src/web-ui/src/main.tsx` to render `Nav` and active page container
+- [x] T015 Wire `src/web-ui/src/main.tsx` to render `Nav` and active page container
 - [x] T016 Add error boundary in `src/web-ui/src/components/ErrorBoundary.tsx` (friendly messages)
 
 **Checkpoint**: Foundation ready — user story implementation can begin.

@@ -21,3 +21,20 @@ jobs:
         run: dotnet build GameBot.sln --no-restore -c Release
       - name: Test
         run: dotnet test GameBot.sln --no-build -c Release --collect:"XPlat Code Coverage" /p:CollectCoverage=true /p:CoverletOutputFormat=lcov
+
+  web-ui-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'src/web-ui/package-lock.json'
+      - name: Install dependencies
+        run: npm install
+        working-directory: src/web-ui
+      - name: Run frontend tests
+        run: npm test --silent
+        working-directory: src/web-ui
