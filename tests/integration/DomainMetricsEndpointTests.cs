@@ -29,39 +29,39 @@ public class DomainMetricsEndpointTests {
     emptyJson!["triggers"].Should().Be(0);
 
     // Create a game
-    var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "MetricsGame", description = "desc" }).ConfigureAwait(true);
+    var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "MetricsGame", description = "desc" }).ConfigureAwait(true);
     gameResp.EnsureSuccessStatusCode();
     var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var gameId = game!["id"]!.ToString();
 
     // Create action
     var actionReq = new {
-      name = "A1",
-      gameId,
-      steps = new[]
+      Name = "A1",
+      GameId = gameId,
+      Steps = new[]
         {
-                new { type = "tap", args = new Dictionary<string, object>{{"x", 1},{"y",1}}, delayMs = (int?)null, durationMs = (int?)null }
+                new { Type = "tap", Args = new Dictionary<string, object>{{"x", 1},{"y",1}}, DelayMs = (int?)null, DurationMs = (int?)null }
             }
     };
-    var aResp = await client.PostAsJsonAsync(new Uri("/actions", UriKind.Relative), actionReq).ConfigureAwait(true);
+    var aResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq).ConfigureAwait(true);
     aResp.StatusCode.Should().Be(HttpStatusCode.Created);
     var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var actionId = act!["id"]!.ToString();
 
     // Create trigger
-    var trigReq = new { type = "delay", enabled = true, cooldownSeconds = 0, @params = new { seconds = 0 } };
-    var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
+    var trigReq = new { Type = "delay", Enabled = true, CooldownSeconds = 0, Params = new { seconds = 0 } };
+    var tResp = await client.PostAsJsonAsync(new Uri("/api/triggers", UriKind.Relative), trigReq).ConfigureAwait(true);
     tResp.StatusCode.Should().Be(HttpStatusCode.Created);
     var tr = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var triggerId = tr!["id"]!.ToString();
 
     // Create command referencing action & trigger
     var cmdReq = new {
-      name = "C1",
-      triggerId,
-      steps = new[] { new { type = "Action", targetId = actionId, order = 1 } }
+      Name = "C1",
+      TriggerId = triggerId,
+      Steps = new[] { new { Type = "Action", TargetId = actionId, Order = 1 } }
     };
-    var cResp = await client.PostAsJsonAsync(new Uri("/commands", UriKind.Relative), cmdReq).ConfigureAwait(true);
+    var cResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), cmdReq).ConfigureAwait(true);
     cResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
     // Fetch metrics again

@@ -9,10 +9,14 @@ export type ApiValidationError = {
 export class ApiError extends Error {
   status: number;
   errors?: ApiValidationError[];
-  constructor(status: number, message: string, errors?: ApiValidationError[]) {
+  references?: Record<string, Array<{ id: string; name: string }>>;
+  payload?: any;
+  constructor(status: number, message: string, errors?: ApiValidationError[], payload?: any, references?: Record<string, Array<{ id: string; name: string }>>) {
     super(message);
     this.status = status;
     this.errors = errors;
+    this.payload = payload;
+    this.references = references;
   }
 }
 
@@ -79,10 +83,11 @@ const request = async <T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', p
     const errors: ApiValidationError[] | undefined = Array.isArray(data?.errors)
       ? data.errors.map((e: any) => ({ field: e.field, message: e.message ?? String(e) }))
       : undefined;
-    throw new ApiError(400, 'Validation error', errors);
+    throw new ApiError(400, 'Validation error', errors, data);
   }
-  const message = data?.message ?? `HTTP ${res.status}`;
-  throw new ApiError(res.status, message);
+  const message = (data?.error && (data.error.message ?? data.error.code)) || data?.message || `HTTP ${res.status}`;
+  const references = data?.references as Record<string, Array<{ id: string; name: string }>> | undefined;
+  throw new ApiError(res.status, message, undefined, data, references);
 };
 
 export const getJson = async <T>(path: string) => request<T>('GET', path);

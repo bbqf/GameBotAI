@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
 namespace GameBot.Domain.Commands
@@ -17,6 +19,7 @@ namespace GameBot.Domain.Commands
         {
             WriteIndented = true
         };
+        private static readonly Regex SafeIdPattern = new("^[A-Za-z0-9_-]+$", RegexOptions.Compiled);
 
         public FileSequenceRepository(string dataRoot)
         {
@@ -24,9 +27,29 @@ namespace GameBot.Domain.Commands
             Directory.CreateDirectory(_root);
         }
 
+        private bool TryGetSafePath(string id, [NotNullWhen(true)] out string? path)
+        {
+            path = null;
+            if (string.IsNullOrWhiteSpace(id)) return false;
+            if (!SafeIdPattern.IsMatch(id)) return false;
+
+            var baseDirFull = Path.GetFullPath(_root);
+            var candidate = Path.Combine(baseDirFull, id + ".json");
+            var candidateFull = Path.GetFullPath(candidate);
+
+            if (!candidateFull.StartsWith(baseDirFull + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                && !string.Equals(candidateFull, baseDirFull, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            path = candidateFull;
+            return true;
+        }
+
         public async Task<CommandSequence?> GetAsync(string id)
         {
-            var path = Path.Combine(_root, id + ".json");
+            if (!TryGetSafePath(id, out var path)) return null;
             if (!File.Exists(path)) return null;
             using var stream = File.OpenRead(path);
             var result = await JsonSerializer.DeserializeAsync<CommandSequence>(stream, _jsonOptions).ConfigureAwait(false);
@@ -52,7 +75,10 @@ namespace GameBot.Domain.Commands
             {
                 sequence.Id = Guid.NewGuid().ToString("N");
             }
-            var path = Path.Combine(_root, sequence.Id + ".json");
+            if (!TryGetSafePath(sequence.Id, out var path))
+            {
+                throw new InvalidOperationException("Generated or provided sequence ID is invalid for file storage.");
+            }
             using var stream = File.Create(path);
             await JsonSerializer.SerializeAsync(stream, sequence, _jsonOptions).ConfigureAwait(false);
             return sequence;
@@ -65,7 +91,10 @@ namespace GameBot.Domain.Commands
             {
                 throw new InvalidOperationException("Sequence Id is required for update");
             }
-            var path = Path.Combine(_root, sequence.Id + ".json");
+            if (!TryGetSafePath(sequence.Id, out var path))
+            {
+                throw new InvalidOperationException("Invalid sequence identifier");
+            }
             using var stream = File.Create(path);
             await JsonSerializer.SerializeAsync(stream, sequence, _jsonOptions).ConfigureAwait(false);
             return sequence;
@@ -73,7 +102,7 @@ namespace GameBot.Domain.Commands
 
         public Task<bool> DeleteAsync(string id)
         {
-            var path = Path.Combine(_root, id + ".json");
+            if (!TryGetSafePath(id, out var path)) return Task.FromResult(false);
             if (!File.Exists(path)) return Task.FromResult(false);
             File.Delete(path);
             return Task.FromResult(true);

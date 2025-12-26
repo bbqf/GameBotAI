@@ -1,0 +1,390 @@
+openapi: 3.0.3
+info:
+  title: GameBot Authoring API
+  version: 0.1.0
+servers:
+  - url: /api
+paths:
+  /actions:
+    get:
+      summary: List actions
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Action'
+    post:
+      summary: Create action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionCreate'
+      responses:
+        '201': { description: Created }
+  /actions/{id}:
+    get:
+      summary: Get action
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Action'
+        '404': { description: Not Found }
+    put:
+      summary: Update action
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionUpdate'
+      responses:
+        '200': { description: OK }
+        '404': { description: Not Found }
+    delete:
+      summary: Delete action
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204': { description: No Content }
+        '409': { description: Conflict - referenced }
+  /commands:
+    get:
+      summary: List commands
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Command'
+    post:
+      summary: Create command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandCreate'
+      responses:
+        '201': { description: Created }
+  /commands/{id}:
+    get:
+      summary: Get command
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Command'
+        '404': { description: Not Found }
+    put:
+      summary: Update command
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandUpdate'
+      responses:
+        '200': { description: OK }
+        '404': { description: Not Found }
+    delete:
+      summary: Delete command
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204': { description: No Content }
+        '409': { description: Conflict - referenced }
+  /games:
+    get:
+      summary: List games
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Game'
+    post:
+      summary: Create game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameCreate'
+      responses:
+        '201': { description: Created }
+  /games/{id}:
+    get:
+      summary: Get game
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '404': { description: Not Found }
+    put:
+      summary: Update game
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameUpdate'
+      responses:
+        '200': { description: OK }
+        '404': { description: Not Found }
+    delete:
+      summary: Delete game
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204': { description: No Content }
+  /sequences:
+    get:
+      summary: List sequences
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Sequence'
+    post:
+      summary: Create sequence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceCreate'
+      responses:
+        '201': { description: Created }
+  /sequences/{id}:
+    get:
+      summary: Get sequence
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sequence'
+        '404': { description: Not Found }
+    put:
+      summary: Update sequence
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpdate'
+      responses:
+        '200': { description: OK }
+        '404': { description: Not Found }
+    delete:
+      summary: Delete sequence
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204': { description: No Content }
+        '409': { description: Conflict - referenced }
+  /triggers:
+    get:
+      summary: List triggers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Trigger'
+    post:
+      summary: Create trigger
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerCreate'
+      responses:
+        '201': { description: Created }
+  /triggers/{id}:
+    get:
+      summary: Get trigger
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trigger'
+        '404': { description: Not Found }
+    put:
+      summary: Update trigger
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerUpdate'
+      responses:
+        '200': { description: OK }
+        '404': { description: Not Found }
+    delete:
+      summary: Delete trigger
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204': { description: No Content }
+        '409': { description: Conflict - referenced }
+
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    Action:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+    ActionCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+    ActionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ActionCreate'
+    Command:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        parameters: { type: object }
+        actions:
+          type: array
+          items: { type: string }
+    CommandCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        parameters: { type: object }
+        actions:
+          type: array
+          items: { type: string }
+    CommandUpdate:
+      allOf:
+        - $ref: '#/components/schemas/CommandCreate'
+    Game:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        metadata: { type: object }
+    GameCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        metadata: { type: object }
+    GameUpdate:
+      allOf:
+        - $ref: '#/components/schemas/GameCreate'
+    Sequence:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        steps:
+          type: array
+          items: { type: string }
+    SequenceCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        steps:
+          type: array
+          items: { type: string }
+    SequenceUpdate:
+      allOf:
+        - $ref: '#/components/schemas/SequenceCreate'
+    Trigger:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        criteria: { type: object }
+        actions:
+          type: array
+          items: { type: string }
+        commands:
+          type: array
+          items: { type: string }
+        sequence: { type: string }
+    TriggerCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        criteria: { type: object }
+        actions:
+          type: array
+          items: { type: string }
+        commands:
+          type: array
+          items: { type: string }
+        sequence: { type: string }
+    TriggerUpdate:
+      allOf:
+        - $ref: '#/components/schemas/TriggerCreate'

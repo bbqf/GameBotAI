@@ -20,8 +20,10 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - Frontend: TypeScript (ES2020), React 18, Vite 5 + React, Vite, @vitejs/plugin-react (001-web-ui-authoring)
 - Backend: C# / .NET 9 + Existing detection (OpenCV image-match), OCR (Tesseract), trigger evaluation services (001-sequence-logic)
 - File-backed JSON under `data/commands/sequences` (001-sequence-logic)
+- TypeScript (ES2020), React 18 + React, React DOM, Vite, @vitejs/plugin-react (001-authoring-crud-ui)
+- None client-side (in-memory state); persistence via backend API (001-authoring-crud-ui)
 
-- .NET 8 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
+- .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
 ## Project Structure
 
@@ -32,35 +34,46 @@ tests/
 
 ## Commands
 
-# Add commands for .NET 8 C#
+# Add commands for .NET 9 C#
 
 ## Test Failure Analysis
 After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-test-results.ps1` to emit `TESTERROR:` lines for each failing test (name, outcome, message) and exit non-zero. Integrate into CI or local `verify` task to ensure rich failure detection.
 
 ## Code Style
 
-Coding style: Follow standard .NET 8 C# conventions
+Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 001-authoring-crud-ui: Added TypeScript (ES2020), React 18 + React, React DOM, Vite, @vitejs/plugin-react
 - 001-web-ui-authoring: Added TypeScript (ES2020), React 18, Vite 5 + React, Vite, @vitejs/plugin-react
 - 001-sequence-logic: Added C# / .NET 9 + Existing detection (OpenCV image-match), OCR (Tesseract), trigger evaluation services
-- 005-image-detect-command: Added Existing detection pipeline (OpenCvSharp via TemplateMatcher), Windows-only System.Drawing usage guarded with platform attributes; no new external packages.
-- 001-image-storage: Added C# / .NET 8 (Service), .NET 9 (Domain alignment) + None new (disk I/O via `System.IO`)
 
 
 <!-- MANUAL ADDITIONS START -->
 ### Agent Terminal Monitoring Policy
 
-- Automatically monitor any terminal processes I start, especially background servers/tasks.
-- For background commands started via the agent, I will retain the terminal ID and periodically fetch output to provide concise progress updates.
-- Prefer VS Code tasks when available; for long-running tasks I will run them in background and summarize status using brief updates.
-- I will avoid spam: updates on important milestones, errors, and readiness only.
 
 ### Terminal Reuse & No-Close Policy
+- always wait for the command to complete without user intervention
+- do not close the terminal unless explicitly instructed by the user
+- reuse the terminal for multiple commands to maintain context
 
-- Always reuse existing terminals and task terminals; do not create new ones unnecessarily.
-- Never ask to close terminals; keep them open and reuse them across commands and sessions.
-- For foreground tasks (build/test), reuse the existing task terminals labeled `build`/`test` when present.
-- For background servers/tasks, reuse the previously started terminal if still running; otherwise, restart and resume monitoring without prompting.
-- Avoid duplicate background processes: verify status before starting another instance; if a restart is required, state it briefly and proceed.
+## Terminal Command Guidelines
+
+When running terminal commands in this project:
+- Prefer explicit output over silent operations
+- Use `--verbose` flags when available
+- Break down operations into smaller steps if timeout occurs
+
+Common commands and expected duration:
+- `npm install` - 10-30 seconds
+- `npm run dev` - Background process
+- `npm run build` - 30-90 seconds
+- `git status` - <1 second
+- `dotnet build` - 60-120 seconds
+- `dotnet test` - 60-180 seconds
+
+### GitHub Client Usage
+When interacting with GitHub repositories:
+- use gh CLI for operations like cloning, creating branches, and managing pull requests
 <!-- MANUAL ADDITIONS END -->

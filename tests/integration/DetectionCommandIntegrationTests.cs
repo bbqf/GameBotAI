@@ -49,30 +49,30 @@ public sealed class DetectionCommandIntegrationTests : IDisposable {
     uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
     // Create game
-    var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "DetectCmdGame", description = "desc" });
+    var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "DetectCmdGame", description = "desc" });
     gameResp.EnsureSuccessStatusCode();
     var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
     var gameId = game!["id"]!.ToString();
 
     // Create action with a single tap; initial x/y will be overridden by adapter
     var actionReq = new {
-      name = "TapByDetect",
-      gameId,
-      steps = new[] { new { type = "tap", args = new Dictionary<string, object>{{"x", 1}, {"y", 1}}, delayMs = (int?)null, durationMs = (int?)null } }
+      Name = "TapByDetect",
+      GameId = gameId,
+      Steps = new[] { new { Type = "tap", Args = new Dictionary<string, object>{{"x", 1}, {"y", 1}}, DelayMs = (int?)null, DurationMs = (int?)null } }
     };
-    var aResp = await client.PostAsJsonAsync(new Uri("/actions", UriKind.Relative), actionReq);
+    var aResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq);
     aResp.EnsureSuccessStatusCode();
     var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
     var actionId = act!["id"]!.ToString();
 
     // Create command with detection referencing the persisted image
     var cmdReq = new {
-      name = "DetectAndTap",
-      triggerId = (string?)null,
+      Name = "DetectAndTap",
+      TriggerId = (string?)null,
       detection = new { referenceImageId = "home_button", confidence = 0.99, offsetX = 0, offsetY = 0 },
-      steps = new[] { new { type = "Action", targetId = actionId, order = 1 } }
+      Steps = new[] { new { Type = "Action", TargetId = actionId, Order = 1 } }
     };
-    var cResp = await client.PostAsJsonAsync(new Uri("/commands", UriKind.Relative), cmdReq);
+    var cResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), cmdReq);
     cResp.EnsureSuccessStatusCode();
     var cmd = await cResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
     var commandId = cmd!["id"]!.ToString();
@@ -84,7 +84,7 @@ public sealed class DetectionCommandIntegrationTests : IDisposable {
     var sessionId = s!["id"]!.ToString();
 
     // Force execute the command; detection should resolve coordinates and accept inputs
-    var exec = await client.PostAsync(new Uri($"/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), content: null);
+    var exec = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), content: null);
     exec.StatusCode.Should().Be(HttpStatusCode.Accepted);
     var execRaw = await exec.Content.ReadAsStringAsync();
     using (var doc = System.Text.Json.JsonDocument.Parse(execRaw)) {
