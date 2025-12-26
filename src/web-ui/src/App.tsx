@@ -8,6 +8,7 @@ import { setBaseUrl } from './lib/config';
 export const App: React.FC = () => {
   const [route, setRoute] = useState<'create' | 'view'>('create');
   const [token, setTokenState] = useState<string>(token$.get() ?? '');
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const unsub = token$.subscribe((t) => setTokenState(t ?? ''));
@@ -34,8 +35,15 @@ export const App: React.FC = () => {
         onBaseUrlChange={(u) => setBaseUrl(u)}
       />
       <main className="content">
-        {route === 'create' && <SequencesCreate />}
-        {route === 'view' && <SequenceView />}
+        {route === 'create' && (
+          <SequencesCreate
+            onCreated={(id) => {
+              setSelectedId(id);
+              setRoute('view');
+            }}
+          />
+        )}
+        {route === 'view' && <SequenceView defaultId={selectedId} />}
       </main>
     </div>
   );

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { apiPost } from '../lib/api';
+import { ApiError, postJson } from '../lib/api';
 
 type CreateResponse = {
   id: string;
   name?: string;
 };
 
-export const SequencesCreate: React.FC = () => {
+export const SequencesCreate: React.FC<{ onCreated?: (id: string) => void }> = ({ onCreated }) => {
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -23,22 +23,19 @@ export const SequencesCreate: React.FC = () => {
         steps: [],
         blocks: []
       };
-      const res = await apiPost('/api/sequences', payload);
-      if (res.status === 201) {
-        const data = await res.json();
-        setCreated(data);
-        setMessage(`Created sequence with id ${data.id}`);
-      } else if (res.status === 400) {
-        const err = await res.json();
-        const summary = Array.isArray(err.errors)
-          ? err.errors.map((e: any) => e.message ?? JSON.stringify(e)).join('; ')
-          : (err.message ?? 'Validation failed');
+      const data = await postJson<CreateResponse>('/api/sequences', payload);
+      setCreated(data);
+      setMessage(`Created sequence with id ${data?.id}`);
+      if (data?.id && onCreated) onCreated(data.id);
+    } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 400) {
+        const summary = e.errors?.map(er => er.message).join('; ') ?? 'Validation failed';
         setMessage(`Validation error: ${summary}`);
+      } else if (e instanceof Error) {
+        setMessage(`Error: ${e.message}`);
       } else {
-        setMessage(`Unexpected status: ${res.status}`);
+        setMessage('Error: Unknown');
       }
-    } catch (e: any) {
-      setMessage(`Error: ${e?.message ?? e}`);
     } finally {
       setCreating(false);
     }

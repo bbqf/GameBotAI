@@ -14,9 +14,9 @@
 
 ## Phase 3: User Story US1 (P1) — Create a new sequence
 
-- [ ] T007 [US1] Build Create page form in src/web-ui/src/pages/SequencesCreate.tsx
-- [ ] T008 [P] [US1] Wire POST /api/sequences in src/web-ui/src/pages/SequencesCreate.tsx
-- [ ] T009 [US1] Route to View after success in src/web-ui/src/App.tsx
+- [x] T007 [US1] Build Create page form in src/web-ui/src/pages/SequencesCreate.tsx
+- [x] T008 [P] [US1] Wire POST /api/sequences in src/web-ui/src/pages/SequencesCreate.tsx
+- [x] T009 [US1] Route to View after success in src/web-ui/src/App.tsx
 
 ## Phase 4: User Story US2 (P2) — Edit an existing sequence
 

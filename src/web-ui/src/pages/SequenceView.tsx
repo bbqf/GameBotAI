@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { apiGet } from '../lib/api';
 
 type Sequence = {
@@ -8,11 +8,16 @@ type Sequence = {
   blocks?: any[];
 };
 
-export const SequenceView: React.FC = () => {
-  const [id, setId] = useState('');
+export const SequenceView: React.FC<{ defaultId?: string }> = ({ defaultId }) => {
+  const [id, setId] = useState(defaultId ?? '');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [seq, setSeq] = useState<Sequence | null>(null);
+
+  useEffect(() => {
+    if (defaultId && defaultId !== id) setId(defaultId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultId]);
 
   const onFetch = async () => {
     setLoading(true);
