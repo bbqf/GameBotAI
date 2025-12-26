@@ -23,7 +23,7 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - TypeScript (ES2020), React 18 + React, React DOM, Vite, @vitejs/plugin-react (001-authoring-crud-ui)
 - None client-side (in-memory state); persistence via backend API (001-authoring-crud-ui)
 
-- .NET 8 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
+- .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
 ## Project Structure
 
@@ -34,14 +34,14 @@ tests/
 
 ## Commands
 
-# Add commands for .NET 8 C#
+# Add commands for .NET 9 C#
 
 ## Test Failure Analysis
 After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-test-results.ps1` to emit `TESTERROR:` lines for each failing test (name, outcome, message) and exit non-zero. Integrate into CI or local `verify` task to ensure rich failure detection.
 
 ## Code Style
 
-Coding style: Follow standard .NET 8 C# conventions
+Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
 - 001-authoring-crud-ui: Added TypeScript (ES2020), React 18 + React, React DOM, Vite, @vitejs/plugin-react
@@ -73,4 +73,7 @@ Common commands and expected duration:
 - `dotnet build` - 60-120 seconds
 - `dotnet test` - 60-180 seconds
 
+### GitHub Client Usage
+When interacting with GitHub repositories:
+- use gh CLI for operations like cloning, creating branches, and managing pull requests
 <!-- MANUAL ADDITIONS END -->
