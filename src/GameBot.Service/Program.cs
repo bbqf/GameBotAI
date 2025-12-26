@@ -347,6 +347,13 @@ app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository r
   return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("UpdateSequence");
 
+app.MapGet("/api/sequences", async (ISequenceRepository repo) =>
+{
+  var list = await repo.ListAsync().ConfigureAwait(false);
+  var resp = list.Select(s => new { id = s.Id, name = s.Name, steps = s.Steps.Select(x => x.CommandId).ToArray() });
+  return Results.Ok(resp);
+}).WithName("ListSequences");
+
 app.MapDelete("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
 {
   var existing = await repo.GetAsync(id).ConfigureAwait(false);
