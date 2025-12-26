@@ -68,12 +68,12 @@
 ### Implementation for User Story 2
 
 - [ ] T024 [P] [US2] Add `src/web-ui/src/components/Form.tsx` with validation hooks (required fields, constraints)
-- [ ] T025 [P] [US2] Implement `src/web-ui/src/pages/ActionsPage.tsx` create form modal (uses `services/actions.ts`)
-- [ ] T026 [P] [US2] Implement `src/web-ui/src/pages/GamesPage.tsx` create form modal (uses `services/games.ts`)
-- [ ] T027 [P] [US2] Implement `src/web-ui/src/pages/CommandsPage.tsx` create form modal with dropdown of Actions (names → IDs)
-- [ ] T028 [P] [US2] Implement `src/web-ui/src/pages/SequencesPage.tsx` create form with dropdown of Commands array (ordered)
-- [ ] T029 [P] [US2] Implement `src/web-ui/src/pages/TriggersPage.tsx` create form with dropdowns (Actions, Commands, Sequence)
-- [ ] T030 [US2] Refresh lists immediately after successful create; preserve inputs on error
+- [x] T025 [P] [US2] Implement `src/web-ui/src/pages/ActionsPage.tsx` create form modal (uses `services/actions.ts`)
+- [x] T026 [P] [US2] Implement `src/web-ui/src/pages/GamesPage.tsx` create form modal (uses `services/games.ts`)
+- [x] T027 [P] [US2] Implement `src/web-ui/src/pages/CommandsPage.tsx` create form modal with dropdown of Actions (names → IDs)
+- [x] T028 [P] [US2] Implement `src/web-ui/src/pages/SequencesPage.tsx` create form with dropdown of Commands array (ordered)
+- [x] T029 [P] [US2] Implement `src/web-ui/src/pages/TriggersPage.tsx` create form with dropdowns (Actions, Commands, Sequence)
+- [x] T030 [US2] Refresh lists immediately after successful create; preserve inputs on error
 
 **Checkpoint**: User Story 2 independently testable.
 
@@ -87,13 +87,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T031 [P] [US3] Implement edit flows in `ActionsPage.tsx` (inline or modal) using `services/actions.ts`
-- [ ] T032 [P] [US3] Implement edit flows in `GamesPage.tsx` using `services/games.ts`
-- [ ] T033 [P] [US3] Implement edit flows in `CommandsPage.tsx` with actions dropdown
-- [ ] T034 [P] [US3] Implement edit flows in `SequencesPage.tsx` with commands ordering
-- [ ] T035 [P] [US3] Implement edit flows in `TriggersPage.tsx` with reference dropdowns
-- [ ] T036 [US3] Implement delete with `ConfirmDeleteModal` in all pages; if API returns 409, surface guidance to unlink/migrate
-- [ ] T037 [US3] Ensure list refresh on successful edit/delete across pages
+- [x] T031 [P] [US3] Implement edit flows in `ActionsPage.tsx` (inline or modal) using `services/actions.ts`
+- [x] T032 [P] [US3] Implement edit flows in `GamesPage.tsx` using `services/games.ts`
+- [x] T033 [P] [US3] Implement edit flows in `CommandsPage.tsx` with actions dropdown
+- [x] T034 [P] [US3] Implement edit flows in `SequencesPage.tsx` with commands ordering
+- [x] T035 [P] [US3] Implement edit flows in `TriggersPage.tsx` with reference dropdowns
+- [x] T036 [US3] Implement delete with `ConfirmDeleteModal` in all pages; if API returns 409, surface guidance to unlink/migrate
+- [x] T037 [US3] Ensure list refresh on successful edit/delete across pages
 
 **Checkpoint**: User Story 3 independently testable.
 
