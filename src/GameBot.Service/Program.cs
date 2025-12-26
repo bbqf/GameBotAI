@@ -2,6 +2,7 @@ using GameBot.Service.Security;
 using GameBot.Service.Middleware;
 using GameBot.Emulator.Session;
 using GameBot.Service.Endpoints;
+using System.Text.Json;
 using GameBot.Domain.Games;
 using GameBot.Domain.Triggers;
 using GameBot.Domain.Actions;
@@ -274,35 +275,76 @@ app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
 
 // Sequences endpoints (Phase 3 US1 minimal stubs)
-app.MapPost("/api/sequences", async (ISequenceRepository repo, CommandSequence seq) =>
+app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo) =>
 {
-  // Basic validation for sequence blocks (if provided)
-  var errors = ValidateSequence(seq);
-  if (errors.Count > 0)
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+  var root = doc.RootElement;
+  // Authoring shape: { name: string, steps?: string[] }
+  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
   {
-    return Results.BadRequest(new { message = "Invalid sequence", errors });
+    var name = nameProp.GetString()!.Trim();
+    var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+    if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+    {
+      var order = 0;
+      var steps = new List<GameBot.Domain.Commands.SequenceStep>();
+      foreach (var el in stepsProp.EnumerateArray())
+      {
+        if (el.ValueKind == System.Text.Json.JsonValueKind.String)
+        {
+          steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
+        }
+      }
+      seq.SetSteps(steps);
+    }
+    var created = await repo.CreateAsync(seq).ConfigureAwait(false);
+    return Results.Created($"/api/sequences/{created.Id}", new { id = created.Id, name = created.Name, steps = created.Steps.Select(s => s.CommandId).ToArray() });
   }
-  seq.CreatedAt = DateTimeOffset.UtcNow;
-  seq.UpdatedAt = seq.CreatedAt;
-  var created = await repo.CreateAsync(seq).ConfigureAwait(false);
-  return Results.Created($"/api/sequences/{created.Id}", created);
+  // Fallback to domain shape
+  var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
+  if (seqDomain is null) return Results.BadRequest(new { message = "Invalid sequence payload" });
+  var errors = ValidateSequence(seqDomain);
+  if (errors.Count > 0) return Results.BadRequest(new { message = "Invalid sequence", errors });
+  seqDomain.CreatedAt = DateTimeOffset.UtcNow;
+  seqDomain.UpdatedAt = seqDomain.CreatedAt;
+  var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
+  return Results.Created($"/api/sequences/{createdDomain.Id}", createdDomain);
 }).WithName("CreateSequence");
 
 app.MapGet("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
 {
   var found = await repo.GetAsync(id).ConfigureAwait(false);
-  return found is null ? Results.NotFound() : Results.Ok(found);
+  if (found is null) return Results.NotFound();
+  return Results.Ok(new { id = found.Id, name = found.Name, steps = found.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("GetSequence");
 
-app.MapPut("/api/sequences/{id}", async (ISequenceRepository repo, string id, CommandSequence update) =>
+app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository repo, string id) =>
 {
   var existing = await repo.GetAsync(id).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
-  update.Id = id;
-  update.CreatedAt = existing.CreatedAt;
-  update.UpdatedAt = DateTimeOffset.UtcNow;
-  var saved = await repo.UpdateAsync(update).ConfigureAwait(false);
-  return Results.Ok(saved);
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+  var root = doc.RootElement;
+  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+  {
+    var name = nameProp.GetString()!.Trim();
+    if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
+  }
+  if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+  {
+    var order = 0;
+    var steps = new List<GameBot.Domain.Commands.SequenceStep>();
+    foreach (var el in stepsProp.EnumerateArray())
+    {
+      if (el.ValueKind == System.Text.Json.JsonValueKind.String)
+      {
+        steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
+      }
+    }
+    existing.SetSteps(steps);
+  }
+  existing.UpdatedAt = DateTimeOffset.UtcNow;
+  var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
+  return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("UpdateSequence");
 
 app.MapPost("/api/sequences/{id}/execute", async (

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using GameBot.Domain.Commands;
 using GameBot.Service.Models;
 using Microsoft.AspNetCore.OpenApi;
@@ -7,8 +8,30 @@ namespace GameBot.Service.Endpoints;
 
 internal static class CommandsEndpoints {
   public static IEndpointRouteBuilder MapCommandEndpoints(this IEndpointRouteBuilder app) {
-    app.MapPost("/api/commands", async (CreateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
-      if (string.IsNullOrWhiteSpace(req.Name))
+    app.MapPost("/api/commands", async (HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
+      using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
+      var root = doc.RootElement;
+      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String) {
+        var name = nameProp.GetString()!.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+          return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
+        // Authoring shape: actions[] -> steps of type Action
+        Collection<CommandStep> steps = new();
+        if (root.TryGetProperty("actions", out var actionsProp) && actionsProp.ValueKind == JsonValueKind.Array) {
+          int order = 0;
+          foreach (var el in actionsProp.EnumerateArray()) {
+            if (el.ValueKind == JsonValueKind.String) {
+              steps.Add(new CommandStep { Type = CommandStepType.Action, TargetId = el.GetString()!, Order = order++ });
+            }
+          }
+        }
+        var created = await repo.AddAsync(new Command { Id = string.Empty, Name = name, TriggerId = null, Steps = steps }, ct).ConfigureAwait(false);
+        return Results.Created($"/api/commands/{created.Id}", new { id = created.Id, name = created.Name, actions = steps.Select(s => s.TargetId).ToArray() });
+      }
+
+      // Domain shape fallback
+      var req = root.Deserialize<CreateCommandRequest>();
+      if (req is null || string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
 
       var command = new Command {
@@ -22,12 +45,12 @@ internal static class CommandsEndpoints {
         }).ToList())
       };
 
-      var created = await repo.AddAsync(command, ct).ConfigureAwait(false);
-      return Results.Created($"/commands/{created.Id}", new CommandResponse {
-        Id = created.Id,
-        Name = created.Name,
-        TriggerId = created.TriggerId,
-        Steps = new Collection<CommandStepDto>(created.Steps.Select(s => new CommandStepDto {
+      var createdDomain = await repo.AddAsync(command, ct).ConfigureAwait(false);
+      return Results.Created($"/api/commands/{createdDomain.Id}", new CommandResponse {
+        Id = createdDomain.Id,
+        Name = createdDomain.Name,
+        TriggerId = createdDomain.TriggerId,
+        Steps = new Collection<CommandStepDto>(createdDomain.Steps.Select(s => new CommandStepDto {
           Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
           TargetId = s.TargetId,
           Order = s.Order
