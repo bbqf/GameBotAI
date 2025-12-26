@@ -88,3 +88,4 @@ const request = async <T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', p
 export const getJson = async <T>(path: string) => request<T>('GET', path);
 export const postJson = async <T>(path: string, body: unknown) => request<T>('POST', path, body);
 export const deleteJson = async <T>(path: string) => request<T>('DELETE', path);
+export const putJson = async <T>(path: string, body: unknown) => request<T>('PUT', path, body);
