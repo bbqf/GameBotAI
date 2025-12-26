@@ -117,7 +117,7 @@ export const SequenceEdit: React.FC = () => {
         </div>
       )}
 
-      {message && <div className="message">{message}</div>}
+      {message && <div className="message" role="alert" aria-live="polite">{message}</div>}
     </section>
   );
 };

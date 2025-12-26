@@ -54,7 +54,7 @@ export const SequenceView: React.FC<{ defaultId?: string }> = ({ defaultId }) =>
         />
         <button disabled={!id || loading} onClick={onFetch}>Fetch</button>
       </div>
-      {message && <div className="message">{message}</div>}
+      {message && <div className="message" role="alert" aria-live="polite">{message}</div>}
       {seq && (
         <pre className="json">{JSON.stringify(seq, null, 2)}</pre>
       )}

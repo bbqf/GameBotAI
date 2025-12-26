@@ -65,7 +65,7 @@ export const SequencesCreate: React.FC<{ onCreated?: (id: string) => void }> = (
       <div className="actions">
         <button disabled={!name || creating} onClick={onCreate}>Create</button>
       </div>
-      {message && <div className="message">{message}</div>}
+      {message && <div className="message" role="alert" aria-live="polite">{message}</div>}
       {fieldErrors && (
         <div className="message">
           {fieldErrors.general.length > 0 && (

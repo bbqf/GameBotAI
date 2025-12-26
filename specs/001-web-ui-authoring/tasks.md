@@ -36,8 +36,8 @@
 
 ## Phase 7: User Story US5 (P1) — Mobile viewport
 
-- [ ] T017 [US5] Update responsive CSS in src/web-ui/src/styles.css
-- [ ] T018 [P] [US5] Ensure labels/a11y (WCAG AA) across src/web-ui/src/**
+- [x] T017 [US5] Update responsive CSS in src/web-ui/src/styles.css
+- [x] T018 [P] [US5] Ensure labels/a11y (WCAG AA) across src/web-ui/src/**
 
 ## Final Phase: Polish & Cross-Cutting
 
