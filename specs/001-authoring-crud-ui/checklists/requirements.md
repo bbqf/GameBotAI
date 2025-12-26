@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,9 +31,9 @@
 
 ## Notes
 
-- Outstanding clarifications (quoted from spec):
-  - "Duplicate names across objects: dropdowns must disambiguate (e.g., include type or additional context). [NEEDS CLARIFICATION: Are names unique per type?]"
-  - "Deleting objects referenced by others: prevent deletion or guide resolution. [NEEDS CLARIFICATION: Soft delete vs permanent and handling of references]"
-  - "**FR-009**: Access to CRUD actions is limited to authorized users. [NEEDS CLARIFICATION: Who can perform destructive actions?]"
+- Clarifications resolved per user choices:
+  - Q1 (Name uniqueness): Names can be non-unique; UI disambiguates.
+  - Q2 (Delete behavior): Hard delete is blocked when referenced; require unlink/migrate.
+  - Q3 (Permissions): All authenticated users may perform destructive actions with confirmation.
 
-- After resolving clarifications, mark the remaining checklist item complete and proceed to `/speckit.plan`.
+- Ready to proceed to `/speckit.plan`.

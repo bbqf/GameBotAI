@@ -70,8 +70,8 @@ Users open an existing item to update fields and references; users can also dele
 ### Edge Cases
 
 - No objects exist for a type: show an empty-state message with a clear "Create" action.
-- Duplicate names across objects: dropdowns must disambiguate (e.g., include type or additional context). [NEEDS CLARIFICATION: Are names unique per type?]
-- Deleting objects referenced by others: prevent deletion or guide resolution. [NEEDS CLARIFICATION: Soft delete vs permanent and handling of references]
+- Duplicate names across objects: dropdowns must disambiguate (e.g., include additional context); names can be non-unique per type.
+- Deleting objects referenced by others: block delete if the object is referenced; require unlinking/migration before deletion; no cascades.
 - Backend error or validation failure: show friendly, actionable error guidance and preserve user inputs.
 
 ## Requirements *(mandatory)*
@@ -86,7 +86,8 @@ Users open an existing item to update fields and references; users can also dele
 - **FR-006**: Confirm destructive actions (delete) with an explicit confirmation step.
 - **FR-007**: Lists update immediately after successful create, edit, or delete to reflect the current state.
 - **FR-008**: Provide basic filtering/search by name in lists when counts are large (assumed threshold). [Assumption]
-- **FR-009**: Access to CRUD actions is limited to authorized users. [NEEDS CLARIFICATION: Who can perform destructive actions?]
+- **FR-009**: Access to CRUD actions is available to all authenticated users; destructive actions require explicit confirmation and safeguards.
+- **FR-010**: Prevent deletion of objects that are referenced by other objects; surface guidance to unlink/migrate references before retrying.
 
 ### Key Entities *(include if feature involves data)*
 
