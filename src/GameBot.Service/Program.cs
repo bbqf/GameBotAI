@@ -280,7 +280,7 @@ app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo)
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
   // Authoring shape: { name: string, steps?: string[] }
-  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _))
   {
     var name = nameProp.GetString()!.Trim();
     var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };

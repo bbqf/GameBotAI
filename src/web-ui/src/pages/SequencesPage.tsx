@@ -5,6 +5,7 @@ import { listSequences, SequenceDto, createSequence, SequenceCreate, getSequence
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { listCommands, CommandDto } from '../services/commands';
+import { FormError, validateRequired } from '../components/Form';
 
 export const SequencesPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
@@ -56,11 +57,12 @@ export const SequencesPage: React.FC = () => {
           onSubmit={async (e) => {
             e.preventDefault();
             setError(undefined);
-            const input: SequenceCreate = { name: name.trim(), steps: selectedCommands.length ? selectedCommands : [] };
-            if (!input.name) {
-              setError('Name is required');
+            const nameErr = validateRequired(name, 'Name');
+            if (nameErr) {
+              setError(nameErr);
               return;
             }
+            const input: SequenceCreate = { name: name.trim(), steps: selectedCommands.length ? selectedCommands : [] };
             try {
               await createSequence(input);
               setCreating(false);
@@ -85,7 +87,7 @@ export const SequencesPage: React.FC = () => {
           <div>
             <MultiSelect label="Commands (steps)" values={selectedCommands} options={commandOptions} onChange={setSelectedCommands} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Create</button>
             <button type="button" onClick={() => setCreating(false)}>Cancel</button>
@@ -113,11 +115,12 @@ export const SequencesPage: React.FC = () => {
           onSubmit={async (e) => {
             e.preventDefault();
             setError(undefined);
-            const input: SequenceCreate = { name: editName.trim(), steps: editSelectedCommands.length ? editSelectedCommands : undefined };
-            if (!input.name) {
-              setError('Name is required');
+            const nameErr = validateRequired(editName, 'Name');
+            if (nameErr) {
+              setError(nameErr);
               return;
             }
+            const input: SequenceCreate = { name: editName.trim(), steps: editSelectedCommands.length ? editSelectedCommands : undefined };
             try {
               await updateSequence(editingId, input);
               setEditingId(undefined);
@@ -137,7 +140,7 @@ export const SequencesPage: React.FC = () => {
           <div>
             <MultiSelect label="Commands" values={editSelectedCommands} options={commandOptions} onChange={setEditSelectedCommands} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Save</button>
             <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>

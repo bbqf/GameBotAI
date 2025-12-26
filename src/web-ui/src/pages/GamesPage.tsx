@@ -3,6 +3,7 @@ import { List, ListItem } from '../components/List';
 import { listGames, GameDto, createGame, GameCreate, getGame, updateGame, deleteGame } from '../services/games';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
+import { validateRequired, FormError } from '../components/Form';
 
 export const GamesPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
@@ -46,9 +47,9 @@ export const GamesPage: React.FC = () => {
             e.preventDefault();
             setError(undefined);
             const input: GameCreate = { name: name.trim() };
-            if (!input.name) {
-              setError('Name is required');
-              return;
+            {
+              const errMsg = validateRequired(input.name, 'Name');
+              if (errMsg) { setError(errMsg); return; }
             }
             try {
               await createGame(input);
@@ -70,7 +71,7 @@ export const GamesPage: React.FC = () => {
             <label>Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Create</button>
             <button type="button" onClick={() => setCreating(false)}>Cancel</button>
@@ -98,9 +99,9 @@ export const GamesPage: React.FC = () => {
             e.preventDefault();
             setError(undefined);
             const input: GameCreate = { name: editName.trim() };
-            if (!input.name) {
-              setError('Name is required');
-              return;
+            {
+              const errMsg = validateRequired(input.name, 'Name');
+              if (errMsg) { setError(errMsg); return; }
             }
             try {
               await updateGame(editingId, input);
@@ -122,7 +123,7 @@ export const GamesPage: React.FC = () => {
             <label>Name</label>
             <input value={editName} onChange={(e) => setEditName(e.target.value)} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Save</button>
             <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>

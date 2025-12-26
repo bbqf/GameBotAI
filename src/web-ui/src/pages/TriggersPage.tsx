@@ -8,6 +8,7 @@ import { ApiError } from '../lib/api';
 import { listActions, ActionDto } from '../services/actions';
 import { listCommands, CommandDto } from '../services/commands';
 import { listSequences, SequenceDto } from '../services/sequences';
+import { FormError, validateRequired, tryParseJson } from '../components/Form';
 
 export const TriggersPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
@@ -77,26 +78,23 @@ export const TriggersPage: React.FC = () => {
           onSubmit={async (e) => {
             e.preventDefault();
             setError(undefined);
-            let criteria: Record<string, unknown> | undefined = undefined;
-            if (criteriaText.trim().length > 0) {
-              try {
-                criteria = JSON.parse(criteriaText);
-              } catch {
-                setError('Criteria must be valid JSON');
-                return;
-              }
+            const nameErr = validateRequired(name, 'Name');
+            if (nameErr) {
+              setError(nameErr);
+              return;
+            }
+            const parsed = tryParseJson<Record<string, unknown>>(criteriaText);
+            if (parsed.error) {
+              setError(parsed.error);
+              return;
             }
             const input: TriggerCreate = {
               name: name.trim(),
-              criteria,
+              criteria: parsed.value,
               actions: selectedActions.length ? selectedActions : undefined,
               commands: selectedCommands.length ? selectedCommands : undefined,
               sequence: selectedSequence
             };
-            if (!input.name) {
-              setError('Name is required');
-              return;
-            }
             try {
               await createTrigger(input);
               setCreating(false);
@@ -138,7 +136,7 @@ export const TriggersPage: React.FC = () => {
           <div>
             <Dropdown label="Sequence" value={selectedSequence} options={sequenceOptions} onChange={setSelectedSequence} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Create</button>
             <button type="button" onClick={() => setCreating(false)}>Cancel</button>
@@ -169,26 +167,23 @@ export const TriggersPage: React.FC = () => {
           onSubmit={async (e) => {
             e.preventDefault();
             setError(undefined);
-            let criteria: Record<string, unknown> | undefined = undefined;
-            if (editCriteriaText.trim().length > 0) {
-              try {
-                criteria = JSON.parse(editCriteriaText);
-              } catch {
-                setError('Criteria must be valid JSON');
-                return;
-              }
+            const nameErr = validateRequired(editName, 'Name');
+            if (nameErr) {
+              setError(nameErr);
+              return;
+            }
+            const parsed = tryParseJson<Record<string, unknown>>(editCriteriaText);
+            if (parsed.error) {
+              setError(parsed.error);
+              return;
             }
             const input: TriggerCreate = {
               name: editName.trim(),
-              criteria,
+              criteria: parsed.value,
               actions: editSelectedActions.length ? editSelectedActions : undefined,
               commands: editSelectedCommands.length ? editSelectedCommands : undefined,
               sequence: editSelectedSequence || undefined,
             };
-            if (!input.name) {
-              setError('Name is required');
-              return;
-            }
             try {
               await updateTrigger(editingId, input);
               setEditingId(undefined);
@@ -218,7 +213,7 @@ export const TriggersPage: React.FC = () => {
           <div>
             <Dropdown label="Sequence" value={editSelectedSequence} options={sequenceOptions} onChange={setEditSelectedSequence} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Save</button>
             <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>

@@ -16,8 +16,8 @@ public sealed class FileGameRepository : IGameRepository {
 
     // Disallow directory traversal and path separators in IDs.
     if (id.Contains("..", StringComparison.Ordinal) ||
-        id.Contains(Path.DirectorySeparatorChar) ||
-        id.Contains(Path.AltDirectorySeparatorChar)) {
+        id.Contains(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal) ||
+        id.Contains(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal)) {
       throw new ArgumentException("Invalid game identifier.", nameof(id));
     }
 

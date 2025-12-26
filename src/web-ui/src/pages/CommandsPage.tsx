@@ -6,6 +6,7 @@ import { listCommands, CommandDto, createCommand, CommandCreate, getCommand, upd
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { listActions, ActionDto } from '../services/actions';
+import { FormError, validateRequired, tryParseJson } from '../components/Form';
 
 export const CommandsPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
@@ -59,20 +60,17 @@ export const CommandsPage: React.FC = () => {
           onSubmit={async (e) => {
             e.preventDefault();
             setError(undefined);
-            let parameters: Record<string, unknown> | undefined = undefined;
-            if (parametersText.trim().length > 0) {
-              try {
-                parameters = JSON.parse(parametersText);
-              } catch {
-                setError('Parameters must be valid JSON');
-                return;
-              }
-            }
-            const input: CommandCreate = { name: name.trim(), parameters, actions: selectedActions.length ? selectedActions : undefined };
-            if (!input.name) {
-              setError('Name is required');
+            const nameErr = validateRequired(name, 'Name');
+            if (nameErr) {
+              setError(nameErr);
               return;
             }
+            const parsed = tryParseJson<Record<string, unknown>>(parametersText);
+            if (parsed.error) {
+              setError(parsed.error);
+              return;
+            }
+            const input: CommandCreate = { name: name.trim(), parameters: parsed.value, actions: selectedActions.length ? selectedActions : undefined };
             try {
               await createCommand(input);
               setCreating(false);
@@ -102,7 +100,7 @@ export const CommandsPage: React.FC = () => {
           <div>
             <MultiSelect label="Actions" values={selectedActions} options={actionOptions} onChange={setSelectedActions} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Create</button>
             <button type="button" onClick={() => setCreating(false)}>Cancel</button>
@@ -131,20 +129,17 @@ export const CommandsPage: React.FC = () => {
           onSubmit={async (e) => {
             e.preventDefault();
             setError(undefined);
-            let parameters: Record<string, unknown> | undefined = undefined;
-            if (editParametersText.trim().length > 0) {
-              try {
-                parameters = JSON.parse(editParametersText);
-              } catch {
-                setError('Parameters must be valid JSON');
-                return;
-              }
-            }
-            const input: CommandCreate = { name: editName.trim(), parameters, actions: editSelectedActions.length ? editSelectedActions : undefined };
-            if (!input.name) {
-              setError('Name is required');
+            const nameErr = validateRequired(editName, 'Name');
+            if (nameErr) {
+              setError(nameErr);
               return;
             }
+            const parsed = tryParseJson<Record<string, unknown>>(editParametersText);
+            if (parsed.error) {
+              setError(parsed.error);
+              return;
+            }
+            const input: CommandCreate = { name: editName.trim(), parameters: parsed.value, actions: editSelectedActions.length ? editSelectedActions : undefined };
             try {
               await updateCommand(editingId, input);
               setEditingId(undefined);
@@ -172,7 +167,7 @@ export const CommandsPage: React.FC = () => {
           <div>
             <MultiSelect label="Actions" values={editSelectedActions} options={actionOptions} onChange={setEditSelectedActions} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Save</button>
             <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>

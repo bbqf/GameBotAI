@@ -3,6 +3,7 @@ import { List, ListItem } from '../components/List';
 import { listActions, ActionDto, createAction, ActionCreate, getAction, updateAction, deleteAction } from '../services/actions';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
+import { validateRequired, FormError } from '../components/Form';
 
 export const ActionsPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
@@ -48,9 +49,9 @@ export const ActionsPage: React.FC = () => {
             e.preventDefault();
             setError(undefined);
             const input: ActionCreate = { name: name.trim(), description: description.trim() || undefined };
-            if (!input.name) {
-              setError('Name is required');
-              return;
+            {
+              const errMsg = validateRequired(input.name, 'Name');
+              if (errMsg) { setError(errMsg); return; }
             }
             try {
               await createAction(input);
@@ -77,7 +78,7 @@ export const ActionsPage: React.FC = () => {
             <label>Description</label>
             <input value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Create</button>
             <button type="button" onClick={() => setCreating(false)}>Cancel</button>
@@ -106,9 +107,9 @@ export const ActionsPage: React.FC = () => {
             e.preventDefault();
             setError(undefined);
             const input: ActionCreate = { name: editName.trim(), description: editDescription.trim() || undefined };
-            if (!input.name) {
-              setError('Name is required');
-              return;
+            {
+              const errMsg = validateRequired(input.name, 'Name');
+              if (errMsg) { setError(errMsg); return; }
             }
             try {
               await updateAction(editingId, input);
@@ -134,7 +135,7 @@ export const ActionsPage: React.FC = () => {
             <label>Description</label>
             <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
+          <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Save</button>
             <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>

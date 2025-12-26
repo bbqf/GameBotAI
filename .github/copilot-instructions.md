@@ -54,5 +54,23 @@ Coding style: Follow standard .NET 8 C# conventions
 
 
 ### Terminal Reuse & No-Close Policy
+- always wait for the command to complete without user intervention
+- do not close the terminal unless explicitly instructed by the user
+- reuse the terminal for multiple commands to maintain context
+
+## Terminal Command Guidelines
+
+When running terminal commands in this project:
+- Prefer explicit output over silent operations
+- Use `--verbose` flags when available
+- Break down operations into smaller steps if timeout occurs
+
+Common commands and expected duration:
+- `npm install` - 10-30 seconds
+- `npm run dev` - Background process
+- `npm run build` - 30-90 seconds
+- `git status` - <1 second
+- `dotnet build` - 60-120 seconds
+- `dotnet test` - 60-180 seconds
 
 <!-- MANUAL ADDITIONS END -->
