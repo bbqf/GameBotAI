@@ -347,6 +347,14 @@ app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository r
   return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("UpdateSequence");
 
+app.MapDelete("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
+{
+  var existing = await repo.GetAsync(id).ConfigureAwait(false);
+  if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
+  var ok = await repo.DeleteAsync(id).ConfigureAwait(false);
+  return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
+}).WithName("DeleteSequence");
+
 app.MapPost("/api/sequences/{id}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,

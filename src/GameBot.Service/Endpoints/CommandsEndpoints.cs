@@ -126,9 +126,24 @@ internal static class CommandsEndpoints {
     .WithName("UpdateCommand")
     .WithTags("Commands");
 
-    app.MapDelete("/api/commands/{id}", async (string id, ICommandRepository repo, CancellationToken ct) => {
-      var ok = await repo.DeleteAsync(id, ct).ConfigureAwait(false);
-      return ok ? Results.NoContent() : Results.NotFound();
+    app.MapDelete("/api/commands/{id}", async (string id, ICommandRepository commands, GameBot.Domain.Commands.ISequenceRepository sequences, CancellationToken ct) => {
+      var existing = await commands.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } });
+      // Check references from other commands (steps of type Command)
+      var cmdList = await commands.ListAsync(ct).ConfigureAwait(false);
+      var referencingCommands = cmdList.Where(c => c.Steps.Any(s => s.Type == CommandStepType.Command && string.Equals(s.TargetId, id, StringComparison.OrdinalIgnoreCase)))
+                                       .Select(c => new { id = c.Id, name = c.Name })
+                                       .ToArray();
+      // Check references from sequences
+      var seqList = await sequences.ListAsync().ConfigureAwait(false);
+      var referencingSequences = seqList.Where(seq => seq.Steps.Any(s => string.Equals(s.CommandId, id, StringComparison.OrdinalIgnoreCase)))
+                                        .Select(seq => new { id = seq.Id, name = seq.Name })
+                                        .ToArray();
+      if (referencingCommands.Length > 0 || referencingSequences.Length > 0) {
+        return Results.Conflict(new { error = new { code = "delete_blocked", message = "Command is referenced.", hint = (string?)null }, references = new { commands = referencingCommands, sequences = referencingSequences } });
+      }
+      var ok = await commands.DeleteAsync(id, ct).ConfigureAwait(false);
+      return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } });
     })
     .WithName("DeleteCommand")
     .WithTags("Commands");
