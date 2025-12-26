@@ -17,7 +17,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - Disk-backed under `data/images` (001-image-storage)
 - Existing detection pipeline (OpenCvSharp via TemplateMatcher), Windows-only System.Drawing usage guarded with platform attributes; no new external packages. (005-image-detect-command)
 - File-based JSON repositories under `data/` (commands, triggers, config). No new persistence stores; extend command schema to include `DetectionTarget` parameters. (005-image-detect-command)
-- C# / .NET 9 + Existing detection (OpenCV image-match), OCR (Tesseract), trigger evaluation services (001-sequence-logic)
+- Frontend: TypeScript (ES2020), React 18, Vite 5 + React, Vite, @vitejs/plugin-react (001-web-ui-authoring)
+- Backend: C# / .NET 9 + Existing detection (OpenCV image-match), OCR (Tesseract), trigger evaluation services (001-sequence-logic)
 - File-backed JSON under `data/commands/sequences` (001-sequence-logic)
 
 - .NET 8 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
@@ -41,6 +42,7 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 8 C# conventions
 
 ## Recent Changes
+- 001-web-ui-authoring: Added TypeScript (ES2020), React 18, Vite 5 + React, Vite, @vitejs/plugin-react
 - 001-sequence-logic: Added C# / .NET 9 + Existing detection (OpenCV image-match), OCR (Tesseract), trigger evaluation services
 - 005-image-detect-command: Added Existing detection pipeline (OpenCvSharp via TemplateMatcher), Windows-only System.Drawing usage guarded with platform attributes; no new external packages.
 - 001-image-storage: Added C# / .NET 8 (Service), .NET 9 (Domain alignment) + None new (disk I/O via `System.IO`)
