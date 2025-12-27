@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActionType, ValidationMessage } from '../../types/actions';
 import { GameDto } from '../../services/games';
 import { validateAttribute } from '../../services/validation';
@@ -24,6 +24,16 @@ export type ActionFormProps = {
   extraActions?: React.ReactNode;
 };
 
+const now = (): number => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now());
+const logPerf = (label: string, durationMs: number, meta?: Record<string, unknown>): void => {
+  const rounded = Math.max(0, Math.round(durationMs));
+  if (!Number.isFinite(rounded)) return;
+  const suffix = meta ? ` ${JSON.stringify(meta)}` : '';
+  if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+    console.debug(`[perf] ${label}: ${rounded}ms${suffix}`);
+  }
+};
+
 const getFieldError = (errors: ValidationMessage[] | undefined, field: string): string | undefined => {
   if (!errors) return undefined;
   const match = errors.find((e) => e.field === field);
@@ -42,7 +52,16 @@ export const ActionForm: React.FC<ActionFormProps> = ({
   extraActions,
   games
 }) => {
+  const renderMark = useRef<number>(now());
+  renderMark.current = now();
   const selectedType = actionTypes.find((t) => t.key === value.type);
+
+  useEffect(() => {
+    if (loading) return;
+    const elapsed = now() - renderMark.current;
+    const fieldCount = selectedType?.attributeDefinitions.length ?? 0;
+    logPerf('action-form.render', elapsed, { type: value.type || 'none', fields: fieldCount });
+  }, [loading, selectedType, value.type]);
 
   const filterAttributesForType = (nextType?: ActionType) => {
     if (!nextType) return { nextAttrs: {}, dropped: true };

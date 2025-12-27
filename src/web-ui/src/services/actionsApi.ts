@@ -12,6 +12,16 @@ import {
 const actionsBase = '/api/actions';
 const actionTypesBase = '/api/action-types';
 
+const now = (): number => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now());
+const logPerf = (label: string, durationMs: number, meta?: Record<string, unknown>): void => {
+  const rounded = Math.max(0, Math.round(durationMs));
+  if (!Number.isFinite(rounded)) return;
+  const suffix = meta ? ` ${JSON.stringify(meta)}` : '';
+  if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+    console.debug(`[perf] ${label}: ${rounded}ms${suffix}`);
+  }
+};
+
 type DomainAction = {
   id: string;
   name: string;
@@ -98,17 +108,28 @@ export const getActionTypes = async (etag?: string): Promise<ActionTypeFetchResu
   headers['Accept'] = 'application/json';
   if (etag) headers['If-None-Match'] = etag;
 
-  const res = await fetch(buildApiUrl(actionTypesBase), { method: 'GET', headers });
-  if (res.status === 304) {
-    return { catalog: undefined, etag, notModified: true };
+  const started = now();
+  let res: Response | undefined;
+  try {
+    res = await fetch(buildApiUrl(actionTypesBase), { method: 'GET', headers });
+    if (res.status === 304) {
+      logPerf('action-types.fetch', now() - started, { status: res.status, cache: true });
+      return { catalog: undefined, etag, notModified: true };
+    }
+    if (!res.ok) {
+      const message = (await res.text()) || `HTTP ${res.status}`;
+      throw new ApiError(res.status, message);
+    }
+    const data = (await res.json()) as ActionTypeCatalog;
+    const nextEtag = res.headers.get('ETag') ?? undefined;
+    logPerf('action-types.fetch', now() - started, { status: res.status, cache: false });
+    return { catalog: data, etag: nextEtag, notModified: false };
   }
-  if (!res.ok) {
-    const message = (await res.text()) || `HTTP ${res.status}`;
-    throw new ApiError(res.status, message);
+  finally {
+    if (!res) {
+      logPerf('action-types.fetch', now() - started, { status: 'error', cache: false });
+    }
   }
-  const data = (await res.json()) as ActionTypeCatalog;
-  const nextEtag = res.headers.get('ETag') ?? undefined;
-  return { catalog: data, etag: nextEtag, notModified: false };
 };
 
 export const getActionType = async (key: string): Promise<ActionType> => {
