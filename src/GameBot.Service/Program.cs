@@ -252,6 +252,7 @@ app.MapSessionEndpoints();
 
 // Games endpoints (protected if token set)
 app.MapGameEndpoints();
+app.MapActionTypeEndpoints(storageRoot);
 app.MapActionEndpoints();
 // Actions & Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
