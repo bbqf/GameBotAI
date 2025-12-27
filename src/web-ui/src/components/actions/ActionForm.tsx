@@ -1,5 +1,6 @@
 import React from 'react';
 import { ActionType, ValidationMessage } from '../../types/actions';
+import { validateAttribute } from '../../services/validation';
 import { FieldRenderer } from './FieldRenderer';
 
 export type ActionFormValue = {
@@ -36,6 +37,38 @@ export const ActionForm: React.FC<ActionFormProps> = ({
   onCancel
 }) => {
   const selectedType = actionTypes.find((t) => t.key === value.type);
+
+  const filterAttributesForType = (nextType?: ActionType) => {
+    if (!nextType) return { nextAttrs: {}, dropped: true };
+    const nextAttrs: Record<string, unknown> = {};
+    let dropped = false;
+    const definedKeys = new Set<string>();
+    for (const def of nextType.attributeDefinitions) {
+      definedKeys.add(def.key);
+      const existing = value.attributes[def.key];
+      const issue = validateAttribute(def, existing);
+      if (!issue && existing !== undefined) nextAttrs[def.key] = existing;
+      else if (existing !== undefined) dropped = true;
+    }
+    for (const key of Object.keys(value.attributes)) {
+      if (!definedKeys.has(key)) dropped = true;
+    }
+    return { nextAttrs, dropped };
+  };
+
+  const handleTypeChange = (nextTypeKey: string) => {
+    if (nextTypeKey === value.type) return;
+    const nextType = actionTypes.find((t) => t.key === nextTypeKey);
+    const hasAttributes = Object.keys(value.attributes).length > 0;
+    const { nextAttrs, dropped } = filterAttributesForType(nextType);
+
+    if (hasAttributes && dropped) {
+      const confirmDrop = window.confirm('Changing the action type will reset incompatible fields. Continue?');
+      if (!confirmDrop) return;
+    }
+
+    onChange({ ...value, type: nextTypeKey, attributes: nextAttrs });
+  };
 
   const updateAttributes = (key: string, newValue: unknown) => {
     const next = { ...value.attributes };
@@ -93,7 +126,7 @@ export const ActionForm: React.FC<ActionFormProps> = ({
           aria-invalid={Boolean(getFieldError(errors, 'type'))}
           aria-describedby={getFieldError(errors, 'type') ? 'action-type-error' : undefined}
           value={value.type}
-          onChange={(e) => onChange({ ...value, type: e.target.value, attributes: {} })}
+          onChange={(e) => handleTypeChange(e.target.value)}
           disabled={submitting}
         >
           <option value="" disabled>Select an action type</option>
