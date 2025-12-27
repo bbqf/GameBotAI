@@ -5,12 +5,12 @@
 - [X] T002 Verify backend service runs for dropdown data (dotnet run -c Debug --project src/GameBot.Service)
 
 ## Phase 2 – Foundational
-- [ ] T003 Audit existing Action page components to identify reusable layout pieces in src/web-ui
-- [ ] T004 Extract/prepare shared form primitives (sections, headers, Save/Cancel placement) for reuse in src/web-ui
-- [ ] T005 Define shared dropdown component with search and create-new affordance in src/web-ui
-- [ ] T006 Define reusable array CRUD+reorder component with drag-and-drop in src/web-ui
-- [ ] T007 [P] Add Vitest/RTL unit tests for dropdown component (search, selection, create-new) in src/web-ui
-- [ ] T008 [P] Add Vitest/RTL unit tests for array component (add/edit/delete/reorder behavior) in src/web-ui
+- [X] T003 Audit existing Action page components to identify reusable layout pieces in src/web-ui
+- [X] T004 Extract/prepare shared form primitives (sections, headers, Save/Cancel placement) for reuse in src/web-ui
+- [X] T005 Define shared dropdown component with search and create-new affordance in src/web-ui
+- [X] T006 Define reusable array CRUD+reorder component with drag-and-drop in src/web-ui
+- [X] T007 [P] Add Vitest/RTL unit tests for dropdown component (search, selection, create-new) in src/web-ui
+- [X] T008 [P] Add Vitest/RTL unit tests for array component (add/edit/delete/reorder behavior) in src/web-ui
 
 ## Phase 3 – User Story 1 (Create any object with unified page)
 Goal: Non-technical author can create/edit any object using the Action-style layout.
