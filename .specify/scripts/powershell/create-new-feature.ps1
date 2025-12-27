@@ -204,25 +204,22 @@ if ($ShortName) {
     $branchSuffix = Get-BranchName -Description $featureDesc
 }
 
-# Determine branch number
-if ($Number -eq 0) {
-    if ($hasGit) {
-        # Check existing branches on remotes
-        $Number = Get-NextBranchNumber -ShortName $branchSuffix -SpecsDir $specsDir
-    } else {
-        # Fall back to local directory check
-        $highest = 0
-        if (Test-Path $specsDir) {
-            Get-ChildItem -Path $specsDir -Directory | ForEach-Object {
-                if ($_.Name -match '^(\d{3})') {
-                    $num = [int]$matches[1]
-                    if ($num -gt $highest) { $highest = $num }
-                }
-            }
+# Determine branch number - always override provided number if set
+if ($hasGit) {
+    # Check existing branches on remotes
+    $Number = Get-NextBranchNumber -ShortName $branchSuffix -SpecsDir $specsDir
+} 
+# Make sure local directories have precedence over git branches (as these might be deleted)
+$highest = 0
+if (Test-Path $specsDir) {
+    Get-ChildItem -Path $specsDir -Directory | ForEach-Object {
+        if ($_.Name -match '^(\d{3})') {
+            $num = [int]$matches[1]
+            if ($num -gt $highest) { $highest = $num }
         }
-        $Number = $highest + 1
     }
 }
+$Number = $highest + 1
 
 $featureNum = ('{0:000}' -f $Number)
 $branchName = "$featureNum-$branchSuffix"
