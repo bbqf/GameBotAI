@@ -151,6 +151,8 @@ export const SequencesPage: React.FC = () => {
               onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
               disabled={submitting || loading}
               placeholder="Select a command"
+              onCreateNew={() => window.open('/commands/new', '_blank')}
+              createLabel="Create new command"
             />
             <div className="field">
               <button type="button" onClick={() => {
@@ -174,7 +176,9 @@ export const SequencesPage: React.FC = () => {
             />
           </FormSection>
 
-          <FormActions submitting={submitting} onCancel={() => { setCreating(false); setForm(emptyForm); setErrors(undefined); setPendingStepId(undefined); }} />
+          <FormActions submitting={submitting} onCancel={() => { setCreating(false); setForm(emptyForm); setErrors(undefined); setPendingStepId(undefined); }}>
+            {loading && <span className="form-hint">Loading…</span>}
+          </FormActions>
           <FormError message={errors?.form} />
         </form>
       )}
@@ -242,6 +246,8 @@ export const SequencesPage: React.FC = () => {
                 onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
                 disabled={submitting || loading}
                 placeholder="Select a command"
+                onCreateNew={() => window.open('/commands/new', '_blank')}
+                createLabel="Create new command"
               />
               <div className="field">
                 <button type="button" onClick={() => {
@@ -274,6 +280,7 @@ export const SequencesPage: React.FC = () => {
                 setPendingStepId(undefined);
               }}
             >
+              {loading && <span className="form-hint">Loading…</span>}
               <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)} disabled={submitting}>Delete</button>
             </FormActions>
             <FormError message={errors?.form} />

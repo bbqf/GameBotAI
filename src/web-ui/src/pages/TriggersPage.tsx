@@ -199,6 +199,8 @@ export const TriggersPage: React.FC = () => {
           onChange={(val) => { setPendingActionId(val); setErrors(undefined); }}
           disabled={submitting || loading}
           placeholder="Select an action"
+          onCreateNew={() => window.open('/actions/new', '_blank')}
+          createLabel="Create new action"
         />
         <div className="field">
           <button type="button" onClick={() => {
@@ -225,6 +227,8 @@ export const TriggersPage: React.FC = () => {
           onChange={(val) => { setPendingCommandId(val); setErrors(undefined); }}
           disabled={submitting || loading}
           placeholder="Select a command"
+          onCreateNew={() => window.open('/commands/new', '_blank')}
+          createLabel="Create new command"
         />
         <div className="field">
           <button type="button" onClick={() => {
@@ -251,6 +255,8 @@ export const TriggersPage: React.FC = () => {
           onChange={(val) => { setForm({ ...form, sequence: val }); setErrors(undefined); }}
           disabled={submitting || loading}
           placeholder="Select a sequence (optional)"
+          onCreateNew={() => window.open('/sequences/new', '_blank')}
+          createLabel="Create new sequence"
         />
       </FormSection>
 
@@ -265,6 +271,7 @@ export const TriggersPage: React.FC = () => {
           resetForm();
         }}
       >
+        {loading && <span className="form-hint">Loading…</span>}
         {mode === 'edit' && (
           <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)} disabled={submitting}>Delete</button>
         )}

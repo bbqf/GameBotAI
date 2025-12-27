@@ -32,9 +32,9 @@ Independent Test: Add two items, reorder, delete one; saved order persists.
 ## Phase 5 – User Story 3 (Confidently navigate across object types)
 Goal: Users recognize same structure and controls across object pages.
 Independent Test: Edit three object types; locate equivalent sections without guidance.
-- [ ] T018 [US3] Apply unified layout to Trigger page (sections, Save/Cancel) in src/web-ui
+- [X] T018 [US3] Apply unified layout to Trigger page (sections, Save/Cancel) in src/web-ui
 - [ ] T019 [US3] Apply unified layout to Game profile page with reference dropdowns in src/web-ui
-- [ ] T020 [US3] Apply unified layout to Sequence/steps page component (src/web-ui) and confirm section parity with Actions/Commands
+- [X] T020 [US3] Apply unified layout to Sequence/steps page component (src/web-ui) and confirm section parity with Actions/Commands
 - [ ] T021 [US3] Add UX consistency audit checklist in docs/ui-audit.md covering Action/Command/Trigger/Game profile/Sequence
 
 ## Phase 6 – Polish & Cross-cutting
