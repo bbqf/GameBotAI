@@ -28,7 +28,11 @@ npm run dev
 Pop-Location
 ```
 
-3. Open http://localhost:5173 and set API Base URL (e.g., http://localhost:5081) and token if required.
+3. Configure API base URL:
+   - Option A: Copy `.env.local.example` to `.env.local` and set `VITE_API_BASE_URL` (e.g., http://localhost:5081).
+   - Option B: Use the in-app Base URL field (persists in local storage).
+
+4. Open http://localhost:5173 and set token if required.
 
 ## Notes
 - Sequences list/delete endpoints are not yet exposed by the service; this MVP focuses on create and fetch by ID.

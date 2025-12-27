@@ -22,6 +22,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - File-backed JSON under `data/commands/sequences` (001-sequence-logic)
 - TypeScript (ES2020), React 18 + React, React DOM, Vite, @vitejs/plugin-react (001-authoring-crud-ui)
 - None client-side (in-memory state); persistence via backend API (001-authoring-crud-ui)
+- TypeScript (ES2020) + React 18 (Vite 5) + React, Vite toolchain, existing GameBot Service API (action types/actions) (001-semantic-actions-ui)
+- No new client persistence; uses backend for actions. Client state is in-memory form state. (001-semantic-actions-ui)
 
 - .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -44,9 +46,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 001-semantic-actions-ui: Added TypeScript (ES2020) + React 18 (Vite 5) + React, Vite toolchain, existing GameBot Service API (action types/actions)
 - 001-authoring-crud-ui: Added TypeScript (ES2020), React 18 + React, React DOM, Vite, @vitejs/plugin-react
 - 001-web-ui-authoring: Added TypeScript (ES2020), React 18, Vite 5 + React, Vite, @vitejs/plugin-react
-- 001-sequence-logic: Added C# / .NET 9 + Existing detection (OpenCV image-match), OCR (Tesseract), trigger evaluation services
 
 
 <!-- MANUAL ADDITIONS START -->
@@ -54,9 +56,6 @@ Coding style: Follow standard .NET 9 C# conventions
 
 
 ### Terminal Reuse & No-Close Policy
-- always wait for the command to complete without user intervention
-- do not close the terminal unless explicitly instructed by the user
-- reuse the terminal for multiple commands to maintain context
 
 ## Terminal Command Guidelines
 

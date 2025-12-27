@@ -20,18 +20,21 @@ export class ApiError extends Error {
   }
 }
 
-const buildUrl = (path: string) => {
+export const buildApiUrl = (path: string) => {
   const base = getBaseUrl().trim();
   if (!base) return path; // same-origin
   return base.endsWith('/') ? base.slice(0, -1) + path : base + path;
 };
 
-const buildHeaders = () => {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+export const buildAuthHeaders = (includeJsonContentType = true) => {
+  const headers: Record<string, string> = includeJsonContentType ? { 'Content-Type': 'application/json' } : {};
   const t = token$.get();
   if (t && t.length > 0) headers['Authorization'] = `Bearer ${t}`;
   return headers;
 };
+
+const buildUrl = buildApiUrl;
+const buildHeaders = () => buildAuthHeaders(true);
 
 export const apiGet = (path: string) => {
   return fetch(buildUrl(path), {
