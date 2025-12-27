@@ -5,10 +5,20 @@ import { ReorderableList, ReorderableListItem } from '../ReorderableList';
 
 export type ParameterEntry = { id: string; key: string; value: string };
 
+export type StepEntry = { id: string; type: 'Action' | 'Command'; targetId: string };
+
+export type DetectionTargetForm = {
+  referenceImageId: string;
+  confidence?: string;
+  offsetX?: string;
+  offsetY?: string;
+};
+
 export type CommandFormValue = {
   name: string;
   parameters: ParameterEntry[];
-  actions: string[];
+  steps: StepEntry[];
+  detection?: DetectionTargetForm;
 };
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -16,6 +26,7 @@ const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID 
 export type CommandFormProps = {
   value: CommandFormValue;
   actionOptions: SearchableOption[];
+  commandOptions: SearchableOption[];
   submitting?: boolean;
   loading?: boolean;
   errors?: Record<string, string>;
@@ -25,14 +36,16 @@ export type CommandFormProps = {
   onCreateNewAction?: () => void;
 };
 
-const toListItems = (ids: string[], options: SearchableOption[]): ReorderableListItem[] => {
-  const optionMap = new Map(options.map((o) => [o.value, o] as const));
-  return ids.map((id) => {
-    const match = optionMap.get(id);
+const toStepItems = (steps: StepEntry[], actionOpts: SearchableOption[], commandOpts: SearchableOption[]): ReorderableListItem[] => {
+  const actionMap = new Map(actionOpts.map((o) => [o.value, o] as const));
+  const commandMap = new Map(commandOpts.map((o) => [o.value, o] as const));
+  return steps.map((step) => {
+    const match = step.type === 'Action' ? actionMap.get(step.targetId) : commandMap.get(step.targetId);
+    const prefix = step.type === 'Action' ? 'Action' : 'Command';
     return {
-      id,
-      label: match?.label ?? id,
-      description: match?.description
+      id: step.id,
+      label: `${prefix}: ${match?.label ?? step.targetId}`,
+      description: match?.description,
     };
   });
 };
@@ -40,6 +53,7 @@ const toListItems = (ids: string[], options: SearchableOption[]): ReorderableLis
 export const CommandForm: React.FC<CommandFormProps> = ({
   value,
   actionOptions,
+  commandOptions,
   submitting,
   loading,
   errors,
@@ -49,22 +63,24 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   onCreateNewAction,
 }) => {
   const [pendingActionId, setPendingActionId] = useState<string | undefined>(undefined);
+  const [pendingCommandId, setPendingCommandId] = useState<string | undefined>(undefined);
 
-  const actionItems = useMemo(() => toListItems(value.actions, actionOptions), [value.actions, actionOptions]);
+  const stepItems = useMemo(() => toStepItems(value.steps, actionOptions, commandOptions), [value.steps, actionOptions, commandOptions]);
 
-  const addAction = () => {
-    if (!pendingActionId) return;
-    if (value.actions.includes(pendingActionId)) return;
-    onChange({ ...value, actions: [...value.actions, pendingActionId] });
-    setPendingActionId(undefined);
+  const addStep = (type: 'Action' | 'Command', targetId?: string) => {
+    if (!targetId) return;
+    const next = [...value.steps, { id: makeId(), type, targetId }];
+    onChange({ ...value, steps: next });
   };
 
-  const removeAction = (itemId: string) => {
-    onChange({ ...value, actions: value.actions.filter((id) => id !== itemId) });
+  const removeStep = (itemId: string) => {
+    onChange({ ...value, steps: value.steps.filter((s) => s.id !== itemId) });
   };
 
-  const updateActionOrder = (items: ReorderableListItem[]) => {
-    onChange({ ...value, actions: items.map((it) => it.id) });
+  const updateStepOrder = (items: ReorderableListItem[]) => {
+    const idToStep = new Map(value.steps.map((s) => [s.id, s] as const));
+    const ordered = items.map((it) => idToStep.get(it.id)).filter(Boolean) as StepEntry[];
+    onChange({ ...value, steps: ordered });
   };
 
   const updateParam = (index: number, field: 'key' | 'value', nextValue: string) => {
@@ -151,16 +167,78 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           createLabel="Create new action"
         />
         <div className="field">
-          <button type="button" onClick={addAction} disabled={submitting || !pendingActionId}>Add to list</button>
+          <button type="button" onClick={() => { addStep('Action', pendingActionId); setPendingActionId(undefined); }} disabled={submitting || loading || !pendingActionId}>Add action step</button>
         </div>
-        <ReorderableList
-          items={actionItems}
-          onChange={updateActionOrder}
-          onDelete={(item) => removeAction(item.id)}
+
+        <SearchableDropdown
+          id="command-commands-dropdown"
+          label="Add command"
+          options={commandOptions}
+          value={pendingCommandId}
+          onChange={setPendingCommandId}
           disabled={submitting || loading}
-          emptyMessage="No actions selected yet."
+          placeholder="Select a command"
         />
-        {errors?.actions && <div className="field-error" role="alert">{errors.actions}</div>}
+        <div className="field">
+          <button type="button" onClick={() => { addStep('Command', pendingCommandId); setPendingCommandId(undefined); }} disabled={submitting || loading || !pendingCommandId}>Add command step</button>
+        </div>
+
+        <ReorderableList
+          items={stepItems}
+          onChange={updateStepOrder}
+          onDelete={(item) => removeStep(item.id)}
+          disabled={submitting || loading}
+          emptyMessage="No steps yet. Add actions or commands."
+        />
+        {errors?.steps && <div className="field-error" role="alert">{errors.steps}</div>}
+      </FormSection>
+
+      <FormSection title="Detection" description="Optional detection target used for coordinate resolution." id="command-detection">
+        <div className="field">
+          <label htmlFor="command-detection-reference">Reference image ID</label>
+          <input
+            id="command-detection-reference"
+            value={value.detection?.referenceImageId ?? ''}
+            onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), referenceImageId: e.target.value } })}
+            disabled={submitting}
+          />
+        </div>
+        <div className="field grid-3">
+          <div>
+            <label htmlFor="command-detection-confidence">Confidence (0-1)</label>
+            <input
+              id="command-detection-confidence"
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              value={value.detection?.confidence ?? ''}
+              onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), confidence: e.target.value } })}
+              disabled={submitting}
+            />
+          </div>
+          <div>
+            <label htmlFor="command-detection-offset-x">Offset X</label>
+            <input
+              id="command-detection-offset-x"
+              type="number"
+              value={value.detection?.offsetX ?? ''}
+              onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), offsetX: e.target.value } })}
+              disabled={submitting}
+            />
+          </div>
+          <div>
+            <label htmlFor="command-detection-offset-y">Offset Y</label>
+            <input
+              id="command-detection-offset-y"
+              type="number"
+              value={value.detection?.offsetY ?? ''}
+              onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), offsetY: e.target.value } })}
+              disabled={submitting}
+            />
+          </div>
+        </div>
+        {errors?.detection && <div className="field-error" role="alert">{errors.detection}</div>}
       </FormSection>
 
       <FormActions submitting={submitting} onCancel={onCancel}>

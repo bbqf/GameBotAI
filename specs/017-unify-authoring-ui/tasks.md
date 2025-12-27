@@ -23,11 +23,11 @@ Independent Test: Create a new Command via unified page without JSON/IDs; save s
 ## Phase 4 – User Story 2 (Manage array-based fields visually)
 Goal: Authors can add/edit/delete/reorder array items with consistent controls.
 Independent Test: Add two items, reorder, delete one; saved order persists.
-- [ ] T013 [US2] Integrate array component for Command steps and detectionTargets in src/web-ui
-- [ ] T014 [US2] Integrate array component for Trigger actions/conditions in src/web-ui
-- [ ] T015 [US2] Add order-preview and persistence checks on save for arrays in src/web-ui
-- [ ] T016 [P] [US2] Add e2e/automation covering add/reorder/delete for arrays (Playwright) in tests/e2e
-- [ ] T017 [P] [US2] Add Vitest/RTL unit tests for array usage in Command/Trigger forms (order preservation, edit/delete) in src/web-ui
+- [X] T013 [US2] Integrate array component for Command steps and detectionTargets in src/web-ui
+- [X] T014 [US2] Integrate array component for Trigger actions/conditions in src/web-ui
+- [X] T015 [US2] Add order-preview and persistence checks on save for arrays in src/web-ui
+- [X] T016 [P] [US2] Add e2e/automation covering add/reorder/delete for arrays (Playwright) in tests/e2e
+- [X] T017 [P] [US2] Add Vitest/RTL unit tests for array usage in Command/Trigger forms (order preservation, edit/delete) in src/web-ui
 
 ## Phase 5 – User Story 3 (Confidently navigate across object types)
 Goal: Users recognize same structure and controls across object pages.

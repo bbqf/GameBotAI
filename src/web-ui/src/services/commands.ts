@@ -3,17 +3,35 @@ import { deleteJson, getJson, postJson, putJson } from '../lib/api';
 export type CommandDto = {
   id: string;
   name: string;
-  parameters?: Record<string, unknown>;
-  actions?: string[];
+  triggerId?: string;
+  steps?: CommandStepDto[];
+  actions?: string[]; // legacy authoring shape
+  detectionTarget?: DetectionTargetDto;
 };
 
 export type CommandCreate = {
   name: string;
-  parameters?: Record<string, unknown>;
-  actions?: string[];
+  triggerId?: string;
+  steps?: CommandStepDto[];
+  actions?: string[]; // legacy authoring shape
+  detectionTarget?: DetectionTargetDto;
 };
 
 export type CommandUpdate = CommandCreate;
+
+export type CommandStepDto = {
+  type: 'Action' | 'Command';
+  targetId: string;
+  order: number;
+};
+
+export type DetectionTargetDto = {
+  referenceImageId: string;
+  confidence?: number;
+  offsetX?: number;
+  offsetY?: number;
+  selectionStrategy?: string;
+};
 
 const base = '/api/commands';
 

@@ -1,28 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { List, ListItem } from '../components/List';
-import { MultiSelect, MultiOption } from '../components/MultiSelect';
 import { listSequences, SequenceDto, createSequence, SequenceCreate, getSequence, updateSequence, deleteSequence } from '../services/sequences';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { listCommands, CommandDto } from '../services/commands';
-import { FormError, validateRequired } from '../components/Form';
+import { FormError } from '../components/Form';
+import { FormActions, FormSection } from '../components/unified/FormLayout';
+import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
+import { ReorderableList, ReorderableListItem } from '../components/ReorderableList';
+
+type SequenceStep = { id: string; commandId: string };
+
+type SequenceFormValue = {
+  name: string;
+  steps: SequenceStep[];
+};
+
+const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+
+const emptyForm: SequenceFormValue = { name: '', steps: [] };
+
+const toStepEntries = (ids?: string[]): SequenceStep[] => (ids ?? []).map((cmdId) => ({ id: makeId(), commandId: cmdId }));
+
+const toPayloadSteps = (steps: SequenceStep[]) => steps.map((s) => s.commandId);
 
 export const SequencesPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState('');
-  const [commandOptions, setCommandOptions] = useState<MultiOption[]>([]);
-  const [selectedCommands, setSelectedCommands] = useState<string[]>([]);
-  const [error, setError] = useState<string | undefined>(undefined);
+  const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
+  const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
-  const [editName, setEditName] = useState('');
-  const [editSelectedCommands, setEditSelectedCommands] = useState<string[]>([]);
+  const [form, setForm] = useState<SequenceFormValue>(emptyForm);
+  const [pendingStepId, setPendingStepId] = useState<string | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
   const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
+  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
+    setLoading(true);
     Promise.all([listSequences(), listCommands()])
       .then(([seqs, cmds]: [SequenceDto[], CommandDto[]]) => {
         if (!mounted) return;
@@ -38,118 +56,233 @@ export const SequencesPage: React.FC = () => {
         if (!mounted) return;
         setItems([]);
         setCommandOptions([]);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
       });
     return () => {
       mounted = false;
     };
   }, []);
 
+  const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
+
+  const reloadSequences = async () => {
+    const data = await listSequences();
+    const mapped: ListItem[] = data.map((s) => ({ id: s.id, name: s.name, details: { steps: s.steps?.length ?? 0 } }));
+    setItems(mapped);
+  };
+
+  const stepItems = useMemo<ReorderableListItem[]>(() => {
+    return form.steps.map((s, idx) => ({
+      id: s.id,
+      label: commandLookup.get(s.commandId) ?? s.commandId,
+      description: `Step ${idx + 1}`
+    }));
+  }, [form.steps, commandLookup]);
+
+  const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
+    const next: Record<string, string> = {};
+    if (!v.name.trim()) next.name = 'Name is required';
+    return Object.keys(next).length ? next : undefined;
+  };
+
   return (
     <section>
       <h2>Sequences</h2>
       <div className="actions-header">
-        <button onClick={() => setCreating(true)}>Create Sequence</button>
+        <button
+          onClick={() => {
+            setCreating(true);
+            setEditingId(undefined);
+            setErrors(undefined);
+            setForm(emptyForm);
+            setPendingStepId(undefined);
+          }}
+        >
+          Create Sequence
+        </button>
       </div>
       {creating && (
         <form
-          className="create-form"
+          className="edit-form"
           onSubmit={async (e) => {
             e.preventDefault();
-            setError(undefined);
-            const nameErr = validateRequired(name, 'Name');
-            if (nameErr) {
-              setError(nameErr);
+            const validation = validate(form);
+            if (validation) {
+              setErrors(validation);
               return;
             }
-            const input: SequenceCreate = { name: name.trim(), steps: selectedCommands.length ? selectedCommands : [] };
+            setSubmitting(true);
             try {
-              await createSequence(input);
+              await createSequence({ name: form.name.trim(), steps: toPayloadSteps(form.steps) });
               setCreating(false);
-              setName('');
-              setSelectedCommands([]);
-              const data = await listSequences();
-              const mapped: ListItem[] = data.map((s) => ({
-                id: s.id,
-                name: s.name,
-                details: { steps: s.steps?.length ?? 0 }
-              }));
-              setItems(mapped);
+              setForm(emptyForm);
+              setPendingStepId(undefined);
+              await reloadSequences();
             } catch (err: any) {
-              setError(err?.message ?? 'Failed to create sequence');
+              setErrors({ form: err?.message ?? 'Failed to create sequence' });
+            } finally {
+              setSubmitting(false);
             }
           }}
         >
-          <div>
-            <label>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <MultiSelect label="Commands (steps)" values={selectedCommands} options={commandOptions} onChange={setSelectedCommands} />
-          </div>
-          <FormError message={error} />
-          <div className="form-actions">
-            <button type="submit">Create</button>
-            <button type="button" onClick={() => setCreating(false)}>Cancel</button>
-          </div>
+          <FormSection title="Basics" description="Primary details for the sequence." id="sequence-basics">
+            <div className="field">
+              <label htmlFor="sequence-name">Name *</label>
+              <input
+                id="sequence-name"
+                value={form.name}
+                onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); }}
+                aria-invalid={Boolean(errors?.name)}
+                aria-describedby={errors?.name ? 'sequence-name-error' : undefined}
+                disabled={submitting || loading}
+              />
+              {errors?.name && <div id="sequence-name-error" className="field-error" role="alert">{errors.name}</div>}
+            </div>
+          </FormSection>
+
+          <FormSection title="Steps" description="Add commands in the order they should run." id="sequence-steps">
+            <SearchableDropdown
+              id="sequence-step-dropdown"
+              label="Add command"
+              options={commandOptions}
+              value={pendingStepId}
+              onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
+              disabled={submitting || loading}
+              placeholder="Select a command"
+            />
+            <div className="field">
+              <button type="button" onClick={() => {
+                if (!pendingStepId) return;
+                const next = [...form.steps, { id: makeId(), commandId: pendingStepId }];
+                setForm({ ...form, steps: next });
+                setPendingStepId(undefined);
+              }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
+            </div>
+            <ReorderableList
+              items={stepItems}
+              onChange={(next) => {
+                const mapped = next.map((item, idx) => ({ id: item.id, commandId: form.steps.find((s) => s.id === item.id)?.commandId ?? form.steps[idx]?.commandId ?? '' }));
+                setForm({ ...form, steps: mapped.filter((s) => s.commandId) });
+              }}
+              onDelete={(item) => {
+                setForm({ ...form, steps: form.steps.filter((s) => s.id !== item.id) });
+              }}
+              disabled={submitting || loading}
+              emptyMessage="No commands added yet."
+            />
+          </FormSection>
+
+          <FormActions submitting={submitting} onCancel={() => { setCreating(false); setForm(emptyForm); setErrors(undefined); setPendingStepId(undefined); }} />
+          <FormError message={errors?.form} />
         </form>
       )}
       <List
         items={items}
         emptyMessage="No sequences found."
         onSelect={async (id) => {
-          setError(undefined);
+          setErrors(undefined);
           try {
             const s = await getSequence(id);
             setEditingId(id);
-            setEditName(s.name);
-            setEditSelectedCommands(s.steps ?? []);
+            setCreating(false);
+            setPendingStepId(undefined);
+            setForm({ name: s.name, steps: toStepEntries(s.steps) });
           } catch (err: any) {
-            setError(err?.message ?? 'Failed to load sequence');
+            setErrors({ form: err?.message ?? 'Failed to load sequence' });
           }
         }}
       />
       {editingId && (
-        <form
-          className="edit-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setError(undefined);
-            const nameErr = validateRequired(editName, 'Name');
-            if (nameErr) {
-              setError(nameErr);
-              return;
-            }
-            const input: SequenceCreate = { name: editName.trim(), steps: editSelectedCommands.length ? editSelectedCommands : undefined };
-            try {
-              await updateSequence(editingId, input);
-              setEditingId(undefined);
-              const data = await listSequences();
-              const mapped: ListItem[] = data.map((s) => ({ id: s.id, name: s.name, details: { steps: s.steps?.length ?? 0 } }));
-              setItems(mapped);
-            } catch (err: any) {
-              setError(err?.message ?? 'Failed to update sequence');
-            }
-          }}
-        >
+        <section>
           <h3>Edit Sequence</h3>
-          <div>
-            <label>Name</label>
-            <input value={editName} onChange={(e) => setEditName(e.target.value)} />
-          </div>
-          <div>
-            <MultiSelect label="Commands" values={editSelectedCommands} options={commandOptions} onChange={setEditSelectedCommands} />
-          </div>
-          <FormError message={error} />
-          <div className="form-actions">
-            <button type="submit">Save</button>
-            <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>
-            <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)}>Delete</button>
-          </div>
-        </form>
+          <form
+            className="edit-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!editingId) return;
+              const validation = validate(form);
+              if (validation) {
+                setErrors(validation);
+                return;
+              }
+              setSubmitting(true);
+              try {
+                await updateSequence(editingId, { name: form.name.trim(), steps: toPayloadSteps(form.steps) });
+                await reloadSequences();
+              } catch (err: any) {
+                setErrors({ form: err?.message ?? 'Failed to update sequence' });
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          >
+            <FormSection title="Basics" description="Primary details for the sequence." id="sequence-edit-basics">
+              <div className="field">
+                <label htmlFor="sequence-edit-name">Name *</label>
+                <input
+                  id="sequence-edit-name"
+                  value={form.name}
+                  onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); }}
+                  aria-invalid={Boolean(errors?.name)}
+                  aria-describedby={errors?.name ? 'sequence-edit-name-error' : undefined}
+                  disabled={submitting || loading}
+                />
+                {errors?.name && <div id="sequence-edit-name-error" className="field-error" role="alert">{errors.name}</div>}
+              </div>
+            </FormSection>
+
+            <FormSection title="Steps" description="Add commands in the order they should run." id="sequence-edit-steps">
+              <SearchableDropdown
+                id="sequence-edit-step-dropdown"
+                label="Add command"
+                options={commandOptions}
+                value={pendingStepId}
+                onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
+                disabled={submitting || loading}
+                placeholder="Select a command"
+              />
+              <div className="field">
+                <button type="button" onClick={() => {
+                  if (!pendingStepId) return;
+                  const next = [...form.steps, { id: makeId(), commandId: pendingStepId }];
+                  setForm({ ...form, steps: next });
+                  setPendingStepId(undefined);
+                }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
+              </div>
+              <ReorderableList
+                items={stepItems}
+                onChange={(next) => {
+                  const mapped = next.map((item, idx) => ({ id: item.id, commandId: form.steps.find((s) => s.id === item.id)?.commandId ?? form.steps[idx]?.commandId ?? '' }));
+                  setForm({ ...form, steps: mapped.filter((s) => s.commandId) });
+                }}
+                onDelete={(item) => {
+                  setForm({ ...form, steps: form.steps.filter((s) => s.id !== item.id) });
+                }}
+                disabled={submitting || loading}
+                emptyMessage="No commands added yet."
+              />
+            </FormSection>
+
+            <FormActions
+              submitting={submitting}
+              onCancel={() => {
+                setEditingId(undefined);
+                setForm(emptyForm);
+                setErrors(undefined);
+                setPendingStepId(undefined);
+              }}
+            >
+              <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)} disabled={submitting}>Delete</button>
+            </FormActions>
+            <FormError message={errors?.form} />
+          </form>
+        </section>
       )}
       <ConfirmDeleteModal
         open={deleteOpen}
-        itemName={editName}
+        itemName={form.name}
         message={deleteMessage}
         references={deleteReferences}
         onCancel={() => setDeleteOpen(false)}
@@ -161,9 +294,7 @@ export const SequencesPage: React.FC = () => {
             setDeleteReferences(undefined);
             setDeleteOpen(false);
             setEditingId(undefined);
-            const data = await listSequences();
-            const mapped: ListItem[] = data.map((s) => ({ id: s.id, name: s.name, details: { steps: s.steps?.length ?? 0 } }));
-            setItems(mapped);
+            await reloadSequences();
           } catch (err: any) {
             if (err instanceof ApiError && err.status === 409) {
               setDeleteMessage(err.message || 'Cannot delete: sequence is referenced. Unlink or migrate before deleting.');
@@ -171,7 +302,7 @@ export const SequencesPage: React.FC = () => {
               setDeleteOpen(true);
             } else {
               setDeleteOpen(false);
-              setError(err?.message ?? 'Failed to delete sequence');
+              setErrors({ form: err?.message ?? 'Failed to delete sequence' });
             }
           }
         }}

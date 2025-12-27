@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { List, ListItem } from '../components/List';
-import { listCommands, CommandDto, createCommand, getCommand, updateCommand, deleteCommand } from '../services/commands';
+import { listCommands, CommandDto, CommandStepDto, createCommand, getCommand, updateCommand, deleteCommand } from '../services/commands';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { listActions, ActionDto } from '../services/actions';
-import { CommandForm, CommandFormValue, ParameterEntry } from '../components/commands/CommandForm';
+import { CommandForm, CommandFormValue, ParameterEntry, StepEntry, DetectionTargetForm } from '../components/commands/CommandForm';
 import { SearchableOption } from '../components/SearchableDropdown';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -23,13 +23,49 @@ const paramsToObject = (entries: ParameterEntry[]): Record<string, unknown> | un
   return Object.keys(result).length ? result : undefined;
 };
 
-const emptyForm: CommandFormValue = { name: '', parameters: [], actions: [] };
+const emptyForm: CommandFormValue = { name: '', parameters: [], steps: [], detection: undefined };
+
+const stepsFromDto = (dto: CommandDto): StepEntry[] => {
+  if (dto.steps && dto.steps.length > 0) {
+    return dto.steps
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((s) => ({ id: makeId(), type: s.type, targetId: s.targetId }));
+  }
+  if (dto.actions && dto.actions.length > 0) {
+    return dto.actions.map((a) => ({ id: makeId(), type: 'Action' as const, targetId: a }));
+  }
+  return [];
+};
+
+const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) => ({ type: s.type, targetId: s.targetId, order: idx }));
+
+const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number; offsetX?: number; offsetY?: number }): DetectionTargetForm | undefined => {
+  if (!dto) return undefined;
+  return {
+    referenceImageId: dto.referenceImageId,
+    confidence: dto.confidence !== undefined ? String(dto.confidence) : undefined,
+    offsetX: dto.offsetX !== undefined ? String(dto.offsetX) : undefined,
+    offsetY: dto.offsetY !== undefined ? String(dto.offsetY) : undefined,
+  };
+};
+
+const detectionToDto = (form?: DetectionTargetForm) => {
+  if (!form) return undefined;
+  const hasValue = form.referenceImageId?.trim() || form.confidence || form.offsetX || form.offsetY;
+  if (!hasValue) return undefined;
+  if (!form.referenceImageId.trim()) return { error: 'Reference image ID is required when detection is configured' } as const;
+  const confidence = form.confidence && form.confidence !== '' ? Number(form.confidence) : undefined;
+  const offsetX = form.offsetX && form.offsetX !== '' ? Number(form.offsetX) : undefined;
+  const offsetY = form.offsetY && form.offsetY !== '' ? Number(form.offsetY) : undefined;
+  return { value: { referenceImageId: form.referenceImageId.trim(), confidence, offsetX, offsetY } } as const;
+};
 
 export const CommandsPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<CommandFormValue>(emptyForm);
   const [actionOptions, setActionOptions] = useState<SearchableOption[]>([]);
+  const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -47,15 +83,17 @@ export const CommandsPage: React.FC = () => {
         const mapped: ListItem[] = cmds.map((c) => ({
           id: c.id,
           name: c.name,
-          details: { actions: c.actions?.length ?? 0 }
+          details: { steps: c.steps?.length ?? c.actions?.length ?? 0 }
         }));
         setItems(mapped);
         setActionOptions(acts.map((a) => ({ value: a.id, label: a.name, description: a.description })));
+        setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
       })
       .catch(() => {
         if (!mounted) return;
         setItems([]);
         setActionOptions([]);
+        setCommandOptions([]);
       })
       .finally(() => {
         if (mounted) setLoadingCommands(false);
@@ -65,21 +103,27 @@ export const CommandsPage: React.FC = () => {
     };
   }, []);
 
-  const actionLookup = useMemo(() => new Map(actionOptions.map((o) => [o.value, o.label])), [actionOptions]);
+  const filteredCommandOptions = useMemo(() => {
+    if (!editingId) return commandOptions;
+    return commandOptions.filter((c) => c.value !== editingId);
+  }, [commandOptions, editingId]);
 
   const reloadCommands = async () => {
     const data = await listCommands();
     const mapped: ListItem[] = data.map((c) => ({
       id: c.id,
       name: c.name,
-      details: { actions: c.actions?.length ?? 0 }
+      details: { steps: c.steps?.length ?? c.actions?.length ?? 0 }
     }));
     setItems(mapped);
+    setCommandOptions(data.map((c) => ({ value: c.id, label: c.name })));
   };
 
   const validate = (v: CommandFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
+    const detectionResult = detectionToDto(v.detection);
+    if (detectionResult && 'error' in detectionResult) next.detection = detectionResult.error;
     return Object.keys(next).length ? next : undefined;
   };
 
@@ -93,6 +137,7 @@ export const CommandsPage: React.FC = () => {
         <CommandForm
           value={form}
           actionOptions={actionOptions}
+          commandOptions={commandOptions}
           errors={errors}
           submitting={submitting}
           loading={loadingCommands}
@@ -107,7 +152,17 @@ export const CommandsPage: React.FC = () => {
             }
             setSubmitting(true);
             try {
-              await createCommand({ name: form.name.trim(), parameters: paramsToObject(form.parameters), actions: form.actions.length ? form.actions : undefined });
+              const detectionResult = detectionToDto(form.detection);
+              if (detectionResult && 'error' in detectionResult) {
+                setErrors({ detection: detectionResult.error });
+                return;
+              }
+              await createCommand({
+                name: form.name.trim(),
+                parameters: paramsToObject(form.parameters),
+                steps: stepsToDto(form.steps),
+                detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
+              });
               setCreating(false);
               setForm(emptyForm);
               await reloadCommands();
@@ -131,7 +186,8 @@ export const CommandsPage: React.FC = () => {
             setForm({
               name: c.name,
               parameters: paramsFromDto(c.parameters),
-              actions: c.actions ?? []
+              steps: stepsFromDto(c),
+              detection: detectionFromDto(c.detectionTarget)
             });
           } catch (err: any) {
             setErrors({ form: err?.message ?? 'Failed to load command' });
@@ -144,6 +200,7 @@ export const CommandsPage: React.FC = () => {
           <CommandForm
             value={form}
             actionOptions={actionOptions}
+            commandOptions={filteredCommandOptions}
             errors={errors}
             submitting={submitting}
             loading={loadingCommands}
@@ -159,7 +216,17 @@ export const CommandsPage: React.FC = () => {
               }
               setSubmitting(true);
               try {
-                await updateCommand(editingId, { name: form.name.trim(), parameters: paramsToObject(form.parameters), actions: form.actions.length ? form.actions : undefined });
+                const detectionResult = detectionToDto(form.detection);
+                if (detectionResult && 'error' in detectionResult) {
+                  setErrors({ detection: detectionResult.error });
+                  return;
+                }
+                await updateCommand(editingId, {
+                  name: form.name.trim(),
+                  parameters: paramsToObject(form.parameters),
+                  steps: stepsToDto(form.steps),
+                  detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
+                });
                 await reloadCommands();
               } catch (err: any) {
                 setErrors({ form: err?.message ?? 'Failed to update command' });

@@ -31,18 +31,18 @@ describe('CommandsPage', () => {
 
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Test Cmd' } });
     fireEvent.change(screen.getByLabelText('Add action'), { target: { value: 'a1' } });
-    fireEvent.click(screen.getByText('Add to list'));
+    fireEvent.click(screen.getByText('Add action step'));
 
     createCommandMock.mockResolvedValue({} as any);
 
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', parameters: undefined, actions: ['a1'] }));
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', parameters: undefined, steps: [{ type: 'Action', targetId: 'a1', order: 0 }], detectionTarget: undefined }));
   });
 
   it('loads and saves an existing command', async () => {
-    listCommandsMock.mockResolvedValue([{ id: 'c1', name: 'Cmd', actions: ['a1'] } as any]);
-    getCommandMock.mockResolvedValue({ id: 'c1', name: 'Cmd', actions: ['a1'], parameters: { mode: 'fast' } } as any);
+    listCommandsMock.mockResolvedValue([{ id: 'c1', name: 'Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }] } as any]);
+    getCommandMock.mockResolvedValue({ id: 'c1', name: 'Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }], parameters: { mode: 'fast' } } as any);
     updateCommandMock.mockResolvedValue({} as any);
 
     render(<CommandsPage />);
@@ -53,6 +53,49 @@ describe('CommandsPage', () => {
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Cmd Updated' } });
     fireEvent.click(screen.getAllByText('Save')[0]);
 
-    await waitFor(() => expect(updateCommandMock).toHaveBeenCalledWith('c1', { name: 'Cmd Updated', parameters: { mode: 'fast' }, actions: ['a1'] }));
+    await waitFor(() => expect(updateCommandMock).toHaveBeenCalledWith('c1', {
+      name: 'Cmd Updated',
+      parameters: { mode: 'fast' },
+      steps: [{ type: 'Action', targetId: 'a1', order: 0 }],
+      detectionTarget: undefined,
+    }));
+  });
+
+  it('reorders actions and preserves order on save', async () => {
+    listCommandsMock.mockResolvedValue([{ id: 'c1', name: 'Cmd', steps: [
+      { type: 'Action', targetId: 'a1', order: 0 },
+      { type: 'Action', targetId: 'a2', order: 1 },
+    ] } as any]);
+    getCommandMock.mockResolvedValue({ id: 'c1', name: 'Cmd', steps: [
+      { type: 'Action', targetId: 'a1', order: 0 },
+      { type: 'Action', targetId: 'a2', order: 1 },
+    ] } as any);
+    listActionsMock.mockResolvedValue([
+      { id: 'a1', name: 'Action One' } as any,
+      { id: 'a2', name: 'Action Two' } as any,
+    ]);
+    updateCommandMock.mockResolvedValue({} as any);
+
+    render(<CommandsPage />);
+    await screen.findByText('Cmd');
+    fireEvent.click(screen.getByText('Cmd'));
+
+    await screen.findByText('Edit Command');
+
+    const actionsSection = screen.getByText('Actions').closest('section')!;
+    const moveUpButtons = actionsSection.querySelectorAll('button[aria-label="Move up"]');
+    fireEvent.click(moveUpButtons[1]);
+
+    fireEvent.click(screen.getAllByText('Save')[0]);
+
+    await waitFor(() => expect(updateCommandMock).toHaveBeenCalledWith('c1', {
+      name: 'Cmd',
+      parameters: undefined,
+      steps: [
+        { type: 'Action', targetId: 'a2', order: 0 },
+        { type: 'Action', targetId: 'a1', order: 1 },
+      ],
+      detectionTarget: undefined,
+    }));
   });
 });
