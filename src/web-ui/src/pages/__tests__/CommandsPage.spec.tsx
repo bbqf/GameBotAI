@@ -1,0 +1,58 @@
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { CommandsPage } from '../CommandsPage';
+import { listCommands, createCommand, getCommand, updateCommand } from '../../services/commands';
+import { listActions } from '../../services/actions';
+
+jest.mock('../../services/commands');
+jest.mock('../../services/actions');
+
+const listCommandsMock = listCommands as jest.MockedFunction<typeof listCommands>;
+const createCommandMock = createCommand as jest.MockedFunction<typeof createCommand>;
+const getCommandMock = getCommand as jest.MockedFunction<typeof getCommand>;
+const updateCommandMock = updateCommand as jest.MockedFunction<typeof updateCommand>;
+const listActionsMock = listActions as jest.MockedFunction<typeof listActions>;
+
+describe('CommandsPage', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    listCommandsMock.mockResolvedValue([] as any);
+    listActionsMock.mockResolvedValue([{ id: 'a1', name: 'Action One', description: 'desc' }] as any);
+  });
+
+  it('creates a command with validation', async () => {
+    render(<CommandsPage />);
+
+    await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.click(screen.getByText('Save'));
+    expect(await screen.findByText('Name is required')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Test Cmd' } });
+    fireEvent.change(screen.getByLabelText('Add action'), { target: { value: 'a1' } });
+    fireEvent.click(screen.getByText('Add to list'));
+
+    createCommandMock.mockResolvedValue({} as any);
+
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', parameters: undefined, actions: ['a1'] }));
+  });
+
+  it('loads and saves an existing command', async () => {
+    listCommandsMock.mockResolvedValue([{ id: 'c1', name: 'Cmd', actions: ['a1'] } as any]);
+    getCommandMock.mockResolvedValue({ id: 'c1', name: 'Cmd', actions: ['a1'], parameters: { mode: 'fast' } } as any);
+    updateCommandMock.mockResolvedValue({} as any);
+
+    render(<CommandsPage />);
+    await screen.findByText('Cmd');
+    fireEvent.click(screen.getByText('Cmd'));
+
+    await screen.findByText('Edit Command');
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Cmd Updated' } });
+    fireEvent.click(screen.getAllByText('Save')[0]);
+
+    await waitFor(() => expect(updateCommandMock).toHaveBeenCalledWith('c1', { name: 'Cmd Updated', parameters: { mode: 'fast' }, actions: ['a1'] }));
+  });
+});

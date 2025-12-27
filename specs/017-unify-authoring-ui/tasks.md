@@ -15,10 +15,10 @@
 ## Phase 3 – User Story 1 (Create any object with unified page)
 Goal: Non-technical author can create/edit any object using the Action-style layout.
 Independent Test: Create a new Command via unified page without JSON/IDs; save successfully.
-- [ ] T009 [US1] Apply unified layout to Command page (sections, Save/Cancel) in src/web-ui
-- [ ] T010 [US1] Wire dropdowns for references (Actions, Game profiles) using shared component in src/web-ui
-- [ ] T011 [US1] Ensure inline validation and live save flow for Command edit/create in src/web-ui
-- [ ] T012 [P] [US1] Add Vitest/RTL page-flow tests for Command create/edit covering validation and live save in src/web-ui
+- [X] T009 [US1] Apply unified layout to Command page (sections, Save/Cancel) in src/web-ui
+- [X] T010 [US1] Wire dropdowns for references (Actions, Game profiles) using shared component in src/web-ui
+- [X] T011 [US1] Ensure inline validation and live save flow for Command edit/create in src/web-ui
+- [X] T012 [P] [US1] Add Vitest/RTL page-flow tests for Command create/edit covering validation and live save in src/web-ui
 
 ## Phase 4 – User Story 2 (Manage array-based fields visually)
 Goal: Authors can add/edit/delete/reorder array items with consistent controls.
