@@ -1,0 +1,240 @@
+openapi: 3.0.3
+info:
+  title: GameBot Unified Authoring API (UI needs)
+  version: 0.1.0
+paths:
+  /actions:
+    get:
+      summary: List actions for dropdowns
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Optional search term
+      responses:
+        '200':
+          description: Action list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActionSummary'
+    post:
+      summary: Create action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Action' }
+      responses:
+        '201': { description: Created, returns new Action }
+  /actions/{id}:
+    get:
+      summary: Get action detail
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { description: Action detail, content: { application/json: { schema: { $ref: '#/components/schemas/Action' }}}}
+    put:
+      summary: Update action (live save)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Action' }
+      responses:
+        '200': { description: Updated }
+
+  /commands:
+    get:
+      summary: List commands
+      responses:
+        '200': { description: Command list, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CommandSummary' }}}}}
+    post:
+      summary: Create command (immediate save)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Command' }
+      responses:
+        '201': { description: Created }
+  /commands/{id}:
+    get:
+      summary: Get command
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { description: Command detail, content: { application/json: { schema: { $ref: '#/components/schemas/Command' }}}}
+    put:
+      summary: Update command (live save, preserves array order)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Command' }
+      responses:
+        '200': { description: Updated }
+
+  /triggers:
+    get:
+      summary: List triggers
+      responses:
+        '200': { description: Trigger list, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TriggerSummary' }}}}}
+    post:
+      summary: Create trigger
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Trigger' }
+      responses:
+        '201': { description: Created }
+  /triggers/{id}:
+    get:
+      summary: Get trigger
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { description: Trigger detail, content: { application/json: { schema: { $ref: '#/components/schemas/Trigger' }}}}
+    put:
+      summary: Update trigger (live save, ordered actions)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Trigger' }
+      responses:
+        '200': { description: Updated }
+
+  /game-profiles:
+    get:
+      summary: List game profiles for dropdowns
+      responses:
+        '200': { description: Game profiles, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/GameProfileSummary' }}}}}
+    post:
+      summary: Create game profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GameProfile' }
+      responses:
+        '201': { description: Created }
+  /game-profiles/{id}:
+    get:
+      summary: Get game profile
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { description: Profile detail, content: { application/json: { schema: { $ref: '#/components/schemas/GameProfile' }}}}
+    put:
+      summary: Update game profile (live save)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GameProfile' }
+      responses:
+        '200': { description: Updated }
+
+components:
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: { type: string }
+  schemas:
+    ActionSummary:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+    Action:
+      allOf:
+        - $ref: '#/components/schemas/ActionSummary'
+        - type: object
+          properties:
+            parameters:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: { type: string }
+                  type: { type: string }
+                  required: { type: boolean }
+                  default: { type: string }
+                required: [name, type]
+          required: [name]
+    CommandSummary:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+    Command:
+      allOf:
+        - $ref: '#/components/schemas/CommandSummary'
+        - type: object
+          properties:
+            detectionTargets:
+              type: array
+              items: { type: object, properties: { id: { type: string }, name: { type: string }}, required: [id] }
+            steps:
+              type: array
+              items:
+                type: object
+                properties:
+                  type: { type: string }
+                  actionId: { type: string }
+                  args: { type: object }
+                required: [type]
+          required: [name, steps]
+    TriggerSummary:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+    Trigger:
+      allOf:
+        - $ref: '#/components/schemas/TriggerSummary'
+        - type: object
+          properties:
+            conditions:
+              type: array
+              items: { type: object }
+            actions:
+              type: array
+              items: { type: object, properties: { actionId: { type: string }, commandId: { type: string } } }
+          required: [name, conditions, actions]
+    GameProfileSummary:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+    GameProfile:
+      allOf:
+        - $ref: '#/components/schemas/GameProfileSummary'
+        - type: object
+          properties:
+            defaultCommands:
+              type: array
+              items: { type: string }
+            defaultTriggers:
+              type: array
+              items: { type: string }
+            inputMappings:
+              type: array
+              items: { type: object }
+          required: [name]

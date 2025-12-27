@@ -39,6 +39,11 @@ packages/
 *.log
 logs/
 
+# Node / Frontend
+node_modules/
+dist/
+build/
+
 # OS junk
 Thumbs.db
 [Dd]esktop.ini

@@ -1,182 +1,248 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { List, ListItem } from '../components/List';
-import { Dropdown } from '../components/Dropdown';
-import { MultiSelect, MultiOption } from '../components/MultiSelect';
-import { listCommands, CommandDto, createCommand, CommandCreate, getCommand, updateCommand, deleteCommand } from '../services/commands';
+import { listCommands, CommandDto, CommandStepDto, createCommand, getCommand, updateCommand, deleteCommand } from '../services/commands';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { listActions, ActionDto } from '../services/actions';
-import { FormError, validateRequired, tryParseJson } from '../components/Form';
+import { CommandForm, CommandFormValue, ParameterEntry, StepEntry, DetectionTargetForm } from '../components/commands/CommandForm';
+import { SearchableOption } from '../components/SearchableDropdown';
+
+const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+
+const paramsFromDto = (obj?: Record<string, unknown>): ParameterEntry[] => {
+  if (!obj) return [];
+  return Object.entries(obj).map(([key, val]) => ({ id: makeId(), key, value: String(val ?? '') }));
+};
+
+const paramsToObject = (entries: ParameterEntry[]): Record<string, unknown> | undefined => {
+  const result: Record<string, unknown> = {};
+  for (const p of entries) {
+    if (!p.key.trim()) continue;
+    result[p.key.trim()] = p.value;
+  }
+  return Object.keys(result).length ? result : undefined;
+};
+
+const emptyForm: CommandFormValue = { name: '', parameters: [], steps: [], detection: undefined };
+
+const stepsFromDto = (dto: CommandDto): StepEntry[] => {
+  if (dto.steps && dto.steps.length > 0) {
+    return dto.steps
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((s) => ({ id: makeId(), type: s.type, targetId: s.targetId }));
+  }
+  if (dto.actions && dto.actions.length > 0) {
+    return dto.actions.map((a) => ({ id: makeId(), type: 'Action' as const, targetId: a }));
+  }
+  return [];
+};
+
+const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) => ({ type: s.type, targetId: s.targetId, order: idx }));
+
+const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number; offsetX?: number; offsetY?: number }): DetectionTargetForm | undefined => {
+  if (!dto) return undefined;
+  return {
+    referenceImageId: dto.referenceImageId,
+    confidence: dto.confidence !== undefined ? String(dto.confidence) : undefined,
+    offsetX: dto.offsetX !== undefined ? String(dto.offsetX) : undefined,
+    offsetY: dto.offsetY !== undefined ? String(dto.offsetY) : undefined,
+  };
+};
+
+const detectionToDto = (form?: DetectionTargetForm) => {
+  if (!form) return undefined;
+  const hasValue = form.referenceImageId?.trim() || form.confidence || form.offsetX || form.offsetY;
+  if (!hasValue) return undefined;
+  if (!form.referenceImageId.trim()) return { error: 'Reference image ID is required when detection is configured' } as const;
+  const confidence = form.confidence && form.confidence !== '' ? Number(form.confidence) : undefined;
+  const offsetX = form.offsetX && form.offsetX !== '' ? Number(form.offsetX) : undefined;
+  const offsetY = form.offsetY && form.offsetY !== '' ? Number(form.offsetY) : undefined;
+  return { value: { referenceImageId: form.referenceImageId.trim(), confidence, offsetX, offsetY } } as const;
+};
 
 export const CommandsPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState('');
-  const [parametersText, setParametersText] = useState('');
-  const [actionOptions, setActionOptions] = useState<MultiOption[]>([]);
-  const [selectedActions, setSelectedActions] = useState<string[]>([]);
-  const [error, setError] = useState<string | undefined>(undefined);
+  const [form, setForm] = useState<CommandFormValue>(emptyForm);
+  const [actionOptions, setActionOptions] = useState<SearchableOption[]>([]);
+  const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
+  const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
-  const [editName, setEditName] = useState('');
-  const [editParametersText, setEditParametersText] = useState('');
-  const [editSelectedActions, setEditSelectedActions] = useState<string[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
   const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingCommands, setLoadingCommands] = useState(false);
 
   useEffect(() => {
     let mounted = true;
+    setLoadingCommands(true);
     Promise.all([listCommands(), listActions()])
       .then(([cmds, acts]: [CommandDto[], ActionDto[]]) => {
         if (!mounted) return;
         const mapped: ListItem[] = cmds.map((c) => ({
           id: c.id,
           name: c.name,
-          details: { actions: c.actions?.length ?? 0 }
+          details: { steps: c.steps?.length ?? c.actions?.length ?? 0 }
         }));
         setItems(mapped);
-        setActionOptions(acts.map((a) => ({ value: a.id, label: a.name })));
+        setActionOptions(acts.map((a) => ({ value: a.id, label: a.name, description: a.description })));
+        setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
       })
       .catch(() => {
         if (!mounted) return;
         setItems([]);
         setActionOptions([]);
+        setCommandOptions([]);
+      })
+      .finally(() => {
+        if (mounted) setLoadingCommands(false);
       });
     return () => {
       mounted = false;
     };
   }, []);
 
+  const filteredCommandOptions = useMemo(() => {
+    if (!editingId) return commandOptions;
+    return commandOptions.filter((c) => c.value !== editingId);
+  }, [commandOptions, editingId]);
+
+  const reloadCommands = async () => {
+    const data = await listCommands();
+    const mapped: ListItem[] = data.map((c) => ({
+      id: c.id,
+      name: c.name,
+      details: { steps: c.steps?.length ?? c.actions?.length ?? 0 }
+    }));
+    setItems(mapped);
+    setCommandOptions(data.map((c) => ({ value: c.id, label: c.name })));
+  };
+
+  const validate = (v: CommandFormValue): Record<string, string> | undefined => {
+    const next: Record<string, string> = {};
+    if (!v.name.trim()) next.name = 'Name is required';
+    const detectionResult = detectionToDto(v.detection);
+    if (detectionResult && 'error' in detectionResult) next.detection = detectionResult.error;
+    return Object.keys(next).length ? next : undefined;
+  };
+
   return (
     <section>
       <h2>Commands</h2>
       <div className="actions-header">
-        <button onClick={() => setCreating(true)}>Create Command</button>
+        <button onClick={() => { setCreating(true); setEditingId(undefined); setForm(emptyForm); setErrors(undefined); }}>Create Command</button>
       </div>
       {creating && (
-        <form
-          className="create-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setError(undefined);
-            const nameErr = validateRequired(name, 'Name');
-            if (nameErr) {
-              setError(nameErr);
+        <CommandForm
+          value={form}
+          actionOptions={actionOptions}
+          commandOptions={commandOptions}
+          errors={errors}
+          submitting={submitting}
+          loading={loadingCommands}
+          onCreateNewAction={() => window.open('/actions/new', '_blank')}
+          onChange={(v) => { setErrors(undefined); setForm(v); }}
+          onCancel={() => { setCreating(false); setForm(emptyForm); setErrors(undefined); }}
+          onSubmit={async () => {
+            const validation = validate(form);
+            if (validation) {
+              setErrors(validation);
               return;
             }
-            const parsed = tryParseJson<Record<string, unknown>>(parametersText);
-            if (parsed.error) {
-              setError(parsed.error);
-              return;
-            }
-            const input: CommandCreate = { name: name.trim(), parameters: parsed.value, actions: selectedActions.length ? selectedActions : undefined };
+            setSubmitting(true);
             try {
-              await createCommand(input);
+              const detectionResult = detectionToDto(form.detection);
+              if (detectionResult && 'error' in detectionResult) {
+                setErrors({ detection: detectionResult.error });
+                return;
+              }
+              await createCommand({
+                name: form.name.trim(),
+                parameters: paramsToObject(form.parameters),
+                steps: stepsToDto(form.steps),
+                detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
+              });
               setCreating(false);
-              setName('');
-              setParametersText('');
-              setSelectedActions([]);
-              const data = await listCommands();
-              const mapped: ListItem[] = data.map((c) => ({
-                id: c.id,
-                name: c.name,
-                details: { actions: c.actions?.length ?? 0 }
-              }));
-              setItems(mapped);
+              setForm(emptyForm);
+              await reloadCommands();
             } catch (err: any) {
-              setError(err?.message ?? 'Failed to create command');
+              setErrors({ form: err?.message ?? 'Failed to create command' });
+            } finally {
+              setSubmitting(false);
             }
           }}
-        >
-          <div>
-            <label>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <label>Parameters (JSON)</label>
-            <textarea rows={4} value={parametersText} onChange={(e) => setParametersText(e.target.value)} />
-          </div>
-          <div>
-            <MultiSelect label="Actions" values={selectedActions} options={actionOptions} onChange={setSelectedActions} />
-          </div>
-          <FormError message={error} />
-          <div className="form-actions">
-            <button type="submit">Create</button>
-            <button type="button" onClick={() => setCreating(false)}>Cancel</button>
-          </div>
-        </form>
+        />
       )}
       <List
         items={items}
         emptyMessage="No commands found."
         onSelect={async (id) => {
-          setError(undefined);
+          setErrors(undefined);
           try {
             const c = await getCommand(id);
             setEditingId(id);
-            setEditName(c.name);
-            setEditParametersText(c.parameters ? JSON.stringify(c.parameters, null, 2) : '');
-            setEditSelectedActions(c.actions ?? []);
+            setCreating(false);
+            setForm({
+              name: c.name,
+              parameters: paramsFromDto(c.parameters),
+              steps: stepsFromDto(c),
+              detection: detectionFromDto(c.detectionTarget)
+            });
           } catch (err: any) {
-            setError(err?.message ?? 'Failed to load command');
+            setErrors({ form: err?.message ?? 'Failed to load command' });
           }
         }}
       />
       {editingId && (
-        <form
-          className="edit-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setError(undefined);
-            const nameErr = validateRequired(editName, 'Name');
-            if (nameErr) {
-              setError(nameErr);
-              return;
-            }
-            const parsed = tryParseJson<Record<string, unknown>>(editParametersText);
-            if (parsed.error) {
-              setError(parsed.error);
-              return;
-            }
-            const input: CommandCreate = { name: editName.trim(), parameters: parsed.value, actions: editSelectedActions.length ? editSelectedActions : undefined };
-            try {
-              await updateCommand(editingId, input);
-              setEditingId(undefined);
-              const data = await listCommands();
-              const mapped: ListItem[] = data.map((c) => ({
-                id: c.id,
-                name: c.name,
-                details: { actions: c.actions?.length ?? 0 }
-              }));
-              setItems(mapped);
-            } catch (err: any) {
-              setError(err?.message ?? 'Failed to update command');
-            }
-          }}
-        >
+        <section>
           <h3>Edit Command</h3>
-          <div>
-            <label>Name</label>
-            <input value={editName} onChange={(e) => setEditName(e.target.value)} />
-          </div>
-          <div>
-            <label>Parameters (JSON)</label>
-            <textarea rows={4} value={editParametersText} onChange={(e) => setEditParametersText(e.target.value)} />
-          </div>
-          <div>
-            <MultiSelect label="Actions" values={editSelectedActions} options={actionOptions} onChange={setEditSelectedActions} />
-          </div>
-          <FormError message={error} />
+          <CommandForm
+            value={form}
+            actionOptions={actionOptions}
+            commandOptions={filteredCommandOptions}
+            errors={errors}
+            submitting={submitting}
+            loading={loadingCommands}
+            onCreateNewAction={() => window.open('/actions/new', '_blank')}
+            onChange={(v) => { setErrors(undefined); setForm(v); }}
+            onCancel={() => { setEditingId(undefined); setForm(emptyForm); setErrors(undefined); }}
+            onSubmit={async () => {
+              if (!editingId) return;
+              const validation = validate(form);
+              if (validation) {
+                setErrors(validation);
+                return;
+              }
+              setSubmitting(true);
+              try {
+                const detectionResult = detectionToDto(form.detection);
+                if (detectionResult && 'error' in detectionResult) {
+                  setErrors({ detection: detectionResult.error });
+                  return;
+                }
+                await updateCommand(editingId, {
+                  name: form.name.trim(),
+                  parameters: paramsToObject(form.parameters),
+                  steps: stepsToDto(form.steps),
+                  detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
+                });
+                await reloadCommands();
+              } catch (err: any) {
+                setErrors({ form: err?.message ?? 'Failed to update command' });
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          />
           <div className="form-actions">
-            <button type="submit">Save</button>
-            <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>
             <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)}>Delete</button>
           </div>
-        </form>
+        </section>
       )}
       <ConfirmDeleteModal
         open={deleteOpen}
-        itemName={editName}
+        itemName={form.name}
         message={deleteMessage}
         references={deleteReferences}
         onCancel={() => setDeleteOpen(false)}
@@ -188,13 +254,7 @@ export const CommandsPage: React.FC = () => {
             setDeleteReferences(undefined);
             setDeleteOpen(false);
             setEditingId(undefined);
-            const data = await listCommands();
-            const mapped: ListItem[] = data.map((c) => ({
-              id: c.id,
-              name: c.name,
-              details: { actions: c.actions?.length ?? 0 }
-            }));
-            setItems(mapped);
+            await reloadCommands();
           } catch (err: any) {
             if (err instanceof ApiError && err.status === 409) {
               setDeleteMessage(err.message || 'Cannot delete: command is referenced. Unlink or migrate before deleting.');
@@ -202,7 +262,7 @@ export const CommandsPage: React.FC = () => {
               setDeleteOpen(true);
             } else {
               setDeleteOpen(false);
-              setError(err?.message ?? 'Failed to delete command');
+              setErrors({ form: err?.message ?? 'Failed to delete command' });
             }
           }
         }}

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { ActionType, ValidationMessage } from '../../types/actions';
 import { GameDto } from '../../services/games';
 import { validateAttribute } from '../../services/validation';
+import { FormActions, FormSection } from '../unified/FormLayout';
 import { FieldRenderer } from './FieldRenderer';
 
 export type ActionFormValue = {
@@ -127,69 +128,73 @@ export const ActionForm: React.FC<ActionFormProps> = ({
         onSubmit?.();
       }}
     >
-      <div className="field">
-        <label htmlFor="action-game">Game *</label>
-        <select
-          id="action-game"
-          aria-invalid={Boolean(getFieldError(errors, 'gameId'))}
-          aria-describedby={getFieldError(errors, 'gameId') ? 'action-game-error' : undefined}
-          value={value.gameId}
-          onChange={(e) => onChange({ ...value, gameId: e.target.value })}
-          disabled={submitting || loading}
-        >
-          <option value="" disabled>Select a game</option>
-          {games.map((g) => (
-            <option key={g.id} value={g.id}>{g.name}</option>
-          ))}
-        </select>
-        {getFieldError(errors, 'gameId') && (
-          <div id="action-game-error" className="field-error" role="alert">
-            {getFieldError(errors, 'gameId')}
-          </div>
-        )}
-      </div>
+      <FormSection title="Basics" description="Required identifiers for the action." id="action-basics">
+        <div className="field">
+          <label htmlFor="action-game">Game *</label>
+          <select
+            id="action-game"
+            aria-invalid={Boolean(getFieldError(errors, 'gameId'))}
+            aria-describedby={getFieldError(errors, 'gameId') ? 'action-game-error' : undefined}
+            value={value.gameId}
+            onChange={(e) => onChange({ ...value, gameId: e.target.value })}
+            disabled={submitting || loading}
+          >
+            <option value="" disabled>Select a game</option>
+            {games.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+          {getFieldError(errors, 'gameId') && (
+            <div id="action-game-error" className="field-error" role="alert">
+              {getFieldError(errors, 'gameId')}
+            </div>
+          )}
+        </div>
 
-      <div className="field">
-        <label htmlFor="action-name">Name *</label>
-        <input
-          id="action-name"
-          aria-invalid={Boolean(getFieldError(errors, 'name'))}
-          aria-describedby={getFieldError(errors, 'name') ? 'action-name-error' : undefined}
-          value={value.name}
-          onChange={(e) => onChange({ ...value, name: e.target.value })}
-          disabled={submitting}
-        />
-        {getFieldError(errors, 'name') && (
-          <div id="action-name-error" className="field-error" role="alert">
-            {getFieldError(errors, 'name')}
-          </div>
-        )}
-      </div>
+        <div className="field">
+          <label htmlFor="action-name">Name *</label>
+          <input
+            id="action-name"
+            aria-invalid={Boolean(getFieldError(errors, 'name'))}
+            aria-describedby={getFieldError(errors, 'name') ? 'action-name-error' : undefined}
+            value={value.name}
+            onChange={(e) => onChange({ ...value, name: e.target.value })}
+            disabled={submitting}
+          />
+          {getFieldError(errors, 'name') && (
+            <div id="action-name-error" className="field-error" role="alert">
+              {getFieldError(errors, 'name')}
+            </div>
+          )}
+        </div>
+      </FormSection>
 
-      <div className="field">
-        <label htmlFor="action-type">Action Type *</label>
-        <select
-          id="action-type"
-          aria-invalid={Boolean(getFieldError(errors, 'type'))}
-          aria-describedby={getFieldError(errors, 'type') ? 'action-type-error' : undefined}
-          value={value.type}
-          onChange={(e) => handleTypeChange(e.target.value)}
-          disabled={submitting}
-        >
-          <option value="" disabled>Select an action type</option>
-          {actionTypes.map((t) => (
-            <option key={t.key} value={t.key}>{t.displayName}</option>
-          ))}
-        </select>
-        {getFieldError(errors, 'type') && (
-          <div id="action-type-error" className="field-error" role="alert">
-            {getFieldError(errors, 'type')}
-          </div>
-        )}
-      </div>
+      <FormSection title="Behavior" description="Select the action type and fill required attributes." id="action-behavior">
+        <div className="field">
+          <label htmlFor="action-type">Action Type *</label>
+          <select
+            id="action-type"
+            aria-invalid={Boolean(getFieldError(errors, 'type'))}
+            aria-describedby={getFieldError(errors, 'type') ? 'action-type-error' : undefined}
+            value={value.type}
+            onChange={(e) => handleTypeChange(e.target.value)}
+            disabled={submitting}
+          >
+            <option value="" disabled>Select an action type</option>
+            {actionTypes.map((t) => (
+              <option key={t.key} value={t.key}>{t.displayName}</option>
+            ))}
+          </select>
+          {getFieldError(errors, 'type') && (
+            <div id="action-type-error" className="field-error" role="alert">
+              {getFieldError(errors, 'type')}
+            </div>
+          )}
+        </div>
 
-      {loading && <div className="form-hint">Loading definitions...</div>}
-      {!loading && renderFields()}
+        {loading && <div className="form-hint">Loading definitions...</div>}
+        {!loading && renderFields()}
+      </FormSection>
 
       {errors && errors.length > 0 && (
         <div className="form-error" role="alert">
@@ -197,13 +202,9 @@ export const ActionForm: React.FC<ActionFormProps> = ({
         </div>
       )}
 
-      <div className="form-actions">
-        <button type="submit" disabled={submitting}>Save</button>
-        {onCancel && (
-          <button type="button" onClick={onCancel}>Cancel</button>
-        )}
+      <FormActions submitting={submitting} onCancel={onCancel}>
         {extraActions}
-      </div>
+      </FormActions>
     </form>
   );
 };
