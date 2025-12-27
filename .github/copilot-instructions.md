@@ -36,6 +36,11 @@ tests/
 
 ## Commands
 
+## Development environment
+- Development is done on Windows, using Visual Studio Code
+- Don't use Linux/WSL commands for development, as some dependencies (ADB, Tesseract, System.Drawing) are Windows-specific
+- Always use powershell commands and syntax in scripts and documentation
+
 # Add commands for .NET 9 C#
 
 ## Test Failure Analysis
