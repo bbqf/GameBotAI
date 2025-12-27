@@ -35,7 +35,7 @@ Independent Test: Edit three object types; locate equivalent sections without gu
 - [X] T018 [US3] Apply unified layout to Trigger page (sections, Save/Cancel) in src/web-ui
 - [X] T019 [US3] Apply unified layout to Game profile page with reference dropdowns in src/web-ui
 - [X] T020 [US3] Apply unified layout to Sequence/steps page component (src/web-ui) and confirm section parity with Actions/Commands
-- [ ] T021 [US3] Add UX consistency audit checklist in docs/ui-audit.md covering Action/Command/Trigger/Game profile/Sequence
+- [X] T021 [US3] Add UX consistency audit checklist in docs/ui-audit.md covering Action/Command/Trigger/Game profile/Sequence
 
 ## Phase 6 – Polish & Cross-cutting
 - [ ] T022 Add contextual help/tooltips for non-technical users on key fields in src/web-ui
