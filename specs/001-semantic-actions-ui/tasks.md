@@ -43,14 +43,14 @@ Goal: Enable users to create a valid action via forms without raw JSON.
 Independent Test: Tester creates a new action selecting a type, completing required fields, and saving successfully; invalid inputs block save with field-level errors.
 
 ### Tests for User Story 1
-- [ ] T010 [P] [US1] Add hook/component tests for action-type fetch/cache in src/web-ui/src/services/__tests__/useActionTypes.spec.ts
-- [ ] T011 [P] [US1] Add form rendering and validation tests for required/range/enum fields in src/web-ui/src/components/actions/__tests__/ActionForm.spec.tsx
+- [x] T010 [P] [US1] Add hook/component tests for action-type fetch/cache in src/web-ui/src/services/__tests__/useActionTypes.spec.ts
+- [x] T011 [P] [US1] Add form rendering and validation tests for required/range/enum fields in src/web-ui/src/components/actions/__tests__/ActionForm.spec.tsx
 
 ### Implementation for User Story 1
-- [ ] T012 [US1] Implement create action form submission using POST /actions in src/web-ui/src/components/actions/ActionForm.tsx
-- [ ] T013 [US1] Add create page wiring (load definitions, render form, success/error states) in src/web-ui/src/pages/actions/CreateActionPage.tsx
-- [ ] T014 [US1] Enforce client-side validation (requiredness, ranges, patterns, enums) with inline guidance in src/web-ui/src/components/actions/ActionForm.tsx
-- [ ] T015 [US1] Ensure accessibility (labels, keyboard navigation, focus on errors) and loading/error handling in src/web-ui/src/components/actions/ActionForm.tsx and src/web-ui/src/pages/actions/CreateActionPage.tsx
+- [x] T012 [US1] Implement create action form submission using POST /actions in src/web-ui/src/components/actions/ActionForm.tsx
+- [x] T013 [US1] Add create page wiring (load definitions, render form, success/error states) in src/web-ui/src/pages/actions/CreateActionPage.tsx
+- [x] T014 [US1] Enforce client-side validation (requiredness, ranges, patterns, enums) with inline guidance in src/web-ui/src/components/actions/ActionForm.tsx
+- [x] T015 [US1] Ensure accessibility (labels, keyboard navigation, focus on errors) and loading/error handling in src/web-ui/src/components/actions/ActionForm.tsx and src/web-ui/src/pages/actions/CreateActionPage.tsx
 
 **Checkpoint**: User Story 1 independently testable (create flow works, invalid inputs blocked, no JSON editing needed).
 

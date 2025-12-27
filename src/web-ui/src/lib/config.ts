@@ -9,9 +9,13 @@ class Signal<T> {
   subscribe(sub: Subscriber<T>): () => void { this.subs.add(sub); return () => this.subs.delete(sub); }
 }
 
+declare const __API_BASE_URL__: string | undefined;
+
 const DEFAULT_BASE_URL = '';
 const baseUrlLSKey = 'gamebot.baseUrl';
-const envBaseUrl = typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_API_BASE_URL ?? '' : '';
+const envBaseUrl = (typeof __API_BASE_URL__ !== 'undefined' && __API_BASE_URL__)
+  ? __API_BASE_URL__
+  : (typeof process !== 'undefined' ? process.env?.VITE_API_BASE_URL ?? '' : '');
 
 const initialBaseUrl = (() => {
   try {

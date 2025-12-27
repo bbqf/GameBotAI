@@ -4,7 +4,8 @@ import { setRememberToken, setToken, token$ } from './lib/token';
 import { setBaseUrl } from './lib/config';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Nav, AuthoringTab } from './components/Nav';
-import { ActionsPage } from './pages/ActionsPage';
+import { CreateActionPage } from './pages/actions/CreateActionPage';
+import { ActionsListPage } from './pages/actions/ActionsListPage';
 import { CommandsPage } from './pages/CommandsPage';
 import { GamesPage } from './pages/GamesPage';
 import { SequencesPage } from './pages/SequencesPage';
@@ -40,7 +41,7 @@ export const App: React.FC = () => {
           <h1>Authoring</h1>
           <Nav active={tab} onChange={setTab} />
           <ErrorBoundary>
-            {tab === 'Actions' && <ActionsPage />}
+            {tab === 'Actions' && <ActionsListPage />}
             {tab === 'Commands' && <CommandsPage />}
             {tab === 'Games' && <GamesPage />}
             {tab === 'Sequences' && <SequencesPage />}

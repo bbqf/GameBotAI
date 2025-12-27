@@ -63,6 +63,7 @@ export const ActionForm: React.FC<ActionFormProps> = ({
   return (
     <form
       className="action-form"
+      aria-label="Action form"
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit?.();
@@ -72,23 +73,39 @@ export const ActionForm: React.FC<ActionFormProps> = ({
         <label htmlFor="action-name">Name *</label>
         <input
           id="action-name"
+          aria-invalid={Boolean(getFieldError(errors, 'name'))}
+          aria-describedby={getFieldError(errors, 'name') ? 'action-name-error' : undefined}
           value={value.name}
           onChange={(e) => onChange({ ...value, name: e.target.value })}
+          disabled={submitting}
         />
+        {getFieldError(errors, 'name') && (
+          <div id="action-name-error" className="field-error" role="alert">
+            {getFieldError(errors, 'name')}
+          </div>
+        )}
       </div>
 
       <div className="field">
         <label htmlFor="action-type">Action Type *</label>
         <select
           id="action-type"
+          aria-invalid={Boolean(getFieldError(errors, 'type'))}
+          aria-describedby={getFieldError(errors, 'type') ? 'action-type-error' : undefined}
           value={value.type}
           onChange={(e) => onChange({ ...value, type: e.target.value, attributes: {} })}
+          disabled={submitting}
         >
           <option value="" disabled>Select an action type</option>
           {actionTypes.map((t) => (
             <option key={t.key} value={t.key}>{t.displayName}</option>
           ))}
         </select>
+        {getFieldError(errors, 'type') && (
+          <div id="action-type-error" className="field-error" role="alert">
+            {getFieldError(errors, 'type')}
+          </div>
+        )}
       </div>
 
       {loading && <div className="form-hint">Loading definitions...</div>}
