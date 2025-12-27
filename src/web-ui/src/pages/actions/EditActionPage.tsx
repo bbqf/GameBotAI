@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActionForm, ActionFormValue } from '../../components/actions/ActionForm';
 import { useActionTypes } from '../../services/useActionTypes';
+import { useGames } from '../../services/useGames';
 import { getAction, updateAction } from '../../services/actionsApi';
 import { validateAttributes } from '../../services/validation';
 import { ApiError } from '../../lib/api';
@@ -11,9 +12,10 @@ type EditActionPageProps = { actionId?: string };
 export const EditActionPage: React.FC<EditActionPageProps> = ({ actionId }) => {
   const id = actionId;
   const { data: typeCatalog, loading: typesLoading, error: typesError } = useActionTypes();
+  const { data: games, loading: gamesLoading, error: gamesError } = useGames();
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<ValidationMessage[]>([]);
-  const [form, setForm] = useState<ActionFormValue>({ name: '', type: '', attributes: {} });
+  const [form, setForm] = useState<ActionFormValue>({ name: '', gameId: '', type: '', attributes: {} });
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
@@ -33,7 +35,7 @@ export const EditActionPage: React.FC<EditActionPageProps> = ({ actionId }) => {
       try {
         const a = await getAction(id);
         if (!active) return;
-        setForm({ name: a.name, type: a.type, attributes: a.attributes ?? {} });
+        setForm({ name: a.name, gameId: a.gameId ?? '', type: a.type, attributes: a.attributes ?? {} });
       } catch (err: any) {
         if (!active) return;
         setLoadError(err?.message ?? 'Failed to load action');
@@ -48,6 +50,7 @@ export const EditActionPage: React.FC<EditActionPageProps> = ({ actionId }) => {
   const runValidation = (): ValidationMessage[] => {
     const messages: ValidationMessage[] = [];
     if (!form.name.trim()) messages.push({ field: 'name', message: 'Name is required', severity: 'error' });
+    if (!form.gameId) messages.push({ field: 'gameId', message: 'Game is required', severity: 'error' });
     if (!form.type) messages.push({ field: 'type', message: 'Action type is required', severity: 'error' });
     if (selectedType) messages.push(...validateAttributes(selectedType.attributeDefinitions, form.attributes));
     return messages;
@@ -64,7 +67,7 @@ export const EditActionPage: React.FC<EditActionPageProps> = ({ actionId }) => {
 
     setSubmitting(true);
     try {
-      await updateAction(id, { name: form.name.trim(), type: form.type, attributes: form.attributes });
+      await updateAction(id, { name: form.name.trim(), gameId: form.gameId, type: form.type, attributes: form.attributes });
       setErrors([]);
       setMessage('Action updated successfully.');
     } catch (err: any) {
@@ -91,11 +94,13 @@ export const EditActionPage: React.FC<EditActionPageProps> = ({ actionId }) => {
     <section>
       <h2>Edit Action</h2>
       {typesError && <div className="form-error" role="alert">{typesError}</div>}
+      {gamesError && <div className="form-error" role="alert">{gamesError}</div>}
       {message && <div className="form-hint">{message}</div>}
       <ActionForm
         actionTypes={actionTypes}
+        games={games ?? []}
         value={form}
-        loading={typesLoading}
+        loading={typesLoading || gamesLoading}
         errors={errors}
         submitting={submitting}
         onChange={(v) => { setErrors([]); setForm(v); }}

@@ -34,6 +34,7 @@ export type ValidationMessage = {
 export type ActionDto = {
   id: string;
   name: string;
+  gameId: string;
   type: string;
   attributes: Record<string, unknown>;
   validationStatus?: 'valid' | 'invalid';
@@ -45,6 +46,7 @@ export type ActionDto = {
 
 export type ActionCreate = {
   name: string;
+  gameId: string;
   type: string;
   attributes: Record<string, unknown>;
 };
@@ -58,6 +60,7 @@ export type ActionTypeCatalog = {
 
 export type ActionListParams = {
   type?: string;
+  gameId?: string;
 };
 
 export type ValidationResult = {

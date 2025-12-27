@@ -62,12 +62,12 @@ Goal: Allow editing existing actions with safeguards when changing types.
 Independent Test: Tester opens an action, edits values, optionally changes type, confirms discard prompt for incompatible fields, and saves successfully when valid.
 
 ### Tests for User Story 2
-- [ ] T016 [P] [US2] Add edit flow tests (load existing action, type change confirmation, save) in src/web-ui/src/pages/actions/__tests__/EditActionPage.spec.tsx
+- [x] T016 [P] [US2] Add edit flow tests (load existing action, type change confirmation, save) in src/web-ui/src/pages/actions/__tests__/EditActionPage.spec.tsx
 
 ### Implementation for User Story 2
-- [ ] T017 [US2] Load existing action data and populate form in src/web-ui/src/pages/actions/EditActionPage.tsx using actionsApi.get
-- [ ] T018 [US2] Implement type-change compatibility check and confirmation modal in src/web-ui/src/components/actions/ActionForm.tsx
-- [ ] T019 [US2] Add update submission via PUT /actions/{id} with success/error handling in src/web-ui/src/pages/actions/EditActionPage.tsx and src/web-ui/src/services/actionsApi.ts
+- [x] T017 [US2] Load existing action data and populate form in src/web-ui/src/pages/actions/EditActionPage.tsx using actionsApi.get
+- [x] T018 [US2] Implement type-change compatibility check and confirmation modal in src/web-ui/src/components/actions/ActionForm.tsx
+- [x] T019 [US2] Add update submission via PUT /actions/{id} with success/error handling in src/web-ui/src/pages/actions/EditActionPage.tsx and src/web-ui/src/services/actionsApi.ts
 
 **Checkpoint**: User Story 2 independently testable (edit + type-change safeguards).
 
@@ -79,12 +79,12 @@ Goal: Let users browse/filter actions and duplicate an action to accelerate auth
 Independent Test: Tester filters list by type, selects an action, duplicates it, and saves the duplicate after validation.
 
 ### Tests for User Story 3
-- [ ] T020 [P] [US3] Add list filtering and duplicate-flow tests in src/web-ui/src/pages/actions/__tests__/ActionsListPage.spec.tsx
+- [x] T020 [P] [US3] Add list filtering and duplicate-flow tests in src/web-ui/src/pages/actions/__tests__/ActionsListPage.spec.tsx
 
 ### Implementation for User Story 3
-- [ ] T021 [US3] Implement actions list view with type filter and empty/error states in src/web-ui/src/pages/actions/ActionsListPage.tsx
-- [ ] T022 [US3] Wire duplicate action call POST /actions/{id}/duplicate in src/web-ui/src/services/actionsApi.ts and UI trigger in ActionsListPage.tsx
-- [ ] T023 [US3] Support create-from-duplicate prefilled form handoff in src/web-ui/src/pages/actions/CreateActionPage.tsx
+- [x] T021 [US3] Implement actions list view with type filter and empty/error states in src/web-ui/src/pages/actions/ActionsListPage.tsx
+- [x] T022 [US3] Wire duplicate action call POST /actions/{id}/duplicate in src/web-ui/src/services/actionsApi.ts and UI trigger in ActionsListPage.tsx
+- [x] T023 [US3] Support create-from-duplicate prefilled form handoff in src/web-ui/src/pages/actions/CreateActionPage.tsx
 
 **Checkpoint**: User Story 3 independently testable (browse/filter/duplicate flow).
 

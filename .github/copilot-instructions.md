@@ -74,5 +74,6 @@ Common commands and expected duration:
 
 ### GitHub Client Usage
 When interacting with GitHub repositories:
+- use git CLI for low-level operations like commits, branches, and pushes
 - use gh CLI for operations like cloning, creating branches, and managing pull requests
 <!-- MANUAL ADDITIONS END -->

@@ -1,16 +1,19 @@
 import React from 'react';
 import { ActionType, ValidationMessage } from '../../types/actions';
+import { GameDto } from '../../services/games';
 import { validateAttribute } from '../../services/validation';
 import { FieldRenderer } from './FieldRenderer';
 
 export type ActionFormValue = {
   name: string;
+  gameId: string;
   type: string;
   attributes: Record<string, unknown>;
 };
 
 export type ActionFormProps = {
   actionTypes: ActionType[];
+  games: GameDto[];
   value: ActionFormValue;
   errors?: ValidationMessage[];
   loading?: boolean;
@@ -18,6 +21,7 @@ export type ActionFormProps = {
   onChange: (next: ActionFormValue) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
+  extraActions?: React.ReactNode;
 };
 
 const getFieldError = (errors: ValidationMessage[] | undefined, field: string): string | undefined => {
@@ -34,7 +38,9 @@ export const ActionForm: React.FC<ActionFormProps> = ({
   submitting,
   onChange,
   onSubmit,
-  onCancel
+  onCancel,
+  extraActions,
+  games
 }) => {
   const selectedType = actionTypes.find((t) => t.key === value.type);
 
@@ -103,6 +109,28 @@ export const ActionForm: React.FC<ActionFormProps> = ({
       }}
     >
       <div className="field">
+        <label htmlFor="action-game">Game *</label>
+        <select
+          id="action-game"
+          aria-invalid={Boolean(getFieldError(errors, 'gameId'))}
+          aria-describedby={getFieldError(errors, 'gameId') ? 'action-game-error' : undefined}
+          value={value.gameId}
+          onChange={(e) => onChange({ ...value, gameId: e.target.value })}
+          disabled={submitting || loading}
+        >
+          <option value="" disabled>Select a game</option>
+          {games.map((g) => (
+            <option key={g.id} value={g.id}>{g.name}</option>
+          ))}
+        </select>
+        {getFieldError(errors, 'gameId') && (
+          <div id="action-game-error" className="field-error" role="alert">
+            {getFieldError(errors, 'gameId')}
+          </div>
+        )}
+      </div>
+
+      <div className="field">
         <label htmlFor="action-name">Name *</label>
         <input
           id="action-name"
@@ -155,6 +183,7 @@ export const ActionForm: React.FC<ActionFormProps> = ({
         {onCancel && (
           <button type="button" onClick={onCancel}>Cancel</button>
         )}
+        {extraActions}
       </div>
     </form>
   );

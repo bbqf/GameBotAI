@@ -173,6 +173,50 @@ internal static class ActionsEndpoints {
       return Results.Ok(new { id = updated.Id, name = updated.Name });
     }).WithName("UpdateActionAlias").WithTags("Actions");
 
+    app.MapPost("/api/actions/{id}/duplicate", async (string id, IActionRepository repo, CancellationToken ct) => {
+      var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Action not found", hint = (string?)null } });
+
+      var clone = new Domain.Actions.Action {
+        Id = string.Empty,
+        Name = $"{existing.Name} copy",
+        GameId = existing.GameId,
+        Steps = new Collection<InputAction>(existing.Steps.Select(s => new InputAction { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
+        Checkpoints = new Collection<string>(existing.Checkpoints.ToList())
+      };
+
+      var created = await repo.AddAsync(clone, ct).ConfigureAwait(false);
+      return Results.Created($"/api/actions/{created.Id}", new ActionResponse {
+        Id = created.Id,
+        Name = created.Name,
+        GameId = created.GameId,
+        Steps = new Collection<InputActionDto>(created.Steps.Select(s => new InputActionDto { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
+        Checkpoints = new Collection<string>(created.Checkpoints.ToList())
+      });
+    }).WithName("DuplicateAction").WithTags("Actions");
+
+    app.MapPost("/actions/{id}/duplicate", async (string id, IActionRepository repo, CancellationToken ct) => {
+      var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Action not found", hint = (string?)null } });
+
+      var clone = new Domain.Actions.Action {
+        Id = string.Empty,
+        Name = $"{existing.Name} copy",
+        GameId = existing.GameId,
+        Steps = new System.Collections.ObjectModel.Collection<InputAction>(existing.Steps.Select(s => new InputAction { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
+        Checkpoints = new System.Collections.ObjectModel.Collection<string>(existing.Checkpoints.ToList())
+      };
+
+      var created = await repo.AddAsync(clone, ct).ConfigureAwait(false);
+      return Results.Created($"/actions/{created.Id}", new ActionResponse {
+        Id = created.Id,
+        Name = created.Name,
+        GameId = created.GameId,
+        Steps = new System.Collections.ObjectModel.Collection<InputActionDto>(created.Steps.Select(s => new InputActionDto { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
+        Checkpoints = new System.Collections.ObjectModel.Collection<string>(created.Checkpoints.ToList())
+      });
+    }).WithName("DuplicateActionAlias").WithTags("Actions");
+
     app.MapDelete("/api/actions/{id}", async (string id, IActionRepository actions, ICommandRepository commands, CancellationToken ct) => {
       var existing = await actions.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Action not found", hint = (string?)null } });

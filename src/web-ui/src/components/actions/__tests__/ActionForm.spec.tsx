@@ -14,8 +14,8 @@ describe('ActionForm', () => {
       ]
     }
   ];
-
-  const baseValue: ActionFormValue = { name: '', type: 'tap', attributes: {} };
+  const games = [{ id: 'g1', name: 'Test Game' }];
+  const baseValue: ActionFormValue = { name: '', gameId: 'g1', type: 'tap', attributes: {} };
 
   it('renders fields and shows validation errors', () => {
     const errors: ValidationMessage[] = [
@@ -27,12 +27,14 @@ describe('ActionForm', () => {
     render(
       <ActionForm
         actionTypes={actionTypes}
+        games={games as any}
         value={baseValue}
         errors={errors}
         onChange={() => undefined}
       />
     );
 
+    expect(screen.getByLabelText('Game *')).toBeInTheDocument();
     expect(screen.getByLabelText('Name *')).toBeInTheDocument();
     expect(screen.getByText('Name is required')).toBeInTheDocument();
     expect(screen.getByText('Must be at least 0')).toBeInTheDocument();
@@ -49,6 +51,7 @@ describe('ActionForm', () => {
     render(
       <ActionForm
         actionTypes={actionTypes}
+        games={games as any}
         value={baseValue}
         errors={[]}
         onChange={handleChange}

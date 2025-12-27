@@ -103,6 +103,11 @@ Atomic, file-backed executable units (e.g., a tap sequence or composite of low-l
 - Create: `POST /actions` → body includes a name and action definition (input steps).
 - Execute against a session: `POST /sessions/{id}/execute-action?actionId={actionId}` → `{ accepted }`.
 
+Built-in action types (served by `/api/action-types` and executed by `SessionManager`):
+- `tap`: required `x`, `y` (0–5000); optional `mode` (`fast`/`slow`).
+- `swipe`: required `x1`, `y1`, `x2`, `y2` (0–5000); optional `durationMs` (0–5000).
+- `key`: required `key` (symbolic name such as HOME, BACK, ESCAPE, ENTER, A–Z); optional `keyCode` (numeric Android key code).
+
 Example action definition (simplified):
 ```json
 {
