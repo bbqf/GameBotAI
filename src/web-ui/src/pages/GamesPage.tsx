@@ -151,6 +151,7 @@ export const GamesPage: React.FC = () => {
                 </div>
               </div>
             ))}
+            <div className="form-hint">Use key/value pairs for lightweight game metadata (e.g., mode, platform).</div>
           </FormSection>
 
           <FormActions submitting={submitting} onCancel={() => { setCreating(false); setForm(emptyForm); setErrors(undefined); }}>

@@ -187,6 +187,7 @@ export const TriggersPage: React.FC = () => {
             disabled={submitting || loading}
           />
           {errors?.criteria && <div id={`${mode}-trigger-criteria-error`} className="field-error" role="alert">{errors.criteria}</div>}
+          <div className="form-hint">Provide valid JSON for trigger conditions; malformed JSON will block save.</div>
         </div>
       </FormSection>
 
@@ -216,6 +217,7 @@ export const TriggersPage: React.FC = () => {
           disabled={submitting || loading}
           emptyMessage="No actions selected yet."
         />
+        <div className="form-hint">Actions execute in listed order; reorder to change sequence.</div>
       </FormSection>
 
       <FormSection title="Commands" description="Select commands to run and set their order." id={`${mode}-trigger-commands`}>
@@ -244,6 +246,7 @@ export const TriggersPage: React.FC = () => {
           disabled={submitting || loading}
           emptyMessage="No commands selected yet."
         />
+        <div className="form-hint">Commands execute after actions; reorder to control order.</div>
       </FormSection>
 
       <FormSection title="Sequence" description="Optional sequence to execute." id={`${mode}-trigger-sequence`}>
@@ -258,6 +261,7 @@ export const TriggersPage: React.FC = () => {
           onCreateNew={() => window.open('/sequences/new', '_blank')}
           createLabel="Create new sequence"
         />
+        <div className="form-hint">Attach a sequence if this trigger should hand off to a predefined step list.</div>
       </FormSection>
 
       <FormActions

@@ -174,6 +174,7 @@ export const SequencesPage: React.FC = () => {
               disabled={submitting || loading}
               emptyMessage="No commands added yet."
             />
+            <div className="form-hint">Steps execute in listed order; drag buttons to reorder before saving.</div>
           </FormSection>
 
           <FormActions submitting={submitting} onCancel={() => { setCreating(false); setForm(emptyForm); setErrors(undefined); setPendingStepId(undefined); }}>
@@ -269,6 +270,7 @@ export const SequencesPage: React.FC = () => {
                 disabled={submitting || loading}
                 emptyMessage="No commands added yet."
               />
+              <div className="form-hint">Use Move up/down to set the execution order before saving.</div>
             </FormSection>
 
             <FormActions
