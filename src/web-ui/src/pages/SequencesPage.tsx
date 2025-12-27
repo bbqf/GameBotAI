@@ -8,6 +8,7 @@ import { FormError } from '../components/Form';
 import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
 import { ReorderableList, ReorderableListItem } from '../components/ReorderableList';
+import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 
 type SequenceStep = { id: string; commandId: string };
 
@@ -37,6 +38,7 @@ export const SequencesPage: React.FC = () => {
   const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -65,12 +67,21 @@ export const SequencesPage: React.FC = () => {
     };
   }, []);
 
+  const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
+
   const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
 
   const reloadSequences = async () => {
     const data = await listSequences();
     const mapped: ListItem[] = data.map((s) => ({ id: s.id, name: s.name, details: { steps: s.steps?.length ?? 0 } }));
     setItems(mapped);
+  };
+
+  const resetForm = () => {
+    setForm(emptyForm);
+    setPendingStepId(undefined);
+    setErrors(undefined);
+    setDirty(false);
   };
 
   const stepItems = useMemo<ReorderableListItem[]>(() => {
@@ -93,11 +104,11 @@ export const SequencesPage: React.FC = () => {
       <div className="actions-header">
         <button
           onClick={() => {
+            if (!confirmNavigate()) return;
             setCreating(true);
             setEditingId(undefined);
             setErrors(undefined);
-            setForm(emptyForm);
-            setPendingStepId(undefined);
+            resetForm();
           }}
         >
           Create Sequence
@@ -119,6 +130,7 @@ export const SequencesPage: React.FC = () => {
               setCreating(false);
               setForm(emptyForm);
               setPendingStepId(undefined);
+              setDirty(false);
               await reloadSequences();
             } catch (err: any) {
               setErrors({ form: err?.message ?? 'Failed to create sequence' });
@@ -133,7 +145,7 @@ export const SequencesPage: React.FC = () => {
               <input
                 id="sequence-name"
                 value={form.name}
-                onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); }}
+                onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); setDirty(true); }}
                 aria-invalid={Boolean(errors?.name)}
                 aria-describedby={errors?.name ? 'sequence-name-error' : undefined}
                 disabled={submitting || loading}
@@ -160,6 +172,7 @@ export const SequencesPage: React.FC = () => {
                 const next = [...form.steps, { id: makeId(), commandId: pendingStepId }];
                 setForm({ ...form, steps: next });
                 setPendingStepId(undefined);
+                setDirty(true);
               }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
             </div>
             <ReorderableList
@@ -167,9 +180,11 @@ export const SequencesPage: React.FC = () => {
               onChange={(next) => {
                 const mapped = next.map((item, idx) => ({ id: item.id, commandId: form.steps.find((s) => s.id === item.id)?.commandId ?? form.steps[idx]?.commandId ?? '' }));
                 setForm({ ...form, steps: mapped.filter((s) => s.commandId) });
+                setDirty(true);
               }}
               onDelete={(item) => {
                 setForm({ ...form, steps: form.steps.filter((s) => s.id !== item.id) });
+                setDirty(true);
               }}
               disabled={submitting || loading}
               emptyMessage="No commands added yet."
@@ -177,7 +192,7 @@ export const SequencesPage: React.FC = () => {
             <div className="form-hint">Steps execute in listed order; drag buttons to reorder before saving.</div>
           </FormSection>
 
-          <FormActions submitting={submitting} onCancel={() => { setCreating(false); setForm(emptyForm); setErrors(undefined); setPendingStepId(undefined); }}>
+          <FormActions submitting={submitting} onCancel={() => { if (!confirmNavigate()) return; setCreating(false); resetForm(); }}>
             {loading && <span className="form-hint">Loading…</span>}
           </FormActions>
           <FormError message={errors?.form} />
@@ -187,6 +202,7 @@ export const SequencesPage: React.FC = () => {
         items={items}
         emptyMessage="No sequences found."
         onSelect={async (id) => {
+          if (!confirmNavigate()) return;
           setErrors(undefined);
           try {
             const s = await getSequence(id);
@@ -194,6 +210,7 @@ export const SequencesPage: React.FC = () => {
             setCreating(false);
             setPendingStepId(undefined);
             setForm({ name: s.name, steps: toStepEntries(s.steps) });
+            setDirty(false);
           } catch (err: any) {
             setErrors({ form: err?.message ?? 'Failed to load sequence' });
           }
@@ -216,6 +233,7 @@ export const SequencesPage: React.FC = () => {
               try {
                 await updateSequence(editingId, { name: form.name.trim(), steps: toPayloadSteps(form.steps) });
                 await reloadSequences();
+                setDirty(false);
               } catch (err: any) {
                 setErrors({ form: err?.message ?? 'Failed to update sequence' });
               } finally {
@@ -229,7 +247,7 @@ export const SequencesPage: React.FC = () => {
                 <input
                   id="sequence-edit-name"
                   value={form.name}
-                  onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); }}
+                  onChange={(e) => { setErrors(undefined); setForm({ ...form, name: e.target.value }); setDirty(true); }}
                   aria-invalid={Boolean(errors?.name)}
                   aria-describedby={errors?.name ? 'sequence-edit-name-error' : undefined}
                   disabled={submitting || loading}
@@ -256,6 +274,7 @@ export const SequencesPage: React.FC = () => {
                   const next = [...form.steps, { id: makeId(), commandId: pendingStepId }];
                   setForm({ ...form, steps: next });
                   setPendingStepId(undefined);
+                  setDirty(true);
                 }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
               </div>
               <ReorderableList
@@ -263,9 +282,11 @@ export const SequencesPage: React.FC = () => {
                 onChange={(next) => {
                   const mapped = next.map((item, idx) => ({ id: item.id, commandId: form.steps.find((s) => s.id === item.id)?.commandId ?? form.steps[idx]?.commandId ?? '' }));
                   setForm({ ...form, steps: mapped.filter((s) => s.commandId) });
+                  setDirty(true);
                 }}
                 onDelete={(item) => {
                   setForm({ ...form, steps: form.steps.filter((s) => s.id !== item.id) });
+                  setDirty(true);
                 }}
                 disabled={submitting || loading}
                 emptyMessage="No commands added yet."
@@ -276,10 +297,9 @@ export const SequencesPage: React.FC = () => {
             <FormActions
               submitting={submitting}
               onCancel={() => {
+                if (!confirmNavigate()) return;
                 setEditingId(undefined);
-                setForm(emptyForm);
-                setErrors(undefined);
-                setPendingStepId(undefined);
+                resetForm();
               }}
             >
               {loading && <span className="form-hint">Loading…</span>}
@@ -303,6 +323,8 @@ export const SequencesPage: React.FC = () => {
             setDeleteReferences(undefined);
             setDeleteOpen(false);
             setEditingId(undefined);
+            setDirty(false);
+            resetForm();
             await reloadSequences();
           } catch (err: any) {
             if (err instanceof ApiError && err.status === 409) {
