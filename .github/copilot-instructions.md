@@ -56,6 +56,8 @@ Coding style: Follow standard .NET 9 C# conventions
 
 
 ### Terminal Reuse & No-Close Policy
+- When performing multi-step operations, retain terminal state between commands to preserve context.
+- Avoid closing the terminal session unless explicitly required by the operation.
 
 ## Terminal Command Guidelines
 
