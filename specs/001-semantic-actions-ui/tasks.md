@@ -92,9 +92,9 @@ Independent Test: Tester filters list by type, selects an action, duplicates it,
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T024 [P] Add lightweight perf logging/metrics around definition fetch and form render in src/web-ui/src/services/actionsApi.ts and src/web-ui/src/components/actions/ActionForm.tsx
-- [ ] T025 [P] Update documentation (quickstart and src/web-ui/README.md) for new flows and env config
-- [ ] T026 Run full test suites (npm test in src/web-ui, dotnet test -c Debug) and record coverage per constitution
+- [x] T024 [P] Add lightweight perf logging/metrics around definition fetch and form render in src/web-ui/src/services/actionsApi.ts and src/web-ui/src/components/actions/ActionForm.tsx
+- [x] T025 [P] Update documentation (quickstart and src/web-ui/README.md) for new flows and env config
+- [x] T026 Run full test suites (npm test in src/web-ui, dotnet test -c Debug) and record coverage per constitution
 
 ---
 
