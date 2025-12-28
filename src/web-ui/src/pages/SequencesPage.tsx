@@ -9,6 +9,7 @@ import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
 import { ReorderableList, ReorderableListItem } from '../components/ReorderableList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
+import { navigateToUnified } from '../lib/navigation';
 
 type SequenceStep = { id: string; commandId: string };
 
@@ -25,9 +26,14 @@ const toStepEntries = (ids?: string[]): SequenceStep[] => (ids ?? []).map((cmdId
 
 const toPayloadSteps = (steps: SequenceStep[]) => steps.map((s) => s.commandId);
 
-export const SequencesPage: React.FC = () => {
+type SequencesPageProps = {
+  initialCreate?: boolean;
+  initialEditId?: string;
+};
+
+export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, initialEditId }) => {
   const [items, setItems] = useState<ListItem[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(Boolean(initialCreate));
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
@@ -98,6 +104,24 @@ export const SequencesPage: React.FC = () => {
     return Object.keys(next).length ? next : undefined;
   };
 
+  useEffect(() => {
+    if (!initialEditId) return;
+    const load = async () => {
+      setErrors(undefined);
+      try {
+        const s = await getSequence(initialEditId);
+        setEditingId(initialEditId);
+        setCreating(false);
+        setPendingStepId(undefined);
+        setForm({ name: s.name, steps: toStepEntries(s.steps) });
+        setDirty(false);
+      } catch (err: any) {
+        setErrors({ form: err?.message ?? 'Failed to load sequence' });
+      }
+    };
+    void load();
+  }, [initialEditId]);
+
   return (
     <section>
       <h2>Sequences</h2>
@@ -163,7 +187,7 @@ export const SequencesPage: React.FC = () => {
               onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
               disabled={submitting || loading}
               placeholder="Select a command"
-              onCreateNew={() => window.open('/commands/new', '_blank')}
+              onCreateNew={() => navigateToUnified('Commands', { create: true, newTab: true })}
               createLabel="Create new command"
             />
             <div className="field">
@@ -265,7 +289,7 @@ export const SequencesPage: React.FC = () => {
                 onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
                 disabled={submitting || loading}
                 placeholder="Select a command"
-                onCreateNew={() => window.open('/commands/new', '_blank')}
+                onCreateNew={() => navigateToUnified('Commands', { create: true, newTab: true })}
                 createLabel="Create new command"
               />
               <div className="field">

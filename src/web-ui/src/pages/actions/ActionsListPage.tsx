@@ -11,13 +11,18 @@ import { ActionDto, ActionType, ValidationMessage } from '../../types/actions';
 
 type Mode = 'list' | 'create' | 'edit';
 
-export const ActionsListPage: React.FC = () => {
+type ActionsListPageProps = {
+  initialMode?: Mode;
+  initialEditId?: string;
+};
+
+export const ActionsListPage: React.FC<ActionsListPageProps> = ({ initialMode = 'list', initialEditId }) => {
   const { data: typeCatalog, loading: typesLoading, error: typesError } = useActionTypes();
   const { data: gamesCatalog, loading: gamesLoading, error: gamesError } = useGames();
   const actionTypes = typeCatalog?.items ?? [];
   const games = gamesCatalog ?? [];
 
-  const [mode, setMode] = useState<Mode>('list');
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [filterType, setFilterType] = useState('');
   const [filterGame, setFilterGame] = useState('');
   const [filterName, setFilterName] = useState('');
@@ -62,6 +67,16 @@ export const ActionsListPage: React.FC = () => {
   useEffect(() => {
     void loadActions(filterType || undefined, filterGame || undefined);
   }, [filterType, filterGame]);
+
+  useEffect(() => {
+    if (initialEditId) {
+      void selectAction(initialEditId);
+      return;
+    }
+    if (initialMode === 'create') {
+      setMode('create');
+    }
+  }, [initialEditId, initialMode]);
 
   const selectAction = async (id: string) => {
     setMode('edit');

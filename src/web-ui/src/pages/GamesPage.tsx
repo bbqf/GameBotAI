@@ -33,9 +33,14 @@ const metadataToDto = (entries: MetadataEntry[]): Record<string, unknown> | unde
   return Object.keys(result).length ? result : undefined;
 };
 
-export const GamesPage: React.FC = () => {
+type GamesPageProps = {
+  initialCreate?: boolean;
+  initialEditId?: string;
+};
+
+export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEditId }) => {
   const [items, setItems] = useState<ListItem[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<GameFormValue>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
@@ -67,6 +72,23 @@ export const GamesPage: React.FC = () => {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!initialEditId) return;
+    const load = async () => {
+      setErrors(undefined);
+      try {
+        const g = await getGame(initialEditId);
+        setEditingId(initialEditId);
+        setCreating(false);
+        setForm({ name: g.name, metadata: metadataFromDto(g.metadata) });
+        setDirty(false);
+      } catch (err: any) {
+        setErrors({ form: err?.message ?? 'Failed to load game' });
+      }
+    };
+    void load();
+  }, [initialEditId]);
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
 
