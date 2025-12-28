@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using GameBot.Domain.Triggers;
 using GameBot.Domain.Services;
+using GameBot.Service;
 using GameBot.Service.Models;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.OpenApi;
@@ -13,7 +14,7 @@ internal static class TriggersEndpoints {
   public static IEndpointRouteBuilder MapTriggerEndpoints(this IEndpointRouteBuilder app) {
     ArgumentNullException.ThrowIfNull(app);
 
-    app.MapPost("/api/triggers", async (HttpRequest http, ITriggerRepository repo, CancellationToken ct) => {
+    app.MapPost(ApiRoutes.Triggers, async (HttpRequest http, ITriggerRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
       // Authoring shape: { name, criteria: { type, ... }, actions?:[], commands?:[], sequence?:string }
@@ -32,7 +33,7 @@ internal static class TriggersEndpoints {
         var actions = root.TryGetProperty("actions", out var aEl) && aEl.ValueKind == JsonValueKind.Array ? aEl.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).ToArray() : Array.Empty<string>();
         var commands = root.TryGetProperty("commands", out var cEl) && cEl.ValueKind == JsonValueKind.Array ? cEl.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).ToArray() : Array.Empty<string>();
         var sequence = root.TryGetProperty("sequence", out var sEl) && sEl.ValueKind == JsonValueKind.String ? sEl.GetString() : null;
-        return Results.Created($"/api/triggers/{trig.Id}", new { id = trig.Id, name, criteria = criteria, actions, commands, sequence });
+        return Results.Created($"{ApiRoutes.Triggers}/{trig.Id}", new { id = trig.Id, name, criteria = criteria, actions, commands, sequence });
       }
 
       // Domain shape fallback
@@ -46,12 +47,12 @@ internal static class TriggersEndpoints {
       var trigFallback = new Trigger { Id = Guid.NewGuid().ToString("N"), Type = tt, Enabled = req.Enabled, CooldownSeconds = req.CooldownSeconds, Params = parametersFallback };
       await repo.UpsertAsync(trigFallback, ct).ConfigureAwait(false);
       var dto = TriggerMappings.ToDto(trigFallback);
-      return Results.Created($"/api/triggers/{dto.Id}", dto);
+      return Results.Created($"{ApiRoutes.Triggers}/{dto.Id}", dto);
     })
     .WithName("CreateTrigger")
     .WithTags("Triggers");
 
-    app.MapGet("/api/triggers/{id}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
+    app.MapGet($"{ApiRoutes.Triggers}/{{id}}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
       var trig = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (trig is null) return Results.NotFound(new { error = new { code = "not_found", message = "Trigger not found", hint = (string?)null } });
       var criteria = BuildCriteriaFromDomain(trig);
@@ -61,7 +62,7 @@ internal static class TriggersEndpoints {
     .WithName("GetTrigger")
     .WithTags("Triggers");
 
-    app.MapGet("/api/triggers", async (ITriggerRepository repo, CancellationToken ct) => {
+    app.MapGet(ApiRoutes.Triggers, async (ITriggerRepository repo, CancellationToken ct) => {
       var list = await repo.ListAsync(ct).ConfigureAwait(false);
       var resp = list.Select(t => new { id = t.Id, name = GetTypeString(t.Type), criteria = BuildCriteriaFromDomain(t) });
       return Results.Ok(resp);
@@ -69,7 +70,7 @@ internal static class TriggersEndpoints {
     .WithName("ListTriggers")
     .WithTags("Triggers");
 
-    app.MapPut("/api/triggers/{id}", async (string id, HttpRequest http, ITriggerRepository repo, CancellationToken ct) => {
+    app.MapPut($"{ApiRoutes.Triggers}/{{id}}", async (string id, HttpRequest http, ITriggerRepository repo, CancellationToken ct) => {
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound();
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
@@ -84,14 +85,14 @@ internal static class TriggersEndpoints {
       return Results.Ok(new { id = existing.Id, name = GetTypeString(existing.Type), criteria = BuildCriteriaFromDomain(existing) });
     }).WithName("UpdateTrigger").WithTags("Triggers");
 
-    app.MapDelete("/api/triggers/{id}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
+    app.MapDelete($"{ApiRoutes.Triggers}/{{id}}", async (string id, ITriggerRepository repo, CancellationToken ct) => {
       var ok = await repo.DeleteAsync(id, ct).ConfigureAwait(false);
       return ok ? Results.NoContent() : Results.NotFound();
     })
     .WithName("DeleteTrigger")
     .WithTags("Triggers");
 
-    app.MapPost("/api/triggers/{id}/test", async (string id, ITriggerRepository repo, TriggerEvaluationService evalSvc, CancellationToken ct) => {
+    app.MapPost($"{ApiRoutes.Triggers}/{{id}}/test", async (string id, ITriggerRepository repo, TriggerEvaluationService evalSvc, CancellationToken ct) => {
       var trig = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (trig is null)
         return Results.NotFound(new { error = new { code = "not_found", message = "Trigger not found", hint = (string?)null } });

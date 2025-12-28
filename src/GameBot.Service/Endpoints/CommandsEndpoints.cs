@@ -1,7 +1,9 @@
+using GameBot.Domain.Commands;
+using GameBot.Service;
+using GameBot.Service.Models;
+using Microsoft.AspNetCore.Mvc;
 using System.Collections.ObjectModel;
 using System.Text.Json;
-using GameBot.Domain.Commands;
-using GameBot.Service.Models;
 using Microsoft.AspNetCore.OpenApi;
 
 namespace GameBot.Service.Endpoints;
@@ -15,7 +17,7 @@ internal static class CommandsEndpoints {
     return opts;
   }
   public static IEndpointRouteBuilder MapCommandEndpoints(this IEndpointRouteBuilder app) {
-    app.MapPost("/api/commands", async (HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
+    app.MapPost(ApiRoutes.Commands, async (HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
       // Authoring shape only when explicit actions[] array is provided
@@ -32,7 +34,7 @@ internal static class CommandsEndpoints {
           }
         }
         var created = await repo.AddAsync(new Command { Id = string.Empty, Name = name, TriggerId = null, Steps = steps }, ct).ConfigureAwait(false);
-        return Results.Created($"/api/commands/{created.Id}", new { id = created.Id, name = created.Name, actions = steps.Select(s => s.TargetId).ToArray() });
+        return Results.Created($"{ApiRoutes.Commands}/{created.Id}", new { id = created.Id, name = created.Name, actions = steps.Select(s => s.TargetId).ToArray() });
       }
 
       // Domain shape fallback
@@ -52,7 +54,7 @@ internal static class CommandsEndpoints {
       };
 
       var createdDomain = await repo.AddAsync(command, ct).ConfigureAwait(false);
-      return Results.Created($"/api/commands/{createdDomain.Id}", new CommandResponse {
+      return Results.Created($"{ApiRoutes.Commands}/{createdDomain.Id}", new CommandResponse {
         Id = createdDomain.Id,
         Name = createdDomain.Name,
         TriggerId = createdDomain.TriggerId,
@@ -66,7 +68,7 @@ internal static class CommandsEndpoints {
     .WithName("CreateCommand")
     .WithTags("Commands");
 
-    app.MapGet("/api/commands/{id}", async (string id, ICommandRepository repo, CancellationToken ct) => {
+    app.MapGet($"{ApiRoutes.Commands}/{{id}}", async (string id, ICommandRepository repo, CancellationToken ct) => {
       var c = await repo.GetAsync(id, ct).ConfigureAwait(false);
       return c is null
           ? Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } })
@@ -84,7 +86,7 @@ internal static class CommandsEndpoints {
     .WithName("GetCommand")
     .WithTags("Commands");
 
-    app.MapGet("/api/commands", async (ICommandRepository repo, CancellationToken ct) => {
+    app.MapGet(ApiRoutes.Commands, async (ICommandRepository repo, CancellationToken ct) => {
       var list = await repo.ListAsync(ct).ConfigureAwait(false);
       var resp = list.Select(c => new CommandResponse {
         Id = c.Id,
@@ -101,7 +103,7 @@ internal static class CommandsEndpoints {
     .WithName("ListCommands")
     .WithTags("Commands");
 
-    app.MapPatch("/api/commands/{id}", async (string id, UpdateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
+    app.MapPatch($"{ApiRoutes.Commands}/{{id}}", async (string id, UpdateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound();
       if (!string.IsNullOrWhiteSpace(req.Name)) existing.Name = req.Name!;
@@ -132,7 +134,7 @@ internal static class CommandsEndpoints {
     .WithName("UpdateCommand")
     .WithTags("Commands");
 
-    app.MapDelete("/api/commands/{id}", async (string id, ICommandRepository commands, GameBot.Domain.Commands.ISequenceRepository sequences, CancellationToken ct) => {
+    app.MapDelete($"{ApiRoutes.Commands}/{{id}}", async (string id, ICommandRepository commands, GameBot.Domain.Commands.ISequenceRepository sequences, CancellationToken ct) => {
       var existing = await commands.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } });
       // Check references from other commands (steps of type Command)
@@ -154,10 +156,10 @@ internal static class CommandsEndpoints {
     .WithName("DeleteCommand")
     .WithTags("Commands");
 
-    app.MapPost("/api/commands/{id}/force-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
+    app.MapPost($"{ApiRoutes.Commands}/{{id}}/force-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
         var accepted = await exec.ForceExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
-        return Results.Accepted($"/api/sessions/{sessionId}", new { accepted });
+        return Results.Accepted($"{ApiRoutes.Sessions}/{sessionId}", new { accepted });
       }
       catch (KeyNotFoundException ex) {
         var msg = ex.Message.Contains("Session", StringComparison.OrdinalIgnoreCase) ? "Session not found" : ex.Message;
@@ -173,10 +175,10 @@ internal static class CommandsEndpoints {
     .WithName("ForceExecuteCommand")
     .WithTags("Commands");
 
-    app.MapPost("/api/commands/{id}/evaluate-and-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
+    app.MapPost($"{ApiRoutes.Commands}/{{id}}/evaluate-and-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
         var decision = await exec.EvaluateAndExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
-        return Results.Accepted($"/api/sessions/{sessionId}", new {
+        return Results.Accepted($"{ApiRoutes.Sessions}/{sessionId}", new {
           accepted = decision.Accepted,
           triggerStatus = decision.TriggerStatus.ToString(),
           message = decision.Reason

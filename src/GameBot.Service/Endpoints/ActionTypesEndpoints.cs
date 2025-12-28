@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using GameBot.Service;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +11,7 @@ internal static class ActionTypesEndpoints {
   private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
   public static IEndpointRouteBuilder MapActionTypeEndpoints(this IEndpointRouteBuilder app, string storageRoot) {
-    app.MapGet("/api/action-types", async (HttpContext ctx) => {
+    app.MapGet(ApiRoutes.ActionTypes, async (HttpContext ctx) => {
       var (catalog, etag) = await LoadCatalog(storageRoot).ConfigureAwait(false);
 
       var ifNoneMatch = ctx.Request.Headers.IfNoneMatch.ToString();

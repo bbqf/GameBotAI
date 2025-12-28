@@ -1,13 +1,16 @@
 using System.Text.Json;
 using System.Linq;
 using GameBot.Domain.Games;
+using GameBot.Service;
 using GameBot.Service.Models;
 
 namespace GameBot.Service.Endpoints;
 
 internal static class GamesEndpoints {
   public static IEndpointRouteBuilder MapGameEndpoints(this IEndpointRouteBuilder app) {
-    app.MapPost("/api/games", async (HttpRequest http, IGameRepository repo, CancellationToken ct) => {
+    var group = app.MapGroup(ApiRoutes.Games).WithTags("Games");
+
+    group.MapPost("", async (HttpRequest http, IGameRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
       if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String) {
@@ -28,19 +31,19 @@ internal static class GamesEndpoints {
         }, ct).ConfigureAwait(false);
         // Return authoring shape when metadata provided
         if (description is not null && IsJsonObject(description)) {
-          return Results.Created($"/api/games/{created.Id}", new { id = created.Id, name = created.Name, metadata = JsonSerializer.Deserialize<object>(description)! });
+          return Results.Created($"{ApiRoutes.Games}/{created.Id}", new { id = created.Id, name = created.Name, metadata = JsonSerializer.Deserialize<object>(description)! });
         }
-        return Results.Created($"/api/games/{created.Id}", new GameResponse { Id = created.Id, Name = created.Name, Description = created.Description });
+        return Results.Created($"{ApiRoutes.Games}/{created.Id}", new GameResponse { Id = created.Id, Name = created.Name, Description = created.Description });
       }
       // Fallback to domain DTO
       var req = root.Deserialize<CreateGameRequest>();
       if (req is null || string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
       var createdDomain = await repo.AddAsync(new GameArtifact { Id = string.Empty, Name = req.Name, Description = req.Description }, ct).ConfigureAwait(false);
-      return Results.Created($"/api/games/{createdDomain.Id}", new GameResponse { Id = createdDomain.Id, Name = createdDomain.Name, Description = createdDomain.Description });
+      return Results.Created($"{ApiRoutes.Games}/{createdDomain.Id}", new GameResponse { Id = createdDomain.Id, Name = createdDomain.Name, Description = createdDomain.Description });
     }).WithName("CreateGame");
 
-    app.MapGet("/api/games/{id}", async (string id, IGameRepository repo, CancellationToken ct) => {
+    group.MapGet("{id}", async (string id, IGameRepository repo, CancellationToken ct) => {
       var g = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (g is null) return Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
       if (IsJsonObject(g.Description)) {
@@ -49,7 +52,7 @@ internal static class GamesEndpoints {
       return Results.Ok(new GameResponse { Id = g.Id, Name = g.Name, Description = g.Description });
     }).WithName("GetGame");
 
-    app.MapGet("/api/games", async (IGameRepository repo, CancellationToken ct) => {
+    group.MapGet("", async (IGameRepository repo, CancellationToken ct) => {
       var list = await repo.ListAsync(ct).ConfigureAwait(false);
       var resp = new System.Collections.Generic.List<object>(list.Count);
       foreach (var g in list) {
@@ -62,7 +65,7 @@ internal static class GamesEndpoints {
       return Results.Ok(resp);
     }).WithName("ListGames");
 
-    app.MapPut("/api/games/{id}", async (string id, HttpRequest http, IGameRepository repo, CancellationToken ct) => {
+    group.MapPut("{id}", async (string id, HttpRequest http, IGameRepository repo, CancellationToken ct) => {
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
 
@@ -92,10 +95,10 @@ internal static class GamesEndpoints {
         return Results.Ok(new { id = saved.Id, name = saved.Name, metadata = JsonSerializer.Deserialize<object>(saved.Description!)! });
       }
       return Results.Ok(new GameResponse { Id = saved.Id, Name = saved.Name, Description = saved.Description });
-    }).WithName("UpdateGame").WithTags("Games");
+    }).WithName("UpdateGame");
 
     // Authoring delete: allow when game is unreferenced; otherwise return 409 with references.
-    app.MapDelete("/api/games/{id}", async (string id, IGameRepository games, GameBot.Domain.Actions.IActionRepository actions, CancellationToken ct) => {
+    group.MapDelete("{id}", async (string id, IGameRepository games, GameBot.Domain.Actions.IActionRepository actions, CancellationToken ct) => {
       var existing = await games.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
       var actionList = await actions.ListAsync(id, ct).ConfigureAwait(false);
@@ -106,8 +109,7 @@ internal static class GamesEndpoints {
       var deleted = await games.DeleteAsync(id, ct).ConfigureAwait(false);
       return deleted ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
     })
-      .WithName("DeleteGame")
-      .WithTags("Games");
+      .WithName("DeleteGame");
 
     return app;
   }

@@ -2,6 +2,7 @@ using GameBot.Service.Hosted;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Triggers;
+using GameBot.Service;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -13,7 +14,7 @@ namespace GameBot.Service.Endpoints;
 /// </summary>
 internal static class MetricsEndpoints {
   public static IEndpointRouteBuilder MapMetricsEndpoints(this IEndpointRouteBuilder app) {
-    var group = app.MapGroup("/api/metrics").WithTags("Metrics");
+    var group = app.MapGroup(ApiRoutes.Metrics).WithTags("Metrics");
 
     group.MapGet("/triggers", (ITriggerEvaluationMetrics metrics) => {
       // Snapshot current counters; simple anonymous object for JSON

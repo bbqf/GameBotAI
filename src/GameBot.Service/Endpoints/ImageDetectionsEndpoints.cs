@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading;
+using GameBot.Service;
 using GameBot.Service.Endpoints.Dto;
 using GameBot.Domain.Vision;
 using GameBot.Domain.Triggers.Evaluators;
@@ -16,7 +17,7 @@ namespace GameBot.Service.Endpoints
     {
         public static IEndpointRouteBuilder MapImageDetectionsEndpoints(this IEndpointRouteBuilder endpoints)
         {
-            endpoints.MapPost("/api/images/detect", async (DetectRequest req,
+            endpoints.MapPost(ApiRoutes.ImageDetect, async (DetectRequest req,
                 IReferenceImageStore store,
                 ITemplateMatcher matcher,
                 IOptions<GameBot.Service.Services.Detections.DetectionOptions> detOpts,

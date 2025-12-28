@@ -30,7 +30,7 @@
 - [X] T007 [P] [US1] Refactor sequences endpoints to `/api/sequences` and drop legacy aliases in src/GameBot.Service/Program.cs
 - [X] T008 [P] [US1] Refactor sessions/emulator and configuration endpoints to `/api/...` in src/GameBot.Service/Program.cs
 - [X] T009 [US1] Add legacy-path guard returning guided non-success for old roots (e.g., `/actions`) in src/GameBot.Service/Program.cs
-- [ ] T010 [US1] Deduplicate route metadata/tags to ensure one canonical path per endpoint in src/GameBot.Service/Program.cs
+- [X] T010 [US1] Deduplicate route metadata/tags to ensure one canonical path per endpoint in src/GameBot.Service/Program.cs
 - [ ] T021 [P] [US1] Add integration/contract check for legacy roots returning non-success and `/api/actions` succeeding in tests/integration/ApiRoutesTests.cs
 
 **Checkpoint**: User Story 1 functional and independently testable via canonical routes only

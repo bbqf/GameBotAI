@@ -443,7 +443,7 @@ sequences.MapPost("{id}/execute", async (
 MapLegacyGuard("/actions", ApiRoutes.Actions);
 MapLegacyGuard("/commands", ApiRoutes.Commands);
 MapLegacyGuard("/triggers", ApiRoutes.Triggers);
-MapLegacyGuard("/games", ApiRoutes.Base + "/games");
+MapLegacyGuard("/games", ApiRoutes.Games);
 MapLegacyGuard("/sessions", ApiRoutes.Sessions);
 MapLegacyGuard("/images", ApiRoutes.Images);
 MapLegacyGuard("/images/detect", ApiRoutes.ImageDetect);
