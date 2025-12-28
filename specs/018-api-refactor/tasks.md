@@ -27,7 +27,7 @@
 
 ### Implementation
 - [X] T006 [US1] Refactor actions endpoints to `/api/actions` and remove legacy exposures in src/GameBot.Service/Program.cs
-- [ ] T007 [P] [US1] Refactor sequences endpoints to `/api/sequences` and drop legacy aliases in src/GameBot.Service/Program.cs
+- [X] T007 [P] [US1] Refactor sequences endpoints to `/api/sequences` and drop legacy aliases in src/GameBot.Service/Program.cs
 - [X] T008 [P] [US1] Refactor sessions/emulator and configuration endpoints to `/api/...` in src/GameBot.Service/Program.cs
 - [X] T009 [US1] Add legacy-path guard returning guided non-success for old roots (e.g., `/actions`) in src/GameBot.Service/Program.cs
 - [ ] T010 [US1] Deduplicate route metadata/tags to ensure one canonical path per endpoint in src/GameBot.Service/Program.cs

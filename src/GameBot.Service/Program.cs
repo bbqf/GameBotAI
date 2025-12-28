@@ -277,7 +277,9 @@ app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
 
 // Sequences endpoints (Phase 3 US1 minimal stubs)
-app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo) =>
+var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
+
+sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) =>
 {
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
@@ -300,7 +302,7 @@ app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo)
       seq.SetSteps(steps);
     }
     var created = await repo.CreateAsync(seq).ConfigureAwait(false);
-    return Results.Created($"/api/sequences/{created.Id}", new { id = created.Id, name = created.Name, steps = created.Steps.Select(s => s.CommandId).ToArray() });
+    return Results.Created($"{ApiRoutes.Sequences}/{created.Id}", new { id = created.Id, name = created.Name, steps = created.Steps.Select(s => s.CommandId).ToArray() });
   }
   // Fallback to domain shape
   var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
@@ -310,17 +312,17 @@ app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo)
   seqDomain.CreatedAt = DateTimeOffset.UtcNow;
   seqDomain.UpdatedAt = seqDomain.CreatedAt;
   var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
-  return Results.Created($"/api/sequences/{createdDomain.Id}", createdDomain);
-}).WithName("CreateSequence").WithTags("Sequences");
+  return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
+}).WithName("CreateSequence");
 
-app.MapGet("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
+sequences.MapGet("{id}", async (ISequenceRepository repo, string id) =>
 {
   var found = await repo.GetAsync(id).ConfigureAwait(false);
   if (found is null) return Results.NotFound();
   return Results.Ok(new { id = found.Id, name = found.Name, steps = found.Steps.Select(s => s.CommandId).ToArray() });
-}).WithName("GetSequence").WithTags("Sequences");
+}).WithName("GetSequence");
 
-app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository repo, string id) =>
+sequences.MapPut("{id}", async (HttpRequest http, ISequenceRepository repo, string id) =>
 {
   var existing = await repo.GetAsync(id).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
@@ -347,24 +349,24 @@ app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository r
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
   return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
-}).WithName("UpdateSequence").WithTags("Sequences");
+}).WithName("UpdateSequence");
 
-app.MapGet("/api/sequences", async (ISequenceRepository repo) =>
+sequences.MapGet("", async (ISequenceRepository repo) =>
 {
   var list = await repo.ListAsync().ConfigureAwait(false);
   var resp = list.Select(s => new { id = s.Id, name = s.Name, steps = s.Steps.Select(x => x.CommandId).ToArray() });
   return Results.Ok(resp);
-}).WithName("ListSequences").WithTags("Sequences");
+}).WithName("ListSequences");
 
-app.MapDelete("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
+sequences.MapDelete("{id}", async (ISequenceRepository repo, string id) =>
 {
   var existing = await repo.GetAsync(id).ConfigureAwait(false);
   if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
   var ok = await repo.DeleteAsync(id).ConfigureAwait(false);
   return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
-}).WithName("DeleteSequence").WithTags("Sequences");
+}).WithName("DeleteSequence");
 
-app.MapPost("/api/sequences/{id}/execute", async (
+sequences.MapPost("{id}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,
   string id,
