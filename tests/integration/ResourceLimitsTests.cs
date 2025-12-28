@@ -38,13 +38,13 @@ public sealed class ResourceLimitsTests : IDisposable {
       var client = app.CreateClient();
       client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-      var devs = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri("/adb/devices", UriKind.Relative)).ConfigureAwait(true);
+      var devs = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri("/api/adb/devices", UriKind.Relative)).ConfigureAwait(true);
       if (devs is null || devs.Count == 0) return;
       var serial = devs[0]["serial"]!.ToString();
-      var first = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "g1", adbSerial = serial }).ConfigureAwait(true);
+      var first = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId = "g1", adbSerial = serial }).ConfigureAwait(true);
       first.StatusCode.Should().Be(HttpStatusCode.Created);
 
-      var second = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "g2", adbSerial = serial }).ConfigureAwait(true);
+      var second = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId = "g2", adbSerial = serial }).ConfigureAwait(true);
       second.StatusCode.Should().Be((HttpStatusCode)429);
     }
     finally {
@@ -65,10 +65,10 @@ public sealed class ResourceLimitsTests : IDisposable {
       var client = app.CreateClient();
       client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-      var devs2 = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri("/adb/devices", UriKind.Relative)).ConfigureAwait(true);
+      var devs2 = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri("/api/adb/devices", UriKind.Relative)).ConfigureAwait(true);
       if (devs2 is null || devs2.Count == 0) return;
       var serial2 = devs2[0]["serial"]!.ToString();
-      var createResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "g1", adbSerial = serial2 }).ConfigureAwait(true);
+      var createResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId = "g1", adbSerial = serial2 }).ConfigureAwait(true);
       createResp.EnsureSuccessStatusCode();
       var created = await createResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
       var id = created!["id"].ToString();
@@ -76,7 +76,7 @@ public sealed class ResourceLimitsTests : IDisposable {
       // Wait beyond idle timeout
       await Task.Delay(1500).ConfigureAwait(true);
 
-      var getResp = await client.GetAsync(new Uri($"/sessions/{id}", UriKind.Relative)).ConfigureAwait(true);
+      var getResp = await client.GetAsync(new Uri($"/api/sessions/{id}", UriKind.Relative)).ConfigureAwait(true);
       getResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
     finally {
@@ -97,7 +97,7 @@ public sealed class ResourceLimitsTests : IDisposable {
       var client = app.CreateClient();
       client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-      var resp = await client.GetAsync(new Uri("/metrics/process", UriKind.Relative)).ConfigureAwait(true);
+      var resp = await client.GetAsync(new Uri("/api/metrics/process", UriKind.Relative)).ConfigureAwait(true);
       resp.EnsureSuccessStatusCode();
       var raw = await resp.Content.ReadAsStringAsync().ConfigureAwait(true);
       using var doc = System.Text.Json.JsonDocument.Parse(raw);

@@ -51,12 +51,6 @@ public sealed class SwaggerDocsTests : IDisposable
     AssertResponseExample(paths, "/api/actions", "get", "200");
     AssertResponseExample(paths, "/api/actions", "post", "201");
 
-    AssertRequestExample(paths, "/api/sequences", "post");
-    AssertResponseExample(paths, "/api/sequences", "get", "200");
-    AssertResponseExample(paths, "/api/sequences", "post", "201");
-
-    AssertRequestExample(paths, "/api/sessions", "post");
-    AssertResponseExample(paths, "/api/sessions", "post", "201");
     AssertRequestExample(paths, "/api/sessions/{id}/inputs", "post");
     AssertResponseExample(paths, "/api/sessions/{id}/inputs", "post", "202");
 

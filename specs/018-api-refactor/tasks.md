@@ -59,10 +59,10 @@
 **Independent Test**: Run full test suite; all API-related tests target `/api` and pass, legacy-path checks assert non-success with guidance.
 
 ### Tests
-- [ ] T015 [P] [US3] Update contract tests to target canonical `/api` routes and assert legacy failures in tests/contract/
-- [ ] T016 [P] [US3] Update integration tests to expect `/api` success and legacy non-success in tests/integration/
-- [ ] T017 [US3] Refresh shared fixtures to remove legacy paths in tests/TestAssets/
-- [ ] T018 [US3] Run `dotnet test -c Debug` for GameBot.sln to confirm suite is green (no legacy path dependencies)
+- [X] T015 [P] [US3] Update contract tests to target canonical `/api` routes and assert legacy failures in tests/contract/
+- [X] T016 [P] [US3] Update integration tests to expect `/api` success and legacy non-success in tests/integration/
+- [X] T017 [US3] Refresh shared fixtures to remove legacy paths in tests/TestAssets/
+- [X] T018 [US3] Run `dotnet test -c Debug` for GameBot.sln to confirm suite is green (no legacy path dependencies)
 
 **Checkpoint**: User Story 3 validated by automated suites
 
@@ -73,7 +73,8 @@
 - [ ] T019 [P] Update quickstart checklist to reflect canonical routes and Swagger grouping in specs/018-api-refactor/quickstart.md
 - [ ] T020 Final pass to remove dead legacy routing code/comments and align documentation where referenced in src/GameBot.Service/Program.cs
 - [ ] T023 [P] Capture Swagger/doc endpoint latency (<300ms p95) via local run or trace in tests/integration/SwaggerPerfTests.cs and record in specs/018-api-refactor/quickstart.md
-
+- [ ] T024 Cleanup the Default section in the Swagger documentation. The Default should not include any paths defined in other sections or legacy endpoints
+- [ ] T025 Update README.md with the new API endpoints
 ---
 
 ## Dependencies & Execution Order

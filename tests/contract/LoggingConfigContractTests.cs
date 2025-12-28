@@ -47,7 +47,7 @@ public sealed class LoggingConfigContractTests : IDisposable
     using var client = CreateAuthedClient(app);
 
     var resp = await client.PutAsJsonAsync(
-      "/config/logging/components/GameBot.Service",
+      "/api/config/logging/components/GameBot.Service",
       new LoggingComponentPatchPayload { Level = "Debug", Notes = "contract-test" })
       .ConfigureAwait(true);
 
@@ -66,7 +66,7 @@ public sealed class LoggingConfigContractTests : IDisposable
     using var app = new WebApplicationFactory<Program>();
     using var client = CreateAuthedClient(app);
 
-    var resp = await client.GetAsync(new Uri("/config/logging", UriKind.Relative)).ConfigureAwait(true);
+    var resp = await client.GetAsync(new Uri("/api/config/logging", UriKind.Relative)).ConfigureAwait(true);
     resp.StatusCode.Should().Be(HttpStatusCode.OK);
     var snapshot = await resp.Content.ReadFromJsonAsync<LoggingPolicySnapshotResponse>().ConfigureAwait(true);
     snapshot.Should().NotBeNull();

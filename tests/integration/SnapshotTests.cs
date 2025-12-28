@@ -20,14 +20,14 @@ public class SnapshotTests {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    var devs = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri("/adb/devices", UriKind.Relative)).ConfigureAwait(true);
+    var devs = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri("/api/adb/devices", UriKind.Relative)).ConfigureAwait(true);
     if (devs is null || devs.Count == 0) return;
     var serial = devs[0]["serial"]!.ToString();
-    var createResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "test-game", adbSerial = serial }).ConfigureAwait(true);
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId = "test-game", adbSerial = serial }).ConfigureAwait(true);
     var created = await createResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var id = created!["id"].ToString();
 
-    var resp = await client.GetAsync(new Uri($"/sessions/{id}/snapshot", UriKind.Relative)).ConfigureAwait(true);
+    var resp = await client.GetAsync(new Uri($"/api/sessions/{id}/snapshot", UriKind.Relative)).ConfigureAwait(true);
     resp.StatusCode.Should().Be(HttpStatusCode.OK);
     resp.Content.Headers.ContentType!.MediaType.Should().Be("image/png");
     var content = await resp.Content.ReadAsByteArrayAsync().ConfigureAwait(true);

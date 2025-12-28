@@ -53,7 +53,7 @@ public class TextTriggerEvaluationTesseractEndpointTests {
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     // Create game
-    var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "G-Text", description = "d" }).ConfigureAwait(false);
+    var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "G-Text", description = "d" }).ConfigureAwait(false);
     gameResp.StatusCode.Should().Be(HttpStatusCode.Created);
     var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
     var gameId = game!["id"]!.ToString();
@@ -72,13 +72,13 @@ public class TextTriggerEvaluationTesseractEndpointTests {
         mode = "found"
       }
     };
-    var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigCreate).ConfigureAwait(false);
+    var tResp = await client.PostAsJsonAsync(new Uri("/api/triggers", UriKind.Relative), trigCreate).ConfigureAwait(false);
     tResp.StatusCode.Should().Be(HttpStatusCode.Created);
     var tBody = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
     var triggerId = tBody!["id"]!.ToString();
 
     // Test trigger - should be Satisfied
-    var testResp = await client.PostAsync(new Uri($"/triggers/{triggerId}/test", UriKind.Relative), null).ConfigureAwait(false);
+    var testResp = await client.PostAsync(new Uri($"/api/triggers/{triggerId}/test", UriKind.Relative), null).ConfigureAwait(false);
     testResp.StatusCode.Should().Be(HttpStatusCode.OK);
     var res = await testResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
     ((System.Text.Json.JsonElement)res!["status"]).GetString().Should().Be("Satisfied");

@@ -61,13 +61,13 @@ public class GamesActionsTests {
     var actionId = act!["id"]!.ToString();
 
     // Create a session
-    var sResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
+      var sResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
     sResp.EnsureSuccessStatusCode();
     var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var sessionId = s!["id"]!.ToString();
 
     // Execute the action
-    var execResp = await client.PostAsync(new Uri($"/sessions/{sessionId}/execute-action?actionId={actionId}", UriKind.Relative), content: null).ConfigureAwait(true);
+      var execResp = await client.PostAsync(new Uri($"/api/sessions/{sessionId}/execute-action?actionId={actionId}", UriKind.Relative), content: null).ConfigureAwait(true);
     execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
     var execBody = await execResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var accepted = ((System.Text.Json.JsonElement)execBody!["accepted"]).GetInt32();

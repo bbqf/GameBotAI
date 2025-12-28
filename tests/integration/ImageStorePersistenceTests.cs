@@ -58,7 +58,7 @@ public class ImageStorePersistenceTests : IDisposable {
     using (var app1 = new WebApplicationFactory<Program>()) {
       var client1 = app1.CreateClient();
       client1.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-      var uploadResp = await client1.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "persist", data = oneByOnePngBase64 }).ConfigureAwait(false);
+      var uploadResp = await client1.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "persist", data = oneByOnePngBase64 }).ConfigureAwait(false);
       uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
       var physical = Path.Combine(_persistDir, "images", "persist.png");
       // Allow brief time for atomic replace/move operations to complete on CI file systems
@@ -66,7 +66,7 @@ public class ImageStorePersistenceTests : IDisposable {
       while (!File.Exists(physical) && waitedMs < 1000) { await Task.Delay(100).ConfigureAwait(false); waitedMs += 100; }
       File.Exists(physical).Should().BeTrue($"Expected file at {physical} after first upload.");
       // Existence check (after confirming physical persistence to reduce timing flakiness)
-      var existsResp = await client1.GetAsync(new Uri("/images/persist", UriKind.Relative)).ConfigureAwait(false);
+      var existsResp = await client1.GetAsync(new Uri("/api/images/persist", UriKind.Relative)).ConfigureAwait(false);
       existsResp.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -77,7 +77,7 @@ public class ImageStorePersistenceTests : IDisposable {
       // Reassert data dir to guard against external test interference and config precedence
       Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _persistDir);
       Environment.SetEnvironmentVariable("Service__Storage__Root", _persistDir);
-      var existsResp2 = await client2.GetAsync(new Uri("/images/persist", UriKind.Relative)).ConfigureAwait(false);
+      var existsResp2 = await client2.GetAsync(new Uri("/api/images/persist", UriKind.Relative)).ConfigureAwait(false);
       if (existsResp2.StatusCode == HttpStatusCode.NotFound) {
         var physical2 = Path.Combine(_persistDir, "images", "persist.png");
         var waited2Ms = 0;

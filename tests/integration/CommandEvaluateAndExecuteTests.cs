@@ -80,7 +80,7 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
     var commandId = cmd!["id"]!.ToString();
 
     // Create a session (stub mode, no adb)
-    var sResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
+    var sResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
     sResp.EnsureSuccessStatusCode();
     var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var sessionId = s!["id"]!.ToString();
@@ -148,7 +148,7 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
     var cmd = await cResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var commandId = cmd!["id"]!.ToString();
 
-    var sResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
+    var sResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
     sResp.EnsureSuccessStatusCode();
     var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var sessionId = s!["id"]!.ToString();
@@ -215,7 +215,7 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
     var cmd = await cResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var commandId = cmd!["id"]!.ToString();
 
-    var sResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
+    var sResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
     sResp.EnsureSuccessStatusCode();
     var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var sessionId = s!["id"]!.ToString();
@@ -262,7 +262,7 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "CmdExecGame", description = "desc" }).ConfigureAwait(true);
+    var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "CmdExecGame", description = "desc" }).ConfigureAwait(true);
     gameResp.EnsureSuccessStatusCode();
     var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var gameId = game!["id"]!.ToString();
@@ -275,7 +275,7 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
                 new { type = "tap", args = new Dictionary<string, object>{{"x", 5}, {"y", 5}}, delayMs = (int?)null, durationMs = (int?)null }
             }
     };
-    var aResp = await client.PostAsJsonAsync(new Uri("/actions", UriKind.Relative), actionReq).ConfigureAwait(true);
+    var aResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq).ConfigureAwait(true);
     aResp.EnsureSuccessStatusCode();
     var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var actionId = act!["id"]!.ToString();
@@ -298,7 +298,7 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
     var cmd = await cResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var commandId = cmd!["id"]!.ToString();
 
-    var sResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
+    var sResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
     sResp.EnsureSuccessStatusCode();
     var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var sessionId = s!["id"]!.ToString();

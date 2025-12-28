@@ -45,7 +45,7 @@ public sealed class DetectionCommandIntegrationTests : IDisposable {
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     // Persist reference image used by detection
-    var uploadResp = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "home_button", data = OneByOnePngBase64 });
+    var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "home_button", data = OneByOnePngBase64 });
     uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
     // Create game
@@ -78,7 +78,7 @@ public sealed class DetectionCommandIntegrationTests : IDisposable {
     var commandId = cmd!["id"]!.ToString();
 
     // Create a session (stub screen source)
-    var sResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId });
+    var sResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId });
     sResp.EnsureSuccessStatusCode();
     var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
     var sessionId = s!["id"]!.ToString();

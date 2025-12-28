@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
@@ -14,7 +15,7 @@ public sealed class OpenApiBackwardCompatTests {
   }
 
   [Fact]
-  public async Task LegacyPathsStillPresent() {
+  public async Task SwaggerPublishesCanonicalImageRoutes() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative));
@@ -24,13 +25,26 @@ public sealed class OpenApiBackwardCompatTests {
     var paths = (JsonElement)json!["paths"];
     var text = paths.ToString();
 
-    // Minimal legacy surface: images CRUD, health, OCR coverage
-    text.Should().Contain("\"/images\"");
-    text.Should().Contain("\"/images/{id}\"");
-    text.Should().Contain("\"/health\"");
+    text.Should().Contain("\"/api/images\"");
+    text.Should().Contain("\"/api/images/{id}\"");
     text.Should().Contain("\"/api/ocr/coverage\"");
+    text.Should().Contain("\"/api/images/detect\"");
 
-    // New additive endpoint present too
-    text.Should().Contain("\"/images/detect\"");
+    // Legacy roots should no longer be published
+  }
+
+  [Fact]
+  public async Task LegacyActionsRouteReturnsGuidance() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var resp = await client.GetAsync(new Uri("/actions", UriKind.Relative));
+    resp.StatusCode.Should().Be(HttpStatusCode.Gone);
+
+    var payload = await resp.Content.ReadFromJsonAsync<JsonElement>();
+    payload.TryGetProperty("error", out var error).Should().BeTrue();
+    error.GetProperty("code").GetString().Should().Be("legacy_route");
+    error.GetProperty("hint").GetString().Should().Be("/api/actions");
   }
 }

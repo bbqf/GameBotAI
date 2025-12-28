@@ -44,11 +44,11 @@ public sealed class DetectionStrategyIntegrationTests : IDisposable {
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
         // Persist reference image
-        var uploadResp = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "home_button", data = OneByOnePngBase64 });
+        var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "home_button", data = OneByOnePngBase64 });
         uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
         // Create game
-        var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "DetectStrategyGame", description = "desc" });
+        var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "DetectStrategyGame", description = "desc" });
         gameResp.EnsureSuccessStatusCode();
         var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var gameId = game![(string)"id"]!.ToString();
@@ -59,7 +59,7 @@ public sealed class DetectionStrategyIntegrationTests : IDisposable {
             gameId,
             steps = new[] { new { type = "tap", args = new Dictionary<string, object>{{"x", 1}, {"y", 1}}, delayMs = (int?)null, durationMs = (int?)null } }
         };
-        var aResp = await client.PostAsJsonAsync(new Uri("/actions", UriKind.Relative), actionReq);
+        var aResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq);
         aResp.EnsureSuccessStatusCode();
         var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var actionId = act![(string)"id"]!.ToString();
@@ -71,19 +71,19 @@ public sealed class DetectionStrategyIntegrationTests : IDisposable {
             detection = new { referenceImageId = "home_button", confidence = 0.80, offsetX = 0, offsetY = 0, selectionStrategy = "FirstMatch" },
             steps = new[] { new { type = "Action", targetId = actionId, order = 1 } }
         };
-        var cResp = await client.PostAsJsonAsync(new Uri("/commands", UriKind.Relative), cmdReq);
+        var cResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), cmdReq);
         cResp.EnsureSuccessStatusCode();
         var cmd = await cResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var commandId = cmd![(string)"id"]!.ToString();
 
         // Create session
-        var sResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId });
+        var sResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId });
         sResp.EnsureSuccessStatusCode();
         var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var sessionId = s![(string)"id"]!.ToString();
 
         // Force execute
-        var exec = await client.PostAsync(new Uri($"/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), content: null);
+        var exec = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), content: null);
         exec.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var execRaw = await exec.Content.ReadAsStringAsync();
         using (var doc = System.Text.Json.JsonDocument.Parse(execRaw)) {

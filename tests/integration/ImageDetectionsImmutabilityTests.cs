@@ -30,7 +30,7 @@ public sealed class ImageDetectionsImmutabilityTests {
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     var imgId = "immut";
-    var upload = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = imgId, data = OneByOnePngBase64 });
+    var upload = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = imgId, data = OneByOnePngBase64 });
     upload.StatusCode.Should().Be(HttpStatusCode.Created);
 
     var path = Path.Combine(dataDir, "images", imgId + ".png");
@@ -45,7 +45,7 @@ public sealed class ImageDetectionsImmutabilityTests {
     var before = Hash(path);
 
     // Call detect (should not alter stored file)
-    var detect = await client.PostAsJsonAsync(new Uri("/images/detect", UriKind.Relative), new { referenceImageId = imgId });
+    var detect = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), new { referenceImageId = imgId });
     detect.StatusCode.Should().Be(HttpStatusCode.OK);
 
     var after = Hash(path);

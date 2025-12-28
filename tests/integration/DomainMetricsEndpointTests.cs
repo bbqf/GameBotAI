@@ -20,7 +20,7 @@ public class DomainMetricsEndpointTests {
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     // Initially empty counts
-    var emptyResp = await client.GetAsync(new Uri("/metrics/domain", UriKind.Relative)).ConfigureAwait(true);
+    var emptyResp = await client.GetAsync(new Uri("/api/metrics/domain", UriKind.Relative)).ConfigureAwait(true);
     emptyResp.StatusCode.Should().Be(HttpStatusCode.OK);
     var emptyJson = await emptyResp.Content.ReadFromJsonAsync<Dictionary<string, int>>().ConfigureAwait(true);
     emptyJson.Should().NotBeNull();
@@ -65,7 +65,7 @@ public class DomainMetricsEndpointTests {
     cResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
     // Fetch metrics again
-    var metricsResp = await client.GetAsync(new Uri("/metrics/domain", UriKind.Relative)).ConfigureAwait(true);
+    var metricsResp = await client.GetAsync(new Uri("/api/metrics/domain", UriKind.Relative)).ConfigureAwait(true);
     metricsResp.StatusCode.Should().Be(HttpStatusCode.OK);
     var json = await metricsResp.Content.ReadFromJsonAsync<Dictionary<string, int>>().ConfigureAwait(true);
     json.Should().NotBeNull();
