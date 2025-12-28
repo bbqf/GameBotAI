@@ -69,14 +69,6 @@ internal static class ActionTypesEndpoints {
             Required = true,
             Constraints = new AttributeConstraintsDto { Min = 0, Max = 5000 },
             HelpText = "Y coordinate"
-          },
-          new() {
-            Key = "mode",
-            Label = "Mode",
-            DataType = "enum",
-            Required = true,
-            Constraints = new AttributeConstraintsDto { AllowedValues = new List<string> { "fast", "slow" }, DefaultValue = "fast" },
-            HelpText = "Tap mode"
           }
         }
       },

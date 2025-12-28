@@ -51,6 +51,14 @@ export const apiPost = (path: string, body: unknown) => {
   });
 };
 
+export const apiPatch = (path: string, body: unknown) => {
+  return fetch(buildUrl(path), {
+    method: 'PATCH',
+    headers: buildHeaders(),
+    body: JSON.stringify(body)
+  });
+};
+
 export const apiDelete = (path: string) => {
   return fetch(buildUrl(path), {
     method: 'DELETE',
@@ -95,5 +103,6 @@ const request = async <T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', p
 
 export const getJson = async <T>(path: string) => request<T>('GET', path);
 export const postJson = async <T>(path: string, body: unknown) => request<T>('POST', path, body);
+export const patchJson = async <T>(path: string, body: unknown) => request<T>('PATCH', path, body);
 export const deleteJson = async <T>(path: string) => request<T>('DELETE', path);
 export const putJson = async <T>(path: string, body: unknown) => request<T>('PUT', path, body);

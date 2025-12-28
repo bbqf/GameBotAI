@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { ActionsListPage } from '../ActionsListPage';
 import { useActionTypes } from '../../../services/useActionTypes';
 import { useGames } from '../../../services/useGames';
-import { listActions, duplicateAction, getAction } from '../../../services/actionsApi';
+import { listActions, duplicateAction, getAction, updateAction } from '../../../services/actionsApi';
 
 jest.mock('../../../services/useActionTypes');
 jest.mock('../../../services/useGames');
@@ -16,6 +16,7 @@ const useGamesMock = useGames as unknown as UseGamesMock;
 const listActionsMock = listActions as jest.MockedFunction<typeof listActions>;
 const duplicateActionMock = duplicateAction as jest.MockedFunction<typeof duplicateAction>;
 const getActionMock = getAction as jest.MockedFunction<typeof getAction>;
+const updateActionMock = updateAction as jest.MockedFunction<typeof updateAction>;
 
 describe('ActionsListPage', () => {
   beforeEach(() => {
@@ -43,6 +44,56 @@ describe('ActionsListPage', () => {
     fireEvent.click(duplicateButton);
 
     await waitFor(() => expect(duplicateActionMock).toHaveBeenCalledWith('1'));
+  });
+
+  it('coerces string numeric attributes when saving a tap', async () => {
+    useActionTypesMock.mockReturnValue({
+      loading: false,
+      error: undefined,
+      data: { version: 'v1', items: [{ key: 'tap', displayName: 'Tap', attributeDefinitions: [
+        { key: 'x', label: 'X', dataType: 'number', required: true },
+        { key: 'y', label: 'Y', dataType: 'number', required: true }
+      ] }] }
+    } as any);
+
+    listActionsMock.mockResolvedValue([{ id: '1', name: 'Tap here', gameId: 'g1', type: 'tap', attributes: { x: '10', y: '20' } } as any]);
+    getActionMock.mockResolvedValue({ id: '1', name: 'Tap here', gameId: 'g1', type: 'tap', attributes: { x: '10', y: '20' } } as any);
+    updateActionMock.mockResolvedValue({} as any);
+
+    render(<ActionsListPage />);
+
+    fireEvent.click(await screen.findByText('Tap here'));
+
+    const saveButton = await screen.findByRole('button', { name: 'Save' });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(updateActionMock).toHaveBeenCalledWith('1', {
+        name: 'Tap here',
+        gameId: 'g1',
+        type: 'tap',
+        attributes: { x: 10, y: 20 }
+      });
+    });
+  });
+
+  it('returns to list after saving', async () => {
+    listActionsMock.mockResolvedValue([{ id: '1', name: 'Tap here', gameId: 'g1', type: 'tap', attributes: {} } as any]);
+    getActionMock.mockResolvedValue({ id: '1', name: 'Tap here', gameId: 'g1', type: 'tap', attributes: {} } as any);
+    updateActionMock.mockResolvedValue({} as any);
+
+    render(<ActionsListPage />);
+
+    fireEvent.click(await screen.findByText('Tap here'));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateActionMock).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    });
+
+    expect(await screen.findByText('Action updated successfully.')).toBeInTheDocument();
   });
 
   it('prefills create form when copying', async () => {

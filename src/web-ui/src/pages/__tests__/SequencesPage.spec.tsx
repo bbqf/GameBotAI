@@ -58,12 +58,13 @@ describe('SequencesPage', () => {
 
     await screen.findByText('Edit Sequence');
 
-    const stepsSection = screen.getByText('Steps').closest('section')!;
+    const stepsSection = screen.getByRole('heading', { name: 'Steps', level: 3 }).closest('section')!;
     const deleteButtons = within(stepsSection).getAllByText('Delete');
     fireEvent.click(deleteButtons[0]);
 
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('s1', { name: 'Sequence 1', steps: ['c2'] }));
+    await waitFor(() => expect(screen.queryByText('Edit Sequence')).not.toBeInTheDocument());
   });
 });

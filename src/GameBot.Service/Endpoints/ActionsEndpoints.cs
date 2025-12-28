@@ -9,6 +9,55 @@ namespace GameBot.Service.Endpoints;
 
 internal static class ActionsEndpoints {
   private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
+
+  private static ActionResponse ToResponse(Domain.Actions.Action a) => new() {
+    Id = a.Id,
+    Name = a.Name,
+    GameId = a.GameId,
+    Steps = new Collection<InputActionDto>(a.Steps.Select(s => new InputActionDto {
+      Type = s.Type,
+      Args = s.Args,
+      DelayMs = s.DelayMs,
+      DurationMs = s.DurationMs
+    }).ToList()),
+    Checkpoints = new Collection<string>(a.Checkpoints.ToList())
+  };
+
+  private static void ApplyActionPatch(JsonElement root, Domain.Actions.Action existing) {
+    if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String) {
+      var name = nameProp.GetString()!.Trim();
+      if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
+    }
+
+    if (root.TryGetProperty("gameId", out var gameIdProp) && gameIdProp.ValueKind == JsonValueKind.String) {
+      var gameId = gameIdProp.GetString()!.Trim();
+      if (!string.IsNullOrWhiteSpace(gameId)) existing.GameId = gameId;
+    }
+
+    if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == JsonValueKind.Array) {
+      var parsed = stepsProp.Deserialize<Collection<InputAction>>(WebJsonOptions);
+      if (parsed is not null) {
+        existing.Steps.Clear();
+        foreach (var step in parsed) {
+          if (string.IsNullOrWhiteSpace(step.Type)) continue;
+          existing.Steps.Add(new InputAction {
+            Type = step.Type,
+            Args = step.Args ?? new Dictionary<string, object>(),
+            DelayMs = step.DelayMs,
+            DurationMs = step.DurationMs
+          });
+        }
+      }
+    }
+
+    if (root.TryGetProperty("checkpoints", out var checkpointsProp) && checkpointsProp.ValueKind == JsonValueKind.Array) {
+      var parsed = checkpointsProp.Deserialize<Collection<string>>(WebJsonOptions);
+      if (parsed is not null) {
+        existing.Checkpoints.Clear();
+        foreach (var cp in parsed.Where(c => !string.IsNullOrWhiteSpace(c))) existing.Checkpoints.Add(cp);
+      }
+    }
+  }
   public static IEndpointRouteBuilder MapActionEndpoints(this IEndpointRouteBuilder app) {
     app.MapPost("/api/actions", async (HttpRequest http, IActionRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
@@ -144,34 +193,58 @@ internal static class ActionsEndpoints {
       return Results.Ok(resp);
     }).WithName("ListActionsAlias").WithTags("Actions");
 
+    app.MapPatch("/api/actions/{id}", async (string id, HttpRequest http, IActionRepository repo, CancellationToken ct) => {
+      using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
+      var root = doc.RootElement;
+      var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound();
+
+      ApplyActionPatch(root, existing);
+
+      var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
+      if (updated is null) return Results.NotFound();
+      return Results.Ok(ToResponse(updated));
+    }).WithName("UpdateAction").WithTags("Actions");
+
+    app.MapPatch("/actions/{id}", async (string id, HttpRequest http, IActionRepository repo, CancellationToken ct) => {
+      using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
+      var root = doc.RootElement;
+      var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound();
+
+      ApplyActionPatch(root, existing);
+
+      var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
+      if (updated is null) return Results.NotFound();
+      return Results.Ok(ToResponse(updated));
+    }).WithName("UpdateActionAlias").WithTags("Actions");
+
+    // Back-compat: honor PUT for clients still using it
     app.MapPut("/api/actions/{id}", async (string id, HttpRequest http, IActionRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound();
-      // Authoring shape: allow updating name
-      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String) {
-        var name = nameProp.GetString()!.Trim();
-        if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
-      }
+
+      ApplyActionPatch(root, existing);
+
       var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
       if (updated is null) return Results.NotFound();
-      return Results.Ok(new { id = updated.Id, name = updated.Name });
-    }).WithName("UpdateAction").WithTags("Actions");
+      return Results.Ok(ToResponse(updated));
+    }).WithName("UpdateActionPut").WithTags("Actions");
 
     app.MapPut("/actions/{id}", async (string id, HttpRequest http, IActionRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound();
-      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String) {
-        var name = nameProp.GetString()!.Trim();
-        if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
-      }
+
+      ApplyActionPatch(root, existing);
+
       var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
       if (updated is null) return Results.NotFound();
-      return Results.Ok(new { id = updated.Id, name = updated.Name });
-    }).WithName("UpdateActionAlias").WithTags("Actions");
+      return Results.Ok(ToResponse(updated));
+    }).WithName("UpdateActionPutAlias").WithTags("Actions");
 
     app.MapPost("/api/actions/{id}/duplicate", async (string id, IActionRepository repo, CancellationToken ct) => {
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);

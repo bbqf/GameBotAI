@@ -16,7 +16,7 @@ beforeEach(() => {
 });
 
 describe('GamesPage', () => {
-  it('validates and creates a game with metadata', async () => {
+  it('validates and creates a game', async () => {
     render(<GamesPage />);
 
     await waitFor(() => expect(listGamesMock).toHaveBeenCalled());
@@ -26,23 +26,17 @@ describe('GamesPage', () => {
     expect(await screen.findByText('Name is required')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'My Game' } });
-    fireEvent.click(screen.getByText('Add metadata'));
-    const keyInput = screen.getAllByLabelText('Key')[0];
-    const valueInput = screen.getAllByLabelText('Value')[0];
-    fireEvent.change(keyInput, { target: { value: 'mode' } });
-    fireEvent.change(valueInput, { target: { value: 'arcade' } });
-
     createGameMock.mockResolvedValue({} as any);
     listGamesMock.mockResolvedValueOnce([] as any); // refresh after create
 
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(createGameMock).toHaveBeenCalledWith({ name: 'My Game', metadata: { mode: 'arcade' } }));
+    await waitFor(() => expect(createGameMock).toHaveBeenCalledWith({ name: 'My Game' }));
   });
 
   it('loads and updates an existing game', async () => {
-    listGamesMock.mockResolvedValue([{ id: 'g1', name: 'Game 1', metadata: { mode: 'arcade' } }] as any);
-    getGameMock.mockResolvedValue({ id: 'g1', name: 'Game 1', metadata: { mode: 'arcade' } } as any);
+    listGamesMock.mockResolvedValue([{ id: 'g1', name: 'Game 1' }] as any);
+    getGameMock.mockResolvedValue({ id: 'g1', name: 'Game 1' } as any);
     updateGameMock.mockResolvedValue({} as any);
 
     render(<GamesPage />);
@@ -52,18 +46,11 @@ describe('GamesPage', () => {
 
     await screen.findByText('Edit Game');
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Game 1 Updated' } });
-    fireEvent.click(screen.getAllByText('Delete')[0]);
-    fireEvent.click(screen.getByText('Add metadata'));
-    const keyInput = screen.getAllByLabelText('Key')[0];
-    const valueInput = screen.getAllByLabelText('Value')[0];
-    fireEvent.change(keyInput, { target: { value: 'difficulty' } });
-    fireEvent.change(valueInput, { target: { value: 'hard' } });
-
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => expect(updateGameMock).toHaveBeenCalledWith('g1', {
-      name: 'Game 1 Updated',
-      metadata: { difficulty: 'hard' },
+      name: 'Game 1 Updated'
     }));
+    await waitFor(() => expect(screen.queryByText('Edit Game')).not.toBeInTheDocument());
   });
 });

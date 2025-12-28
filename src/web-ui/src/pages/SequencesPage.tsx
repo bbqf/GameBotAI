@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { List, ListItem } from '../components/List';
 import { listSequences, SequenceDto, createSequence, SequenceCreate, getSequence, updateSequence, deleteSequence } from '../services/sequences';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
@@ -32,7 +31,7 @@ type SequencesPageProps = {
 };
 
 export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, initialEditId }) => {
-  const [items, setItems] = useState<ListItem[]>([]);
+  const [sequences, setSequences] = useState<SequenceDto[]>([]);
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
@@ -45,6 +44,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [filterName, setFilterName] = useState('');
+  const [tableMessage, setTableMessage] = useState<string | undefined>(undefined);
+  const [tableError, setTableError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -52,18 +54,15 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     Promise.all([listSequences(), listCommands()])
       .then(([seqs, cmds]: [SequenceDto[], CommandDto[]]) => {
         if (!mounted) return;
-        const mapped: ListItem[] = seqs.map((s) => ({
-          id: s.id,
-          name: s.name,
-          details: { steps: s.steps?.length ?? 0 }
-        }));
-        setItems(mapped);
+        setSequences(seqs);
         setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
+        setTableError(undefined);
       })
-      .catch(() => {
+      .catch((err: any) => {
         if (!mounted) return;
-        setItems([]);
+        setSequences([]);
         setCommandOptions([]);
+        setTableError(err?.message ?? 'Failed to load sequences');
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -76,11 +75,36 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
 
   const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
+  const sequenceRows = useMemo(() => sequences.map((s) => ({ id: s.id, name: s.name, stepCount: s.steps?.length ?? 0 })), [sequences]);
+
+  const displayedSequences = useMemo(() => {
+    const query = filterName.trim().toLowerCase();
+    return sequenceRows
+      .filter((s) => !query || s.name.toLowerCase().includes(query))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [sequenceRows, filterName]);
 
   const reloadSequences = async () => {
-    const data = await listSequences();
-    const mapped: ListItem[] = data.map((s) => ({ id: s.id, name: s.name, details: { steps: s.steps?.length ?? 0 } }));
-    setItems(mapped);
+    setLoading(true);
+    try {
+      const data = await listSequences();
+      setSequences(data);
+      setTableError(undefined);
+    } catch (err: any) {
+      setSequences([]);
+      setTableError(err?.message ?? 'Failed to load sequences');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSequenceIntoForm = async (id: string) => {
+    const s = await getSequence(id);
+    setEditingId(id);
+    setCreating(false);
+    setPendingStepId(undefined);
+    setForm({ name: s.name, steps: toStepEntries(s.steps) });
+    setDirty(false);
   };
 
   const resetForm = () => {
@@ -107,14 +131,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   useEffect(() => {
     if (!initialEditId) return;
     const load = async () => {
-      setErrors(undefined);
       try {
-        const s = await getSequence(initialEditId);
-        setEditingId(initialEditId);
-        setCreating(false);
-        setPendingStepId(undefined);
-        setForm({ name: s.name, steps: toStepEntries(s.steps) });
-        setDirty(false);
+        setErrors(undefined);
+        await loadSequenceIntoForm(initialEditId);
       } catch (err: any) {
         setErrors({ form: err?.message ?? 'Failed to load sequence' });
       }
@@ -125,6 +144,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   return (
     <section>
       <h2>Sequences</h2>
+      {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
+      {tableError && <div className="form-error" role="alert">{tableError}</div>}
       <div className="actions-header">
         <button
           onClick={() => {
@@ -138,6 +159,55 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           Create Sequence
         </button>
       </div>
+      <table className="sequences-table" aria-label="Sequences table">
+        <thead>
+          <tr>
+            <th>
+              <div>Name</div>
+              <input
+                aria-label="Filter by name"
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                placeholder="Filter by name"
+                disabled={loading}
+              />
+            </th>
+            <th>
+              <div>Steps</div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && (
+            <tr><td colSpan={2}>Loading...</td></tr>
+          )}
+          {!loading && displayedSequences.length === 0 && (
+            <tr><td colSpan={2}>No sequences found.</td></tr>
+          )}
+          {!loading && displayedSequences.length > 0 && displayedSequences.map((s) => (
+            <tr key={s.id} className="sequences-row">
+              <td>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={async () => {
+                    if (!confirmNavigate()) return;
+                    try {
+                      await loadSequenceIntoForm(s.id);
+                    } catch (err: any) {
+                      setErrors({ form: err?.message ?? 'Failed to load sequence' });
+                    }
+                  }}
+                >
+                  {s.name}
+                </button>
+              </td>
+              <td>{s.stepCount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
       {creating && (
         <form
           className="edit-form"
@@ -155,6 +225,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               setForm(emptyForm);
               setPendingStepId(undefined);
               setDirty(false);
+              setTableMessage('Sequence created successfully.');
               await reloadSequences();
             } catch (err: any) {
               setErrors({ form: err?.message ?? 'Failed to create sequence' });
@@ -222,24 +293,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           <FormError message={errors?.form} />
         </form>
       )}
-      <List
-        items={items}
-        emptyMessage="No sequences found."
-        onSelect={async (id) => {
-          if (!confirmNavigate()) return;
-          setErrors(undefined);
-          try {
-            const s = await getSequence(id);
-            setEditingId(id);
-            setCreating(false);
-            setPendingStepId(undefined);
-            setForm({ name: s.name, steps: toStepEntries(s.steps) });
-            setDirty(false);
-          } catch (err: any) {
-            setErrors({ form: err?.message ?? 'Failed to load sequence' });
-          }
-        }}
-      />
       {editingId && (
         <section>
           <h3>Edit Sequence</h3>
@@ -257,7 +310,10 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               try {
                 await updateSequence(editingId, { name: form.name.trim(), steps: toPayloadSteps(form.steps) });
                 await reloadSequences();
+                setEditingId(undefined);
+                resetForm();
                 setDirty(false);
+                setTableMessage('Sequence updated successfully.');
               } catch (err: any) {
                 setErrors({ form: err?.message ?? 'Failed to update sequence' });
               } finally {
@@ -350,6 +406,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             setDirty(false);
             resetForm();
             await reloadSequences();
+            setTableMessage('Sequence deleted successfully.');
           } catch (err: any) {
             if (err instanceof ApiError && err.status === 409) {
               setDeleteMessage(err.message || 'Cannot delete: sequence is referenced. Unlink or migrate before deleting.');

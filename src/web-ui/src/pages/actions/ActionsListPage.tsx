@@ -5,7 +5,7 @@ import { CreateActionPage } from './CreateActionPage';
 import { useActionTypes } from '../../services/useActionTypes';
 import { useGames } from '../../services/useGames';
 import { deleteAction, duplicateAction, getAction, listActions, updateAction } from '../../services/actionsApi';
-import { validateAttributes } from '../../services/validation';
+import { coerceValue, validateAttributes } from '../../services/validation';
 import { ApiError } from '../../lib/api';
 import { ActionDto, ActionType, ValidationMessage } from '../../types/actions';
 
@@ -86,7 +86,17 @@ export const ActionsListPage: React.FC<ActionsListPageProps> = ({ initialMode = 
     setEditMessage(undefined);
     try {
       const a = await getAction(id);
-      setEditForm({ name: a.name, gameId: a.gameId ?? '', type: a.type, attributes: a.attributes ?? {} });
+      const normalizedAttrs: Record<string, unknown> = (() => {
+        const t = actionTypes.find((type) => type.key === a.type);
+        if (!t) return a.attributes ?? {};
+        const next: Record<string, unknown> = {};
+        for (const def of t.attributeDefinitions) {
+          const { value } = coerceValue(def.dataType, a.attributes?.[def.key] as any);
+          if (value !== undefined) next[def.key] = value;
+        }
+        return next;
+      })();
+      setEditForm({ name: a.name, gameId: a.gameId ?? '', type: a.type, attributes: normalizedAttrs });
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load action');
       setMode('list');
@@ -117,7 +127,10 @@ export const ActionsListPage: React.FC<ActionsListPageProps> = ({ initialMode = 
     try {
       await updateAction(editId, { name: editForm.name.trim(), gameId: editForm.gameId, type: editForm.type, attributes: editForm.attributes });
       setEditErrors([]);
-      setEditMessage('Action updated successfully.');
+      setEditMessage(undefined);
+      setMessage('Action updated successfully.');
+      setMode('list');
+      setEditId(undefined);
       await loadActions(filterType || undefined, filterGame || undefined);
     } catch (err: any) {
       if (err instanceof ApiError && err.errors?.length) {

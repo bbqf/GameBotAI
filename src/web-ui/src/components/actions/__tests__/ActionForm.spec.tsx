@@ -10,7 +10,6 @@ describe('ActionForm', () => {
       displayName: 'Tap',
       attributeDefinitions: [
         { key: 'x', label: 'X', dataType: 'number', required: true, constraints: { min: 0, max: 100 } },
-        { key: 'mode', label: 'Mode', dataType: 'enum', required: true, constraints: { allowedValues: ['fast', 'slow'] } }
       ]
     }
   ];
@@ -21,7 +20,6 @@ describe('ActionForm', () => {
     const errors: ValidationMessage[] = [
       { field: 'name', message: 'Name is required' },
       { field: 'x', message: 'Must be at least 0' },
-      { field: 'mode', message: 'Value not allowed' }
     ];
 
     render(
@@ -38,10 +36,8 @@ describe('ActionForm', () => {
     expect(screen.getByLabelText('Name *')).toBeInTheDocument();
     expect(screen.getByText('Name is required')).toBeInTheDocument();
     expect(screen.getByText('Must be at least 0')).toBeInTheDocument();
-    expect(screen.getByText('Value not allowed')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Action Type *' })).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: 'X *' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Mode *' })).toBeInTheDocument();
   });
 
   it('emits changes and submit handler', () => {
@@ -62,7 +58,7 @@ describe('ActionForm', () => {
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'New Action' } });
     expect(handleChange).toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText('Mode *'), { target: { value: 'fast' } });
+    fireEvent.change(screen.getByLabelText('X *'), { target: { value: '5' } });
     expect(handleChange).toHaveBeenCalledTimes(2);
 
     fireEvent.submit(screen.getByRole('form'));
