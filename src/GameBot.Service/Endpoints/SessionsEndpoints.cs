@@ -27,14 +27,14 @@ internal static class SessionsEndpoints {
       catch (KeyNotFoundException ex) {
         return Results.NotFound(new { error = new { code = "adb_device_not_found", message = ex.Message, hint = "Check /adb/devices for available serials." } });
       }
-    }).WithName("CreateSession");
+    }).WithName("CreateSession").WithTags("Sessions");
 
     app.MapGet("/api/sessions/{id}", (string id, ISessionManager mgr) => {
       var s = mgr.GetSession(id);
       return s is null
           ? Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } })
           : Results.Ok(new { id = s.Id, status = s.Status.ToString().ToUpperInvariant(), uptime = (long)s.Uptime.TotalSeconds, health = s.Health.ToString().ToUpperInvariant(), gameId = s.GameId });
-    }).WithName("GetSession");
+    }).WithName("GetSession").WithTags("Sessions");
 
     // Surface chosen device for this session (if ADB mode bound one)
     app.MapGet("/api/sessions/{id}/device", (string id, ISessionManager mgr) => {
@@ -46,7 +46,7 @@ internal static class SessionsEndpoints {
             deviceSerial = s.DeviceSerial,
             mode = string.IsNullOrWhiteSpace(s.DeviceSerial) ? "STUB" : "ADB"
           });
-    }).WithName("GetSessionDevice");
+    }).WithName("GetSessionDevice").WithTags("Sessions");
 
     app.MapPost("/api/sessions/{id}/inputs", async (string id, InputActionsRequest req, ISessionManager mgr, CancellationToken ct) => {
       if (req.Actions is null || req.Actions.Count == 0)
@@ -55,7 +55,7 @@ internal static class SessionsEndpoints {
       var accepted = await mgr.SendInputsAsync(id, req.Actions.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)), ct).ConfigureAwait(false);
       if (accepted == 0) return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
       return Results.Accepted($"/api/sessions/{id}", new { accepted });
-    }).WithName("SendInputs");
+    }).WithName("SendInputs").WithTags("Sessions");
 
     // Session health endpoint (checks ADB connectivity if applicable)
     app.MapGet("/api/sessions/{id}/health", async (string id, ISessionManager mgr, ILogger<AdbClient> adbLogger, CancellationToken ct) => {
@@ -76,7 +76,7 @@ internal static class SessionsEndpoints {
       }
 
       return Results.Ok(new { id = s.Id, mode = "STUB", deviceSerial = (string?)null, adb = new { ok = true } });
-    }).WithName("GetSessionHealth");
+    }).WithName("GetSessionHealth").WithTags("Sessions");
 
     app.MapGet("/api/sessions/{id}/snapshot", async (string id, ISessionManager mgr, CancellationToken ct) => {
       try {
@@ -86,7 +86,7 @@ internal static class SessionsEndpoints {
       catch (KeyNotFoundException) {
         return Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
       }
-    }).WithName("GetSnapshot");
+    }).WithName("GetSnapshot").WithTags("Sessions");
 
     // Execute an Action against a session
     app.MapPost("/api/sessions/{id}/execute-action", async (string id, string actionId, IActionRepository actions, ISessionManager mgr, CancellationToken ct) => {
@@ -108,13 +108,13 @@ internal static class SessionsEndpoints {
       var inputs = action.Steps.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs));
       var accepted = await mgr.SendInputsAsync(id, inputs, ct).ConfigureAwait(false);
       return Results.Accepted($"/api/sessions/{id}", new { accepted });
-    }).WithName("ExecuteAction");
+    }).WithName("ExecuteAction").WithTags("Sessions");
 
     app.MapDelete("/api/sessions/{id}", (string id, ISessionManager mgr) => {
       var stopped = mgr.StopSession(id);
       return stopped ? Results.Accepted($"/api/sessions/{id}", new { status = "stopping" })
                      : Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
-    }).WithName("StopSession");
+    }).WithName("StopSession").WithTags("Sessions");
 
     return app;
   }

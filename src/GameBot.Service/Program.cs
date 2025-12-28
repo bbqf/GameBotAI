@@ -19,8 +19,8 @@ using System.Runtime.InteropServices;
 using GameBot.Service.Services.Detections;
 using GameBot.Domain.Vision;
 using Microsoft.AspNetCore.Http;
-
-const string ApiBase = "/api";
+using GameBot.Service.Swagger;
+using GameBot.Service;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,8 +55,7 @@ builder.Logging.AddSimpleConsole(o => {
 builder.Logging.AddRuntimeLoggingGate(loggingGate);
 
 builder.Services.AddEndpointsApiExplorer();
-// Explicitly register v1 document so tests can fetch /swagger/v1/swagger.json across environments (CI may not be Development)
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerDocs();
 // CORS for local web UI development (default: allow http://localhost:5173)
 var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
                   ?? Environment.GetEnvironmentVariable("GAMEBOT_CORS_ORIGINS")
@@ -213,8 +212,7 @@ var app = builder.Build();
 }
 
 // Enable Swagger in all environments for contract tests & debugging (locked down by token auth for non-health if configured)
-app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerDocs();
 
 // Global error handling
 app.UseMiddleware<ErrorHandlingMiddleware>();
@@ -313,14 +311,14 @@ app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo)
   seqDomain.UpdatedAt = seqDomain.CreatedAt;
   var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
   return Results.Created($"/api/sequences/{createdDomain.Id}", createdDomain);
-}).WithName("CreateSequence");
+}).WithName("CreateSequence").WithTags("Sequences");
 
 app.MapGet("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
 {
   var found = await repo.GetAsync(id).ConfigureAwait(false);
   if (found is null) return Results.NotFound();
   return Results.Ok(new { id = found.Id, name = found.Name, steps = found.Steps.Select(s => s.CommandId).ToArray() });
-}).WithName("GetSequence");
+}).WithName("GetSequence").WithTags("Sequences");
 
 app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository repo, string id) =>
 {
@@ -349,14 +347,14 @@ app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository r
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
   return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
-}).WithName("UpdateSequence");
+}).WithName("UpdateSequence").WithTags("Sequences");
 
 app.MapGet("/api/sequences", async (ISequenceRepository repo) =>
 {
   var list = await repo.ListAsync().ConfigureAwait(false);
   var resp = list.Select(s => new { id = s.Id, name = s.Name, steps = s.Steps.Select(x => x.CommandId).ToArray() });
   return Results.Ok(resp);
-}).WithName("ListSequences");
+}).WithName("ListSequences").WithTags("Sequences");
 
 app.MapDelete("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
 {
@@ -364,7 +362,7 @@ app.MapDelete("/api/sequences/{id}", async (ISequenceRepository repo, string id)
   if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
   var ok = await repo.DeleteAsync(id).ConfigureAwait(false);
   return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
-}).WithName("DeleteSequence");
+}).WithName("DeleteSequence").WithTags("Sequences");
 
 app.MapPost("/api/sequences/{id}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
@@ -437,20 +435,20 @@ app.MapPost("/api/sequences/{id}/execute", async (
     ct: ct
   ).ConfigureAwait(false);
   return Results.Ok(res);
-}).WithName("ExecuteSequence");
+}).WithName("ExecuteSequence").WithTags("Sequences");
 
 // Legacy guard rails: respond with guidance instead of serving old roots
-MapLegacyGuard("/actions", $"{ApiBase}/actions");
-MapLegacyGuard("/commands", $"{ApiBase}/commands");
-MapLegacyGuard("/triggers", $"{ApiBase}/triggers");
-MapLegacyGuard("/games", $"{ApiBase}/games");
-MapLegacyGuard("/sessions", $"{ApiBase}/sessions");
-MapLegacyGuard("/images", $"{ApiBase}/images");
-MapLegacyGuard("/images/detect", $"{ApiBase}/images/detect");
-MapLegacyGuard("/metrics", $"{ApiBase}/metrics");
-MapLegacyGuard("/config", $"{ApiBase}/config");
-MapLegacyGuard("/config/logging", $"{ApiBase}/config/logging");
-MapLegacyGuard("/adb", $"{ApiBase}/adb");
+MapLegacyGuard("/actions", ApiRoutes.Actions);
+MapLegacyGuard("/commands", ApiRoutes.Commands);
+MapLegacyGuard("/triggers", ApiRoutes.Triggers);
+MapLegacyGuard("/games", ApiRoutes.Base + "/games");
+MapLegacyGuard("/sessions", ApiRoutes.Sessions);
+MapLegacyGuard("/images", ApiRoutes.Images);
+MapLegacyGuard("/images/detect", ApiRoutes.ImageDetect);
+MapLegacyGuard("/metrics", ApiRoutes.Metrics);
+MapLegacyGuard("/config", ApiRoutes.Config);
+MapLegacyGuard("/config/logging", ApiRoutes.ConfigLogging);
+MapLegacyGuard("/adb", ApiRoutes.Adb);
 
 app.Run();
 

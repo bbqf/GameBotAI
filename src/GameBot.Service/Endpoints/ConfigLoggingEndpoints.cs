@@ -12,7 +12,7 @@ internal static class ConfigLoggingEndpoints
 {
     public static IEndpointRouteBuilder MapConfigLoggingEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/config/logging");
+        var group = app.MapGroup("/api/config/logging").WithTags("Configuration");
 
         group.MapGet("", async (IRuntimeLoggingPolicyService svc, HttpContext ctx) =>
         {

@@ -19,7 +19,7 @@ internal static class AdbEndpoints {
       return code == 0
           ? Results.Ok(new { version = stdout })
           : Results.Problem(title: "adb_error", detail: string.IsNullOrWhiteSpace(stderr) ? stdout : stderr, statusCode: StatusCodes.Status503ServiceUnavailable);
-    }).WithName("AdbVersion");
+    }).WithName("AdbVersion").WithTags("Diagnostics");
 
     app.MapGet("/api/adb/devices", async (ILogger<AdbClient> logger) => {
       if (!OperatingSystem.IsWindows()) {
@@ -40,7 +40,7 @@ internal static class AdbEndpoints {
       var devices = ParseDevices(stdout);
       // Return devices as a top-level array (tests expect an array, not an object wrapper)
       return Results.Ok(devices);
-    }).WithName("AdbDevices");
+    }).WithName("AdbDevices").WithTags("Diagnostics");
 
     return app;
   }

@@ -32,7 +32,7 @@ internal static class ImageReferencesEndpoints {
                          .Distinct(StringComparer.OrdinalIgnoreCase)
                          .Select(id => new { id });
       return Results.Ok(ids);
-    }).WithName("ListImageReferences");
+    }).WithName("ListImageReferences").WithTags("Images");
 
     app.MapPost("/api/images", (UploadImageRequest req, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(req);
@@ -71,7 +71,7 @@ internal static class ImageReferencesEndpoints {
         logger.LogUploadFailed(ex, req.Id);
         return Results.BadRequest(new { error = new { code = "invalid_image", message = "Failed to parse image", hint = ex.Message } });
       }
-    }).WithName("UploadImageReference");
+    }).WithName("UploadImageReference").WithTags("Images");
 
     app.MapGet("/api/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
@@ -89,7 +89,7 @@ internal static class ImageReferencesEndpoints {
       }
       logger.LogImageNotFound(id);
       return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
-    }).WithName("GetImageReference");
+    }).WithName("GetImageReference").WithTags("Images");
 
     app.MapDelete("/api/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
@@ -97,7 +97,7 @@ internal static class ImageReferencesEndpoints {
       if (store.Delete(id)) { logger.LogImageDeleted(id); return Results.NoContent(); }
       logger.LogDeleteRequestMissing(id);
       return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
-    }).WithName("DeleteImageReference");
+    }).WithName("DeleteImageReference").WithTags("Images");
 
     return app;
   }

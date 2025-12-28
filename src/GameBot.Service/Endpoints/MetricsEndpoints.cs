@@ -13,7 +13,7 @@ namespace GameBot.Service.Endpoints;
 /// </summary>
 internal static class MetricsEndpoints {
   public static IEndpointRouteBuilder MapMetricsEndpoints(this IEndpointRouteBuilder app) {
-    var group = app.MapGroup("/api/metrics");
+    var group = app.MapGroup("/api/metrics").WithTags("Metrics");
 
     group.MapGet("/triggers", (ITriggerEvaluationMetrics metrics) => {
       // Snapshot current counters; simple anonymous object for JSON

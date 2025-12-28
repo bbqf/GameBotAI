@@ -118,7 +118,7 @@ namespace GameBot.Service.Endpoints
 
                 return Results.Ok(resp);
             })
-            .WithTags("GameBot.Service")
+            .WithTags("Images")
             .WithName("DetectImageMatches");
 
             return endpoints;

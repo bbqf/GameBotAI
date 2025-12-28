@@ -13,7 +13,7 @@
 ## Phase 2: Foundational (Blocking Prerequisites)
 
 - [X] T003 Establish canonical `/api/{resource}` base path constant and route grouping scaffolding in src/GameBot.Service/Program.cs
-- [ ] T004 [P] Align Swagger configuration to consume domain tags and canonical base path in src/GameBot.Service/Swagger/SwaggerConfig.cs
+- [X] T004 [P] Align Swagger configuration to consume domain tags and canonical base path in src/GameBot.Service/Swagger/SwaggerConfig.cs
 - [ ] T005 [P] Update route catalog reference to match planned canonical paths in specs/018-api-refactor/contracts/route-contracts.md
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
@@ -43,11 +43,11 @@
 **Independent Test**: Open Swagger UI and verify endpoints appear under the correct domain tags with request/response schemas and at least one example payload each.
 
 ### Implementation
-- [ ] T011 [P] [US2] Configure Swagger tags/groups for Actions, Sequences, Sessions, Configuration, Triggers in src/GameBot.Service/Swagger/SwaggerConfig.cs
-- [ ] T012 [P] [US2] Add request/response schemas and example payloads for actions endpoints in src/GameBot.Service/Swagger/SwaggerConfig.cs
-- [ ] T013 [P] [US2] Add schemas and example payloads for sequences and sessions endpoints in src/GameBot.Service/Swagger/SwaggerConfig.cs
-- [ ] T014 [US2] Validate Swagger UI grouping and examples; adjust summaries/descriptions as needed in src/GameBot.Service/Swagger/SwaggerConfig.cs
-- [ ] T022 [P] [US2] Add Swagger validation test for domain tags plus request/response schemas and example payloads in tests/contract/SwaggerDocsTests.cs
+- [X] T011 [P] [US2] Configure Swagger tags/groups for Actions, Sequences, Sessions, Configuration, Triggers in src/GameBot.Service/Swagger/SwaggerConfig.cs
+- [X] T012 [P] [US2] Add request/response schemas and example payloads for actions endpoints in src/GameBot.Service/Swagger/SwaggerConfig.cs
+- [X] T013 [P] [US2] Add schemas and example payloads for sequences and sessions endpoints in src/GameBot.Service/Swagger/SwaggerConfig.cs
+- [X] T014 [US2] Validate Swagger UI grouping and examples; adjust summaries/descriptions as needed in src/GameBot.Service/Swagger/SwaggerConfig.cs
+- [X] T022 [P] [US2] Add Swagger validation test for domain tags plus request/response schemas and example payloads in tests/contract/SwaggerDocsTests.cs
 
 **Checkpoint**: User Story 2 documentation ready and discoverable
 
