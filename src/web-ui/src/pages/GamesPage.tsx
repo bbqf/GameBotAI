@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { List, ListItem } from '../components/List';
+import React, { useEffect, useMemo, useState } from 'react';
 import { listGames, GameDto, createGame, getGame, updateGame, deleteGame } from '../services/games';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
@@ -19,7 +18,7 @@ type GamesPageProps = {
 };
 
 export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEditId }) => {
-  const [items, setItems] = useState<ListItem[]>([]);
+  const [games, setGames] = useState<GameDto[]>([]);
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<GameFormValue>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
@@ -30,6 +29,9 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [filterName, setFilterName] = useState('');
+  const [tableMessage, setTableMessage] = useState<string | undefined>(undefined);
+  const [tableError, setTableError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -37,13 +39,10 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
     listGames()
       .then((data: GameDto[]) => {
         if (!mounted) return;
-        const mapped: ListItem[] = data.map((g) => ({
-          id: g.id,
-          name: g.name
-        }));
-        setItems(mapped);
+        setGames(data);
+        setTableError(undefined);
       })
-      .catch(() => setItems([]))
+      .catch((err: any) => { if (!mounted) return; setGames([]); setTableError(err?.message ?? 'Failed to load games'); })
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -77,12 +76,64 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
     setDirty(false);
   };
 
+  const displayedGames = useMemo(() => {
+    const query = filterName.trim().toLowerCase();
+    return games
+      .filter((g) => !query || g.name.toLowerCase().includes(query))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [games, filterName]);
+
   return (
     <section>
       <h2>Games</h2>
+      {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
+      {tableError && <div className="form-error" role="alert">{tableError}</div>}
       <div className="actions-header">
         <button onClick={() => { if (!confirmNavigate()) return; setCreating(true); setEditingId(undefined); setDirty(false); }}>Create Game</button>
       </div>
+      <table className="games-table" aria-label="Games table">
+        <thead>
+          <tr>
+            <th>
+              <div>Name</div>
+              <input
+                aria-label="Filter by name"
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                placeholder="Filter by name"
+              />
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && (
+            <tr><td>Loading...</td></tr>
+          )}
+          {!loading && displayedGames.length === 0 && (
+            <tr><td>No games found.</td></tr>
+          )}
+          {!loading && displayedGames.length > 0 && displayedGames.map((g) => (
+            <tr key={g.id} className="games-row">
+              <td>
+                <button type="button" className="link-button" onClick={async () => {
+                  if (!confirmNavigate()) return;
+                  setErrors(undefined);
+                  try {
+                    const game = await getGame(g.id);
+                    setEditingId(g.id);
+                    setForm({ name: game.name });
+                    setDirty(false);
+                  } catch (err: any) {
+                    setErrors({ form: err?.message ?? 'Failed to load game' });
+                  }
+                }}>
+                  {g.name}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       {creating && (
         <form
           className="edit-form"
@@ -96,13 +147,10 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
             try {
               await createGame({ name: form.name.trim() });
               setCreating(false);
-                resetForm();
+              resetForm();
               const data = await listGames();
-              const mapped: ListItem[] = data.map((g) => ({
-                id: g.id,
-                name: g.name
-              }));
-              setItems(mapped);
+              setGames(data);
+              setTableMessage('Game created successfully.');
             } catch (err: any) {
               setErrors({ form: err?.message ?? 'Failed to create game' });
             } finally {
@@ -131,22 +179,6 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
           <FormError message={errors?.form} />
         </form>
       )}
-      <List
-        items={items}
-        emptyMessage="No games found."
-        onSelect={async (id) => {
-          if (!confirmNavigate()) return;
-          setErrors(undefined);
-          try {
-            const g = await getGame(id);
-            setEditingId(id);
-            setForm({ name: g.name });
-            setDirty(false);
-          } catch (err: any) {
-            setErrors({ form: err?.message ?? 'Failed to load game' });
-          }
-        }}
-      />
       {editingId && (
         <section>
           <h3>Edit Game</h3>
@@ -163,11 +195,8 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
               try {
                 await updateGame(editingId, { name: form.name.trim() });
                 const data = await listGames();
-                const mapped: ListItem[] = data.map((g) => ({
-                  id: g.id,
-                  name: g.name
-                }));
-                setItems(mapped);
+                setGames(data);
+                setTableMessage('Game updated successfully.');
                 setEditingId(undefined);
                 resetForm();
                 setDirty(false);
@@ -223,12 +252,9 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
             setDeleteOpen(false);
             setEditingId(undefined);
             const data = await listGames();
-            const mapped: ListItem[] = data.map((g) => ({
-              id: g.id,
-              name: g.name
-            }));
-            setItems(mapped);
-              resetForm();
+            setGames(data);
+            setTableMessage('Game deleted successfully.');
+            resetForm();
           } catch (err: any) {
             if (err instanceof ApiError && err.status === 409) {
               setDeleteMessage(err.message || 'Cannot delete: game is referenced. Unlink or migrate before deleting.');

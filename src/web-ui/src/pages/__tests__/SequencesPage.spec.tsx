@@ -58,7 +58,7 @@ describe('SequencesPage', () => {
 
     await screen.findByText('Edit Sequence');
 
-    const stepsSection = screen.getByText('Steps').closest('section')!;
+    const stepsSection = screen.getByRole('heading', { name: 'Steps', level: 3 }).closest('section')!;
     const deleteButtons = within(stepsSection).getAllByText('Delete');
     fireEvent.click(deleteButtons[0]);
 

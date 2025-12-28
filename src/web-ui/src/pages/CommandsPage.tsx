@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { List, ListItem } from '../components/List';
-import { listCommands, CommandDto, CommandStepDto, createCommand, getCommand, updateCommand, deleteCommand } from '../services/commands';
+import { CommandForm, CommandFormValue, DetectionTargetForm, StepEntry } from '../components/commands/CommandForm';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
-import { ApiError } from '../lib/api';
-import { listActions, ActionDto } from '../services/actions';
-import { CommandForm, CommandFormValue, StepEntry, DetectionTargetForm } from '../components/commands/CommandForm';
-import { SearchableOption } from '../components/SearchableDropdown';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { navigateToUnified } from '../lib/navigation';
+import { ApiError } from '../lib/api';
+import { SearchableOption } from '../components/SearchableDropdown';
+import { listCommands, getCommand, createCommand, updateCommand, deleteCommand, CommandDto, CommandStepDto } from '../services/commands';
+import { listGames, GameDto } from '../services/games';
+import { listActions as listLegacyActions, ActionDto as LegacyActionDto } from '../services/actions';
+import { listActions as listDomainActions } from '../services/actionsApi';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
@@ -53,8 +54,17 @@ type CommandsPageProps = {
   initialEditId?: string;
 };
 
+type CommandRow = {
+  id: string;
+  name: string;
+  stepCount: number;
+  gameId?: string;
+};
+
 export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initialEditId }) => {
-  const [items, setItems] = useState<ListItem[]>([]);
+  const [commands, setCommands] = useState<CommandDto[]>([]);
+  const [games, setGames] = useState<GameDto[]>([]);
+  const [actionGameMap, setActionGameMap] = useState<Map<string, string>>(new Map());
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<CommandFormValue>(emptyForm);
   const [actionOptions, setActionOptions] = useState<SearchableOption[]>([]);
@@ -67,51 +77,48 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const [submitting, setSubmitting] = useState(false);
   const [loadingCommands, setLoadingCommands] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [filterGame, setFilterGame] = useState('');
+  const [filterName, setFilterName] = useState('');
+  const [tableMessage, setTableMessage] = useState<string | undefined>(undefined);
+  const [tableError, setTableError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
     setLoadingCommands(true);
-    Promise.all([listCommands(), listActions()])
-      .then(([cmds, acts]: [CommandDto[], ActionDto[]]) => {
+    const load = async () => {
+      try {
+        const [cmds, legacyActions, domainActions, gameList] = await Promise.all([
+          listCommands(),
+          listLegacyActions(),
+          listDomainActions(),
+          listGames()
+        ]);
         if (!mounted) return;
-        const mapped: ListItem[] = cmds.map((c) => ({
-          id: c.id,
-          name: c.name,
-          details: { steps: c.steps?.length ?? c.actions?.length ?? 0 }
-        }));
-        setItems(mapped);
-        setActionOptions(acts.map((a) => ({ value: a.id, label: a.name, description: a.description })));
+        setCommands(cmds);
+        setGames(gameList);
+        setActionOptions(legacyActions.map((a: LegacyActionDto) => ({ value: a.id, label: a.name, description: a.description })));
         setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
-      })
-      .catch(() => {
+        setActionGameMap(new Map(domainActions.map((a) => [a.id, a.gameId ?? ''])));
+        setTableError(undefined);
+      } catch (err: any) {
         if (!mounted) return;
-        setItems([]);
+        setCommands([]);
+        setGames([]);
         setActionOptions([]);
         setCommandOptions([]);
-      })
-      .finally(() => {
+        setActionGameMap(new Map());
+        setTableError(err?.message ?? 'Failed to load commands');
+      } finally {
         if (mounted) setLoadingCommands(false);
-      });
-    return () => {
-      mounted = false;
+      }
     };
+    void load();
+    return () => { mounted = false; };
   }, []);
-
-  const filteredCommandOptions = useMemo(() => {
-    if (!editingId) return commandOptions;
-    return commandOptions.filter((c) => c.value !== editingId);
-  }, [commandOptions, editingId]);
-
-  const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
 
   const reloadCommands = async () => {
     const data = await listCommands();
-    const mapped: ListItem[] = data.map((c) => ({
-      id: c.id,
-      name: c.name,
-      details: { steps: c.steps?.length ?? c.actions?.length ?? 0 }
-    }));
-    setItems(mapped);
+    setCommands(data);
     setCommandOptions(data.map((c) => ({ value: c.id, label: c.name })));
   };
 
@@ -124,6 +131,36 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     });
     setDirty(false);
   };
+
+  const filteredCommandOptions = useMemo(() => {
+    if (!editingId) return commandOptions;
+    return commandOptions.filter((c) => c.value !== editingId);
+  }, [commandOptions, editingId]);
+
+  const gameLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    games.forEach((g) => map.set(g.id, g.name));
+    return map;
+  }, [games]);
+
+  const commandRows: CommandRow[] = useMemo(() => {
+    return commands.map((c) => {
+      const stepCount = c.steps?.length ?? c.actions?.length ?? 0;
+      const actionStep = c.steps?.find((s) => s.type === 'Action');
+      const gameId = actionStep ? actionGameMap.get(actionStep.targetId) : undefined;
+      return { id: c.id, name: c.name, stepCount, gameId };
+    });
+  }, [commands, actionGameMap]);
+
+  const displayedCommands = useMemo(() => {
+    const nameQuery = filterName.trim().toLowerCase();
+    return [...commandRows]
+      .filter((c) => !filterGame || c.gameId === filterGame)
+      .filter((c) => !nameQuery || c.name.toLowerCase().includes(nameQuery))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [commandRows, filterGame, filterName]);
+
+  const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
 
   useEffect(() => {
     if (!initialEditId) return;
@@ -148,12 +185,62 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     return Object.keys(next).length ? next : undefined;
   };
 
+  const tableLoading = loadingCommands;
+
   return (
     <section>
       <h2>Commands</h2>
+      {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
+      {tableError && <div className="form-error" role="alert">{tableError}</div>}
       <div className="actions-header">
         <button onClick={() => { if (!confirmNavigate()) return; setCreating(true); setEditingId(undefined); setForm(emptyForm); setErrors(undefined); setDirty(false); }}>Create Command</button>
       </div>
+
+      <table className="commands-table" aria-label="Commands table">
+        <thead>
+          <tr>
+            <th>
+              <div>Game</div>
+              <select value={filterGame} onChange={(e) => setFilterGame(e.target.value)} disabled={tableLoading}>
+                <option value="">All games</option>
+                {games.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </th>
+            <th>
+              <div>Name</div>
+              <input
+                aria-label="Filter by name"
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                placeholder="Filter by name"
+              />
+            </th>
+            <th>
+              <div>Steps</div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {tableLoading && (
+            <tr><td colSpan={3}>Loading...</td></tr>
+          )}
+          {!tableLoading && displayedCommands.length === 0 && (
+            <tr><td colSpan={3}>No commands found.</td></tr>
+          )}
+          {!tableLoading && displayedCommands.length > 0 && displayedCommands.map((c) => (
+            <tr key={c.id} className="commands-row">
+              <td>{gameLookup.get(c.gameId ?? '') ?? (c.gameId || '—')}</td>
+              <td>
+                <button type="button" className="link-button" onClick={() => { if (!confirmNavigate()) return; setEditingId(c.id); setCreating(false); void loadCommandIntoForm(c.id); }}>
+                  {c.name}
+                </button>
+              </td>
+              <td>{c.stepCount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
       {creating && (
         <CommandForm
           value={form}
@@ -186,6 +273,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
               setCreating(false);
               setForm(emptyForm);
               setDirty(false);
+              setTableMessage('Command created successfully.');
               await reloadCommands();
             } catch (err: any) {
               setErrors({ form: err?.message ?? 'Failed to create command' });
@@ -195,21 +283,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           }}
         />
       )}
-      <List
-        items={items}
-        emptyMessage="No commands found."
-        onSelect={async (id) => {
-          if (!confirmNavigate()) return;
-          setErrors(undefined);
-          try {
-            setEditingId(id);
-            setCreating(false);
-            await loadCommandIntoForm(id);
-          } catch (err: any) {
-            setErrors({ form: err?.message ?? 'Failed to load command' });
-          }
-        }}
-      />
+
       {editingId && (
         <section>
           <h3>Edit Command</h3>
@@ -246,6 +320,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
                 setEditingId(undefined);
                 setForm(emptyForm);
                 setDirty(false);
+                setTableMessage('Command updated successfully.');
               } catch (err: any) {
                 setErrors({ form: err?.message ?? 'Failed to update command' });
               } finally {
@@ -258,6 +333,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           </div>
         </section>
       )}
+
       <ConfirmDeleteModal
         open={deleteOpen}
         itemName={form.name}
@@ -274,6 +350,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
             setEditingId(undefined);
             setForm(emptyForm);
             setDirty(false);
+            setTableMessage('Command deleted successfully.');
             await reloadCommands();
           } catch (err: any) {
             if (err instanceof ApiError && err.status === 409) {
