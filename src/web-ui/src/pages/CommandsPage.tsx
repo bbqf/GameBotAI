@@ -7,6 +7,7 @@ import { listActions, ActionDto } from '../services/actions';
 import { CommandForm, CommandFormValue, ParameterEntry, StepEntry, DetectionTargetForm } from '../components/commands/CommandForm';
 import { SearchableOption } from '../components/SearchableDropdown';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
+import { navigateToUnified } from '../lib/navigation';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
@@ -61,9 +62,14 @@ const detectionToDto = (form?: DetectionTargetForm) => {
   return { value: { referenceImageId: form.referenceImageId.trim(), confidence, offsetX, offsetY } } as const;
 };
 
-export const CommandsPage: React.FC = () => {
+type CommandsPageProps = {
+  initialCreate?: boolean;
+  initialEditId?: string;
+};
+
+export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initialEditId }) => {
   const [items, setItems] = useState<ListItem[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<CommandFormValue>(emptyForm);
   const [actionOptions, setActionOptions] = useState<SearchableOption[]>([]);
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
@@ -123,6 +129,28 @@ export const CommandsPage: React.FC = () => {
     setCommandOptions(data.map((c) => ({ value: c.id, label: c.name })));
   };
 
+  useEffect(() => {
+    if (!initialEditId) return;
+    const load = async () => {
+      setErrors(undefined);
+      try {
+        const c = await getCommand(initialEditId);
+        setEditingId(initialEditId);
+        setCreating(false);
+        setForm({
+          name: c.name,
+          parameters: paramsFromDto(c.parameters),
+          steps: stepsFromDto(c),
+          detection: detectionFromDto(c.detectionTarget)
+        });
+        setDirty(false);
+      } catch (err: any) {
+        setErrors({ form: err?.message ?? 'Failed to load command' });
+      }
+    };
+    void load();
+  }, [initialEditId]);
+
   const validate = (v: CommandFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
@@ -145,7 +173,7 @@ export const CommandsPage: React.FC = () => {
           errors={errors}
           submitting={submitting}
           loading={loadingCommands}
-          onCreateNewAction={() => window.open('/actions/new', '_blank')}
+          onCreateNewAction={() => navigateToUnified('Actions', { create: true, newTab: true })}
           onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
           onCancel={() => { if (!confirmNavigate()) return; setCreating(false); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
           onSubmit={async () => {
@@ -211,7 +239,7 @@ export const CommandsPage: React.FC = () => {
             errors={errors}
             submitting={submitting}
             loading={loadingCommands}
-            onCreateNewAction={() => window.open('/actions/new', '_blank')}
+            onCreateNewAction={() => navigateToUnified('Actions', { create: true, newTab: true })}
             onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
             onCancel={() => { if (!confirmNavigate()) return; setEditingId(undefined); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
             onSubmit={async () => {

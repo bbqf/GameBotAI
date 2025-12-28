@@ -11,6 +11,7 @@ import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
 import { ReorderableList, ReorderableListItem } from '../components/ReorderableList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
+import { navigateToUnified } from '../lib/navigation';
 
 type TriggerFormValue = {
   name: string;
@@ -30,9 +31,14 @@ const toListItems = (ids: string[], options: SearchableOption[]): ReorderableLis
   });
 };
 
-export const TriggersPage: React.FC = () => {
+type TriggersPageProps = {
+  initialCreate?: boolean;
+  initialEditId?: string;
+};
+
+export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initialEditId }) => {
   const [items, setItems] = useState<ListItem[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<TriggerFormValue>(emptyForm);
   const [actionOptions, setActionOptions] = useState<SearchableOption[]>([]);
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
@@ -101,6 +107,31 @@ export const TriggersPage: React.FC = () => {
     }));
     setItems(mapped);
   };
+
+  useEffect(() => {
+    if (!initialEditId) return;
+    const load = async () => {
+      setErrors(undefined);
+      try {
+        const t = await getTrigger(initialEditId);
+        setEditingId(initialEditId);
+        setCreating(false);
+        setForm({
+          name: t.name,
+          criteriaText: t.criteria ? JSON.stringify(t.criteria, null, 2) : '',
+          actions: t.actions ?? [],
+          commands: t.commands ?? [],
+          sequence: t.sequence ?? undefined,
+        });
+        setPendingActionId(undefined);
+        setPendingCommandId(undefined);
+        setDirty(false);
+      } catch (err: any) {
+        setErrors({ form: err?.message ?? 'Failed to load trigger' });
+      }
+    };
+    void load();
+  }, [initialEditId]);
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -206,7 +237,7 @@ export const TriggersPage: React.FC = () => {
           onChange={(val) => { setPendingActionId(val); setErrors(undefined); }}
           disabled={submitting || loading}
           placeholder="Select an action"
-          onCreateNew={() => window.open('/actions/new', '_blank')}
+          onCreateNew={() => navigateToUnified('Actions', { create: true, newTab: true })}
           createLabel="Create new action"
         />
         <div className="field">
@@ -214,12 +245,13 @@ export const TriggersPage: React.FC = () => {
             if (!pendingActionId || form.actions.includes(pendingActionId)) return;
             setForm({ ...form, actions: [...form.actions, pendingActionId] });
             setPendingActionId(undefined);
+            setDirty(true);
           }} disabled={submitting || loading || !pendingActionId}>Add to actions</button>
         </div>
         <ReorderableList
           items={actionItems}
-          onChange={(next) => setForm({ ...form, actions: next.map((i) => i.id) })}
-          onDelete={(item) => setForm({ ...form, actions: form.actions.filter((a) => a !== item.id) })}
+          onChange={(next) => { setForm({ ...form, actions: next.map((i) => i.id) }); setDirty(true); }}
+          onDelete={(item) => { setForm({ ...form, actions: form.actions.filter((a) => a !== item.id) }); setDirty(true); }}
           disabled={submitting || loading}
           emptyMessage="No actions selected yet."
         />
@@ -235,7 +267,7 @@ export const TriggersPage: React.FC = () => {
           onChange={(val) => { setPendingCommandId(val); setErrors(undefined); }}
           disabled={submitting || loading}
           placeholder="Select a command"
-          onCreateNew={() => window.open('/commands/new', '_blank')}
+          onCreateNew={() => navigateToUnified('Commands', { create: true, newTab: true })}
           createLabel="Create new command"
         />
         <div className="field">
@@ -243,12 +275,13 @@ export const TriggersPage: React.FC = () => {
             if (!pendingCommandId || form.commands.includes(pendingCommandId)) return;
             setForm({ ...form, commands: [...form.commands, pendingCommandId] });
             setPendingCommandId(undefined);
+            setDirty(true);
           }} disabled={submitting || loading || !pendingCommandId}>Add to commands</button>
         </div>
         <ReorderableList
           items={commandItems}
-          onChange={(next) => setForm({ ...form, commands: next.map((i) => i.id) })}
-          onDelete={(item) => setForm({ ...form, commands: form.commands.filter((c) => c !== item.id) })}
+          onChange={(next) => { setForm({ ...form, commands: next.map((i) => i.id) }); setDirty(true); }}
+          onDelete={(item) => { setForm({ ...form, commands: form.commands.filter((c) => c !== item.id) }); setDirty(true); }}
           disabled={submitting || loading}
           emptyMessage="No commands selected yet."
         />
@@ -261,10 +294,10 @@ export const TriggersPage: React.FC = () => {
           label="Sequence"
           options={sequenceOptions}
           value={form.sequence}
-          onChange={(val) => { setForm({ ...form, sequence: val }); setErrors(undefined); }}
+          onChange={(val) => { setForm({ ...form, sequence: val }); setErrors(undefined); setDirty(true); }}
           disabled={submitting || loading}
           placeholder="Select a sequence (optional)"
-          onCreateNew={() => window.open('/sequences/new', '_blank')}
+          onCreateNew={() => navigateToUnified('Sequences', { create: true, newTab: true })}
           createLabel="Create new sequence"
         />
         <div className="form-hint">Attach a sequence if this trigger should hand off to a predefined step list.</div>
@@ -273,6 +306,7 @@ export const TriggersPage: React.FC = () => {
       <FormActions
         submitting={submitting}
         onCancel={() => {
+          if (!confirmNavigate()) return;
           if (mode === 'create') {
             setCreating(false);
           } else {
@@ -296,6 +330,7 @@ export const TriggersPage: React.FC = () => {
       <div className="actions-header">
         <button
           onClick={() => {
+            if (!confirmNavigate()) return;
             setCreating(true);
             setEditingId(undefined);
             resetForm();
@@ -311,6 +346,7 @@ export const TriggersPage: React.FC = () => {
         items={items}
         emptyMessage="No triggers found."
         onSelect={async (id) => {
+          if (!confirmNavigate()) return;
           setErrors(undefined);
           try {
             const t = await getTrigger(id);
@@ -325,6 +361,7 @@ export const TriggersPage: React.FC = () => {
             });
             setPendingActionId(undefined);
             setPendingCommandId(undefined);
+            setDirty(false);
           } catch (err: any) {
             setErrors({ form: err?.message ?? 'Failed to load trigger' });
           }
