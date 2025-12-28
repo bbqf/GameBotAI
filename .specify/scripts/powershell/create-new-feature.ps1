@@ -210,7 +210,7 @@ if ($hasGit) {
     $Number = Get-NextBranchNumber -ShortName $branchSuffix -SpecsDir $specsDir
 } 
 # Make sure local directories have precedence over git branches (as these might be deleted)
-$highest = 0
+$highest = $Number
 if (Test-Path $specsDir) {
     Get-ChildItem -Path $specsDir -Directory | ForEach-Object {
         if ($_.Name -match '^(\d{3})') {
