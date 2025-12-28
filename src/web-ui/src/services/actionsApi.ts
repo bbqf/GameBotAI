@@ -1,4 +1,4 @@
-import { ApiError, buildApiUrl, buildAuthHeaders, deleteJson, getJson, postJson, putJson } from '../lib/api';
+import { ApiError, buildApiUrl, buildAuthHeaders, deleteJson, getJson, patchJson, postJson } from '../lib/api';
 import {
   ActionCreate,
   ActionDto,
@@ -160,7 +160,7 @@ export const createAction = async (payload: ActionCreate): Promise<ActionDto> =>
 };
 
 export const updateAction = async (id: string, payload: ActionUpdate): Promise<ActionDto> => {
-  const raw = await putJson<DomainAction>(`${actionsBase}/${encodeURIComponent(id)}`, fromUpdate(payload, id));
+  const raw = await patchJson<DomainAction>(`${actionsBase}/${encodeURIComponent(id)}`, fromUpdate(payload, id));
   return toDto(raw);
 };
 

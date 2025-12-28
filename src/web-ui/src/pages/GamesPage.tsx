@@ -1,37 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { List, ListItem } from '../components/List';
-import { listGames, GameDto, createGame, GameCreate, getGame, updateGame, deleteGame } from '../services/games';
+import { listGames, GameDto, createGame, getGame, updateGame, deleteGame } from '../services/games';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { FormError } from '../components/Form';
 import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 
-type MetadataEntry = { id: string; key: string; value: string };
-
 type GameFormValue = {
   name: string;
-  metadata: MetadataEntry[];
 };
 
-const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-
-const emptyForm: GameFormValue = { name: '', metadata: [] };
-
-const metadataFromDto = (meta?: Record<string, unknown>): MetadataEntry[] => {
-  if (!meta) return [];
-  return Object.entries(meta).map(([key, value]) => ({ id: makeId(), key, value: String(value ?? '') }));
-};
-
-const metadataToDto = (entries: MetadataEntry[]): Record<string, unknown> | undefined => {
-  const result: Record<string, unknown> = {};
-  for (const e of entries) {
-    const k = e.key.trim();
-    if (!k) continue;
-    result[k] = e.value;
-  }
-  return Object.keys(result).length ? result : undefined;
-};
+const emptyForm: GameFormValue = { name: '' };
 
 type GamesPageProps = {
   initialCreate?: boolean;
@@ -59,8 +39,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
         if (!mounted) return;
         const mapped: ListItem[] = data.map((g) => ({
           id: g.id,
-          name: g.name,
-          details: g.metadata ? { metaKeys: Object.keys(g.metadata).length } : undefined
+          name: g.name
         }));
         setItems(mapped);
       })
@@ -81,7 +60,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
         const g = await getGame(initialEditId);
         setEditingId(initialEditId);
         setCreating(false);
-        setForm({ name: g.name, metadata: metadataFromDto(g.metadata) });
+        setForm({ name: g.name });
         setDirty(false);
       } catch (err: any) {
         setErrors({ form: err?.message ?? 'Failed to load game' });
@@ -115,14 +94,13 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
             if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
             setSubmitting(true);
             try {
-              await createGame({ name: form.name.trim(), metadata: metadataToDto(form.metadata) });
+              await createGame({ name: form.name.trim() });
               setCreating(false);
                 resetForm();
               const data = await listGames();
               const mapped: ListItem[] = data.map((g) => ({
                 id: g.id,
-                name: g.name,
-                details: g.metadata ? { metaKeys: Object.keys(g.metadata).length } : undefined
+                name: g.name
               }));
               setItems(mapped);
             } catch (err: any) {
@@ -147,47 +125,6 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
             </div>
           </FormSection>
 
-          <FormSection title="Metadata" description="Optional metadata stored with the game profile." id="game-metadata">
-            <button type="button" onClick={() => { setForm({ ...form, metadata: [...form.metadata, { id: makeId(), key: '', value: '' }] }); setDirty(true); }} disabled={submitting}>Add metadata</button>
-            {form.metadata.length === 0 && <div className="empty-state">No metadata yet.</div>}
-            {form.metadata.map((m, idx) => (
-              <div className="field grid-2" key={m.id}>
-                <div>
-                  <label htmlFor={`meta-key-${m.id}`}>Key</label>
-                  <input
-                    id={`meta-key-${m.id}`}
-                    value={m.key}
-                    onChange={(e) => {
-                      const next = [...form.metadata];
-                      next[idx] = { ...next[idx], key: e.target.value };
-                      setForm({ ...form, metadata: next });
-                      setDirty(true);
-                    }}
-                    disabled={submitting}
-                  />
-                </div>
-                <div>
-                  <label htmlFor={`meta-val-${m.id}`}>Value</label>
-                  <input
-                    id={`meta-val-${m.id}`}
-                    value={m.value}
-                    onChange={(e) => {
-                      const next = [...form.metadata];
-                      next[idx] = { ...next[idx], value: e.target.value };
-                      setForm({ ...form, metadata: next });
-                      setDirty(true);
-                    }}
-                    disabled={submitting}
-                  />
-                </div>
-                <div className="field-actions">
-                  <button type="button" onClick={() => { setForm({ ...form, metadata: form.metadata.filter((x) => x.id !== m.id) }); setDirty(true); }} disabled={submitting}>Delete</button>
-                </div>
-              </div>
-            ))}
-            <div className="form-hint">Use key/value pairs for lightweight game metadata (e.g., mode, platform).</div>
-          </FormSection>
-
           <FormActions submitting={submitting} onCancel={() => { if (!confirmNavigate()) return; setCreating(false); resetForm(); }}>
             {loading && <span className="form-hint">Loading…</span>}
           </FormActions>
@@ -203,7 +140,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
           try {
             const g = await getGame(id);
             setEditingId(id);
-            setForm({ name: g.name, metadata: metadataFromDto(g.metadata) });
+            setForm({ name: g.name });
             setDirty(false);
           } catch (err: any) {
             setErrors({ form: err?.message ?? 'Failed to load game' });
@@ -224,14 +161,15 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
               if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
               setSubmitting(true);
               try {
-                await updateGame(editingId, { name: form.name.trim(), metadata: metadataToDto(form.metadata) });
+                await updateGame(editingId, { name: form.name.trim() });
                 const data = await listGames();
                 const mapped: ListItem[] = data.map((g) => ({
                   id: g.id,
-                  name: g.name,
-                  details: g.metadata ? { metaKeys: Object.keys(g.metadata).length } : undefined
+                  name: g.name
                 }));
                 setItems(mapped);
+                setEditingId(undefined);
+                resetForm();
                 setDirty(false);
               } catch (err: any) {
                 setErrors({ form: err?.message ?? 'Failed to update game' });
@@ -253,46 +191,6 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
                 />
                 {errors?.name && <div id="game-edit-name-error" className="field-error" role="alert">{errors.name}</div>}
               </div>
-            </FormSection>
-
-            <FormSection title="Metadata" description="Optional metadata stored with the game profile." id="game-edit-metadata">
-              <button type="button" onClick={() => { setForm({ ...form, metadata: [...form.metadata, { id: makeId(), key: '', value: '' }] }); setDirty(true); }} disabled={submitting}>Add metadata</button>
-              {form.metadata.length === 0 && <div className="empty-state">No metadata yet.</div>}
-              {form.metadata.map((m, idx) => (
-                <div className="field grid-2" key={m.id}>
-                  <div>
-                    <label htmlFor={`edit-meta-key-${m.id}`}>Key</label>
-                    <input
-                      id={`edit-meta-key-${m.id}`}
-                      value={m.key}
-                      onChange={(e) => {
-                        const next = [...form.metadata];
-                        next[idx] = { ...next[idx], key: e.target.value };
-                        setForm({ ...form, metadata: next });
-                        setDirty(true);
-                      }}
-                      disabled={submitting}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor={`edit-meta-val-${m.id}`}>Value</label>
-                    <input
-                      id={`edit-meta-val-${m.id}`}
-                      value={m.value}
-                      onChange={(e) => {
-                        const next = [...form.metadata];
-                        next[idx] = { ...next[idx], value: e.target.value };
-                        setForm({ ...form, metadata: next });
-                        setDirty(true);
-                      }}
-                      disabled={submitting}
-                    />
-                  </div>
-                  <div className="field-actions">
-                    <button type="button" onClick={() => { setForm({ ...form, metadata: form.metadata.filter((x) => x.id !== m.id) }); setDirty(true); }} disabled={submitting}>Delete</button>
-                  </div>
-                </div>
-              ))}
             </FormSection>
 
             <FormActions
@@ -327,8 +225,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
             const data = await listGames();
             const mapped: ListItem[] = data.map((g) => ({
               id: g.id,
-              name: g.name,
-              details: g.metadata ? { metaKeys: Object.keys(g.metadata).length } : undefined
+              name: g.name
             }));
             setItems(mapped);
               resetForm();

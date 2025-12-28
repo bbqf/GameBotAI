@@ -257,6 +257,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               try {
                 await updateSequence(editingId, { name: form.name.trim(), steps: toPayloadSteps(form.steps) });
                 await reloadSequences();
+                setEditingId(undefined);
+                resetForm();
                 setDirty(false);
               } catch (err: any) {
                 setErrors({ form: err?.message ?? 'Failed to update sequence' });

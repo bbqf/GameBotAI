@@ -111,6 +111,68 @@ internal static class GamesEndpoints {
       return Results.Ok(resp);
     }).WithName("ListGamesAlias");
 
+    app.MapPut("/api/games/{id}", async (string id, HttpRequest http, IGameRepository repo, CancellationToken ct) => {
+      var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
+
+      using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
+      var root = doc.RootElement;
+
+      // Update name when provided
+      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String) {
+        var name = nameProp.GetString()!.Trim();
+        if (string.IsNullOrWhiteSpace(name)) {
+          return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
+        }
+        existing.Name = name;
+      }
+
+      // Update description/metadata
+      if (root.TryGetProperty("metadata", out var metaProp)) {
+        existing.Description = metaProp.GetRawText();
+      } else if (root.TryGetProperty("description", out var descProp) && descProp.ValueKind == JsonValueKind.String) {
+        existing.Description = descProp.GetString();
+      }
+
+      var saved = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
+      if (saved is null) return Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
+
+      if (IsJsonObject(saved.Description)) {
+        return Results.Ok(new { id = saved.Id, name = saved.Name, metadata = JsonSerializer.Deserialize<object>(saved.Description!)! });
+      }
+      return Results.Ok(new GameResponse { Id = saved.Id, Name = saved.Name, Description = saved.Description });
+    }).WithName("UpdateGame").WithTags("Games");
+
+    app.MapPut("/games/{id}", async (string id, HttpRequest http, IGameRepository repo, CancellationToken ct) => {
+      var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
+
+      using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
+      var root = doc.RootElement;
+
+      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String) {
+        var name = nameProp.GetString()!.Trim();
+        if (string.IsNullOrWhiteSpace(name)) {
+          return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
+        }
+        existing.Name = name;
+      }
+
+      if (root.TryGetProperty("metadata", out var metaProp)) {
+        existing.Description = metaProp.GetRawText();
+      } else if (root.TryGetProperty("description", out var descProp) && descProp.ValueKind == JsonValueKind.String) {
+        existing.Description = descProp.GetString();
+      }
+
+      var saved = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
+      if (saved is null) return Results.NotFound(new { error = new { code = "not_found", message = "Game not found", hint = (string?)null } });
+
+      if (IsJsonObject(saved.Description)) {
+        return Results.Ok(new { id = saved.Id, name = saved.Name, metadata = JsonSerializer.Deserialize<object>(saved.Description!)! });
+      }
+      return Results.Ok(new GameResponse { Id = saved.Id, Name = saved.Name, Description = saved.Description });
+    }).WithName("UpdateGameAlias").WithTags("Games");
+
     // Authoring delete: allow when game is unreferenced; otherwise return 409 with references.
     app.MapDelete("/api/games/{id}", async (string id, IGameRepository games, GameBot.Domain.Actions.IActionRepository actions, CancellationToken ct) => {
       var existing = await games.GetAsync(id, ct).ConfigureAwait(false);

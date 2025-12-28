@@ -59,6 +59,16 @@ public sealed class FileGameRepository : IGameRepository {
     return list;
   }
 
+  public async Task<GameArtifact?> UpdateAsync(GameArtifact artifact, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(artifact);
+    ArgumentException.ThrowIfNullOrWhiteSpace(artifact.Id);
+    var path = GetPathForId(artifact.Id);
+    if (!File.Exists(path)) return null;
+    using var fs = File.Create(path);
+    await JsonSerializer.SerializeAsync(fs, artifact, JsonOpts, ct).ConfigureAwait(false);
+    return artifact;
+  }
+
   public Task<bool> DeleteAsync(string id, CancellationToken ct = default) {
     var path = GetPathForId(id);
     if (!File.Exists(path)) return Task.FromResult(false);

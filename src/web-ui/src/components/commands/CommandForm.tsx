@@ -3,8 +3,6 @@ import { FormActions, FormSection } from '../unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../SearchableDropdown';
 import { ReorderableList, ReorderableListItem } from '../ReorderableList';
 
-export type ParameterEntry = { id: string; key: string; value: string };
-
 export type StepEntry = { id: string; type: 'Action' | 'Command'; targetId: string };
 
 export type DetectionTargetForm = {
@@ -16,7 +14,6 @@ export type DetectionTargetForm = {
 
 export type CommandFormValue = {
   name: string;
-  parameters: ParameterEntry[];
   steps: StepEntry[];
   detection?: DetectionTargetForm;
 };
@@ -83,22 +80,6 @@ export const CommandForm: React.FC<CommandFormProps> = ({
     onChange({ ...value, steps: ordered });
   };
 
-  const updateParam = (index: number, field: 'key' | 'value', nextValue: string) => {
-    const next = [...value.parameters];
-    next[index] = { ...next[index], [field]: nextValue };
-    onChange({ ...value, parameters: next });
-  };
-
-  const deleteParam = (index: number) => {
-    const next = value.parameters.filter((_, i) => i !== index);
-    onChange({ ...value, parameters: next });
-  };
-
-  const addParam = () => {
-    const next = [...value.parameters, { id: makeId(), key: '', value: '' }];
-    onChange({ ...value, parameters: next });
-  };
-
   return (
     <form
       className="command-form"
@@ -121,37 +102,6 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           />
           {errors?.name && <div id="command-name-error" className="field-error" role="alert">{errors.name}</div>}
         </div>
-      </FormSection>
-
-      <FormSection title="Parameters" description="Key/value parameters for the command." id="command-parameters" actions={
-        <button type="button" onClick={addParam} disabled={submitting}>Add parameter</button>
-      }>
-        {value.parameters.length === 0 && <div className="empty-state">No parameters yet.</div>}
-        {value.parameters.map((p, idx) => (
-          <div className="field grid-2" key={p.id}>
-            <div>
-              <label htmlFor={`param-key-${p.id}`}>Key</label>
-              <input
-                id={`param-key-${p.id}`}
-                value={p.key}
-                onChange={(e) => updateParam(idx, 'key', e.target.value)}
-                disabled={submitting}
-              />
-            </div>
-            <div>
-              <label htmlFor={`param-val-${p.id}`}>Value</label>
-              <input
-                id={`param-val-${p.id}`}
-                value={p.value}
-                onChange={(e) => updateParam(idx, 'value', e.target.value)}
-                disabled={submitting}
-              />
-            </div>
-            <div className="field-actions">
-              <button type="button" onClick={() => deleteParam(idx)} disabled={submitting}>Delete</button>
-            </div>
-          </div>
-        ))}
       </FormSection>
 
       <FormSection title="Actions" description="Choose actions and set their order." id="command-actions">

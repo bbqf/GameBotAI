@@ -4,28 +4,14 @@ import { listCommands, CommandDto, CommandStepDto, createCommand, getCommand, up
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { listActions, ActionDto } from '../services/actions';
-import { CommandForm, CommandFormValue, ParameterEntry, StepEntry, DetectionTargetForm } from '../components/commands/CommandForm';
+import { CommandForm, CommandFormValue, StepEntry, DetectionTargetForm } from '../components/commands/CommandForm';
 import { SearchableOption } from '../components/SearchableDropdown';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { navigateToUnified } from '../lib/navigation';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
-const paramsFromDto = (obj?: Record<string, unknown>): ParameterEntry[] => {
-  if (!obj) return [];
-  return Object.entries(obj).map(([key, val]) => ({ id: makeId(), key, value: String(val ?? '') }));
-};
-
-const paramsToObject = (entries: ParameterEntry[]): Record<string, unknown> | undefined => {
-  const result: Record<string, unknown> = {};
-  for (const p of entries) {
-    if (!p.key.trim()) continue;
-    result[p.key.trim()] = p.value;
-  }
-  return Object.keys(result).length ? result : undefined;
-};
-
-const emptyForm: CommandFormValue = { name: '', parameters: [], steps: [], detection: undefined };
+const emptyForm: CommandFormValue = { name: '', steps: [], detection: undefined };
 
 const stepsFromDto = (dto: CommandDto): StepEntry[] => {
   if (dto.steps && dto.steps.length > 0) {
@@ -129,21 +115,24 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     setCommandOptions(data.map((c) => ({ value: c.id, label: c.name })));
   };
 
+  const loadCommandIntoForm = async (id: string) => {
+    const c = await getCommand(id);
+    setForm({
+      name: c.name,
+      steps: stepsFromDto(c),
+      detection: detectionFromDto(c.detectionTarget)
+    });
+    setDirty(false);
+  };
+
   useEffect(() => {
     if (!initialEditId) return;
     const load = async () => {
       setErrors(undefined);
       try {
-        const c = await getCommand(initialEditId);
         setEditingId(initialEditId);
         setCreating(false);
-        setForm({
-          name: c.name,
-          parameters: paramsFromDto(c.parameters),
-          steps: stepsFromDto(c),
-          detection: detectionFromDto(c.detectionTarget)
-        });
-        setDirty(false);
+        await loadCommandIntoForm(initialEditId);
       } catch (err: any) {
         setErrors({ form: err?.message ?? 'Failed to load command' });
       }
@@ -191,7 +180,6 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
               }
               await createCommand({
                 name: form.name.trim(),
-                parameters: paramsToObject(form.parameters),
                 steps: stepsToDto(form.steps),
                 detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
               });
@@ -214,16 +202,9 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           if (!confirmNavigate()) return;
           setErrors(undefined);
           try {
-            const c = await getCommand(id);
             setEditingId(id);
             setCreating(false);
-            setForm({
-              name: c.name,
-              parameters: paramsFromDto(c.parameters),
-              steps: stepsFromDto(c),
-              detection: detectionFromDto(c.detectionTarget)
-            });
-            setDirty(false);
+            await loadCommandIntoForm(id);
           } catch (err: any) {
             setErrors({ form: err?.message ?? 'Failed to load command' });
           }
@@ -258,11 +239,12 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
                 }
                 await updateCommand(editingId, {
                   name: form.name.trim(),
-                  parameters: paramsToObject(form.parameters),
                   steps: stepsToDto(form.steps),
                   detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
                 });
                 await reloadCommands();
+                setEditingId(undefined);
+                setForm(emptyForm);
                 setDirty(false);
               } catch (err: any) {
                 setErrors({ form: err?.message ?? 'Failed to update command' });

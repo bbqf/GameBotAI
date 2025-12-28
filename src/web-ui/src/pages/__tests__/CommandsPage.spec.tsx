@@ -37,12 +37,12 @@ describe('CommandsPage', () => {
 
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', parameters: undefined, steps: [{ type: 'Action', targetId: 'a1', order: 0 }], detectionTarget: undefined }));
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }], detectionTarget: undefined }));
   });
 
   it('loads and saves an existing command', async () => {
     listCommandsMock.mockResolvedValue([{ id: 'c1', name: 'Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }] } as any]);
-    getCommandMock.mockResolvedValue({ id: 'c1', name: 'Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }], parameters: { mode: 'fast' } } as any);
+    getCommandMock.mockResolvedValue({ id: 'c1', name: 'Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }] } as any);
     updateCommandMock.mockResolvedValue({} as any);
 
     render(<CommandsPage />);
@@ -55,7 +55,6 @@ describe('CommandsPage', () => {
 
     await waitFor(() => expect(updateCommandMock).toHaveBeenCalledWith('c1', {
       name: 'Cmd Updated',
-      parameters: { mode: 'fast' },
       steps: [{ type: 'Action', targetId: 'a1', order: 0 }],
       detectionTarget: undefined,
     }));
@@ -90,7 +89,6 @@ describe('CommandsPage', () => {
 
     await waitFor(() => expect(updateCommandMock).toHaveBeenCalledWith('c1', {
       name: 'Cmd',
-      parameters: undefined,
       steps: [
         { type: 'Action', targetId: 'a2', order: 0 },
         { type: 'Action', targetId: 'a1', order: 1 },

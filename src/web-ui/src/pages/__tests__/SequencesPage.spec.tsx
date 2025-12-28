@@ -65,5 +65,6 @@ describe('SequencesPage', () => {
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('s1', { name: 'Sequence 1', steps: ['c2'] }));
+    await waitFor(() => expect(screen.queryByText('Edit Sequence')).not.toBeInTheDocument());
   });
 });
