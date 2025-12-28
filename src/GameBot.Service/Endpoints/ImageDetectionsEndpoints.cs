@@ -16,7 +16,7 @@ namespace GameBot.Service.Endpoints
     {
         public static IEndpointRouteBuilder MapImageDetectionsEndpoints(this IEndpointRouteBuilder endpoints)
         {
-            endpoints.MapPost("/images/detect", async (DetectRequest req,
+            endpoints.MapPost("/api/images/detect", async (DetectRequest req,
                 IReferenceImageStore store,
                 ITemplateMatcher matcher,
                 IOptions<GameBot.Service.Services.Detections.DetectionOptions> detOpts,

@@ -18,6 +18,9 @@ using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
 using GameBot.Service.Services.Detections;
 using GameBot.Domain.Vision;
+using Microsoft.AspNetCore.Http;
+
+const string ApiBase = "/api";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -436,7 +439,33 @@ app.MapPost("/api/sequences/{id}/execute", async (
   return Results.Ok(res);
 }).WithName("ExecuteSequence");
 
+// Legacy guard rails: respond with guidance instead of serving old roots
+MapLegacyGuard("/actions", $"{ApiBase}/actions");
+MapLegacyGuard("/commands", $"{ApiBase}/commands");
+MapLegacyGuard("/triggers", $"{ApiBase}/triggers");
+MapLegacyGuard("/games", $"{ApiBase}/games");
+MapLegacyGuard("/sessions", $"{ApiBase}/sessions");
+MapLegacyGuard("/images", $"{ApiBase}/images");
+MapLegacyGuard("/images/detect", $"{ApiBase}/images/detect");
+MapLegacyGuard("/metrics", $"{ApiBase}/metrics");
+MapLegacyGuard("/config", $"{ApiBase}/config");
+MapLegacyGuard("/config/logging", $"{ApiBase}/config/logging");
+MapLegacyGuard("/adb", $"{ApiBase}/adb");
+
 app.Run();
+
+void MapLegacyGuard(string legacyRoot, string canonicalRoot)
+{
+  app.MapMethods(legacyRoot, new[] { HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete },
+    (HttpContext ctx) => Results.Json(
+      new { error = new { code = "legacy_route", message = "Use the canonical API base path.", hint = canonicalRoot } },
+      statusCode: StatusCodes.Status410Gone));
+
+  app.MapMethods($"{legacyRoot}/{{*rest}}", new[] { HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete },
+    (HttpContext ctx) => Results.Json(
+      new { error = new { code = "legacy_route", message = "Use the canonical API base path.", hint = canonicalRoot } },
+      statusCode: StatusCodes.Status410Gone));
+}
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq)
 {

@@ -22,7 +22,7 @@ internal static class ImageReferencesEndpoints {
   public static IEndpointRouteBuilder MapImageReferenceEndpoints(this IEndpointRouteBuilder app) {
     ArgumentNullException.ThrowIfNull(app);
 
-    app.MapGet("/images", () => {
+    app.MapGet("/api/images", () => {
       var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
                      ?? Path.Combine(AppContext.BaseDirectory, "data");
       var imagesDir = Path.Combine(dataRoot, "images");
@@ -34,7 +34,7 @@ internal static class ImageReferencesEndpoints {
       return Results.Ok(ids);
     }).WithName("ListImageReferences");
 
-    app.MapPost("/images", (UploadImageRequest req, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
+    app.MapPost("/api/images", (UploadImageRequest req, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(req);
       ArgumentNullException.ThrowIfNull(store);
       if (string.IsNullOrWhiteSpace(req.Id) || string.IsNullOrWhiteSpace(req.Data))
@@ -65,7 +65,7 @@ internal static class ImageReferencesEndpoints {
           cloned.Save(targetFile);
         } catch { /* best-effort; store may already persist */ }
         logger.LogImagePersisted(req.Id, bytes.Length, overwriting);
-        return Results.Created($"/images/{req.Id}", new { id = req.Id, overwrite = overwriting });
+        return Results.Created($"/api/images/{req.Id}", new { id = req.Id, overwrite = overwriting });
       }
       catch (Exception ex) {
         logger.LogUploadFailed(ex, req.Id);
@@ -73,7 +73,7 @@ internal static class ImageReferencesEndpoints {
       }
     }).WithName("UploadImageReference");
 
-    app.MapGet("/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
+    app.MapGet("/api/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
       ArgumentNullException.ThrowIfNull(store);
       if (store.Exists(id)) {
@@ -91,7 +91,7 @@ internal static class ImageReferencesEndpoints {
       return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
     }).WithName("GetImageReference");
 
-    app.MapDelete("/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
+    app.MapDelete("/api/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
       ArgumentNullException.ThrowIfNull(store);
       if (store.Delete(id)) { logger.LogImageDeleted(id); return Results.NoContent(); }
