@@ -11,23 +11,74 @@
 - Configuration (tag: Configuration)
 - Triggers/Detection (tag: Triggers) — include only if routes exist
 
-## Route Catalog (representative)
-- `POST /api/actions` — Create action
-  - Tags: Actions
-  - Request: Action create DTO; Example: minimal tap action payload
-  - Response: Created action DTO; Example included in Swagger
-- `GET /api/actions/{id}` — Get action
-  - Tags: Actions
-  - Response: Action DTO; Example included in Swagger
-- `POST /api/sequences` — Create sequence
-  - Tags: Sequences
-  - Request/Response schemas documented with examples
-- `GET /api/sessions/{id}/snapshot` — Get emulator snapshot
-  - Tags: Sessions
-  - Response: PNG stream; example describes content type and shape
-- `GET /api/config` — Fetch configuration
-  - Tags: Configuration
-  - Response: Config DTO; example includes logging policy reference
+## Route Catalog (canonical)
+- Actions (tag: Actions)
+  - POST `/api/actions` — create action
+  - GET `/api/actions` — list actions
+  - GET `/api/actions/{id}` — fetch action
+  - PATCH `/api/actions/{id}` — partial update
+  - PUT `/api/actions/{id}` — full replace
+  - POST `/api/actions/{id}/duplicate` — duplicate action
+  - DELETE `/api/actions/{id}` — delete action
+- Commands (tag: Commands)
+  - POST `/api/commands`
+  - GET `/api/commands`
+  - GET `/api/commands/{id}`
+  - PATCH `/api/commands/{id}`
+  - DELETE `/api/commands/{id}`
+  - POST `/api/commands/{id}/force-execute`
+  - POST `/api/commands/{id}/evaluate-and-execute`
+- Sequences (tag: Sequences)
+  - POST `/api/sequences`
+  - GET `/api/sequences`
+  - GET `/api/sequences/{id}`
+  - PUT `/api/sequences/{id}`
+  - DELETE `/api/sequences/{id}`
+  - POST `/api/sequences/{id}/execute`
+- Sessions/Emulator (tag: Sessions)
+  - POST `/api/sessions`
+  - GET `/api/sessions/{id}`
+  - GET `/api/sessions/{id}/device`
+  - POST `/api/sessions/{id}/inputs`
+  - POST `/api/sessions/{id}/execute-action`
+  - GET `/api/sessions/{id}/health`
+  - GET `/api/sessions/{id}/snapshot`
+  - DELETE `/api/sessions/{id}`
+- Games (tag: Games)
+  - POST `/api/games`
+  - GET `/api/games`
+  - GET `/api/games/{id}`
+  - PUT `/api/games/{id}`
+  - DELETE `/api/games/{id}`
+- Action Types (tag: Actions)
+  - GET `/api/action-types`
+- Configuration (tag: Configuration)
+  - GET `/api/config`
+  - POST `/api/config/refresh`
+  - GET `/api/config/logging`
+  - PUT `/api/config/logging/components/{componentName}`
+  - POST `/api/config/logging/reset`
+- Triggers/Detection (tag: Triggers)
+  - POST `/api/triggers`
+  - GET `/api/triggers`
+  - GET `/api/triggers/{id}`
+  - PUT `/api/triggers/{id}`
+  - DELETE `/api/triggers/{id}`
+  - POST `/api/triggers/{id}/test`
+  - POST `/api/images/detect` (tag: Images) — detect reference image matches
+- Images (tag: Images)
+  - GET `/api/images`
+  - POST `/api/images`
+  - GET `/api/images/{id}`
+  - DELETE `/api/images/{id}`
+- Metrics (tag: Metrics)
+  - GET `/api/metrics/triggers`
+  - GET `/api/metrics/domain`
+  - GET `/api/metrics/process`
+- Diagnostics
+  - GET `/api/adb/version` (tag: Diagnostics)
+  - GET `/api/adb/devices` (tag: Diagnostics)
+  - GET `/api/ocr/coverage` (tag: Diagnostics)
 
 ## Documentation Requirements
 - Each endpoint entry in Swagger MUST include:

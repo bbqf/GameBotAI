@@ -14,7 +14,7 @@
 
 - [X] T003 Establish canonical `/api/{resource}` base path constant and route grouping scaffolding in src/GameBot.Service/Program.cs
 - [X] T004 [P] Align Swagger configuration to consume domain tags and canonical base path in src/GameBot.Service/Swagger/SwaggerConfig.cs
-- [ ] T005 [P] Update route catalog reference to match planned canonical paths in specs/018-api-refactor/contracts/route-contracts.md
+- [X] T005 [P] Update route catalog reference to match planned canonical paths in specs/018-api-refactor/contracts/route-contracts.md
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -31,7 +31,7 @@
 - [X] T008 [P] [US1] Refactor sessions/emulator and configuration endpoints to `/api/...` in src/GameBot.Service/Program.cs
 - [X] T009 [US1] Add legacy-path guard returning guided non-success for old roots (e.g., `/actions`) in src/GameBot.Service/Program.cs
 - [X] T010 [US1] Deduplicate route metadata/tags to ensure one canonical path per endpoint in src/GameBot.Service/Program.cs
-- [ ] T021 [P] [US1] Add integration/contract check for legacy roots returning non-success and `/api/actions` succeeding in tests/integration/ApiRoutesTests.cs
+- [X] T021 [P] [US1] Add integration/contract check for legacy roots returning non-success and `/api/actions` succeeding in tests/integration/ApiRoutesTests.cs
 
 **Checkpoint**: User Story 1 functional and independently testable via canonical routes only
 
