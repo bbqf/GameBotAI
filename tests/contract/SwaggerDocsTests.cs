@@ -44,24 +44,21 @@ public sealed class SwaggerDocsTests : IDisposable
     var paths = root.GetProperty("paths");
 
     var allTags = CollectTags(paths);
-    var expectedTags = new[] { "Actions", "Sequences", "Sessions", "Configuration", "Triggers", "Images" };
+    var expectedTags = new[] { "Actions", "Commands", "Games", "Sequences", "Sessions", "Configuration", "Triggers", "Images" };
     allTags.Should().Contain(expectedTags);
 
-    AssertRequestExample(paths, "/api/actions", "post");
-    AssertResponseExample(paths, "/api/actions", "get", "200");
-    AssertResponseExample(paths, "/api/actions", "post", "201");
+    foreach (var path in paths.EnumerateObject())
+    {
+      foreach (var method in path.Value.EnumerateObject())
+      {
+        var op = method.Value;
+        var route = path.Name;
+        var verb = method.Name;
 
-    AssertRequestExample(paths, "/api/sessions/{id}/inputs", "post");
-    AssertResponseExample(paths, "/api/sessions/{id}/inputs", "post", "202");
-
-    AssertResponseExample(paths, "/api/config", "get", "200");
-    AssertResponseExample(paths, "/api/config/logging", "get", "200");
-
-    AssertRequestExample(paths, "/api/triggers", "post");
-    AssertResponseExample(paths, "/api/triggers", "get", "200");
-
-    AssertRequestExample(paths, "/api/images/detect", "post");
-    AssertResponseExample(paths, "/api/images/detect", "post", "200");
+        AssertRequestHasExampleAndSchema(op, route, verb);
+        AssertResponsesHaveExamplesAndSchemas(op, route, verb);
+      }
+    }
   }
 
   private static HashSet<string> CollectTags(JsonElement paths)
@@ -86,32 +83,35 @@ public sealed class SwaggerDocsTests : IDisposable
     return tags;
   }
 
-  private static void AssertRequestExample(JsonElement paths, string route, string method)
+  private static void AssertRequestHasExampleAndSchema(JsonElement operation, string route, string method)
   {
-    var op = GetOperation(paths, route, method);
-    op.TryGetProperty("requestBody", out var body).Should().BeTrue($"Request body missing for {method.ToUpperInvariant()} {route}");
+    if (!operation.TryGetProperty("requestBody", out var body))
+    {
+      return; // endpoints without bodies are acceptable
+    }
+
     body.TryGetProperty("content", out var content).Should().BeTrue($"Content missing for {method.ToUpperInvariant()} {route}");
     content.TryGetProperty("application/json", out var jsonContent).Should().BeTrue($"application/json missing for {method.ToUpperInvariant()} {route}");
     jsonContent.TryGetProperty("example", out var example).Should().BeTrue($"Example missing for {method.ToUpperInvariant()} {route}");
     example.ValueKind.Should().NotBe(JsonValueKind.Null);
+    jsonContent.TryGetProperty("schema", out var schema).Should().BeTrue($"Schema missing for {method.ToUpperInvariant()} {route}");
+    schema.ValueKind.Should().NotBe(JsonValueKind.Null);
   }
 
-  private static void AssertResponseExample(JsonElement paths, string route, string method, string status)
+  private static void AssertResponsesHaveExamplesAndSchemas(JsonElement operation, string route, string method)
   {
-    var op = GetOperation(paths, route, method);
-    op.TryGetProperty("responses", out var responses).Should().BeTrue($"Responses missing for {method.ToUpperInvariant()} {route}");
-    responses.TryGetProperty(status, out var resp).Should().BeTrue($"Status {status} missing for {method.ToUpperInvariant()} {route}");
-    if (resp.TryGetProperty("content", out var content) && content.TryGetProperty("application/json", out var jsonContent))
+    operation.TryGetProperty("responses", out var responses).Should().BeTrue($"Responses missing for {method.ToUpperInvariant()} {route}");
+    foreach (var status in responses.EnumerateObject())
     {
-      jsonContent.TryGetProperty("example", out var example).Should().BeTrue($"Example missing for {method.ToUpperInvariant()} {route} {status}");
-      example.ValueKind.Should().NotBe(JsonValueKind.Null);
+      var statusCode = status.Name;
+      var resp = status.Value;
+      if (resp.TryGetProperty("content", out var content) && content.TryGetProperty("application/json", out var jsonContent))
+      {
+        jsonContent.TryGetProperty("example", out var example).Should().BeTrue($"Example missing for {method.ToUpperInvariant()} {route} {statusCode}");
+        example.ValueKind.Should().NotBe(JsonValueKind.Null);
+        jsonContent.TryGetProperty("schema", out var schema).Should().BeTrue($"Schema missing for {method.ToUpperInvariant()} {route} {statusCode}");
+        schema.ValueKind.Should().NotBe(JsonValueKind.Null);
+      }
     }
-  }
-
-  private static JsonElement GetOperation(JsonElement paths, string route, string method)
-  {
-    paths.TryGetProperty(route, out var path).Should().BeTrue($"Path {route} missing from swagger");
-    path.TryGetProperty(method, out var op).Should().BeTrue($"Method {method} missing for {route}");
-    return op;
   }
 }

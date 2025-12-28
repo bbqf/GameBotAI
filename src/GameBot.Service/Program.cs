@@ -313,7 +313,7 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) =>
   seqDomain.UpdatedAt = seqDomain.CreatedAt;
   var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
   return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
-}).WithName("CreateSequence");
+}).Accepts<System.Text.Json.JsonElement>("application/json").WithName("CreateSequence");
 
 sequences.MapGet("{id}", async (ISequenceRepository repo, string id) =>
 {
