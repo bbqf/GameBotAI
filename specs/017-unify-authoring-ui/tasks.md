@@ -38,9 +38,9 @@ Independent Test: Edit three object types; locate equivalent sections without gu
 - [X] T021 [US3] Add UX consistency audit checklist in docs/ui-audit.md covering Action/Command/Trigger/Game profile/Sequence
 
 ## Phase 6 – Polish & Cross-cutting
-- [ ] T022 Add contextual help/tooltips for non-technical users on key fields in src/web-ui
-- [ ] T023 Performance check: verify form edits ≲100 ms, reorder ≲200 ms, initial load <1.5 s (profiling notes) in src/web-ui
-- [ ] T024 Regression pass: manual create/edit of Action/Command/Trigger/Game profile to confirm live saves and arrays persist order
+- [X] T022 Add contextual help/tooltips for non-technical users on key fields in src/web-ui
+- [X] T023 Performance check: verify form edits ≲100 ms, reorder ≲200 ms, initial load <1.5 s (profiling notes) in src/web-ui
+- [X] T024 Regression pass: manual create/edit of Action/Command/Trigger/Game profile to confirm live saves and arrays persist order
 - [ ] T025 Add unsaved-changes warning across unified pages (block navigation with dirty state) in src/web-ui
 - [ ] T026 Audit list/search entry points and route all object links to unified detail pages; remove/redirect legacy layouts in src/web-ui
 - [ ] T027 Validate SC-001: timed usability test for Command creation (<3 minutes, no JSON/ID exposure); record outcome and findings in docs/validation.md

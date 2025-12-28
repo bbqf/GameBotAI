@@ -190,6 +190,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           disabled={submitting || loading}
           emptyMessage="No steps yet. Add actions or commands."
         />
+        <div className="form-hint">Steps run top-to-bottom; reorder to change execution order before saving.</div>
         {errors?.steps && <div className="field-error" role="alert">{errors.steps}</div>}
       </FormSection>
 
@@ -202,6 +203,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
             onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), referenceImageId: e.target.value } })}
             disabled={submitting}
           />
+          <div className="form-hint">Use an existing captured image ID; leave blank to skip detection.</div>
         </div>
         <div className="field grid-3">
           <div>
@@ -216,6 +218,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
               onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), confidence: e.target.value } })}
               disabled={submitting}
             />
+            <div className="form-hint">Lower values accept looser matches; 0.8 is a typical start.</div>
           </div>
           <div>
             <label htmlFor="command-detection-offset-x">Offset X</label>
@@ -226,6 +229,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
               onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), offsetX: e.target.value } })}
               disabled={submitting}
             />
+            <div className="form-hint">Pixels to move right from the detected point (negative to move left).</div>
           </div>
           <div>
             <label htmlFor="command-detection-offset-y">Offset Y</label>
@@ -236,6 +240,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
               onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), offsetY: e.target.value } })}
               disabled={submitting}
             />
+            <div className="form-hint">Pixels to move down from the detected point (negative to move up).</div>
           </div>
         </div>
         {errors?.detection && <div className="field-error" role="alert">{errors.detection}</div>}

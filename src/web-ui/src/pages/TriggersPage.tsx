@@ -10,6 +10,7 @@ import { FormError, tryParseJson } from '../components/Form';
 import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
 import { ReorderableList, ReorderableListItem } from '../components/ReorderableList';
+import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 
 type TriggerFormValue = {
   name: string;
@@ -45,6 +46,7 @@ export const TriggersPage: React.FC = () => {
   const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -85,6 +87,8 @@ export const TriggersPage: React.FC = () => {
     };
   }, []);
 
+  const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
+
   const actionItems = useMemo(() => toListItems(form.actions, actionOptions), [form.actions, actionOptions]);
   const commandItems = useMemo(() => toListItems(form.commands, commandOptions), [form.commands, commandOptions]);
 
@@ -103,6 +107,7 @@ export const TriggersPage: React.FC = () => {
     setPendingActionId(undefined);
     setPendingCommandId(undefined);
     setErrors(undefined);
+    setDirty(false);
   };
 
   const validate = (v: TriggerFormValue): Record<string, string> | undefined => {
@@ -147,6 +152,7 @@ export const TriggersPage: React.FC = () => {
         await updateTrigger(editingId, result.payload);
       }
       await reloadTriggers();
+      setDirty(false);
     } catch (err: any) {
       setErrors({ form: err?.message ?? (mode === 'create' ? 'Failed to create trigger' : 'Failed to update trigger') });
     } finally {
@@ -168,7 +174,7 @@ export const TriggersPage: React.FC = () => {
           <input
             id={`${mode}-trigger-name`}
             value={form.name}
-            onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrors(undefined); }}
+            onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrors(undefined); setDirty(true); }}
             aria-invalid={Boolean(errors?.name)}
             aria-describedby={errors?.name ? `${mode}-trigger-name-error` : undefined}
             disabled={submitting || loading}
@@ -181,12 +187,13 @@ export const TriggersPage: React.FC = () => {
             id={`${mode}-trigger-criteria`}
             rows={6}
             value={form.criteriaText}
-            onChange={(e) => { setForm({ ...form, criteriaText: e.target.value }); setErrors(undefined); }}
+            onChange={(e) => { setForm({ ...form, criteriaText: e.target.value }); setErrors(undefined); setDirty(true); }}
             aria-invalid={Boolean(errors?.criteria)}
             aria-describedby={errors?.criteria ? `${mode}-trigger-criteria-error` : undefined}
             disabled={submitting || loading}
           />
           {errors?.criteria && <div id={`${mode}-trigger-criteria-error`} className="field-error" role="alert">{errors.criteria}</div>}
+          <div className="form-hint">Provide valid JSON for trigger conditions; malformed JSON will block save.</div>
         </div>
       </FormSection>
 
@@ -216,6 +223,7 @@ export const TriggersPage: React.FC = () => {
           disabled={submitting || loading}
           emptyMessage="No actions selected yet."
         />
+        <div className="form-hint">Actions execute in listed order; reorder to change sequence.</div>
       </FormSection>
 
       <FormSection title="Commands" description="Select commands to run and set their order." id={`${mode}-trigger-commands`}>
@@ -244,6 +252,7 @@ export const TriggersPage: React.FC = () => {
           disabled={submitting || loading}
           emptyMessage="No commands selected yet."
         />
+        <div className="form-hint">Commands execute after actions; reorder to control order.</div>
       </FormSection>
 
       <FormSection title="Sequence" description="Optional sequence to execute." id={`${mode}-trigger-sequence`}>
@@ -258,6 +267,7 @@ export const TriggersPage: React.FC = () => {
           onCreateNew={() => window.open('/sequences/new', '_blank')}
           createLabel="Create new sequence"
         />
+        <div className="form-hint">Attach a sequence if this trigger should hand off to a predefined step list.</div>
       </FormSection>
 
       <FormActions

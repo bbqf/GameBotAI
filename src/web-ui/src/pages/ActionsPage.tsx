@@ -4,6 +4,7 @@ import { listActions, ActionDto, createAction, ActionCreate, getAction, updateAc
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { validateRequired, FormError } from '../components/Form';
+import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 
 export const ActionsPage: React.FC = () => {
   const [items, setItems] = useState<ListItem[]>([]);
@@ -14,6 +15,7 @@ export const ActionsPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [dirty, setDirty] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
   const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
@@ -36,11 +38,13 @@ export const ActionsPage: React.FC = () => {
     };
   }, []);
 
+  const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
+
   return (
     <section>
       <h2>Actions</h2>
       <div className="actions-header">
-        <button onClick={() => setCreating(true)}>Create Action</button>
+        <button onClick={() => { if (!confirmNavigate()) return; setCreating(true); setEditingId(undefined); setDirty(false); }}>Create Action</button>
       </div>
       {creating && (
         <form
@@ -58,6 +62,7 @@ export const ActionsPage: React.FC = () => {
               setCreating(false);
               setName('');
               setDescription('');
+              setDirty(false);
               const data = await listActions();
               const mapped: ListItem[] = data.map((a) => ({
                 id: a.id,
@@ -72,16 +77,16 @@ export const ActionsPage: React.FC = () => {
         >
           <div>
             <label>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} />
+            <input value={name} onChange={(e) => { setDirty(true); setName(e.target.value); }} />
           </div>
           <div>
             <label>Description</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} />
+            <input value={description} onChange={(e) => { setDirty(true); setDescription(e.target.value); }} />
           </div>
           <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Create</button>
-            <button type="button" onClick={() => setCreating(false)}>Cancel</button>
+            <button type="button" onClick={() => { if (!confirmNavigate()) return; setCreating(false); setName(''); setDescription(''); setDirty(false); }}>Cancel</button>
           </div>
         </form>
       )}
@@ -89,12 +94,14 @@ export const ActionsPage: React.FC = () => {
         items={items}
         emptyMessage="No actions found."
         onSelect={async (id) => {
+          if (!confirmNavigate()) return;
           setError(undefined);
           try {
             const a = await getAction(id);
             setEditingId(id);
             setEditName(a.name);
             setEditDescription(a.description ?? '');
+            setDirty(false);
           } catch (err: any) {
             setError(err?.message ?? 'Failed to load action');
           }
@@ -114,6 +121,7 @@ export const ActionsPage: React.FC = () => {
             try {
               await updateAction(editingId, input);
               setEditingId(undefined);
+              setDirty(false);
               const data = await listActions();
               const mapped: ListItem[] = data.map((a) => ({
                 id: a.id,
@@ -129,16 +137,16 @@ export const ActionsPage: React.FC = () => {
           <h3>Edit Action</h3>
           <div>
             <label>Name</label>
-            <input value={editName} onChange={(e) => setEditName(e.target.value)} />
+            <input value={editName} onChange={(e) => { setDirty(true); setEditName(e.target.value); }} />
           </div>
           <div>
             <label>Description</label>
-            <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            <input value={editDescription} onChange={(e) => { setDirty(true); setEditDescription(e.target.value); }} />
           </div>
           <FormError message={error} />
           <div className="form-actions">
             <button type="submit">Save</button>
-            <button type="button" onClick={() => setEditingId(undefined)}>Cancel</button>
+            <button type="button" onClick={() => { if (!confirmNavigate()) return; setEditingId(undefined); setDirty(false); }}>Cancel</button>
             <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)}>Delete</button>
           </div>
         </form>
@@ -157,6 +165,7 @@ export const ActionsPage: React.FC = () => {
             setDeleteReferences(undefined);
             setDeleteOpen(false);
             setEditingId(undefined);
+            setDirty(false);
             const data = await listActions();
             const mapped: ListItem[] = data.map((a) => ({
               id: a.id,

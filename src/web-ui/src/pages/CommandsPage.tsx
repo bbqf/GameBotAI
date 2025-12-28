@@ -6,6 +6,7 @@ import { ApiError } from '../lib/api';
 import { listActions, ActionDto } from '../services/actions';
 import { CommandForm, CommandFormValue, ParameterEntry, StepEntry, DetectionTargetForm } from '../components/commands/CommandForm';
 import { SearchableOption } from '../components/SearchableDropdown';
+import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
@@ -73,6 +74,7 @@ export const CommandsPage: React.FC = () => {
   const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [loadingCommands, setLoadingCommands] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -108,6 +110,8 @@ export const CommandsPage: React.FC = () => {
     return commandOptions.filter((c) => c.value !== editingId);
   }, [commandOptions, editingId]);
 
+  const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
+
   const reloadCommands = async () => {
     const data = await listCommands();
     const mapped: ListItem[] = data.map((c) => ({
@@ -131,7 +135,7 @@ export const CommandsPage: React.FC = () => {
     <section>
       <h2>Commands</h2>
       <div className="actions-header">
-        <button onClick={() => { setCreating(true); setEditingId(undefined); setForm(emptyForm); setErrors(undefined); }}>Create Command</button>
+        <button onClick={() => { if (!confirmNavigate()) return; setCreating(true); setEditingId(undefined); setForm(emptyForm); setErrors(undefined); setDirty(false); }}>Create Command</button>
       </div>
       {creating && (
         <CommandForm
@@ -142,8 +146,8 @@ export const CommandsPage: React.FC = () => {
           submitting={submitting}
           loading={loadingCommands}
           onCreateNewAction={() => window.open('/actions/new', '_blank')}
-          onChange={(v) => { setErrors(undefined); setForm(v); }}
-          onCancel={() => { setCreating(false); setForm(emptyForm); setErrors(undefined); }}
+          onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
+          onCancel={() => { if (!confirmNavigate()) return; setCreating(false); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
           onSubmit={async () => {
             const validation = validate(form);
             if (validation) {
@@ -165,6 +169,7 @@ export const CommandsPage: React.FC = () => {
               });
               setCreating(false);
               setForm(emptyForm);
+              setDirty(false);
               await reloadCommands();
             } catch (err: any) {
               setErrors({ form: err?.message ?? 'Failed to create command' });
@@ -178,6 +183,7 @@ export const CommandsPage: React.FC = () => {
         items={items}
         emptyMessage="No commands found."
         onSelect={async (id) => {
+          if (!confirmNavigate()) return;
           setErrors(undefined);
           try {
             const c = await getCommand(id);
@@ -189,6 +195,7 @@ export const CommandsPage: React.FC = () => {
               steps: stepsFromDto(c),
               detection: detectionFromDto(c.detectionTarget)
             });
+            setDirty(false);
           } catch (err: any) {
             setErrors({ form: err?.message ?? 'Failed to load command' });
           }
@@ -205,8 +212,8 @@ export const CommandsPage: React.FC = () => {
             submitting={submitting}
             loading={loadingCommands}
             onCreateNewAction={() => window.open('/actions/new', '_blank')}
-            onChange={(v) => { setErrors(undefined); setForm(v); }}
-            onCancel={() => { setEditingId(undefined); setForm(emptyForm); setErrors(undefined); }}
+            onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
+            onCancel={() => { if (!confirmNavigate()) return; setEditingId(undefined); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
             onSubmit={async () => {
               if (!editingId) return;
               const validation = validate(form);
@@ -228,6 +235,7 @@ export const CommandsPage: React.FC = () => {
                   detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
                 });
                 await reloadCommands();
+                setDirty(false);
               } catch (err: any) {
                 setErrors({ form: err?.message ?? 'Failed to update command' });
               } finally {
@@ -254,6 +262,8 @@ export const CommandsPage: React.FC = () => {
             setDeleteReferences(undefined);
             setDeleteOpen(false);
             setEditingId(undefined);
+            setForm(emptyForm);
+            setDirty(false);
             await reloadCommands();
           } catch (err: any) {
             if (err instanceof ApiError && err.status === 409) {
