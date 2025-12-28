@@ -44,7 +44,7 @@ Independent Test: Edit three object types; locate equivalent sections without gu
 - [X] T025 Add unsaved-changes warning across unified pages (block navigation with dirty state) in src/web-ui
 - [X] T026 Audit list/search entry points and route all object links to unified detail pages; remove/redirect legacy layouts in src/web-ui
 - [X] T027 Validate SC-001: timed usability test for Command creation (<3 minutes, no JSON/ID exposure); record outcome and findings in docs/validation.md
-- [ ] T028 Validate SC-004: cross-page clarity survey after multi-object edit flow (clarity ≥4/5 for 90% of users); capture responses and gaps in docs/validation.md
+- [X] T028 Validate SC-004: cross-page clarity survey after multi-object edit flow (clarity ≥4/5 for 90% of users); capture responses and gaps in docs/validation.md
 
 ## Dependencies / Story Order
 - Complete Phase 1 and Phase 2 before user stories.
