@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { listSequences, SequenceDto, createSequence, SequenceCreate, getSequence, updateSequence, deleteSequence } from '../services/sequences';
+import { listSequences, SequenceDto, createSequence, getSequence, updateSequence, deleteSequence } from '../services/sequences';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { listCommands, CommandDto } from '../services/commands';

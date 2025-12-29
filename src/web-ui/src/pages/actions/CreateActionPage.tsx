@@ -25,9 +25,9 @@ export const CreateActionPage: React.FC<CreateActionPageProps> = ({ initialValue
 
   useEffect(() => {
     setForm(initialValue ?? initialForm);
-  }, [initialValue?.name, initialValue?.type, initialValue?.gameId, JSON.stringify(initialValue?.attributes ?? {})]);
+  }, [initialValue]);
 
-  const actionTypes = data?.items ?? [];
+  const actionTypes = useMemo(() => data?.items ?? [], [data]);
 
   const selectedType = useMemo(() => actionTypes.find((t) => t.key === form.type), [actionTypes, form.type]);
 

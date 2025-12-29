@@ -55,7 +55,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
           </div>
         )}
         <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel} autoFocus>
+          <button className="btn btn-secondary" onClick={onCancel}>
             {cancelText}
           </button>
           <button className="btn btn-danger" onClick={onConfirm}>

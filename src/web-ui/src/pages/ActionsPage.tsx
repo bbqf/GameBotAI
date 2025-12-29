@@ -76,12 +76,12 @@ export const ActionsPage: React.FC = () => {
           }}
         >
           <div>
-            <label>Name</label>
-            <input value={name} onChange={(e) => { setDirty(true); setName(e.target.value); }} />
+            <label htmlFor="create-action-name">Name</label>
+            <input id="create-action-name" value={name} onChange={(e) => { setDirty(true); setName(e.target.value); }} />
           </div>
           <div>
-            <label>Description</label>
-            <input value={description} onChange={(e) => { setDirty(true); setDescription(e.target.value); }} />
+            <label htmlFor="create-action-description">Description</label>
+            <input id="create-action-description" value={description} onChange={(e) => { setDirty(true); setDescription(e.target.value); }} />
           </div>
           <FormError message={error} />
           <div className="form-actions">
@@ -136,12 +136,12 @@ export const ActionsPage: React.FC = () => {
         >
           <h3>Edit Action</h3>
           <div>
-            <label>Name</label>
-            <input value={editName} onChange={(e) => { setDirty(true); setEditName(e.target.value); }} />
+            <label htmlFor="edit-action-name">Name</label>
+            <input id="edit-action-name" value={editName} onChange={(e) => { setDirty(true); setEditName(e.target.value); }} />
           </div>
           <div>
-            <label>Description</label>
-            <input value={editDescription} onChange={(e) => { setDirty(true); setEditDescription(e.target.value); }} />
+            <label htmlFor="edit-action-description">Description</label>
+            <input id="edit-action-description" value={editDescription} onChange={(e) => { setDirty(true); setEditDescription(e.target.value); }} />
           </div>
           <FormError message={error} />
           <div className="form-actions">

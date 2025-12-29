@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import { ActionForm, ActionFormValue } from '../../components/actions/ActionForm';
 import { CreateActionPage } from './CreateActionPage';
@@ -19,8 +19,8 @@ type ActionsListPageProps = {
 export const ActionsListPage: React.FC<ActionsListPageProps> = ({ initialMode = 'list', initialEditId }) => {
   const { data: typeCatalog, loading: typesLoading, error: typesError } = useActionTypes();
   const { data: gamesCatalog, loading: gamesLoading, error: gamesError } = useGames();
-  const actionTypes = typeCatalog?.items ?? [];
-  const games = gamesCatalog ?? [];
+  const actionTypes = useMemo(() => typeCatalog?.items ?? [], [typeCatalog]);
+  const games = useMemo(() => gamesCatalog ?? [], [gamesCatalog]);
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [filterType, setFilterType] = useState('');
@@ -68,17 +68,7 @@ export const ActionsListPage: React.FC<ActionsListPageProps> = ({ initialMode = 
     void loadActions(filterType || undefined, filterGame || undefined);
   }, [filterType, filterGame]);
 
-  useEffect(() => {
-    if (initialEditId) {
-      void selectAction(initialEditId);
-      return;
-    }
-    if (initialMode === 'create') {
-      setMode('create');
-    }
-  }, [initialEditId, initialMode]);
-
-  const selectAction = async (id: string) => {
+  const selectAction = useCallback(async (id: string) => {
     setMode('edit');
     setEditId(id);
     setEditLoading(true);
@@ -104,7 +94,17 @@ export const ActionsListPage: React.FC<ActionsListPageProps> = ({ initialMode = 
     } finally {
       setEditLoading(false);
     }
-  };
+  }, [actionTypes]);
+
+  useEffect(() => {
+    if (initialEditId) {
+      void selectAction(initialEditId);
+      return;
+    }
+    if (initialMode === 'create') {
+      setMode('create');
+    }
+  }, [initialEditId, initialMode, selectAction]);
 
   const runValidation = (): ValidationMessage[] => {
     const messages: ValidationMessage[] = [];

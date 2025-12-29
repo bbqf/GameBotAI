@@ -81,10 +81,10 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T020 [P] Document navigation behavior, collapse breakpoint, and trigger removal (routes deleted, standard not-found only) in specs/019-web-ui-nav/quickstart.md
-- [ ] T021 Run quality gates from src/web-ui: npm run lint; npm test; npm run e2e; record perf note if tab switch p95 exceeds 150ms
+- [X] T020 [P] Document navigation behavior, collapse breakpoint, and trigger removal (routes deleted, standard not-found only) in specs/019-web-ui-nav/quickstart.md
+- [X] T021 Run quality gates from src/web-ui: npm run lint; npm test; npm run e2e; record perf note if tab switch p95 exceeds 150ms
 - [ ] T022 [P] Measure tab switch performance (p95 latency, CLS) via Lighthouse/Profiler on desktop, cold first tab switch after load with cache enabled; record results in specs/019-web-ui-nav/quickstart.md or a perf note
-- [ ] T023 [P] Validate host/token discoverability (SC-002) via quick usability/heuristic check and note findings in specs/019-web-ui-nav/quickstart.md
+- [X] T023 [P] Validate host/token discoverability (SC-002) via quick usability/heuristic check and note findings in specs/019-web-ui-nav/quickstart.md
 
 ---
 

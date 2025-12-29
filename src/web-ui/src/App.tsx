@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TokenGate } from './components/TokenGate';
 import { setRememberToken, setToken, token$ } from './lib/token';
 import { setBaseUrl } from './lib/config';
 import { ErrorBoundary } from './components/ErrorBoundary';
