@@ -27,10 +27,10 @@ public sealed class ImageDetectionsEndpointTests {
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     // Seed template
-    var uploadResp = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "tpl", data = OneByOnePngBase64 });
+    var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "tpl", data = OneByOnePngBase64 });
     uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
-    var detectResp = await client.PostAsJsonAsync(new Uri("/images/detect", UriKind.Relative), new { referenceImageId = "tpl", threshold = 0.5 });
+    var detectResp = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), new { referenceImageId = "tpl", threshold = 0.5 });
     detectResp.StatusCode.Should().Be(HttpStatusCode.OK);
     var raw = await detectResp.Content.ReadAsStringAsync();
     using var doc = System.Text.Json.JsonDocument.Parse(raw);
@@ -81,10 +81,10 @@ public sealed class ImageDetectionsEndpointTests {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    var up = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "tplNorm", data = tplB64 });
+    var up = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "tplNorm", data = tplB64 });
     up.StatusCode.Should().Be(HttpStatusCode.Created);
 
-    var resp = await client.PostAsJsonAsync(new Uri("/images/detect", UriKind.Relative), new { referenceImageId = "tplNorm", threshold = 0.5 });
+    var resp = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), new { referenceImageId = "tplNorm", threshold = 0.5 });
     resp.StatusCode.Should().Be(HttpStatusCode.OK);
     var raw = await resp.Content.ReadAsStringAsync();
     using var doc = System.Text.Json.JsonDocument.Parse(raw);
@@ -105,10 +105,10 @@ public sealed class ImageDetectionsEndpointTests {
     // Need fresh data dir to avoid previous template side-effects
     TestEnvironment.PrepareCleanDataDir();
     // Seed template
-    var uploadResp = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "tpl2", data = OneByOnePngBase64 });
+    var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "tpl2", data = OneByOnePngBase64 });
     uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
-    var detectResp = await client.PostAsJsonAsync(new Uri("/images/detect", UriKind.Relative), new { referenceImageId = "tpl2" });
+    var detectResp = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), new { referenceImageId = "tpl2" });
     detectResp.StatusCode.Should().Be(HttpStatusCode.OK);
     var raw = await detectResp.Content.ReadAsStringAsync();
     using var doc = System.Text.Json.JsonDocument.Parse(raw);

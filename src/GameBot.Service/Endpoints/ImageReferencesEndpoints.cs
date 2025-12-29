@@ -3,6 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Text.Json;
 using GameBot.Domain.Triggers.Evaluators;
+using GameBot.Service;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -19,10 +20,17 @@ internal static class ImageReferencesEndpoints {
     [Required] public required string Data { get; set; }
   }
 
+  private static string SanitizeForLog(string? value)
+  {
+    if (string.IsNullOrEmpty(value)) return string.Empty;
+    return value.Replace("\r", string.Empty, StringComparison.Ordinal)
+                .Replace("\n", string.Empty, StringComparison.Ordinal);
+  }
+
   public static IEndpointRouteBuilder MapImageReferenceEndpoints(this IEndpointRouteBuilder app) {
     ArgumentNullException.ThrowIfNull(app);
 
-    app.MapGet("/images", () => {
+    app.MapGet(ApiRoutes.Images, () => {
       var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
                      ?? Path.Combine(AppContext.BaseDirectory, "data");
       var imagesDir = Path.Combine(dataRoot, "images");
@@ -32,9 +40,9 @@ internal static class ImageReferencesEndpoints {
                          .Distinct(StringComparer.OrdinalIgnoreCase)
                          .Select(id => new { id });
       return Results.Ok(ids);
-    }).WithName("ListImageReferences");
+    }).WithName("ListImageReferences").WithTags("Images");
 
-    app.MapPost("/images", (UploadImageRequest req, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
+    app.MapPost(ApiRoutes.Images, (UploadImageRequest req, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(req);
       ArgumentNullException.ThrowIfNull(store);
       if (string.IsNullOrWhiteSpace(req.Id) || string.IsNullOrWhiteSpace(req.Data))
@@ -64,40 +72,43 @@ internal static class ImageReferencesEndpoints {
           var targetFile = Path.Combine(imagesDir, req.Id + ".png");
           cloned.Save(targetFile);
         } catch { /* best-effort; store may already persist */ }
-        logger.LogImagePersisted(req.Id, bytes.Length, overwriting);
-        return Results.Created($"/images/{req.Id}", new { id = req.Id, overwrite = overwriting });
+        var safeId = SanitizeForLog(req.Id);
+        logger.LogImagePersisted(safeId, bytes.Length, overwriting);
+        return Results.Created($"{ApiRoutes.Images}/{req.Id}", new { id = req.Id, overwrite = overwriting });
       }
       catch (Exception ex) {
-        logger.LogUploadFailed(ex, req.Id);
+        logger.LogUploadFailed(ex, SanitizeForLog(req.Id));
         return Results.BadRequest(new { error = new { code = "invalid_image", message = "Failed to parse image", hint = ex.Message } });
       }
-    }).WithName("UploadImageReference");
+    }).WithName("UploadImageReference").WithTags("Images");
 
-    app.MapGet("/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
+    app.MapGet($"{ApiRoutes.Images}/{{id}}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
       ArgumentNullException.ThrowIfNull(store);
+      var safeId = SanitizeForLog(id);
       if (store.Exists(id)) {
-        logger.LogImageResolvedFromStore(id);
+        logger.LogImageResolvedFromStore(safeId);
         return Results.Ok(new { id });
       }
       var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
                      ?? Path.Combine(AppContext.BaseDirectory, "data");
       var physical = Path.Combine(dataRoot, "images", id + ".png");
       if (File.Exists(physical)) {
-        logger.LogImageResolvedFromDiskFallback(id);
+        logger.LogImageResolvedFromDiskFallback(safeId);
         return Results.Ok(new { id, fallback = true });
       }
-      logger.LogImageNotFound(id);
+      logger.LogImageNotFound(safeId);
       return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
-    }).WithName("GetImageReference");
+    }).WithName("GetImageReference").WithTags("Images");
 
-    app.MapDelete("/images/{id}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
+    app.MapDelete($"{ApiRoutes.Images}/{{id}}", (string id, IReferenceImageStore store, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
       ArgumentNullException.ThrowIfNull(store);
-      if (store.Delete(id)) { logger.LogImageDeleted(id); return Results.NoContent(); }
-      logger.LogDeleteRequestMissing(id);
+      var safeId = SanitizeForLog(id);
+      if (store.Delete(id)) { logger.LogImageDeleted(safeId); return Results.NoContent(); }
+      logger.LogDeleteRequestMissing(safeId);
       return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
-    }).WithName("DeleteImageReference");
+    }).WithName("DeleteImageReference").WithTags("Images");
 
     return app;
   }

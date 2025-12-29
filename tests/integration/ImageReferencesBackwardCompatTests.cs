@@ -23,7 +23,7 @@ public sealed class ImageReferencesBackwardCompatTests {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-    var resp = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "badimg", data = "not-base64" });
+    var resp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "badimg", data = "not-base64" });
     resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
   }
 
@@ -32,7 +32,7 @@ public sealed class ImageReferencesBackwardCompatTests {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-    var resp = await client.GetAsync(new Uri("/images/does-not-exist", UriKind.Relative));
+    var resp = await client.GetAsync(new Uri("/api/images/does-not-exist", UriKind.Relative));
     resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
   }
 
@@ -41,7 +41,7 @@ public sealed class ImageReferencesBackwardCompatTests {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-    var resp = await client.DeleteAsync(new Uri("/images/does-not-exist", UriKind.Relative));
+    var resp = await client.DeleteAsync(new Uri("/api/images/does-not-exist", UriKind.Relative));
     resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
   }
 
@@ -50,9 +50,9 @@ public sealed class ImageReferencesBackwardCompatTests {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-    var first = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "over", data = OneByOnePngBase64 });
+    var first = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "over", data = OneByOnePngBase64 });
     first.StatusCode.Should().Be(HttpStatusCode.Created);
-    var second = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "over", data = OneByOnePngBase64 });
+    var second = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "over", data = OneByOnePngBase64 });
     second.StatusCode.Should().Be(HttpStatusCode.Created);
     var body = await second.Content.ReadFromJsonAsync<Dictionary<string, object>>();
     body!.Should().ContainKey("overwrite");

@@ -18,6 +18,9 @@ using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
 using GameBot.Service.Services.Detections;
 using GameBot.Domain.Vision;
+using Microsoft.AspNetCore.Http;
+using GameBot.Service.Swagger;
+using GameBot.Service;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,8 +55,7 @@ builder.Logging.AddSimpleConsole(o => {
 builder.Logging.AddRuntimeLoggingGate(loggingGate);
 
 builder.Services.AddEndpointsApiExplorer();
-// Explicitly register v1 document so tests can fetch /swagger/v1/swagger.json across environments (CI may not be Development)
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerDocs();
 // CORS for local web UI development (default: allow http://localhost:5173)
 var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
                   ?? Environment.GetEnvironmentVariable("GAMEBOT_CORS_ORIGINS")
@@ -210,8 +212,7 @@ var app = builder.Build();
 }
 
 // Enable Swagger in all environments for contract tests & debugging (locked down by token auth for non-health if configured)
-app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerDocs();
 
 // Global error handling
 app.UseMiddleware<ErrorHandlingMiddleware>();
@@ -241,11 +242,13 @@ if (!string.IsNullOrWhiteSpace(authToken)) {
 
 // Health endpoint (anonymous)
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
-   .WithName("Health");
+  .WithName("Health")
+  .ExcludeFromDescription();
 
 // Placeholder root endpoint (protected if token set)
 app.MapGet("/", () => Results.Ok(new { name = "GameBot Service", status = "ok" }))
-   .WithName("Root");
+  .WithName("Root")
+  .ExcludeFromDescription();
 
 // Sessions endpoints (protected if token set)
 app.MapSessionEndpoints();
@@ -254,13 +257,12 @@ app.MapSessionEndpoints();
 app.MapGameEndpoints();
 app.MapActionTypeEndpoints(storageRoot);
 app.MapActionEndpoints();
-// Actions & Commands endpoints (protected if token set)
+// Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
 // Triggers endpoints (re-added after refactor to support direct CRUD)
 app.MapTriggerEndpoints();
 // ADB diagnostics endpoints (protected if token set)
 app.MapAdbEndpoints();
-// Standalone triggers CRUD
 // Image references endpoints for image-match triggers
 if (OperatingSystem.IsWindows()) {
   app.MapImageReferenceEndpoints();
@@ -275,8 +277,10 @@ app.MapConfigEndpoints();
 app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
 
-// Sequences endpoints (Phase 3 US1 minimal stubs)
-app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo) =>
+// Sequences endpoints
+var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
+
+sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) =>
 {
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
@@ -299,7 +303,7 @@ app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo)
       seq.SetSteps(steps);
     }
     var created = await repo.CreateAsync(seq).ConfigureAwait(false);
-    return Results.Created($"/api/sequences/{created.Id}", new { id = created.Id, name = created.Name, steps = created.Steps.Select(s => s.CommandId).ToArray() });
+    return Results.Created($"{ApiRoutes.Sequences}/{created.Id}", new { id = created.Id, name = created.Name, steps = created.Steps.Select(s => s.CommandId).ToArray() });
   }
   // Fallback to domain shape
   var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
@@ -309,17 +313,17 @@ app.MapPost("/api/sequences", async (HttpRequest http, ISequenceRepository repo)
   seqDomain.CreatedAt = DateTimeOffset.UtcNow;
   seqDomain.UpdatedAt = seqDomain.CreatedAt;
   var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
-  return Results.Created($"/api/sequences/{createdDomain.Id}", createdDomain);
-}).WithName("CreateSequence");
+  return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
+}).Accepts<System.Text.Json.JsonElement>("application/json").WithName("CreateSequence");
 
-app.MapGet("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
+sequences.MapGet("{id}", async (ISequenceRepository repo, string id) =>
 {
   var found = await repo.GetAsync(id).ConfigureAwait(false);
   if (found is null) return Results.NotFound();
   return Results.Ok(new { id = found.Id, name = found.Name, steps = found.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("GetSequence");
 
-app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository repo, string id) =>
+sequences.MapPut("{id}", async (HttpRequest http, ISequenceRepository repo, string id) =>
 {
   var existing = await repo.GetAsync(id).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
@@ -348,14 +352,14 @@ app.MapPut("/api/sequences/{id}", async (HttpRequest http, ISequenceRepository r
   return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("UpdateSequence");
 
-app.MapGet("/api/sequences", async (ISequenceRepository repo) =>
+sequences.MapGet("", async (ISequenceRepository repo) =>
 {
   var list = await repo.ListAsync().ConfigureAwait(false);
   var resp = list.Select(s => new { id = s.Id, name = s.Name, steps = s.Steps.Select(x => x.CommandId).ToArray() });
   return Results.Ok(resp);
 }).WithName("ListSequences");
 
-app.MapDelete("/api/sequences/{id}", async (ISequenceRepository repo, string id) =>
+sequences.MapDelete("{id}", async (ISequenceRepository repo, string id) =>
 {
   var existing = await repo.GetAsync(id).ConfigureAwait(false);
   if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
@@ -363,7 +367,7 @@ app.MapDelete("/api/sequences/{id}", async (ISequenceRepository repo, string id)
   return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
 }).WithName("DeleteSequence");
 
-app.MapPost("/api/sequences/{id}/execute", async (
+sequences.MapPost("{id}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,
   string id,
@@ -434,9 +438,37 @@ app.MapPost("/api/sequences/{id}/execute", async (
     ct: ct
   ).ConfigureAwait(false);
   return Results.Ok(res);
-}).WithName("ExecuteSequence");
+}).WithName("ExecuteSequence").WithTags("Sequences");
+
+// Legacy guard rails: respond with guidance instead of serving old roots
+MapLegacyGuard("/actions", ApiRoutes.Actions);
+MapLegacyGuard("/commands", ApiRoutes.Commands);
+MapLegacyGuard("/triggers", ApiRoutes.Triggers);
+MapLegacyGuard("/games", ApiRoutes.Games);
+MapLegacyGuard("/sessions", ApiRoutes.Sessions);
+MapLegacyGuard("/images", ApiRoutes.Images);
+MapLegacyGuard("/images/detect", ApiRoutes.ImageDetect);
+MapLegacyGuard("/metrics", ApiRoutes.Metrics);
+MapLegacyGuard("/config", ApiRoutes.Config);
+MapLegacyGuard("/config/logging", ApiRoutes.ConfigLogging);
+MapLegacyGuard("/adb", ApiRoutes.Adb);
 
 app.Run();
+
+void MapLegacyGuard(string legacyRoot, string canonicalRoot)
+{
+  app.MapMethods(legacyRoot, new[] { HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete },
+    (HttpContext ctx) => Results.Json(
+      new { error = new { code = "legacy_route", message = "Use the canonical API base path.", hint = canonicalRoot } },
+      statusCode: StatusCodes.Status410Gone))
+    .ExcludeFromDescription();
+
+  app.MapMethods($"{legacyRoot}/{{*rest}}", new[] { HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete },
+    (HttpContext ctx) => Results.Json(
+      new { error = new { code = "legacy_route", message = "Use the canonical API base path.", hint = canonicalRoot } },
+      statusCode: StatusCodes.Status410Gone))
+    .ExcludeFromDescription();
+}
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq)
 {

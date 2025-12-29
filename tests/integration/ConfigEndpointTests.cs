@@ -39,7 +39,7 @@ public sealed class ConfigEndpointTests : IDisposable {
     using var app = new WebApplicationFactory<Program>();
     using var client = CreateAuthedClient(app);
 
-    var resp = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+    var resp = await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
     resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
 
     var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
@@ -53,7 +53,7 @@ public sealed class ConfigEndpointTests : IDisposable {
   public async Task RequiresAuthWhenTokenConfigured() {
     using var app = new WebApplicationFactory<Program>();
     using var client = app.CreateClient();
-    var resp = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+    var resp = await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
     resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
   }
 
@@ -65,7 +65,7 @@ public sealed class ConfigEndpointTests : IDisposable {
       using var app = new WebApplicationFactory<Program>();
       using var client = CreateAuthedClient(app);
 
-      var resp = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+      var resp = await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
       resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
       using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
       var parameters = doc!.RootElement.GetProperty("parameters");
@@ -94,7 +94,7 @@ public sealed class ConfigEndpointTests : IDisposable {
     try {
       using var app = new WebApplicationFactory<Program>();
       using var client = CreateAuthedClient(app);
-      var resp = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+      var resp = await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
       resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
       using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
       var parameters = doc!.RootElement.GetProperty("parameters");
@@ -114,11 +114,11 @@ public sealed class ConfigEndpointTests : IDisposable {
     using var app = new WebApplicationFactory<Program>();
     using var client = CreateAuthedClient(app);
 
-    var resp1 = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+    var resp1 = await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
     resp1.StatusCode.Should().Be(HttpStatusCode.OK, await resp1.Content.ReadAsStringAsync().ConfigureAwait(true));
 
     Environment.SetEnvironmentVariable("GAMEBOT_MY_VALUE", "B");
-    var refresh = await client.PostAsync(new Uri("/config/refresh", UriKind.Relative), content: null).ConfigureAwait(true);
+    var refresh = await client.PostAsync(new Uri("/api/config/refresh", UriKind.Relative), content: null).ConfigureAwait(true);
     refresh.StatusCode.Should().Be(HttpStatusCode.OK, await refresh.Content.ReadAsStringAsync().ConfigureAwait(true));
     using var doc = await refresh.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
     var parameters = doc!.RootElement.GetProperty("parameters");
@@ -138,7 +138,7 @@ public sealed class ConfigEndpointTests : IDisposable {
     using var client = CreateAuthedClient(app);
 
     // Bootstrap initial snapshot and file
-    var first = await client.GetAsync(new Uri("/config/", UriKind.Relative)).ConfigureAwait(true);
+    var first = await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
     first.StatusCode.Should().Be(HttpStatusCode.OK, await first.Content.ReadAsStringAsync().ConfigureAwait(true));
 
     // Modify saved config on disk to a new value
@@ -149,7 +149,7 @@ public sealed class ConfigEndpointTests : IDisposable {
     await File.WriteAllTextAsync(cfgFile, newJson).ConfigureAwait(true);
 
     // Refresh and verify new value is applied from file
-    var refresh = await client.PostAsync(new Uri("/config/refresh", UriKind.Relative), content: null).ConfigureAwait(true);
+    var refresh = await client.PostAsync(new Uri("/api/config/refresh", UriKind.Relative), content: null).ConfigureAwait(true);
     refresh.StatusCode.Should().Be(HttpStatusCode.OK, await refresh.Content.ReadAsStringAsync().ConfigureAwait(true));
     using var doc = await refresh.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
     var parameters = doc!.RootElement.GetProperty("parameters");

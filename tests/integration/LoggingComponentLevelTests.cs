@@ -53,7 +53,7 @@ public sealed class LoggingComponentLevelTests : IDisposable
     gate.ShouldLog(provider: null, category: "GameBot.Service", LogLevel.Debug).Should().BeFalse("default policy keeps GameBot.Service at Warning");
 
     var resp = await client.PutAsJsonAsync(
-      "/config/logging/components/GameBot.Service",
+      "/api/config/logging/components/GameBot.Service",
       new { level = "Debug", notes = "integration" }).ConfigureAwait(true);
     resp.StatusCode.Should().Be(HttpStatusCode.OK);
 

@@ -23,7 +23,7 @@ public class SessionInputTests {
     // Check devices and skip if none to avoid flakiness without ADB
     // Force stub mode for inputs test to avoid external ADB process hangs
     // Do NOT request adbSerial so session runs without ADB even if devices exist
-    var createResp = await client.PostAsJsonAsync(new Uri("/sessions", UriKind.Relative), new { gameId = "test-game" }).ConfigureAwait(true);
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId = "test-game" }).ConfigureAwait(true);
     var created = await createResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var id = created!["id"].ToString();
 
@@ -36,7 +36,7 @@ public class SessionInputTests {
         }
     };
     using var content = JsonContent.Create(actions);
-    var resp = await client.PostAsync(new Uri($"/sessions/{id}/inputs", UriKind.Relative), content).ConfigureAwait(true);
+    var resp = await client.PostAsync(new Uri($"/api/sessions/{id}/inputs", UriKind.Relative), content).ConfigureAwait(true);
     resp.StatusCode.Should().Be(HttpStatusCode.Accepted);
     var body = await resp.Content.ReadFromJsonAsync<Dictionary<string, int>>().ConfigureAwait(true);
     body!["accepted"].Should().Be(3);

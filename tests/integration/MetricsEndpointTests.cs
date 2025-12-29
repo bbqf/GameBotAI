@@ -19,7 +19,7 @@ public class MetricsEndpointTests {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    var resp = await client.GetAsync(new Uri("/metrics/triggers", UriKind.Relative)).ConfigureAwait(true);
+    var resp = await client.GetAsync(new Uri("/api/metrics/triggers", UriKind.Relative)).ConfigureAwait(true);
     resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
     var json = await resp.Content.ReadFromJsonAsync<Dictionary<string, long>>().ConfigureAwait(true);

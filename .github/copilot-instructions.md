@@ -26,6 +26,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - No new client persistence; uses backend for actions. Client state is in-memory form state. (001-semantic-actions-ui)
 - TypeScript (ES2020), React 18, Vite 5; backend contracts in ASP.NET Core (.NET 9) + React, React Router, form state utilities already in web-ui (no new packages expected) (017-unify-authoring-ui)
 - Backend file-backed JSON repositories (data/), no new stores (017-unify-authoring-ui)
+- C# 13 / .NET 9 + ASP.NET Core Minimal API, Swashbuckle/Swagger tooling, existing GameBot.Domain + Emulator services (018-api-refactor)
+- File-backed JSON repositories under `data/` (no new stores) (018-api-refactor)
 
 - .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -53,9 +55,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 018-api-refactor: Added C# 13 / .NET 9 + ASP.NET Core Minimal API, Swashbuckle/Swagger tooling, existing GameBot.Domain + Emulator services
 - 017-unify-authoring-ui: Added TypeScript (ES2020), React 18, Vite 5; backend contracts in ASP.NET Core (.NET 9) + React, React Router, form state utilities already in web-ui (no new packages expected)
 - 001-semantic-actions-ui: Added TypeScript (ES2020) + React 18 (Vite 5) + React, Vite toolchain, existing GameBot Service API (action types/actions)
-- 001-authoring-crud-ui: Added TypeScript (ES2020), React 18 + React, React DOM, Vite, @vitejs/plugin-react
 
 
 <!-- MANUAL ADDITIONS START -->

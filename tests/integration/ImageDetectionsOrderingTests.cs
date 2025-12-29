@@ -28,7 +28,7 @@ namespace GameBot.Tests.Integration
             var client = app.CreateClient();
             client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
             // Seed a template that matches the screenshot exactly
-            var uploadResp = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "tplStable", data = oneByOnePngBase64 });
+            var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "tplStable", data = oneByOnePngBase64 });
             uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
             var req = new
             {
@@ -44,7 +44,7 @@ namespace GameBot.Tests.Integration
 
             for (var i = 0; i < runs; i++)
             {
-                var resp = await client.PostAsJsonAsync(new Uri("/images/detect", UriKind.Relative), req);
+                var resp = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), req);
                 resp.StatusCode.Should().Be(HttpStatusCode.OK);
                 var json = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
 

@@ -79,11 +79,11 @@ See `specs/001-tesseract-logging/quickstart.md` for the full workflow, including
 ## Resources and domain
 
 ### Games
-- Create: `POST /games`
+- Create: `POST /api/games`
   - Body: `{ "name": "Game A", "description": "optional" }`
   - Response: `{ id, name, description }`
-- Get: `GET /games/{id}` → `{ id, name, description }`
-- List: `GET /games` → `[{ id, name, description }]`
+- Get: `GET /api/games/{id}` → `{ id, name, description }`
+- List: `GET /api/games` → `[{ id, name, description }]`
 
 Example create:
 
@@ -100,8 +100,8 @@ Profiles have been removed. Three first-class concepts now drive automation:
 
 #### Actions
 Atomic, file-backed executable units (e.g., a tap sequence or composite of low-level input actions).
-- Create: `POST /actions` → body includes a name and action definition (input steps).
-- Execute against a session: `POST /sessions/{id}/execute-action?actionId={actionId}` → `{ accepted }`.
+- Create: `POST /api/actions` → body includes a name and action definition (input steps).
+- Execute against a session: `POST /api/sessions/{id}/execute-action?actionId={actionId}` → `{ accepted }`.
 
 Built-in action types (served by `/api/action-types` and executed by `SessionManager`):
 - `tap`: required `x`, `y` (0–5000); optional `mode` (`fast`/`slow`).
@@ -121,9 +121,9 @@ Example action definition (simplified):
 
 #### Triggers
 Standalone evaluators that determine readiness (Satisfied vs NotSatisfied) based on screen/image/text/schedule/delay.
-- CRUD: `POST /triggers`, `GET /triggers/{id}`, `PATCH /triggers/{id}`, `DELETE /triggers/{id}`.
-- Test single trigger (updates internal timestamps/cooldowns): `POST /triggers/{id}/test`.
-- Batch evaluate all enabled triggers: `POST /triggers/evaluate`.
+- CRUD: `POST /api/triggers`, `GET /api/triggers/{id}`, `PATCH /api/triggers/{id}`, `DELETE /api/triggers/{id}`.
+- Test single trigger (updates internal timestamps/cooldowns): `POST /api/triggers/{id}/test`.
+- Batch evaluate all enabled triggers: `POST /api/triggers/evaluate`.
 
 Example text-match trigger:
 ```json
@@ -142,12 +142,12 @@ Example text-match trigger:
 Reference images used by `image-match` triggers can be persisted under the service storage root (`GAMEBOT_DATA_DIR` or `Service:Storage:Root`). Files are saved as PNG in `data/images`.
 
 Endpoints:
-- `POST /images` → `{ id }` (upload or overwrite). Body: `{ "id": "Home", "data": "<base64-png-or-data-url>" }`.
-- `GET /images/{id}` → `200 OK` if persisted; `404` if missing.
-- `DELETE /images/{id}` → removes the file.
+- `POST /api/images` → `{ id }` (upload or overwrite). Body: `{ "id": "Home", "data": "<base64-png-or-data-url>" }`.
+- `GET /api/images/{id}` → `200 OK` if persisted; `404` if missing.
+- `DELETE /api/images/{id}` → removes the file.
 
 Workflow:
-1. Upload once via `POST /images`.
+1. Upload once via `POST /api/images`.
 2. Create an `image-match` trigger referencing `referenceImageId`.
 3. After service restart the image remains available (no re-upload required).
 
@@ -169,7 +169,7 @@ Validation rules:
 - Image must decode successfully (PNG/JPEG); invalid data returns `400` with `invalid_image`.
 
 Overwrite: re-upload with same `id` atomically replaces the file.
-Delete: `DELETE /images/{id}`; subsequent evaluations treat the reference as missing until replaced.
+Delete: `DELETE /api/images/{id}`; subsequent evaluations treat the reference as missing until replaced.
 
 ### Image detections (additive API)
 
@@ -197,7 +197,7 @@ Run:
 ```powershell
 dotnet run -c Debug --project src/GameBot.Service
 # Then call force-execute on the sample command
-curl -X POST "http://localhost:5273/commands/00000000000000000000000000000001/force-execute?sessionId=<your-session-id>"
+curl -X POST "http://localhost:5273/api/commands/00000000000000000000000000000001/force-execute?sessionId=<your-session-id>"
 ```
 
 Notes:
@@ -214,7 +214,7 @@ Notes:
 | HighestConfidence | Picks the match with the highest score | Noisy screens; multiple similar candidates | Might jump between candidates across frames |
 | FirstMatch        | Picks the first match after sorting    | Stable UIs; deterministic selection needed | May choose a lower-confidence candidate     |
 
-- Detect matches: `POST /images/detect`
+- Detect matches: `POST /api/images/detect`
   - Body:
     ```json
     {
@@ -240,7 +240,7 @@ Notes:
 
 Expanded example with multiple matches and truncation:
 ```json
-POST /images/detect
+POST /api/images/detect
 Request:
 {
   "referenceImageId": "Home",
@@ -262,7 +262,7 @@ When `limitsHit=true`, more raw matches existed but were truncated after sorting
 
 Metrics & resource monitoring:
 - Duration and result count recorded internally (histogram/counter).
-- Process memory: `GET /metrics/process` → `{ workingSetMB, managedMemoryMB, budgetMB }` for headroom tracking.
+- Process memory: `GET /api/metrics/process` → `{ workingSetMB, managedMemoryMB, budgetMB }` for headroom tracking.
 
 Configuration overrides (env or saved config snapshot):
 - `Service__Detections__Threshold` (default: 0.8)
@@ -278,9 +278,9 @@ Tune `Threshold` upward for noisy UIs; increase `TimeoutMs` only if legitimate d
 
 #### Commands
 Composable orchestration objects referencing Actions (and optionally nested Commands) with cycle detection and optional trigger gating.
-- CRUD: `POST /commands`, `GET /commands/{id}`, `PATCH /commands/{id}`, `DELETE /commands/{id}`.
-- Evaluate triggers then execute eligible actions: `POST /commands/{id}/evaluate-and-execute` → returns counts of accepted steps.
-- Force execution (skip trigger gating): `POST /commands/{id}/force-execute`.
+- CRUD: `POST /api/commands`, `GET /api/commands/{id}`, `PATCH /api/commands/{id}`, `DELETE /api/commands/{id}`.
+- Evaluate triggers then execute eligible actions: `POST /api/commands/{id}/evaluate-and-execute` → returns counts of accepted steps.
+- Force execution (skip trigger gating): `POST /api/commands/{id}/force-execute`.
 
 Example command referencing an action and gating on a trigger:
 ```json
@@ -297,27 +297,27 @@ Example command referencing an action and gating on a trigger:
 ```
 
 Common flow now:
-1. Create an Action (`/actions`).
-2. Create a Trigger (`/triggers`).
+1. Create an Action (`/api/actions`).
+2. Create a Trigger (`/api/triggers`).
 3. Create a Command that references the Action and lists the Trigger as a gate.
-4. Run `POST /commands/{id}/evaluate-and-execute` until the trigger becomes `Satisfied` and the Action executes.
-5. Inspect trigger status via `POST /triggers/{id}/test` or batch `POST /triggers/evaluate`.
+4. Run `POST /api/commands/{id}/evaluate-and-execute` until the trigger becomes `Satisfied` and the Action executes.
+5. Inspect trigger status via `POST /api/triggers/{id}/test` or batch `POST /api/triggers/evaluate`.
 
 ### Sessions
 Run-time context used to execute inputs and take snapshots.
 
-- Create: `POST /sessions`
+- Create: `POST /api/sessions`
   - Body: `{ gameId?: string, gamePath?: string, profileId?: string, adbSerial?: string }`
     - Provide `gameId` (preferred) or `gamePath`.
     - Optional `adbSerial` to bind a specific device/emulator; if omitted and ADB is enabled, the first available device is selected; if none, the API returns 404.
   - Response: `{ id, status, gameId }`
-- Get: `GET /sessions/{id}` → `{ id, status, uptime, health, gameId }`
-- Device info: `GET /sessions/{id}/device` → `{ id, deviceSerial, mode: "ADB"|"STUB" }`
-- Health: `GET /sessions/{id}/health` → ADB connectivity details when applicable
-- Snapshot: `GET /sessions/{id}/snapshot` → `image/png`
-- Send inputs: `POST /sessions/{id}/inputs` → `{ accepted }`
-- Execute profile: `POST /sessions/{id}/execute?profileId={profileId}` → `{ accepted }`
-- Stop: `DELETE /sessions/{id}` → `{ status: "stopping" }`
+- Get: `GET /api/sessions/{id}` → `{ id, status, uptime, health, gameId }`
+- Device info: `GET /api/sessions/{id}/device` → `{ id, deviceSerial, mode: "ADB"|"STUB" }`
+- Health: `GET /api/sessions/{id}/health` → ADB connectivity details when applicable
+- Snapshot: `GET /api/sessions/{id}/snapshot` → `image/png`
+- Send inputs: `POST /api/sessions/{id}/inputs` → `{ accepted }`
+- Execute profile: `POST /api/sessions/{id}/execute?profileId={profileId}` → `{ accepted }`
+- Stop: `DELETE /api/sessions/{id}` → `{ status: "stopping" }`
 
 ### Input actions
 Supported `type` values (case-insensitive). Numeric args may be provided as numbers or numeric strings (e.g., "50").
@@ -359,17 +359,17 @@ Supported `type` values (case-insensitive). Numeric args may be provided as numb
   - `durationMs` is used by long-running actions like `swipe`.
 
 ## Common flow (HTTP)
-- Create a game → `POST /games` with `{ name, description }`
-- Create an action → `POST /actions` with action steps
-- (Optional) Create a trigger → `POST /triggers`
-- (Optional) Create a command → `POST /commands` referencing the action and trigger
-- Start a session → `POST /sessions` with `{ gameId, adbSerial? }`
-- Execute an action directly → `POST /sessions/{sessionId}/execute-action?actionId={actionId}` (returns `{ accepted }`)
-- Or run a command with gating → `POST /commands/{id}/evaluate-and-execute`
-- Send ad-hoc inputs → `POST /sessions/{id}/inputs` with `{ actions: [...] }`
-- Grab a snapshot → `GET /sessions/{id}/snapshot` (image/png)
-- Evaluate triggers → `POST /triggers/evaluate`
-- Stop session → `DELETE /sessions/{id}`
+- Create a game → `POST /api/games` with `{ name, description }`
+- Create an action → `POST /api/actions` with action steps
+- (Optional) Create a trigger → `POST /api/triggers`
+- (Optional) Create a command → `POST /api/commands` referencing the action and trigger
+- Start a session → `POST /api/sessions` with `{ gameId, adbSerial? }`
+- Execute an action directly → `POST /api/sessions/{sessionId}/execute-action?actionId={actionId}` (returns `{ accepted }`)
+- Or run a command with gating → `POST /api/commands/{id}/evaluate-and-execute`
+- Send ad-hoc inputs → `POST /api/sessions/{id}/inputs` with `{ actions: [...] }`
+- Grab a snapshot → `GET /api/sessions/{id}/snapshot` (image/png)
+- Evaluate triggers → `POST /api/triggers/evaluate`
+- Stop session → `DELETE /api/sessions/{id}`
 
 See full request/response shapes in the contracts doc linked above.
 
@@ -465,7 +465,7 @@ Notes:
   - `GAMEBOT_USE_ADB`: set to `false` to disable ADB integration (useful in tests/CI). By default on Windows, ADB is enabled.
   - `GAMEBOT_ADB_PATH`: optional override path to `adb.exe`.
   - `GAMEBOT_ADB_RETRIES`, `GAMEBOT_ADB_RETRY_DELAY_MS`: control retry count and delay (ms) for ADB actions.
-  - Diagnostics endpoints: `GET /adb/version`, `GET /adb/devices`.
+  - Emulator endpoints: `GET /api/adb/version`, `GET /api/adb/devices`.
 
 - Dynamic port (tests/CI)
   - `GAMEBOT_DYNAMIC_PORT=true` binds to port 0 to avoid conflicts.
@@ -485,8 +485,8 @@ The service maintains an "effective configuration" snapshot for auditability and
 - Writes: Atomic (temp + move) to avoid partial/corrupt JSON.
 
 Endpoints (auth required when `GAMEBOT_AUTH_TOKEN` is set):
-- GET `/config/` → returns the current effective configuration JSON (generated lazily if missing)
-- POST `/config/refresh` → regenerates and persists the snapshot
+- GET `/api/config/` → returns the current effective configuration JSON (generated lazily if missing)
+- POST `/api/config/refresh` → regenerates and persists the snapshot
 
 Examples (PowerShell):
 
@@ -495,10 +495,10 @@ Examples (PowerShell):
 $env:GAMEBOT_AUTH_TOKEN = "test-token"
 
 # Read current snapshot
-Invoke-RestMethod -Uri http://localhost:5000/config/ -Headers @{ Authorization = "Bearer $env:GAMEBOT_AUTH_TOKEN" }
+Invoke-RestMethod -Uri http://localhost:5000/api/config/ -Headers @{ Authorization = "Bearer $env:GAMEBOT_AUTH_TOKEN" }
 
 # Regenerate snapshot
-Invoke-RestMethod -Uri http://localhost:5000/config/refresh -Method POST -Headers @{ Authorization = "Bearer $env:GAMEBOT_AUTH_TOKEN" }
+Invoke-RestMethod -Uri http://localhost:5000/api/config/refresh -Method POST -Headers @{ Authorization = "Bearer $env:GAMEBOT_AUTH_TOKEN" }
 ```
 
 ## Development
@@ -512,34 +512,4 @@ Notes:
 - If `dotnet` isn't recognized in your shell, open a new terminal where the .NET SDK is on PATH, or use the absolute path (Get-Command dotnet | Select-Object -ExpandProperty Source).
 - Warnings are treated as errors; analyzers are enabled across projects.
 - Windows-only APIs are annotated; the emulator integration is designed for Windows hosts.
-
-## Migration: Legacy Profiles → Actions & Triggers
-
-Use the PowerShell script `scripts/migrate-profiles-to-actions.ps1` to convert each legacy profile into:
-- An Action JSON (`data/actions/<profileId>.json`)
-- Individual Trigger JSON files (`data/triggers/<triggerId>.json`)
-
-Parameters:
-- `DataDir`: Root data directory (defaults to `$env:GAMEBOT_DATA_DIR` or `./data`).
-- `-DryRun`: Print intended operations without writing files.
-- `-DeleteOriginal`: Remove original profile JSONs after successful migration.
-
-Examples:
-```powershell
-pwsh ./scripts/migrate-profiles-to-actions.ps1 -DryRun
-pwsh ./scripts/migrate-profiles-to-actions.ps1 -DeleteOriginal
-```
-
-Sample dry-run output (abridged):
-```text
-[DRY-RUN] Would create action: C:\src\GameBot\data\actions\d6bfccf5....json
-[DRY-RUN] Would create trigger: C:\src\GameBot\data\triggers\d21c45c1....json
-Migration summary:
-  Actions created: 1
-  Triggers created: 1
-  Errors: 0
-  (Dry run: no files written)
-```
-
-Post-merge deprecation: after migrating and validating, remove the `data/profiles` folder from deployments and eliminate any automation referencing `/profiles` endpoints (now deleted). The script can be retained for archival conversions but should be marked deprecated in the next release.
 

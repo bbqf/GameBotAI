@@ -27,7 +27,7 @@ public sealed class ImageDetectionsContractTests {
     json!.ContainsKey("paths").Should().BeTrue();
     var paths = (JsonElement)json["paths"];
     var text = paths.ToString();
-    text.Should().Contain("\"/images/detect\"");
+    text.Should().Contain("\"/api/images/detect\"");
   }
 
   [Fact]
@@ -39,10 +39,10 @@ public sealed class ImageDetectionsContractTests {
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     // Seed reference image
-    var up = await client.PostAsJsonAsync(new Uri("/images", UriKind.Relative), new { id = "tpl", data = OneByOnePngBase64 });
+    var up = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "tpl", data = OneByOnePngBase64 });
     up.StatusCode.Should().Be(HttpStatusCode.Created);
 
-    var resp = await client.PostAsJsonAsync(new Uri("/images/detect", UriKind.Relative), new { referenceImageId = "tpl" });
+    var resp = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), new { referenceImageId = "tpl" });
     resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
     var raw = await resp.Content.ReadAsStringAsync();

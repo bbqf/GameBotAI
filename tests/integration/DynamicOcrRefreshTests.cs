@@ -63,7 +63,7 @@ public class DynamicOcrRefreshTests {
       client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
       // Create game
-      var gameResp = await client.PostAsJsonAsync(new Uri("/games", UriKind.Relative), new { name = "G-DOCR", description = "d" }).ConfigureAwait(false);
+      var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "G-DOCR", description = "d" }).ConfigureAwait(false);
       gameResp.StatusCode.Should().Be(HttpStatusCode.Created);
       var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
       var gameId = game!["id"]!.ToString();
@@ -81,13 +81,13 @@ public class DynamicOcrRefreshTests {
           mode = "found"
         }
       };
-      var tResp = await client.PostAsJsonAsync(new Uri("/triggers", UriKind.Relative), trigCreate).ConfigureAwait(false);
+      var tResp = await client.PostAsJsonAsync(new Uri("/api/triggers", UriKind.Relative), trigCreate).ConfigureAwait(false);
       tResp.StatusCode.Should().Be(HttpStatusCode.Created);
       var tBody = await tResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
       var triggerId = tBody!["id"]!.ToString();
 
       // Initial test: with Env OCR and text "NOPE", should NOT be Satisfied
-      var test1 = await client.PostAsync(new Uri($"/triggers/{triggerId}/test", UriKind.Relative), null).ConfigureAwait(false);
+      var test1 = await client.PostAsync(new Uri($"/api/triggers/{triggerId}/test", UriKind.Relative), null).ConfigureAwait(false);
       test1.StatusCode.Should().Be(HttpStatusCode.OK);
       var res1 = await test1.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
       ((System.Text.Json.JsonElement)res1!["status"]).GetString().Should().NotBe("Satisfied");
@@ -100,11 +100,11 @@ public class DynamicOcrRefreshTests {
       await File.WriteAllTextAsync(cfgFile, newJson).ConfigureAwait(false);
 
       // Refresh to apply new configuration
-      var refresh = await client.PostAsync(new Uri("/config/refresh", UriKind.Relative), null).ConfigureAwait(false);
+      var refresh = await client.PostAsync(new Uri("/api/config/refresh", UriKind.Relative), null).ConfigureAwait(false);
       refresh.StatusCode.Should().Be(HttpStatusCode.OK);
 
       // Second test: with Tesseract OCR and a HELLO screen, should be Satisfied
-      var test2 = await client.PostAsync(new Uri($"/triggers/{triggerId}/test", UriKind.Relative), null).ConfigureAwait(false);
+      var test2 = await client.PostAsync(new Uri($"/api/triggers/{triggerId}/test", UriKind.Relative), null).ConfigureAwait(false);
       test2.StatusCode.Should().Be(HttpStatusCode.OK);
       var res2 = await test2.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
       ((System.Text.Json.JsonElement)res2!["status"]).GetString().Should().Be("Satisfied");

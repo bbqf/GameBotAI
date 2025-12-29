@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using GameBot.Domain.Services.Logging;
+using GameBot.Service;
 using GameBot.Service.Models.Logging;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,7 +13,7 @@ internal static class ConfigLoggingEndpoints
 {
     public static IEndpointRouteBuilder MapConfigLoggingEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/config/logging");
+        var group = app.MapGroup(ApiRoutes.ConfigLogging).WithTags("Configuration");
 
         group.MapGet("", async (IRuntimeLoggingPolicyService svc, HttpContext ctx) =>
         {

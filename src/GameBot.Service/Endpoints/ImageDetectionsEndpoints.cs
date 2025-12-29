@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading;
+using GameBot.Service;
 using GameBot.Service.Endpoints.Dto;
 using GameBot.Domain.Vision;
 using GameBot.Domain.Triggers.Evaluators;
@@ -14,9 +15,16 @@ namespace GameBot.Service.Endpoints
 {
     internal static class ImageDetectionsEndpoints
     {
+        private static string SanitizeForLog(string? value)
+        {
+            if (string.IsNullOrEmpty(value)) return string.Empty;
+            return value.Replace("\r", string.Empty, StringComparison.Ordinal)
+                        .Replace("\n", string.Empty, StringComparison.Ordinal);
+        }
+
         public static IEndpointRouteBuilder MapImageDetectionsEndpoints(this IEndpointRouteBuilder endpoints)
         {
-            endpoints.MapPost("/images/detect", async (DetectRequest req,
+            endpoints.MapPost(ApiRoutes.ImageDetect, async (DetectRequest req,
                 IReferenceImageStore store,
                 ITemplateMatcher matcher,
                 IOptions<GameBot.Service.Services.Detections.DetectionOptions> detOpts,
@@ -26,7 +34,7 @@ namespace GameBot.Service.Endpoints
                 var (ok, error) = ImageDetectionsValidation.ValidateRequest(req);
                 if (!ok)
                 {
-                    logger.LogDetectInvalid(error!);
+                    logger.LogDetectInvalid(SanitizeForLog(error));
                     return Results.BadRequest(new { code = "invalid_request", message = error });
                 }
 
@@ -35,11 +43,12 @@ namespace GameBot.Service.Endpoints
                 var maxResults = req.MaxResults ?? detOpts.Value.MaxResults;
                 var overlap = req.Overlap ?? detOpts.Value.Overlap;
 
-                ImageDetectionsEndpointComponent.LogDetectStart(logger, id, threshold, maxResults, overlap);
+                var safeId = SanitizeForLog(id);
+                ImageDetectionsEndpointComponent.LogDetectStart(logger, safeId, threshold, maxResults, overlap);
 
                 if (!store.TryGet(id, out var tplBmp) || tplBmp is null)
                 {
-                    ImageDetectionsEndpointComponent.LogDetectNotFound(logger, id);
+                    ImageDetectionsEndpointComponent.LogDetectNotFound(logger, safeId);
                     return Results.NotFound(new { code = "not_found", message = "reference image not found" });
                 }
 
@@ -118,7 +127,7 @@ namespace GameBot.Service.Endpoints
 
                 return Results.Ok(resp);
             })
-            .WithTags("GameBot.Service")
+            .WithTags("Images")
             .WithName("DetectImageMatches");
 
             return endpoints;

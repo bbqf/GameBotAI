@@ -1,4 +1,5 @@
 using GameBot.Emulator.Adb;
+using GameBot.Service;
 
 namespace GameBot.Service.Endpoints;
 
@@ -6,7 +7,7 @@ internal static class AdbEndpoints {
   private static readonly char[] LineSeparators = new[] { '\r', '\n' }; // CA1861: reuse array
 
   public static IEndpointRouteBuilder MapAdbEndpoints(this IEndpointRouteBuilder app) {
-    app.MapGet("/adb/version", async (ILogger<AdbClient> logger) => {
+    app.MapGet($"{ApiRoutes.Adb}/version", async (ILogger<AdbClient> logger) => {
       if (!OperatingSystem.IsWindows()) {
         return Results.StatusCode(StatusCodes.Status501NotImplemented);
       }
@@ -19,9 +20,9 @@ internal static class AdbEndpoints {
       return code == 0
           ? Results.Ok(new { version = stdout })
           : Results.Problem(title: "adb_error", detail: string.IsNullOrWhiteSpace(stderr) ? stdout : stderr, statusCode: StatusCodes.Status503ServiceUnavailable);
-    }).WithName("AdbVersion");
+    }).WithName("AdbVersion").WithTags("Emulators");
 
-    app.MapGet("/adb/devices", async (ILogger<AdbClient> logger) => {
+    app.MapGet($"{ApiRoutes.Adb}/devices", async (ILogger<AdbClient> logger) => {
       if (!OperatingSystem.IsWindows()) {
         return Results.StatusCode(StatusCodes.Status501NotImplemented);
       }
@@ -40,7 +41,7 @@ internal static class AdbEndpoints {
       var devices = ParseDevices(stdout);
       // Return devices as a top-level array (tests expect an array, not an object wrapper)
       return Results.Ok(devices);
-    }).WithName("AdbDevices");
+    }).WithName("AdbDevices").WithTags("Emulators");
 
     return app;
   }
