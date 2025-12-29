@@ -27,9 +27,9 @@
 ### Tests for User Story 1
 
 - [X] T005 [P] [US1] Add RTL tests for tab bar active state and collapsed menu behavior (including keyboard/focus for menu items) in src/web-ui/src/__tests__/navigation.spec.tsx
-- [ ] T006 [P] [US1] Add Playwright smoke for tab switching (Authoring/Configuration/Execution), collapsed menu keyboard access, and absence of Triggers in src/web-ui/tests/navigation.spec.ts
+- [X] T006 [P] [US1] Add Playwright smoke for tab switching (Authoring/Configuration/Execution), collapsed menu keyboard access, and absence of Triggers in src/web-ui/tests/navigation.spec.ts
 - [X] T007 [P] [US1] Add RTL regression to verify Actions/Sequences/Commands remain one-click (≤1 from landing) from Authoring with no added click depth in src/web-ui/src/__tests__/authoring-regression.spec.tsx
-- [ ] T008 [P] [US1] Add Playwright regression to verify authoring items reachable in ≤1 click from landing without extra navigation in src/web-ui/tests/authoring-regression.spec.ts
+- [X] T008 [P] [US1] Add Playwright regression to verify authoring items reachable in ≤1 click from landing without extra navigation in src/web-ui/tests/authoring-regression.spec.ts
 
 ### Implementation for User Story 1
 
@@ -49,7 +49,7 @@
 ### Tests for User Story 2
 
 - [X] T012 [P] [US2] Add RTL test ensuring host/token controls render at top of Configuration view in src/web-ui/src/__tests__/configuration.spec.tsx
-- [ ] T013 [P] [US2] Add Playwright check for navigating to Configuration and editing host/token without authoring content bleed in src/web-ui/tests/configuration.spec.ts
+- [X] T013 [P] [US2] Add Playwright check for navigating to Configuration and editing host/token without authoring content bleed in src/web-ui/tests/configuration.spec.ts
 
 ### Implementation for User Story 2
 
@@ -68,7 +68,7 @@
 ### Tests for User Story 3
 
 - [X] T016 [P] [US3] Add RTL test for Execution empty-state messaging and links in src/web-ui/src/__tests__/execution.spec.tsx
-- [ ] T017 [P] [US3] Add Playwright smoke for visiting Execution and returning to Authoring/Configuration in src/web-ui/tests/execution.spec.ts
+- [X] T017 [P] [US3] Add Playwright smoke for visiting Execution and returning to Authoring/Configuration in src/web-ui/tests/execution.spec.ts
 
 ### Implementation for User Story 3
 

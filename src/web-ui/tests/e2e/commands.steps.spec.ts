@@ -57,7 +57,16 @@ test('command steps support add, reorder, delete and persist order on save', asy
     return route.fulfill({ status: 204, headers: jsonHeaders, body: '' });
   });
 
+  await page.route('**/api/action-types', async (route) => {
+    return route.fulfill({ status: 200, headers: jsonHeaders, body: JSON.stringify([]) });
+  });
+
+  await page.route('**/api/games', async (route) => {
+    return route.fulfill({ status: 200, headers: jsonHeaders, body: JSON.stringify([]) });
+  });
+
   await page.goto('/');
+  await page.getByRole('tab', { name: 'Authoring' }).click();
   await page.getByRole('tab', { name: 'Commands' }).click();
   await page.getByRole('button', { name: 'Create Command' }).click();
 
