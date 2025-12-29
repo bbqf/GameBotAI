@@ -242,11 +242,13 @@ if (!string.IsNullOrWhiteSpace(authToken)) {
 
 // Health endpoint (anonymous)
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
-   .WithName("Health");
+  .WithName("Health")
+  .ExcludeFromDescription();
 
 // Placeholder root endpoint (protected if token set)
 app.MapGet("/", () => Results.Ok(new { name = "GameBot Service", status = "ok" }))
-   .WithName("Root");
+  .WithName("Root")
+  .ExcludeFromDescription();
 
 // Sessions endpoints (protected if token set)
 app.MapSessionEndpoints();
@@ -255,13 +257,12 @@ app.MapSessionEndpoints();
 app.MapGameEndpoints();
 app.MapActionTypeEndpoints(storageRoot);
 app.MapActionEndpoints();
-// Actions & Commands endpoints (protected if token set)
+// Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
 // Triggers endpoints (re-added after refactor to support direct CRUD)
 app.MapTriggerEndpoints();
 // ADB diagnostics endpoints (protected if token set)
 app.MapAdbEndpoints();
-// Standalone triggers CRUD
 // Image references endpoints for image-match triggers
 if (OperatingSystem.IsWindows()) {
   app.MapImageReferenceEndpoints();
@@ -276,7 +277,7 @@ app.MapConfigEndpoints();
 app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
 
-// Sequences endpoints (Phase 3 US1 minimal stubs)
+// Sequences endpoints
 var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
 
 sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) =>
@@ -459,12 +460,14 @@ void MapLegacyGuard(string legacyRoot, string canonicalRoot)
   app.MapMethods(legacyRoot, new[] { HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete },
     (HttpContext ctx) => Results.Json(
       new { error = new { code = "legacy_route", message = "Use the canonical API base path.", hint = canonicalRoot } },
-      statusCode: StatusCodes.Status410Gone));
+      statusCode: StatusCodes.Status410Gone))
+    .ExcludeFromDescription();
 
   app.MapMethods($"{legacyRoot}/{{*rest}}", new[] { HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete },
     (HttpContext ctx) => Results.Json(
       new { error = new { code = "legacy_route", message = "Use the canonical API base path.", hint = canonicalRoot } },
-      statusCode: StatusCodes.Status410Gone));
+      statusCode: StatusCodes.Status410Gone))
+    .ExcludeFromDescription();
 }
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq)

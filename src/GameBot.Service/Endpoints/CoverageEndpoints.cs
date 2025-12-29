@@ -11,7 +11,7 @@ namespace GameBot.Service.Endpoints;
 
 internal static class CoverageEndpoints {
   public static IEndpointRouteBuilder MapCoverageEndpoints(this IEndpointRouteBuilder app) {
-    var group = app.MapGroup(ApiRoutes.Ocr).WithTags("Diagnostics");
+    var group = app.MapGroup(ApiRoutes.Ocr).WithTags("Emulators");
 
     group.MapGet("coverage", async (ICoverageSummaryService service, CancellationToken ct) => {
       var result = await service.GetLatestAsync(ct).ConfigureAwait(false);

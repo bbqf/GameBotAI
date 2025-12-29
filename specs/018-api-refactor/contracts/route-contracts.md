@@ -75,10 +75,10 @@
   - GET `/api/metrics/triggers`
   - GET `/api/metrics/domain`
   - GET `/api/metrics/process`
-- Diagnostics
-  - GET `/api/adb/version` (tag: Diagnostics)
-  - GET `/api/adb/devices` (tag: Diagnostics)
-  - GET `/api/ocr/coverage` (tag: Diagnostics)
+- Emulators
+  - GET `/api/adb/version` (tag: Emulators)
+  - GET `/api/adb/devices` (tag: Emulators)
+  - GET `/api/ocr/coverage` (tag: Emulators)
 
 ## Documentation Requirements
 - Each endpoint entry in Swagger MUST include:

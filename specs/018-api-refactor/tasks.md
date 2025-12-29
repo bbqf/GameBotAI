@@ -70,11 +70,11 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T019 [P] Update quickstart checklist to reflect canonical routes and Swagger grouping in specs/018-api-refactor/quickstart.md
-- [ ] T020 Final pass to remove dead legacy routing code/comments and align documentation where referenced in src/GameBot.Service/Program.cs
-- [ ] T023 [P] Capture Swagger/doc endpoint latency (<300ms p95) via local run or trace in tests/integration/SwaggerPerfTests.cs and record in specs/018-api-refactor/quickstart.md
-- [ ] T024 Cleanup the Default section in the Swagger documentation. The Default should not include any paths defined in other sections or legacy endpoints
-- [ ] T025 Update README.md with the new API endpoints
+- [X] T019 [P] Update quickstart checklist to reflect canonical routes and Swagger grouping in specs/018-api-refactor/quickstart.md
+- [X] T020 Final pass to remove dead legacy routing code/comments and align documentation where referenced in src/GameBot.Service/Program.cs
+- [X] T023 [P] Capture Swagger/doc endpoint latency (<300ms p95) via local run or trace in tests/integration/SwaggerPerfTests.cs and record in specs/018-api-refactor/quickstart.md
+- [X] T024 Cleanup the Default section in the Swagger documentation. The Default should not include any paths defined in other sections or legacy endpoints
+- [X] T025 Update README.md with the new API endpoints
 ---
 
 ## Dependencies & Execution Order

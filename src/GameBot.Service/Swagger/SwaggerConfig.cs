@@ -9,12 +9,22 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using GameBot.Service.Endpoints;
 
 namespace GameBot.Service.Swagger;
 
 internal static class SwaggerConfig
 {
-  private static readonly string[] DefaultTags = ["Default"];
+  private static readonly string[] ActionsTags = ["Actions"];
+  private static readonly string[] CommandsTags = ["Commands"];
+  private static readonly string[] GamesTags = ["Games"];
+  private static readonly string[] SequencesTags = ["Sequences"];
+  private static readonly string[] SessionsTags = ["Sessions"];
+  private static readonly string[] ConfigurationTags = ["Configuration"];
+  private static readonly string[] TriggersTags = ["Triggers"];
+  private static readonly string[] ImagesTags = ["Images"];
+  private static readonly string[] MetricsTags = ["Metrics"];
+  private static readonly string[] EmulatorsTags = ["Emulators"];
 
   public static IServiceCollection AddSwaggerDocs(this IServiceCollection services)
   {
@@ -32,13 +42,90 @@ internal static class SwaggerConfig
         var tags = api.ActionDescriptor.EndpointMetadata.OfType<TagsAttribute>()
                       .SelectMany(t => t.Tags)
                       .ToList();
-        return tags.Count > 0 ? tags : DefaultTags;
+        if (tags.Count > 0)
+        {
+          return tags;
+        }
+
+        var derived = DeriveTags(api.RelativePath);
+        if (derived.Length > 0)
+        {
+          return derived;
+        }
+
+        return Array.Empty<string>();
       });
 
       options.OperationFilter<SwaggerExamplesOperationFilter>();
     });
 
     return services;
+  }
+
+  private static string[] DeriveTags(string? relativePath)
+  {
+    if (string.IsNullOrWhiteSpace(relativePath))
+    {
+      return Array.Empty<string>();
+    }
+
+    var path = "/" + relativePath.TrimStart('/');
+
+    if (path.StartsWith(ApiRoutes.Actions, StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith(ApiRoutes.ActionTypes, StringComparison.OrdinalIgnoreCase))
+    {
+      return ActionsTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.Commands, StringComparison.OrdinalIgnoreCase))
+    {
+      return CommandsTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.Games, StringComparison.OrdinalIgnoreCase))
+    {
+      return GamesTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.Sequences, StringComparison.OrdinalIgnoreCase))
+    {
+      return SequencesTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.Sessions, StringComparison.OrdinalIgnoreCase))
+    {
+      return SessionsTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.ConfigLogging, StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith(ApiRoutes.Config, StringComparison.OrdinalIgnoreCase))
+    {
+      return ConfigurationTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.Triggers, StringComparison.OrdinalIgnoreCase))
+    {
+      return TriggersTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.Images, StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith(ApiRoutes.ImageDetect, StringComparison.OrdinalIgnoreCase))
+    {
+      return ImagesTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.Metrics, StringComparison.OrdinalIgnoreCase))
+    {
+      return MetricsTags;
+    }
+
+    if (path.StartsWith(ApiRoutes.Adb, StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith(ApiRoutes.Ocr, StringComparison.OrdinalIgnoreCase))
+    {
+      return EmulatorsTags;
+    }
+
+    return Array.Empty<string>();
   }
 
   public static IApplicationBuilder UseSwaggerDocs(this IApplicationBuilder app)
@@ -67,6 +154,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     var method = context.ApiDescription.HttpMethod ?? string.Empty;
 
     // Apply by path so examples appear even if tags are missing or reordered
+    ApplyActionTypesExamples(operation, path, method, context);
     ApplyActionExamples(operation, path, method, context);
     ApplyCommandExamples(operation, path, method, context);
     ApplySequenceExamples(operation, path, method, context);
@@ -105,6 +193,15 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     {
       operation.Summary ??= "Duplicate an action";
       SetResponseExample(operation, "201", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
+    }
+  }
+
+  private static void ApplyActionTypesExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
+  {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ActionTypes))
+    {
+      operation.Summary ??= "List available action types";
+      SetResponseExample(operation, "200", ActionTypesResponse(), context, typeof(ActionTypeCatalogDto));
     }
   }
 
@@ -446,6 +543,74 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     {
       new OpenApiString("command-warmup"),
       new OpenApiString("command-start")
+    }
+  };
+
+  private static OpenApiObject ActionTypesResponse() => new OpenApiObject
+  {
+    ["version"] = new OpenApiString("v1"),
+    ["items"] = new OpenApiArray
+    {
+      new OpenApiObject
+      {
+        ["key"] = new OpenApiString("tap"),
+        ["displayName"] = new OpenApiString("Tap"),
+        ["description"] = new OpenApiString("Tap at coordinates"),
+        ["attributeDefinitions"] = new OpenApiArray
+        {
+          new OpenApiObject
+          {
+            ["key"] = new OpenApiString("x"),
+            ["label"] = new OpenApiString("X"),
+            ["dataType"] = new OpenApiString("number"),
+            ["required"] = new OpenApiBoolean(true),
+            ["constraints"] = new OpenApiObject { ["min"] = new OpenApiDouble(0), ["max"] = new OpenApiDouble(5000) },
+            ["helpText"] = new OpenApiString("X coordinate")
+          },
+          new OpenApiObject
+          {
+            ["key"] = new OpenApiString("y"),
+            ["label"] = new OpenApiString("Y"),
+            ["dataType"] = new OpenApiString("number"),
+            ["required"] = new OpenApiBoolean(true),
+            ["constraints"] = new OpenApiObject { ["min"] = new OpenApiDouble(0), ["max"] = new OpenApiDouble(5000) },
+            ["helpText"] = new OpenApiString("Y coordinate")
+          }
+        }
+      },
+      new OpenApiObject
+      {
+        ["key"] = new OpenApiString("key"),
+        ["displayName"] = new OpenApiString("Key Event"),
+        ["description"] = new OpenApiString("Send an Android key event"),
+        ["attributeDefinitions"] = new OpenApiArray
+        {
+          new OpenApiObject
+          {
+            ["key"] = new OpenApiString("key"),
+            ["label"] = new OpenApiString("Key name"),
+            ["dataType"] = new OpenApiString("string"),
+            ["required"] = new OpenApiBoolean(true),
+            ["constraints"] = new OpenApiObject
+            {
+              ["allowedValues"] = new OpenApiArray
+              {
+                new OpenApiString("HOME"), new OpenApiString("BACK"), new OpenApiString("ESCAPE")
+              }
+            },
+            ["helpText"] = new OpenApiString("Symbolic key name")
+          },
+          new OpenApiObject
+          {
+            ["key"] = new OpenApiString("keyCode"),
+            ["label"] = new OpenApiString("Key code"),
+            ["dataType"] = new OpenApiString("number"),
+            ["required"] = new OpenApiBoolean(false),
+            ["constraints"] = new OpenApiObject { ["min"] = new OpenApiDouble(0), ["max"] = new OpenApiDouble(300) },
+            ["helpText"] = new OpenApiString("Optional numeric Android key code")
+          }
+        }
+      }
     }
   };
 
