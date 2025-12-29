@@ -7,7 +7,7 @@
 ## Steps
 1. **Create top-level tabs**: Add a navigation shell with Authoring, Execution, Configuration tabs; active-state styling; collapse to a simple menu below ~768px while keeping labels readable.
 2. **Wire routing/state**: Ensure each tab routes to its area; preserve one-click switching; maintain focus/aria-current on active item.
-3. **Authoring grouping**: Move Actions, Sequences, Commands under the Authoring area; remove Triggers entry and redirect legacy Trigger routes to Authoring.
+3. **Authoring grouping**: Move Actions, Sequences, Commands under the Authoring area; remove Triggers entry and delete legacy Trigger routes (standard not-found handles any direct hits).
 4. **Configuration header**: Place host/token controls at the top of the Configuration area; ensure layout separation from authoring content.
 5. **Execution placeholder**: Add an empty-state view describing upcoming execution features with optional links back to Authoring/Configuration.
 6. **Responsive behavior**: Implement collapse behavior and verify keyboard navigation works in both expanded and collapsed modes.

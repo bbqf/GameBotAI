@@ -5,15 +5,15 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Ensure web UI deps installed in src/web-ui (npm install) — pre-check for lint/test commands
+- [X] T001 Ensure web UI deps installed in src/web-ui (npm install) — pre-check for lint/test commands
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-- [ ] T002 Create navigation data model scaffolding (NavigationArea, NavigationState) in src/web-ui/src/types/navigation.ts
-- [ ] T003 [P] Add responsive breakpoint helper (~768px) and collapse state hook in src/web-ui/src/hooks/useNavigationCollapse.ts
-- [ ] T004 [P] Add placeholder Execution route entry (inactive view) in src/web-ui/src/routes/index.tsx
+- [X] T002 Create navigation data model scaffolding (NavigationArea, NavigationState) in src/web-ui/src/types/navigation.ts
+- [X] T003 [P] Add responsive breakpoint helper (~768px) and collapse state hook in src/web-ui/src/hooks/useNavigationCollapse.ts
+- [X] T004 [P] Add placeholder Execution route entry (inactive view) in src/web-ui/src/routes/index.tsx
 
 **Checkpoint**: Navigation shell primitives ready for user stories.
 
@@ -26,16 +26,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T005 [P] [US1] Add RTL tests for tab bar active state and collapsed menu behavior (including keyboard/focus for menu items) in src/web-ui/src/__tests__/navigation.spec.tsx
+- [X] T005 [P] [US1] Add RTL tests for tab bar active state and collapsed menu behavior (including keyboard/focus for menu items) in src/web-ui/src/__tests__/navigation.spec.tsx
 - [ ] T006 [P] [US1] Add Playwright smoke for tab switching (Authoring/Configuration/Execution), collapsed menu keyboard access, and absence of Triggers in src/web-ui/tests/navigation.spec.ts
-- [ ] T007 [P] [US1] Add RTL regression to verify Actions/Sequences/Commands remain one-click (≤1 from landing) from Authoring with no added click depth in src/web-ui/src/__tests__/authoring-regression.spec.tsx
+- [X] T007 [P] [US1] Add RTL regression to verify Actions/Sequences/Commands remain one-click (≤1 from landing) from Authoring with no added click depth in src/web-ui/src/__tests__/authoring-regression.spec.tsx
 - [ ] T008 [P] [US1] Add Playwright regression to verify authoring items reachable in ≤1 click from landing without extra navigation in src/web-ui/tests/authoring-regression.spec.ts
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Implement top tab navigation shell with active styling and collapse menu using the collapse hook/helper in src/web-ui/src/components/Navigation.tsx
-- [ ] T010 [US1] Wire Authoring tab to group Actions/Sequences/Commands routes and remove Triggers route entirely in src/web-ui/src/routes/index.tsx
-- [ ] T011 [US1] Add accessible focus/aria-current handling for tabs and collapsed menu items in src/web-ui/src/components/Navigation.tsx
+- [X] T009 [US1] Implement top tab navigation shell with active styling and collapse menu using the collapse hook/helper in src/web-ui/src/components/Navigation.tsx
+- [X] T010 [US1] Wire Authoring tab to group Actions/Sequences/Commands routes and remove Triggers route entirely in src/web-ui/src/routes/index.tsx
+- [X] T011 [US1] Add accessible focus/aria-current handling for tabs and collapsed menu items in src/web-ui/src/components/Navigation.tsx
 
 **Checkpoint**: Authoring navigation functional with responsive tabs and no Triggers UI.
 
@@ -48,13 +48,13 @@
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] Add RTL test ensuring host/token controls render at top of Configuration view in src/web-ui/src/__tests__/configuration.spec.tsx
+- [X] T012 [P] [US2] Add RTL test ensuring host/token controls render at top of Configuration view in src/web-ui/src/__tests__/configuration.spec.tsx
 - [ ] T013 [P] [US2] Add Playwright check for navigating to Configuration and editing host/token without authoring content bleed in src/web-ui/tests/configuration.spec.ts
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Arrange Configuration page layout with host/token header section in src/web-ui/src/pages/Configuration.tsx
-- [ ] T015 [US2] Ensure Configuration tab wiring/persistence with active state and collapse support in src/web-ui/src/routes/index.tsx
+- [X] T014 [US2] Arrange Configuration page layout with host/token header section in src/web-ui/src/pages/Configuration.tsx
+- [X] T015 [US2] Ensure Configuration tab wiring/persistence with active state and collapse support in src/web-ui/src/routes/index.tsx
 
 **Checkpoint**: Configuration accessible with host/token at top; navigation intact.
 
@@ -67,13 +67,13 @@
 
 ### Tests for User Story 3
 
-- [ ] T016 [P] [US3] Add RTL test for Execution empty-state messaging and links in src/web-ui/src/__tests__/execution.spec.tsx
+- [X] T016 [P] [US3] Add RTL test for Execution empty-state messaging and links in src/web-ui/src/__tests__/execution.spec.tsx
 - [ ] T017 [P] [US3] Add Playwright smoke for visiting Execution and returning to Authoring/Configuration in src/web-ui/tests/execution.spec.ts
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Implement Execution placeholder view with guidance/links in src/web-ui/src/pages/Execution.tsx
-- [ ] T019 [US3] Ensure Execution tab route uses NavigationState/aria-current and respects collapse behavior in src/web-ui/src/routes/index.tsx
+- [X] T018 [US3] Implement Execution placeholder view with guidance/links in src/web-ui/src/pages/Execution.tsx
+- [X] T019 [US3] Ensure Execution tab route uses NavigationState/aria-current and respects collapse behavior in src/web-ui/src/routes/index.tsx
 
 **Checkpoint**: Execution placeholder live; navigation consistent across areas.
 

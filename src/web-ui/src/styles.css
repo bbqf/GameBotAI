@@ -12,6 +12,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helveti
 .navbar { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .brand { font-weight: 600; }
 .links button { margin-right: 8px; }
+.top-nav { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.top-nav--collapsed select { padding: 8px 10px; min-width: 180px; }
+.tabs { display: flex; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.tab { padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; background: #f8fafc; }
+.tab.active { background: #e8f2ff; border-color: var(--primary); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 .content { padding: 12px; max-width: 960px; width: 100%; margin: 0 auto; }
 .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
 .row label { min-width: 120px; }
@@ -21,6 +27,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helveti
 button { padding: 10px 14px; border: 1px solid var(--border); border-radius: 4px; background: #f8fafc; }
 button:hover { background: #eef2f7; }
 button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.authoring, .configuration, .execution, .not-found { margin-top: 12px; }
 .message { margin-top: 8px; color: var(--text); }
 pre.json { background: #f7f7f9; border: 1px solid #e1e1e8; padding: 10px; overflow: auto; }
 

@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { Component, ErrorInfo, PropsWithChildren, ReactNode } from 'react';
 
 type ErrorBoundaryState = { hasError: boolean; error?: Error };
 
-export class ErrorBoundary extends React.Component<React.PropsWithChildren, ErrorBoundaryState> {
-  constructor(props: React.PropsWithChildren) {
+export class ErrorBoundary extends Component<PropsWithChildren, ErrorBoundaryState> {
+  constructor(props: PropsWithChildren) {
     super(props);
     this.state = { hasError: false };
   }
@@ -12,12 +12,12 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Erro
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // eslint-disable-next-line no-console
     console.error('UI ErrorBoundary caught error', error, errorInfo);
   }
 
-  render(): React.ReactNode {
+  render(): ReactNode {
     if (this.state.hasError) {
       return (
         <div role="alert" className="error-boundary">

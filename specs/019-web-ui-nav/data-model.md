@@ -21,4 +21,4 @@
 ## Validation Rules
 - Navigation areas count must remain three; adding/removing requires spec change.
 - Collapsed menu must preserve readable labels and one-click activation.
-- Legacy Trigger routes must redirect into Authoring without exposing removed UI.
+- Triggers routes are deleted; any legacy trigger URL should fall through to the standard not-found view without exposing removed UI.
