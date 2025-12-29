@@ -28,6 +28,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - Backend file-backed JSON repositories (data/), no new stores (017-unify-authoring-ui)
 - C# 13 / .NET 9 + ASP.NET Core Minimal API, Swashbuckle/Swagger tooling, existing GameBot.Domain + Emulator services (018-api-refactor)
 - File-backed JSON repositories under `data/` (no new stores) (018-api-refactor)
+- TypeScript (ES2020), React 18, Vite 5 + react, react-dom, @vitejs/plugin-react, React Testing Library, Jest, Playwright (019-web-ui-nav)
+- N/A (client-side state only) (019-web-ui-nav)
 
 - .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -55,9 +57,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 019-web-ui-nav: Added TypeScript (ES2020), React 18, Vite 5 + react, react-dom, @vitejs/plugin-react, React Testing Library, Jest, Playwright
 - 018-api-refactor: Added C# 13 / .NET 9 + ASP.NET Core Minimal API, Swashbuckle/Swagger tooling, existing GameBot.Domain + Emulator services
 - 017-unify-authoring-ui: Added TypeScript (ES2020), React 18, Vite 5; backend contracts in ASP.NET Core (.NET 9) + React, React Router, form state utilities already in web-ui (no new packages expected)
-- 001-semantic-actions-ui: Added TypeScript (ES2020) + React 18 (Vite 5) + React, Vite toolchain, existing GameBot Service API (action types/actions)
 
 
 <!-- MANUAL ADDITIONS START -->
