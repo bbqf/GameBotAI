@@ -30,4 +30,4 @@
 
 ## Performance Notes
 - /api/sessions must respond within 30s; target typical success <5s.
-- Device suggestions should load within 2s; do not block manual input.
+- Device suggestions should load within 2s; do not block manual input. Time /api/adb/devices during verification and note if slower.

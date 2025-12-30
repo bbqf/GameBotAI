@@ -161,7 +161,10 @@ internal sealed class CommandExecutor : ICommandExecutor {
   }
 
   private async Task<string> ResolveSessionIdAsync(string? sessionId, string commandId, CancellationToken ct) {
-    if (!string.IsNullOrWhiteSpace(sessionId)) return sessionId;
+    if (!string.IsNullOrWhiteSpace(sessionId)) {
+      Log.SessionProvided(_logger, commandId, sessionId);
+      return sessionId;
+    }
 
     var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false) ?? throw new KeyNotFoundException("Command not found");
     // Find first connect-to-game action referenced by this command
@@ -172,12 +175,17 @@ internal sealed class CommandExecutor : ICommandExecutor {
       foreach (var input in act.Steps) {
         if (ConnectToGameArgs.TryFrom(input, act.GameId, out var args)) {
           var cached = _sessionCache.GetSessionId(args.GameId, args.AdbSerial);
-          if (string.IsNullOrWhiteSpace(cached)) throw new KeyNotFoundException("cached_session_not_found");
+          if (string.IsNullOrWhiteSpace(cached)) {
+            Log.SessionCacheMiss(_logger, commandId, args.GameId, args.AdbSerial);
+            throw new KeyNotFoundException("cached_session_not_found");
+          }
+          Log.SessionCacheHit(_logger, commandId, args.GameId, args.AdbSerial, cached!);
           return cached!;
         }
       }
     }
 
+    Log.SessionContextMissing(_logger, commandId);
     throw new InvalidOperationException("missing_session_context");
   }
 }
@@ -197,4 +205,16 @@ internal static partial class Log {
 
   [LoggerMessage(EventId = 6004, Level = LogLevel.Debug, Message = "Detection wiring encountered an issue; proceeding without coordinates.")]
   public static partial void DetectionError(ILogger logger, Exception ex);
+
+  [LoggerMessage(EventId = 6005, Level = LogLevel.Debug, Message = "SessionId provided explicitly for command {CommandId} (session {SessionId}).")]
+  public static partial void SessionProvided(ILogger logger, string CommandId, string SessionId);
+
+  [LoggerMessage(EventId = 6006, Level = LogLevel.Information, Message = "Using cached session for command {CommandId}: game {GameId}, device {AdbSerial}, session {SessionId}.")]
+  public static partial void SessionCacheHit(ILogger logger, string CommandId, string GameId, string AdbSerial, string SessionId);
+
+  [LoggerMessage(EventId = 6007, Level = LogLevel.Warning, Message = "No cached session for command {CommandId}: game {GameId}, device {AdbSerial}.")]
+  public static partial void SessionCacheMiss(ILogger logger, string CommandId, string GameId, string AdbSerial);
+
+  [LoggerMessage(EventId = 6008, Level = LogLevel.Warning, Message = "No connect-to-game context found for command {CommandId} to resolve session.")]
+  public static partial void SessionContextMissing(ILogger logger, string CommandId);
 }

@@ -41,11 +41,11 @@
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T023 Update quickstart and any README notes with new action type usage (specs/020-connect-game-action/quickstart.md)
-- [ ] T024 Add logging for session creation and auto-injection paths (gameId, adbSerial, no secrets) in src/GameBot.Service
-- [ ] T025 Run full build/tests: `dotnet build -c Debug`, `dotnet test -c Debug`, `npm test` in src/web-ui, Playwright suite if available
-- [ ] T026 Measure /api/adb/devices suggestion latency (target ≤2s) and add a check or test note in src/web-ui Playwright/RTL or perf note in docs
-- [ ] T027 Update Swagger/OpenAPI docs for session endpoints and optional sessionId handling in specs/openapi.json, and add connect-to-game action type example to data/actions sample JSON
+- [x] T023 Update quickstart and any README notes with new action type usage (specs/020-connect-game-action/quickstart.md)
+- [x] T024 Add logging for session creation and auto-injection paths (gameId, adbSerial, no secrets) in src/GameBot.Service
+- [x] T025 Run full build/tests: `dotnet build -c Debug`, `dotnet test -c Debug`, `npm test` in src/web-ui, Playwright suite if available
+- [x] T026 Measure /api/adb/devices suggestion latency (target ≤2s) and add a check or test note in src/web-ui Playwright/RTL or perf note in docs
+- [x] T027 Update Swagger/OpenAPI docs for session endpoints and optional sessionId handling in specs/openapi.json, and add connect-to-game action type example to data/actions sample JSON
 
 ## Dependencies
 - Story order: US1 (authoring) enables US2 (session creation) enables US3 (reuse).
