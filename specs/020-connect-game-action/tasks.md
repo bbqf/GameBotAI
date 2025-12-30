@@ -2,15 +2,15 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Ensure .NET 9 SDK and Node 18+ available (verify locally)
-- [ ] T002 Restore backend deps and confirm build in src/GameBot.Service (`dotnet restore`)
-- [ ] T003 Restore frontend deps in src/web-ui (`npm install`)
+- [x] T001 Ensure .NET 9 SDK and Node 18+ available (verify locally)
+- [x] T002 Restore backend deps and confirm build in src/GameBot.Service (`dotnet restore`)
+- [x] T003 Restore frontend deps in src/web-ui (`npm install`)
 
 ## Phase 2: Foundational
 
-- [ ] T004 Add action type constant and model fields for connect-to-game in src/GameBot.Domain (gameId, adbSerial required)
-- [ ] T005 Wire JSON repository schema updates for connect-to-game action persistence in src/GameBot.Domain and data/ actions samples
-- [ ] T006 Document session cache keying (gameId+adbSerial) in src/GameBot.Service/README.md (command execution section)
+- [x] T004 Add action type constant and model fields for connect-to-game in src/GameBot.Domain (gameId, adbSerial required)
+- [x] T005 Wire JSON repository schema updates for connect-to-game action persistence in src/GameBot.Domain and data/ actions samples
+- [x] T006 Document session cache keying (gameId+adbSerial) in src/GameBot.Service/README.md (command execution section)
 
 ## Phase 3: User Story 1 – Author configures Connect to game action (P1)
 

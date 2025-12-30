@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using GameBot.Domain.Actions;
 using GameBot.Service;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -51,7 +52,7 @@ internal static class ActionTypesEndpoints {
     Version = "v1",
     Items = new List<ActionTypeDto> {
       new() {
-        Key = "tap",
+        Key = ActionTypes.Tap,
         DisplayName = "Tap",
         Description = "Tap at coordinates",
         AttributeDefinitions = new List<AttributeDefinitionDto> {
@@ -74,7 +75,7 @@ internal static class ActionTypesEndpoints {
         }
       },
       new() {
-        Key = "swipe",
+        Key = ActionTypes.Swipe,
         DisplayName = "Swipe",
         Description = "Swipe between two coordinates",
         AttributeDefinitions = new List<AttributeDefinitionDto> {
@@ -121,7 +122,7 @@ internal static class ActionTypesEndpoints {
         }
       },
       new() {
-        Key = "key",
+        Key = ActionTypes.Key,
         DisplayName = "Key Event",
         Description = "Send an Android key event (name or numeric code)",
         AttributeDefinitions = new List<AttributeDefinitionDto> {
@@ -146,6 +147,20 @@ internal static class ActionTypesEndpoints {
             Required = false,
             Constraints = new AttributeConstraintsDto { Min = 0, Max = 300 },
             HelpText = "Optional numeric Android key code (overrides key name if provided)."
+          }
+        }
+      },
+      new() {
+        Key = ActionTypes.ConnectToGame,
+        DisplayName = "Connect to game",
+        Description = "Establish a session for a game on a target device (returns sessionId on execute)",
+        AttributeDefinitions = new List<AttributeDefinitionDto> {
+          new() {
+            Key = "adbSerial",
+            Label = "ADB Serial",
+            DataType = "string",
+            Required = true,
+            HelpText = "Device serial to bind the session; choose a suggestion or enter manually"
           }
         }
       }

@@ -311,6 +311,7 @@ Run-time context used to execute inputs and take snapshots.
     - Provide `gameId` (preferred) or `gamePath`.
     - Optional `adbSerial` to bind a specific device/emulator; if omitted and ADB is enabled, the first available device is selected; if none, the API returns 404.
   - Response: `{ id, status, gameId }`
+- Session cache (UI): the web UI stores the latest `sessionId` keyed by `(gameId + adbSerial)` after a successful connect-to-game action. A cached session is only reused when both values match; mismatched pairs trigger guidance to establish a new session.
 - Get: `GET /api/sessions/{id}` → `{ id, status, uptime, health, gameId }`
 - Device info: `GET /api/sessions/{id}/device` → `{ id, deviceSerial, mode: "ADB"|"STUB" }`
 - Health: `GET /api/sessions/{id}/health` → ADB connectivity details when applicable

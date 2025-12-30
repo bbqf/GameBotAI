@@ -1,0 +1,16 @@
+{
+  "id": "sample-connect-action",
+  "name": "Connect to Game Sample",
+  "gameId": "8ac4dc382f4c42778b33ea1270b669c4",
+  "steps": [
+    {
+      "type": "connect-to-game",
+      "args": {
+        "gameId": "8ac4dc382f4c42778b33ea1270b669c4",
+        "adbSerial": "emulator-5554"
+      },
+      "delayMs": 0
+    }
+  ],
+  "checkpoints": []
+}
