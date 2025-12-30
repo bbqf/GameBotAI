@@ -1,0 +1,155 @@
+openapi: 3.0.3
+info:
+  title: Images API
+  version: "1.0.0"
+paths:
+  /api/images:
+    get:
+      summary: List image IDs
+      responses:
+        "200":
+          description: IDs of stored images
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ids:
+                    type: array
+                    items:
+                      type: string
+    post:
+      summary: Create a new image
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [id, file]
+              properties:
+                id:
+                  type: string
+                  description: Unique image identifier (alphanumeric, dash, underscore)
+                file:
+                  type: string
+                  format: binary
+                  description: Image content (png or jpeg, max 10 MB)
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Invalid input (e.g., duplicate id)
+        "413":
+          description: Payload too large (>10 MB)
+        "415":
+          description: Unsupported media type
+  /api/images/{id}:
+    get:
+      summary: Get image content by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Image content
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found
+    put:
+      summary: Overwrite an existing image
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Replacement image (png or jpeg, max 10 MB)
+      responses:
+        "200":
+          description: Replaced
+        "404":
+          description: Not found
+        "413":
+          description: Payload too large (>10 MB)
+        "415":
+          description: Unsupported media type
+    delete:
+      summary: Delete an image if unreferenced
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+        "409":
+          description: Image is referenced by triggers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blockingTriggerIds:
+                    type: array
+                    items:
+                      type: string
+  /api/images/{id}/metadata:
+    get:
+      summary: Get image metadata
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Metadata for the image
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  contentType:
+                    type: string
+                  sizeBytes:
+                    type: integer
+                  filename:
+                    type: string
+                  createdAtUtc:
+                    type: string
+                    format: date-time
+                  updatedAtUtc:
+                    type: string
+                    format: date-time
+        "404":
+          description: Not found

@@ -32,6 +32,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - N/A (client-side state only) (019-web-ui-nav)
 - C# (.NET 9) for backend; TypeScript (ES2020) + React 18 for frontend + ASP.NET Core Minimal API, SharpAdbClient/ADB integration, existing JSON repositories, React/Vite toolchain (020-connect-game-action)
 - File-based JSON repositories (data/), client localStorage for session cache (020-connect-game-action)
+- C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing file-backed image store under `data/images`, React 18 + Vite toolchain (021-images-authoring-ui)
+- File-system image blobs and metadata; trigger references from JSON repositories (021-images-authoring-ui)
 
 - .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -59,9 +61,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 021-images-authoring-ui: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing file-backed image store under `data/images`, React 18 + Vite toolchain
 - 020-connect-game-action: Added C# (.NET 9) for backend; TypeScript (ES2020) + React 18 for frontend + ASP.NET Core Minimal API, SharpAdbClient/ADB integration, existing JSON repositories, React/Vite toolchain
 - 019-web-ui-nav: Added TypeScript (ES2020), React 18, Vite 5 + react, react-dom, @vitejs/plugin-react, React Testing Library, Jest, Playwright
-- 018-api-refactor: Added C# 13 / .NET 9 + ASP.NET Core Minimal API, Swashbuckle/Swagger tooling, existing GameBot.Domain + Emulator services
 
 
 <!-- MANUAL ADDITIONS START -->
