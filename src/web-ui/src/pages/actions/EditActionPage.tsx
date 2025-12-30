@@ -20,7 +20,7 @@ export const EditActionPage: React.FC<EditActionPageProps> = ({ actionId }) => {
   const [loadError, setLoadError] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
 
-  const actionTypes = typeCatalog?.items ?? [];
+  const actionTypes = useMemo(() => typeCatalog?.items ?? [], [typeCatalog]);
   const selectedType = useMemo(() => actionTypes.find((t) => t.key === form.type), [actionTypes, form.type]);
 
   useEffect(() => {

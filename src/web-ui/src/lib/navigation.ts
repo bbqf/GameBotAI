@@ -4,8 +4,7 @@ const tabMap: Record<string, AuthoringTab> = {
   actions: 'Actions',
   commands: 'Commands',
   games: 'Games',
-  sequences: 'Sequences',
-  triggers: 'Triggers'
+  sequences: 'Sequences'
 };
 
 export const normalizeTab = (value: string | null): AuthoringTab | undefined => {
