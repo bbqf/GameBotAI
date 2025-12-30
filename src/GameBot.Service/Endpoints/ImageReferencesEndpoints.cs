@@ -39,7 +39,8 @@ internal static class ImageReferencesEndpoints {
 
     app.MapGet(ApiRoutes.Images, async (IImageRepository repo) => {
       var ids = await repo.ListIdsAsync().ConfigureAwait(false);
-      return Results.Ok(new { ids });
+      var ordered = ids.OrderBy(i => i, StringComparer.OrdinalIgnoreCase).ToArray();
+      return Results.Ok(new { ids = ordered });
     }).WithName("ListImageReferences").WithTags("Images");
 
     app.MapPost(ApiRoutes.Images, async (HttpRequest http, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {

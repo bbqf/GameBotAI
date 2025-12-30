@@ -30,14 +30,14 @@
 
 ### Tests for User Story 1
 
- - [ ] T011 [P] [US1] Contract test for `GET /api/images` returning ID list in `tests/contract/Images/ListImagesTests.cs`
- - [ ] T012 [P] [US1] Integration/UI test for list-to-detail navigation in `src/web-ui/tests/integration/images/list-navigation.spec.ts`
+ - [X] T011 [P] [US1] Contract test for `GET /api/images` returning ID list in `tests/contract/Images/ListImagesTests.cs`
+- [X] T012 [P] [US1] Integration/UI test for list-to-detail navigation in `src/web-ui/tests/e2e/images/list-navigation.spec.ts`
 
 ### Implementation for User Story 1
 
- - [ ] T013 [P] [US1] Implement `GET /api/images` endpoint returning IDs only in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
- - [ ] T014 [US1] Build Images list page with table of IDs in `src/web-ui/src/routes/authoring/images/ImagesListPage.tsx`
- - [ ] T015 [US1] Add list-to-detail routing and empty/error states in `src/web-ui/src/routes/authoring/images/ImagesListPage.tsx`
+ - [X] T013 [P] [US1] Implement `GET /api/images` endpoint returning IDs only in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
+ - [X] T014 [US1] Build Images list page with table of IDs in `src/web-ui/src/pages/images/ImagesListPage.tsx`
+ - [X] T015 [US1] Add list-to-detail routing and empty/error states in `src/web-ui/src/pages/images/ImagesListPage.tsx`
 
 **Checkpoint**: List displays IDs and links to detail.
 

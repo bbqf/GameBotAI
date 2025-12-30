@@ -7,6 +7,7 @@ import { ActionsListPage } from './pages/actions/ActionsListPage';
 import { CommandsPage } from './pages/CommandsPage';
 import { GamesPage } from './pages/GamesPage';
 import { SequencesPage } from './pages/SequencesPage';
+import { ImagesListPage } from './pages/images/ImagesListPage';
 import { normalizeTab } from './lib/navigation';
 import { useNavigationCollapse } from './hooks/useNavigationCollapse';
 import { Navigation } from './components/Navigation';
@@ -22,7 +23,8 @@ const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolea
     actions: 'Actions',
     commands: 'Commands',
     games: 'Games',
-    sequences: 'Sequences'
+    sequences: 'Sequences',
+    images: 'Images'
   };
   const mappedTab = tabMap[head.toLowerCase()];
   if (!mappedTab) return undefined;
@@ -98,6 +100,7 @@ export const App: React.FC = () => {
         {tab === 'Commands' && <CommandsPage initialCreate={creationTarget === 'commands'} initialEditId={requestedTab === 'Commands' ? initialId : undefined} />}
         {tab === 'Games' && <GamesPage initialCreate={creationTarget === 'games'} initialEditId={requestedTab === 'Games' ? initialId : undefined} />}
         {tab === 'Sequences' && <SequencesPage initialCreate={creationTarget === 'sequences'} initialEditId={requestedTab === 'Sequences' ? initialId : undefined} />}
+        {tab === 'Images' && <ImagesListPage />}
       </ErrorBoundary>
     </section>
   );
