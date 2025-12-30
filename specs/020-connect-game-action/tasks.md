@@ -37,6 +37,7 @@
 - [x] T020 [US3] Frontend: when executing commands without sessionId, pull from cache (gameId+adbSerial) and block with guidance if missing in src/web-ui/src/pages/commands/ExecuteCommandPage.tsx (or the command execution component used)
 - [x] T021 [US3] Tests: backend coverage for optional sessionId injection and rejection cases (tests/integration)
 - [x] T022 [US3] Tests: frontend RTL/Playwright for auto-injection and missing-session guidance
+- [x] T022 [US3] Tests: frontend RTL/Playwright for auto-injection and missing-session guidance (updated app-level stub to avoid async warnings)
 
 ## Phase 6: Polish & Cross-Cutting
 
