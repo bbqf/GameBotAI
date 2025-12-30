@@ -23,12 +23,12 @@
 
 ## Phase 4: User Story 2 – Execute action to open a session (P1)
 
-- [ ] T012 [US2] Implement synchronous POST /api/sessions call for connect-to-game action execution with 30s timeout in src/GameBot.Service (command execution flow)
-- [ ] T013 [US2] Surface sessionId on success to UI command execution response in src/GameBot.Service and client handling in src/web-ui execution logic
-- [ ] T014 [US2] Cache sessionId client-side keyed by gameId+adbSerial in src/web-ui/src/lib/sessionCache.ts (create if missing)
-- [ ] T015 [US2] Handle timeout/failure: clear/no cache write, surface actionable error in UI in src/web-ui/src/pages/commands/ExecuteCommandPage.tsx (or the command execution component used)
-- [ ] T016 [US2] Tests: backend unit/integration for session timeout and success path (tests/integration or tests/unit as appropriate)
-- [ ] T017 [US2] Tests: frontend RTL for execution flow showing sessionId and handling timeout/error states
+- [x] T012 [US2] Implement synchronous POST /api/sessions call for connect-to-game action execution with 30s timeout in src/GameBot.Service (command execution flow)
+- [x] T013 [US2] Surface sessionId on success to UI command execution response in src/GameBot.Service and client handling in src/web-ui execution logic
+- [x] T014 [US2] Cache sessionId client-side keyed by gameId+adbSerial in src/web-ui/src/lib/sessionCache.ts (create if missing)
+- [x] T015 [US2] Handle timeout/failure: clear/no cache write, surface actionable error in UI in src/web-ui/src/pages/commands/ExecuteCommandPage.tsx (or the command execution component used)
+- [x] T016 [US2] Tests: backend unit/integration for session timeout and success path (tests/integration or tests/unit as appropriate)
+- [x] T017 [US2] Tests: frontend RTL for execution flow showing sessionId and handling timeout/error states
 
 ## Phase 5: User Story 3 – Use stored session across commands (P2)
 

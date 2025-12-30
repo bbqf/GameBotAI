@@ -4,6 +4,8 @@ using GameBot.Service;
 using GameBot.Service.Models;
 using GameBot.Emulator.Adb;
 using GameBot.Domain.Actions;
+using Microsoft.Extensions.Options;
+using System.Threading.Tasks;
 
 namespace GameBot.Service.Endpoints;
 
@@ -11,7 +13,7 @@ internal static class SessionsEndpoints {
   public static IEndpointRouteBuilder MapSessionEndpoints(this IEndpointRouteBuilder app) {
     var group = app.MapGroup(ApiRoutes.Sessions).WithTags("Sessions");
 
-    group.MapPost("", (CreateSessionRequest req, ISessionManager mgr) => {
+    group.MapPost("", async (CreateSessionRequest req, ISessionManager mgr, IOptions<SessionCreationOptions> createOptions, CancellationToken ct) => {
       var game = req.GameId ?? req.GamePath;
       if (string.IsNullOrWhiteSpace(game))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "Provide gameId or gamePath.", hint = (string?)null } });
@@ -19,10 +21,21 @@ internal static class SessionsEndpoints {
       if (!mgr.CanCreateSession) {
         return Results.Json(new { error = new { code = "capacity_exceeded", message = "Max concurrent sessions reached.", hint = (string?)null } }, statusCode: StatusCodes.Status429TooManyRequests);
       }
+      var timeoutSeconds = Math.Max(1, createOptions?.Value?.TimeoutSeconds ?? 30);
+      using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+      timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
       try {
-        var sess = mgr.CreateSession(game, req.AdbSerial);
-        var resp = new CreateSessionResponse { Id = sess.Id, Status = sess.Status.ToString().ToUpperInvariant(), GameId = sess.GameId };
+        var createTask = Task.Run(() => mgr.CreateSession(game, req.AdbSerial), timeoutCts.Token);
+        var sess = await createTask.WaitAsync(TimeSpan.FromSeconds(timeoutSeconds), timeoutCts.Token).ConfigureAwait(false);
+        var resp = new CreateSessionResponse { Id = sess.Id, SessionId = sess.Id, Status = sess.Status.ToString().ToUpperInvariant(), GameId = sess.GameId };
         return Results.Created($"{ApiRoutes.Sessions}/{sess.Id}", resp);
+      }
+      catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested) {
+        return Results.StatusCode(StatusCodes.Status504GatewayTimeout);
+      }
+      catch (TimeoutException) {
+        return Results.StatusCode(StatusCodes.Status504GatewayTimeout);
       }
       catch (InvalidOperationException ex) when (ex.Message == "no_adb_devices") {
         return Results.NotFound(new { error = new { code = "adb_device_not_found", message = "No ADB devices connected.", hint = "Connect a device or emulator and try again." } });

@@ -76,6 +76,12 @@ builder.Services.ConfigureHttpJsonOptions(options => {
   options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 builder.Services.Configure<GameBot.Emulator.Session.SessionOptions>(builder.Configuration.GetSection("Service:Sessions"));
+builder.Services.Configure<GameBot.Service.Models.SessionCreationOptions>(options => {
+  var envTimeout = Environment.GetEnvironmentVariable("GAMEBOT_SESSION_CREATE_TIMEOUT_SECONDS");
+  var cfgTimeout = builder.Configuration["Service:Sessions:CreationTimeoutSeconds"];
+  var raw = envTimeout ?? cfgTimeout;
+  options.TimeoutSeconds = int.TryParse(raw, out var seconds) ? Math.Max(1, seconds) : 30;
+});
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
 builder.Services.AddTransient<ErrorHandlingMiddleware>();
 builder.Services.AddTransient<CorrelationIdMiddleware>();
