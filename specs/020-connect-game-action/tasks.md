@@ -14,12 +14,12 @@
 
 ## Phase 3: User Story 1 – Author configures Connect to game action (P1)
 
-- [ ] T007 [US1] Add UI option for "Connect to game" action type in src/web-ui/src/pages/actions/CreateActionPage.tsx and EditActionPage.tsx
-- [ ] T008 [US1] Require game selection via existing games list in src/web-ui/src/pages/actions/CreateActionPage.tsx, src/web-ui/src/pages/actions/EditActionPage.tsx (and shared ActionForm if present)
-- [ ] T009 [US1] Populate adbSerial suggestions from /api/adb/devices with manual override in src/web-ui/src/pages/actions/CreateActionPage.tsx, src/web-ui/src/pages/actions/EditActionPage.tsx (and shared ActionForm if present)
-- [ ] T010 [US1] Persist gameId and adbSerial for connect-to-game actions (load/save) in src/web-ui/src/pages/actions/ActionsListPage.tsx and related store/service
-- [ ] T011 [US1] Backend validation: reject connect-to-game actions missing gameId or adbSerial in src/GameBot.Service action endpoints
-- [ ] T011a [US1] Handle empty game list: block save and show guidance in src/web-ui/src/pages/actions/CreateActionPage.tsx and EditActionPage.tsx
+- [x] T007 [US1] Add UI option for "Connect to game" action type in src/web-ui/src/pages/actions/CreateActionPage.tsx and EditActionPage.tsx
+- [x] T008 [US1] Require game selection via existing games list in src/web-ui/src/pages/actions/CreateActionPage.tsx, src/web-ui/src/pages/actions/EditActionPage.tsx (and shared ActionForm if present)
+- [x] T009 [US1] Populate adbSerial suggestions from /api/adb/devices with manual override in src/web-ui/src/pages/actions/CreateActionPage.tsx, src/web-ui/src/pages/actions/EditActionPage.tsx (and shared ActionForm if present)
+- [x] T010 [US1] Persist gameId and adbSerial for connect-to-game actions (load/save) in src/web-ui/src/pages/actions/ActionsListPage.tsx and related store/service
+- [x] T011 [US1] Backend validation: reject connect-to-game actions missing gameId or adbSerial in src/GameBot.Service action endpoints
+- [x] T011a [US1] Handle empty game list: block save and show guidance in src/web-ui/src/pages/actions/CreateActionPage.tsx and EditActionPage.tsx
 
 ## Phase 4: User Story 2 – Execute action to open a session (P1)
 

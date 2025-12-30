@@ -4,6 +4,7 @@ import { GameDto } from '../../services/games';
 import { validateAttribute } from '../../services/validation';
 import { FormActions, FormSection } from '../unified/FormLayout';
 import { FieldRenderer } from './FieldRenderer';
+import { useAdbDevices } from '../../services/useAdbDevices';
 
 export type ActionFormValue = {
   name: string;
@@ -56,6 +57,9 @@ export const ActionForm: React.FC<ActionFormProps> = ({
   const renderMark = useRef<number>(now());
   renderMark.current = now();
   const selectedType = actionTypes.find((t) => t.key === value.type);
+  const isConnectType = selectedType?.key === 'connect-to-game';
+  const { loading: devicesLoading, devices, error: devicesError, refresh } = useAdbDevices(isConnectType);
+  const hasGames = games.length > 0;
 
   useEffect(() => {
     if (loading) return;
@@ -108,15 +112,55 @@ export const ActionForm: React.FC<ActionFormProps> = ({
 
   const renderFields = () => {
     if (!selectedType) return null;
-    return selectedType.attributeDefinitions.map((def) => (
-      <FieldRenderer
-        key={def.key}
-        definition={def}
-        value={value.attributes[def.key]}
-        error={getFieldError(errors, def.key)}
-        onChange={updateAttributes}
-      />
-    ));
+    return selectedType.attributeDefinitions.map((def) => {
+      if (isConnectType && def.key === 'adbSerial') {
+        const stringVal = typeof value.attributes[def.key] === 'string' ? (value.attributes[def.key] as string) : '';
+        const listId = 'adb-serial-options';
+        return (
+          <div className="field" key={def.key}>
+            <label htmlFor={def.key}>ADB Serial *</label>
+            <input
+              id={def.key}
+              list={listId}
+              value={stringVal}
+              onChange={(e) => updateAttributes(def.key, e.target.value)}
+              placeholder="Select or enter a device serial"
+              aria-invalid={Boolean(getFieldError(errors, def.key))}
+              aria-describedby={devicesError ? `${def.key}-error` : undefined}
+              disabled={submitting}
+            />
+            <datalist id={listId}>
+              {devices.map((d) => (
+                <option key={d.serial} value={d.serial}>{d.serial}{d.state ? ` (${d.state})` : ''}</option>
+              ))}
+            </datalist>
+            {devicesLoading && <div className="form-hint">Loading device suggestions...</div>}
+            {!devicesLoading && devices.length === 0 && !devicesError && (
+              <div className="form-hint">No devices detected; enter a serial manually.</div>
+            )}
+            {devicesError && (
+              <div id={`${def.key}-error`} className="form-error" role="alert">{devicesError}</div>
+            )}
+            <div className="form-actions-inline">
+              <button type="button" onClick={() => { refresh(); }} disabled={devicesLoading}>Refresh devices</button>
+            </div>
+            {getFieldError(errors, def.key) && (
+              <div className="field-error" role="alert">{getFieldError(errors, def.key)}</div>
+            )}
+          </div>
+        );
+      }
+
+      return (
+        <FieldRenderer
+          key={def.key}
+          definition={def}
+          value={value.attributes[def.key]}
+          error={getFieldError(errors, def.key)}
+          onChange={updateAttributes}
+        />
+      );
+    });
   };
 
   return (
@@ -144,6 +188,9 @@ export const ActionForm: React.FC<ActionFormProps> = ({
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
           </select>
+          {!hasGames && !loading && (
+            <div className="form-hint">No games available. Add a game before creating this action.</div>
+          )}
           {getFieldError(errors, 'gameId') && (
             <div id="action-game-error" className="field-error" role="alert">
               {getFieldError(errors, 'gameId')}
@@ -202,7 +249,7 @@ export const ActionForm: React.FC<ActionFormProps> = ({
         </div>
       )}
 
-      <FormActions submitting={submitting} onCancel={onCancel}>
+      <FormActions submitting={submitting} onCancel={onCancel} disabled={!hasGames}>
         {extraActions}
       </FormActions>
     </form>

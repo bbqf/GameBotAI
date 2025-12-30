@@ -5,6 +5,8 @@ import { useActionTypes } from '../../../services/useActionTypes';
 import { useGames } from '../../../services/useGames';
 import { listActions, duplicateAction, getAction, updateAction } from '../../../services/actionsApi';
 
+jest.mock('../../../services/useAdbDevices', () => ({ useAdbDevices: () => ({ loading: false, devices: [], refresh: jest.fn() }) }));
+
 jest.mock('../../../services/useActionTypes');
 jest.mock('../../../services/useGames');
 jest.mock('../../../services/actionsApi');
@@ -111,5 +113,33 @@ describe('ActionsListPage', () => {
     expect(await screen.findByLabelText('Name *')).toHaveValue('Original copy');
     expect(screen.getByLabelText('Action Type *')).toHaveValue('tap');
     expect(screen.getByLabelText('Game *')).toHaveValue('g1');
+  });
+
+  it('persists gameId in attributes for connect-to-game actions', async () => {
+    useActionTypesMock.mockReturnValue({
+      loading: false,
+      error: undefined,
+      data: { version: 'v1', items: [{ key: 'connect-to-game', displayName: 'Connect', attributeDefinitions: [{ key: 'adbSerial', label: 'ADB', dataType: 'string', required: true }] }] }
+    } as any);
+
+    listActionsMock.mockResolvedValue([{ id: 'c1', name: 'Connect', gameId: 'g1', type: 'connect-to-game', attributes: { adbSerial: 'emulator-5554' } } as any]);
+    getActionMock.mockResolvedValue({ id: 'c1', name: 'Connect', gameId: 'g1', type: 'connect-to-game', attributes: { adbSerial: 'emulator-5554' } } as any);
+    updateActionMock.mockResolvedValue({} as any);
+
+    render(<ActionsListPage />);
+
+    const connectButton = await screen.findByRole('button', { name: 'Connect' });
+    fireEvent.click(connectButton);
+    const saveButton = await screen.findByRole('button', { name: 'Save' });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(updateActionMock).toHaveBeenCalledWith('c1', {
+        name: 'Connect',
+        gameId: 'g1',
+        type: 'connect-to-game',
+        attributes: { adbSerial: 'emulator-5554', gameId: 'g1' }
+      });
+    });
   });
 });

@@ -63,6 +63,9 @@ const normalizeDuration = (attributes: Record<string, unknown>): { durationMs?: 
 
 const fromCreate = (payload: ActionCreate): DomainAction => {
   const { durationMs, rest } = normalizeDuration(payload.attributes ?? {});
+  if (payload.type === 'connect-to-game' && payload.gameId) {
+    rest.gameId = payload.gameId;
+  }
   return {
   id: '',
   name: payload.name,
@@ -81,6 +84,9 @@ const fromCreate = (payload: ActionCreate): DomainAction => {
 
 const fromUpdate = (payload: ActionUpdate, id: string): DomainAction => {
   const { durationMs, rest } = normalizeDuration(payload.attributes ?? {});
+  if (payload.type === 'connect-to-game' && payload.gameId) {
+    rest.gameId = payload.gameId;
+  }
   return {
     id,
     name: payload.name,

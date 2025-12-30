@@ -59,6 +59,32 @@ internal static class ActionsEndpoints {
       }
     }
   }
+
+  private static IResult? ValidateAndNormalizeAction(Domain.Actions.Action action) {
+    var errors = new List<object>();
+
+    foreach (var step in action.Steps) {
+      if (!string.Equals(step.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)) continue;
+
+      if (string.IsNullOrWhiteSpace(action.GameId)) {
+        errors.Add(new { field = "gameId", message = "gameId is required for connect-to-game actions" });
+      }
+
+      if (!step.Args.TryGetValue("adbSerial", out var serialObj) || string.IsNullOrWhiteSpace(serialObj?.ToString())) {
+        errors.Add(new { field = "attributes.adbSerial", message = "adbSerial is required for connect-to-game actions" });
+      }
+
+      // Normalize: ensure args carries gameId to match the action
+      if (string.IsNullOrWhiteSpace(action.GameId)) continue;
+      var argGameId = step.Args.TryGetValue("gameId", out var g) ? g?.ToString() : null;
+      if (string.IsNullOrWhiteSpace(argGameId)) {
+        step.Args["gameId"] = action.GameId;
+      }
+    }
+
+    if (errors.Count > 0) return Results.BadRequest(new { errors });
+    return null;
+  }
   public static IEndpointRouteBuilder MapActionEndpoints(this IEndpointRouteBuilder app) {
     app.MapPost(ApiRoutes.Actions, async (HttpRequest http, IActionRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
@@ -90,6 +116,9 @@ internal static class ActionsEndpoints {
         Steps = new Collection<InputAction>(req.Steps.Select(s => new InputAction { Type = s.Type, Args = s.Args, DelayMs = s.DelayMs, DurationMs = s.DurationMs }).ToList()),
         Checkpoints = new Collection<string>(req.Checkpoints.ToList())
       };
+
+      var validationResult = ValidateAndNormalizeAction(action);
+      if (validationResult is not null) return validationResult;
 
       var createdDomain = await repo.AddAsync(action, ct).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Actions}/{createdDomain.Id}", new ActionResponse {
@@ -140,6 +169,9 @@ internal static class ActionsEndpoints {
 
       ApplyActionPatch(root, existing);
 
+      var validation = ValidateAndNormalizeAction(existing);
+      if (validation is not null) return validation;
+
       var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
       if (updated is null) return Results.NotFound();
       return Results.Ok(ToResponse(updated));
@@ -153,6 +185,9 @@ internal static class ActionsEndpoints {
       if (existing is null) return Results.NotFound();
 
       ApplyActionPatch(root, existing);
+
+      var validation = ValidateAndNormalizeAction(existing);
+      if (validation is not null) return validation;
 
       var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
       if (updated is null) return Results.NotFound();
