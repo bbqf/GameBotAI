@@ -73,19 +73,22 @@ internal static class ImageReferencesEndpoints {
 
       if (req.File is not null)
       {
-        if (!ImageDetectionsValidation.ValidateContentType(req.File.ContentType)) {
-          return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
-        }
         if (!ImageDetectionsValidation.ValidateContentLength(req.File.Length)) {
           return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
+
         using var ms = new MemoryStream();
         using (var fileStream = req.File.OpenReadStream())
         {
           await fileStream.CopyToAsync(ms, http.HttpContext.RequestAborted).ConfigureAwait(false);
         }
         bytes = ms.ToArray();
-        contentType = string.IsNullOrWhiteSpace(req.File.ContentType) ? "image/png" : req.File.ContentType!;
+
+        if (!ImageDetectionsValidation.TryNormalizeContentType(req.File.ContentType, req.File.FileName, bytes, out contentType))
+        {
+          return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+        }
+
         filename = req.File.FileName;
       }
       else
@@ -122,7 +125,7 @@ internal static class ImageReferencesEndpoints {
         logger.LogUploadFailed(ex, safeId);
         return Results.BadRequest(new { error = new { code = "invalid_image", message = "Failed to save image", hint = ex.Message } });
       }
-    }).Accepts<UploadImageRequest>("application/json").WithName("UploadImageReference").WithTags("Images");
+    }).Accepts<UploadImageRequest>("application/json", "multipart/form-data").WithName("UploadImageReference").WithTags("Images");
 
     app.MapGet($"{ApiRoutes.Images}/{{id}}", async (string id, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
@@ -179,19 +182,22 @@ internal static class ImageReferencesEndpoints {
 
       if (req.File is not null)
       {
-        if (!ImageDetectionsValidation.ValidateContentType(req.File.ContentType)) {
-          return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
-        }
         if (!ImageDetectionsValidation.ValidateContentLength(req.File.Length)) {
           return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
+
         using var ms = new MemoryStream();
         using (var fileStream = req.File.OpenReadStream())
         {
           await fileStream.CopyToAsync(ms, http.HttpContext.RequestAborted).ConfigureAwait(false);
         }
         bytes = ms.ToArray();
-        contentType = string.IsNullOrWhiteSpace(req.File.ContentType) ? "image/png" : req.File.ContentType!;
+
+        if (!ImageDetectionsValidation.TryNormalizeContentType(req.File.ContentType, req.File.FileName, bytes, out contentType))
+        {
+          return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+        }
+
         filename = req.File.FileName;
       }
       else
@@ -232,7 +238,7 @@ internal static class ImageReferencesEndpoints {
         logger.LogUploadFailed(ex, safeId);
         return Results.BadRequest(new { error = new { code = "invalid_image", message = "Failed to save image", hint = ex.Message } });
       }
-    }).Accepts<OverwriteImageRequest>("application/json").WithName("OverwriteImageReference").WithTags("Images");
+    }).Accepts<OverwriteImageRequest>("application/json", "multipart/form-data").WithName("OverwriteImageReference").WithTags("Images");
 
     app.MapDelete($"{ApiRoutes.Images}/{{id}}", async (string id, IImageRepository repo, IImageReferenceRepository refs, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       ArgumentNullException.ThrowIfNull(id);
