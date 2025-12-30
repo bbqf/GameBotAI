@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { listImages } from '../../services/images';
+import { ApiError } from '../../lib/api';
+import { ImageDetailPage } from './ImageDetailPage';
+import { listImages, uploadImage } from '../../services/images';
 
 export const ImagesListPage: React.FC = () => {
   const [ids, setIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [createId, setCreateId] = useState('');
+  const [createFile, setCreateFile] = useState<File | null>(null);
+  const [createMessage, setCreateMessage] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -32,6 +37,42 @@ export const ImagesListPage: React.FC = () => {
       <div className="images-header">
         <button type="button" onClick={() => { void load(); }} disabled={loading}>Refresh</button>
       </div>
+      <section className="image-create" aria-label="Create image">
+        <h3>Create Image</h3>
+        <label htmlFor="create-image-id">Image ID</label>
+        <input
+          id="create-image-id"
+          value={createId}
+          onChange={(e) => { setCreateId(e.target.value); setCreateMessage(null); setError(undefined); }}
+          placeholder="enter image id"
+        />
+        <label htmlFor="create-image-file">File (PNG/JPEG, ≤10 MB)</label>
+        <input id="create-image-file" type="file" accept="image/png,image/jpeg" onChange={(e) => setCreateFile(e.target.files?.[0] ?? null)} />
+        <button
+          type="button"
+          onClick={async () => {
+            setCreateMessage(null);
+            setError(undefined);
+            if (!createId.trim() || !createFile) {
+              setError('ID and file are required');
+              return;
+            }
+            try {
+              await uploadImage(createId.trim(), createFile);
+              setCreateMessage('Image uploaded.');
+              setSelectedId(createId.trim());
+              await load();
+            } catch (e: any) {
+              if (e instanceof ApiError) setError(e.message || 'Upload failed');
+              else setError(e?.message ?? 'Upload failed');
+            }
+          }}
+          disabled={loading}
+        >
+          Upload
+        </button>
+        {createMessage && <div className="form-hint">{createMessage}</div>}
+      </section>
       {error && <div className="form-error" role="alert">{error}</div>}
       <table className="images-table" aria-label="Images table">
         <thead>
@@ -61,12 +102,11 @@ export const ImagesListPage: React.FC = () => {
       </table>
 
       {selectedId && (
-        <section className="image-detail" aria-label="Image detail">
-          <h2>Image Detail</h2>
-          <p className="form-hint">Selected image</p>
-          <p aria-label="selected-image-id" data-testid="selected-image-id">{selectedId}</p>
-          <p className="form-hint">Preview and overwrite actions will appear here.</p>
-        </section>
+        <ImageDetailPage
+          imageId={selectedId}
+          onUploaded={async () => { await load(); }}
+          onDeleted={async () => { setSelectedId(null); await load(); }}
+        />
       )}
     </section>
   );

@@ -6,7 +6,7 @@ jest.mock('../pages/actions/ActionsListPage', () => ({ ActionsListPage: () => <d
 jest.mock('../pages/CommandsPage', () => ({ CommandsPage: () => <div role="heading" aria-level={2}>Commands</div> }));
 jest.mock('../pages/GamesPage', () => ({ GamesPage: () => <div role="heading" aria-level={2}>Games</div> }));
 jest.mock('../pages/SequencesPage', () => ({ SequencesPage: () => <div role="heading" aria-level={2}>Sequences</div> }));
-jest.mock('../pages/images/ImagesListPage', () => ({ ImagesListPage: () => <div role="heading" aria-level={2}>Images</div> }));
+jest.mock('../pages/images/ImagesListPage', () => ({ ImagesListPage: (_: any) => <div role="heading" aria-level={2}>Images</div> }));
 
 const setMatchMedia = (matches: boolean) => {
   Object.defineProperty(window, 'matchMedia', {

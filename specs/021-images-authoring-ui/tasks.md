@@ -50,21 +50,21 @@
 
 ### Tests for User Story 2
 
- - [ ] T016 [P] [US2] Contract test for `GET /api/images/{id}` returning content-type + body in `tests/contract/Images/GetImageTests.cs`
- - [ ] T017 [P] [US2] Integration test for overwrite flow (POST then PUT then GET) in `tests/integration/Images/OverwriteImageTests.cs`
- - [ ] T034 [P] [US2] Contract test for `GET /api/images/{id}` missing ID returns 404 with friendly body in `tests/contract/Images/GetImageNotFoundTests.cs`
- - [ ] T035 [P] [US2] UI test for not-found state on detail page with link back to list in `src/web-ui/tests/integration/images/detail-not-found.spec.ts`
- - [ ] T036 [P] [US2] UI test for create-and-navigate flow (POST then render detail) in `src/web-ui/tests/integration/images/create-and-navigate.spec.ts`
+ - [X] T016 [P] [US2] Contract test for `GET /api/images/{id}` returning content-type + body in `tests/contract/Images/GetImageTests.cs`
+ - [X] T017 [P] [US2] Integration test for overwrite flow (POST then PUT then GET) in `tests/integration/Images/OverwriteImageTests.cs`
+ - [X] T034 [P] [US2] Contract test for `GET /api/images/{id}` missing ID returns 404 with friendly body in `tests/contract/Images/GetImageNotFoundTests.cs`
+ - [X] T035 [P] [US2] UI test for not-found state on detail page with link back to list in `src/web-ui/tests/integration/images/detail-not-found.spec.ts`
+ - [X] T036 [P] [US2] UI test for create-and-navigate flow (POST then render detail) in `src/web-ui/tests/integration/images/create-and-navigate.spec.ts`
 
 ### Implementation for User Story 2
 
- - [ ] T018 [US2] Implement `GET /api/images/{id}` to stream stored image with correct content type in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
- - [ ] T019 [US2] Implement `POST /api/images` create with ID + file validation (10 MB, png/jpg/jpeg) in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
- - [ ] T020 [US2] Implement `PUT /api/images/{id}` overwrite with last-write-wins and metadata update in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
- - [ ] T021 [US2] Render detail page with image preview and metadata fetch in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
- - [ ] T022 [US2] Add upload/overwrite form with validation and post-save preview refresh in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
- - [ ] T037 [US2] Add create/upload form (ID + file) on list or entry screen posting to `/api/images`, then route to detail on success in `src/web-ui/src/routes/authoring/images/ImagesListPage.tsx`
- - [ ] T038 [US2] Handle missing image 404 response with friendly message and back link in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
+ - [X] T018 [US2] Implement `GET /api/images/{id}` to stream stored image with correct content type in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
+ - [X] T019 [US2] Implement `POST /api/images` create with ID + file validation (10 MB, png/jpg/jpeg) in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
+ - [X] T020 [US2] Implement `PUT /api/images/{id}` overwrite with last-write-wins and metadata update in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
+ - [X] T021 [US2] Render detail page with image preview and metadata fetch in `src/web-ui/src/pages/images/ImageDetailPage.tsx`
+ - [X] T022 [US2] Add upload/overwrite form with validation and post-save preview refresh in `src/web-ui/src/pages/images/ImageDetailPage.tsx`
+ - [X] T037 [US2] Add create/upload form (ID + file) on list or entry screen posting to `/api/images`, then route to detail on success in `src/web-ui/src/pages/images/ImagesListPage.tsx`
+ - [X] T038 [US2] Handle missing image 404 response with friendly message and back link in `src/web-ui/src/pages/images/ImageDetailPage.tsx`
 
 **Checkpoint**: Detail view renders image and supports overwrite with validation.
 
