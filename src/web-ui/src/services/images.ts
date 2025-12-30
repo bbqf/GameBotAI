@@ -16,6 +16,21 @@ export type ImageMetadata = {
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
+export type DetectMatch = {
+  templateId: string;
+  score: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  overlap: number;
+};
+
+export type DetectResponse = {
+  matches: DetectMatch[];
+  limitsHit: boolean;
+};
+
 export const listImages = async (): Promise<string[]> => {
   const data = await getJson<ImageListResponse>('/api/images');
   if (data && Array.isArray(data.ids)) {
@@ -90,4 +105,18 @@ export const deleteImage = async (id: string) => {
     const message = (payload?.error && (payload.error.message ?? payload.error.code)) || `HTTP ${res.status}`;
     throw new ApiError(res.status, message, undefined, payload);
   }
+};
+
+export const detectImage = async (referenceImageId: string, opts?: { threshold?: number; maxResults?: number; overlap?: number; }): Promise<DetectResponse> => {
+  const res = await fetch(buildApiUrl('/api/images/detect'), {
+    method: 'POST',
+    headers: buildAuthHeaders(true),
+    body: JSON.stringify({ referenceImageId, ...opts })
+  });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => undefined);
+    const message = (payload?.message ?? payload?.error?.message ?? payload?.error?.code) || `HTTP ${res.status}`;
+    throw new ApiError(res.status, message, undefined, payload);
+  }
+  return res.json();
 };

@@ -29,11 +29,29 @@ namespace GameBot.Service.Endpoints.Dto
 
     internal sealed class MatchResult
     {
+        [JsonPropertyName("templateId")]
+        public string TemplateId { get; set; } = string.Empty;
+
+        [JsonPropertyName("score")]
+        public double Score { get; set; }
+
         [JsonPropertyName("bbox")]
         public NormalizedRect Bbox { get; set; } = new();
 
-        [JsonPropertyName("confidence")]
-        public double Confidence { get; set; }
+        [JsonPropertyName("x")]
+        public double X { get; set; }
+
+        [JsonPropertyName("y")]
+        public double Y { get; set; }
+
+        [JsonPropertyName("width")]
+        public double Width { get; set; }
+
+        [JsonPropertyName("height")]
+        public double Height { get; set; }
+
+        [JsonPropertyName("overlap")]
+        public double Overlap { get; set; }
     }
 
     internal sealed class NormalizedRect

@@ -124,7 +124,13 @@ namespace GameBot.Service.Endpoints
                         out var nx, out var ny, out var nw, out var nh);
                     resp.Matches.Add(new MatchResult
                     {
-                        Confidence = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
+                        TemplateId = id,
+                        Score = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
+                        X = nx,
+                        Y = ny,
+                        Width = nw,
+                        Height = nh,
+                        Overlap = overlap,
                         Bbox = new NormalizedRect { X = nx, Y = ny, Width = nw, Height = nh }
                     });
                 }
