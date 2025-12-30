@@ -22,6 +22,7 @@ using GameBot.Domain.Vision;
 using Microsoft.AspNetCore.Http;
 using GameBot.Service.Swagger;
 using GameBot.Service;
+using GameBot.Domain.Images;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -130,6 +131,8 @@ builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummary
 var imagesRoot = Path.Combine(storageRoot, "images");
 Directory.CreateDirectory(imagesRoot);
 builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(_ => new GameBot.Domain.Triggers.Evaluators.ReferenceImageStore(imagesRoot));
+builder.Services.AddSingleton<IImageRepository>(_ => new FileImageRepository(imagesRoot));
+builder.Services.AddSingleton<IImageReferenceRepository>(sp => new TriggerImageReferenceRepository(sp.GetRequiredService<ITriggerRepository>()));
 if (OperatingSystem.IsWindows()) {
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
   var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);

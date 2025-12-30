@@ -4,9 +4,9 @@ namespace GameBot.Service.Services.Detections
     {
         public const string SectionName = "Service:Detections";
 
-        public double Threshold { get; set; } = 0.8; // [0,1]
-        public int MaxResults { get; set; } = 5;
+        public double Threshold { get; set; } = GameBot.Service.Endpoints.ImageDetectionsValidation.DefaultThreshold; // [0,1]
+        public int MaxResults { get; set; } = GameBot.Service.Endpoints.ImageDetectionsValidation.DefaultMaxResults;
         public int TimeoutMs { get; set; } = 500;
-        public double Overlap { get; set; } = 0.45; // NMS IoU
+        public double Overlap { get; set; } = GameBot.Service.Endpoints.ImageDetectionsValidation.DefaultOverlap; // NMS IoU
     }
 }

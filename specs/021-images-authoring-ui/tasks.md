@@ -5,21 +5,21 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Run dotnet restore/build in repo root `C:/src/GameBot`
-- [ ] T002 [P] Install frontend dependencies in `src/web-ui/package.json`
-- [ ] T003 [P] Ensure `data/images` and trigger JSON fixtures exist in `data/`
+\- [X] T001 Run dotnet restore/build in repo root `C:/src/GameBot`
+\- [X] T002 [P] Install frontend dependencies in `src/web-ui/package.json`
+\- [X] T003 [P] Ensure `data/images` and trigger JSON fixtures exist in `data/`
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-- [ ] T004 Update contracts to include detect endpoint/defaults and maxResults note in `specs/021-images-authoring-ui/contracts/images-api.yaml`
- - [ ] T005 [P] Add detection defaults/validation constants (maxResults, threshold, overlap, size/MIME) in `src/GameBot.Service/Endpoints/ImageDetectionsValidation.cs`
- - [ ] T006 [P] Define detect request/response DTOs including matches fields and maxResultsHit flag in `src/GameBot.Service/Endpoints/Dto/ImageDetectionsDtos.cs`
- - [ ] T007 Add image repository abstraction for binary read/write in `src/GameBot.Domain/Images/ImageRepository.cs`
- - [ ] T008 Add image reference repository for trigger lookups in `src/GameBot.Domain/Images/ImageReferenceRepository.cs`
- - [ ] T009 Wire repositories and detection services into DI composition in `src/GameBot.Service/Program.cs`
- - [ ] T010 Refactor existing image endpoints to use repositories instead of direct store/disk access in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
+- [X] T004 Update contracts to include detect endpoint/defaults and maxResults note in `specs/021-images-authoring-ui/contracts/images-api.yaml`
+ - [X] T005 [P] Add detection defaults/validation constants (maxResults, threshold, overlap, size/MIME) in `src/GameBot.Service/Endpoints/ImageDetectionsValidation.cs`
+ - [X] T006 [P] Define detect request/response DTOs including matches fields and maxResultsHit flag in `src/GameBot.Service/Endpoints/Dto/ImageDetectionsDtos.cs`
+ - [X] T007 Add image repository abstraction for binary read/write in `src/GameBot.Domain/Images/ImageRepository.cs`
+ - [X] T008 Add image reference repository for trigger lookups in `src/GameBot.Domain/Images/ImageReferenceRepository.cs`
+ - [X] T009 Wire repositories and detection services into DI composition in `src/GameBot.Service/Program.cs`
+ - [X] T010 Refactor existing image endpoints to use repositories instead of direct store/disk access in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
 
 ---
 
