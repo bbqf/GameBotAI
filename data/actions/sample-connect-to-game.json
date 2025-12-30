@@ -1,0 +1,17 @@
+{
+  "id": "sample-connect",
+  "name": "Sample Connect to Game",
+  "gameId": "sample-game",
+  "steps": [
+    {
+      "type": "connect-to-game",
+      "args": {
+        "adbSerial": "emulator-5554",
+        "gameId": "sample-game"
+      },
+      "delayMs": 0,
+      "durationMs": null
+    }
+  ],
+  "checkpoints": []
+}

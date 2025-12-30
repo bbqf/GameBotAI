@@ -125,7 +125,11 @@ export const ActionsListPage: React.FC<ActionsListPageProps> = ({ initialMode = 
       return;
     }
     try {
-      await updateAction(editId, { name: editForm.name.trim(), gameId: editForm.gameId, type: editForm.type, attributes: editForm.attributes });
+      const attributes = (editForm.type === 'connect-to-game' && editForm.gameId)
+        ? { ...editForm.attributes, gameId: editForm.gameId }
+        : editForm.attributes;
+
+      await updateAction(editId, { name: editForm.name.trim(), gameId: editForm.gameId, type: editForm.type, attributes });
       setEditErrors([]);
       setEditMessage(undefined);
       setMessage('Action updated successfully.');

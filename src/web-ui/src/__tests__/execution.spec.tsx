@@ -6,6 +6,7 @@ jest.mock('../pages/actions/ActionsListPage', () => ({ ActionsListPage: () => <d
 jest.mock('../pages/CommandsPage', () => ({ CommandsPage: () => <div role="heading" aria-level={2}>Commands</div> }));
 jest.mock('../pages/GamesPage', () => ({ GamesPage: () => <div role="heading" aria-level={2}>Games</div> }));
 jest.mock('../pages/SequencesPage', () => ({ SequencesPage: () => <div role="heading" aria-level={2}>Sequences</div> }));
+jest.mock('../pages/Execution', () => ({ ExecutionPage: () => <div>execution workspace</div> }));
 
 describe('Execution placeholder', () => {
   it('shows empty-state messaging and allows returning', () => {

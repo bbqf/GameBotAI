@@ -10,6 +10,7 @@ internal sealed class CreateSessionRequest {
 
 internal sealed class CreateSessionResponse {
   public required string Id { get; init; }
+  public required string SessionId { get; init; }
   public required string Status { get; init; }
   public required string GameId { get; init; }
 }

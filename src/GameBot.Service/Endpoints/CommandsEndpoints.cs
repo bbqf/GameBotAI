@@ -156,10 +156,16 @@ internal static class CommandsEndpoints {
     .WithName("DeleteCommand")
     .WithTags("Commands");
 
-    app.MapPost($"{ApiRoutes.Commands}/{{id}}/force-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
+    app.MapPost($"{ApiRoutes.Commands}/{{id}}/force-execute", async (string id, string? sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
         var accepted = await exec.ForceExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
         return Results.Accepted($"{ApiRoutes.Sessions}/{sessionId}", new { accepted });
+      }
+      catch (InvalidOperationException ex) when (string.Equals(ex.Message, "missing_session_context", StringComparison.OrdinalIgnoreCase)) {
+        return Results.BadRequest(new { error = new { code = "missing_session", message = "No sessionId supplied and no connect-to-game context found for this command.", hint = "Run a connect-to-game action first or supply sessionId." } });
+      }
+      catch (KeyNotFoundException ex) when (string.Equals(ex.Message, "cached_session_not_found", StringComparison.OrdinalIgnoreCase)) {
+        return Results.BadRequest(new { error = new { code = "missing_session", message = "No cached session found for the command's game/device.", hint = "Run a connect-to-game action first or supply sessionId." } });
       }
       catch (KeyNotFoundException ex) {
         var msg = ex.Message.Contains("Session", StringComparison.OrdinalIgnoreCase) ? "Session not found" : ex.Message;
@@ -175,7 +181,7 @@ internal static class CommandsEndpoints {
     .WithName("ForceExecuteCommand")
     .WithTags("Commands");
 
-    app.MapPost($"{ApiRoutes.Commands}/{{id}}/evaluate-and-execute", async (string id, string sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
+    app.MapPost($"{ApiRoutes.Commands}/{{id}}/evaluate-and-execute", async (string id, string? sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
         var decision = await exec.EvaluateAndExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
         return Results.Accepted($"{ApiRoutes.Sessions}/{sessionId}", new {
@@ -183,6 +189,12 @@ internal static class CommandsEndpoints {
           triggerStatus = decision.TriggerStatus.ToString(),
           message = decision.Reason
         });
+      }
+      catch (InvalidOperationException ex) when (string.Equals(ex.Message, "missing_session_context", StringComparison.OrdinalIgnoreCase)) {
+        return Results.BadRequest(new { error = new { code = "missing_session", message = "No sessionId supplied and no connect-to-game context found for this command.", hint = "Run a connect-to-game action first or supply sessionId." } });
+      }
+      catch (KeyNotFoundException ex) when (string.Equals(ex.Message, "cached_session_not_found", StringComparison.OrdinalIgnoreCase)) {
+        return Results.BadRequest(new { error = new { code = "missing_session", message = "No cached session found for the command's game/device.", hint = "Run a connect-to-game action first or supply sessionId." } });
       }
       catch (KeyNotFoundException ex) {
         var msg = ex.Message.Contains("Session", StringComparison.OrdinalIgnoreCase) ? "Session not found" : ex.Message;

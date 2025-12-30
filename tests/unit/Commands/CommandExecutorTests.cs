@@ -70,7 +70,7 @@ public sealed class CommandExecutorTests {
     var actionRepo = new ActionRepositoryStub(action);
     var sessionManager = new SessionManagerStub(triggerRepo);
     var triggerService = new TriggerEvaluationService(new[] { new StaticResultEvaluator(TriggerStatus.Satisfied, "should_not_matter") });
-    var executor = new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance);
+    var executor = new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
 
     var decision = await executor.EvaluateAndExecuteAsync(sessionManager.Session.Id, command.Id, CancellationToken.None).ConfigureAwait(false);
 
@@ -114,7 +114,7 @@ public sealed class CommandExecutorTests {
     sessionManager = new SessionManagerStub(triggerRepo);
     var evaluator = new StaticResultEvaluator(status, reason);
     var triggerService = new TriggerEvaluationService(new[] { evaluator });
-    return new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance);
+    return new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
   }
 
   private sealed class CommandRepositoryStub : ICommandRepository {
