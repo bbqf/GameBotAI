@@ -52,6 +52,7 @@ public sealed class DeleteImageTests
     payload.Should().NotBeNull();
     payload!.Error.Code.Should().Be("conflict");
     payload.Error.BlockingTriggerIds.Should().Contain("t1");
+    payload.Error.BlockingTriggerIds.Should().NotBeEmpty();
   }
 
   [Fact]

@@ -35,6 +35,10 @@ namespace GameBot.Service.Endpoints.Dto
         [JsonPropertyName("score")]
         public double Score { get; set; }
 
+        // Keep backward compatibility (score) and align contract expectations (confidence)
+        [JsonPropertyName("confidence")]
+        public double Confidence { get; set; }
+
         [JsonPropertyName("bbox")]
         public NormalizedRect Bbox { get; set; } = new();
 

@@ -115,11 +115,11 @@
  - [X] T033 [P] Update quickstart with detect UI and delete conflict notes in `specs/021-images-authoring-ui/quickstart.md`
 - [X] T034 [P] Add logging/metrics for detect/list/detail/delete flows in `src/GameBot.Service/Endpoints/ImageDetectionsMetrics.cs`
  - [X] T035 Run full build and test suite (`dotnet test -c Debug` and frontend tests) in repo root `C:/src/GameBot`
- - [ ] T039 [P] Align UI/UX error surfaces (validation, detection failure, delete conflict) with authoring patterns in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
- - [ ] T040 [P] Add perf/latency check for detail preview (≤2s for ≤10 MB) in `tests/integration/Images/DetailPerformanceTests.cs`
- - [ ] T041 [P] Add perf/latency check for overwrite flow (submit to refreshed preview ≤5s) in `tests/integration/Images/OverwritePerformanceTests.cs`
- - [ ] T042 [P] Extend delete conflict test to assert 100% block with trigger IDs (SC-003) in `tests/contract/Images/DeleteImageTests.cs`
- - [ ] T043 [P] Add delete propagation check to ensure ID removed and 404 within 2s in `tests/integration/Images/DeletePropagationTests.cs`
+- [X] T039 [P] Align UI/UX error surfaces (validation, detection failure, delete conflict) with authoring patterns in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
+- [X] T040 [P] Add perf/latency check for detail preview (≤2s for ≤10 MB) in `tests/integration/Images/DetailPerformanceTests.cs`
+- [X] T041 [P] Add perf/latency check for overwrite flow (submit to refreshed preview ≤5s) in `tests/integration/Images/OverwritePerformanceTests.cs`
+- [X] T042 [P] Extend delete conflict test to assert 100% block with trigger IDs (SC-003) in `tests/contract/Images/DeleteImageTests.cs`
+- [X] T043 [P] Add delete propagation check to ensure ID removed and 404 within 2s in `tests/integration/Images/DeletePropagationTests.cs`
 
 ---
 

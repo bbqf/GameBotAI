@@ -126,6 +126,7 @@ namespace GameBot.Service.Endpoints
                     {
                         TemplateId = id,
                         Score = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
+                        Confidence = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
                         X = nx,
                         Y = ny,
                         Width = nw,
