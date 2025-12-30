@@ -4,6 +4,7 @@ using GameBot.Domain.Services;
 using GameBot.Domain.Triggers;
 using GameBot.Emulator.Session;
 using Microsoft.Extensions.Logging;
+using GameBot.Service.Services;
 
 namespace GameBot.Service.Services;
 
@@ -17,8 +18,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly GameBot.Domain.Triggers.Evaluators.IReferenceImageStore? _images;
   private readonly GameBot.Domain.Triggers.Evaluators.IScreenSource? _screen;
   private readonly GameBot.Domain.Vision.ITemplateMatcher? _matcher;
+  private readonly ISessionContextCache _sessionCache;
 
-  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher) {
+  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache) {
     _commands = commands;
     _actions = actions;
     _sessions = sessions;
@@ -28,10 +30,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _images = images;
     _screen = screen;
     _matcher = matcher;
+    _sessionCache = sessionCache;
   }
 
   // Fallback constructor for environments without detection services registered (non-Windows or tests)
-  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger) {
+  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache) {
     _commands = commands;
     _actions = actions;
     _sessions = sessions;
@@ -41,19 +44,22 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _images = null;
     _screen = null;
     _matcher = null;
+    _sessionCache = sessionCache;
   }
 
-  public async Task<int> ForceExecuteAsync(string sessionId, string commandId, CancellationToken ct = default) {
-    var session = _sessions.GetSession(sessionId) ?? throw new KeyNotFoundException("Session not found");
+  public async Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default) {
+    var resolvedSessionId = await ResolveSessionIdAsync(sessionId, commandId, ct).ConfigureAwait(false);
+    var session = _sessions.GetSession(resolvedSessionId) ?? throw new KeyNotFoundException("Session not found");
     if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
       throw new InvalidOperationException("not_running");
 
     var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    return await ExecuteCommandRecursiveAsync(sessionId, commandId, visited, ct).ConfigureAwait(false);
+    return await ExecuteCommandRecursiveAsync(resolvedSessionId, commandId, visited, ct).ConfigureAwait(false);
   }
 
-  public async Task<CommandEvaluationDecision> EvaluateAndExecuteAsync(string sessionId, string commandId, CancellationToken ct = default) {
-    var session = _sessions.GetSession(sessionId) ?? throw new KeyNotFoundException("Session not found");
+  public async Task<CommandEvaluationDecision> EvaluateAndExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default) {
+    var resolvedSessionId = await ResolveSessionIdAsync(sessionId, commandId, ct).ConfigureAwait(false);
+    var session = _sessions.GetSession(resolvedSessionId) ?? throw new KeyNotFoundException("Session not found");
     if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
       throw new InvalidOperationException("not_running");
 
@@ -75,7 +81,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     if (res.Status == TriggerStatus.Satisfied) {
       trigger.LastFiredAt = res.EvaluatedAt;
       await _triggers.UpsertAsync(trigger, ct).ConfigureAwait(false);
-      var accepted = await ForceExecuteAsync(sessionId, commandId, ct).ConfigureAwait(false);
+      var accepted = await ForceExecuteAsync(resolvedSessionId, commandId, ct).ConfigureAwait(false);
       Log.TriggerExecuted(_logger, commandId, trigger.Id, accepted);
       return new CommandEvaluationDecision(accepted, TriggerStatus.Satisfied, res.Reason);
     }
@@ -152,6 +158,27 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     visited.Remove(commandId);
     return totalAccepted;
+  }
+
+  private async Task<string> ResolveSessionIdAsync(string? sessionId, string commandId, CancellationToken ct) {
+    if (!string.IsNullOrWhiteSpace(sessionId)) return sessionId;
+
+    var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false) ?? throw new KeyNotFoundException("Command not found");
+    // Find first connect-to-game action referenced by this command
+    foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
+      if (step.Type != CommandStepType.Action) continue;
+      var act = await _actions.GetAsync(step.TargetId, ct).ConfigureAwait(false);
+      if (act is null) continue;
+      foreach (var input in act.Steps) {
+        if (ConnectToGameArgs.TryFrom(input, act.GameId, out var args)) {
+          var cached = _sessionCache.GetSessionId(args.GameId, args.AdbSerial);
+          if (string.IsNullOrWhiteSpace(cached)) throw new KeyNotFoundException("cached_session_not_found");
+          return cached!;
+        }
+      }
+    }
+
+    throw new InvalidOperationException("missing_session_context");
   }
 }
 

@@ -13,6 +13,7 @@ using GameBot.Domain.Services.Logging;
 using GameBot.Service.Hosted;
 using GameBot.Service.Logging;
 using GameBot.Service.Services.Ocr;
+using GameBot.Service.Services;
 using Microsoft.Extensions.Logging;
 using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
@@ -83,6 +84,7 @@ builder.Services.Configure<GameBot.Service.Models.SessionCreationOptions>(option
   options.TimeoutSeconds = int.TryParse(raw, out var seconds) ? Math.Max(1, seconds) : 30;
 });
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
+builder.Services.AddSingleton<ISessionContextCache, SessionContextCache>();
 builder.Services.AddTransient<ErrorHandlingMiddleware>();
 builder.Services.AddTransient<CorrelationIdMiddleware>();
 builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();

@@ -32,10 +32,10 @@
 
 ## Phase 5: User Story 3 – Use stored session across commands (P2)
 
-- [ ] T018 [US3] Make sessionId optional on /api/commands/{id}/force-execute and evaluate-and-execute; auto-inject cached sessionId matching gameId+adbSerial in src/GameBot.Service
-- [ ] T019 [US3] Reject when no matching cached sessionId is available; return clear guidance in API response (src/GameBot.Service)
+- [x] T018 [US3] Make sessionId optional on /api/commands/{id}/force-execute and evaluate-and-execute; auto-inject cached sessionId matching gameId+adbSerial in src/GameBot.Service
+- [x] T019 [US3] Reject when no matching cached sessionId is available; return clear guidance in API response (src/GameBot.Service)
 - [ ] T020 [US3] Frontend: when executing commands without sessionId, pull from cache (gameId+adbSerial) and block with guidance if missing in src/web-ui/src/pages/commands/ExecuteCommandPage.tsx (or the command execution component used)
-- [ ] T021 [US3] Tests: backend coverage for optional sessionId injection and rejection cases (tests/integration)
+- [x] T021 [US3] Tests: backend coverage for optional sessionId injection and rejection cases (tests/integration)
 - [ ] T022 [US3] Tests: frontend RTL/Playwright for auto-injection and missing-session guidance
 
 ## Phase 6: Polish & Cross-Cutting
