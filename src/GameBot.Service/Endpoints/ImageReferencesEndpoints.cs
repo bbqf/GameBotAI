@@ -40,6 +40,7 @@ internal static class ImageReferencesEndpoints {
     app.MapGet(ApiRoutes.Images, async (IImageRepository repo) => {
       var ids = await repo.ListIdsAsync().ConfigureAwait(false);
       var ordered = ids.OrderBy(i => i, StringComparer.OrdinalIgnoreCase).ToArray();
+      ImageReferencesMetrics.RecordListRequest(ordered.Length);
       return Results.Ok(new { ids = ordered });
     }).WithName("ListImageReferences").WithTags("Images");
 
@@ -132,17 +133,20 @@ internal static class ImageReferencesEndpoints {
       var safeId = SanitizeForLog(id);
       var meta = await repo.GetAsync(id).ConfigureAwait(false);
       if (meta is null) {
+        ImageReferencesMetrics.RecordGet(found: false, sizeBytes: 0);
         logger.LogImageNotFound(safeId);
         return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
       }
 
       var stream = await repo.OpenReadAsync(id).ConfigureAwait(false);
       if (stream is null) {
+        ImageReferencesMetrics.RecordGet(found: false, sizeBytes: 0);
         logger.LogImageNotFound(safeId);
         return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
       }
 
       logger.LogImageResolvedFromStore(safeId);
+      ImageReferencesMetrics.RecordGet(found: true, sizeBytes: (long)meta.SizeBytes);
       return Results.Stream(stream, contentType: meta.ContentType, lastModified: meta.UpdatedAtUtc, enableRangeProcessing: true);
     }).WithName("GetImageReference").WithTags("Images");
 
@@ -254,6 +258,7 @@ internal static class ImageReferencesEndpoints {
 
       var blocking = await refs.FindReferencingTriggerIdsAsync(id).ConfigureAwait(false);
       if (blocking.Count > 0) {
+        ImageReferencesMetrics.RecordDeleteConflict(blocking.Count);
         return Results.Conflict(new { error = new { code = "conflict", message = "Image is referenced by triggers", blockingTriggerIds = blocking } });
       }
 
@@ -264,6 +269,7 @@ internal static class ImageReferencesEndpoints {
       }
 
       logger.LogImageDeleted(safeId);
+      ImageReferencesMetrics.RecordDeleteSuccess();
       return Results.NoContent();
     }).WithName("DeleteImageReference").WithTags("Images");
 

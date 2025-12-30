@@ -113,7 +113,7 @@
 ## Final Phase: Polish & Cross-Cutting
 
  - [X] T033 [P] Update quickstart with detect UI and delete conflict notes in `specs/021-images-authoring-ui/quickstart.md`
- - [ ] T034 [P] Add logging/metrics for detect/list/detail/delete flows in `src/GameBot.Service/Endpoints/ImageDetectionsMetrics.cs`
+- [X] T034 [P] Add logging/metrics for detect/list/detail/delete flows in `src/GameBot.Service/Endpoints/ImageDetectionsMetrics.cs`
  - [X] T035 Run full build and test suite (`dotnet test -c Debug` and frontend tests) in repo root `C:/src/GameBot`
  - [ ] T039 [P] Align UI/UX error surfaces (validation, detection failure, delete conflict) with authoring patterns in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
  - [ ] T040 [P] Add perf/latency check for detail preview (≤2s for ≤10 MB) in `tests/integration/Images/DetailPerformanceTests.cs`
