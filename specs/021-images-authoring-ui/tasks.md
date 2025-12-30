@@ -77,14 +77,14 @@
 
 ### Tests for User Story 3
 
- - [ ] T023 [P] [US3] Contract test for `POST /api/images/detect` defaults/overrides in `tests/contract/Images/DetectImageTests.cs`
- - [ ] T024 [P] [US3] UI test for detection table columns and cap indicator in `src/web-ui/tests/integration/images/detect.spec.ts`
+- [X] T023 [P] [US3] Contract test for `POST /api/images/detect` defaults/overrides in `tests/contract/Images/DetectImageTests.cs`
+- [X] T024 [P] [US3] UI test for detection table columns and cap indicator in `src/web-ui/tests/integration/images/detect.spec.ts`
 
 ### Implementation for User Story 3
 
- - [ ] T025 [US3] Implement `POST /api/images/detect` handler with defaults (maxResults=1, threshold=0.86, overlap=0.1) and maxResultsHit flag in `src/GameBot.Service/Endpoints/ImageDetectionsEndpoints.cs`
- - [ ] T026 [US3] Add detect form with defaults and parameter editing on detail page in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
- - [ ] T027 [US3] Render detection results table with columns templateId, score, x, y, width, height, overlap and cap note in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
+- [X] T025 [US3] Implement `POST /api/images/detect` handler with defaults (maxResults=1, threshold=0.86, overlap=0.1) and maxResultsHit flag in `src/GameBot.Service/Endpoints/ImageDetectionsEndpoints.cs`
+- [X] T026 [US3] Add detect form with defaults and parameter editing on detail page in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
+- [X] T027 [US3] Render detection results table with columns templateId, score, x, y, width, height, overlap and cap note in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
 
 **Checkpoint**: Detection can be triggered and results displayed with cap indicator.
 
