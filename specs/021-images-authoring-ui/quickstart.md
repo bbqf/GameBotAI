@@ -13,7 +13,8 @@
    - `GET /api/images/{id}/metadata` → fetch metadata
    - `POST /api/images` (multipart with id, file) → create
    - `PUT /api/images/{id}` (multipart with file) → overwrite
-   - `DELETE /api/images/{id}` → delete if unreferenced (409 when triggers reference)
+   - `POST /api/images/detect` → run detection (defaults: maxResults=1, threshold=0.86, overlap=0.1)
+   - `DELETE /api/images/{id}` → delete if unreferenced (409 when triggers reference, includes blockingTriggerIds)
 
 ## Frontend (authoring UI)
 1. From `src/web-ui`: install deps if needed (`npm install`).
@@ -22,10 +23,12 @@
    - List page shows IDs only.
    - Click an ID to open detail with image preview.
    - Overwrite by uploading a new file for the same ID (PUT).
-   - Delete from detail page; blocked when triggers reference the image.
+   - Delete from detail page; confirmation shown; blocked when triggers reference the image (blocking IDs displayed).
+   - Run Detect from detail page; defaults prefilled (maxResults=1, threshold=0.86, overlap=0.1); results table shows templateId, score, x, y, width, height, overlap, and cap note when limitsHit.
 
 ## Validation
 - Upload only png/jpg/jpeg ≤10 MB; expect clear validation errors otherwise.
 - Detail load target: preview within 2s for ≤10 MB assets on standard network.
 - Overwrite target: new preview visible within 5s post-submit.
 - Delete behavior: 409 with blocking trigger IDs when in use; 204 when unreferenced.
+- Detect behavior: defaults applied when omitted; limitsHit indicates cap reached; normalized coordinates returned in range [0,1].
