@@ -97,14 +97,14 @@
 
 ### Tests for User Story 4
 
- - [ ] T028 [P] [US4] Contract test for `DELETE /api/images/{id}` conflict (409) with blocking triggers in `tests/contract/Images/DeleteImageTests.cs`
- - [ ] T029 [P] [US4] Integration/UI test for delete success vs conflict in `tests/integration/Images/DeleteImageIntegrationTests.cs`
+- [X] T028 [P] [US4] Contract test for `DELETE /api/images/{id}` conflict (409) with blocking triggers in `tests/contract/Images/DeleteImageTests.cs`
+- [X] T029 [P] [US4] Integration/UI test for delete success vs conflict in `tests/integration/Images/DeleteImageIntegrationTests.cs`
 
 ### Implementation for User Story 4
 
- - [ ] T030 [US4] Enforce trigger reference check and 409 response in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
- - [ ] T031 [US4] Ensure trigger reference repository/query supports lookup by imageId in `src/GameBot.Domain/Images/ImageReferenceRepository.cs`
- - [ ] T032 [US4] Add UI delete action with confirmation, conflict messaging, and list refresh in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
+- [X] T030 [US4] Enforce trigger reference check and 409 response in `src/GameBot.Service/Endpoints/ImageReferencesEndpoints.cs`
+- [ ] T031 [US4] Ensure trigger reference repository/query supports lookup by imageId in `src/GameBot.Domain/Images/ImageReferenceRepository.cs`
+- [X] T032 [US4] Add UI delete action with confirmation, conflict messaging, and list refresh in `src/web-ui/src/routes/authoring/images/ImageDetailPage.tsx`
 
 **Checkpoint**: Delete works for unreferenced images and blocks with trigger IDs when referenced.
 

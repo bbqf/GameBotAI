@@ -254,7 +254,7 @@ internal static class ImageReferencesEndpoints {
 
       var blocking = await refs.FindReferencingTriggerIdsAsync(id).ConfigureAwait(false);
       if (blocking.Count > 0) {
-        return Results.Conflict(new { blockingTriggerIds = blocking });
+        return Results.Conflict(new { error = new { code = "conflict", message = "Image is referenced by triggers", blockingTriggerIds = blocking } });
       }
 
       var deleted = await repo.DeleteAsync(id).ConfigureAwait(false);

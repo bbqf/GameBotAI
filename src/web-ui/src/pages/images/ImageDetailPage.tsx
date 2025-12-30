@@ -108,6 +108,8 @@ export const ImageDetailPage: React.FC<ImageDetailProps> = ({ imageId, onDeleted
   };
 
   const handleDelete = async () => {
+    const ok = window.confirm('Delete this image? This cannot be undone.');
+    if (!ok) return;
     setError(null);
     setMessage(null);
     try {

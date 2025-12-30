@@ -102,6 +102,14 @@ export const deleteImage = async (id: string) => {
   });
   if (!res.ok && res.status !== 404) {
     const payload = await res.json().catch(() => undefined);
+    if (res.status === 409) {
+      const blockers: string[] | undefined = payload?.error?.blockingTriggerIds ?? payload?.blockingTriggerIds;
+      const msg = blockers && blockers.length > 0
+        ? `Image is referenced by triggers: ${blockers.join(', ')}`
+        : (payload?.error?.message ?? 'Image is referenced by triggers');
+      throw new ApiError(res.status, msg, undefined, payload);
+    }
+
     const message = (payload?.error && (payload.error.message ?? payload.error.code)) || `HTTP ${res.status}`;
     throw new ApiError(res.status, message, undefined, payload);
   }
