@@ -424,6 +424,12 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
       SetRequestExample(operation, ImageUploadRequest(), context, typeof(GameBot.Service.Endpoints.ImageReferencesEndpoints.UploadImageRequest));
       SetResponseExample(operation, "201", ImageUploadResponse(), context, typeof(ImageUploadResponseSchema));
     }
+    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Images + "/", StringComparison.OrdinalIgnoreCase))
+    {
+      operation.Summary ??= "Overwrite an image reference";
+      SetRequestExample(operation, ImageOverwriteRequest(), context, typeof(GameBot.Service.Endpoints.ImageReferencesEndpoints.OverwriteImageRequest));
+      SetResponseExample(operation, "200", ImageOverwriteResponse(), context, typeof(ImageOverwriteResponseSchema));
+    }
     else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Images + "/", StringComparison.OrdinalIgnoreCase))
     {
       operation.Summary ??= "Get an image reference";
@@ -914,6 +920,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ["overwrite"] = new OpenApiBoolean(false)
   };
 
+  private static OpenApiObject ImageOverwriteRequest() => new OpenApiObject
+  {
+    ["data"] = new OpenApiString("iVBORw0KGgoAAAANSUhEUgAAAAUA")
+  };
+
+  private static OpenApiObject ImageOverwriteResponse() => new OpenApiObject
+  {
+    ["id"] = new OpenApiString("start-screen"),
+    ["contentType"] = new OpenApiString("image/png"),
+    ["sizeBytes"] = new OpenApiInteger(12345),
+    ["updatedAtUtc"] = new OpenApiString("2025-01-01T00:00:00Z")
+  };
+
   private static OpenApiArray ImageReferenceListResponse() => new OpenApiArray
   {
     new OpenApiObject { ["id"] = new OpenApiString("start-screen") },
@@ -1099,6 +1118,14 @@ internal sealed class ImageUploadResponseSchema
 {
   public string? Id { get; set; }
   public bool Overwrite { get; set; }
+}
+
+internal sealed class ImageOverwriteResponseSchema
+{
+  public string? Id { get; set; }
+  public string? ContentType { get; set; }
+  public long SizeBytes { get; set; }
+  public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 
 internal sealed class ImageReferenceListItemSchema

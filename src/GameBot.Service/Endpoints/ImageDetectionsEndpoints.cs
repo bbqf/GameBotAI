@@ -39,9 +39,15 @@ namespace GameBot.Service.Endpoints
                 }
 
                 var id = req.ReferenceImageId!;
-                var threshold = req.Threshold ?? detOpts.Value.Threshold;
-                var maxResults = req.MaxResults ?? detOpts.Value.MaxResults;
-                var overlap = req.Overlap ?? detOpts.Value.Overlap;
+                var opts = detOpts.Value;
+                var threshold = req.Threshold ?? opts.Threshold;
+                if (!ImageDetectionsValidation.ValidateThreshold(threshold)) threshold = ImageDetectionsValidation.DefaultThreshold;
+
+                var maxResultsRaw = req.MaxResults ?? opts.MaxResults;
+                var maxResults = ImageDetectionsValidation.ValidateMaxResults(maxResultsRaw) ? maxResultsRaw : ImageDetectionsValidation.DefaultMaxResults;
+
+                var overlap = req.Overlap ?? opts.Overlap;
+                if (!ImageDetectionsValidation.ValidateOverlap(overlap)) overlap = ImageDetectionsValidation.DefaultOverlap;
 
                 var safeId = SanitizeForLog(id);
                 ImageDetectionsEndpointComponent.LogDetectStart(logger, safeId, threshold, maxResults, overlap);
@@ -111,16 +117,21 @@ namespace GameBot.Service.Endpoints
                 ImageDetectionsMetrics.Record(elapsedMs, result.Matches.Count);
 
                 // Normalize bbox coordinates
-                var w = screenshotMat.Cols;
-                var h = screenshotMat.Rows;
                 var resp = new DetectResponse { LimitsHit = result.LimitsHit };
                 foreach (var m in result.Matches)
                 {
-                    GameBot.Domain.Vision.Normalization.NormalizeRect(m.BBox.X, m.BBox.Y, m.BBox.Width, m.BBox.Height, w, h,
+                    GameBot.Domain.Vision.Normalization.NormalizeRect(m.BBox.X, m.BBox.Y, m.BBox.Width, m.BBox.Height, screenshotMat.Cols, screenshotMat.Rows,
                         out var nx, out var ny, out var nw, out var nh);
                     resp.Matches.Add(new MatchResult
                     {
+                        TemplateId = id,
+                        Score = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
                         Confidence = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
+                        X = nx,
+                        Y = ny,
+                        Width = nw,
+                        Height = nh,
+                        Overlap = overlap,
                         Bbox = new NormalizedRect { X = nx, Y = ny, Width = nw, Height = nh }
                     });
                 }

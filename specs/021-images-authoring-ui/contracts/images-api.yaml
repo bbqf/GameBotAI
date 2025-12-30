@@ -1,0 +1,224 @@
+openapi: 3.0.3
+info:
+  title: Images API
+  version: "1.0.0"
+paths:
+  /api/images:
+    get:
+      summary: List image IDs
+      responses:
+        "200":
+          description: IDs of stored images
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ids:
+                    type: array
+                    items:
+                      type: string
+    post:
+      summary: Create a new image
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [id, file]
+              properties:
+                id:
+                  type: string
+                  description: Unique image identifier (alphanumeric, dash, underscore)
+                file:
+                  type: string
+                  format: binary
+                  description: Image content (png or jpeg, max 10 MB)
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Invalid input (e.g., duplicate id)
+        "413":
+          description: Payload too large (>10 MB)
+        "415":
+          description: Unsupported media type
+  /api/images/{id}:
+    get:
+      summary: Get image content by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Image content
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found
+    put:
+      summary: Overwrite an existing image
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Replacement image (png or jpeg, max 10 MB)
+      responses:
+        "200":
+          description: Replaced
+        "404":
+          description: Not found
+        "413":
+          description: Payload too large (>10 MB)
+        "415":
+          description: Unsupported media type
+    delete:
+      summary: Delete an image if unreferenced
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+        "409":
+          description: Image is referenced by triggers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blockingTriggerIds:
+                    type: array
+                    items:
+                      type: string
+  /api/images/{id}/metadata:
+    get:
+      summary: Get image metadata
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Metadata for the image
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  contentType:
+                    type: string
+                  sizeBytes:
+                    type: integer
+                  filename:
+                    type: string
+                  createdAtUtc:
+                    type: string
+                    format: date-time
+                  updatedAtUtc:
+                    type: string
+                    format: date-time
+        "404":
+          description: Not found
+
+  /api/images/detect:
+    post:
+      summary: Run detection against current screen using a stored reference image
+      description: |
+        Uses the reference image as the template. Defaults if omitted: maxResults=1, threshold=0.86, overlap=0.1.
+        maxResultsHit signals the cap was reached and more matches may exist.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [referenceImageId]
+              properties:
+                referenceImageId:
+                  type: string
+                  description: ID of the stored reference image
+                threshold:
+                  type: number
+                  format: double
+                  description: Match confidence threshold (0-1)
+                maxResults:
+                  type: integer
+                  description: Maximum matches to return (default 1)
+                overlap:
+                  type: number
+                  format: double
+                  description: Allowed overlap between matches (0-1, default 0.1)
+      responses:
+        "200":
+          description: Detection results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  maxResultsHit:
+                    type: boolean
+                    description: True when maxResults limit was reached
+                  matches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        templateId:
+                          type: string
+                        score:
+                          type: number
+                          format: double
+                        x:
+                          type: number
+                          format: double
+                        y:
+                          type: number
+                          format: double
+                        width:
+                          type: number
+                          format: double
+                        height:
+                          type: number
+                          format: double
+                        overlap:
+                          type: number
+                          format: double
+        "400":
+          description: Invalid request
+        "404":
+          description: Reference image not found
