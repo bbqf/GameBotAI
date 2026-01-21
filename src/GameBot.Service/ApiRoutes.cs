@@ -13,6 +13,9 @@ internal static class ApiRoutes
     internal const string ConfigLogging = Config + "/logging";
     internal const string Triggers = Base + "/triggers";
     internal const string Images = Base + "/images";
+    internal const string ImageCrop = Images + "/crop";
+    internal const string Emulator = Base + "/emulator";
+    internal const string EmulatorScreenshot = Emulator + "/screenshot";
     internal const string ImageDetect = Images + "/detect";
     internal const string Metrics = Base + "/metrics";
     internal const string Adb = Base + "/adb";

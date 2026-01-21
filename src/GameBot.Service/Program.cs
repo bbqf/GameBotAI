@@ -137,6 +137,8 @@ builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImage
   new GameBot.Domain.Triggers.Evaluators.ReferenceImageStore(sp.GetRequiredService<ImageStorageOptions>().Root));
 builder.Services.AddSingleton<IImageRepository>(sp => new FileImageRepository(sp.GetRequiredService<ImageStorageOptions>().Root));
 builder.Services.AddSingleton<IImageCaptureMetrics, ImageCaptureMetrics>();
+builder.Services.AddSingleton<CaptureSessionStore>();
+builder.Services.AddSingleton<ImageCropper>();
 builder.Services.AddSingleton<IImageReferenceRepository>(sp => new TriggerImageReferenceRepository(sp.GetRequiredService<ITriggerRepository>()));
 if (OperatingSystem.IsWindows()) {
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
@@ -283,6 +285,7 @@ app.MapAdbEndpoints();
 if (OperatingSystem.IsWindows()) {
   app.MapImageReferenceEndpoints();
   app.MapImageDetectionsEndpoints();
+  app.MapEmulatorImageEndpoints();
 }
 
 // Metrics endpoints (protected if token set)

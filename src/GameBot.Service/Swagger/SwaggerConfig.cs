@@ -424,6 +424,12 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
       SetRequestExample(operation, ImageUploadRequest(), context, typeof(GameBot.Service.Endpoints.ImageReferencesEndpoints.UploadImageRequest));
       SetResponseExample(operation, "201", ImageUploadResponse(), context, typeof(ImageUploadResponseSchema));
     }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageCrop))
+    {
+      operation.Summary ??= "Crop and save an emulator screenshot";
+      SetRequestExample(operation, ImageCropRequest(), context);
+      SetResponseExample(operation, "201", ImageCropResponse(), context);
+    }
     else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Images + "/", StringComparison.OrdinalIgnoreCase))
     {
       operation.Summary ??= "Overwrite an image reference";
@@ -776,6 +782,34 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
           ["height"] = new OpenApiDouble(0.18)
         }
       }
+    }
+  };
+
+  private static OpenApiObject ImageCropRequest() => new OpenApiObject
+  {
+    ["name"] = new OpenApiString("battle-start"),
+    ["overwrite"] = new OpenApiBoolean(false),
+    ["sourceCaptureId"] = new OpenApiString("cap_123"),
+    ["bounds"] = new OpenApiObject
+    {
+      ["x"] = new OpenApiInteger(120),
+      ["y"] = new OpenApiInteger(200),
+      ["width"] = new OpenApiInteger(64),
+      ["height"] = new OpenApiInteger(64)
+    }
+  };
+
+  private static OpenApiObject ImageCropResponse() => new OpenApiObject
+  {
+    ["name"] = new OpenApiString("battle-start"),
+    ["fileName"] = new OpenApiString("battle-start.png"),
+    ["storagePath"] = new OpenApiString("data/images/battle-start.png"),
+    ["bounds"] = new OpenApiObject
+    {
+      ["x"] = new OpenApiInteger(120),
+      ["y"] = new OpenApiInteger(200),
+      ["width"] = new OpenApiInteger(64),
+      ["height"] = new OpenApiInteger(64)
     }
   };
 
