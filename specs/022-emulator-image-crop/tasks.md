@@ -22,22 +22,22 @@
 - [X] T006 Wire metrics/logging to record capture→crop→save duration and 1px accuracy checks in src/GameBot.Service
 
 ## Phase 3: User Story 1 - Capture and crop screenshot (P1)
-- [ ] T007 [US1] Add screenshot capture endpoint or handler to emit PNG from emulator in src/GameBot.Service
-- [ ] T008 [US1] Implement capture session model handling temp screenshot references in src/GameBot.Domain or Service
-- [ ] T009 [US1] Implement crop operation applying bounds with min size 16x16 and 1px accuracy in src/GameBot.Service
-- [ ] T010 [US1] Persist cropped PNG to data/images with path return in src/GameBot.Service
-- [ ] T011 [US1] Frontend: add capture trigger and rectangle draw/resize UI in src/web-ui (React)
-- [ ] T012 [US1] Frontend: show preview of cropped area and save action confirmation in src/web-ui
-- [ ] T013 [US1] Tests: backend unit/integration for capture+crop pipeline in tests/unit and tests/integration
-- [ ] T014 [US1] Tests: frontend component/integration tests for rectangle selection and save preview in src/web-ui/tests
+- [X] T007 [US1] Add screenshot capture endpoint or handler to emit PNG from emulator in src/GameBot.Service
+- [X] T008 [US1] Implement capture session model handling temp screenshot references in src/GameBot.Domain or Service
+- [X] T009 [US1] Implement crop operation applying bounds with min size 16x16 and 1px accuracy in src/GameBot.Service
+- [X] T010 [US1] Persist cropped PNG to data/images with path return in src/GameBot.Service
+- [X] T011 [US1] Frontend: add capture trigger and rectangle draw/resize UI in src/web-ui (React)
+- [X] T012 [US1] Frontend: show preview of cropped area and save action confirmation in src/web-ui
+- [X] T013 [US1] Tests: backend unit/integration for capture+crop pipeline in tests/unit and tests/integration
+- [X] T014 [US1] Tests: frontend component/integration tests for rectangle selection and save preview in src/web-ui/tests
 
 ## Phase 4: User Story 2 - Name and store cropped image (P2)
-- [ ] T015 [US2] Backend: enforce unique names with overwrite flag on /images/crop in src/GameBot.Service
-- [ ] T016 [US2] Backend: include storage path and filename in response payload in src/GameBot.Service
-- [ ] T017 [US2] Frontend: add name input and overwrite prompt/flow in src/web-ui
-- [ ] T018 [US2] Tests: backend duplicate-name conflict tests (409 vs overwrite) in tests/integration
-- [ ] T019 [US2] Tests: frontend naming + overwrite UX tests in src/web-ui/tests
-- [ ] T020 [US2] Add UI validation that users see/understand the save location after save in src/web-ui/tests
+- [X] T015 [US2] Backend: enforce unique names with overwrite flag on /images/crop in src/GameBot.Service
+- [X] T016 [US2] Backend: include storage path and filename in response payload in src/GameBot.Service
+- [X] T017 [US2] Frontend: add name input and overwrite prompt/flow in src/web-ui
+- [X] T018 [US2] Tests: backend duplicate-name conflict tests (409 vs overwrite) in tests/integration
+- [X] T019 [US2] Tests: frontend naming + overwrite UX tests in src/web-ui/tests
+- [X] T020 [US2] Add UI validation that users see/understand the save location after save in src/web-ui/tests
 
 ## Phase 5: User Story 3 - Handle failed or invalid selections (P3)
 - [ ] T021 [US3] Backend: validate bounds against capture dimensions; return actionable errors in src/GameBot.Service
