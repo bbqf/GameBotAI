@@ -260,6 +260,7 @@ export const EmulatorCaptureCropper: React.FC = () => {
       {selection && (
         <div className="form-hint">Selection: {selection.width}×{selection.height} @ ({selection.x}, {selection.y})</div>
       )}
+      <div className="form-hint">Min crop size is 16×16. If a capture expires, take a new screenshot and retry.</div>
       {lastSavedPath && <div className="form-hint">Last saved to: {lastSavedPath}</div>}
       {sizeTooSmall && <div className="form-error" role="alert">Selection must be at least 16x16</div>}
       {error && <div className="form-error" role="alert">{error}</div>}

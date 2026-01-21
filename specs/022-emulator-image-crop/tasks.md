@@ -50,5 +50,5 @@
 - [ ] T026 Add logging/metrics hooks for capture→crop duration and error rates in src/GameBot.Service
 - [ ] T027 Add coverage gate/check (≥80% line / ≥70% branch for touched areas) to backend test run/CI in .github/workflows/ci.yml (add if missing)
 - [ ] T028 Add coverage/assertion step for frontend tests to guard touched UI components in .github/workflows/ci.yml and src/web-ui/package.json
-- [ ] T029 Document quickstart updates or API usage notes in specs/022-emulator-image-crop/quickstart.md
-- [ ] T030 Ensure min crop size and PNG-only rules reflected in UI help text/tooltips in src/web-ui
+- [X] T029 Document quickstart updates or API usage notes in specs/022-emulator-image-crop/quickstart.md
+- [X] T030 Ensure min crop size and PNG-only rules reflected in UI help text/tooltips in src/web-ui
