@@ -68,9 +68,9 @@ builder.Services.AddCors(options =>
   options.AddPolicy("WebUiCors", policy =>
   {
     if (corsOrigins.Length > 0)
-      policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod();
+      policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Capture-Id");
     else
-      policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+      policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Capture-Id");
   });
 });
 // Serialize enums as strings for API responses to match tests and readability
