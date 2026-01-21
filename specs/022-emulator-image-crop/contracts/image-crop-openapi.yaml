@@ -1,0 +1,86 @@
+openapi: 3.0.1
+info:
+  title: Emulator Image Capture and Crop
+  version: 0.1.0
+paths:
+  /emulator/screenshot:
+    get:
+      summary: Capture current emulator screen
+      responses:
+        '200':
+          description: PNG screenshot captured
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+  /images/crop:
+    post:
+      summary: Save cropped image from a captured screenshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, bounds]
+              properties:
+                name:
+                  type: string
+                  description: User-provided image name; must be unique unless overwrite is true.
+                overwrite:
+                  type: boolean
+                  default: false
+                  description: Allow replacing an existing image with the same name.
+                bounds:
+                  type: object
+                  required: [x, y, width, height]
+                  properties:
+                    x:
+                      type: integer
+                      minimum: 0
+                    y:
+                      type: integer
+                      minimum: 0
+                    width:
+                      type: integer
+                      minimum: 16
+                    height:
+                      type: integer
+                      minimum: 16
+                sourceCaptureId:
+                  type: string
+                  description: Identifier of the captured screenshot to crop.
+      responses:
+        '201':
+          description: Cropped image saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  fileName:
+                    type: string
+                  storagePath:
+                    type: string
+                  bounds:
+                    $ref: '#/components/schemas/Bounds'
+        '409':
+          description: Name conflict when overwrite is false
+        '400':
+          description: Invalid bounds or missing capture
+components:
+  schemas:
+    Bounds:
+      type: object
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
