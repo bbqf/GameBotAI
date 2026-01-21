@@ -14,6 +14,8 @@ namespace GameBot.Service.Endpoints;
 [SupportedOSPlatform("windows")]
 internal static class EmulatorImageEndpoints
 {
+    private const int MinBounds = 16;
+
     public static IEndpointRouteBuilder MapEmulatorImageEndpoints(this IEndpointRouteBuilder app)
     {
         // Capture emulator screenshot
@@ -22,7 +24,7 @@ internal static class EmulatorImageEndpoints
             var session = PickSession(sessions);
             if (session is null)
             {
-                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+                return Results.Json(new { error = "emulator_unavailable", hint = "No running emulator session found. Start the emulator and retry." }, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
 
             try
@@ -35,7 +37,7 @@ internal static class EmulatorImageEndpoints
             catch (Exception ex)
             {
                 EmulatorImageLog.CaptureFailed(logger, ex);
-                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+                return Results.Json(new { error = "emulator_unavailable", hint = "Emulator not ready. Ensure it is running and retry capture." }, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         }).WithName("GetEmulatorScreenshot").WithTags("Emulators");
 
@@ -50,13 +52,13 @@ internal static class EmulatorImageEndpoints
             {
                 return Results.BadRequest(new { error = "name_required" });
             }
-            if (req.Bounds.Width < 16 || req.Bounds.Height < 16)
+            if (req.Bounds.Width < MinBounds || req.Bounds.Height < MinBounds)
             {
-                return Results.BadRequest(new { error = "bounds_too_small", hint = "Minimum size is 16x16" });
+                return Results.BadRequest(new { error = "bounds_too_small", hint = $"Minimum size is {MinBounds}x{MinBounds}" });
             }
             if (req.SourceCaptureId is null || !captures.TryGet(req.SourceCaptureId, out var capture))
             {
-                return Results.BadRequest(new { error = "capture_missing" });
+                return Results.NotFound(new { error = "capture_missing", hint = "Capture expired or not found. Capture a new screenshot and retry." });
             }
 
             var sw = Stopwatch.StartNew();
@@ -69,6 +71,13 @@ internal static class EmulatorImageEndpoints
                 metrics.RecordCaptureResult((long)sw.Elapsed.TotalMilliseconds, success: true, withinOnePixel: withinOnePixel);
                 var storagePath = Path.Combine(storageOptions.Root, filename);
                 return Results.Created(ApiRoutes.ImageCrop, new { name = req.Name, fileName = filename, storagePath, bounds = req.Bounds });
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                sw.Stop();
+                metrics.RecordCaptureResult((long)sw.Elapsed.TotalMilliseconds, success: false, withinOnePixel: false);
+                EmulatorImageLog.CropInvalid(logger, ex.Message);
+                return Results.BadRequest(new { error = "bounds_out_of_range", hint = "Selection must stay within the captured image.", captureSize = new { width = capture!.Width, height = capture!.Height } });
             }
             catch (InvalidOperationException ex)
             {

@@ -22,6 +22,14 @@ export const EmulatorCaptureCropper: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
+  const resolveErrorCode = (payload: unknown): string | undefined => {
+    const anyPayload = payload as any;
+    if (!anyPayload) return undefined;
+    if (typeof anyPayload.error === 'string') return anyPayload.error;
+    if (typeof anyPayload.error?.code === 'string') return anyPayload.error.code;
+    return undefined;
+  };
+
   useEffect(() => {
     return () => {
       if (capture?.url) URL.revokeObjectURL(capture.url);
@@ -50,6 +58,12 @@ export const EmulatorCaptureCropper: React.FC = () => {
     setError(null);
   };
 
+  const clearCapture = () => {
+    setCapture(null);
+    setSelection(null);
+    setStatus(null);
+  };
+
   const handleCapture = async () => {
     setCapturing(true);
     setStatus(null);
@@ -59,8 +73,16 @@ export const EmulatorCaptureCropper: React.FC = () => {
       const url = URL.createObjectURL(res.blob);
       setNewCapture({ captureId: res.captureId, url, naturalWidth: 0, naturalHeight: 0 });
     } catch (e: any) {
-      if (e instanceof ApiError) setError(e.message);
-      else setError(e?.message ?? 'Failed to capture emulator screenshot');
+      if (e instanceof ApiError) {
+        const code = resolveErrorCode(e.payload);
+        if (code === 'emulator_unavailable' || e.status === 503) {
+          setError('Emulator unavailable. Ensure it is running and retry capture.');
+        } else {
+          setError(e.message);
+        }
+      } else {
+        setError(e?.message ?? 'Failed to capture emulator screenshot');
+      }
     } finally {
       setCapturing(false);
     }
@@ -156,11 +178,17 @@ export const EmulatorCaptureCropper: React.FC = () => {
       setLastSavedPath(payload.storagePath);
     } catch (e: any) {
       if (e instanceof ApiError) {
-        if (e.status === 409) {
+        const code = resolveErrorCode(e.payload);
+        if (code === 'capture_missing' || e.status === 404) {
+          setError('Capture expired. Capture again and retry.');
+          clearCapture();
+        } else if (code === 'bounds_out_of_range') {
+          setError('Selection is outside the captured image. Adjust and retry.');
+        } else if (e.status === 409) {
           setError(e.message || 'Name already exists. Enable overwrite to replace or choose another name.');
         } else if (e.status === 400) {
           setError(e.message || 'Invalid selection or request.');
-        } else if (e.status === 503) {
+        } else if (e.status === 503 || code === 'emulator_unavailable') {
           setError('Emulator unavailable. Retry after ensuring the emulator is running.');
         } else {
           setError(e.message || 'Failed to save crop');

@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Linq;
 using System.IO;
+using System.Text.Json;
 using FluentAssertions;
 using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
@@ -68,6 +69,106 @@ public class EmulatorImageCropTests
         saved.Height.Should().Be(16);
     }
 
+    [Fact]
+    public async Task CropFailsWhenBoundsOutsideCapture()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var app = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISessionManager>();
+                services.AddSingleton<ISessionManager>(_ => new FakeSessionManager());
+                services.RemoveAll<GameBot.Domain.Images.ImageStorageOptions>();
+                services.AddSingleton(new GameBot.Domain.Images.ImageStorageOptions(Path.Combine(dataRoot, "images")));
+            });
+        });
+
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+        var screenshotResp = await client.GetAsync(new Uri("/api/emulator/screenshot", UriKind.Relative)).ConfigureAwait(true);
+        screenshotResp.Headers.TryGetValues("X-Capture-Id", out var captureIds).Should().BeTrue();
+        var captureId = captureIds!.First();
+
+        var cropResp = await client.PostAsJsonAsync(new Uri("/api/images/crop", UriKind.Relative), new
+        {
+            name = "out-of-range",
+            overwrite = true,
+            bounds = new { x = 48, y = 48, width = 20, height = 20 },
+            sourceCaptureId = captureId
+        }).ConfigureAwait(true);
+
+        cropResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await cropResp.Content.ReadFromJsonAsync<Dictionary<string, object?>>()!.ConfigureAwait(true);
+        payload.Should().NotBeNull();
+        payload!["error"].Should().Be("bounds_out_of_range");
+        var sizeElement = (JsonElement)payload["captureSize"]!;
+        sizeElement.GetProperty("width").GetInt32().Should().Be(64);
+        sizeElement.GetProperty("height").GetInt32().Should().Be(64);
+    }
+
+    [Fact]
+    public async Task CropFailsWhenCaptureMissing()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var app = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISessionManager>();
+                services.AddSingleton<ISessionManager>(_ => new FakeSessionManager());
+                services.RemoveAll<GameBot.Domain.Images.ImageStorageOptions>();
+                services.AddSingleton(new GameBot.Domain.Images.ImageStorageOptions(Path.Combine(dataRoot, "images")));
+            });
+        });
+
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+        var cropResp = await client.PostAsJsonAsync(new Uri("/api/images/crop", UriKind.Relative), new
+        {
+            name = "missing",
+            overwrite = true,
+            bounds = new { x = 0, y = 0, width = 16, height = 16 },
+            sourceCaptureId = "missing-id"
+        }).ConfigureAwait(true);
+
+        cropResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var payload = await cropResp.Content.ReadFromJsonAsync<Dictionary<string, object?>>()!.ConfigureAwait(true);
+        payload.Should().NotBeNull();
+        payload!["error"].Should().Be("capture_missing");
+        payload!["hint"].Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task CaptureFailsWhenNoEmulatorSession()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var app = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISessionManager>();
+                services.AddSingleton<ISessionManager>(_ => new NoSessionManager());
+                services.RemoveAll<GameBot.Domain.Images.ImageStorageOptions>();
+                services.AddSingleton(new GameBot.Domain.Images.ImageStorageOptions(Path.Combine(dataRoot, "images")));
+            });
+        });
+
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+        var screenshotResp = await client.GetAsync(new Uri("/api/emulator/screenshot", UriKind.Relative)).ConfigureAwait(true);
+        screenshotResp.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        var payload = await screenshotResp.Content.ReadFromJsonAsync<Dictionary<string, string>>()!.ConfigureAwait(true);
+        payload!["error"].Should().Be("emulator_unavailable");
+        payload!["hint"].Should().NotBeNull();
+    }
+
     private sealed class FakeSessionManager : ISessionManager
     {
         private readonly EmulatorSession _session;
@@ -112,5 +213,17 @@ public class EmulatorImageCropTests
             if (id != _session.Id) throw new KeyNotFoundException("Session not found");
             return Task.FromResult(_png);
         }
+    }
+
+    private sealed class NoSessionManager : ISessionManager
+    {
+        public int ActiveCount => 0;
+        public bool CanCreateSession => false;
+        public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) => throw new InvalidOperationException("No sessions available");
+        public EmulatorSession? GetSession(string id) => null;
+        public IReadOnlyCollection<EmulatorSession> ListSessions() => Array.Empty<EmulatorSession>();
+        public bool StopSession(string id) => false;
+        public Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => throw new InvalidOperationException("No sessions available");
     }
 }

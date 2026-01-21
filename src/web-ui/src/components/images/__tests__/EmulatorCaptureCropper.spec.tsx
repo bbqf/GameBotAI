@@ -96,4 +96,54 @@ describe('EmulatorCaptureCropper', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/at least 16x16/i));
     expect(cropImageFromCaptureMock).not.toHaveBeenCalled();
   });
+
+  it('shows guidance when capture expires', async () => {
+    fetchEmulatorScreenshotMock.mockResolvedValue({ captureId: 'cap-1', blob: new Blob(['png'], { type: 'image/png' }) });
+    cropImageFromCaptureMock.mockRejectedValue(new ApiError(404, 'capture missing', undefined, { error: 'capture_missing' }));
+
+    render(<EmulatorCaptureCropper />);
+
+    fireEvent.click(screen.getByRole('button', { name: /capture emulator screenshot/i }));
+    const img = await screen.findByAltText(/emulator screenshot/i);
+    Object.defineProperty(img, 'naturalWidth', { value: 100, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 100, configurable: true });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.load(img);
+
+    const overlay = screen.getByTestId('capture-overlay');
+    fireEvent.mouseDown(overlay, { clientX: 0, clientY: 0 });
+    fireEvent.mouseMove(overlay, { clientX: 40, clientY: 40 });
+    fireEvent.mouseUp(overlay, { clientX: 40, clientY: 40 });
+
+    fireEvent.change(screen.getByLabelText(/Image name/i), { target: { value: 'capture-missing' } });
+    fireEvent.click(screen.getByRole('button', { name: /save crop/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/capture expired/i));
+    await waitFor(() => expect(screen.queryByAltText(/emulator screenshot/i)).not.toBeInTheDocument());
+  });
+
+  it('shows guidance when bounds exceed the capture', async () => {
+    fetchEmulatorScreenshotMock.mockResolvedValue({ captureId: 'cap-1', blob: new Blob(['png'], { type: 'image/png' }) });
+    cropImageFromCaptureMock.mockRejectedValue(new ApiError(400, 'Bounds outside image', undefined, { error: 'bounds_out_of_range', captureSize: { width: 50, height: 50 } }));
+
+    render(<EmulatorCaptureCropper />);
+
+    fireEvent.click(screen.getByRole('button', { name: /capture emulator screenshot/i }));
+    const img = await screen.findByAltText(/emulator screenshot/i);
+    Object.defineProperty(img, 'naturalWidth', { value: 50, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 50, configurable: true });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 50, height: 50, right: 50, bottom: 50, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.load(img);
+
+    const overlay = screen.getByTestId('capture-overlay');
+    fireEvent.mouseDown(overlay, { clientX: 0, clientY: 0 });
+    fireEvent.mouseMove(overlay, { clientX: 60, clientY: 60 });
+    fireEvent.mouseUp(overlay, { clientX: 60, clientY: 60 });
+
+    fireEvent.change(screen.getByLabelText(/Image name/i), { target: { value: 'too-large' } });
+    fireEvent.click(screen.getByRole('button', { name: /save crop/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/outside the captured image/i));
+    expect(screen.getByLabelText(/Selection rectangle/i)).toBeInTheDocument();
+  });
 });
