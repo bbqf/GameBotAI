@@ -31,6 +31,25 @@ export type DetectResponse = {
   limitsHit: boolean;
 };
 
+export type EmulatorScreenshot = {
+  captureId: string;
+  blob: Blob;
+};
+
+export type CropRequest = {
+  name: string;
+  overwrite?: boolean;
+  bounds: { x: number; y: number; width: number; height: number };
+  sourceCaptureId: string;
+};
+
+export type CropResponse = {
+  name: string;
+  fileName: string;
+  storagePath: string;
+  bounds: { x: number; y: number; width: number; height: number };
+};
+
 export const listImages = async (): Promise<string[]> => {
   const data = await getJson<ImageListResponse>('/api/images');
   if (data && Array.isArray(data.ids)) {
@@ -126,5 +145,42 @@ export const detectImage = async (referenceImageId: string, opts?: { threshold?:
     const message = (payload?.message ?? payload?.error?.message ?? payload?.error?.code) || `HTTP ${res.status}`;
     throw new ApiError(res.status, message, undefined, payload);
   }
+  return res.json();
+};
+
+export const fetchEmulatorScreenshot = async (): Promise<EmulatorScreenshot> => {
+  const res = await fetch(buildApiUrl('/api/emulator/screenshot'), {
+    method: 'GET',
+    headers: buildAuthHeaders(false)
+  });
+
+  if (!res.ok) {
+    const payload = await res.json().catch(() => undefined);
+    const message = (payload?.error && (payload.error.message ?? payload.error.code)) || payload?.message || `HTTP ${res.status}`;
+    throw new ApiError(res.status, message, undefined, payload);
+  }
+
+  const captureId = res.headers.get('X-Capture-Id') ?? res.headers.get('x-capture-id');
+  if (!captureId) {
+    throw new ApiError(res.status, 'Capture id missing from response headers');
+  }
+
+  const blob = await res.blob();
+  return { captureId, blob };
+};
+
+export const cropImageFromCapture = async (request: CropRequest): Promise<CropResponse> => {
+  const res = await fetch(buildApiUrl('/api/images/crop'), {
+    method: 'POST',
+    headers: buildAuthHeaders(true),
+    body: JSON.stringify(request)
+  });
+
+  if (!res.ok) {
+    const payload = await res.json().catch(() => undefined);
+    const message = (payload?.error && (payload.error.message ?? payload.error.code)) || payload?.message || `HTTP ${res.status}`;
+    throw new ApiError(res.status, message, undefined, payload);
+  }
+
   return res.json();
 };

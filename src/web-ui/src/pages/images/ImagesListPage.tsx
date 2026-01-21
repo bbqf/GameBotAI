@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../lib/api';
 import { ImageDetailPage } from './ImageDetailPage';
 import { listImages, uploadImage } from '../../services/images';
+import { EmulatorCaptureCropper } from '../../components/images/EmulatorCaptureCropper';
 
 export const ImagesListPage: React.FC = () => {
   const [ids, setIds] = useState<string[]>([]);
@@ -34,6 +35,7 @@ export const ImagesListPage: React.FC = () => {
   return (
     <section>
       <h2>Images</h2>
+      <EmulatorCaptureCropper />
       <div className="images-header">
         <button type="button" onClick={() => { void load(); }} disabled={loading}>Refresh</button>
       </div>
