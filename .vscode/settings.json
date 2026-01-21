@@ -7,9 +7,20 @@
         "speckit.implement": true
     },
     "chat.tools.terminal.autoApprove": {
-    
         ".specify/scripts/bash/": true,
-        ".specify/scripts/powershell/": true
+        ".specify/scripts/powershell/": true,
+        "/^powershell -NoProfile -Command \"cd c:/src/GameBot; dotnet test -c Debug\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^powershell -NoProfile -Command \"cd c:/src/GameBot/src/web-ui; npm test -- --runInBand\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^powershell -NoProfile -Command \"cd c:/src/GameBot/src/web-ui; npm test -- --coverage --runInBand\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     },
     "java.configuration.updateBuildConfiguration": "automatic"
 }
