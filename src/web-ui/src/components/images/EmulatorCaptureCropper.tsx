@@ -13,6 +13,7 @@ export const EmulatorCaptureCropper: React.FC = () => {
   const [capture, setCapture] = useState<CaptureState>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [dragStart, setDragStart] = useState<Point | null>(null);
+  const [lastSavedPath, setLastSavedPath] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [overwrite, setOverwrite] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -27,13 +28,19 @@ export const EmulatorCaptureCropper: React.FC = () => {
     };
   }, [capture?.url]);
 
+  const sizeTooSmall = useMemo(() => {
+    if (!selection) return false;
+    return selection.width < MIN_SIZE || selection.height < MIN_SIZE;
+  }, [selection]);
+
   const canSave = useMemo(() => {
     if (!capture || !selection) return false;
-    if (selection.width < MIN_SIZE || selection.height < MIN_SIZE) return false;
+    if (sizeTooSmall) return false;
     return name.trim().length > 0;
-  }, [capture, selection, name]);
+  }, [capture, selection, name, sizeTooSmall]);
 
   const setNewCapture = (next: CaptureState) => {
+    setLastSavedPath(null);
     if (capture?.url && capture.url !== next?.url) {
       URL.revokeObjectURL(capture.url);
     }
@@ -146,9 +153,21 @@ export const EmulatorCaptureCropper: React.FC = () => {
         bounds: selection
       });
       setStatus(`Saved ${payload.fileName} to ${payload.storagePath}`);
+      setLastSavedPath(payload.storagePath);
     } catch (e: any) {
-      if (e instanceof ApiError) setError(e.message);
-      else setError(e?.message ?? 'Failed to save crop');
+      if (e instanceof ApiError) {
+        if (e.status === 409) {
+          setError(e.message || 'Name already exists. Enable overwrite to replace or choose another name.');
+        } else if (e.status === 400) {
+          setError(e.message || 'Invalid selection or request.');
+        } else if (e.status === 503) {
+          setError('Emulator unavailable. Retry after ensuring the emulator is running.');
+        } else {
+          setError(e.message || 'Failed to save crop');
+        }
+      } else {
+        setError(e?.message ?? 'Failed to save crop');
+      }
     } finally {
       setSaving(false);
     }
@@ -213,6 +232,8 @@ export const EmulatorCaptureCropper: React.FC = () => {
       {selection && (
         <div className="form-hint">Selection: {selection.width}×{selection.height} @ ({selection.x}, {selection.y})</div>
       )}
+      {lastSavedPath && <div className="form-hint">Last saved to: {lastSavedPath}</div>}
+      {sizeTooSmall && <div className="form-error" role="alert">Selection must be at least 16x16</div>}
       {error && <div className="form-error" role="alert">{error}</div>}
       {status && <div className="form-hint" role="status">{status}</div>}
       <div className="row">
