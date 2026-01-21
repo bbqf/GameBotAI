@@ -103,8 +103,8 @@ public class EmulatorImageCropTests
         cropResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var payload = await cropResp.Content.ReadFromJsonAsync<Dictionary<string, object?>>()!.ConfigureAwait(true);
         payload.Should().NotBeNull();
-        payload!["error"].Should().Be("bounds_out_of_range");
-        var sizeElement = (JsonElement)payload["captureSize"]!;
+        payload!["error"]?.ToString().Should().Be("bounds_out_of_range");
+        var sizeElement = (JsonElement)payload!["captureSize"]!;
         sizeElement.GetProperty("width").GetInt32().Should().Be(64);
         sizeElement.GetProperty("height").GetInt32().Should().Be(64);
     }
@@ -139,7 +139,7 @@ public class EmulatorImageCropTests
         cropResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
         var payload = await cropResp.Content.ReadFromJsonAsync<Dictionary<string, object?>>()!.ConfigureAwait(true);
         payload.Should().NotBeNull();
-        payload!["error"].Should().Be("capture_missing");
+        payload!["error"]?.ToString().Should().Be("capture_missing");
         payload!["hint"].Should().NotBeNull();
     }
 
