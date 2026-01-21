@@ -47,7 +47,7 @@
 - [ ] T025 [US3] Tests: frontend retry/validation messaging tests in src/web-ui/tests
 
 ## Final Phase: Polish & Cross-Cutting
-- [ ] T026 Add logging/metrics hooks for capture→crop duration and error rates in src/GameBot.Service
+- [X] T026 Add logging/metrics hooks for capture→crop duration and error rates in src/GameBot.Service
 - [X] T027 Add coverage gate/check (≥80% line / ≥70% branch for touched areas) to backend test run/CI in .github/workflows/ci.yml (add if missing)
 - [X] T028 Add coverage/assertion step for frontend tests to guard touched UI components in .github/workflows/ci.yml and src/web-ui/package.json
 - [X] T029 Document quickstart updates or API usage notes in specs/022-emulator-image-crop/quickstart.md

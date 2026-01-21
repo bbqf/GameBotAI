@@ -32,6 +32,7 @@ internal static class EmulatorImageEndpoints
                 var png = await sessions.GetSnapshotAsync(session.Id, ct).ConfigureAwait(false);
                 var capture = captures.Add(png);
                 ctx.Response.Headers["X-Capture-Id"] = capture.Id;
+                EmulatorImageLog.CaptureSucceeded(logger, capture.Id, capture.Width, capture.Height);
                 return Results.File(png, "image/png");
             }
             catch (Exception ex)
@@ -70,6 +71,7 @@ internal static class EmulatorImageEndpoints
                 sw.Stop();
                 metrics.RecordCaptureResult((long)sw.Elapsed.TotalMilliseconds, success: true, withinOnePixel: withinOnePixel);
                 var storagePath = Path.Combine(storageOptions.Root, filename);
+                EmulatorImageLog.CropSaved(logger, req.Name, filename, storagePath, req.Bounds.X, req.Bounds.Y, req.Bounds.Width, req.Bounds.Height, withinOnePixel, sw.ElapsedMilliseconds);
                 return Results.Created(ApiRoutes.ImageCrop, new { name = req.Name, fileName = filename, storagePath, bounds = req.Bounds });
             }
             catch (ArgumentOutOfRangeException ex)
@@ -129,6 +131,12 @@ internal static partial class EmulatorImageLog
 {
     [LoggerMessage(EventId = 52020, Level = LogLevel.Warning, Message = "Failed to capture emulator screenshot")]
     public static partial void CaptureFailed(ILogger logger, Exception ex);
+
+    [LoggerMessage(EventId = 52023, Level = LogLevel.Information, Message = "Capture stored with id {CaptureId} size {Width}x{Height}")]
+    public static partial void CaptureSucceeded(ILogger logger, string CaptureId, int Width, int Height);
+
+    [LoggerMessage(EventId = 52024, Level = LogLevel.Information, Message = "Crop saved name {Name} file {FileName} at {Path} bounds {X},{Y} {Width}x{Height} withinOnePixel={WithinOnePixel} durationMs={DurationMs}")]
+    public static partial void CropSaved(ILogger logger, string Name, string FileName, string Path, int X, int Y, int Width, int Height, bool WithinOnePixel, long DurationMs);
 
     [LoggerMessage(EventId = 52021, Level = LogLevel.Warning, Message = "Failed to crop or save image: {Message}")]
     public static partial void CropConflict(ILogger logger, string Message);
