@@ -13,7 +13,6 @@ export const EmulatorCaptureCropper: React.FC = () => {
   const [capture, setCapture] = useState<CaptureState>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [dragStart, setDragStart] = useState<Point | null>(null);
-  const [lastSavedPath, setLastSavedPath] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [overwrite, setOverwrite] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -21,6 +20,17 @@ export const EmulatorCaptureCropper: React.FC = () => {
   const [capturing, setCapturing] = useState(false);
   const [saving, setSaving] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
+
+  const resolveNaturalSize = () => {
+    if (!capture || !imageRef.current) return null;
+    const width = capture.naturalWidth || imageRef.current.naturalWidth;
+    const height = capture.naturalHeight || imageRef.current.naturalHeight;
+    if (width && height && (capture.naturalWidth === 0 || capture.naturalHeight === 0)) {
+      setCapture((prev) => prev ? { ...prev, naturalWidth: width, naturalHeight: height } : prev);
+    }
+    if (!width || !height) return null;
+    return { width, height };
+  };
 
   const resolveErrorCode = (payload: unknown): string | undefined => {
     const anyPayload = payload as any;
@@ -48,7 +58,6 @@ export const EmulatorCaptureCropper: React.FC = () => {
   }, [capture, selection, name, sizeTooSmall]);
 
   const setNewCapture = (next: CaptureState) => {
-    setLastSavedPath(null);
     if (capture?.url && capture.url !== next?.url) {
       URL.revokeObjectURL(capture.url);
     }
@@ -91,9 +100,10 @@ export const EmulatorCaptureCropper: React.FC = () => {
   const updateSelectionFromClient = (clientX: number, clientY: number, origin: Point | null) => {
     if (!capture || !imageRef.current || !origin) return;
     const rect = imageRef.current.getBoundingClientRect();
-    if (!rect.width || !rect.height || capture.naturalWidth === 0 || capture.naturalHeight === 0) return;
-    const scaleX = capture.naturalWidth / rect.width;
-    const scaleY = capture.naturalHeight / rect.height;
+    const natural = resolveNaturalSize();
+    if (!rect.width || !rect.height || !natural) return;
+    const scaleX = natural.width / rect.width;
+    const scaleY = natural.height / rect.height;
     const clampedX = Math.min(Math.max(clientX - rect.left, 0), rect.width);
     const clampedY = Math.min(Math.max(clientY - rect.top, 0), rect.height);
     const nx = clampedX * scaleX;
@@ -113,15 +123,34 @@ export const EmulatorCaptureCropper: React.FC = () => {
   const handleMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
     if (!capture || !imageRef.current) return;
     const rect = imageRef.current.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const scaleX = capture.naturalWidth / rect.width;
-    const scaleY = capture.naturalHeight / rect.height;
-    const start: Point = {
-      x: Math.max(0, Math.min(capture.naturalWidth, (e.clientX - rect.left) * scaleX)),
-      y: Math.max(0, Math.min(capture.naturalHeight, (e.clientY - rect.top) * scaleY))
+    const natural = resolveNaturalSize();
+    if (!rect.width || !rect.height || !natural) return;
+    const scaleX = natural.width / rect.width;
+    const scaleY = natural.height / rect.height;
+    const point: Point = {
+      x: Math.max(0, Math.min(natural.width, (e.clientX - rect.left) * scaleX)),
+      y: Math.max(0, Math.min(natural.height, (e.clientY - rect.top) * scaleY))
     };
-    setDragStart(start);
-    setSelection({ x: Math.round(start.x), y: Math.round(start.y), width: 0, height: 0 });
+
+    if (!dragStart) {
+      // First click: anchor the start of selection.
+      setDragStart(point);
+      setSelection({ x: Math.round(point.x), y: Math.round(point.y), width: 0, height: 0 });
+      return;
+    }
+
+    // Second click: finalize selection from anchored start to this point.
+    const startX = Math.min(dragStart.x, point.x);
+    const startY = Math.min(dragStart.y, point.y);
+    const endX = Math.max(dragStart.x, point.x);
+    const endY = Math.max(dragStart.y, point.y);
+    setSelection({
+      x: Math.round(startX),
+      y: Math.round(startY),
+      width: Math.round(endX - startX),
+      height: Math.round(endY - startY)
+    });
+    setDragStart(null);
   };
 
   const handleMouseMove: React.MouseEventHandler<HTMLDivElement> = (e) => {
@@ -129,10 +158,9 @@ export const EmulatorCaptureCropper: React.FC = () => {
     updateSelectionFromClient(e.clientX, e.clientY, dragStart);
   };
 
-  const handleMouseUp: React.MouseEventHandler<HTMLDivElement> = (e) => {
-    if (!dragStart) return;
-    updateSelectionFromClient(e.clientX, e.clientY, dragStart);
-    setDragStart(null);
+  const handleMouseUp: React.MouseEventHandler<HTMLDivElement> = () => {
+    // Mouse up does not finalize; second click ends selection. Keeping anchor ensures
+    // keyboard/hover previews still work until the next click.
   };
 
   const selectionStyle = useMemo(() => {
@@ -174,8 +202,7 @@ export const EmulatorCaptureCropper: React.FC = () => {
         sourceCaptureId: capture.captureId,
         bounds: selection
       });
-      setStatus(`Saved ${payload.fileName} to ${payload.storagePath}`);
-      setLastSavedPath(payload.storagePath);
+      setStatus(`Saved ${payload.fileName}`);
     } catch (e: any) {
       if (e instanceof ApiError) {
         const code = resolveErrorCode(e.payload);
@@ -220,11 +247,14 @@ export const EmulatorCaptureCropper: React.FC = () => {
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             data-testid="capture-overlay"
+            onDragStart={(e) => e.preventDefault()}
           >
             <img
               ref={imageRef}
               src={capture.url}
               alt="Emulator screenshot"
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
               onLoad={(e) => {
                 const img = e.currentTarget;
                 setCapture((prev) => prev ? { ...prev, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight } : prev);
@@ -261,7 +291,6 @@ export const EmulatorCaptureCropper: React.FC = () => {
         <div className="form-hint">Selection: {selection.width}×{selection.height} @ ({selection.x}, {selection.y})</div>
       )}
       <div className="form-hint">Min crop size is 16×16. If a capture expires, take a new screenshot and retry.</div>
-      {lastSavedPath && <div className="form-hint">Last saved to: {lastSavedPath}</div>}
       {sizeTooSmall && <div className="form-error" role="alert">Selection must be at least 16x16</div>}
       {error && <div className="form-error" role="alert">{error}</div>}
       {status && <div className="form-hint" role="status">{status}</div>}

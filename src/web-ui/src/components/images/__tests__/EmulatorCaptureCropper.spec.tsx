@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { EmulatorCaptureCropper } from '../EmulatorCaptureCropper';
 import { cropImageFromCapture, fetchEmulatorScreenshot } from '../../../services/images';
 import { ApiError } from '../../../lib/api';
@@ -46,6 +46,54 @@ describe('EmulatorCaptureCropper', () => {
       sourceCaptureId: 'cap-1',
       bounds: { x: 10, y: 10, width: 40, height: 40 }
     });
+  });
+
+  it('falls back to measured natural size when load event is missed', async () => {
+    fetchEmulatorScreenshotMock.mockResolvedValue({ captureId: 'cap-1', blob: new Blob(['png'], { type: 'image/png' }) });
+    cropImageFromCaptureMock.mockResolvedValue({ name: 'fallback', fileName: 'fallback.png', storagePath: 'data/images/fallback.png', bounds: { x: 0, y: 0, width: 20, height: 20 } });
+
+    render(<EmulatorCaptureCropper />);
+
+    fireEvent.click(screen.getByRole('button', { name: /capture emulator screenshot/i }));
+    const img = await screen.findByAltText(/emulator screenshot/i);
+    Object.defineProperty(img, 'naturalWidth', { value: 100, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 100, configurable: true });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });
+
+    const overlay = screen.getByTestId('capture-overlay');
+    fireEvent.mouseDown(overlay, { clientX: 0, clientY: 0 });
+    fireEvent.mouseMove(overlay, { clientX: 20, clientY: 20 });
+    fireEvent.mouseUp(overlay, { clientX: 20, clientY: 20 });
+
+    fireEvent.change(screen.getByLabelText(/Image name/i), { target: { value: 'fallback' } });
+    fireEvent.click(screen.getByRole('button', { name: /save crop/i }));
+
+    await waitFor(() => expect(cropImageFromCaptureMock).toHaveBeenCalled());
+    expect(cropImageFromCaptureMock).toHaveBeenCalledWith(expect.objectContaining({
+      bounds: expect.objectContaining({ width: 20, height: 20 })
+    }));
+  });
+
+  it('supports two-click selection that persists until the next click', async () => {
+    fetchEmulatorScreenshotMock.mockResolvedValue({ captureId: 'cap-1', blob: new Blob(['png'], { type: 'image/png' }) });
+
+    render(<EmulatorCaptureCropper />);
+
+    fireEvent.click(screen.getByRole('button', { name: /capture emulator screenshot/i }));
+    const img = await screen.findByAltText(/emulator screenshot/i);
+    Object.defineProperty(img, 'naturalWidth', { value: 100, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 100, configurable: true });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.load(img);
+
+    const overlay = screen.getByTestId('capture-overlay');
+    fireEvent.mouseDown(overlay, { clientX: 10, clientY: 20 });
+    fireEvent.mouseDown(overlay, { clientX: 60, clientY: 80 });
+
+    expect(screen.getByText(/Selection: 50×60/)).toBeInTheDocument();
+
+    fireEvent.mouseMove(overlay, { clientX: 90, clientY: 90 });
+    expect(screen.getByText(/Selection: 50×60/)).toBeInTheDocument();
   });
 
   it('shows conflict guidance when name exists', async () => {
@@ -145,5 +193,34 @@ describe('EmulatorCaptureCropper', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/outside the captured image/i));
     expect(screen.getByLabelText(/Selection rectangle/i)).toBeInTheDocument();
+  });
+
+  it('shows emulator unavailable guidance when capture fails', async () => {
+    fetchEmulatorScreenshotMock.mockRejectedValue(new ApiError(503, 'offline', undefined, { error: 'emulator_unavailable' }));
+
+    render(<EmulatorCaptureCropper />);
+
+    fireEvent.click(screen.getByRole('button', { name: /capture emulator screenshot/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/emulator unavailable/i));
+  });
+
+  it('prevents native drag on overlay and image', async () => {
+    fetchEmulatorScreenshotMock.mockResolvedValue({ captureId: 'cap-1', blob: new Blob(['png'], { type: 'image/png' }) });
+
+    render(<EmulatorCaptureCropper />);
+
+    fireEvent.click(screen.getByRole('button', { name: /capture emulator screenshot/i }));
+    const img = await screen.findByAltText(/emulator screenshot/i);
+    Object.defineProperty(img, 'naturalWidth', { value: 100, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 100, configurable: true });
+    img.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.load(img);
+
+    const overlay = screen.getByTestId('capture-overlay');
+    const dragEvent = createEvent.dragStart(overlay);
+    fireEvent(overlay, dragEvent);
+    expect(dragEvent.defaultPrevented).toBe(true);
+    expect(img).toHaveAttribute('draggable', 'false');
   });
 });
