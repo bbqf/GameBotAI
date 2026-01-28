@@ -68,9 +68,9 @@ builder.Services.AddCors(options =>
   options.AddPolicy("WebUiCors", policy =>
   {
     if (corsOrigins.Length > 0)
-      policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod();
+      policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Capture-Id");
     else
-      policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+      policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Capture-Id");
   });
 });
 // Serialize enums as strings for API responses to match tests and readability
@@ -128,10 +128,17 @@ builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluat
 builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITesseractInvocationLogger, TesseractInvocationLogger>();
 builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummaryService(storageRoot, sp.GetRequiredService<ILogger<CoverageSummaryService>>()));
 // Image match evaluator dependencies (disk-backed store + screen source placeholder)
-var imagesRoot = Path.Combine(storageRoot, "images");
+var imagesRoot = builder.Configuration["Service:Storage:Images"]
+                  ?? Environment.GetEnvironmentVariable("GAMEBOT_IMAGES_DIR")
+                  ?? Path.Combine(storageRoot, ImageStorageOptions.DefaultFolderName);
 Directory.CreateDirectory(imagesRoot);
-builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(_ => new GameBot.Domain.Triggers.Evaluators.ReferenceImageStore(imagesRoot));
-builder.Services.AddSingleton<IImageRepository>(_ => new FileImageRepository(imagesRoot));
+builder.Services.AddSingleton(new ImageStorageOptions(imagesRoot));
+builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(sp =>
+  new GameBot.Domain.Triggers.Evaluators.ReferenceImageStore(sp.GetRequiredService<ImageStorageOptions>().Root));
+builder.Services.AddSingleton<IImageRepository>(sp => new FileImageRepository(sp.GetRequiredService<ImageStorageOptions>().Root));
+builder.Services.AddSingleton<IImageCaptureMetrics, ImageCaptureMetrics>();
+builder.Services.AddSingleton<CaptureSessionStore>();
+builder.Services.AddSingleton<ImageCropper>();
 builder.Services.AddSingleton<IImageReferenceRepository>(sp => new TriggerImageReferenceRepository(sp.GetRequiredService<ITriggerRepository>()));
 if (OperatingSystem.IsWindows()) {
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
@@ -278,6 +285,7 @@ app.MapAdbEndpoints();
 if (OperatingSystem.IsWindows()) {
   app.MapImageReferenceEndpoints();
   app.MapImageDetectionsEndpoints();
+  app.MapEmulatorImageEndpoints();
 }
 
 // Metrics endpoints (protected if token set)

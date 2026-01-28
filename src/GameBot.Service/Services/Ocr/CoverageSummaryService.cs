@@ -30,15 +30,16 @@ internal sealed class CoverageSummaryService : ICoverageSummaryService {
   }
 
   public async Task<CoverageSummaryResult> GetLatestAsync(CancellationToken cancellationToken = default) {
-    if (!File.Exists(_summaryPath)) {
+    var summaryPath = ResolveSummaryPath();
+    if (summaryPath is null) {
       return CoverageSummaryResult.Missing();
     }
 
     try {
-      using var stream = File.OpenRead(_summaryPath);
+      using var stream = File.OpenRead(summaryPath);
       var payload = await JsonSerializer.DeserializeAsync<CoverageSummaryPayload>(stream, _serializerOptions, cancellationToken).ConfigureAwait(false);
       if (payload is null || payload.GeneratedAtUtc == default || string.IsNullOrWhiteSpace(payload.Namespace)) {
-        InvalidSummaryLog(_logger, _summaryPath, null);
+        InvalidSummaryLog(_logger, summaryPath, null);
         return CoverageSummaryResult.Invalid();
       }
 
@@ -54,20 +55,29 @@ internal sealed class CoverageSummaryService : ICoverageSummaryService {
 
       var age = _utcNow().Subtract(summary.GeneratedAtUtc);
       if (age > _staleAfter) {
-        StaleSummaryLog(_logger, _summaryPath, age, null);
+        StaleSummaryLog(_logger, summaryPath, age, null);
         return CoverageSummaryResult.Stale(summary);
       }
 
       return CoverageSummaryResult.Success(summary);
     }
     catch (JsonException ex) {
-      ParseFailureLog(_logger, _summaryPath, ex);
+      ParseFailureLog(_logger, summaryPath, ex);
       return CoverageSummaryResult.Invalid();
     }
     catch (IOException ex) {
-      ReadFailureLog(_logger, _summaryPath, ex);
+      ReadFailureLog(_logger, summaryPath, ex);
       return CoverageSummaryResult.Invalid();
     }
+  }
+
+  private string? ResolveSummaryPath() {
+    if (File.Exists(_summaryPath)) {
+      return _summaryPath;
+    }
+
+    var fallback = Path.Combine(AppContext.BaseDirectory, "data", "coverage", "latest.json");
+    return File.Exists(fallback) ? fallback : null;
   }
 
   private sealed class CoverageSummaryPayload {
