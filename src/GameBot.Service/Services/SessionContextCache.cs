@@ -1,14 +1,16 @@
+// Suppress CA1515: cache is shared via public services/controllers
+#pragma warning disable CA1515
 using System.Collections.Concurrent;
 
 namespace GameBot.Service.Services;
 
-internal interface ISessionContextCache {
+public interface ISessionContextCache {
   void SetSessionId(string gameId, string adbSerial, string sessionId);
   string? GetSessionId(string gameId, string adbSerial);
   void ClearSession(string gameId, string adbSerial);
 }
 
-internal sealed class SessionContextCache : ISessionContextCache {
+public sealed class SessionContextCache : ISessionContextCache {
   private readonly ConcurrentDictionary<string, string> _cache = new(StringComparer.OrdinalIgnoreCase);
 
   private static string Key(string gameId, string adbSerial) => $"{gameId}|{adbSerial}";
@@ -29,3 +31,4 @@ internal sealed class SessionContextCache : ISessionContextCache {
     _cache.TryRemove(Key(gameId.Trim(), adbSerial.Trim()), out _);
   }
 }
+#pragma warning restore CA1515

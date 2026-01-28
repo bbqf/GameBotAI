@@ -280,6 +280,23 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
       SetRequestExample(operation, SessionCreateRequest(), context, typeof(GameBot.Service.Models.CreateSessionRequest));
       SetResponseExample(operation, "201", SessionCreateResponse(), context, typeof(GameBot.Service.Models.CreateSessionResponse));
     }
+    else if (IsMethod(method, HttpMethods.Get) && path.Contains(ApiRoutes.Sessions + "/running", StringComparison.OrdinalIgnoreCase))
+    {
+      operation.Summary ??= "List running sessions";
+      SetResponseExample(operation, "200", RunningSessionsResponse(), context, typeof(GameBot.Service.Models.RunningSessionsResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/start", StringComparison.OrdinalIgnoreCase))
+    {
+      operation.Summary ??= "Start a session";
+      SetRequestExample(operation, SessionStartRequest(), context, typeof(GameBot.Service.Models.StartSessionRequest));
+      SetResponseExample(operation, "200", SessionStartResponse(), context, typeof(GameBot.Service.Models.StartSessionResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/stop", StringComparison.OrdinalIgnoreCase))
+    {
+      operation.Summary ??= "Stop a session";
+      SetRequestExample(operation, SessionStopRequest(), context, typeof(GameBot.Service.Models.StopSessionRequest));
+      SetResponseExample(operation, "200", SessionStopResponse(), context, typeof(GameBot.Service.Models.StopSessionResponse));
+    }
     else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/{id}/inputs", StringComparison.OrdinalIgnoreCase))
     {
       operation.Summary ??= "Send inputs to a session";
@@ -655,6 +672,54 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ["gameId"] = new OpenApiString("game-123")
   };
 
+  private static OpenApiObject SessionStartRequest() => new OpenApiObject
+  {
+    ["gameId"] = new OpenApiString("game-123"),
+    ["emulatorId"] = new OpenApiString("emulator-5554"),
+    ["options"] = new OpenApiObject { ["idleTimeoutSeconds"] = new OpenApiInteger(30) }
+  };
+
+  private static OpenApiObject RunningSessionExample() => new OpenApiObject
+  {
+    ["sessionId"] = new OpenApiString("session-abc"),
+    ["gameId"] = new OpenApiString("game-123"),
+    ["emulatorId"] = new OpenApiString("emulator-5554"),
+    ["startedAtUtc"] = new OpenApiString("2026-01-28T10:00:00Z"),
+    ["lastHeartbeatUtc"] = new OpenApiString("2026-01-28T10:02:00Z"),
+    ["status"] = new OpenApiString("running")
+  };
+
+  private static OpenApiObject SessionStartResponse() => new OpenApiObject
+  {
+    ["sessionId"] = new OpenApiString("session-abc"),
+    ["runningSessions"] = new OpenApiArray
+    {
+      RunningSessionExample(),
+      new OpenApiObject
+      {
+        ["sessionId"] = new OpenApiString("session-def"),
+        ["gameId"] = new OpenApiString("game-456"),
+        ["emulatorId"] = new OpenApiString("emulator-9999"),
+        ["startedAtUtc"] = new OpenApiString("2026-01-28T09:58:00Z"),
+        ["lastHeartbeatUtc"] = new OpenApiString("2026-01-28T10:01:30Z"),
+        ["status"] = new OpenApiString("running")
+      }
+    }
+  };
+
+  private static OpenApiObject RunningSessionsResponse() => new OpenApiObject
+  {
+    ["sessions"] = new OpenApiArray
+    {
+      RunningSessionExample()
+    }
+  };
+
+  private static OpenApiObject SessionStopRequest() => new OpenApiObject
+  {
+    ["sessionId"] = new OpenApiString("session-abc")
+  };
+
   private static OpenApiObject SessionInputsRequest() => new OpenApiObject
   {
     ["actions"] = new OpenApiArray
@@ -918,7 +983,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
 
   private static OpenApiObject SessionStopResponse() => new OpenApiObject
   {
-    ["status"] = new OpenApiString("stopping")
+    ["stopped"] = new OpenApiBoolean(true)
   };
 
   private static OpenApiObject GameCreateRequest() => new OpenApiObject

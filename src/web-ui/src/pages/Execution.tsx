@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { listActions, ActionDto } from '../services/actionsApi';
 import { useGames } from '../services/useGames';
-import { createSession } from '../services/sessionsApi';
+import { getRunningSessions, startSession, stopSession, RunningSessionDto } from '../services/sessionsApi';
 import { listCommands, forceExecuteCommand, CommandDto } from '../services/commands';
-import { sessionCache } from '../lib/sessionCache';
 import { ApiError } from '../lib/api';
 
 const getAdbSerial = (action?: ActionDto): string => {
@@ -23,14 +22,13 @@ export const ExecutionPage: React.FC = () => {
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
-  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
-  const [cachedSessionId, setCachedSessionId] = useState<string | undefined>(undefined);
+  const [runningSessions, setRunningSessions] = useState<RunningSessionDto[]>([]);
+  const [runningSessionsLoading, setRunningSessionsLoading] = useState(true);
   const [commandsError, setCommandsError] = useState<string | undefined>(undefined);
   const [commandMessage, setCommandMessage] = useState<string | undefined>(undefined);
   const [commandError, setCommandError] = useState<string | undefined>(undefined);
   const [manualSessionId, setManualSessionId] = useState('');
   const [executing, setExecuting] = useState(false);
-  const [commandCachedSessionId, setCommandCachedSessionId] = useState<string | undefined>(undefined);
   const [commandCacheMeta, setCommandCacheMeta] = useState<{ gameId: string; adbSerial: string; actionName?: string } | undefined>(undefined);
 
   const gameLookup = useMemo(() => {
@@ -41,6 +39,19 @@ export const ExecutionPage: React.FC = () => {
 
   const connectActions = useMemo(() => actions.filter((a) => a.type === 'connect-to-game'), [actions]);
   const selectedAction = connectActions.find((a) => a.id === selectedActionId);
+
+  const refreshRunningSessions = useCallback(async () => {
+    setRunningSessionsLoading(true);
+    try {
+      const data = await getRunningSessions();
+      setRunningSessions(data);
+    } catch (err: any) {
+      setRunningSessions([]);
+      setError(err?.message ?? 'Failed to load running sessions');
+    } finally {
+      setRunningSessionsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -77,6 +88,10 @@ export const ExecutionPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    void refreshRunningSessions();
+  }, [refreshRunningSessions]);
+
+  useEffect(() => {
     if (!selectedActionId && connectActions.length > 0) {
       setSelectedActionId(connectActions[0].id);
     }
@@ -87,19 +102,6 @@ export const ExecutionPage: React.FC = () => {
       setSelectedCommandId(commands[0].id);
     }
   }, [commands, selectedCommandId]);
-
-  useEffect(() => {
-    if (!selectedAction) {
-      setCachedSessionId(undefined);
-      return;
-    }
-    const adbSerial = getAdbSerial(selectedAction);
-    if (!adbSerial) {
-      setCachedSessionId(undefined);
-      return;
-    }
-    setCachedSessionId(sessionCache.get(selectedAction.gameId, adbSerial));
-  }, [selectedAction]);
 
   const findCommandCacheMeta = (commandId?: string) => {
     if (!commandId) return undefined;
@@ -118,8 +120,19 @@ export const ExecutionPage: React.FC = () => {
   useEffect(() => {
     const meta = findCommandCacheMeta(selectedCommandId);
     setCommandCacheMeta(meta);
-    setCommandCachedSessionId(meta ? sessionCache.get(meta.gameId, meta.adbSerial) : undefined);
   }, [selectedCommandId, commands, connectActions]);
+
+  const selectedRunningSession = useMemo(() => {
+    if (!selectedAction) return undefined;
+    const adbSerial = getAdbSerial(selectedAction);
+    if (!adbSerial) return undefined;
+    return runningSessions.find((s) => s.gameId === selectedAction.gameId && s.emulatorId === adbSerial);
+  }, [selectedAction, runningSessions]);
+
+  const commandRunningSession = useMemo(() => {
+    if (!commandCacheMeta) return undefined;
+    return runningSessions.find((s) => s.gameId === commandCacheMeta.gameId && s.emulatorId === commandCacheMeta.adbSerial);
+  }, [commandCacheMeta, runningSessions]);
 
   const handleRun = async () => {
     if (!selectedAction) return;
@@ -133,19 +146,12 @@ export const ExecutionPage: React.FC = () => {
     setRunning(true);
     setMessage(undefined);
     setError(undefined);
-    setSessionId(undefined);
 
     try {
-      const response = await createSession({ gameId, adbSerial });
-      const sid = response.sessionId || response.id;
-      if (!sid) throw new ApiError(500, 'Session response missing id');
-      sessionCache.set(gameId, adbSerial, sid);
-      setSessionId(sid);
-      setCachedSessionId(sid);
-      setMessage(`Session ready: ${sid}`);
+      const response = await startSession({ gameId, emulatorId: adbSerial });
+      setRunningSessions(response.runningSessions ?? []);
+      setMessage(`Session ready: ${response.sessionId}`);
     } catch (err: any) {
-      sessionCache.clear(gameId, adbSerial);
-      setCachedSessionId(undefined);
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
@@ -153,6 +159,7 @@ export const ExecutionPage: React.FC = () => {
       }
     } finally {
       setRunning(false);
+      void refreshRunningSessions();
     }
   };
 
@@ -174,13 +181,13 @@ export const ExecutionPage: React.FC = () => {
         setCommandError('No connect-to-game step found for this command. Enter a sessionId or update the command to include one.');
         return;
       }
-      const cached = sessionCache.get(meta.gameId, meta.adbSerial);
-      if (!cached) {
+      const runningSession = runningSessions.find((s) => s.gameId === meta.gameId && s.emulatorId === meta.adbSerial && `${s.status}`.toLowerCase() === 'running');
+      if (!runningSession) {
         setExecuting(false);
-        setCommandError(`No cached session found for ${meta.gameId}/${meta.adbSerial}. Start a session first or enter a sessionId.`);
+        setCommandError(`No running session found for ${meta.gameId}/${meta.adbSerial}. Start a session first or enter a sessionId.`);
         return;
       }
-      resolvedSessionId = cached;
+      resolvedSessionId = runningSession.sessionId;
     }
 
     try {
@@ -190,11 +197,28 @@ export const ExecutionPage: React.FC = () => {
     } catch (err: any) {
       if (err instanceof ApiError) {
         setCommandError(err.message);
+        if (err.status === 404 || err.status === 409) {
+          void refreshRunningSessions();
+        }
       } else {
         setCommandError(err?.message ?? 'Failed to execute command');
       }
     } finally {
       setExecuting(false);
+    }
+  };
+
+  const handleStopSession = async (sessionId: string) => {
+    if (!sessionId) return;
+    setError(undefined);
+    try {
+      await stopSession(sessionId);
+      setMessage('Session stopped.');
+    } catch (err: any) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError(err?.message ?? 'Failed to stop session');
+    } finally {
+      void refreshRunningSessions();
     }
   };
 
@@ -207,9 +231,20 @@ export const ExecutionPage: React.FC = () => {
       {commandError && <div className="form-error" role="alert">{commandError}</div>}
       {commandMessage && <div className="form-hint" role="status">{commandMessage}</div>}
 
+      {selectedRunningSession && (
+        <div className="session-banner" role="status">
+          <div>Cached session: {selectedRunningSession.sessionId}</div>
+          <div>Game: {gameLookup.get(selectedRunningSession.gameId) ?? selectedRunningSession.gameId}</div>
+          <div>Emulator: {selectedRunningSession.emulatorId || '—'}</div>
+          <button type="button" onClick={() => handleStopSession(selectedRunningSession.sessionId)} disabled={running || executing}>
+            Stop session
+          </button>
+        </div>
+      )}
+
       <section aria-label="Connect to game">
         <h2>Start a session</h2>
-        <p>Select a connect-to-game action and start a session. The returned sessionId will be cached for reuse.</p>
+        <p>Select a connect-to-game action and start a session. The returned sessionId will be cached on the service for reuse.</p>
 
         <div className="field">
           <label htmlFor="connect-action-select">Connect action</label>
@@ -232,14 +267,32 @@ export const ExecutionPage: React.FC = () => {
           <div className="action-details">
             <div>Game: {gameLookup.get(selectedAction.gameId) ?? selectedAction.gameId}</div>
             <div>ADB Serial: {getAdbSerial(selectedAction) || '—'}</div>
-            <div>Cached session: {cachedSessionId ?? 'none'}</div>
+            <div>Running session: {selectedRunningSession?.sessionId ?? 'none'}</div>
           </div>
         )}
 
         <div className="form-actions">
           <button type="button" onClick={handleRun} disabled={running || loadingActions || !selectedAction}>Start session</button>
         </div>
-        {sessionId && <div className="form-hint">Active sessionId: {sessionId}</div>}
+      </section>
+
+      <section aria-label="Running sessions">
+        <h2>Running sessions</h2>
+        {runningSessionsLoading && <div className="form-hint">Loading running sessions...</div>}
+        {!runningSessionsLoading && runningSessions.length === 0 && <div className="form-hint">No running sessions.</div>}
+        {!runningSessionsLoading && runningSessions.length > 0 && (
+          <ul className="running-sessions-list">
+            {runningSessions.map((s) => (
+              <li key={s.sessionId} className="running-session-row">
+                <div>Session: {s.sessionId}</div>
+                <div>Game: {gameLookup.get(s.gameId) ?? s.gameId}</div>
+                <div>Emulator: {s.emulatorId || '—'}</div>
+                <div>Status: {s.status}</div>
+                <button type="button" onClick={() => handleStopSession(s.sessionId)} disabled={running || executing}>Stop</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section aria-label="Execute command">
@@ -269,7 +322,7 @@ export const ExecutionPage: React.FC = () => {
             <div>Connect action: {commandCacheMeta.actionName ?? 'connect-to-game'}</div>
             <div>Game: {gameLookup.get(commandCacheMeta.gameId) ?? commandCacheMeta.gameId}</div>
             <div>ADB Serial: {commandCacheMeta.adbSerial}</div>
-            <div>Cached session: {commandCachedSessionId ?? 'none'}</div>
+            <div>Running session: {commandRunningSession?.sessionId ?? 'none'}</div>
           </div>
         )}
 

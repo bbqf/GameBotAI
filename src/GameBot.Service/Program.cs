@@ -58,6 +58,7 @@ builder.Logging.AddRuntimeLoggingGate(loggingGate);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerDocs();
+builder.Services.AddControllers();
 // CORS for local web UI development (default: allow http://localhost:5173)
 var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
                   ?? Environment.GetEnvironmentVariable("GAMEBOT_CORS_ORIGINS")
@@ -86,6 +87,7 @@ builder.Services.Configure<GameBot.Service.Models.SessionCreationOptions>(option
 });
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
 builder.Services.AddSingleton<ISessionContextCache, SessionContextCache>();
+builder.Services.AddSingleton<ISessionService, SessionService>();
 builder.Services.AddTransient<ErrorHandlingMiddleware>();
 builder.Services.AddTransient<CorrelationIdMiddleware>();
 builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();
@@ -471,6 +473,8 @@ MapLegacyGuard("/metrics", ApiRoutes.Metrics);
 MapLegacyGuard("/config", ApiRoutes.Config);
 MapLegacyGuard("/config/logging", ApiRoutes.ConfigLogging);
 MapLegacyGuard("/adb", ApiRoutes.Adb);
+
+app.MapControllers();
 
 app.Run();
 

@@ -33,21 +33,21 @@
 - [x] T010 [P] [US1] Add frontend test for detection persistence in src/web-ui/src/features/authoring/__tests__/CommandForm.detection.test.tsx
 
 ## Phase 4 – User Story 2 (P2): Command execution reuses cached session
-- [ ] T011 [US2] Implement server-side session cache defaulting in src/GameBot.Service/Services/SessionService.cs
+- [x] T011 [US2] Implement server-side session cache defaulting in src/GameBot.Service/Services/SessionService.cs
 - [ ] T012 [US2] Apply cache default in execute-command endpoint in src/GameBot.Service/Controllers/ExecutionController.cs
-- [ ] T013 [US2] Default execution UI to cached session and prompt when missing in src/web-ui/src/features/execution/ExecutePanel.tsx
+- [x] T013 [US2] Default execution UI to cached session and prompt when missing in src/web-ui/src/features/execution/ExecutePanel.tsx
 - [ ] T014 [P] [US2] Add backend test for cache fallback and stale handling in tests/unit/Sessions/SessionServiceTests.cs
 - [ ] T015 [P] [US2] Add UI test for cached session auto-use and missing-session prompt in src/web-ui/src/features/execution/__tests__/ExecutePanel.session.test.tsx
 
 ## Phase 5 – User Story 3 (P3): Session banner shows cached session with stop
-- [ ] T016 [US3] Expose cached session fetch/stop API in src/GameBot.Service/Controllers/SessionsController.cs
-- [ ] T017 [US3] Render session banner with stop control in src/web-ui/src/features/execution/SessionBanner.tsx
+- [x] T016 [US3] Expose cached session fetch/stop API in src/GameBot.Service/Controllers/SessionsController.cs
+- [x] T017 [US3] Render session banner with stop control in src/web-ui/src/features/execution/SessionBanner.tsx
 - [ ] T018 [P] [US3] Add UI test for banner display and stop clearing in src/web-ui/src/features/execution/__tests__/SessionBanner.test.tsx
 
 ## Phase 6 – User Story 4 (P4): Running sessions list with stop controls
-- [ ] T019 [US4] Implement GET /api/sessions/running and POST /api/sessions/stop per contract in src/GameBot.Service/Controllers/SessionsController.cs
-- [ ] T020 [US4] Implement POST /api/sessions/start with auto-stop/replace semantics in src/GameBot.Service/Controllers/SessionsController.cs
-- [ ] T021 [US4] Build running sessions list UI with 2s polling and stop buttons in src/web-ui/src/features/execution/RunningSessionsList.tsx
+- [x] T019 [US4] Implement GET /api/sessions/running and POST /api/sessions/stop per contract in src/GameBot.Service/Controllers/SessionsController.cs
+- [x] T020 [US4] Implement POST /api/sessions/start with auto-stop/replace semantics in src/GameBot.Service/Controllers/SessionsController.cs
+- [x] T021 [US4] Build running sessions list UI with 2s polling and stop buttons in src/web-ui/src/features/execution/RunningSessionsList.tsx
 - [ ] T022 [P] [US4] Add backend tests for running list and auto-stop failure handling in tests/unit/Sessions/SessionsControllerTests.cs
 - [ ] T023 [P] [US4] Add UI test for polling, stop removal, and replacement in src/web-ui/src/features/execution/__tests__/RunningSessionsList.test.tsx
 
@@ -65,7 +65,7 @@
 
 ## Phase 10 – Polish & Cross-Cutting
 - [ ] T030 Update quickstart with any new session endpoint notes in specs/023-authoring-execution-ui/quickstart.md
-- [ ] T031 [P] Run full test suite (backend and frontend) from C:/src/GameBot to confirm coverage and regressions addressed
+- [x] T031 [P] Run full test suite (backend and frontend) from C:/src/GameBot to confirm coverage and regressions addressed
 - [ ] T032 [P] Add backend perf measurement for running sessions fetch p95<300ms in src/GameBot.Service (timing/logging or lightweight benchmark)
 - [ ] T033 [P] Add UI perf check for banner/list render/update <100ms after data arrival in src/web-ui/src/features/execution (profiling script/test)
 - [ ] T034 Add authoring detection save/reload perf check <500ms p95 in tests/integration/Commands/DetectionPerformanceTests.cs

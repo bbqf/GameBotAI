@@ -56,4 +56,8 @@ public sealed class StartSessionResponse {
 public sealed class StopSessionRequest {
   public required string SessionId { get; init; }
 }
+
+public sealed class StopSessionResponse {
+  public bool Stopped { get; init; }
+}
 #pragma warning restore CA1515
