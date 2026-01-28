@@ -28,7 +28,7 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
 
 const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) => ({ type: s.type, targetId: s.targetId, order: idx }));
 
-const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number; offsetX?: number; offsetY?: number }): DetectionTargetForm | undefined => {
+const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number; offsetX?: number; offsetY?: number; selectionStrategy?: string }): DetectionTargetForm | undefined => {
   if (!dto) return undefined;
   return {
     referenceImageId: dto.referenceImageId,
@@ -41,7 +41,7 @@ const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number;
 const detectionToDto = (form?: DetectionTargetForm) => {
   if (!form) return undefined;
   const hasValue = form.referenceImageId?.trim() || form.confidence || form.offsetX || form.offsetY;
-  if (!hasValue) return undefined;
+  if (!hasValue) return { value: null } as const;
   if (!form.referenceImageId.trim()) return { error: 'Reference image ID is required when detection is configured' } as const;
   const confidence = form.confidence && form.confidence !== '' ? Number(form.confidence) : undefined;
   const offsetX = form.offsetX && form.offsetX !== '' ? Number(form.offsetX) : undefined;
@@ -127,7 +127,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     setForm({
       name: c.name,
       steps: stepsFromDto(c),
-      detection: detectionFromDto(c.detectionTarget)
+      detection: detectionFromDto(c.detection)
     });
     setDirty(false);
   };
@@ -268,7 +268,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
               await createCommand({
                 name: form.name.trim(),
                 steps: stepsToDto(form.steps),
-                detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
+                detection: detectionResult?.value,
               });
               setCreating(false);
               setForm(emptyForm);
@@ -314,7 +314,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
                 await updateCommand(editingId, {
                   name: form.name.trim(),
                   steps: stepsToDto(form.steps),
-                  detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
+                  detection: detectionResult?.value,
                 });
                 await reloadCommands();
                 setEditingId(undefined);

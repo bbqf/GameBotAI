@@ -36,6 +36,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - File-system image blobs and metadata; trigger references from JSON repositories (021-images-authoring-ui)
 - C# / .NET 9 (frontend: React 18/Vite) + Existing GameBot emulator session & ADB capture, System.Drawing/OpenCvSharp already in repo; no new packages. (022-emulator-image-crop)
 - File-backed images under `data/images` with metadata persisted alongside existing JSON repos if needed. (022-emulator-image-crop)
+- Backend C# 13 / .NET 9; Frontend TypeScript (ES2020) / React 18 (Vite 5) + ASP.NET Core Minimal API, existing GameBot.Domain repos, SharpAdbClient/ADB + System.Drawing/OpenCvSharp (already present), file-based JSON stores under data/, React Testing Library + Playwright for web UI tests; no new external packages. (023-authoring-execution-ui)
+- File-based JSON repos under data/ (commands, triggers, config); running session cache kept in service memory; no new persistence. (023-authoring-execution-ui)
 
 - .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -63,9 +65,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 023-authoring-execution-ui: Added Backend C# 13 / .NET 9; Frontend TypeScript (ES2020) / React 18 (Vite 5) + ASP.NET Core Minimal API, existing GameBot.Domain repos, SharpAdbClient/ADB + System.Drawing/OpenCvSharp (already present), file-based JSON stores under data/, React Testing Library + Playwright for web UI tests; no new external packages.
 - 022-emulator-image-crop: Added C# / .NET 9 (frontend: React 18/Vite) + Existing GameBot emulator session & ADB capture, System.Drawing/OpenCvSharp already in repo; no new packages.
 - 021-images-authoring-ui: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing file-backed image store under `data/images`, React 18 + Vite toolchain
-- 020-connect-game-action: Added C# (.NET 9) for backend; TypeScript (ES2020) + React 18 for frontend + ASP.NET Core Minimal API, SharpAdbClient/ADB integration, existing JSON repositories, React/Vite toolchain
 
 
 <!-- MANUAL ADDITIONS START -->
