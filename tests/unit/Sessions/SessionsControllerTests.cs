@@ -13,7 +13,7 @@ namespace GameBot.UnitTests.Sessions;
 
 public sealed class SessionsControllerTests {
   [Fact]
-  public void GetRunningSessions_MapsFromService() {
+  public void GetRunningSessionsMapsFromService() {
     var running = new RunningSession {
       SessionId = "sess-1",
       GameId = "game-1",
@@ -41,7 +41,7 @@ public sealed class SessionsControllerTests {
   }
 
   [Fact]
-  public void StopSession_ReturnsNotFoundWhenServiceFails() {
+  public void StopSessionReturnsNotFoundWhenServiceFails() {
     var service = new FakeSessionService { StopResult = false };
     var controller = new SessionsController(service);
 
@@ -53,7 +53,7 @@ public sealed class SessionsControllerTests {
   }
 
   [Fact]
-  public void StartSession_Returns429OnCapacityExceeded() {
+  public void StartSessionReturns429OnCapacityExceeded() {
     var service = new FakeSessionService { ThrowOnStart = new InvalidOperationException("capacity_exceeded") };
     var controller = new SessionsController(service);
 
