@@ -48,8 +48,8 @@
 - [x] T019 [US4] Implement GET /api/sessions/running and POST /api/sessions/stop per contract in src/GameBot.Service/Controllers/SessionsController.cs
 - [x] T020 [US4] Implement POST /api/sessions/start with auto-stop/replace semantics in src/GameBot.Service/Controllers/SessionsController.cs
 - [x] T021 [US4] Build running sessions list UI with 2s polling and stop buttons in src/web-ui/src/features/execution/RunningSessionsList.tsx
-- [ ] T022 [P] [US4] Add backend tests for running list and auto-stop failure handling in tests/unit/Sessions/SessionsControllerTests.cs
-- [ ] T023 [P] [US4] Add UI test for polling, stop removal, and replacement in src/web-ui/src/features/execution/__tests__/RunningSessionsList.test.tsx
+- [x] T022 [P] [US4] Add backend tests for running list and auto-stop failure handling in tests/unit/Sessions/SessionsControllerTests.cs
+- [x] T023 [P] [US4] Add UI test for polling, stop removal, and replacement in src/web-ui/src/features/execution/__tests__/RunningSessionsList.test.tsx
 
 ## Phase 7 – User Story 5 (P5): Author edits automations without visual defects
 - [ ] T024 [US5] Adjust authoring layout spacing/wrapping for 1280–1920px in src/web-ui/src/features/authoring/CommandForm.css
