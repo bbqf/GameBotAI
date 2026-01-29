@@ -36,13 +36,13 @@
 - [x] T011 [US2] Implement server-side session cache defaulting in src/GameBot.Service/Services/SessionService.cs
 - [ ] T012 [US2] Apply cache default in execute-command endpoint in src/GameBot.Service/Controllers/ExecutionController.cs
 - [x] T013 [US2] Default execution UI to cached session and prompt when missing in src/web-ui/src/features/execution/ExecutePanel.tsx
-- [ ] T014 [P] [US2] Add backend test for cache fallback and stale handling in tests/unit/Sessions/SessionServiceTests.cs
-- [ ] T015 [P] [US2] Add UI test for cached session auto-use and missing-session prompt in src/web-ui/src/features/execution/__tests__/ExecutePanel.session.test.tsx
+- [x] T014 [P] [US2] Add backend test for cache fallback and stale handling in tests/unit/Sessions/SessionServiceTests.cs
+- [x] T015 [P] [US2] Add UI test for cached session auto-use and missing-session prompt in src/web-ui/src/features/execution/__tests__/ExecutePanel.session.test.tsx
 
 ## Phase 5 – User Story 3 (P3): Session banner shows cached session with stop
 - [x] T016 [US3] Expose cached session fetch/stop API in src/GameBot.Service/Controllers/SessionsController.cs
 - [x] T017 [US3] Render session banner with stop control in src/web-ui/src/features/execution/SessionBanner.tsx
-- [ ] T018 [P] [US3] Add UI test for banner display and stop clearing in src/web-ui/src/features/execution/__tests__/SessionBanner.test.tsx
+- [x] T018 [P] [US3] Add UI test for banner display and stop clearing in src/web-ui/src/features/execution/__tests__/SessionBanner.test.tsx
 
 ## Phase 6 – User Story 4 (P4): Running sessions list with stop controls
 - [x] T019 [US4] Implement GET /api/sessions/running and POST /api/sessions/stop per contract in src/GameBot.Service/Controllers/SessionsController.cs
