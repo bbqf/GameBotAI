@@ -1,0 +1,170 @@
+.command-form {
+  width: 100%;
+  max-width: 1160px;
+  margin: 12px auto 20px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: linear-gradient(180deg, #f9fafb 0%, #ffffff 60%);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.command-form .form-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #ffffff;
+}
+
+.command-form .form-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.command-form .form-section__description {
+  margin: 4px 0 10px;
+  color: #475467;
+  line-height: 1.45;
+}
+
+.command-form .form-section__body {
+  display: grid;
+  gap: 12px;
+}
+
+.command-form .field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.command-form .field label {
+  font-weight: 600;
+  color: #111827;
+}
+
+.command-form input,
+.command-form select,
+.command-form textarea,
+.command-form .dropdown,
+.command-form .dropdown-search {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: #ffffff;
+}
+
+.command-form input:focus-visible,
+.command-form select:focus-visible,
+.command-form textarea:focus-visible,
+.command-form .dropdown:focus-visible,
+.command-form .dropdown-search:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.command-form .form-hint {
+  color: #475467;
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.command-form .field-error {
+  color: #b91c1c;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.command-form .grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.command-form .searchable-dropdown {
+  display: grid;
+  gap: 6px;
+  align-items: start;
+}
+
+.command-form .dropdown-create {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.command-form .dropdown-create button {
+  padding: 8px 12px;
+}
+
+.command-form .reorderable-list {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.command-form .reorderable-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+}
+
+.command-form .reorderable-list__content {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.command-form .reorderable-list__label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-form .reorderable-list__description {
+  color: #475467;
+  overflow-wrap: anywhere;
+}
+
+.command-form .reorderable-list__controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.command-form .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (min-width: 1280px) {
+  .command-form {
+    padding: 20px 24px;
+    gap: 18px;
+  }
+
+  .command-form .grid-3 {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}

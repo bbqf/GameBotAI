@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { FormActions, FormSection } from '../unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../SearchableDropdown';
 import { ReorderableList, ReorderableListItem } from '../ReorderableList';
+import './CommandForm.css';
 
 export type StepEntry = { id: string; type: 'Action' | 'Command'; targetId: string };
 

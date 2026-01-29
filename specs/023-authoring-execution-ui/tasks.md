@@ -52,8 +52,8 @@
 - [x] T023 [P] [US4] Add UI test for polling, stop removal, and replacement in src/web-ui/src/features/execution/__tests__/RunningSessionsList.test.tsx
 
 ## Phase 7 – User Story 5 (P5): Author edits automations without visual defects
-- [ ] T024 [US5] Adjust authoring layout spacing/wrapping for 1280–1920px in src/web-ui/src/features/authoring/CommandForm.css
-- [ ] T025 [P] [US5] Validate long-name handling in authoring list/grid rendering in src/web-ui/src/features/authoring/CommandList.tsx
+- [x] T024 [US5] Adjust authoring layout spacing/wrapping for 1280–1920px in src/web-ui/src/components/commands/CommandForm.css
+- [x] T025 [P] [US5] Validate long-name handling in authoring list/grid rendering in src/web-ui/src/pages/CommandsPage.tsx
 
 ## Phase 8 – User Story 6 (P6): Operator monitors execution states clearly
 - [ ] T026 [US6] Standardize status chip colors/contrast and alignment in src/web-ui/src/features/execution/StatusChip.tsx

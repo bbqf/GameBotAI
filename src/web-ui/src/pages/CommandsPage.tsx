@@ -9,6 +9,7 @@ import { listCommands, getCommand, createCommand, updateCommand, deleteCommand, 
 import { listGames, GameDto } from '../services/games';
 import { listActions as listLegacyActions, ActionDto as LegacyActionDto } from '../services/actions';
 import { listActions as listDomainActions } from '../services/actionsApi';
+import './CommandsPage.css';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
@@ -188,7 +189,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const tableLoading = loadingCommands;
 
   return (
-    <section>
+    <section className="commands-page">
       <h2>Commands</h2>
       {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
       {tableError && <div className="form-error" role="alert">{tableError}</div>}
@@ -230,9 +231,14 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           {!tableLoading && displayedCommands.length > 0 && displayedCommands.map((c) => (
             <tr key={c.id} className="commands-row">
               <td>{gameLookup.get(c.gameId ?? '') ?? (c.gameId || '—')}</td>
-              <td>
-                <button type="button" className="link-button" onClick={() => { if (!confirmNavigate()) return; setEditingId(c.id); setCreating(false); void loadCommandIntoForm(c.id); }}>
-                  {c.name}
+              <td className="command-name-cell">
+                <button
+                  type="button"
+                  className="link-button"
+                  title={c.name}
+                  onClick={() => { if (!confirmNavigate()) return; setEditingId(c.id); setCreating(false); void loadCommandIntoForm(c.id); }}
+                >
+                  <span className="command-name">{c.name}</span>
                 </button>
               </td>
               <td>{c.stepCount}</td>

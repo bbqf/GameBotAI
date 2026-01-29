@@ -108,4 +108,16 @@ describe('CommandsPage', () => {
       detection: undefined,
     }));
   });
+
+  it('renders long command names without clipping or losing the full title', async () => {
+    const longName = 'Very Long Command Name That Should Ellipsize Without Causing Horizontal Scrollbars';
+    listCommandsMock.mockResolvedValue([{ id: 'c-long', name: longName, steps: [] } as any]);
+
+    render(<CommandsPage />);
+
+    const nameButton = await screen.findByRole('button', { name: longName });
+    expect(nameButton).toHaveAttribute('title', longName);
+    const nameSpan = nameButton.querySelector('.command-name');
+    expect(nameSpan?.textContent).toBe(longName);
+  });
 });

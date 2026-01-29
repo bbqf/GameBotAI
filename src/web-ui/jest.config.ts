@@ -6,6 +6,9 @@ const config: Config = {
   roots: ['<rootDir>/src'],
   moduleFileExtensions: ['ts', 'tsx', 'js'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+  moduleNameMapper: {
+    '\\.(css|less|sass|scss)$': '<rootDir>/src/testUtils/styleMock.ts'
+  },
   collectCoverage: true,
   collectCoverageFrom: ['<rootDir>/src/**/*.{ts,tsx}', '!<rootDir>/src/**/*.d.ts', '!<rootDir>/src/**/__tests__/**'],
   coverageThreshold: {
