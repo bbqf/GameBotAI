@@ -72,6 +72,7 @@ describe('Running sessions list', () => {
     render(<ExecutionPage />);
 
     const startButton = await screen.findByRole('button', { name: /start session/i });
+    await waitFor(() => expect(startButton).toBeEnabled());
     fireEvent.click(startButton);
 
     await waitFor(() => expect(mockStartSession).toHaveBeenCalled());
