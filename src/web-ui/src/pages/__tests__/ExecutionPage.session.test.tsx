@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ExecutionPage } from '../Execution';
 import { listActions } from '../../services/actionsApi';
 import { useGames } from '../../services/useGames';
@@ -76,7 +76,8 @@ describe('ExecutionPage session reuse', () => {
     render(<ExecutionPage />);
 
     await waitFor(() => expect(screen.getByLabelText(/Connect action/i)).toHaveValue('action-1'));
-    await screen.findByText(/Session: sess-123/i, {}, { timeout: 3000 });
+    const runningSection = await screen.findByRole('region', { name: /Running sessions/i });
+    await within(runningSection).findByText(/Session: sess-123/i, {}, { timeout: 3000 });
     await screen.findByText(/Cached session: sess-123/i, {}, { timeout: 3000 });
     await screen.findByRole('button', { name: 'Execute command' });
 
