@@ -119,7 +119,9 @@ export const App: React.FC = () => {
 
   const renderExecution = () => (
     <section id="execution-panel" className="execution">
-      <ExecutionPage />
+      <ErrorBoundary>
+        <ExecutionPage />
+      </ErrorBoundary>
     </section>
   );
 

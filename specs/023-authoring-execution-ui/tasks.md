@@ -56,12 +56,12 @@
 - [x] T025 [P] [US5] Validate long-name handling in authoring list/grid rendering in src/web-ui/src/pages/CommandsPage.tsx
 
 ## Phase 8 – User Story 6 (P6): Operator monitors execution states clearly
-- [ ] T026 [US6] Standardize status chip colors/contrast and alignment in src/web-ui/src/features/execution/StatusChip.tsx
-- [ ] T027 [P] [US6] Add stable loading skeleton for run details panel in src/web-ui/src/features/execution/RunDetails.tsx
+- [x] T026 [US6] Standardize status chip colors/contrast and alignment in src/web-ui/src/features/execution/StatusChip.tsx
+- [x] T027 [P] [US6] Add stable loading skeleton for run details panel in src/web-ui/src/features/execution/RunDetails.tsx
 
 ## Phase 9 – User Story 7 (P7): Consistent look-and-feel across surfaces
-- [ ] T028 [US7] Align button sizing/typography via shared tokens in src/web-ui/src/theme/tokens.ts
-- [ ] T029 [P] [US7] Harmonize spacing and background tokens across authoring/execution in src/web-ui/src/theme/global.css
+- [x] T028 [US7] Align button sizing/typography via shared tokens in src/web-ui/src/theme/tokens.ts
+- [x] T029 [P] [US7] Harmonize spacing and background tokens across authoring/execution in src/web-ui/src/theme/global.css
 
 ## Phase 10 – Polish & Cross-Cutting
 - [ ] T030 Update quickstart with any new session endpoint notes in specs/023-authoring-execution-ui/quickstart.md

@@ -4,6 +4,8 @@ import { useGames } from '../services/useGames';
 import { getRunningSessions, startSession, stopSession, RunningSessionDto } from '../services/sessionsApi';
 import { listCommands, forceExecuteCommand, CommandDto } from '../services/commands';
 import { ApiError } from '../lib/api';
+import { StatusChip } from '../features/execution/StatusChip';
+import { RunDetails } from '../features/execution/RunDetails';
 
 const getAdbSerial = (action?: ActionDto): string => {
   if (!action) return '';
@@ -12,7 +14,7 @@ const getAdbSerial = (action?: ActionDto): string => {
 };
 
 export const ExecutionPage: React.FC = () => {
-  const { data: gamesData, loading: gamesLoading, error: gamesError } = useGames();
+  const { data: gamesData, error: gamesError } = useGames();
   const [actions, setActions] = useState<ActionDto[]>([]);
   const [commands, setCommands] = useState<CommandDto[]>([]);
   const [loadingActions, setLoadingActions] = useState(true);
@@ -44,7 +46,12 @@ export const ExecutionPage: React.FC = () => {
     setRunningSessionsLoading(true);
     try {
       const data = await getRunningSessions();
-      setRunningSessions(data);
+      if (Array.isArray(data)) {
+        setRunningSessions(data);
+      } else {
+        setRunningSessions([]);
+        setError('Unexpected response while loading running sessions');
+      }
     } catch (err: any) {
       setRunningSessions([]);
       setError(err?.message ?? 'Failed to load running sessions');
@@ -59,7 +66,11 @@ export const ExecutionPage: React.FC = () => {
       setError(undefined);
       try {
         const data = await listActions({ type: 'connect-to-game' });
-        setActions(data.filter((a) => a.type === 'connect-to-game'));
+        const safe = Array.isArray(data) ? data : [];
+        setActions(safe.filter((a) => a.type === 'connect-to-game'));
+        if (!Array.isArray(data)) {
+          setError('Unexpected response while loading actions');
+        }
       } catch (err: any) {
         setActions([]);
         setError(err?.message ?? 'Failed to load actions');
@@ -76,7 +87,12 @@ export const ExecutionPage: React.FC = () => {
       setCommandsError(undefined);
       try {
         const data = await listCommands();
-        setCommands(data);
+        if (Array.isArray(data)) {
+          setCommands(data);
+        } else {
+          setCommands([]);
+          setCommandsError('Unexpected response while loading commands');
+        }
       } catch (err: any) {
         setCommands([]);
         setCommandsError(err?.message ?? 'Failed to load commands');
@@ -113,7 +129,6 @@ export const ExecutionPage: React.FC = () => {
     if (!action || action.type !== 'connect-to-game') return undefined;
     const adbSerial = getAdbSerial(action);
     const gameId = typeof action.gameId === 'string' && action.gameId ? action.gameId : (typeof action.attributes?.gameId === 'string' ? action.attributes.gameId : '');
-    if (!gameId || !adbSerial) return undefined;
     return { gameId, adbSerial, actionName: action.name };
   };
 
@@ -134,6 +149,8 @@ export const ExecutionPage: React.FC = () => {
     return runningSessions.find((s) => s.gameId === commandCacheMeta.gameId && s.emulatorId === commandCacheMeta.adbSerial);
   }, [commandCacheMeta, runningSessions]);
 
+  const primaryRunDetails = commandRunningSession ?? selectedRunningSession ?? runningSessions[0];
+
   const handleRun = async () => {
     if (!selectedAction) return;
     const adbSerial = getAdbSerial(selectedAction);
@@ -149,8 +166,12 @@ export const ExecutionPage: React.FC = () => {
 
     try {
       const response = await startSession({ gameId, emulatorId: adbSerial });
-      setRunningSessions(response.runningSessions ?? []);
-      setMessage(`Session ready: ${response.sessionId}`);
+      const runningList = Array.isArray(response.runningSessions) ? response.runningSessions : [];
+      if (!Array.isArray(response.runningSessions)) {
+        setError('Unexpected response while starting session');
+      }
+      setRunningSessions(runningList);
+      setMessage(`Session ready: ${response.sessionId ?? ''}`.trim());
     } catch (err: any) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -287,12 +308,24 @@ export const ExecutionPage: React.FC = () => {
                 <div>Session: {s.sessionId}</div>
                 <div>Game: {gameLookup.get(s.gameId) ?? s.gameId}</div>
                 <div>Emulator: {s.emulatorId || '—'}</div>
-                <div>Status: {s.status}</div>
+                <div className="running-session-status">
+                  <span className="run-label">Status:</span>
+                  <StatusChip status={s.status} />
+                </div>
                 <button type="button" onClick={() => handleStopSession(s.sessionId)} disabled={running || executing}>Stop</button>
               </li>
             ))}
           </ul>
         )}
+      </section>
+
+      <section aria-label="Run details">
+        <h2>Run details</h2>
+        <RunDetails
+          loading={runningSessionsLoading}
+          session={primaryRunDetails}
+          gameName={primaryRunDetails ? gameLookup.get(primaryRunDetails.gameId) : undefined}
+        />
       </section>
 
       <section aria-label="Execute command">

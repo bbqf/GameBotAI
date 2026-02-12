@@ -1,0 +1,60 @@
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--gb-radius-pill);
+  font-weight: var(--gb-button-font-weight);
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--gb-status-unknown-border);
+  color: var(--gb-status-unknown-text);
+  background: var(--gb-status-unknown-bg);
+  min-width: 132px;
+  justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.status-chip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: inset 0 0 0 2px var(--gb-color-surface);
+}
+
+.status-chip--running {
+  color: var(--gb-status-running-text);
+  background: var(--gb-status-running-bg);
+  border-color: var(--gb-status-running-border);
+}
+
+.status-chip--pending {
+  color: var(--gb-status-pending-text);
+  background: var(--gb-status-pending-bg);
+  border-color: var(--gb-status-pending-border);
+}
+
+.status-chip--succeeded {
+  color: var(--gb-status-succeeded-text);
+  background: var(--gb-status-succeeded-bg);
+  border-color: var(--gb-status-succeeded-border);
+}
+
+.status-chip--failed {
+  color: var(--gb-status-failed-text);
+  background: var(--gb-status-failed-bg);
+  border-color: var(--gb-status-failed-border);
+}
+
+.status-chip--stopping {
+  color: var(--gb-status-stopping-text);
+  background: var(--gb-status-stopping-bg);
+  border-color: var(--gb-status-stopping-border);
+}
+
+.status-chip--unknown {
+  color: var(--gb-status-unknown-text);
+  background: var(--gb-status-unknown-bg);
+  border-color: var(--gb-status-unknown-border);
+}

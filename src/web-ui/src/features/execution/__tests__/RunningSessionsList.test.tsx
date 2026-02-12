@@ -49,7 +49,7 @@ describe('Running sessions list', () => {
 
     const runningSection = await screen.findByRole('region', { name: /Running sessions/i });
     expect(within(runningSection).getByText(/Session: s-1/i)).toBeInTheDocument();
-    expect(within(runningSection).getByText(/Status: Running/i)).toBeInTheDocument();
+    expect(within(runningSection).getByRole('status', { name: /Status: Running/i })).toBeInTheDocument();
   });
 
   it('removes a session after stop refresh', async () => {

@@ -1,52 +1,54 @@
 .command-form {
   width: 100%;
   max-width: 1160px;
-  margin: 12px auto 20px;
-  padding: 16px 18px;
+  margin: var(--gb-space-3) auto var(--gb-space-5);
+  padding: var(--gb-space-4) var(--gb-space-5);
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  background: linear-gradient(180deg, #f9fafb 0%, #ffffff 60%);
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  gap: var(--gb-space-4);
+  background: linear-gradient(180deg, var(--gb-color-surface-alt) 0%, var(--gb-color-surface) 60%);
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-lg);
+  box-shadow: var(--gb-shadow-card);
 }
 
 .command-form .form-section {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 14px 16px;
-  background: #ffffff;
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  padding: var(--gb-space-3) var(--gb-space-4);
+  background: var(--gb-color-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .command-form .form-section__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--gb-space-3);
   flex-wrap: wrap;
 }
 
 .command-form .form-section__description {
   margin: 4px 0 10px;
-  color: #475467;
+  color: var(--gb-color-muted);
   line-height: 1.45;
 }
 
 .command-form .form-section__body {
   display: grid;
-  gap: 12px;
+  gap: var(--gb-space-3);
 }
 
 .command-form .field {
   display: grid;
-  gap: 6px;
+  gap: var(--gb-space-2);
   min-width: 0;
 }
 
 .command-form .field label {
-  font-weight: 600;
-  color: #111827;
+  font-weight: 700;
+  color: var(--gb-color-text);
+  letter-spacing: 0.01em;
 }
 
 .command-form input,
@@ -57,10 +59,11 @@
   width: 100%;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border: 1px solid var(--gb-color-border-strong);
+  border-radius: var(--gb-radius-md);
   font-size: 1rem;
-  background: #ffffff;
+  background: var(--gb-color-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .command-form input:focus-visible,
@@ -68,18 +71,18 @@
 .command-form textarea:focus-visible,
 .command-form .dropdown:focus-visible,
 .command-form .dropdown-search:focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 3px solid var(--gb-color-focus);
   outline-offset: 2px;
 }
 
 .command-form .form-hint {
-  color: #475467;
+  color: var(--gb-color-muted);
   margin: 4px 0 0;
   line-height: 1.4;
 }
 
 .command-form .field-error {
-  color: #b91c1c;
+  color: var(--gb-color-danger);
   font-weight: 600;
   margin-top: 2px;
 }
@@ -87,12 +90,12 @@
 .command-form .grid-3 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  gap: var(--gb-space-3);
 }
 
 .command-form .searchable-dropdown {
   display: grid;
-  gap: 6px;
+  gap: var(--gb-space-2);
   align-items: start;
 }
 
@@ -107,22 +110,22 @@
 
 .command-form .reorderable-list {
   display: grid;
-  gap: 10px;
-  padding: 10px;
-  border: 1px dashed #d1d5db;
-  border-radius: 10px;
-  background: #f8fafc;
+  gap: var(--gb-space-3);
+  padding: var(--gb-space-3);
+  border: 1px dashed var(--gb-color-border-strong);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface-alt);
 }
 
 .command-form .reorderable-list__item {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--gb-space-3);
   align-items: flex-start;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: #ffffff;
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  padding: var(--gb-space-3) var(--gb-space-4);
+  background: var(--gb-color-surface);
 }
 
 .command-form .reorderable-list__content {
@@ -131,20 +134,21 @@
 }
 
 .command-form .reorderable-list__label {
-  font-weight: 600;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: 0.005em;
 }
 
 .command-form .reorderable-list__description {
-  color: #475467;
+  color: var(--gb-color-muted);
   overflow-wrap: anywhere;
 }
 
 .command-form .reorderable-list__controls {
   display: flex;
-  gap: 6px;
+  gap: var(--gb-space-2);
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -152,10 +156,10 @@
 .command-form .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--gb-space-3);
   flex-wrap: wrap;
-  padding-top: 6px;
-  border-top: 1px solid #e5e7eb;
+  padding-top: var(--gb-space-2);
+  border-top: 1px solid var(--gb-color-border);
 }
 
 @media (min-width: 1280px) {
