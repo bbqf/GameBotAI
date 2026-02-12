@@ -24,6 +24,11 @@ npm run dev
 - Stop sessions from the list and verify removal.
 - Create/edit a command, set detection target/parameters, save, reopen, and confirm values persist.
 
+Session endpoints reference:
+- `GET /api/sessions/running` → list running sessions
+- `POST /api/sessions/start` → `{ "gameId": "...", "emulatorId": "..." }`
+- `POST /api/sessions/stop` → `{ "sessionId": "..." }`
+
 5) Run automated tests
 ```powershell
 cd C:/src/GameBot

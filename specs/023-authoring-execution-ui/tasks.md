@@ -64,15 +64,15 @@
 - [x] T029 [P] [US7] Harmonize spacing and background tokens across authoring/execution in src/web-ui/src/theme/global.css
 
 ## Phase 10 – Polish & Cross-Cutting
-- [ ] T030 Update quickstart with any new session endpoint notes in specs/023-authoring-execution-ui/quickstart.md
+- [x] T030 Update quickstart with any new session endpoint notes in specs/023-authoring-execution-ui/quickstart.md
 - [x] T031 [P] Run full test suite (backend and frontend) from C:/src/GameBot to confirm coverage and regressions addressed
-- [ ] T032 [P] Add backend perf measurement for running sessions fetch p95<300ms in src/GameBot.Service (timing/logging or lightweight benchmark)
-- [ ] T033 [P] Add UI perf check for banner/list render/update <100ms after data arrival in src/web-ui/src/features/execution (profiling script/test)
-- [ ] T034 Add authoring detection save/reload perf check <500ms p95 in tests/integration/Commands/DetectionPerformanceTests.cs
-- [ ] T035 [US5] Verify authoring forms at 125%-150% scaling (no clipped controls) in src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx
-- [ ] T036 [US6] Verify execution screens at 125%-150% scaling (actions reachable, no horizontal scroll) in src/web-ui/src/features/execution/__tests__/ExecutionZoom.test.tsx
-- [ ] T037 Add contract tests for GET/POST sessions (running/start/stop) in tests/contract/Sessions/SessionsContractsTests.cs
-- [ ] T038 [P] Add integration test for start with auto-stop replacement and stop failure handling in tests/integration/Sessions/RunningSessionsFlowTests.cs
+- [x] T032 [P] Add backend perf measurement for running sessions fetch p95<300ms in src/GameBot.Service (timing/logging or lightweight benchmark)
+- [x] T033 [P] Add UI perf check for banner/list render/update <100ms after data arrival in src/web-ui/src/features/execution (profiling script/test)
+- [x] T034 Add authoring detection save/reload perf check <500ms p95 in tests/integration/Commands/DetectionPerformanceTests.cs
+- [x] T035 [US5] Verify authoring forms at 125%-150% scaling (no clipped controls) in src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx
+- [x] T036 [US6] Verify execution screens at 125%-150% scaling (actions reachable, no horizontal scroll) in src/web-ui/src/features/execution/__tests__/ExecutionZoom.test.tsx
+- [x] T037 Add contract tests for GET/POST sessions (running/start/stop) in tests/contract/Sessions/SessionsContractsTests.cs
+- [x] T038 [P] Add integration test for start with auto-stop replacement and stop failure handling in tests/integration/Sessions/RunningSessionsFlowTests.cs
 
 ## Independent Test Criteria per Story
 - US1: Save/edit command with detection target/parameters, reopen, and values match without loss.
