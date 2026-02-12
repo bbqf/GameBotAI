@@ -75,7 +75,9 @@ describe('ExecutionPage session reuse', () => {
   it('auto-uses cached running session when executing a command without manual session id', async () => {
     render(<ExecutionPage />);
 
-    await screen.findByText(/Cached session: sess-123/i);
+    await waitFor(() => expect(screen.getByLabelText(/Connect action/i)).toHaveValue('action-1'));
+    await screen.findByText(/Session: sess-123/i, {}, { timeout: 3000 });
+    await screen.findByText(/Cached session: sess-123/i, {}, { timeout: 3000 });
     await screen.findByRole('button', { name: 'Execute command' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Execute command' }));
@@ -89,7 +91,8 @@ describe('ExecutionPage session reuse', () => {
 
     render(<ExecutionPage />);
 
-    await screen.findByText(/Cached session: sess-123/i);
+    await waitFor(() => expect(screen.getByLabelText(/Connect action/i)).toHaveValue('action-1'));
+    await screen.findByText(/Cached session: sess-123/i, {}, { timeout: 3000 });
 
     fireEvent.click(screen.getByRole('button', { name: 'Stop session' }));
 
