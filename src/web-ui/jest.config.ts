@@ -13,8 +13,8 @@ const config: Config = {
   collectCoverageFrom: ['<rootDir>/src/**/*.{ts,tsx}', '!<rootDir>/src/**/*.d.ts', '!<rootDir>/src/**/__tests__/**'],
   coverageThreshold: {
     global: {
-      lines: 0,
-      branches: 0,
+      lines: 40,
+      branches: 50,
       functions: 0,
       statements: 0
     },
