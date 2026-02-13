@@ -29,7 +29,35 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "git -C c:/src/GameBot": true
+        "git -C c:/src/GameBot": true,
+        "/^& \"\\$PWD/\\.specify/scripts/powershell/setup-plan\\.ps1\" -Json$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^& \"C:/src/GameBot/\\.specify/scripts/powershell/update-agent-context\\.ps1\" -AgentType copilot$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^& \"\\$PWD/\\.specify/scripts/powershell/check-prerequisites\\.ps1\" -Json -RequireTasks -IncludeTasks$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Set-Location \"C:/src/GameBot/src/web-ui\"; \"C:/Program Files/nodejs/npm\\.cmd\" test -- --runInBand$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Set-Location \"C:/src/GameBot/src/web-ui\"; & \"C:/Program Files/nodejs/npm\\.cmd\" test -- --runInBand$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Set-Location \"C:/src/GameBot\"; git status --short$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Set-Location \"C:/src/GameBot/src/web-ui\"; npm test -- --runInBand$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     },
     "java.configuration.updateBuildConfiguration": "automatic"
 }

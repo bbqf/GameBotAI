@@ -93,4 +93,67 @@ public sealed class DetectionCommandIntegrationTests : IDisposable {
       accepted.Should().BeGreaterThan(0);
     }
   }
+
+  [Fact]
+  public async Task CommandCrudRoundTripPersistsDetection() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    // Create game and action referenced by the command
+    var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "DetectPersistGame", description = "desc" });
+    gameResp.EnsureSuccessStatusCode();
+    var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+    var gameId = game!["id"]!.ToString();
+
+    var actionReq = new {
+      Name = "TapPersist",
+      GameId = gameId,
+      Steps = new[] { new { Type = "tap", Args = new Dictionary<string, object>{{"x", 5}, {"y", 6}}, DelayMs = (int?)null, DurationMs = (int?)null } }
+    };
+    var actionResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq);
+    actionResp.EnsureSuccessStatusCode();
+    var action = await actionResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+    var actionId = action!["id"]!.ToString();
+
+    var createReq = new {
+      Name = "DetectPersistCmd",
+      TriggerId = (string?)null,
+      detection = new { referenceImageId = "template_a", confidence = 0.77, offsetX = 3, offsetY = -2, selectionStrategy = "FirstMatch" },
+      Steps = new[] { new { Type = "Action", TargetId = actionId, Order = 0 } }
+    };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), createReq);
+    createResp.EnsureSuccessStatusCode();
+    var createDoc = await createResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+    var commandId = createDoc!["id"]!.ToString();
+
+    var getResp = await client.GetAsync(new Uri($"/api/commands/{commandId}", UriKind.Relative));
+    getResp.EnsureSuccessStatusCode();
+    using (var doc = await System.Text.Json.JsonDocument.ParseAsync(await getResp.Content.ReadAsStreamAsync())) {
+      var detection = doc.RootElement.GetProperty("detection");
+      detection.GetProperty("referenceImageId").GetString().Should().Be("template_a");
+      detection.GetProperty("confidence").GetDouble().Should().BeApproximately(0.77, 0.0001);
+      detection.GetProperty("offsetX").GetInt32().Should().Be(3);
+      detection.GetProperty("offsetY").GetInt32().Should().Be(-2);
+      detection.GetProperty("selectionStrategy").GetString().Should().Be("FirstMatch");
+    }
+
+    var patchReq = new {
+      detection = new { referenceImageId = "template_b", confidence = 0.88, offsetX = 10, offsetY = 20, selectionStrategy = "HighestConfidence" },
+      Steps = new[] { new { Type = "Action", TargetId = actionId, Order = 0 } }
+    };
+    var patchResp = await client.PatchAsJsonAsync(new Uri($"/api/commands/{commandId}", UriKind.Relative), patchReq);
+    patchResp.EnsureSuccessStatusCode();
+
+    var updatedResp = await client.GetAsync(new Uri($"/api/commands/{commandId}", UriKind.Relative));
+    updatedResp.EnsureSuccessStatusCode();
+    using (var doc = await System.Text.Json.JsonDocument.ParseAsync(await updatedResp.Content.ReadAsStreamAsync())) {
+      var detection = doc.RootElement.GetProperty("detection");
+      detection.GetProperty("referenceImageId").GetString().Should().Be("template_b");
+      detection.GetProperty("confidence").GetDouble().Should().BeApproximately(0.88, 0.0001);
+      detection.GetProperty("offsetX").GetInt32().Should().Be(10);
+      detection.GetProperty("offsetY").GetInt32().Should().Be(20);
+      detection.GetProperty("selectionStrategy").GetString().Should().Be("HighestConfidence");
+    }
+  }
 }

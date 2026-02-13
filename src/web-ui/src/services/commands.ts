@@ -6,7 +6,7 @@ export type CommandDto = {
   triggerId?: string;
   steps?: CommandStepDto[];
   actions?: string[]; // legacy authoring shape
-  detectionTarget?: DetectionTargetDto;
+  detection?: DetectionTargetDto;
 };
 
 export type CommandCreate = {
@@ -14,7 +14,7 @@ export type CommandCreate = {
   triggerId?: string;
   steps?: CommandStepDto[];
   actions?: string[]; // legacy authoring shape
-  detectionTarget?: DetectionTargetDto;
+  detection?: DetectionTargetDto;
 };
 
 export type CommandUpdate = CommandCreate;

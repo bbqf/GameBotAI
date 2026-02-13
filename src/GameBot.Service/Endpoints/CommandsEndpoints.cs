@@ -11,6 +11,48 @@ namespace GameBot.Service.Endpoints;
 internal static class CommandsEndpoints {
   private static readonly JsonSerializerOptions WebJsonOptions = CreateJsonOptions();
 
+  private static DetectionSelectionStrategy MapSelectionFromDto(DetectionSelectionStrategyDto? dto) => dto switch {
+    DetectionSelectionStrategyDto.FirstMatch => DetectionSelectionStrategy.FirstMatch,
+    _ => DetectionSelectionStrategy.HighestConfidence
+  };
+
+  private static DetectionSelectionStrategyDto MapSelectionToDto(DetectionSelectionStrategy selection) => selection switch {
+    DetectionSelectionStrategy.FirstMatch => DetectionSelectionStrategyDto.FirstMatch,
+    _ => DetectionSelectionStrategyDto.HighestConfidence
+  };
+
+  private static DetectionTarget? ToDomainDetection(DetectionTargetDto? dto) {
+    if (dto is null) return null;
+    if (string.IsNullOrWhiteSpace(dto.ReferenceImageId)) return null;
+    var confidence = dto.Confidence ?? 0.8;
+    var offsetX = dto.OffsetX ?? 0;
+    var offsetY = dto.OffsetY ?? 0;
+    var selection = MapSelectionFromDto(dto.SelectionStrategy);
+    return new DetectionTarget(dto.ReferenceImageId, confidence, offsetX, offsetY, selection);
+  }
+
+  private static DetectionTargetDto? ToResponseDetection(DetectionTarget? detection) {
+    if (detection is null) return null;
+    return new DetectionTargetDto {
+      ReferenceImageId = detection.ReferenceImageId,
+      Confidence = detection.Confidence,
+      OffsetX = detection.OffsetX,
+      OffsetY = detection.OffsetY,
+      SelectionStrategy = MapSelectionToDto(detection.SelectionStrategy)
+    };
+  }
+
+  private static DetectionTargetDto? TryReadDetection(JsonElement root) {
+    if (root.ValueKind != JsonValueKind.Object) return null;
+    if (root.TryGetProperty("detection", out var detectionProp) && detectionProp.ValueKind == JsonValueKind.Object) {
+      return detectionProp.Deserialize<DetectionTargetDto>(WebJsonOptions);
+    }
+    if (root.TryGetProperty("detectionTarget", out var detectionTargetProp) && detectionTargetProp.ValueKind == JsonValueKind.Object) {
+      return detectionTargetProp.Deserialize<DetectionTargetDto>(WebJsonOptions);
+    }
+    return null;
+  }
+
   private static JsonSerializerOptions CreateJsonOptions() {
     var opts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     opts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
@@ -33,14 +75,17 @@ internal static class CommandsEndpoints {
             steps.Add(new CommandStep { Type = CommandStepType.Action, TargetId = el.GetString()!, Order = order++ });
           }
         }
-        var created = await repo.AddAsync(new Command { Id = string.Empty, Name = name, TriggerId = null, Steps = steps }, ct).ConfigureAwait(false);
-        return Results.Created($"{ApiRoutes.Commands}/{created.Id}", new { id = created.Id, name = created.Name, actions = steps.Select(s => s.TargetId).ToArray() });
+        var detection = ToDomainDetection(TryReadDetection(root));
+        var created = await repo.AddAsync(new Command { Id = string.Empty, Name = name, TriggerId = null, Steps = steps, Detection = detection }, ct).ConfigureAwait(false);
+        return Results.Created($"{ApiRoutes.Commands}/{created.Id}", new { id = created.Id, name = created.Name, actions = steps.Select(s => s.TargetId).ToArray(), detection = ToResponseDetection(created.Detection) });
       }
 
       // Domain shape fallback
       var req = root.Deserialize<CreateCommandRequest>(WebJsonOptions);
       if (req is null || string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
+
+      var detectionDto = req.Detection ?? TryReadDetection(root);
 
       var command = new Command {
         Id = string.Empty,
@@ -50,7 +95,8 @@ internal static class CommandsEndpoints {
           Type = s.Type == CommandStepTypeDto.Action ? CommandStepType.Action : CommandStepType.Command,
           TargetId = s.TargetId,
           Order = s.Order
-        }).ToList())
+        }).ToList()),
+        Detection = ToDomainDetection(detectionDto)
       };
 
       var createdDomain = await repo.AddAsync(command, ct).ConfigureAwait(false);
@@ -62,7 +108,8 @@ internal static class CommandsEndpoints {
           Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
           TargetId = s.TargetId,
           Order = s.Order
-        }).ToList())
+        }).ToList()),
+        Detection = ToResponseDetection(createdDomain.Detection)
       });
     })
     .WithName("CreateCommand")
@@ -80,7 +127,8 @@ internal static class CommandsEndpoints {
               Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
               TargetId = s.TargetId,
               Order = s.Order
-            }).ToList())
+            }).ToList()),
+            Detection = ToResponseDetection(c.Detection)
           });
     })
     .WithName("GetCommand")
@@ -96,7 +144,8 @@ internal static class CommandsEndpoints {
           Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
           TargetId = s.TargetId,
           Order = s.Order
-        }).ToList())
+        }).ToList()),
+        Detection = ToResponseDetection(c.Detection)
       });
       return Results.Ok(resp);
     })
@@ -118,6 +167,9 @@ internal static class CommandsEndpoints {
           });
         }
       }
+      if (req.DetectionSpecified) {
+        existing.Detection = ToDomainDetection(req.Detection);
+      }
       var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
       if (updated is null) return Results.NotFound();
       return Results.Ok(new CommandResponse {
@@ -128,7 +180,8 @@ internal static class CommandsEndpoints {
           Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
           TargetId = s.TargetId,
           Order = s.Order
-        }).ToList())
+        }).ToList()),
+        Detection = ToResponseDetection(updated.Detection)
       });
     })
     .WithName("UpdateCommand")

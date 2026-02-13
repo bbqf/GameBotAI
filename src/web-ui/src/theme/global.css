@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  --gb-font-family: 'Space Grotesk','Segoe UI Variable','Segoe UI',system-ui,sans-serif;
+  --gb-font-size-base: 16px;
+  --gb-font-size-label: 14px;
+  --gb-line-height-base: 1.55;
+  --gb-letter-tight: -0.01em;
+
+  --gb-color-text: #0f172a;
+  --gb-color-muted: #475467;
+  --gb-color-bg: #f5f7fb;
+  --gb-color-surface: #ffffff;
+  --gb-color-surface-alt: #f8fafc;
+  --gb-color-surface-strong: #eef2ff;
+  --gb-color-border: #dfe5f2;
+  --gb-color-border-strong: #cbd5e1;
+  --gb-color-primary: #2563eb;
+  --gb-color-primary-soft: #e4edff;
+  --gb-color-accent: #0ea5e9;
+  --gb-color-focus: #fbbf24;
+  --gb-color-danger: #b91c1c;
+  --gb-color-success: #15803d;
+  --gb-color-warning: #b45309;
+  --gb-ambient-spot: radial-gradient(32% 32% at 18% 12%, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0) 100%),
+    radial-gradient(24% 26% at 82% 18%, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0) 100%);
+
+  --gb-space-1: 4px;
+  --gb-space-2: 8px;
+  --gb-space-3: 12px;
+  --gb-space-4: 16px;
+  --gb-space-5: 24px;
+  --gb-space-6: 32px;
+
+  --gb-radius-sm: 6px;
+  --gb-radius-md: 10px;
+  --gb-radius-lg: 14px;
+  --gb-radius-xl: 18px;
+  --gb-radius-pill: 999px;
+
+  --gb-button-height: 44px;
+  --gb-button-padding-x: 16px;
+  --gb-button-padding-y: 10px;
+  --gb-button-font-size: 15px;
+  --gb-button-font-weight: 700;
+  --gb-button-radius: 12px;
+  --gb-button-gap: 10px;
+
+  --gb-shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --gb-shadow-raised: 0 16px 40px rgba(15, 23, 42, 0.12);
+
+  --gb-status-running-bg: #ecfdf3;
+  --gb-status-running-border: #22c55e;
+  --gb-status-running-text: #0f5132;
+  --gb-status-pending-bg: #fefce8;
+  --gb-status-pending-border: #facc15;
+  --gb-status-pending-text: #854d0e;
+  --gb-status-succeeded-bg: #f0fdf4;
+  --gb-status-succeeded-border: #16a34a;
+  --gb-status-succeeded-text: #06603b;
+  --gb-status-failed-bg: #fef2f2;
+  --gb-status-failed-border: #f87171;
+  --gb-status-failed-text: #991b1b;
+  --gb-status-stopping-bg: #e0f2fe;
+  --gb-status-stopping-border: #60a5fa;
+  --gb-status-stopping-text: #1d4ed8;
+  --gb-status-unknown-bg: #e2e8f0;
+  --gb-status-unknown-border: #cbd5e1;
+  --gb-status-unknown-text: #334155;
+}
+
+html, body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--gb-color-text);
+  background: var(--gb-ambient-spot), var(--gb-color-bg);
+  font-family: var(--gb-font-family);
+  font-size: var(--gb-font-size-base);
+  line-height: var(--gb-line-height-base);
+  letter-spacing: var(--gb-letter-tight);
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--gb-color-text);
+  letter-spacing: var(--gb-letter-tight);
+  margin: 0;
+}
+
+p {
+  color: var(--gb-color-muted);
+  margin: 0;
+}
+
+a {
+  color: var(--gb-color-primary);
+}

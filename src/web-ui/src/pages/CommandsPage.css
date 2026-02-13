@@ -1,0 +1,112 @@
+.commands-page {
+  display: grid;
+  gap: var(--gb-space-3);
+  max-width: 1200px;
+}
+
+.commands-page .actions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--gb-space-3);
+  flex-wrap: wrap;
+  margin: 6px 0 10px;
+}
+
+.commands-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: var(--gb-color-surface);
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-lg);
+  box-shadow: var(--gb-shadow-card);
+  overflow: hidden;
+}
+
+.commands-table thead th {
+  background: var(--gb-color-surface-alt);
+  text-align: left;
+  font-weight: 700;
+}
+
+.commands-table th,
+.commands-table td {
+  padding: var(--gb-space-3) var(--gb-space-4);
+  border-bottom: 1px solid var(--gb-color-border);
+  vertical-align: top;
+}
+
+.commands-table th:first-child,
+.commands-table td:first-child {
+  width: 22%;
+}
+
+.commands-table th:nth-child(2),
+.commands-table td:nth-child(2) {
+  width: 58%;
+}
+
+.commands-table th:nth-child(3),
+.commands-table td:nth-child(3) {
+  width: 20%;
+  text-align: right;
+}
+
+.commands-table tr:last-child td {
+  border-bottom: none;
+}
+
+.commands-table select,
+.commands-table input {
+  width: 100%;
+  padding: var(--gb-space-2) var(--gb-space-3);
+  border: 1px solid var(--gb-color-border-strong);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface);
+}
+
+.commands-table input:focus-visible,
+.commands-table select:focus-visible {
+  outline: 3px solid var(--gb-color-focus);
+  outline-offset: 2px;
+}
+
+.commands-page .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--gb-color-primary);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+}
+
+.commands-page .link-button:focus-visible {
+  outline: 3px solid var(--gb-color-focus);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.commands-page .command-name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-name-cell {
+  overflow: hidden;
+}
+
+@media (max-width: 1366px) {
+  .commands-page .command-name {
+    white-space: normal;
+    word-break: break-word;
+  }
+}

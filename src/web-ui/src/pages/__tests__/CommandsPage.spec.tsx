@@ -49,7 +49,7 @@ describe('CommandsPage', () => {
 
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }], detectionTarget: undefined }));
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }], detection: undefined }));
   });
 
   it('loads and saves an existing command', async () => {
@@ -68,7 +68,7 @@ describe('CommandsPage', () => {
     await waitFor(() => expect(updateCommandMock).toHaveBeenCalledWith('c1', {
       name: 'Cmd Updated',
       steps: [{ type: 'Action', targetId: 'a1', order: 0 }],
-      detectionTarget: undefined,
+      detection: undefined,
     }));
   });
 
@@ -105,7 +105,19 @@ describe('CommandsPage', () => {
         { type: 'Action', targetId: 'a2', order: 0 },
         { type: 'Action', targetId: 'a1', order: 1 },
       ],
-      detectionTarget: undefined,
+      detection: undefined,
     }));
+  });
+
+  it('renders long command names without clipping or losing the full title', async () => {
+    const longName = 'Very Long Command Name That Should Ellipsize Without Causing Horizontal Scrollbars';
+    listCommandsMock.mockResolvedValue([{ id: 'c-long', name: longName, steps: [] } as any]);
+
+    render(<CommandsPage />);
+
+    const nameButton = await screen.findByRole('button', { name: longName });
+    expect(nameButton).toHaveAttribute('title', longName);
+    const nameSpan = nameButton.querySelector('.command-name');
+    expect(nameSpan?.textContent).toBe(longName);
   });
 });

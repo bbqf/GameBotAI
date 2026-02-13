@@ -9,6 +9,7 @@ import { listCommands, getCommand, createCommand, updateCommand, deleteCommand, 
 import { listGames, GameDto } from '../services/games';
 import { listActions as listLegacyActions, ActionDto as LegacyActionDto } from '../services/actions';
 import { listActions as listDomainActions } from '../services/actionsApi';
+import './CommandsPage.css';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
@@ -28,7 +29,7 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
 
 const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) => ({ type: s.type, targetId: s.targetId, order: idx }));
 
-const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number; offsetX?: number; offsetY?: number }): DetectionTargetForm | undefined => {
+const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number; offsetX?: number; offsetY?: number; selectionStrategy?: string }): DetectionTargetForm | undefined => {
   if (!dto) return undefined;
   return {
     referenceImageId: dto.referenceImageId,
@@ -41,7 +42,7 @@ const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number;
 const detectionToDto = (form?: DetectionTargetForm) => {
   if (!form) return undefined;
   const hasValue = form.referenceImageId?.trim() || form.confidence || form.offsetX || form.offsetY;
-  if (!hasValue) return undefined;
+  if (!hasValue) return { value: null } as const;
   if (!form.referenceImageId.trim()) return { error: 'Reference image ID is required when detection is configured' } as const;
   const confidence = form.confidence && form.confidence !== '' ? Number(form.confidence) : undefined;
   const offsetX = form.offsetX && form.offsetX !== '' ? Number(form.offsetX) : undefined;
@@ -127,7 +128,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     setForm({
       name: c.name,
       steps: stepsFromDto(c),
-      detection: detectionFromDto(c.detectionTarget)
+      detection: detectionFromDto(c.detection)
     });
     setDirty(false);
   };
@@ -188,7 +189,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const tableLoading = loadingCommands;
 
   return (
-    <section>
+    <section className="commands-page">
       <h2>Commands</h2>
       {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
       {tableError && <div className="form-error" role="alert">{tableError}</div>}
@@ -230,9 +231,14 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           {!tableLoading && displayedCommands.length > 0 && displayedCommands.map((c) => (
             <tr key={c.id} className="commands-row">
               <td>{gameLookup.get(c.gameId ?? '') ?? (c.gameId || '—')}</td>
-              <td>
-                <button type="button" className="link-button" onClick={() => { if (!confirmNavigate()) return; setEditingId(c.id); setCreating(false); void loadCommandIntoForm(c.id); }}>
-                  {c.name}
+              <td className="command-name-cell">
+                <button
+                  type="button"
+                  className="link-button"
+                  title={c.name}
+                  onClick={() => { if (!confirmNavigate()) return; setEditingId(c.id); setCreating(false); void loadCommandIntoForm(c.id); }}
+                >
+                  <span className="command-name">{c.name}</span>
                 </button>
               </td>
               <td>{c.stepCount}</td>
@@ -268,7 +274,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
               await createCommand({
                 name: form.name.trim(),
                 steps: stepsToDto(form.steps),
-                detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
+                detection: detectionResult?.value,
               });
               setCreating(false);
               setForm(emptyForm);
@@ -314,7 +320,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
                 await updateCommand(editingId, {
                   name: form.name.trim(),
                   steps: stepsToDto(form.steps),
-                  detectionTarget: detectionResult && 'value' in detectionResult ? detectionResult.value : undefined,
+                  detection: detectionResult?.value,
                 });
                 await reloadCommands();
                 setEditingId(undefined);
