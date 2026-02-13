@@ -1,0 +1,263 @@
+openapi: 3.0.3
+info:
+  title: GameBot Installer Orchestration API
+  version: 0.1.0
+  description: >-
+    Contract for installer preflight validation and execution orchestration
+    for backend + web UI deployment.
+servers:
+  - url: http://localhost:5000
+paths:
+  /api/installer/preflight:
+    post:
+      summary: Validate prerequisites, privileges, and ports before install
+      operationId: runInstallerPreflight
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+      responses:
+        '200':
+          description: Preflight completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreflightResult'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/installer/execute:
+    post:
+      summary: Execute installation using validated settings
+      operationId: executeInstallation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+      responses:
+        '200':
+          description: Installation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationResult'
+        '409':
+          description: Installation conflict (ports/registration/state)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Installation failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/installer/status/{runId}:
+    get:
+      summary: Get installation run status and endpoint announcement
+      operationId: getInstallationStatus
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationResult'
+        '404':
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    InstallRequest:
+      type: object
+      required:
+        - installMode
+        - unattended
+        - endpoint
+      properties:
+        installMode:
+          type: string
+          enum: [service, backgroundApp]
+        unattended:
+          type: boolean
+        startupPolicy:
+          type: string
+          enum: [bootAutoStart, loginStartWhenEnabled, manual]
+        endpoint:
+          $ref: '#/components/schemas/EndpointSettings'
+        prerequisitesPolicy:
+          type: string
+          enum: [auto, bundledOnly, onlineAllowed]
+        cliArguments:
+          type: array
+          items:
+            type: string
+    EndpointSettings:
+      type: object
+      required:
+        - backendPort
+        - preferredWebPorts
+        - protocol
+      properties:
+        backendPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        preferredWebPorts:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 65535
+          default: [8080, 8088, 8888, 80]
+        protocol:
+          type: string
+          enum: [http, https]
+        enableHttps:
+          type: boolean
+        certificateReference:
+          type: string
+    PreflightResult:
+      type: object
+      required:
+        - canProceed
+        - prerequisites
+        - portProbe
+      properties:
+        canProceed:
+          type: boolean
+        requiresElevation:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        prerequisites:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrerequisiteState'
+        portProbe:
+          $ref: '#/components/schemas/PortProbe'
+    PrerequisiteState:
+      type: object
+      required:
+        - prerequisiteKey
+        - state
+        - source
+      properties:
+        prerequisiteKey:
+          type: string
+        state:
+          type: string
+          enum: [detected, missing, installed, failed, skipped]
+        source:
+          type: string
+          enum: [system, bundled, online]
+        detectedVersion:
+          type: string
+        details:
+          type: string
+    PortProbe:
+      type: object
+      required:
+        - requestedBackendPort
+        - requestedWebUiPort
+        - backendPortAvailable
+        - webUiPortAvailable
+        - backendAlternatives
+        - webUiAlternatives
+      properties:
+        requestedBackendPort:
+          type: integer
+        requestedWebUiPort:
+          type: integer
+        backendPortAvailable:
+          type: boolean
+        webUiPortAvailable:
+          type: boolean
+        backendAlternatives:
+          type: array
+          items:
+            type: integer
+        webUiAlternatives:
+          type: array
+          items:
+            type: integer
+    InstallationResult:
+      type: object
+      required:
+        - runId
+        - status
+        - mode
+        - endpointAnnouncement
+        - completedAtUtc
+      properties:
+        runId:
+          type: string
+        status:
+          type: string
+          enum: [success, failed, aborted]
+        mode:
+          type: string
+          enum: [service, backgroundApp]
+        endpointAnnouncement:
+          $ref: '#/components/schemas/EndpointAnnouncement'
+        warnings:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
+        completedAtUtc:
+          type: string
+          format: date-time
+    EndpointAnnouncement:
+      type: object
+      required:
+        - backendUrl
+        - webUiUrl
+        - backendPort
+        - webUiPort
+      properties:
+        backendUrl:
+          type: string
+        webUiUrl:
+          type: string
+        backendPort:
+          type: integer
+        webUiPort:
+          type: integer
+        protocol:
+          type: string
+          enum: [http, https]
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        remediation:
+          type: string
