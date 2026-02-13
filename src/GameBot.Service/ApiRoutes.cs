@@ -20,4 +20,5 @@ internal static class ApiRoutes
     internal const string Metrics = Base + "/metrics";
     internal const string Adb = Base + "/adb";
     internal const string Ocr = Base + "/ocr";
+    internal const string Installer = Base + "/installer";
 }

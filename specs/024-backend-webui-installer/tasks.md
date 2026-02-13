@@ -19,11 +19,11 @@
 
 **Purpose**: Establish installer module structure and baseline scaffolding.
 
-- [ ] T001 Create installer folder structure and placeholder files in `src/GameBot.Service/Services/Installer/` and `src/GameBot.Domain/Installer/`
-- [ ] T002 Create installer endpoint route scaffold in `src/GameBot.Service/Endpoints/InstallerEndpoints.cs`
-- [ ] T003 [P] Add installer options model scaffold in `src/GameBot.Service/Models/Installer/InstallerOptions.cs`
-- [ ] T004 [P] Add installer constants and defaults (`8080,8088,8888,80`) in `src/GameBot.Service/Services/Installer/InstallerDefaults.cs`
-- [ ] T005 [P] Add initial installer config file scaffold in `data/config/installer-config.json`
+- [X] T001 Create installer folder structure and placeholder files in `src/GameBot.Service/Services/Installer/` and `src/GameBot.Domain/Installer/`
+- [X] T002 Create installer endpoint route scaffold in `src/GameBot.Service/Endpoints/InstallerEndpoints.cs`
+- [X] T003 [P] Add installer options model scaffold in `src/GameBot.Service/Models/Installer/InstallerOptions.cs`
+- [X] T004 [P] Add installer constants and defaults (`8080,8088,8888,80`) in `src/GameBot.Service/Services/Installer/InstallerDefaults.cs`
+- [X] T005 [P] Add initial installer config file scaffold in `data/config/installer-config.json`
 
 ---
 
@@ -33,14 +33,14 @@
 
 **⚠️ CRITICAL**: User story implementation starts only after this phase.
 
-- [ ] T006 Implement `InstallationProfile` domain model in `src/GameBot.Domain/Installer/InstallationProfile.cs`
-- [ ] T007 [P] Implement `PrerequisiteStatus` domain model in `src/GameBot.Domain/Installer/PrerequisiteStatus.cs`
-- [ ] T008 [P] Implement `EndpointConfiguration` and `PortProbeResult` models in `src/GameBot.Domain/Installer/EndpointConfiguration.cs` and `src/GameBot.Domain/Installer/PortProbeResult.cs`
-- [ ] T009 Implement installer result aggregate model in `src/GameBot.Domain/Installer/InstallerExecutionResult.cs`
-- [ ] T010 Implement installer config repository in `src/GameBot.Domain/Installer/InstallerConfigurationRepository.cs`
-- [ ] T011 Implement shared installer validation service (mode/port/protocol/startup policy) in `src/GameBot.Service/Services/Installer/InstallerValidationService.cs`
-- [ ] T012 [P] Register installer services and repository wiring in `src/GameBot.Service/Program.cs`
-- [ ] T013 [P] Add installer test fixtures/helpers in `tests/integration/Helpers/InstallerTestEnvironment.cs` and `tests/unit/Helpers/InstallerTestBuilder.cs`
+- [X] T006 Implement `InstallationProfile` domain model in `src/GameBot.Domain/Installer/InstallationProfile.cs`
+- [X] T007 [P] Implement `PrerequisiteStatus` domain model in `src/GameBot.Domain/Installer/PrerequisiteStatus.cs`
+- [X] T008 [P] Implement `EndpointConfiguration` and `PortProbeResult` models in `src/GameBot.Domain/Installer/EndpointConfiguration.cs` and `src/GameBot.Domain/Installer/PortProbeResult.cs`
+- [X] T009 Implement installer result aggregate model in `src/GameBot.Domain/Installer/InstallerExecutionResult.cs`
+- [X] T010 Implement installer config repository in `src/GameBot.Domain/Installer/InstallerConfigurationRepository.cs`
+- [X] T011 Implement shared installer validation service (mode/port/protocol/startup policy) in `src/GameBot.Service/Services/Installer/InstallerValidationService.cs`
+- [X] T012 [P] Register installer services and repository wiring in `src/GameBot.Service/Program.cs`
+- [X] T013 [P] Add installer test fixtures/helpers in `tests/integration/Helpers/InstallerTestEnvironment.cs` and `tests/unit/Helpers/InstallerTestBuilder.cs`
 
 **Checkpoint**: Foundation complete — each user story can now proceed independently.
 
@@ -54,20 +54,20 @@
 
 ### Tests for User Story 1
 
-- [ ] T014 [P] [US1] Add contract tests for `/api/installer/preflight`, `/api/installer/execute`, and `/api/installer/status/{runId}` in `tests/contract/Installer/InstallerContractTests.cs`
-- [ ] T015 [P] [US1] Add integration test for prerequisite detection/install skip behavior in `tests/integration/Installer/InstallerPrerequisiteFlowTests.cs`
-- [ ] T016 [P] [US1] Add integration test for endpoint announcement payload in `tests/integration/Installer/InstallerEndpointAnnouncementTests.cs`
-- [ ] T017 [P] [US1] Add unit tests for prerequisite state transitions in `tests/unit/Installer/PrerequisiteStatusEvaluatorTests.cs`
+- [X] T014 [P] [US1] Add contract tests for `/api/installer/preflight`, `/api/installer/execute`, and `/api/installer/status/{runId}` in `tests/contract/Installer/InstallerContractTests.cs`
+- [X] T015 [P] [US1] Add integration test for prerequisite detection/install skip behavior in `tests/integration/Installer/InstallerPrerequisiteFlowTests.cs`
+- [X] T016 [P] [US1] Add integration test for endpoint announcement payload in `tests/integration/Installer/InstallerEndpointAnnouncementTests.cs`
+- [X] T017 [P] [US1] Add unit tests for prerequisite state transitions in `tests/unit/Installer/PrerequisiteStatusEvaluatorTests.cs`
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Implement prerequisite scanner service in `src/GameBot.Service/Services/Installer/PrerequisiteScanner.cs`
-- [ ] T019 [US1] Implement prerequisite installer service (bundled/online fallback) in `src/GameBot.Service/Services/Installer/PrerequisiteInstaller.cs`
-- [ ] T020 [US1] Implement installation file deployment orchestrator in `src/GameBot.Service/Services/Installer/InstallExecutionService.cs`
-- [ ] T021 [US1] Implement web UI API endpoint preconfiguration writer in `src/GameBot.Service/Services/Installer/WebUiApiConfigWriter.cs`
-- [ ] T022 [US1] Implement endpoint announcement formatter in `src/GameBot.Service/Services/Installer/EndpointAnnouncementBuilder.cs`
-- [ ] T023 [US1] Implement installer API endpoints in `src/GameBot.Service/Endpoints/InstallerEndpoints.cs`
-- [ ] T024 [US1] Register installer endpoints in `src/GameBot.Service/ApiRoutes.cs`
+- [X] T018 [US1] Implement prerequisite scanner service in `src/GameBot.Service/Services/Installer/PrerequisiteScanner.cs`
+- [X] T019 [US1] Implement prerequisite installer service (bundled/online fallback) in `src/GameBot.Service/Services/Installer/PrerequisiteInstaller.cs`
+- [X] T020 [US1] Implement installation file deployment orchestrator in `src/GameBot.Service/Services/Installer/InstallExecutionService.cs`
+- [X] T021 [US1] Implement web UI API endpoint preconfiguration writer in `src/GameBot.Service/Services/Installer/WebUiApiConfigWriter.cs`
+- [X] T022 [US1] Implement endpoint announcement formatter in `src/GameBot.Service/Services/Installer/EndpointAnnouncementBuilder.cs`
+- [X] T023 [US1] Implement installer API endpoints in `src/GameBot.Service/Endpoints/InstallerEndpoints.cs`
+- [X] T024 [US1] Register installer endpoints in `src/GameBot.Service/ApiRoutes.cs`
 
 **Checkpoint**: User Story 1 is fully functional and independently testable (MVP).
 
@@ -81,20 +81,20 @@
 
 ### Tests for User Story 2
 
-- [ ] T025 [P] [US2] Add integration tests for service mode elevation and boot auto-start in `tests/integration/Installer/InstallerServiceModeTests.cs`
-- [ ] T026 [P] [US2] Add integration tests for background-app mode non-admin and login-start behavior in `tests/integration/Installer/InstallerBackgroundModeTests.cs`
-- [ ] T027 [P] [US2] Add integration tests for firewall fallback warning/confirmation flow in `tests/integration/Installer/InstallerFirewallPolicyTests.cs`
-- [ ] T028 [P] [US2] Add unit tests for deterministic Web UI port resolution order in `tests/unit/Installer/PortSelectionOrderTests.cs`
-- [ ] T029 [P] [US2] Add unit tests for port conflict alternative suggestion logic in `tests/unit/Installer/PortProbeServiceTests.cs`
+- [X] T025 [P] [US2] Add integration tests for service mode elevation and boot auto-start in `tests/integration/Installer/InstallerServiceModeTests.cs`
+- [X] T026 [P] [US2] Add integration tests for background-app mode non-admin and login-start behavior in `tests/integration/Installer/InstallerBackgroundModeTests.cs`
+- [X] T027 [P] [US2] Add integration tests for firewall fallback warning/confirmation flow in `tests/integration/Installer/InstallerFirewallPolicyTests.cs`
+- [X] T028 [P] [US2] Add unit tests for deterministic Web UI port resolution order in `tests/unit/Installer/PortSelectionOrderTests.cs`
+- [X] T029 [P] [US2] Add unit tests for port conflict alternative suggestion logic in `tests/unit/Installer/PortProbeServiceTests.cs`
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Implement service-mode registration and boot startup policy in `src/GameBot.Service/Services/Installer/ServiceModeRegistrar.cs`
-- [ ] T031 [US2] Implement background-app mode registration with optional login-start in `src/GameBot.Service/Services/Installer/BackgroundAppRegistrar.cs`
-- [ ] T032 [US2] Implement backend binding/network exposure configurator in `src/GameBot.Service/Services/Installer/BackendNetworkConfigurator.cs`
-- [ ] T033 [US2] Implement firewall policy applier and confirmation warning generation in `src/GameBot.Service/Services/Installer/FirewallPolicyService.cs`
-- [ ] T034 [US2] Implement port probe and alternatives engine in `src/GameBot.Service/Services/Installer/PortProbeService.cs`
-- [ ] T035 [US2] Update installer orchestration to enforce mode/network policy decisions in `src/GameBot.Service/Services/Installer/InstallExecutionService.cs`
+- [X] T030 [US2] Implement service-mode registration and boot startup policy in `src/GameBot.Service/Services/Installer/ServiceModeRegistrar.cs`
+- [X] T031 [US2] Implement background-app mode registration with optional login-start in `src/GameBot.Service/Services/Installer/BackgroundAppRegistrar.cs`
+- [X] T032 [US2] Implement backend binding/network exposure configurator in `src/GameBot.Service/Services/Installer/BackendNetworkConfigurator.cs`
+- [X] T033 [US2] Implement firewall policy applier and confirmation warning generation in `src/GameBot.Service/Services/Installer/FirewallPolicyService.cs`
+- [X] T034 [US2] Implement port probe and alternatives engine in `src/GameBot.Service/Services/Installer/PortProbeService.cs`
+- [X] T035 [US2] Update installer orchestration to enforce mode/network policy decisions in `src/GameBot.Service/Services/Installer/InstallExecutionService.cs`
 
 **Checkpoint**: User Stories 1 and 2 are independently testable and operational.
 
@@ -108,18 +108,18 @@
 
 ### Tests for User Story 3
 
-- [ ] T036 [P] [US3] Add unit tests for CLI argument parsing/validation in `tests/unit/Installer/InstallerCliArgumentParserTests.cs`
-- [ ] T037 [P] [US3] Add integration tests for unattended success path in `tests/integration/Installer/InstallerUnattendedModeTests.cs`
-- [ ] T038 [P] [US3] Add integration tests for unattended invalid-argument remediation messages in `tests/integration/Installer/InstallerCliValidationTests.cs`
-- [ ] T039 [P] [US3] Add contract tests for preflight/execute request validation failures in `tests/contract/Installer/InstallerValidationContractTests.cs`
+- [X] T036 [P] [US3] Add unit tests for CLI argument parsing/validation in `tests/unit/Installer/InstallerCliArgumentParserTests.cs`
+- [X] T037 [P] [US3] Add integration tests for unattended success path in `tests/integration/Installer/InstallerUnattendedModeTests.cs`
+- [X] T038 [P] [US3] Add integration tests for unattended invalid-argument remediation messages in `tests/integration/Installer/InstallerCliValidationTests.cs`
+- [X] T039 [P] [US3] Add contract tests for preflight/execute request validation failures in `tests/contract/Installer/InstallerValidationContractTests.cs`
 
 ### Implementation for User Story 3
 
-- [ ] T040 [US3] Implement installer CLI entry script with full switch surface in `scripts/install-gamebot.ps1`
-- [ ] T041 [US3] Implement CLI argument parser and request mapper in `src/GameBot.Service/Services/Installer/InstallerCliArgumentParser.cs`
-- [ ] T042 [US3] Implement unattended orchestration coordinator in `src/GameBot.Service/Services/Installer/InstallerCliCoordinator.cs`
-- [ ] T043 [US3] Implement actionable CLI error/remediation formatter in `src/GameBot.Service/Services/Installer/InstallerCliErrorFormatter.cs`
-- [ ] T044 [US3] Add installer CLI usage/help content in `scripts/install-gamebot.ps1`
+- [X] T040 [US3] Implement installer CLI entry script with full switch surface in `scripts/install-gamebot.ps1`
+- [X] T041 [US3] Implement CLI argument parser and request mapper in `src/GameBot.Service/Services/Installer/InstallerCliArgumentParser.cs`
+- [X] T042 [US3] Implement unattended orchestration coordinator in `src/GameBot.Service/Services/Installer/InstallerCliCoordinator.cs`
+- [X] T043 [US3] Implement actionable CLI error/remediation formatter in `src/GameBot.Service/Services/Installer/InstallerCliErrorFormatter.cs`
+- [X] T044 [US3] Add installer CLI usage/help content in `scripts/install-gamebot.ps1`
 
 **Checkpoint**: All user stories are independently functional and testable.
 

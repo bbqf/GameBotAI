@@ -14,6 +14,7 @@ using GameBot.Service.Hosted;
 using GameBot.Service.Logging;
 using GameBot.Service.Services.Ocr;
 using GameBot.Service.Services;
+using GameBot.Service.Services.Installer;
 using Microsoft.Extensions.Logging;
 using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
@@ -23,6 +24,8 @@ using Microsoft.AspNetCore.Http;
 using GameBot.Service.Swagger;
 using GameBot.Service;
 using GameBot.Domain.Images;
+using GameBot.Domain.Installer;
+using GameBot.Service.Models.Installer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -142,6 +145,11 @@ builder.Services.AddSingleton<IImageCaptureMetrics, ImageCaptureMetrics>();
 builder.Services.AddSingleton<CaptureSessionStore>();
 builder.Services.AddSingleton<ImageCropper>();
 builder.Services.AddSingleton<IImageReferenceRepository>(sp => new TriggerImageReferenceRepository(sp.GetRequiredService<ITriggerRepository>()));
+builder.Services.Configure<InstallerOptions>(builder.Configuration.GetSection(InstallerOptions.SectionName));
+builder.Services.AddSingleton<IInstallerConfigurationRepository>(_ => new InstallerConfigurationRepository(storageRoot));
+builder.Services.AddSingleton<PortProbeService>();
+builder.Services.AddSingleton(sp => new WebUiApiConfigWriter(storageRoot));
+builder.Services.AddSingleton<InstallExecutionService>();
 if (OperatingSystem.IsWindows()) {
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
   var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
@@ -297,6 +305,7 @@ app.MapMetricsEndpoints();
 app.MapConfigEndpoints();
 app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
+app.MapInstallerEndpoints();
 
 // Sequences endpoints
 var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
