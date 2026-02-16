@@ -1,0 +1,22 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <Property Id="SERVICE_STARTUP_ENABLED" Value="1" />
+    <Property Id="BACKGROUND_STARTUP_ENABLED" Value="1" />
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="BackgroundStartupRegistryComponent" Guid="A7D15335-1D5B-42C1-BF89-97D53D0E2D22">
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Microsoft\Windows\CurrentVersion\Run"
+          Name="GameBot"
+          Type="string"
+          Value="[INSTALLFOLDER]GameBot.Service.exe"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <ComponentGroup Id="StartupRegistrationComponents">
+      <ComponentRef Id="BackgroundStartupRegistryComponent" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>

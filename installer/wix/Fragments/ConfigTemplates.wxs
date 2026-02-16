@@ -1,0 +1,11 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <!-- Scaffold for persisting selected installer settings into runtime config -->
+    <Property Id="CONFIG_INSTALL_MODE" Value="__FROM_MODE__" />
+    <Property Id="CONFIG_INSTALL_SCOPE" Value="__FROM_SCOPE__" />
+    <Property Id="CONFIG_DATA_ROOT" Value="__FROM_DATA_ROOT__" />
+    <Property Id="CONFIG_PROTOCOL" Value="__FROM_PROTOCOL__" />
+    <Property Id="CONFIG_BACKEND_PORT" Value="__FROM_BACKEND_PORT__" />
+    <Property Id="CONFIG_WEB_PORT" Value="__FROM_WEB_PORT__" />
+  </Fragment>
+</Wix>

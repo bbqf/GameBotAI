@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Include>
+  <?define ExitCodeSuccess=0 ?>
+  <?define ExitCodeValidationError=2 ?>
+  <?define ExitCodeFatal=1603 ?>
+  <?define ExitCodeInstallRunning=1618 ?>
+  <?define ExitCodeRebootRequired=3010 ?>
+
+  <?define PreferredWebPortOrder=8080,8088,8888,80 ?>
+</Include>

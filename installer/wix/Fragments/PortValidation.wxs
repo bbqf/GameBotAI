@@ -1,0 +1,8 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <Property Id="PREFERRED_WEB_PORT_ORDER" Value="8080,8088,8888,80" />
+
+    <!-- Scaffold for deterministic port selection policy -->
+    <CustomAction Id="ValidatePortSelection" Property="WEB_PORT" Value="[WEB_PORT]" />
+  </Fragment>
+</Wix>

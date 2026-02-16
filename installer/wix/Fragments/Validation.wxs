@@ -1,0 +1,14 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <Property Id="SERVICE_MODE_REQUIRES_PER_MACHINE" Value="1" />
+    <Property Id="DATA_ROOT_WRITEABLE" Value="1" />
+
+    <!-- Launch condition scaffold for T029:
+         Message: Service mode requires per-machine scope.
+         Expression: NOT (MODE = "service" AND NOT SCOPE = "perMachine") -->
+
+    <!-- Launch condition scaffold for T033:
+         Message: Selected DATA_ROOT path is not writable.
+         Expression: DATA_ROOT_WRITEABLE = 1 -->
+  </Fragment>
+</Wix>

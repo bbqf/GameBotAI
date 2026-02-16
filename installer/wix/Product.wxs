@@ -12,16 +12,11 @@
 
     <Feature Id="MainFeature" Title="GameBot" Level="1">
       <ComponentGroupRef Id="GameBotFiles" />
+      <ComponentGroupRef Id="ServicePayloadFiles" />
+      <ComponentGroupRef Id="WebUiPayloadFiles" />
+      <ComponentGroupRef Id="ShortcutComponents" />
+      <ComponentGroupRef Id="DataDirectoryComponents" />
+      <ComponentGroupRef Id="StartupRegistrationComponents" />
     </Feature>
-
-    <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="GameBot" />
-    </StandardDirectory>
-
-    <ComponentGroup Id="GameBotFiles" Directory="INSTALLFOLDER">
-      <Component Id="PlaceholderComponent" Guid="C4C5B5F9-B5C7-4E96-8F8A-5F84A0B0A303">
-        <File Source="payload\\placeholder.txt" />
-      </Component>
-    </ComponentGroup>
   </Package>
 </Wix>

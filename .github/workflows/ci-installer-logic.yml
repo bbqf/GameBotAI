@@ -1,0 +1,26 @@
+name: ci-installer-logic
+
+on:
+  pull_request:
+    paths:
+      - "installer/**"
+      - "scripts/installer/**"
+      - "tests/**/Installer/**"
+  workflow_dispatch:
+
+jobs:
+  installer-logic:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+      - name: Build
+        run: dotnet build -c Debug
+      - name: Installer-focused tests
+        shell: pwsh
+        run: dotnet test -c Debug --filter "Installer"
+      - name: Static analysis enforcement
+        shell: pwsh
+        run: ./scripts/installer/run-static-analysis.ps1

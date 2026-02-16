@@ -1,0 +1,14 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <Property Id="MODE" Value="backgroundApp" />
+    <Property Id="SCOPE" Value="perUser" />
+    <Property Id="BACKGROUND_MODE_SUPPORTED_SCOPES" Value="perUser,perMachine" />
+    <Property Id="DATA_ROOT" Value="__UNSET__" />
+    <Property Id="BACKEND_PORT" Value="5000" />
+    <Property Id="WEB_PORT" Value="8080" />
+    <Property Id="PROTOCOL" Value="http" />
+    <Property Id="ENABLE_HTTPS" Value="0" />
+    <Property Id="CERTIFICATE_REF" Value="__UNSET__" />
+    <Property Id="ALLOW_ONLINE_PREREQ_FALLBACK" Value="1" />
+  </Fragment>
+</Wix>

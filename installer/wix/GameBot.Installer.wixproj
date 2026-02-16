@@ -3,10 +3,14 @@
     <OutputType>Bundle</OutputType>
     <TargetName>GameBotInstaller</TargetName>
     <Platform>x64</Platform>
+    <EnableDefaultItems>false</EnableDefaultItems>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="Bundle.wxs" />
-    <Compile Include="Product.wxs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Bal.wixext" Version="4.0.5" />
   </ItemGroup>
 </Project>

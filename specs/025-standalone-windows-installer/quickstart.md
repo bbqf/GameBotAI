@@ -42,3 +42,44 @@ Expected:
    - Per-user: `%LocalAppData%\\GameBot\\data`
 - Non-allowlisted prerequisite source is rejected
 - Install duration SLOs met in clean-machine tests (excluding reboot)
+
+## 6. HTTPS enablement path
+
+1. Run installer and set `PROTOCOL=https` (or `ENABLE_HTTPS=1` in unattended mode).
+2. Provide `CERTIFICATE_REF` value when HTTPS is enabled.
+3. Validate install blocks continuation when HTTPS is enabled without a certificate reference.
+
+Remediation:
+- If validation fails, provide a valid certificate reference and rerun install.
+- If certificate is unavailable, install with HTTP defaults and enable HTTPS after certificate provisioning.
+
+## 7. CI runner notes
+
+- `ci-installer-fast.yml` and `ci-installer-logic.yml` run on GitHub-hosted Windows runners for build/test/static/security checks.
+- Release signing verification in `release-installer.yml` is a policy marker and requires organization-managed signing credentials in the release environment.
+- For local validation, run scripts from elevated PowerShell where installer actions require machine scope.
+
+## 8. SLO evidence checklist
+
+- Record interactive install start/end times and compute total seconds.
+- Record silent install start/end times and compute total seconds.
+- Confirm interactive install duration <= 600 seconds (excluding reboot).
+- Confirm silent install duration <= 480 seconds (excluding reboot).
+- Record validation command outputs and attach them to release notes or PR evidence.
+
+## 9. Latest quality gate outcomes
+
+Executed commands:
+
+- `dotnet format --verify-no-changes`
+- `dotnet format analyzers --verify-no-changes`
+- `dotnet build -c Debug -warnaserror`
+- `dotnet test -c Debug`
+- `powershell -NoProfile -File scripts/installer/run-static-analysis.ps1`
+- `powershell -NoProfile -File scripts/installer/run-security-scans.ps1`
+
+Observed result summary:
+
+- Format/analyzer/build/test gates failed due existing repository-wide analyzer-as-error findings (for example `CA1515`, `CA2007`) in pre-existing test files.
+- Installer-focused filtered test runs succeeded during implementation checks.
+- Security scan script execution completed for current repository snapshot.

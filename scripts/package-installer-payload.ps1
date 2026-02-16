@@ -12,6 +12,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $payloadRoot = Join-Path $repoRoot "installer/wix/payload"
 $publishRoot = Join-Path $repoRoot "artifacts/installer-publish"
+$serviceDllPath = Join-Path $publishRoot "service/GameBot.Service.dll"
 
 if (Test-Path $publishRoot) {
   Remove-Item -Path $publishRoot -Recurse -Force
@@ -31,10 +32,24 @@ if (-not (Test-Path $webUiDist)) {
 Copy-Item -Path (Join-Path $publishRoot "service/*") -Destination (Join-Path $payloadRoot "service") -Recurse -Force
 Copy-Item -Path (Join-Path $webUiDist "*") -Destination (Join-Path $payloadRoot "web-ui") -Recurse -Force
 
+$serviceVersion = $null
+if (Test-Path $serviceDllPath) {
+  $serviceVersion = (Get-Item $serviceDllPath).VersionInfo.ProductVersion
+}
+
+$gitCommit = "unknown"
+try {
+  $gitCommit = (git -C $repoRoot rev-parse --short HEAD).Trim()
+} catch {
+}
+
 $manifest = @{
   generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
   configuration = $Configuration
   runtime = $Runtime
+  payloadVersion = if ($serviceVersion) { $serviceVersion } else { "0.0.0-local" }
+  serviceFileVersion = $serviceVersion
+  sourceCommit = $gitCommit
   servicePath = "service"
   webUiPath = "web-ui"
 }

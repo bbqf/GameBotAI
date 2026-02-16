@@ -1,18 +1,37 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+  xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle
     Name="GameBot Installer"
     Version="1.0.0.0"
     Manufacturer="GameBot"
     UpgradeCode="A4A4E35D-3A8A-4DC0-BF53-C8E3C9A1A101">
 
+    <Variable Name="MODE" Type="string" Value="backgroundApp" />
+    <Variable Name="SCOPE" Type="string" Value="perUser" />
+    <Variable Name="DATA_ROOT" Type="string" Value="" Persisted="yes" />
+    <Variable Name="BACKEND_PORT" Type="string" Value="5000" />
+    <Variable Name="WEB_PORT" Type="string" Value="8080" />
+    <Variable Name="PROTOCOL" Type="string" Value="http" />
+    <Variable Name="ENABLE_HTTPS" Type="string" Value="0" />
+    <Variable Name="CERTIFICATE_REF" Type="string" Value="" />
+    <Variable Name="ALLOW_ONLINE_PREREQ_FALLBACK" Type="string" Value="1" />
+
     <BootstrapperApplication>
-      <bal:WixStandardBootstrapperApplication xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
-        Theme="standard"
-        LicenseUrl="https://example.com/license" />
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="https://example.com/license" />
     </BootstrapperApplication>
 
     <Chain>
-      <MsiPackage SourceFile="payload\\GameBot.msi" DisplayInternalUI="no" />
+      <MsiPackage SourceFile="payload\GameBot.msi">
+        <MsiProperty Name="MODE" Value="[MODE]" />
+        <MsiProperty Name="SCOPE" Value="[SCOPE]" />
+        <MsiProperty Name="DATA_ROOT" Value="[DATA_ROOT]" />
+        <MsiProperty Name="BACKEND_PORT" Value="[BACKEND_PORT]" />
+        <MsiProperty Name="WEB_PORT" Value="[WEB_PORT]" />
+        <MsiProperty Name="PROTOCOL" Value="[PROTOCOL]" />
+        <MsiProperty Name="ENABLE_HTTPS" Value="[ENABLE_HTTPS]" />
+        <MsiProperty Name="CERTIFICATE_REF" Value="[CERTIFICATE_REF]" />
+        <MsiProperty Name="ALLOW_ONLINE_PREREQ_FALLBACK" Value="[ALLOW_ONLINE_PREREQ_FALLBACK]" />
+      </MsiPackage>
     </Chain>
   </Bundle>
 </Wix>
