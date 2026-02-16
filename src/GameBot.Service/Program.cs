@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Http;
 using GameBot.Service.Swagger;
 using GameBot.Service;
 using GameBot.Domain.Images;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -210,6 +211,8 @@ if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase)) {
 }
 
 var app = builder.Build();
+var installedWebUiRoot = Path.Combine(AppContext.BaseDirectory, "web-ui");
+var hasInstalledWebUi = Directory.Exists(installedWebUiRoot) && File.Exists(Path.Combine(installedWebUiRoot, "index.html"));
 
 // Log basic runtime and OpenCV information at startup for diagnostics
 {
@@ -243,6 +246,18 @@ app.UseCorrelationIds();
 // CORS must run before auth to ensure preflight requests succeed
 app.UseCors("WebUiCors");
 
+if (hasInstalledWebUi) {
+  var fileProvider = new PhysicalFileProvider(installedWebUiRoot);
+  app.UseDefaultFiles(new DefaultFilesOptions {
+    FileProvider = fileProvider,
+    RequestPath = string.Empty
+  });
+  app.UseStaticFiles(new StaticFileOptions {
+    FileProvider = fileProvider,
+    RequestPath = string.Empty
+  });
+}
+
 // Token auth for all non-health requests (Bearer <token>) if token configured
 if (!string.IsNullOrWhiteSpace(authToken)) {
   app.Use(async (context, next) => {
@@ -265,10 +280,11 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
   .WithName("Health")
   .ExcludeFromDescription();
 
-// Placeholder root endpoint (protected if token set)
-app.MapGet("/", () => Results.Ok(new { name = "GameBot Service", status = "ok" }))
-  .WithName("Root")
-  .ExcludeFromDescription();
+if (!hasInstalledWebUi) {
+  app.MapGet("/", () => Results.Ok(new { name = "GameBot Service", status = "ok" }))
+    .WithName("Root")
+    .ExcludeFromDescription();
+}
 
 // Sessions endpoints (protected if token set)
 app.MapSessionEndpoints();
@@ -475,6 +491,19 @@ MapLegacyGuard("/config/logging", ApiRoutes.ConfigLogging);
 MapLegacyGuard("/adb", ApiRoutes.Adb);
 
 app.MapControllers();
+
+if (hasInstalledWebUi) {
+  app.MapFallback(async context => {
+    if (context.Request.Path.StartsWithSegments("/swagger", StringComparison.OrdinalIgnoreCase) ||
+        context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase)) {
+      context.Response.StatusCode = StatusCodes.Status404NotFound;
+      return;
+    }
+
+    context.Response.ContentType = "text/html; charset=utf-8";
+    await context.Response.SendFileAsync(Path.Combine(installedWebUiRoot, "index.html")).ConfigureAwait(false);
+  }).ExcludeFromDescription();
+}
 
 app.Run();
 

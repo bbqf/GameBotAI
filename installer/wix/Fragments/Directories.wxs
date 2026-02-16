@@ -1,7 +1,9 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="GameBot" />
+      <Directory Id="APPLICATIONFOLDER" Name="GameBot">
+        <Directory Id="WEBUIFOLDER" Name="web-ui" />
+      </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
@@ -21,15 +23,27 @@
         <Shortcut
           Id="GameBotStartMenuShortcut"
           Name="GameBot"
-          Target="[INSTALLFOLDER]GameBot.Service.exe"
-          WorkingDirectory="INSTALLFOLDER" />
+          Target="[System64Folder]cmd.exe"
+          Arguments="/c start &quot;&quot; &quot;[PROTOCOL]://127.0.0.1:[WEB_PORT]/&quot;"
+          WorkingDirectory="APPLICATIONFOLDER" />
         <RemoveFolder Id="RemoveGameBotProgramsFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\GameBot" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="BackgroundManualStartShortcutComponent" Guid="A2E38A81-B95B-4D1F-9E7A-C4E6A0C6A4D4" Condition="MODE = &quot;backgroundApp&quot;">
+        <Shortcut
+          Id="GameBotBackgroundManualStartShortcut"
+          Name="GameBot Background"
+          Description="Start GameBot background application"
+          Target="[APPLICATIONFOLDER]GameBot.Service.exe"
+          WorkingDirectory="APPLICATIONFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\GameBot" Name="BackgroundManualStartShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </DirectoryRef>
 
     <ComponentGroup Id="ShortcutComponents">
       <ComponentRef Id="StartMenuShortcutComponent" />
+      <ComponentRef Id="BackgroundManualStartShortcutComponent" />
     </ComponentGroup>
   </Fragment>
 </Wix>

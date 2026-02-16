@@ -67,6 +67,16 @@ Notes:
 | `backgroundApp` | `perMachine` | Yes | Elevation required at install time. |
 | `backgroundApp` | `perUser` | Yes | Non-admin runtime flow. |
 
+Startup behavior by mode:
+- `service` mode:
+  - Installs `GameBotService` as a Windows Service
+  - Service start type is automatic
+  - Installer starts the service during install
+- `backgroundApp` mode:
+  - Registers autostart in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+  - Adds a Start Menu shortcut `GameBot Background` for manual start
+- Start Menu shortcut `GameBot` only opens the web UI URL and does not start backend processes.
+
 ---
 
 ## 4) HTTPS behavior

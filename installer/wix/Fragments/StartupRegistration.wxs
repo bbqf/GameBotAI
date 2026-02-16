@@ -3,19 +3,44 @@
     <Property Id="SERVICE_STARTUP_ENABLED" Value="1" />
     <Property Id="BACKGROUND_STARTUP_ENABLED" Value="1" />
 
-    <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="BackgroundStartupRegistryComponent" Guid="A7D15335-1D5B-42C1-BF89-97D53D0E2D22">
+    <DirectoryRef Id="APPLICATIONFOLDER">
+      <Component Id="WindowsServiceRegistrationComponent" Guid="E7A513A8-40A8-4A3B-B23E-2E91DB8511A2" Condition="MODE = &quot;service&quot;">
+        <File Id="GameBotServiceExeForServiceMode" Source="payload\service\GameBot.Service.exe" ShortName="GBSVCSVC.EXE" KeyPath="yes" />
+        <ServiceInstall
+          Id="GameBotServiceInstall"
+          Name="GameBotService"
+          DisplayName="GameBot Service"
+          Description="GameBot backend service"
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal" />
+        <ServiceControl
+          Id="GameBotServiceControl"
+          Name="GameBotService"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+
+      <Component Id="NonServiceExecutableComponent" Guid="955C6399-6835-4DF8-A6A8-AB8F9FCB4AEF" Condition="MODE &lt;&gt; &quot;service&quot;">
+        <File Id="GameBotServiceExeForNonServiceMode" Source="payload\service\GameBot.Service.exe" ShortName="GBSVCAPP.EXE" KeyPath="yes" />
+      </Component>
+
+      <Component Id="BackgroundStartupRegistryComponent" Guid="A7D15335-1D5B-42C1-BF89-97D53D0E2D22" Condition="MODE = &quot;backgroundApp&quot; AND BACKGROUND_STARTUP_ENABLED = &quot;1&quot;">
         <RegistryValue
           Root="HKCU"
           Key="Software\Microsoft\Windows\CurrentVersion\Run"
           Name="GameBot"
           Type="string"
-          Value="[INSTALLFOLDER]GameBot.Service.exe"
+          Value="[APPLICATIONFOLDER]GameBot.Service.exe"
           KeyPath="yes" />
       </Component>
     </DirectoryRef>
 
     <ComponentGroup Id="StartupRegistrationComponents">
+      <ComponentRef Id="WindowsServiceRegistrationComponent" />
+      <ComponentRef Id="NonServiceExecutableComponent" />
       <ComponentRef Id="BackgroundStartupRegistryComponent" />
     </ComponentGroup>
   </Fragment>

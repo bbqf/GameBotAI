@@ -44,6 +44,12 @@ node_modules/
 dist/
 build/
 
+# Installer generated artifacts
+artifacts/
+installer/wix/payload/**
+!installer/wix/payload/
+!installer/wix/payload/README.md
+
 # OS junk
 Thumbs.db
 [Dd]esktop.ini

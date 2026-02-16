@@ -10,5 +10,18 @@
     <Property Id="ENABLE_HTTPS" Value="0" />
     <Property Id="CERTIFICATE_REF" Value="__UNSET__" />
     <Property Id="ALLOW_ONLINE_PREREQ_FALLBACK" Value="1" />
+
+    <SetProperty Id="WixAppFolder" Value="WixPerUserFolder" Before="CostFinalize" Condition="UILevel &lt; 5 AND SCOPE = &quot;perUser&quot;" />
+    <SetProperty Id="WixAppFolder" Value="WixPerMachineFolder" Before="CostFinalize" Condition="UILevel &lt; 5 AND SCOPE = &quot;perMachine&quot;" />
+    <SetProperty Id="SCOPE" Value="perUser" Before="CostFinalize" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+    <SetProperty Id="SCOPE" Value="perMachine" Before="CostFinalize" Condition="WixAppFolder = &quot;WixPerMachineFolder&quot;" />
+
+    <SetProperty Id="ALLUSERS" Value="" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
+    <SetProperty Id="MSIINSTALLPERUSER" Value="1" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
+    <SetProperty Id="ALLUSERS" Value="1" Before="CostFinalize" Condition="SCOPE = &quot;perMachine&quot;" />
+    <SetProperty Id="MSIINSTALLPERUSER" Value="" Before="CostFinalize" Condition="SCOPE = &quot;perMachine&quot;" />
+
+    <SetProperty Id="PROTOCOL" Value="http" Before="CostFinalize" Condition="PROTOCOL = &quot;&quot;" />
+    <SetProperty Id="WEB_PORT" Value="8080" Before="CostFinalize" Condition="WEB_PORT = &quot;&quot;" />
   </Fragment>
 </Wix>

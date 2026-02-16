@@ -1,12 +1,19 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
     Name="GameBot"
     Manufacturer="GameBot"
     Version="1.0.0.0"
     UpgradeCode="B7CA67D4-9DE5-43F5-BE43-EA9A00A3E202"
-    Scope="perMachine"
+    Scope="perUser"
     Language="1033"
     InstallerVersion="500">
+
+    <ui:WixUI Id="WixUI_Advanced" />
+
+    <Property Id="WixUISupportPerUser" Value="1" />
+    <Property Id="ApplicationFolderName" Value="GameBot" />
+    <Property Id="WixAppFolder" Value="WixPerMachineFolder" />
 
     <MediaTemplate EmbedCab="yes" />
 

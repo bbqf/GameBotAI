@@ -1,0 +1,147 @@
+﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <DirectoryRef Id="APPLICATIONFOLDER">
+      <Component Id="CMP_DAFC12287A13AB45306FF25734683184" Guid="*">
+        <File Source="payload\service\GameBot.Domain.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_828CEC4C4F1883438C6FA562981213AE" Guid="*">
+        <File Source="payload\service\GameBot.Domain.pdb" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_71DA6C726EA76B0E494EBFE33262621C" Guid="*">
+        <File Source="payload\service\GameBot.Emulator.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_61E1B894C276EADF2E9157C4B811941C" Guid="*">
+        <File Source="payload\service\GameBot.Emulator.pdb" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_83156E5AC5279E7532C3BFEDB91A0607" Guid="*">
+        <File Source="payload\service\GameBot.Service.deps.json" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_4BAD27C72D3E290C7E703FFB978DCA2B" Guid="*">
+        <File Source="payload\service\GameBot.Service.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_6EA04B9F3AF2A957582BFF7DEC201B13" Guid="*">
+        <File Source="payload\service\GameBot.Service.pdb" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_7A3AC9A0420393380DFE91EA50D98DC0" Guid="*">
+        <File Source="payload\service\GameBot.Service.runtimeconfig.json" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_261EE737D2C311033B252245E8DECA58" Guid="*">
+        <File Source="payload\service\GameBot.Service.staticwebassets.endpoints.json" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_8FC9050D96ED36833A0536E60E2C31C2" Guid="*">
+        <File Source="payload\service\Microsoft.AspNetCore.OpenApi.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_648E565CEECCDB540CD7B0C500B51390" Guid="*">
+        <File Source="payload\service\Microsoft.Extensions.DependencyInjection.Abstractions.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_CD8EC5A87916F3D4CF3599E2A9DE6A79" Guid="*">
+        <File Source="payload\service\Microsoft.Extensions.Logging.Abstractions.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_9AAA596706C6A09DB077CE1EF522C922" Guid="*">
+        <File Source="payload\service\Microsoft.Extensions.Options.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_538A47B78049D6C9D2540B741C918B2A" Guid="*">
+        <File Source="payload\service\Microsoft.Extensions.Primitives.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_5B6CB7A57D71AD1F0737B163D041DC18" Guid="*">
+        <File Source="payload\service\Microsoft.OpenApi.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_DAB26542E558ACA5C03229EBC3CCA086" Guid="*">
+        <File Source="payload\service\Microsoft.Win32.SystemEvents.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_3C3EB1F02F09D86D5923A1239755FE94" Guid="*">
+        <File Source="payload\service\opencv_videoio_ffmpeg4130_64.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_CB8808980391A7CD936716D927585940" Guid="*">
+        <File Source="payload\service\OpenCvSharp.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_FB6F512105BB9FDDC35E229D4F7D6A43" Guid="*">
+        <File Source="payload\service\OpenCvSharpExtern.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_BD4DF3266EFD1B4FF24211D09B063304" Guid="*">
+        <File Source="payload\service\SharpAdbClient.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_4A11E1E35264352186A34BF993E7341E" Guid="*">
+        <File Source="payload\service\Swashbuckle.AspNetCore.Swagger.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_662C66C59098A8C435FEC8326A8A8C4E" Guid="*">
+        <File Source="payload\service\Swashbuckle.AspNetCore.SwaggerGen.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_2690F0CDA3CCB050E6DA0523FC47A895" Guid="*">
+        <File Source="payload\service\Swashbuckle.AspNetCore.SwaggerUI.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_810B7F3F9A3C187CCEC1439E50B8E0D2" Guid="*">
+        <File Source="payload\service\System.Diagnostics.DiagnosticSource.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_57C643F849346994244DA42DF32CC2ED" Guid="*">
+        <File Source="payload\service\System.Drawing.Common.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_6FA7C2C4A2B18F190AEC092B71520254" Guid="*">
+        <File Source="payload\service\System.Private.Windows.Core.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="CMP_737069B9D6BCD03C5D65E037D8AB0BC2" Guid="*">
+        <File Source="payload\service\web.config" KeyPath="yes" />
+      </Component>
+      <Directory Id="DIR_0098AAEC5A0A3A991E0881D163CE0AE3" Name="data">
+        <Directory Id="DIR_9705EE2CD90E5EAD34DD86C0B4CCFD38" Name="config">
+          <Component Id="CMP_FCC001E29B7E75EB9B2BE1BDB20D311C" Guid="*">
+            <File Source="payload\service\data\config\logging.json" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </DirectoryRef>
+
+    <DirectoryRef Id="WEBUIFOLDER">
+      <Component Id="CMP_081615CC192EC9336E182339AF484F1F" Guid="*">
+        <File Source="payload\web-ui\index.html" KeyPath="yes" />
+      </Component>
+      <Directory Id="DIR_A82CB9ADA818BC7D3A2A6E0B346D605A" Name="assets">
+        <Component Id="CMP_9632CD1FFDF74AE334AD0E808016A5E8" Guid="*">
+          <File Source="payload\web-ui\assets\index-CeiXRHaa.css" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP_5A1534CCF0C6BF33318AEE5114696EB4" Guid="*">
+          <File Source="payload\web-ui\assets\index-DYFboY-M.js" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ServicePayloadFiles">
+      <ComponentRef Id="CMP_DAFC12287A13AB45306FF25734683184" />
+      <ComponentRef Id="CMP_828CEC4C4F1883438C6FA562981213AE" />
+      <ComponentRef Id="CMP_71DA6C726EA76B0E494EBFE33262621C" />
+      <ComponentRef Id="CMP_61E1B894C276EADF2E9157C4B811941C" />
+      <ComponentRef Id="CMP_83156E5AC5279E7532C3BFEDB91A0607" />
+      <ComponentRef Id="CMP_4BAD27C72D3E290C7E703FFB978DCA2B" />
+      <ComponentRef Id="CMP_6EA04B9F3AF2A957582BFF7DEC201B13" />
+      <ComponentRef Id="CMP_7A3AC9A0420393380DFE91EA50D98DC0" />
+      <ComponentRef Id="CMP_261EE737D2C311033B252245E8DECA58" />
+      <ComponentRef Id="CMP_8FC9050D96ED36833A0536E60E2C31C2" />
+      <ComponentRef Id="CMP_648E565CEECCDB540CD7B0C500B51390" />
+      <ComponentRef Id="CMP_CD8EC5A87916F3D4CF3599E2A9DE6A79" />
+      <ComponentRef Id="CMP_9AAA596706C6A09DB077CE1EF522C922" />
+      <ComponentRef Id="CMP_538A47B78049D6C9D2540B741C918B2A" />
+      <ComponentRef Id="CMP_5B6CB7A57D71AD1F0737B163D041DC18" />
+      <ComponentRef Id="CMP_DAB26542E558ACA5C03229EBC3CCA086" />
+      <ComponentRef Id="CMP_3C3EB1F02F09D86D5923A1239755FE94" />
+      <ComponentRef Id="CMP_CB8808980391A7CD936716D927585940" />
+      <ComponentRef Id="CMP_FB6F512105BB9FDDC35E229D4F7D6A43" />
+      <ComponentRef Id="CMP_BD4DF3266EFD1B4FF24211D09B063304" />
+      <ComponentRef Id="CMP_4A11E1E35264352186A34BF993E7341E" />
+      <ComponentRef Id="CMP_662C66C59098A8C435FEC8326A8A8C4E" />
+      <ComponentRef Id="CMP_2690F0CDA3CCB050E6DA0523FC47A895" />
+      <ComponentRef Id="CMP_810B7F3F9A3C187CCEC1439E50B8E0D2" />
+      <ComponentRef Id="CMP_57C643F849346994244DA42DF32CC2ED" />
+      <ComponentRef Id="CMP_6FA7C2C4A2B18F190AEC092B71520254" />
+      <ComponentRef Id="CMP_737069B9D6BCD03C5D65E037D8AB0BC2" />
+      <ComponentRef Id="CMP_FCC001E29B7E75EB9B2BE1BDB20D311C" />
+    </ComponentGroup>
+
+    <ComponentGroup Id="WebUiPayloadFiles">
+      <ComponentRef Id="CMP_081615CC192EC9336E182339AF484F1F" />
+      <ComponentRef Id="CMP_9632CD1FFDF74AE334AD0E808016A5E8" />
+      <ComponentRef Id="CMP_5A1534CCF0C6BF33318AEE5114696EB4" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>

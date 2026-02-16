@@ -1,17 +1,9 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
-    <ComponentGroup Id="GameBotFiles" Directory="INSTALLFOLDER">
+    <ComponentGroup Id="GameBotFiles" Directory="APPLICATIONFOLDER">
       <Component Id="PlaceholderComponent" Guid="C4C5B5F9-B5C7-4E96-8F8A-5F84A0B0A303">
         <File Source="payload\\payload-manifest.json" />
       </Component>
-    </ComponentGroup>
-
-    <ComponentGroup Id="ServicePayloadFiles" Directory="INSTALLFOLDER">
-      <!-- Harvesting scaffold for backend payload files from payload\service -->
-    </ComponentGroup>
-
-    <ComponentGroup Id="WebUiPayloadFiles" Directory="INSTALLFOLDER">
-      <!-- Harvesting scaffold for web-ui payload files from payload\web-ui -->
     </ComponentGroup>
   </Fragment>
 </Wix>

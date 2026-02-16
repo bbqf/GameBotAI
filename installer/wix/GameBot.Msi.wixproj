@@ -4,11 +4,13 @@
     <TargetName>GameBot</TargetName>
     <Platform>x64</Platform>
     <EnableDefaultItems>false</EnableDefaultItems>
+    <SuppressIces>ICE30</SuppressIces>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="Product.wxs" />
     <Compile Include="Fragments\Components.wxs" />
+    <Compile Include="Fragments\PayloadFiles.Generated.wxs" />
     <Compile Include="Fragments\ConfigTemplates.wxs" />
     <Compile Include="Fragments\DataDirectories.wxs" />
     <Compile Include="Fragments\Directories.wxs" />
@@ -20,5 +22,9 @@
     <Compile Include="Fragments\PrerequisitePolicy.wxs" />
     <Compile Include="Fragments\StartupRegistration.wxs" />
     <Compile Include="Fragments\Validation.wxs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="4.0.5" />
   </ItemGroup>
 </Project>
