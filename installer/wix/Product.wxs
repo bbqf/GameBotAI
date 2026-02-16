@@ -1,0 +1,27 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="GameBot"
+    Manufacturer="GameBot"
+    Version="1.0.0.0"
+    UpgradeCode="B7CA67D4-9DE5-43F5-BE43-EA9A00A3E202"
+    Scope="perMachine"
+    Language="1033"
+    InstallerVersion="500">
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="MainFeature" Title="GameBot" Level="1">
+      <ComponentGroupRef Id="GameBotFiles" />
+    </Feature>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="GameBot" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="GameBotFiles" Directory="INSTALLFOLDER">
+      <Component Id="PlaceholderComponent" Guid="C4C5B5F9-B5C7-4E96-8F8A-5F84A0B0A303">
+        <File Source="payload\\placeholder.txt" />
+      </Component>
+    </ComponentGroup>
+  </Package>
+</Wix>

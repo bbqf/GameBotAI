@@ -1,0 +1,12 @@
+<Project Sdk="WixToolset.Sdk/4.0.5">
+  <PropertyGroup>
+    <OutputType>Bundle</OutputType>
+    <TargetName>GameBotInstaller</TargetName>
+    <Platform>x64</Platform>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Bundle.wxs" />
+    <Compile Include="Product.wxs" />
+  </ItemGroup>
+</Project>
