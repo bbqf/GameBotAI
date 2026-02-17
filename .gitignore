@@ -17,6 +17,7 @@ x86/
 # IDEs
 .idea/
 .vscode/
+.vscode/settings.json
 
 # Test results & coverage
 TestResults/
