@@ -18,6 +18,9 @@ public class InstallerPropertyValidationTests {
       .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     propertyIds.Should().Contain("DATA_ROOT");
+    propertyIds.Should().Contain("BIND_HOST");
+    propertyIds.Should().Contain("SHORTCUT_HOST");
+    propertyIds.Should().Contain("PERSISTED_BIND_HOST");
     propertyIds.Should().Contain("PORT");
     propertyIds.Should().Contain("PERSISTED_PORT");
     propertyIds.Should().Contain("ALLOW_ONLINE_PREREQ_FALLBACK");

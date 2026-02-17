@@ -3,10 +3,13 @@
     <UI>
       <Dialog Id="NetworkConfigDlg" Width="370" Height="270" Title="[ProductName] Setup">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="20" Transparent="yes" NoPrefix="yes" Text="Configure network settings" />
-        <Control Id="Description" Type="Text" X="20" Y="26" Width="330" Height="28" Transparent="yes" NoPrefix="yes" Text="Set port used by GameBot." />
+        <Control Id="Description" Type="Text" X="20" Y="26" Width="330" Height="28" Transparent="yes" NoPrefix="yes" Text="Select bind interface and port used by GameBot." />
 
-        <Control Id="PortLabel" Type="Text" X="20" Y="82" Width="150" Height="15" Text="Port:" />
-        <Control Id="PortEdit" Type="Edit" X="180" Y="80" Width="160" Height="18" Property="PORT" />
+        <Control Id="BindHostLabel" Type="Text" X="20" Y="82" Width="150" Height="15" Text="Bind interface:" />
+        <Control Id="BindHostCombo" Type="ComboBox" X="180" Y="80" Width="160" Height="18" Property="BIND_HOST" />
+
+        <Control Id="PortLabel" Type="Text" X="20" Y="112" Width="150" Height="15" Text="Port:" />
+        <Control Id="PortEdit" Type="Edit" X="180" Y="110" Width="160" Height="18" Property="PORT" />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
@@ -15,13 +18,20 @@
 
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="NetworkConfigDlg" Order="100" Condition="1" />
       <Publish Dialog="NetworkConfigDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Condition="1" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Property="SHORTCUT_HOST" Value="localhost" Order="1" Condition="BIND_HOST = &quot;127.0.0.1&quot;" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Property="SHORTCUT_HOST" Value="[ComputerName]" Order="2" Condition="BIND_HOST &lt;&gt; &quot;127.0.0.1&quot;" />
       <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnWaitDialog" Value="WaitForCostingDlg" Condition="1 OR CostingComplete = 1" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Condition="PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace &lt;&gt; 1" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfRbDiskDlg" Condition="PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND (PROMPTROLLBACKCOST=&quot;P&quot; OR NOT PROMPTROLLBACKCOST)" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Condition="PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EnableRollback" Value="False" Condition="PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfDiskDlg" Condition="PORT &lt;&gt; &quot;&quot; AND ((OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST=&quot;F&quot;))" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Condition="BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace &lt;&gt; 1" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfRbDiskDlg" Condition="BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND (PROMPTROLLBACKCOST=&quot;P&quot; OR NOT PROMPTROLLBACKCOST)" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Condition="BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EnableRollback" Value="False" Condition="BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfDiskDlg" Condition="BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND ((OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST=&quot;F&quot;))" />
       <Publish Dialog="NetworkConfigDlg" Control="Cancel" Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+
+      <ComboBox Property="BIND_HOST">
+        <ListItem Text="localhost (127.0.0.1)" Value="127.0.0.1" />
+        <ListItem Text="all interfaces (0.0.0.0)" Value="0.0.0.0" />
+      </ComboBox>
     </UI>
   </Fragment>
 </Wix>

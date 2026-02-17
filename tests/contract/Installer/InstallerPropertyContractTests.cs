@@ -16,6 +16,7 @@ public class InstallerPropertyContractTests {
     content.Should().Contain("installMode:");
     content.Should().Contain("installScope:");
     content.Should().Contain("dataRoot:");
+    content.Should().Contain("bindHost:");
     content.Should().Contain("port:");
     content.Should().Contain("/installer/validate:");
     content.Should().Contain("/installer/execute:");

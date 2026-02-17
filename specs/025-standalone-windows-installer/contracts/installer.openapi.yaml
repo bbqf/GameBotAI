@@ -57,6 +57,7 @@ components:
       required:
         - installMode
         - installScope
+        - bindHost
         - port
         - unattended
       properties:
@@ -71,6 +72,9 @@ components:
         dataRoot:
           type: string
           description: Canonical silent property `DATA_ROOT`; defaults to `%LocalAppData%/GameBot/data` and may be overridden by operator.
+        bindHost:
+          type: string
+          description: IPv4 bind interface for the backend listener (examples: `127.0.0.1`, `0.0.0.0`, `192.168.1.10`).
         port:
           type: integer
           minimum: 1

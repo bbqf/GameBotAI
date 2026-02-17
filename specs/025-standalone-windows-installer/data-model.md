@@ -20,6 +20,7 @@
   - `installScope` (enum: `perUser`, required)
   - `installRoot` (string, required, default `%LocalAppData%\GameBot`)
   - `dataRoot` (string, required, default `%LocalAppData%\GameBot\data`; canonical silent property `DATA_ROOT`; user-editable in interactive UI)
+  - `bindHost` (string IPv4, required; default `127.0.0.1`; supports `0.0.0.0` for all interfaces)
   - `port` (int 1..65535, required)
   - `startOnLogin` (bool, optional; background mode only)
   - `allowOnlinePrereqFallback` (bool, required)
@@ -28,6 +29,7 @@
   - `installMode` must be `backgroundApp`.
   - `installScope` must be `perUser`.
   - `DATA_ROOT` override must resolve to writable path for current user context.
+  - `bindHost` must be a valid IPv4 address.
   - `port` must be available at validation time.
 
 ## Entity: PortResolution

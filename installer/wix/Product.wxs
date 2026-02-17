@@ -28,6 +28,7 @@
       Impersonate="yes" />
 
     <CustomActionRef Id="DetectAvailablePorts" />
+    <CustomActionRef Id="DiscoverBindInterfaces" />
     <UI>
       <DialogRef Id="NetworkConfigDlg" />
       <Publish

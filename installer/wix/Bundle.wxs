@@ -8,6 +8,7 @@
 
     <Variable Name="InstallFolder" Type="formatted" Value="[LocalAppDataFolder]GameBot" bal:Overridable="yes" />
     <Variable Name="DATA_ROOT" Type="string" Value="" Persisted="yes" bal:Overridable="yes" />
+    <Variable Name="BIND_HOST" Type="string" Value="127.0.0.1" bal:Overridable="yes" />
     <Variable Name="PORT" Type="string" Value="8080" bal:Overridable="yes" />
     <Variable Name="ALLOW_ONLINE_PREREQ_FALLBACK" Type="string" Value="1" bal:Overridable="yes" />
 
@@ -19,6 +20,7 @@
       <MsiPackage Id="GameBotMsi" Name="GameBot.msi" CacheId="GameBotMsi" SourceFile="payload\GameBot.msi" bal:PrimaryPackageType="default">
         <MsiProperty Name="DATA_ROOT" Value="[DATA_ROOT]" />
         <MsiProperty Name="APPLICATIONFOLDER" Value="[InstallFolder]" />
+        <MsiProperty Name="BIND_HOST" Value="[BIND_HOST]" />
         <MsiProperty Name="PORT" Value="[PORT]" />
         <MsiProperty Name="ALLOW_ONLINE_PREREQ_FALLBACK" Value="[ALLOW_ONLINE_PREREQ_FALLBACK]" />
       </MsiPackage>

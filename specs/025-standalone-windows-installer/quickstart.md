@@ -25,7 +25,7 @@
 
 ```powershell
 # Example placeholder; exact bootstrapper property names defined in contracts
-.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\\GameBot\\data" PORT=8080 ALLOW_ONLINE_PREREQ_FALLBACK=true
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\\GameBot\\data" BIND_HOST=127.0.0.1 PORT=8080 ALLOW_ONLINE_PREREQ_FALLBACK=true
 ```
 
 Expected:
@@ -43,12 +43,12 @@ Expected:
 
 ## 6. Endpoint defaults
 
-1. Installer configures service and UI to use the same `PORT` value.
-2. Browser shortcut opens `http://localhost:[PORT]/`.
-3. Validate install blocks continuation when port validation fails.
+1. Installer configures service bind interface via `BIND_HOST` and shared `PORT` value.
+2. Browser shortcut opens `http://localhost:[PORT]/` for loopback binding or `http://<computer-name>:[PORT]/` for non-loopback binding.
+3. Validate install blocks continuation when bind host or port validation fails.
 
 Remediation:
-- If validation fails, provide a valid `PORT` value and rerun install.
+- If validation fails, provide valid `BIND_HOST` and `PORT` values and rerun install.
 
 ## 7. CI runner notes
 

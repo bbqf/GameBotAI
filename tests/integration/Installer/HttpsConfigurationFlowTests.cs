@@ -15,7 +15,7 @@ public class HttpsConfigurationFlowTests {
     var directoriesContent = File.ReadAllText(directoriesPath);
     var bundleContent = File.ReadAllText(bundlePath);
 
-    directoriesContent.Should().Contain("url.dll,FileProtocolHandler http://localhost:[PORT]/");
+    directoriesContent.Should().Contain("url.dll,FileProtocolHandler http://[SHORTCUT_HOST]:[PORT]/");
     bundleContent.Should().NotContain("ENABLE_HTTPS");
     bundleContent.Should().NotContain("CERTIFICATE_REF");
   }
