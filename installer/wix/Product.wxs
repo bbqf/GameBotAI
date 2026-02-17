@@ -15,10 +15,15 @@
     <Property Id="ApplicationFolderName" Value="GameBot" />
     <Property Id="WixAppFolder" Value="WixPerUserFolder" />
     <Property Id="WIXUI_INSTALLDIR" Value="APPLICATIONFOLDER" />
+    <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
     <CustomActionRef Id="DetectAvailablePorts" />
     <UI>
       <DialogRef Id="NetworkConfigDlg" />
     </UI>
+
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of GameBot is already installed." />
 
     <MediaTemplate EmbedCab="yes" />
 

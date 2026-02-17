@@ -17,6 +17,7 @@
     <CustomAction Id="SetApplicationFolderPerUser" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
 
     <SetProperty Id="PROTOCOL" Value="http" Before="CostFinalize" Condition="PROTOCOL = &quot;&quot;" />
+    <SetProperty Id="BACKEND_PORT" Value="8080" Before="CostFinalize" Condition="BACKEND_PORT = &quot;&quot;" />
     <SetProperty Id="WEB_PORT" Value="8080" Before="CostFinalize" Condition="WEB_PORT = &quot;&quot;" />
     <SetProperty Id="BIND_HOST" Value="127.0.0.1" Before="CostFinalize" Condition="BIND_HOST = &quot;&quot;" />
 

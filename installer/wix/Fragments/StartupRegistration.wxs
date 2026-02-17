@@ -11,7 +11,7 @@
           Key="Software\Microsoft\Windows\CurrentVersion\Run"
           Name="GameBot"
           Type="string"
-          Value="&quot;[APPLICATIONFOLDER]GameBot.Service.exe&quot; --urls [PROTOCOL]://[BIND_HOST]:[BACKEND_PORT]"
+          Value="&quot;[APPLICATIONFOLDER]GameBot.Service.exe&quot;"
           KeyPath="yes" />
       </Component>
     </DirectoryRef>

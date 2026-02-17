@@ -37,8 +37,8 @@ $checks = @(
   @{ Name = "Windows service registration removed"; Ok = -not $startup.Contains('WindowsServiceRegistrationComponent') },
   @{ Name = "Service mode launch constraint removed"; Ok = -not $product.Contains('Service mode requires per-machine scope') },
   @{ Name = "Install root uses APPLICATIONFOLDER"; Ok = $dirs.Contains('Directory Id="APPLICATIONFOLDER" Name="GameBot"') },
-  @{ Name = "Start menu shortcut uses URL protocol handler"; Ok = $dirs.Contains('Target="[SystemFolder]rundll32.exe"') -and $dirs.Contains('url.dll,FileProtocolHandler [PROTOCOL]://localhost:[WEB_PORT]/') },
-  @{ Name = "Start menu shortcut includes protocol and web port"; Ok = $dirs.Contains('[PROTOCOL]://localhost:[WEB_PORT]/') }
+  @{ Name = "Start menu shortcut uses URL protocol handler"; Ok = $dirs.Contains('Target="[SystemFolder]rundll32.exe"') -and $dirs.Contains('url.dll,FileProtocolHandler http://localhost:8080/') },
+  @{ Name = "Start menu shortcut points to stable localhost URL"; Ok = $dirs.Contains('http://localhost:8080/') }
 )
 
 $failed = @($checks | Where-Object { -not $_.Ok })
