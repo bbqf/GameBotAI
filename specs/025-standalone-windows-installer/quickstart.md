@@ -25,7 +25,7 @@
 
 ```powershell
 # Example placeholder; exact bootstrapper property names defined in contracts
-.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\\GameBot\\data" BACKEND_PORT=5000 WEB_PORT=8080 PROTOCOL=http ALLOW_ONLINE_PREREQ_FALLBACK=true
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\\GameBot\\data" PORT=8080 ALLOW_ONLINE_PREREQ_FALLBACK=true
 ```
 
 Expected:
@@ -41,15 +41,14 @@ Expected:
 - Non-allowlisted prerequisite source is rejected
 - Install duration SLOs met in clean-machine tests (excluding reboot)
 
-## 6. HTTPS enablement path
+## 6. Endpoint defaults
 
-1. Run installer and set `PROTOCOL=https` (or `ENABLE_HTTPS=1` in unattended mode).
-2. Provide `CERTIFICATE_REF` value when HTTPS is enabled.
-3. Validate install blocks continuation when HTTPS is enabled without a certificate reference.
+1. Installer configures service and UI to use the same `PORT` value.
+2. Browser shortcut opens `http://localhost:[PORT]/`.
+3. Validate install blocks continuation when port validation fails.
 
 Remediation:
-- If validation fails, provide a valid certificate reference and rerun install.
-- If certificate is unavailable, install with HTTP defaults and enable HTTPS after certificate provisioning.
+- If validation fails, provide a valid `PORT` value and rerun install.
 
 ## 7. CI runner notes
 

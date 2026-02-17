@@ -1,12 +1,11 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
     <Property Id="DATA_ROOT" Value="__UNSET__" />
-    <Property Id="BACKEND_PORT" Value="8080" />
-    <Property Id="WEB_PORT" Value="8080" />
-    <Property Id="PERSISTED_WEB_PORT">
-      <RegistrySearch Id="PersistedWebPort" Root="HKCU" Key="Software\GameBot\Network" Name="WebPort" Type="raw" />
+    <Property Id="PORT" Value="8080" />
+    <Property Id="PERSISTED_PORT">
+      <RegistrySearch Id="PersistedPort" Root="HKCU" Key="Software\GameBot\Network" Name="Port" Type="raw" />
     </Property>
-    <Property Id="PREFERRED_WEB_PORT_ORDER" Value="8080,8088,8888,80" />
+    <Property Id="PREFERRED_PORT_ORDER" Value="8080,8088,8888,80" />
     <Property Id="ALLOW_ONLINE_PREREQ_FALLBACK" Value="1" />
 
     <SetProperty Id="WixAppFolder" Value="WixPerUserFolder" Sequence="both" Before="CostFinalize" />
@@ -15,8 +14,7 @@
 
     <CustomAction Id="SetApplicationFolderPerUser" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
 
-    <SetProperty Id="WEB_PORT" Value="[PERSISTED_WEB_PORT]" Before="CostFinalize" Condition="PERSISTED_WEB_PORT &lt;&gt; &quot;&quot;" />
-    <SetProperty Id="BACKEND_PORT" Value="[WEB_PORT]" Before="CostFinalize" Condition="WEB_PORT &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="PORT" Value="[PERSISTED_PORT]" Before="CostFinalize" Condition="PERSISTED_PORT &lt;&gt; &quot;&quot;" />
 
     <InstallUISequence>
       <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" />

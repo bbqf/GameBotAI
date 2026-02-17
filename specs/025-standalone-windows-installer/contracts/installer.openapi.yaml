@@ -57,9 +57,7 @@ components:
       required:
         - installMode
         - installScope
-        - backendPort
-        - webUiPort
-        - protocol
+        - port
         - unattended
       properties:
         installMode:
@@ -73,25 +71,10 @@ components:
         dataRoot:
           type: string
           description: Canonical silent property `DATA_ROOT`; defaults to `%LocalAppData%/GameBot/data` and may be overridden by operator.
-        backendPort:
+        port:
           type: integer
           minimum: 1
           maximum: 65535
-        webUiPort:
-          oneOf:
-            - type: integer
-              minimum: 1
-              maximum: 65535
-            - type: string
-              enum: [auto]
-        protocol:
-          type: string
-          enum: [http, https]
-        enableHttps:
-          type: boolean
-          default: false
-        certificateRef:
-          type: string
         startOnLogin:
           type: boolean
           default: true
@@ -106,13 +89,13 @@ components:
         - canProceed
         - errors
         - warnings
-        - resolvedWebUiPort
+        - resolvedPort
       properties:
         canProceed:
           type: boolean
-        resolvedWebUiPort:
+        resolvedPort:
           type: integer
-        alternativeWebUiPorts:
+        alternativePorts:
           type: array
           items:
             type: integer

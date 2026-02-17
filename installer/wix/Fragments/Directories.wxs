@@ -22,7 +22,7 @@
           Name="GameBot"
           Advertise="no"
           Target="[SystemFolder]rundll32.exe"
-          Arguments="url.dll,FileProtocolHandler http://localhost:[WEB_PORT]/"
+          Arguments="url.dll,FileProtocolHandler http://localhost:[PORT]/"
           WorkingDirectory="APPLICATIONFOLDER" />
         <RemoveFolder Id="RemoveGameBotProgramsFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\GameBot" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />

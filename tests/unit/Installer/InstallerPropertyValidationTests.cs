@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Xunit;
+using System.Text.RegularExpressions;
 
 namespace GameBot.UnitTests.Installer;
 
@@ -11,16 +12,17 @@ public class InstallerPropertyValidationTests {
 
     File.Exists(filePath).Should().BeTrue();
     var content = File.ReadAllText(filePath);
+    var propertyIds = Regex.Matches(content, "Property Id=\"([^\"]+)\"")
+      .Select(match => match.Groups[1].Value)
+      .Distinct(StringComparer.OrdinalIgnoreCase)
+      .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-    content.Should().Contain("Property Id=\"DATA_ROOT\"");
-    content.Should().Contain("Property Id=\"WEB_PORT\"");
-    content.Should().Contain("Property Id=\"PERSISTED_WEB_PORT\"");
-    content.Should().Contain("SetProperty Id=\"BACKEND_PORT\" Value=\"[WEB_PORT]\"");
-    content.Should().NotContain("Property Id=\"BIND_HOST\"");
-    content.Should().Contain("Property Id=\"ALLOW_ONLINE_PREREQ_FALLBACK\"");
-    content.Should().NotContain("Property Id=\"MODE\"");
-    content.Should().NotContain("Property Id=\"SCOPE\"");
-    content.Should().NotContain("Property Id=\"PROTOCOL\"");
+    propertyIds.Should().Contain("DATA_ROOT");
+    propertyIds.Should().Contain("PORT");
+    propertyIds.Should().Contain("PERSISTED_PORT");
+    propertyIds.Should().Contain("ALLOW_ONLINE_PREREQ_FALLBACK");
+    propertyIds.Should().NotContain("MODE");
+    propertyIds.Should().NotContain("SCOPE");
   }
 
   [Fact]

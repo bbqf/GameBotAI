@@ -29,7 +29,7 @@ $checks = @(
   @{ Name = "Package default folder mode is per-user"; Ok = $product.Contains('Property Id="WixAppFolder" Value="WixPerUserFolder"') },
   @{ Name = "Bundle scope variable removed"; Ok = -not $bundle.Contains('Variable Name="SCOPE"') },
   @{ Name = "Bundle mode variable removed"; Ok = -not $bundle.Contains('Variable Name="MODE"') },
-  @{ Name = "Bundle uses single web port variable"; Ok = -not $bundle.Contains('Variable Name="BACKEND_PORT"') -and $bundle.Contains('Variable Name="WEB_PORT" Type="string" Value="8080"') },
+  @{ Name = "Bundle defines canonical port variable"; Ok = $bundle.Contains('Variable Name="PORT" Type="string" Value="8080"') },
   @{ Name = "Per-user folder enforced"; Ok = $props.Contains('SetProperty Id="WixAppFolder" Value="WixPerUserFolder"') },
   @{ Name = "Per-machine scope mapping removed"; Ok = -not $props.Contains('SetProperty Id="SCOPE" Value="perMachine"') },
   @{ Name = "Per-user install path defaults to LocalAppData"; Ok = $props.Contains('CustomAction Id="SetApplicationFolderPerUser" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot"') -and $props.Contains('Custom Action="SetApplicationFolderPerUser" Before="CostFinalize"') },
@@ -37,8 +37,8 @@ $checks = @(
   @{ Name = "Windows service registration removed"; Ok = -not $startup.Contains('WindowsServiceRegistrationComponent') },
   @{ Name = "Service mode launch constraint removed"; Ok = -not $product.Contains('Service mode requires per-machine scope') },
   @{ Name = "Install root uses APPLICATIONFOLDER"; Ok = $dirs.Contains('Directory Id="APPLICATIONFOLDER" Name="GameBot"') },
-  @{ Name = "Start menu shortcut uses URL protocol handler"; Ok = $dirs.Contains('Target="[SystemFolder]rundll32.exe"') -and $dirs.Contains('url.dll,FileProtocolHandler http://localhost:[WEB_PORT]/') },
-  @{ Name = "Start menu shortcut points to fixed http with dynamic web port"; Ok = $dirs.Contains('http://localhost:[WEB_PORT]/') }
+  @{ Name = "Start menu shortcut uses URL protocol handler"; Ok = $dirs.Contains('Target="[SystemFolder]rundll32.exe"') -and $dirs.Contains('url.dll,FileProtocolHandler http://localhost:[PORT]/') },
+  @{ Name = "Start menu shortcut points to fixed http with dynamic port"; Ok = $dirs.Contains('http://localhost:[PORT]/') }
 )
 
 $failed = @($checks | Where-Object { -not $_.Ok })

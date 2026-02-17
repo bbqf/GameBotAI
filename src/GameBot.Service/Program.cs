@@ -216,20 +216,15 @@ if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase)) {
   builder.WebHost.UseUrls("http://127.0.0.1:0");
 }
 else if (string.IsNullOrWhiteSpace(explicitUrlsEnv) && !hasUrlsArgument) {
-  var bindHost = builder.Configuration["Service:Network:BindHost"]
-                 ?? Environment.GetEnvironmentVariable("GAMEBOT_BIND_HOST")
-                 ?? ReadInstallerNetworkValue("BindHost")
-                 ?? "127.0.0.1";
-
-  var backendPortRaw = builder.Configuration["Service:Network:BackendPort"]
-                       ?? Environment.GetEnvironmentVariable("GAMEBOT_BACKEND_PORT")
-                       ?? ReadInstallerNetworkValue("BackendPort")
-                       ?? "8080";
-  if (!int.TryParse(backendPortRaw, out var backendPort) || backendPort < 1 || backendPort > 65535) {
-    backendPort = 8080;
+  var portRaw = builder.Configuration["Service:Network:Port"]
+                ?? Environment.GetEnvironmentVariable("GAMEBOT_PORT")
+                ?? ReadInstallerNetworkValue("Port")
+                ?? "8080";
+  if (!int.TryParse(portRaw, out var port) || port < 1 || port > 65535) {
+    port = 8080;
   }
 
-  builder.WebHost.UseUrls($"http://{bindHost}:{backendPort}");
+  builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 }
 
 var app = builder.Build();

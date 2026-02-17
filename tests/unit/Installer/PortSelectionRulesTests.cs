@@ -21,7 +21,7 @@ public class PortSelectionRulesTests {
 
     propertiesContent.Should().Contain("8080,8088,8888,80");
     detectionContent.Should().Contain("DetectAvailablePorts");
-    resolverScriptContent.Should().Contain("PREFERRED_WEB_PORT_ORDER");
+    resolverScriptContent.Should().Contain("PREFERRED_PORT_ORDER");
   }
 
   private static string FindRepoRoot() {

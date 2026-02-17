@@ -146,9 +146,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
   }
 
   private Dictionary<string, object?> BuildDefaultRelevantKeys() {
-    var installerBindHost = ReadInstallerNetworkValue("BindHost") ?? "127.0.0.1";
-    var installerBackendPort = ReadInstallerNetworkValue("BackendPort") ?? "8080";
-    var installerWebPort = ReadInstallerNetworkValue("WebPort") ?? "8080";
+    var installerPort = ReadInstallerNetworkValue("Port") ?? "8080";
 
     // Always include known GameBot-relevant env vars, even if not set
     var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
@@ -170,9 +168,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["GAMEBOT_ADB_RETRIES"] = 2,
       ["GAMEBOT_ADB_RETRY_DELAY_MS"] = 100,
       ["GAMEBOT_HTTP_LOG_LEVEL_MINIMUM"] = "Warning",
-      ["GAMEBOT_BIND_HOST"] = installerBindHost,
-      ["GAMEBOT_BACKEND_PORT"] = installerBackendPort,
-      ["GAMEBOT_WEB_PORT"] = installerWebPort,
+      ["GAMEBOT_PORT"] = installerPort,
 
       // ASP.NET Core configuration env keys and their documented defaults/effective values
       ["Service__Storage__Root"] = _storageRoot,
@@ -183,9 +179,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["Service__Triggers__Worker__GameFilter"] = null,
       ["Service__Triggers__Worker__SkipWhenNoSessions"] = "true",
       ["Service__Triggers__Worker__IdleBackoffSeconds"] = 5,
-      ["Service__Network__BindHost"] = installerBindHost,
-      ["Service__Network__BackendPort"] = installerBackendPort,
-      ["Service__Network__WebPort"] = installerWebPort,
+      ["Service__Network__Port"] = installerPort,
       ["Logging__LogLevel__Default"] = null,
     };
     return dict;

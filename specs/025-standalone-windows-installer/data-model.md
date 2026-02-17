@@ -20,11 +20,7 @@
   - `installScope` (enum: `perUser`, required)
   - `installRoot` (string, required, default `%LocalAppData%\GameBot`)
   - `dataRoot` (string, required, default `%LocalAppData%\GameBot\data`; canonical silent property `DATA_ROOT`; user-editable in interactive UI)
-  - `backendPort` (int 1..65535, required)
-  - `webUiPort` (int 1..65535 or `auto`, required)
-  - `protocol` (enum: `http`, `https`, required)
-  - `enableHttps` (bool, required)
-  - `certificateRef` (string, optional, required when `enableHttps=true`)
+  - `port` (int 1..65535, required)
   - `startOnLogin` (bool, optional; background mode only)
   - `allowOnlinePrereqFallback` (bool, required)
   - `unattended` (bool, required)
@@ -32,19 +28,18 @@
   - `installMode` must be `backgroundApp`.
   - `installScope` must be `perUser`.
   - `DATA_ROOT` override must resolve to writable path for current user context.
-  - `backendPort != webUiPort` when `webUiPort` resolved concrete value.
-  - `enableHttps=true` requires `certificateRef`.
+  - `port` must be available at validation time.
 
 ## Entity: PortResolution
-- Description: Deterministic web port selection outcome.
+- Description: Deterministic service/UI shared port selection outcome.
 - Fields:
-  - `requestedWebUiPort` (int or null)
-  - `selectedWebUiPort` (int, required)
+  - `requestedPort` (int or null)
+  - `selectedPort` (int, required)
   - `preferenceOrder` (int[], required: `[8080, 8088, 8888, 80]`)
   - `wasFallbackApplied` (bool, required)
   - `alternatives` (int[], required)
 - Validation:
-  - `selectedWebUiPort` must be available at validation time.
+  - `selectedPort` must be available at validation time.
   - `alternatives` must not include selected/occupied ports.
 
 ## Entity: PrerequisitePolicy
@@ -81,7 +76,6 @@
   - `installRoot` (string, required)
   - `dataRoot` (string, required)
   - `startupPolicy` (enum: `bootAutoStart`, `loginStartWhenEnabled`, `manual`, required)
-  - `protocol` (enum, required)
   - `backendEndpoint` (string, required)
   - `webUiEndpoint` (string, required)
   - `createdAtUtc` (datetime, required)

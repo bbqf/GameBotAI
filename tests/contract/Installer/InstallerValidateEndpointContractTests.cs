@@ -12,7 +12,7 @@ public class InstallerValidateEndpointContractTests {
     var content = File.ReadAllText(contractPath);
     content.Should().Contain("/installer/validate:");
     content.Should().Contain("ValidationResult:");
-    content.Should().Contain("resolvedWebUiPort");
+    content.Should().Contain("resolvedPort");
   }
 
   private static string FindRepoRoot() {
