@@ -3,16 +3,10 @@
     <UI>
       <Dialog Id="NetworkConfigDlg" Width="370" Height="270" Title="[ProductName] Setup">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="20" Transparent="yes" NoPrefix="yes" Text="Configure network settings" />
-        <Control Id="Description" Type="Text" X="20" Y="26" Width="330" Height="28" Transparent="yes" NoPrefix="yes" Text="Set backend host/interface and ports used by GameBot." />
+        <Control Id="Description" Type="Text" X="20" Y="26" Width="330" Height="28" Transparent="yes" NoPrefix="yes" Text="Set port used by GameBot." />
 
-        <Control Id="BackendPortLabel" Type="Text" X="20" Y="72" Width="150" Height="15" Text="Backend port:" />
-        <Control Id="BackendPortEdit" Type="Edit" X="180" Y="70" Width="160" Height="18" Property="BACKEND_PORT" />
-
-        <Control Id="WebPortLabel" Type="Text" X="20" Y="102" Width="150" Height="15" Text="Web UI port:" />
-        <Control Id="WebPortEdit" Type="Edit" X="180" Y="100" Width="160" Height="18" Property="WEB_PORT" />
-
-        <Control Id="BindHostLabel" Type="Text" X="20" Y="132" Width="150" Height="15" Text="Bind interface/host:" />
-        <Control Id="BindHostEdit" Type="Edit" X="180" Y="130" Width="160" Height="18" Property="BIND_HOST" />
+        <Control Id="WebPortLabel" Type="Text" X="20" Y="82" Width="150" Height="15" Text="Port:" />
+        <Control Id="WebPortEdit" Type="Edit" X="180" Y="80" Width="160" Height="18" Property="WEB_PORT" />
 
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
@@ -22,11 +16,11 @@
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="NetworkConfigDlg" Order="100" Condition="1" />
       <Publish Dialog="NetworkConfigDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Condition="1" />
       <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnWaitDialog" Value="WaitForCostingDlg" Condition="1 OR CostingComplete = 1" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Condition="BACKEND_PORT &lt;&gt; &quot;&quot; AND WEB_PORT &lt;&gt; &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND OutOfDiskSpace &lt;&gt; 1" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfRbDiskDlg" Condition="BACKEND_PORT &lt;&gt; &quot;&quot; AND WEB_PORT &lt;&gt; &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND (PROMPTROLLBACKCOST=&quot;P&quot; OR NOT PROMPTROLLBACKCOST)" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Condition="BACKEND_PORT &lt;&gt; &quot;&quot; AND WEB_PORT &lt;&gt; &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EnableRollback" Value="False" Condition="BACKEND_PORT &lt;&gt; &quot;&quot; AND WEB_PORT &lt;&gt; &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfDiskDlg" Condition="BACKEND_PORT &lt;&gt; &quot;&quot; AND WEB_PORT &lt;&gt; &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND ((OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST=&quot;F&quot;))" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Condition="WEB_PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace &lt;&gt; 1" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfRbDiskDlg" Condition="WEB_PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND (PROMPTROLLBACKCOST=&quot;P&quot; OR NOT PROMPTROLLBACKCOST)" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Condition="WEB_PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EnableRollback" Value="False" Condition="WEB_PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfDiskDlg" Condition="WEB_PORT &lt;&gt; &quot;&quot; AND ((OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST=&quot;F&quot;))" />
       <Publish Dialog="NetworkConfigDlg" Control="Cancel" Event="SpawnDialog" Value="CancelDlg" Condition="1" />
     </UI>
   </Fragment>

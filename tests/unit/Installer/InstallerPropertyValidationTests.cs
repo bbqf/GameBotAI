@@ -13,10 +13,10 @@ public class InstallerPropertyValidationTests {
     var content = File.ReadAllText(filePath);
 
     content.Should().Contain("Property Id=\"DATA_ROOT\"");
-    content.Should().Contain("Property Id=\"BACKEND_PORT\"");
     content.Should().Contain("Property Id=\"WEB_PORT\"");
     content.Should().Contain("Property Id=\"PERSISTED_WEB_PORT\"");
-    content.Should().Contain("Property Id=\"BIND_HOST\"");
+    content.Should().Contain("SetProperty Id=\"BACKEND_PORT\" Value=\"[WEB_PORT]\"");
+    content.Should().NotContain("Property Id=\"BIND_HOST\"");
     content.Should().Contain("Property Id=\"ALLOW_ONLINE_PREREQ_FALLBACK\"");
     content.Should().NotContain("Property Id=\"MODE\"");
     content.Should().NotContain("Property Id=\"SCOPE\"");

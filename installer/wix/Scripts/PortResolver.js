@@ -98,21 +98,18 @@ function resolvePort(requestedRaw, fallbackList) {
 }
 
 function DetectAvailablePorts() {
-  var requestedBackend = Session.Property("BACKEND_PORT");
-  var requestedWeb = Session.Property("WEB_PORT");
+  var requestedPort = Session.Property("WEB_PORT");
   var preferredWebOrder = Session.Property("PREFERRED_WEB_PORT_ORDER");
 
-  var backendFallback = [8080, 8088, 8888, 5000, 18080, 80];
-  var webFallback = parsePortList(preferredWebOrder);
-  if (webFallback.length === 0) {
-    webFallback = [8080, 8088, 8888, 80];
+  var portFallback = parsePortList(preferredWebOrder);
+  if (portFallback.length === 0) {
+    portFallback = [8080, 8088, 8888, 80];
   }
 
-  var resolvedBackend = resolvePort(requestedBackend, backendFallback);
-  var resolvedWeb = resolvePort(requestedWeb, webFallback);
+  var resolvedPort = resolvePort(requestedPort, portFallback);
 
-  Session.Property("BACKEND_PORT") = "" + resolvedBackend;
-  Session.Property("WEB_PORT") = "" + resolvedWeb;
+  Session.Property("BACKEND_PORT") = "" + resolvedPort;
+  Session.Property("WEB_PORT") = "" + resolvedPort;
 
   return 1;
 }
