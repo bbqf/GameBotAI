@@ -38,7 +38,7 @@
         Event="DoAction"
         Value="LaunchBackgroundApp"
         Order="1"
-        Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND REMOVE &lt;&gt; &quot;ALL&quot;" />
+        Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND ((NOT Installed) OR (REINSTALL AND NOT REMOVE~=&quot;ALL&quot;))" />
     </UI>
 
     <MajorUpgrade
