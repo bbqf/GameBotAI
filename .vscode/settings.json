@@ -57,6 +57,22 @@
         "/^Set-Location \"C:/src/GameBot/src/web-ui\"; npm test -- --runInBand$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^powershell -NoProfile -File \\.\\\\scripts\\\\build-installer\\.ps1 -Configuration Release$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^powershell -NoProfile -File \\.\\\\scripts\\\\installer\\\\scope-smoke\\.ps1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Set-Location \"c:/src/GameBot\"; powershell -NoProfile -File \\.\\\\scripts\\\\installer\\\\scope-smoke\\.ps1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Set-Location \"c:/src/GameBot\"; powershell -NoProfile -File \\.\\\\scripts\\\\build-installer\\.ps1 -Configuration Release$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     },
     "java.configuration.updateBuildConfiguration": "automatic"

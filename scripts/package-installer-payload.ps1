@@ -13,9 +13,13 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $payloadRoot = Join-Path $repoRoot "installer/wix/payload"
 $publishRoot = Join-Path $repoRoot "artifacts/installer-publish"
 $serviceDllPath = Join-Path $publishRoot "service/GameBot.Service.dll"
+$webUiRoot = Join-Path $repoRoot "src/web-ui"
 
 if (Test-Path $publishRoot) {
   Remove-Item -Path $publishRoot -Recurse -Force
+}
+if (Test-Path $payloadRoot) {
+  Remove-Item -Path $payloadRoot -Recurse -Force
 }
 New-Item -Path $publishRoot -ItemType Directory -Force | Out-Null
 New-Item -Path $payloadRoot -ItemType Directory -Force | Out-Null
@@ -23,6 +27,27 @@ New-Item -Path (Join-Path $payloadRoot "service") -ItemType Directory -Force | O
 New-Item -Path (Join-Path $payloadRoot "web-ui") -ItemType Directory -Force | Out-Null
 
 dotnet publish (Join-Path $repoRoot "src/GameBot.Service/GameBot.Service.csproj") -c $Configuration -r $Runtime --self-contained false -o (Join-Path $publishRoot "service")
+
+$npmCandidates = @(
+  (Join-Path ${env:ProgramFiles} "nodejs/npm.cmd"),
+  "npm.cmd"
+)
+
+$npmPath = $npmCandidates | Where-Object { $_ -and (Get-Command $_ -ErrorAction SilentlyContinue) } | Select-Object -First 1
+if (-not $npmPath) {
+  Write-Error "npm command not found. Install Node.js or ensure npm is on PATH before packaging installer payload."
+}
+
+Push-Location $webUiRoot
+try {
+  & $npmPath run build
+  if ($LASTEXITCODE -ne 0) {
+    throw "Web UI build failed with exit code $LASTEXITCODE"
+  }
+}
+finally {
+  Pop-Location
+}
 
 $webUiDist = Join-Path $repoRoot "src/web-ui/dist"
 if (-not (Test-Path $webUiDist)) {

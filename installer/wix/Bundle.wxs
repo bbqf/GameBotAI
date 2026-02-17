@@ -1,32 +1,36 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
   xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle
-    Name="GameBot Installer"
+    Name="GameBot"
     Version="1.0.0.0"
     Manufacturer="GameBot"
     UpgradeCode="A4A4E35D-3A8A-4DC0-BF53-C8E3C9A1A101">
 
-    <Variable Name="MODE" Type="string" Value="backgroundApp" />
-    <Variable Name="SCOPE" Type="string" Value="perUser" />
-    <Variable Name="DATA_ROOT" Type="string" Value="" Persisted="yes" />
-    <Variable Name="BACKEND_PORT" Type="string" Value="5000" />
-    <Variable Name="WEB_PORT" Type="string" Value="8080" />
-    <Variable Name="PROTOCOL" Type="string" Value="http" />
-    <Variable Name="ENABLE_HTTPS" Type="string" Value="0" />
-    <Variable Name="CERTIFICATE_REF" Type="string" Value="" />
-    <Variable Name="ALLOW_ONLINE_PREREQ_FALLBACK" Type="string" Value="1" />
+    <Variable Name="MODE" Type="string" Value="backgroundApp" bal:Overridable="yes" />
+    <Variable Name="SCOPE" Type="string" Value="perUser" bal:Overridable="yes" />
+    <Variable Name="InstallFolder" Type="formatted" Value="[LocalAppDataFolder]GameBot" bal:Overridable="yes" />
+    <Variable Name="DATA_ROOT" Type="string" Value="" Persisted="yes" bal:Overridable="yes" />
+    <Variable Name="BACKEND_PORT" Type="string" Value="8080" bal:Overridable="yes" />
+    <Variable Name="WEB_PORT" Type="string" Value="8080" bal:Overridable="yes" />
+    <Variable Name="BIND_HOST" Type="string" Value="127.0.0.1" bal:Overridable="yes" />
+    <Variable Name="PROTOCOL" Type="string" Value="http" bal:Overridable="yes" />
+    <Variable Name="ENABLE_HTTPS" Type="string" Value="0" bal:Overridable="yes" />
+    <Variable Name="CERTIFICATE_REF" Type="string" Value="" bal:Overridable="yes" />
+    <Variable Name="ALLOW_ONLINE_PREREQ_FALLBACK" Type="string" Value="1" bal:Overridable="yes" />
 
     <BootstrapperApplication>
-      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="https://example.com/license" />
+      <bal:WixInternalUIBootstrapperApplication />
     </BootstrapperApplication>
 
     <Chain>
-      <MsiPackage SourceFile="payload\GameBot.msi">
+      <MsiPackage Id="GameBotMsi" Name="GameBot.msi" CacheId="GameBotMsi" SourceFile="payload\GameBot.msi" bal:PrimaryPackageType="default">
         <MsiProperty Name="MODE" Value="[MODE]" />
         <MsiProperty Name="SCOPE" Value="[SCOPE]" />
         <MsiProperty Name="DATA_ROOT" Value="[DATA_ROOT]" />
+        <MsiProperty Name="APPLICATIONFOLDER" Value="[InstallFolder]" />
         <MsiProperty Name="BACKEND_PORT" Value="[BACKEND_PORT]" />
         <MsiProperty Name="WEB_PORT" Value="[WEB_PORT]" />
+        <MsiProperty Name="BIND_HOST" Value="[BIND_HOST]" />
         <MsiProperty Name="PROTOCOL" Value="[PROTOCOL]" />
         <MsiProperty Name="ENABLE_HTTPS" Value="[ENABLE_HTTPS]" />
         <MsiProperty Name="CERTIFICATE_REF" Value="[CERTIFICATE_REF]" />

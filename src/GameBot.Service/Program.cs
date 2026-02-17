@@ -24,6 +24,7 @@ using GameBot.Service.Swagger;
 using GameBot.Service;
 using GameBot.Domain.Images;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Win32;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -206,8 +207,29 @@ var authToken = builder.Configuration["Service:Auth:Token"]
 
 // In CI/tests (or when explicitly requested), avoid fixed ports to prevent socket bind conflicts
 var dynPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
+var explicitUrlsEnv = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+var hasUrlsArgument = Environment.GetCommandLineArgs().Any(arg =>
+  arg.Equals("--urls", StringComparison.OrdinalIgnoreCase) ||
+  arg.StartsWith("--urls=", StringComparison.OrdinalIgnoreCase));
+
 if (string.Equals(dynPort, "true", StringComparison.OrdinalIgnoreCase)) {
   builder.WebHost.UseUrls("http://127.0.0.1:0");
+}
+else if (string.IsNullOrWhiteSpace(explicitUrlsEnv) && !hasUrlsArgument) {
+  var bindHost = builder.Configuration["Service:Network:BindHost"]
+                 ?? Environment.GetEnvironmentVariable("GAMEBOT_BIND_HOST")
+                 ?? ReadInstallerNetworkValue("BindHost")
+                 ?? "127.0.0.1";
+
+  var backendPortRaw = builder.Configuration["Service:Network:BackendPort"]
+                       ?? Environment.GetEnvironmentVariable("GAMEBOT_BACKEND_PORT")
+                       ?? ReadInstallerNetworkValue("BackendPort")
+                       ?? "8080";
+  if (!int.TryParse(backendPortRaw, out var backendPort) || backendPort < 1 || backendPort > 65535) {
+    backendPort = 8080;
+  }
+
+  builder.WebHost.UseUrls($"http://{bindHost}:{backendPort}");
 }
 
 var app = builder.Build();
@@ -520,6 +542,25 @@ void MapLegacyGuard(string legacyRoot, string canonicalRoot)
       new { error = new { code = "legacy_route", message = "Use the canonical API base path.", hint = canonicalRoot } },
       statusCode: StatusCodes.Status410Gone))
     .ExcludeFromDescription();
+}
+
+static string? ReadInstallerNetworkValue(string name)
+{
+  if (!OperatingSystem.IsWindows())
+  {
+    return null;
+  }
+
+  const string subKey = @"Software\GameBot\Network";
+
+  var currentUser = Registry.GetValue($@"HKEY_CURRENT_USER\{subKey}", name, null)?.ToString();
+  if (!string.IsNullOrWhiteSpace(currentUser))
+  {
+    return currentUser;
+  }
+
+  var localMachine = Registry.GetValue($@"HKEY_LOCAL_MACHINE\{subKey}", name, null)?.ToString();
+  return string.IsNullOrWhiteSpace(localMachine) ? null : localMachine;
 }
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq)

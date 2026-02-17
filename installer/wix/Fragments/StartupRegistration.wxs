@@ -4,7 +4,7 @@
     <Property Id="BACKGROUND_STARTUP_ENABLED" Value="1" />
 
     <DirectoryRef Id="APPLICATIONFOLDER">
-      <Component Id="WindowsServiceRegistrationComponent" Guid="E7A513A8-40A8-4A3B-B23E-2E91DB8511A2" Condition="MODE = &quot;service&quot;">
+      <Component Id="WindowsServiceRegistrationComponent" Guid="E7A513A8-40A8-4A3B-B23E-2E91DB8511A2" Condition="MODE = &quot;service&quot; AND SCOPE = &quot;perMachine&quot;">
         <File Id="GameBotServiceExeForServiceMode" Source="payload\service\GameBot.Service.exe" ShortName="GBSVCSVC.EXE" KeyPath="yes" />
         <ServiceInstall
           Id="GameBotServiceInstall"
@@ -12,6 +12,7 @@
           DisplayName="GameBot Service"
           Description="GameBot backend service"
           Type="ownProcess"
+          Arguments="--urls [PROTOCOL]://[BIND_HOST]:[BACKEND_PORT]"
           Start="auto"
           ErrorControl="normal" />
         <ServiceControl
@@ -33,7 +34,7 @@
           Key="Software\Microsoft\Windows\CurrentVersion\Run"
           Name="GameBot"
           Type="string"
-          Value="[APPLICATIONFOLDER]GameBot.Service.exe"
+          Value="&quot;[APPLICATIONFOLDER]GameBot.Service.exe&quot; --urls [PROTOCOL]://[BIND_HOST]:[BACKEND_PORT]"
           KeyPath="yes" />
       </Component>
     </DirectoryRef>

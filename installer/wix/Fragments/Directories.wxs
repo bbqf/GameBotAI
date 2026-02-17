@@ -23,8 +23,9 @@
         <Shortcut
           Id="GameBotStartMenuShortcut"
           Name="GameBot"
-          Target="[System64Folder]cmd.exe"
-          Arguments="/c start &quot;&quot; &quot;[PROTOCOL]://127.0.0.1:[WEB_PORT]/&quot;"
+          Advertise="no"
+          Target="[SystemFolder]rundll32.exe"
+          Arguments="url.dll,FileProtocolHandler [PROTOCOL]://localhost:[WEB_PORT]/"
           WorkingDirectory="APPLICATIONFOLDER" />
         <RemoveFolder Id="RemoveGameBotProgramsFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\GameBot" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
@@ -35,7 +36,9 @@
           Id="GameBotBackgroundManualStartShortcut"
           Name="GameBot Background"
           Description="Start GameBot background application"
+          Advertise="no"
           Target="[APPLICATIONFOLDER]GameBot.Service.exe"
+          Arguments="--urls [PROTOCOL]://[BIND_HOST]:[BACKEND_PORT]"
           WorkingDirectory="APPLICATIONFOLDER" />
         <RegistryValue Root="HKCU" Key="Software\GameBot" Name="BackgroundManualStartShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>

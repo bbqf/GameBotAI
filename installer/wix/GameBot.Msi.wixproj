@@ -1,4 +1,4 @@
-<Project Sdk="WixToolset.Sdk/4.0.5">
+<Project Sdk="WixToolset.Sdk/6.0.2">
   <PropertyGroup>
     <OutputType>Package</OutputType>
     <TargetName>GameBot</TargetName>
@@ -18,6 +18,8 @@
     <Compile Include="Fragments\HttpsConfiguration.wxs" />
     <Compile Include="Fragments\InstallerProperties.wxs" />
     <Compile Include="Fragments\Logging.wxs" />
+    <Compile Include="Fragments\NetworkConfigUi.wxs" />
+    <Compile Include="Fragments\PortDetection.wxs" />
     <Compile Include="Fragments\PortValidation.wxs" />
     <Compile Include="Fragments\PrerequisitePolicy.wxs" />
     <Compile Include="Fragments\StartupRegistration.wxs" />
@@ -25,6 +27,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="WixToolset.UI.wixext" Version="4.0.5" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
   </ItemGroup>
 </Project>

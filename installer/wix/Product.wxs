@@ -9,11 +9,19 @@
     Language="1033"
     InstallerVersion="500">
 
-    <ui:WixUI Id="WixUI_Advanced" />
+    <ui:WixUI Id="WixUI_InstallDir" />
 
     <Property Id="WixUISupportPerUser" Value="1" />
     <Property Id="ApplicationFolderName" Value="GameBot" />
-    <Property Id="WixAppFolder" Value="WixPerMachineFolder" />
+    <Property Id="WixAppFolder" Value="WixPerUserFolder" />
+    <Property Id="WIXUI_INSTALLDIR" Value="APPLICATIONFOLDER" />
+    <Launch
+      Condition="NOT (MODE = &quot;service&quot; AND NOT SCOPE = &quot;perMachine&quot;)"
+      Message="Service mode requires per-machine scope. Set SCOPE=perMachine or use MODE=backgroundApp." />
+    <CustomActionRef Id="DetectAvailablePorts" />
+    <UI>
+      <DialogRef Id="NetworkConfigDlg" />
+    </UI>
 
     <MediaTemplate EmbedCab="yes" />
 
@@ -24,6 +32,7 @@
       <ComponentGroupRef Id="ShortcutComponents" />
       <ComponentGroupRef Id="DataDirectoryComponents" />
       <ComponentGroupRef Id="StartupRegistrationComponents" />
+      <ComponentGroupRef Id="PersistedConfigComponents" />
     </Feature>
   </Package>
 </Wix>

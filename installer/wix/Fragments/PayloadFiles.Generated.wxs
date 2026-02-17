@@ -96,11 +96,11 @@
         <File Source="payload\web-ui\index.html" KeyPath="yes" />
       </Component>
       <Directory Id="DIR_A82CB9ADA818BC7D3A2A6E0B346D605A" Name="assets">
-        <Component Id="CMP_9632CD1FFDF74AE334AD0E808016A5E8" Guid="*">
-          <File Source="payload\web-ui\assets\index-CeiXRHaa.css" KeyPath="yes" />
+        <Component Id="CMP_4B505E039D3C6EF3569B3570982D9B6C" Guid="*">
+          <File Source="payload\web-ui\assets\index-BS4BNAju.css" KeyPath="yes" />
         </Component>
-        <Component Id="CMP_5A1534CCF0C6BF33318AEE5114696EB4" Guid="*">
-          <File Source="payload\web-ui\assets\index-DYFboY-M.js" KeyPath="yes" />
+        <Component Id="CMP_2AED45A20E4BFF34882FB29B505C5AE4" Guid="*">
+          <File Source="payload\web-ui\assets\index-DAkxOFlN.js" KeyPath="yes" />
         </Component>
       </Directory>
     </DirectoryRef>
@@ -140,8 +140,8 @@
 
     <ComponentGroup Id="WebUiPayloadFiles">
       <ComponentRef Id="CMP_081615CC192EC9336E182339AF484F1F" />
-      <ComponentRef Id="CMP_9632CD1FFDF74AE334AD0E808016A5E8" />
-      <ComponentRef Id="CMP_5A1534CCF0C6BF33318AEE5114696EB4" />
+      <ComponentRef Id="CMP_4B505E039D3C6EF3569B3570982D9B6C" />
+      <ComponentRef Id="CMP_2AED45A20E4BFF34882FB29B505C5AE4" />
     </ComponentGroup>
   </Fragment>
 </Wix>

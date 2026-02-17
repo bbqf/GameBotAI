@@ -27,7 +27,7 @@ This document explains how to run the GameBot Windows installer and all currentl
 Use `/quiet` with installer variables:
 
 ```powershell
-.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=5000 WEB_PORT=8080 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=auto WEB_PORT=auto BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
 ```
 
 ---
@@ -41,8 +41,9 @@ These variables are supported by the bootstrapper and forwarded to MSI.
 | `MODE` | string | `backgroundApp` | `service`, `backgroundApp` | Yes | Runtime mode to configure. |
 | `SCOPE` | string | `perUser` | `perMachine`, `perUser` | Yes | Installation scope. |
 | `DATA_ROOT` | string (path) | empty (resolved by scope) | Writable path | No | Runtime data path override. |
-| `BACKEND_PORT` | integer | `5000` | `1..65535` | Yes | Backend API port. |
-| `WEB_PORT` | integer/string | `8080` | `1..65535` (and `auto` in contract-level schema) | Yes | Web UI port input. |
+| `BACKEND_PORT` | integer/string | `8080` | `1..65535`, `auto` | Yes | Backend API port input. `auto` resolves to first available at install time. |
+| `WEB_PORT` | integer/string | `8080` | `1..65535`, `auto` | Yes | Web UI port input. `auto` resolves to first available at install time. |
+| `BIND_HOST` | string | `127.0.0.1` | IPv4/hostname (for example `0.0.0.0`, `127.0.0.1`) | Yes | Backend bind interface/host. |
 | `PROTOCOL` | string | `http` | `http`, `https` | Yes | Endpoint protocol. |
 | `ENABLE_HTTPS` | boolean-ish string | `0` | `0`/`1` | No | Enable HTTPS validation path. |
 | `CERTIFICATE_REF` | string | empty | Certificate identifier | Conditionally | Required when `ENABLE_HTTPS=1`. |
@@ -98,7 +99,9 @@ Example:
 ## 5) Port behavior
 
 - Deterministic preference order: `8080 -> 8088 -> 8888 -> 80`
-- Port conflicts are expected to trigger validation/fallback behavior according to installer policy.
+- During installation, occupied ports are automatically detected and resolved to the next available preferred port.
+- In interactive mode, detected values are shown on the network settings dialog and can be edited before continuing.
+- In silent mode, CLI overrides are honored when available; if a requested port is occupied, installer resolves to an available port.
 
 ---
 
@@ -126,7 +129,7 @@ Example:
 ### Background app, per-user, HTTP
 
 ```powershell
-.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=5000 WEB_PORT=8080 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=auto WEB_PORT=auto BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
 ```
 
 ### Service mode, per-machine, HTTPS
