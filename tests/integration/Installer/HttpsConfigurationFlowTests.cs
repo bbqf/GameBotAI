@@ -5,16 +5,19 @@ namespace GameBot.IntegrationTests.Installer;
 
 public class HttpsConfigurationFlowTests {
   [Fact]
-  public void HttpsConfigurationFragmentContainsHttpsToggleAndCertificateValidation() {
+  public void FrontendShortcutUsesHttpOnlyWithDynamicWebPort() {
     var repoRoot = FindRepoRoot();
     var httpsPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "HttpsConfiguration.wxs");
+    var directoriesPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "Directories.wxs");
+    var bundlePath = Path.Combine(repoRoot, "installer", "wix", "Bundle.wxs");
 
-    File.Exists(httpsPath).Should().BeTrue();
-    var content = File.ReadAllText(httpsPath);
+    File.Exists(httpsPath).Should().BeFalse();
+    var directoriesContent = File.ReadAllText(directoriesPath);
+    var bundleContent = File.ReadAllText(bundlePath);
 
-    content.Should().Contain("ENABLE_HTTPS");
-    content.Should().Contain("CERTIFICATE_REF");
-    content.Should().Contain("HTTPS_REQUIRES_CERTIFICATE");
+    directoriesContent.Should().Contain("url.dll,FileProtocolHandler http://localhost:[WEB_PORT]/");
+    bundleContent.Should().NotContain("ENABLE_HTTPS");
+    bundleContent.Should().NotContain("CERTIFICATE_REF");
   }
 
   private static string FindRepoRoot() {

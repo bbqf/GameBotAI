@@ -5,15 +5,23 @@ namespace GameBot.UnitTests.Installer;
 
 public class PortSelectionRulesTests {
   [Fact]
-  public void PortValidationFragmentContainsDeterministicPortOrder() {
+  public void PortDetectionAndPropertiesContainDeterministicPortOrder() {
     var repoRoot = FindRepoRoot();
-    var filePath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "PortValidation.wxs");
+    var propertiesPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "InstallerProperties.wxs");
+    var detectionPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "PortDetection.wxs");
+    var resolverScriptPath = Path.Combine(repoRoot, "installer", "wix", "Scripts", "PortResolver.js");
 
-    File.Exists(filePath).Should().BeTrue();
-    var content = File.ReadAllText(filePath);
+    File.Exists(propertiesPath).Should().BeTrue();
+    File.Exists(detectionPath).Should().BeTrue();
+    File.Exists(resolverScriptPath).Should().BeTrue();
 
-    content.Should().Contain("8080,8088,8888,80");
-    content.Should().Contain("ValidatePortSelection");
+    var propertiesContent = File.ReadAllText(propertiesPath);
+    var detectionContent = File.ReadAllText(detectionPath);
+    var resolverScriptContent = File.ReadAllText(resolverScriptPath);
+
+    propertiesContent.Should().Contain("8080,8088,8888,80");
+    detectionContent.Should().Contain("DetectAvailablePorts");
+    resolverScriptContent.Should().Contain("PREFERRED_WEB_PORT_ORDER");
   }
 
   private static string FindRepoRoot() {

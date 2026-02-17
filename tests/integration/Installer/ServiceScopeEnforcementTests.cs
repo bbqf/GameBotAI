@@ -5,13 +5,14 @@ namespace GameBot.IntegrationTests.Installer;
 
 public class ServiceScopeEnforcementTests {
   [Fact]
-  public void ValidationFragmentContainsServiceScopeLaunchCondition() {
+  public void ProductIsPerUserOnlyWithoutServiceModeScopeRule() {
     var repoRoot = FindRepoRoot();
-    var validationPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "Validation.wxs");
+    var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
 
-    var content = File.ReadAllText(validationPath);
-    content.Should().Contain("SERVICE_MODE_REQUIRES_PER_MACHINE");
-    content.Should().Contain("Service mode requires per-machine scope");
+    var content = File.ReadAllText(productPath);
+    content.Should().Contain("Scope=\"perUser\"");
+    content.Should().NotContain("SERVICE_MODE_REQUIRES_PER_MACHINE");
+    content.Should().NotContain("Service mode requires per-machine scope");
   }
 
   private static string FindRepoRoot() {

@@ -5,16 +5,21 @@ namespace GameBot.UnitTests.Installer;
 
 public class ModeScopeRulesTests {
   [Fact]
-  public void ValidationFragmentContainsServicePerMachineRule() {
+  public void ProductAndPropertiesEnforcePerUserScopeWithoutServiceModeRules() {
     var repoRoot = FindRepoRoot();
-    var filePath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "Validation.wxs");
+    var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
+    var propsPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "InstallerProperties.wxs");
 
-    File.Exists(filePath).Should().BeTrue();
-    var content = File.ReadAllText(filePath);
+    File.Exists(productPath).Should().BeTrue();
+    File.Exists(propsPath).Should().BeTrue();
+    var productContent = File.ReadAllText(productPath);
+    var propsContent = File.ReadAllText(propsPath);
 
-    content.Should().Contain("SERVICE_MODE_REQUIRES_PER_MACHINE");
-    content.Should().Contain("MODE = \"service\"");
-    content.Should().Contain("SCOPE = \"perMachine\"");
+    productContent.Should().Contain("Scope=\"perUser\"");
+    propsContent.Should().Contain("SetProperty Id=\"WixAppFolder\" Value=\"WixPerUserFolder\"");
+    productContent.Should().NotContain("MODE");
+    productContent.Should().NotContain("SCOPE");
+    productContent.Should().NotContain("SERVICE_MODE_REQUIRES_PER_MACHINE");
   }
 
   private static string FindRepoRoot() {

@@ -8,10 +8,8 @@ public class PayloadValidationTests {
   public void PackagePayloadScriptCreatesServiceAndWebUiPayloadStructure() {
     var repoRoot = FindRepoRoot();
     var scriptPath = Path.Combine(repoRoot, "scripts", "package-installer-payload.ps1");
-    var payloadReadme = Path.Combine(repoRoot, "installer", "wix", "payload", "README.md");
 
     File.Exists(scriptPath).Should().BeTrue();
-    File.Exists(payloadReadme).Should().BeTrue();
 
     var script = File.ReadAllText(scriptPath);
     script.Should().Contain("installer/wix/payload");

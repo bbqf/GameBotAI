@@ -5,13 +5,13 @@ namespace GameBot.IntegrationTests.Installer;
 
 public class DataRootOverrideTests {
   [Fact]
-  public void BundleAndValidationFragmentsReferenceDataRootOverrideAndValidation() {
+  public void BundleReferencesDataRootAndLegacyValidationFragmentIsRemoved() {
     var repoRoot = FindRepoRoot();
     var bundlePath = Path.Combine(repoRoot, "installer", "wix", "Bundle.wxs");
     var validationPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "Validation.wxs");
 
     File.ReadAllText(bundlePath).Should().Contain("Variable Name=\"DATA_ROOT\"");
-    File.ReadAllText(validationPath).Should().Contain("DATA_ROOT_WRITEABLE");
+    File.Exists(validationPath).Should().BeFalse();
   }
 
   private static string FindRepoRoot() {

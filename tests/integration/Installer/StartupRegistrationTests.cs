@@ -5,7 +5,7 @@ namespace GameBot.IntegrationTests.Installer;
 
 public class StartupRegistrationTests {
   [Fact]
-  public void StartupRegistrationFragmentContainsServiceAndBackgroundEntries() {
+  public void StartupRegistrationFragmentContainsBackgroundRunEntry() {
     var repoRoot = FindRepoRoot();
     var startupPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "StartupRegistration.wxs");
 
@@ -13,8 +13,10 @@ public class StartupRegistrationTests {
     var content = File.ReadAllText(startupPath);
 
     content.Should().Contain("StartupRegistrationComponents");
-    content.Should().Contain("SERVICE_STARTUP_ENABLED");
-    content.Should().Contain("BACKGROUND_STARTUP_ENABLED");
+    content.Should().Contain("BackgroundStartupRegistryComponent");
+    content.Should().Contain("Name=\"GameBot\"");
+    content.Should().Contain("CurrentVersion\\Run");
+    content.Should().Contain("[APPLICATIONFOLDER]GameBot.Service.exe");
     content.Should().Contain("Run");
   }
 

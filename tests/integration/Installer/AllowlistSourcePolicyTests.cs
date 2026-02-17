@@ -5,13 +5,17 @@ namespace GameBot.IntegrationTests.Installer;
 
 public class AllowlistSourcePolicyTests {
   [Fact]
-  public void PrerequisitePolicyFragmentContainsAllowlistEnforcement() {
+  public void BundleAndInstallerPropertiesContainPrerequisiteFallbackControl() {
     var repoRoot = FindRepoRoot();
-    var policyPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "PrerequisitePolicy.wxs");
+    var bundlePath = Path.Combine(repoRoot, "installer", "wix", "Bundle.wxs");
+    var propsPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "InstallerProperties.wxs");
 
-    var content = File.ReadAllText(policyPath);
-    content.Should().Contain("ALLOWLISTED_PREREQ_SOURCES");
-    content.Should().Contain("NON_ALLOWLISTED_SOURCE_BLOCKED");
+    var bundleContent = File.ReadAllText(bundlePath);
+    var propsContent = File.ReadAllText(propsPath);
+
+    bundleContent.Should().Contain("Variable Name=\"ALLOW_ONLINE_PREREQ_FALLBACK\"");
+    bundleContent.Should().Contain("MsiProperty Name=\"ALLOW_ONLINE_PREREQ_FALLBACK\"");
+    propsContent.Should().Contain("Property Id=\"ALLOW_ONLINE_PREREQ_FALLBACK\"");
   }
 
   private static string FindRepoRoot() {

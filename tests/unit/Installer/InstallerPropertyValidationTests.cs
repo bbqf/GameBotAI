@@ -12,12 +12,15 @@ public class InstallerPropertyValidationTests {
     File.Exists(filePath).Should().BeTrue();
     var content = File.ReadAllText(filePath);
 
-    content.Should().Contain("Property Id=\"MODE\"");
-    content.Should().Contain("Property Id=\"SCOPE\"");
     content.Should().Contain("Property Id=\"DATA_ROOT\"");
     content.Should().Contain("Property Id=\"BACKEND_PORT\"");
     content.Should().Contain("Property Id=\"WEB_PORT\"");
-    content.Should().Contain("Property Id=\"PROTOCOL\"");
+    content.Should().Contain("Property Id=\"PERSISTED_WEB_PORT\"");
+    content.Should().Contain("Property Id=\"BIND_HOST\"");
+    content.Should().Contain("Property Id=\"ALLOW_ONLINE_PREREQ_FALLBACK\"");
+    content.Should().NotContain("Property Id=\"MODE\"");
+    content.Should().NotContain("Property Id=\"SCOPE\"");
+    content.Should().NotContain("Property Id=\"PROTOCOL\"");
   }
 
   [Fact]
@@ -29,8 +32,9 @@ public class InstallerPropertyValidationTests {
     var content = File.ReadAllText(filePath);
 
     content.Should().Contain("function Get-DefaultDataRoot");
-    content.Should().Contain("ValidateSet(\"perMachine\", \"perUser\")");
-    content.Should().Contain("ProgramData");
+    content.Should().Contain("ValidateSet(\"perUser\")");
+    content.Should().NotContain("perMachine");
+    content.Should().NotContain("ProgramData");
     content.Should().Contain("LocalAppData");
   }
 
