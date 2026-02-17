@@ -14,16 +14,10 @@
     <Compile Include="Fragments\ConfigTemplates.wxs" />
     <Compile Include="Fragments\DataDirectories.wxs" />
     <Compile Include="Fragments\Directories.wxs" />
-    <Compile Include="Fragments\ExitCodes.wxs" />
-    <Compile Include="Fragments\HttpsConfiguration.wxs" />
     <Compile Include="Fragments\InstallerProperties.wxs" />
-    <Compile Include="Fragments\Logging.wxs" />
     <Compile Include="Fragments\NetworkConfigUi.wxs" />
     <Compile Include="Fragments\PortDetection.wxs" />
-    <Compile Include="Fragments\PortValidation.wxs" />
-    <Compile Include="Fragments\PrerequisitePolicy.wxs" />
     <Compile Include="Fragments\StartupRegistration.wxs" />
-    <Compile Include="Fragments\Validation.wxs" />
   </ItemGroup>
 
   <ItemGroup>

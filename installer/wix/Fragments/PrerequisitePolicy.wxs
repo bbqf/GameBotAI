@@ -1,7 +1,0 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Fragment>
-    <Property Id="ALLOWLISTED_PREREQ_SOURCES" Value="https://aka.ms;https://download.visualstudio.microsoft.com" />
-    <Property Id="NON_ALLOWLISTED_SOURCE_BLOCKED" Value="1" />
-    <Property Id="ALLOW_ONLINE_PREREQ_FALLBACK" Value="1" />
-  </Fragment>
-</Wix>

@@ -1,9 +1,0 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Fragment>
-    <Property Id="EXIT_CODE_SUCCESS" Value="0" />
-    <Property Id="EXIT_CODE_VALIDATION" Value="2" />
-    <Property Id="EXIT_CODE_FATAL" Value="1603" />
-    <Property Id="EXIT_CODE_INSTALL_RUNNING" Value="1618" />
-    <Property Id="EXIT_CODE_REBOOT_REQUIRED" Value="3010" />
-  </Fragment>
-</Wix>

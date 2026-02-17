@@ -6,8 +6,6 @@
     Manufacturer="GameBot"
     UpgradeCode="A4A4E35D-3A8A-4DC0-BF53-C8E3C9A1A101">
 
-    <Variable Name="MODE" Type="string" Value="backgroundApp" />
-    <Variable Name="SCOPE" Type="string" Value="perUser" />
     <Variable Name="InstallFolder" Type="formatted" Value="[LocalAppDataFolder]GameBot" bal:Overridable="yes" />
     <Variable Name="DATA_ROOT" Type="string" Value="" Persisted="yes" bal:Overridable="yes" />
     <Variable Name="BACKEND_PORT" Type="string" Value="8080" bal:Overridable="yes" />
@@ -24,8 +22,6 @@
 
     <Chain>
       <MsiPackage Id="GameBotMsi" Name="GameBot.msi" CacheId="GameBotMsi" SourceFile="payload\GameBot.msi" bal:PrimaryPackageType="default">
-        <MsiProperty Name="MODE" Value="[MODE]" />
-        <MsiProperty Name="SCOPE" Value="[SCOPE]" />
         <MsiProperty Name="DATA_ROOT" Value="[DATA_ROOT]" />
         <MsiProperty Name="APPLICATIONFOLDER" Value="[InstallFolder]" />
         <MsiProperty Name="BACKEND_PORT" Value="[BACKEND_PORT]" />

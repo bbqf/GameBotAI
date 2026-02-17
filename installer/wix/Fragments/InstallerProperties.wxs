@@ -1,22 +1,18 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
-    <Property Id="MODE" Value="backgroundApp" />
-    <Property Id="SCOPE" Value="perUser" />
-    <Property Id="BACKGROUND_MODE_SUPPORTED_SCOPES" Value="perUser" />
     <Property Id="DATA_ROOT" Value="__UNSET__" />
     <Property Id="BACKEND_PORT" Value="8080" />
     <Property Id="WEB_PORT" Value="8080" />
+    <Property Id="PREFERRED_WEB_PORT_ORDER" Value="8080,8088,8888,80" />
     <Property Id="BIND_HOST" Value="127.0.0.1" />
     <Property Id="PROTOCOL" Value="http" />
     <Property Id="ENABLE_HTTPS" Value="0" />
     <Property Id="CERTIFICATE_REF" Value="__UNSET__" />
     <Property Id="ALLOW_ONLINE_PREREQ_FALLBACK" Value="1" />
 
-    <SetProperty Id="WixAppFolder" Value="WixPerUserFolder" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
-    <SetProperty Id="SCOPE" Value="perUser" Sequence="both" Before="CostFinalize" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
-
-    <SetProperty Id="ALLUSERS" Value="" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
-    <SetProperty Id="MSIINSTALLPERUSER" Value="1" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
+    <SetProperty Id="WixAppFolder" Value="WixPerUserFolder" Sequence="both" Before="CostFinalize" />
+    <SetProperty Id="ALLUSERS" Value="" Sequence="both" Before="CostFinalize" />
+    <SetProperty Id="MSIINSTALLPERUSER" Value="1" Sequence="both" Before="CostFinalize" />
 
     <CustomAction Id="SetApplicationFolderPerUser" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
 
@@ -25,11 +21,11 @@
     <SetProperty Id="BIND_HOST" Value="127.0.0.1" Before="CostFinalize" Condition="BIND_HOST = &quot;&quot;" />
 
     <InstallUISequence>
-      <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
+      <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" />
     </InstallUISequence>
 
     <InstallExecuteSequence>
-      <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
+      <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" />
     </InstallExecuteSequence>
   </Fragment>
 </Wix>

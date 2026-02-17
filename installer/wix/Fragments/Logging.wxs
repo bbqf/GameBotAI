@@ -1,9 +1,0 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Fragment>
-    <Property Id="INSTALLER_LOG_ROOT" Value="%ProgramData%\\GameBot\\Installer\\logs" />
-    <Property Id="INSTALLER_LOG_RETENTION_COUNT" Value="10" />
-
-    <!-- Scaffold only: retained for T044 implementation -->
-    <!-- Future work: add custom actions for log creation and retention pruning -->
-  </Fragment>
-</Wix>

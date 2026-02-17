@@ -1,13 +1,11 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
-    <Property Id="BACKGROUND_STARTUP_ENABLED" Value="1" />
-
     <DirectoryRef Id="APPLICATIONFOLDER">
       <Component Id="NonServiceExecutableComponent" Guid="955C6399-6835-4DF8-A6A8-AB8F9FCB4AEF">
         <File Id="GameBotServiceExeForNonServiceMode" Source="payload\service\GameBot.Service.exe" ShortName="GBSVCAPP.EXE" KeyPath="yes" />
       </Component>
 
-      <Component Id="BackgroundStartupRegistryComponent" Guid="A7D15335-1D5B-42C1-BF89-97D53D0E2D22" Condition="MODE = &quot;backgroundApp&quot; AND BACKGROUND_STARTUP_ENABLED = &quot;1&quot;">
+      <Component Id="BackgroundStartupRegistryComponent" Guid="A7D15335-1D5B-42C1-BF89-97D53D0E2D22">
         <RegistryValue
           Root="HKCU"
           Key="Software\Microsoft\Windows\CurrentVersion\Run"
