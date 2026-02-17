@@ -21,8 +21,8 @@
 
     <CustomAction
       Id="LaunchBackgroundApp"
-      FileRef="GameBotServiceExeForNonServiceMode"
-      ExeCommand=""
+      Directory="SystemFolder"
+      ExeCommand="cmd.exe /c start &quot;&quot; /min &quot;[APPLICATIONFOLDER]GameBot.Service.exe&quot;"
       Execute="immediate"
       Return="asyncNoWait"
       Impersonate="yes" />
