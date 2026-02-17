@@ -12,16 +12,16 @@
     <SetProperty Id="ALLUSERS" Value="" Sequence="both" Before="CostFinalize" />
     <SetProperty Id="MSIINSTALLPERUSER" Value="1" Sequence="both" Before="CostFinalize" />
 
-    <CustomAction Id="SetApplicationFolderPerUser" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
+    <CustomAction Id="SetApplicationFolder" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
 
     <SetProperty Id="PORT" Value="[PERSISTED_PORT]" Before="CostFinalize" Condition="PERSISTED_PORT &lt;&gt; &quot;&quot;" />
 
     <InstallUISequence>
-      <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" />
+      <Custom Action="SetApplicationFolder" Before="CostFinalize" />
     </InstallUISequence>
 
     <InstallExecuteSequence>
-      <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" />
+      <Custom Action="SetApplicationFolder" Before="CostFinalize" />
     </InstallExecuteSequence>
   </Fragment>
 </Wix>

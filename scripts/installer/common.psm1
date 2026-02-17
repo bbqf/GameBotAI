@@ -6,12 +6,6 @@ function Get-InstallerRepoRoot {
 }
 
 function Get-DefaultDataRoot {
-  param(
-    [Parameter(Mandatory = $true)]
-    [ValidateSet("perUser")]
-    [string]$InstallScope
-  )
-
   return Join-Path $env:LocalAppData "GameBot/data"
 }
 

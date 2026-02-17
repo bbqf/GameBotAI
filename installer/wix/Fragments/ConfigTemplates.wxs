@@ -1,14 +1,14 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
     <DirectoryRef Id="APPLICATIONFOLDER">
-      <Component Id="PersistNetworkConfigPerUserComponent" Guid="B94FFB3A-9AE8-40EA-B9CD-88C2E1E6B8AF">
+      <Component Id="PersistNetworkConfigComponent" Guid="B94FFB3A-9AE8-40EA-B9CD-88C2E1E6B8AF">
         <RegistryValue Root="HKCU" Key="Software\GameBot\Network" Name="Protocol" Type="string" Value="http" KeyPath="yes" />
         <RegistryValue Root="HKCU" Key="Software\GameBot\Network" Name="Port" Type="string" Value="[PORT]" />
       </Component>
     </DirectoryRef>
 
     <ComponentGroup Id="PersistedConfigComponents">
-      <ComponentRef Id="PersistNetworkConfigPerUserComponent" />
+      <ComponentRef Id="PersistNetworkConfigComponent" />
     </ComponentGroup>
   </Fragment>
 </Wix>

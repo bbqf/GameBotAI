@@ -34,8 +34,7 @@ public class InstallerPropertyValidationTests {
     var content = File.ReadAllText(filePath);
 
     content.Should().Contain("function Get-DefaultDataRoot");
-    content.Should().Contain("ValidateSet(\"perUser\")");
-    content.Should().NotContain("perMachine");
+    content.Should().NotContain("[string]$InstallScope");
     content.Should().NotContain("ProgramData");
     content.Should().Contain("LocalAppData");
   }
