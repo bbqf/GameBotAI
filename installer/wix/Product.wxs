@@ -10,6 +10,7 @@
     InstallerVersion="500">
 
     <ui:WixUI Id="WixUI_InstallDir" />
+    <WixVariable Id="WixUILicenseRtf" Value="Assets\License.rtf" />
 
     <Property Id="WixUISupportPerUser" Value="1" />
     <Property Id="ApplicationFolderName" Value="GameBot" />
