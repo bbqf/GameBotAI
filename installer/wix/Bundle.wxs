@@ -11,9 +11,6 @@
     <Variable Name="BACKEND_PORT" Type="string" Value="8080" bal:Overridable="yes" />
     <Variable Name="WEB_PORT" Type="string" Value="8080" bal:Overridable="yes" />
     <Variable Name="BIND_HOST" Type="string" Value="127.0.0.1" bal:Overridable="yes" />
-    <Variable Name="PROTOCOL" Type="string" Value="http" bal:Overridable="yes" />
-    <Variable Name="ENABLE_HTTPS" Type="string" Value="0" bal:Overridable="yes" />
-    <Variable Name="CERTIFICATE_REF" Type="string" Value="" bal:Overridable="yes" />
     <Variable Name="ALLOW_ONLINE_PREREQ_FALLBACK" Type="string" Value="1" bal:Overridable="yes" />
 
     <BootstrapperApplication>
@@ -27,9 +24,6 @@
         <MsiProperty Name="BACKEND_PORT" Value="[BACKEND_PORT]" />
         <MsiProperty Name="WEB_PORT" Value="[WEB_PORT]" />
         <MsiProperty Name="BIND_HOST" Value="[BIND_HOST]" />
-        <MsiProperty Name="PROTOCOL" Value="[PROTOCOL]" />
-        <MsiProperty Name="ENABLE_HTTPS" Value="[ENABLE_HTTPS]" />
-        <MsiProperty Name="CERTIFICATE_REF" Value="[CERTIFICATE_REF]" />
         <MsiProperty Name="ALLOW_ONLINE_PREREQ_FALLBACK" Value="[ALLOW_ONLINE_PREREQ_FALLBACK]" />
       </MsiPackage>
     </Chain>

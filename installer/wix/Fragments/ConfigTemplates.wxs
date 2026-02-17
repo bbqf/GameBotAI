@@ -2,7 +2,7 @@
   <Fragment>
     <DirectoryRef Id="APPLICATIONFOLDER">
       <Component Id="PersistNetworkConfigPerUserComponent" Guid="B94FFB3A-9AE8-40EA-B9CD-88C2E1E6B8AF">
-        <RegistryValue Root="HKCU" Key="Software\GameBot\Network" Name="Protocol" Type="string" Value="[PROTOCOL]" KeyPath="yes" />
+        <RegistryValue Root="HKCU" Key="Software\GameBot\Network" Name="Protocol" Type="string" Value="http" KeyPath="yes" />
         <RegistryValue Root="HKCU" Key="Software\GameBot\Network" Name="BindHost" Type="string" Value="[BIND_HOST]" />
         <RegistryValue Root="HKCU" Key="Software\GameBot\Network" Name="BackendPort" Type="string" Value="[BACKEND_PORT]" />
         <RegistryValue Root="HKCU" Key="Software\GameBot\Network" Name="WebPort" Type="string" Value="[WEB_PORT]" />

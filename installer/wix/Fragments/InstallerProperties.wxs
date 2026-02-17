@@ -3,11 +3,11 @@
     <Property Id="DATA_ROOT" Value="__UNSET__" />
     <Property Id="BACKEND_PORT" Value="8080" />
     <Property Id="WEB_PORT" Value="8080" />
+    <Property Id="PERSISTED_WEB_PORT">
+      <RegistrySearch Id="PersistedWebPort" Root="HKCU" Key="Software\GameBot\Network" Name="WebPort" Type="raw" />
+    </Property>
     <Property Id="PREFERRED_WEB_PORT_ORDER" Value="8080,8088,8888,80" />
     <Property Id="BIND_HOST" Value="127.0.0.1" />
-    <Property Id="PROTOCOL" Value="http" />
-    <Property Id="ENABLE_HTTPS" Value="0" />
-    <Property Id="CERTIFICATE_REF" Value="__UNSET__" />
     <Property Id="ALLOW_ONLINE_PREREQ_FALLBACK" Value="1" />
 
     <SetProperty Id="WixAppFolder" Value="WixPerUserFolder" Sequence="both" Before="CostFinalize" />
@@ -16,9 +16,8 @@
 
     <CustomAction Id="SetApplicationFolderPerUser" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
 
-    <SetProperty Id="PROTOCOL" Value="http" Before="CostFinalize" Condition="PROTOCOL = &quot;&quot;" />
     <SetProperty Id="BACKEND_PORT" Value="8080" Before="CostFinalize" Condition="BACKEND_PORT = &quot;&quot;" />
-    <SetProperty Id="WEB_PORT" Value="8080" Before="CostFinalize" Condition="WEB_PORT = &quot;&quot;" />
+    <SetProperty Id="WEB_PORT" Value="[PERSISTED_WEB_PORT]" Before="CostFinalize" Condition="Installed AND PERSISTED_WEB_PORT &lt;&gt; &quot;&quot;" />
     <SetProperty Id="BIND_HOST" Value="127.0.0.1" Before="CostFinalize" Condition="BIND_HOST = &quot;&quot;" />
 
     <InstallUISequence>

@@ -15,10 +15,28 @@
     <Property Id="ApplicationFolderName" Value="GameBot" />
     <Property Id="WixAppFolder" Value="WixPerUserFolder" />
     <Property Id="WIXUI_INSTALLDIR" Value="APPLICATIONFOLDER" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Run GameBot background app now" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
+
+    <CustomAction
+      Id="LaunchBackgroundApp"
+      FileRef="GameBotServiceExeForNonServiceMode"
+      ExeCommand=""
+      Execute="immediate"
+      Return="asyncNoWait"
+      Impersonate="yes" />
+
     <CustomActionRef Id="DetectAvailablePorts" />
     <UI>
       <DialogRef Id="NetworkConfigDlg" />
+      <Publish
+        Dialog="ExitDialog"
+        Control="Finish"
+        Event="DoAction"
+        Value="LaunchBackgroundApp"
+        Order="1"
+        Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND REMOVE &lt;&gt; &quot;ALL&quot;" />
     </UI>
 
     <MajorUpgrade
