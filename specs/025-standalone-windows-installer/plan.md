@@ -5,18 +5,18 @@
 
 ## Summary
 
-Deliver a standalone Windows installer distribution (bootstrapper EXE + MSI) that installs GameBot backend and web UI with dual scope support (per-machine/per-user), deterministic network/port policy, scoped prerequisite acquisition (bundled + allowlisted fallback), standardized silent install contract, local automation APIs for validation/execution tooling, and repeatable packaging outputs for CI.
+Deliver a standalone Windows installer distribution (bootstrapper EXE + MSI) that installs GameBot backend and web UI in per-user scope only, with deterministic network/port policy, scoped prerequisite acquisition (bundled + allowlisted fallback), standardized silent install contract, local automation APIs for validation/execution tooling, and repeatable packaging outputs for CI.
 
 ## Technical Context
 
 **Language/Version**: C# 13 / .NET 9, PowerShell 5.1+, WiX authoring (XML)  
 **Primary Dependencies**: `WixToolset.Sdk` (v4), existing `GameBot.Service` publish output, existing web UI build output  
-**Storage**: Installer runtime logs under `%ProgramData%\GameBot\Installer\logs`; installed app files in `%ProgramFiles%\GameBot` (per-machine) or `%LocalAppData%\GameBot` (per-user); runtime app data in `%ProgramData%\GameBot\data` (per-machine) or `%LocalAppData%\GameBot\data` (per-user)  
+**Storage**: Installer runtime logs under `%LocalAppData%\GameBot\Installer\logs`; installed app files in `%LocalAppData%\GameBot`; runtime app data in `%LocalAppData%\GameBot\data`  
 **Testing**: `dotnet test -c Debug` (unit/integration/contract), installer smoke scripts (interactive + silent), packaging verification checks, startup-registration checks, HTTPS-path checks, and install-duration SLO timing validation  
 **Target Platform**: Windows x64  
 **Project Type**: Desktop installer packaging for existing backend + web UI system  
 **Performance Goals**: Interactive install <=10 minutes; silent install <=8 minutes on clean machine (excluding reboot)  
-**Constraints**: Service mode must be per-machine and elevated; prerequisite online fallback restricted to allowlisted vendor URLs; release artifacts must be code-signed; silent exit code contract fixed to `0/3010/1603/1618/2`; runtime data must not be stored under `%ProgramFiles%`; EXE/MSI remains the primary end-user entrypoint  
+**Constraints**: Installer is per-user only; prerequisite online fallback restricted to allowlisted vendor URLs; release artifacts must be code-signed; silent exit code contract fixed to `0/3010/1603/1618/2`; EXE/MSI remains the primary end-user entrypoint  
 **Scale/Scope**: Single-node installer deployment for first-time setup; enterprise automation capable through unattended property schema
 
 ## Constitution Check

@@ -6,8 +6,8 @@
     Manufacturer="GameBot"
     UpgradeCode="A4A4E35D-3A8A-4DC0-BF53-C8E3C9A1A101">
 
-    <Variable Name="MODE" Type="string" Value="backgroundApp" bal:Overridable="yes" />
-    <Variable Name="SCOPE" Type="string" Value="perUser" bal:Overridable="yes" />
+    <Variable Name="MODE" Type="string" Value="backgroundApp" />
+    <Variable Name="SCOPE" Type="string" Value="perUser" />
     <Variable Name="InstallFolder" Type="formatted" Value="[LocalAppDataFolder]GameBot" bal:Overridable="yes" />
     <Variable Name="DATA_ROOT" Type="string" Value="" Persisted="yes" bal:Overridable="yes" />
     <Variable Name="BACKEND_PORT" Type="string" Value="8080" bal:Overridable="yes" />

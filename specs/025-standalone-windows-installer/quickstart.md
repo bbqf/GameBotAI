@@ -19,7 +19,7 @@
 3. Verify:
    - App files installed under expected root
    - Backend and web UI endpoints reachable
-   - Log file created under `%ProgramData%\GameBot\Installer\logs`
+   - Log file created under `%LocalAppData%\GameBot\Installer\logs`
 
 ## 4. Silent install smoke check
 
@@ -30,16 +30,14 @@
 
 Expected:
 - Exit code in standardized set: `0`, `3010`, `1603`, `1618`, `2`
-- Deterministic logs in `%ProgramData%\GameBot\Installer\logs`
+- Deterministic logs in `%LocalAppData%\GameBot\Installer\logs`
 
 ## 5. Validation checklist
 
-- Service mode enforces per-machine scope
-- Background mode works in per-user and per-machine scope
+- Installer runs in per-user scope only
+- Background mode works in per-user scope
 - Interactive installer UI allows changing the data directory and validates writeability before continuing
-- Runtime data root is scope-correct and writable:
-   - Per-machine: `%ProgramData%\\GameBot\\data`
-   - Per-user: `%LocalAppData%\\GameBot\\data`
+- Runtime data root is writable at `%LocalAppData%\\GameBot\\data`
 - Non-allowlisted prerequisite source is rejected
 - Install duration SLOs met in clean-machine tests (excluding reboot)
 
@@ -57,7 +55,7 @@ Remediation:
 
 - `ci-installer-fast.yml` and `ci-installer-logic.yml` run on GitHub-hosted Windows runners for build/test/static/security checks.
 - Release signing verification in `release-installer.yml` is a policy marker and requires organization-managed signing credentials in the release environment.
-- For local validation, run scripts from elevated PowerShell where installer actions require machine scope.
+- For local validation, standard user PowerShell is sufficient for installer actions.
 
 ## 8. SLO evidence checklist
 

@@ -13,11 +13,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if (-not $InstallRoot) {
-  $InstallRoot = Join-Path $env:ProgramFiles "GameBot"
+  $InstallRoot = Join-Path $env:LocalAppData "GameBot"
 }
 
 if (-not $DataRoot) {
-  $DataRoot = Join-Path $env:ProgramData "GameBot/data"
+  $DataRoot = Join-Path $env:LocalAppData "GameBot/data"
 }
 
 Write-Host "Running installer smoke checks"
@@ -44,7 +44,7 @@ if (-not (Test-Path $webUiIndex)) {
 
 Write-Host "Installer smoke checks completed."
 
-$logRoot = Join-Path $env:ProgramData "GameBot/Installer/logs"
+$logRoot = Join-Path $env:LocalAppData "GameBot/Installer/logs"
 if (Test-Path $logRoot) {
   $logFiles = Get-ChildItem -Path $logRoot -File | Sort-Object LastWriteTime -Descending
   if ($logFiles.Count -gt $MaxInstallerLogs) {

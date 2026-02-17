@@ -1,6 +1,6 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
-    <StandardDirectory Id="ProgramFiles64Folder">
+    <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="APPLICATIONFOLDER" Name="GameBot">
         <Directory Id="WEBUIFOLDER" Name="web-ui" />
       </Directory>
@@ -10,7 +10,7 @@
       <Directory Id="ApplicationProgramsFolder" Name="GameBot" />
     </StandardDirectory>
 
-    <StandardDirectory Id="CommonAppDataFolder">
+    <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="DATABASEFOLDER" Name="GameBot">
         <Directory Id="DATAROOTFOLDER" Name="data" />
       </Directory>

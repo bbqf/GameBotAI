@@ -559,8 +559,7 @@ static string? ReadInstallerNetworkValue(string name)
     return currentUser;
   }
 
-  var localMachine = Registry.GetValue($@"HKEY_LOCAL_MACHINE\{subKey}", name, null)?.ToString();
-  return string.IsNullOrWhiteSpace(localMachine) ? null : localMachine;
+  return null;
 }
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq)

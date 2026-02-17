@@ -64,15 +64,15 @@ components:
       properties:
         installMode:
           type: string
-          enum: [service, backgroundApp]
+          enum: [backgroundApp]
         installScope:
           type: string
-          enum: [perMachine, perUser]
+          enum: [perUser]
         installRoot:
           type: string
         dataRoot:
           type: string
-          description: Canonical silent property `DATA_ROOT`; defaults by selected scope and may be overridden by operator.
+          description: Canonical silent property `DATA_ROOT`; defaults to `%LocalAppData%/GameBot/data` and may be overridden by operator.
         backendPort:
           type: integer
           minimum: 1

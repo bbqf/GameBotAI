@@ -8,17 +8,17 @@
   - In-app API installer flow: not a standalone installer artifact and does not satisfy EXE/MSI deployment expectations.
 
 ## Decision 2: Installation scope model
-- Decision: Support both per-machine and per-user scope in v1.
-- Rationale: Matches clarified product requirement and enables service mode (per-machine) plus background mode deployment flexibility.
+- Decision: Support per-user scope only in v1.
+- Rationale: Avoids elevation-dependent machine installation behavior and keeps install/runtime ownership aligned to the current user.
 - Alternatives considered:
   - Per-machine only: too restrictive for non-admin environments.
-  - Per-user only: incompatible with service-mode requirement.
+  - Mixed per-machine/per-user: adds scope branching and increases install-path regression risk.
 
 ## Decision 3: Mode/scope constraints
-- Decision: Enforce `service` mode as per-machine only; allow `backgroundApp` in per-machine or per-user.
-- Rationale: Service registration requires elevated machine-level install; background process can be user-scoped.
+- Decision: Support `backgroundApp` mode in `perUser` scope only.
+- Rationale: Removes machine-level service requirements and ensures deterministic non-elevated installation behavior.
 - Alternatives considered:
-  - Allow service in per-user: invalid Windows service semantics.
+  - Keep service mode in installer: rejected because it introduces elevated system-level installation behavior.
 
 ## Decision 4: Prerequisite distribution policy
 - Decision: Hybrid strategy: bundle critical prerequisites, optional online fallback from allowlisted vendor URLs only.
@@ -41,18 +41,16 @@
   - Generic non-zero failures only: poor diagnosability.
 
 ## Decision 7: Logging policy
-- Decision: Installer logs written to `%ProgramData%\GameBot\Installer\logs` with rolling retention of last 10 files.
-- Rationale: Deterministic support location and bounded storage growth.
+- Decision: Installer logs written to `%LocalAppData%\GameBot\Installer\logs` with rolling retention of last 10 files.
+- Rationale: Keeps installer artifacts in the current-user scope and avoids machine-level directory dependencies.
 - Alternatives considered:
   - `%TEMP%` only: poor persistence and supportability.
 
 ## Decision 8: Install roots
-- Decision: Default roots by scope:
-  - Per-machine: `%ProgramFiles%\GameBot`
-  - Per-user: `%LocalAppData%\GameBot`
-- Rationale: Aligns with Windows conventions and security boundaries.
+- Decision: Default install root `%LocalAppData%\GameBot`.
+- Rationale: Aligns with per-user-only installation and avoids elevation/UAC behaviors.
 - Alternatives considered:
-  - Unified `%ProgramData%` root for all scopes: blurs ownership/security semantics.
+  - System-level install root: rejected because it requires elevated installation semantics.
 
 ## Decision 9: Signing policy
 - Decision: Release artifacts must be signed; development artifacts may be unsigned/test-signed.
@@ -69,11 +67,9 @@
   - No numeric target: ambiguous acceptance and higher rework risk.
 
 ## Decision 11: Runtime data directory placement
-- Decision: Keep runtime data outside install binaries; defaults by scope are:
-  - Per-machine: `%ProgramData%\GameBot\data`
-  - Per-user: `%LocalAppData%\GameBot\data`
+- Decision: Keep runtime data outside install binaries at `%LocalAppData%\GameBot\data`.
 - Decision addendum: Expose runtime data path as canonical silent property `DATA_ROOT` and allow interactive UI override with writeability validation.
-- Rationale: `%ProgramFiles%` is not an appropriate writable runtime data location; scope-aligned data roots preserve Windows security conventions and avoid permission failures.
+- Rationale: System install directories are not appropriate writable runtime data locations; per-user data root avoids permission failures and cross-user coupling.
 - Alternatives considered:
-  - Store runtime data under `%ProgramFiles%`: rejected due to write restrictions and UAC implications.
-  - Single shared `%ProgramData%` root for per-user installs: rejected due to unnecessary cross-user coupling.
+  - Store runtime data under system install directories: rejected due to write restrictions and UAC implications.
+  - `%ProgramData%` root for per-user installs: rejected due to unnecessary cross-user coupling.

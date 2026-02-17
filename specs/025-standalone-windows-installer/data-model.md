@@ -16,10 +16,10 @@
 ## Entity: InstallRequest
 - Description: Canonical install property set used by interactive defaults and silent mode.
 - Fields:
-  - `installMode` (enum: `service`, `backgroundApp`, required)
-  - `installScope` (enum: `perMachine`, `perUser`, required)
-  - `installRoot` (string, required, default by scope)
-  - `dataRoot` (string, required, default by scope; canonical silent property `DATA_ROOT`; user-editable in interactive UI)
+  - `installMode` (enum: `backgroundApp`, required)
+  - `installScope` (enum: `perUser`, required)
+  - `installRoot` (string, required, default `%LocalAppData%\GameBot`)
+  - `dataRoot` (string, required, default `%LocalAppData%\GameBot\data`; canonical silent property `DATA_ROOT`; user-editable in interactive UI)
   - `backendPort` (int 1..65535, required)
   - `webUiPort` (int 1..65535 or `auto`, required)
   - `protocol` (enum: `http`, `https`, required)
@@ -29,10 +29,9 @@
   - `allowOnlinePrereqFallback` (bool, required)
   - `unattended` (bool, required)
 - Validation:
-  - `service` mode requires `perMachine` scope.
-  - `backgroundApp` mode supports `perMachine` and `perUser`.
-  - `dataRoot` must be scope-aligned and outside `%ProgramFiles%`.
-  - `DATA_ROOT` override must resolve to writable path for selected execution context.
+  - `installMode` must be `backgroundApp`.
+  - `installScope` must be `perUser`.
+  - `DATA_ROOT` override must resolve to writable path for current user context.
   - `backendPort != webUiPort` when `webUiPort` resolved concrete value.
   - `enableHttps=true` requires `certificateRef`.
 
@@ -78,7 +77,7 @@
 - Fields:
   - `profileId` (string, required, unique)
   - `installMode` (enum, required)
-  - `installScope` (enum, required)
+  - `installScope` (enum: `perUser`, required)
   - `installRoot` (string, required)
   - `dataRoot` (string, required)
   - `startupPolicy` (enum: `bootAutoStart`, `loginStartWhenEnabled`, `manual`, required)

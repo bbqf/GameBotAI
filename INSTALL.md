@@ -7,6 +7,7 @@ This document explains how to run the GameBot Windows installer and all currentl
 - Platform: Windows x64
 - Installer type: Bootstrapper EXE that installs MSI payload(s)
 - Modes: interactive wizard and silent/unattended install
+- Installation scope: per-user only
 
 ---
 
@@ -15,12 +16,12 @@ This document explains how to run the GameBot Windows installer and all currentl
 ### Interactive install
 
 1. Locate the installer executable (for example, `GameBotInstaller.exe`).
-2. Right-click and **Run as administrator** if using machine scope or service mode.
+2. Run the installer as the current user.
 3. Complete the wizard prompts.
 4. Verify installation:
    - App files are installed
    - Data directory exists and is writable
-   - Installer log exists under `%ProgramData%\GameBot\Installer\logs`
+  - Installer log exists under `%LocalAppData%\GameBot\Installer\logs`
 
 ### Silent install
 
@@ -38,9 +39,9 @@ These variables are supported by the bootstrapper and forwarded to MSI.
 
 | Variable | Type | Default | Allowed values | Required | Description |
 |---|---|---:|---|---|---|
-| `MODE` | string | `backgroundApp` | `service`, `backgroundApp` | Yes | Runtime mode to configure. |
-| `SCOPE` | string | `perUser` | `perMachine`, `perUser` | Yes | Installation scope. |
-| `DATA_ROOT` | string (path) | empty (resolved by scope) | Writable path | No | Runtime data path override. |
+| `MODE` | string | `backgroundApp` | `backgroundApp` | Yes | Runtime mode to configure. |
+| `SCOPE` | string | `perUser` | `perUser` | Yes | Installation scope. |
+| `DATA_ROOT` | string (path) | empty (resolved to per-user path) | Writable path | No | Runtime data path override. |
 | `BACKEND_PORT` | integer/string | `8080` | `1..65535`, `auto` | Yes | Backend API port input. `auto` resolves to first available at install time. |
 | `WEB_PORT` | integer/string | `8080` | `1..65535`, `auto` | Yes | Web UI port input. `auto` resolves to first available at install time. |
 | `BIND_HOST` | string | `127.0.0.1` | IPv4/hostname (for example `0.0.0.0`, `127.0.0.1`) | Yes | Backend bind interface/host. |
@@ -50,30 +51,16 @@ These variables are supported by the bootstrapper and forwarded to MSI.
 | `ALLOW_ONLINE_PREREQ_FALLBACK` | boolean-ish string | `1` | `0`/`1` | No | Allow online prerequisite fallback from allowlisted sources. |
 
 Notes:
-- `DATA_ROOT` defaults by scope when omitted:
-  - `perMachine` => `%ProgramData%\GameBot\data`
-  - `perUser` => `%LocalAppData%\GameBot\data`
-- Install roots by scope:
-  - `perMachine` => `%ProgramFiles%\GameBot`
-  - `perUser` => `%LocalAppData%\GameBot`
+- `DATA_ROOT` defaults to `%LocalAppData%\GameBot\data` when omitted.
+- Install root defaults to `%LocalAppData%\GameBot`.
 
 ---
 
 ## 3) Mode/scope constraints
 
-| `MODE` | `SCOPE` | Valid | Notes |
-|---|---|---|---|
-| `service` | `perMachine` | Yes | Requires elevation/admin install context. |
-| `service` | `perUser` | No | Blocked by validation policy. |
-| `backgroundApp` | `perMachine` | Yes | Elevation required at install time. |
-| `backgroundApp` | `perUser` | Yes | Non-admin runtime flow. |
-
-Startup behavior by mode:
-- `service` mode:
-  - Installs `GameBotService` as a Windows Service
-  - Service start type is automatic
-  - Installer starts the service during install
-- `backgroundApp` mode:
+- Supported mode: `backgroundApp`
+- Supported scope: `perUser`
+- Startup behavior:
   - Registers autostart in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   - Adds a Start Menu shortcut `GameBot Background` for manual start
 - Start Menu shortcut `GameBot` only opens the web UI URL and does not start backend processes.
@@ -91,7 +78,7 @@ Startup behavior by mode:
 Example:
 
 ```powershell
-.\GameBotInstaller.exe /quiet MODE=service SCOPE=perMachine PROTOCOL=https ENABLE_HTTPS=1 CERTIFICATE_REF="thumbprint:ABCDEF123456" DATA_ROOT="%ProgramData%\GameBot\data"
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser PROTOCOL=https ENABLE_HTTPS=1 CERTIFICATE_REF="thumbprint:ABCDEF123456" DATA_ROOT="%LocalAppData%\GameBot\data"
 ```
 
 ---
@@ -107,7 +94,7 @@ Example:
 
 ## 6) Logging and retention
 
-- Log root: `%ProgramData%\GameBot\Installer\logs`
+- Log root: `%LocalAppData%\GameBot\Installer\logs`
 - Retention target: last 10 log files
 
 ---
@@ -132,10 +119,10 @@ Example:
 .\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=auto WEB_PORT=auto BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
 ```
 
-### Service mode, per-machine, HTTPS
+### Background app, per-user, HTTPS
 
 ```powershell
-.\GameBotInstaller.exe /quiet MODE=service SCOPE=perMachine DATA_ROOT="%ProgramData%\GameBot\data" BACKEND_PORT=5000 WEB_PORT=8088 PROTOCOL=https ENABLE_HTTPS=1 CERTIFICATE_REF="thumbprint:ABCDEF123456" ALLOW_ONLINE_PREREQ_FALLBACK=0
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=5000 WEB_PORT=8088 PROTOCOL=https ENABLE_HTTPS=1 CERTIFICATE_REF="thumbprint:ABCDEF123456" ALLOW_ONLINE_PREREQ_FALLBACK=0
 ```
 
 ---
@@ -144,8 +131,7 @@ Example:
 
 - `1618`: close/wait for other installer sessions and retry.
 - `2`: review parameter combination (`MODE`/`SCOPE`, HTTPS certificate, writable `DATA_ROOT`).
-- `1603`: inspect latest log in `%ProgramData%\GameBot\Installer\logs`.
-- If service mode fails, rerun elevated and confirm machine scope (`SCOPE=perMachine`).
+- `1603`: inspect latest log in `%LocalAppData%\GameBot\Installer\logs`.
 
 ---
 

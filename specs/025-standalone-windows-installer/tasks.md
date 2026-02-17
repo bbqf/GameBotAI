@@ -35,7 +35,7 @@
 **⚠️ CRITICAL**: User story work begins only after this phase is complete.
 
 - [X] T007 Implement payload manifest generator with version metadata in `scripts/package-installer-payload.ps1`
-- [X] T008 Implement runtime data root default resolver (`perMachine`/`perUser`) in `scripts/installer/common.psm1`
+- [X] T008 Implement runtime data root default resolver (`perUser`) in `scripts/installer/common.psm1`
 - [X] T009 [P] Implement canonical installer property map constants in `installer/wix/Fragments/InstallerProperties.wxs`
 - [X] T010 [P] Implement WiX include for shared constants and exit code definitions in `installer/wix/Fragments/Constants.wxi`
 - [X] T011 Implement bootstrapper-to-MSI property forwarding baseline in `installer/wix/Bundle.wxs`
@@ -87,7 +87,7 @@
 - [X] T025 [P] [US2] Add unit tests for mode-scope rule matrix in `tests/unit/Installer/ModeScopeRulesTests.cs`
 - [X] T026 [P] [US2] Add unit tests for deterministic web port selection order in `tests/unit/Installer/PortSelectionRulesTests.cs`
 - [X] T027 [P] [US2] Add integration test for interactive data root override validation in `tests/integration/Installer/DataRootOverrideTests.cs`
-- [X] T028 [P] [US2] Add integration test for service mode requiring per-machine scope in `tests/integration/Installer/ServiceScopeEnforcementTests.cs`
+- [X] T028 [P] [US2] Add integration test for per-user-only installer mode/scope enforcement in `tests/integration/Installer/ServiceScopeEnforcementTests.cs`
 - [X] T055 [P] [US2] Add integration test for optional HTTPS configuration path in `tests/integration/Installer/HttpsConfigurationFlowTests.cs`
 
 ### Implementation for User Story 2

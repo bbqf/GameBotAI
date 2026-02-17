@@ -8,19 +8,15 @@ function Get-InstallerRepoRoot {
 function Get-DefaultDataRoot {
   param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("perMachine", "perUser")]
+    [ValidateSet("perUser")]
     [string]$InstallScope
   )
-
-  if ($InstallScope -eq "perMachine") {
-    return Join-Path $env:ProgramData "GameBot/data"
-  }
 
   return Join-Path $env:LocalAppData "GameBot/data"
 }
 
 function New-InstallerLogDirectory {
-  $logRoot = Join-Path $env:ProgramData "GameBot/Installer/logs"
+  $logRoot = Join-Path $env:LocalAppData "GameBot/Installer/logs"
   New-Item -Path $logRoot -ItemType Directory -Force | Out-Null
   return $logRoot
 }

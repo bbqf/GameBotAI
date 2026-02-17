@@ -202,8 +202,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       return currentUser;
     }
 
-    var localMachine = Registry.GetValue($@"HKEY_LOCAL_MACHINE\{subKey}", name, null)?.ToString();
-    return string.IsNullOrWhiteSpace(localMachine) ? null : localMachine;
+    return null;
   }
 
   private static Dictionary<string, object?> MergeWithPrecedence(

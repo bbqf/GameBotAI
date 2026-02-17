@@ -2,7 +2,7 @@
   <Fragment>
     <Property Id="MODE" Value="backgroundApp" />
     <Property Id="SCOPE" Value="perUser" />
-    <Property Id="BACKGROUND_MODE_SUPPORTED_SCOPES" Value="perUser,perMachine" />
+    <Property Id="BACKGROUND_MODE_SUPPORTED_SCOPES" Value="perUser" />
     <Property Id="DATA_ROOT" Value="__UNSET__" />
     <Property Id="BACKEND_PORT" Value="8080" />
     <Property Id="WEB_PORT" Value="8080" />
@@ -13,17 +13,12 @@
     <Property Id="ALLOW_ONLINE_PREREQ_FALLBACK" Value="1" />
 
     <SetProperty Id="WixAppFolder" Value="WixPerUserFolder" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
-    <SetProperty Id="WixAppFolder" Value="WixPerMachineFolder" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perMachine&quot;" />
     <SetProperty Id="SCOPE" Value="perUser" Sequence="both" Before="CostFinalize" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
-    <SetProperty Id="SCOPE" Value="perMachine" Sequence="both" Before="CostFinalize" Condition="WixAppFolder = &quot;WixPerMachineFolder&quot;" />
 
     <SetProperty Id="ALLUSERS" Value="" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
     <SetProperty Id="MSIINSTALLPERUSER" Value="1" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
-    <SetProperty Id="ALLUSERS" Value="1" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perMachine&quot;" />
-    <SetProperty Id="MSIINSTALLPERUSER" Value="" Sequence="both" Before="CostFinalize" Condition="SCOPE = &quot;perMachine&quot;" />
 
     <CustomAction Id="SetApplicationFolderPerUser" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
-    <CustomAction Id="SetApplicationFolderPerMachine" Property="APPLICATIONFOLDER" Value="[ProgramFiles64Folder]GameBot" />
 
     <SetProperty Id="PROTOCOL" Value="http" Before="CostFinalize" Condition="PROTOCOL = &quot;&quot;" />
     <SetProperty Id="WEB_PORT" Value="8080" Before="CostFinalize" Condition="WEB_PORT = &quot;&quot;" />
@@ -31,12 +26,10 @@
 
     <InstallUISequence>
       <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
-      <Custom Action="SetApplicationFolderPerMachine" Before="CostFinalize" Condition="SCOPE = &quot;perMachine&quot;" />
     </InstallUISequence>
 
     <InstallExecuteSequence>
       <Custom Action="SetApplicationFolderPerUser" Before="CostFinalize" Condition="SCOPE = &quot;perUser&quot;" />
-      <Custom Action="SetApplicationFolderPerMachine" Before="CostFinalize" Condition="SCOPE = &quot;perMachine&quot;" />
     </InstallExecuteSequence>
   </Fragment>
 </Wix>
