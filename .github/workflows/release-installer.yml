@@ -21,3 +21,11 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Release signing verification must run in release pipeline with org certificates."
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gamebot-installer-win-x64
+          if-no-files-found: error
+          path: |
+            installer/wix/bin/x64/Release/GameBotInstaller.exe
+            installer/wix/bin/x64/Release/GameBot.msi
