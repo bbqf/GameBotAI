@@ -12,23 +12,37 @@ internal sealed class CorrelationIdMiddleware : IMiddleware {
     _logger = logger;
   }
 
+  private static string? SanitizeForLogging(string? value) {
+    if (value is null) {
+      return null;
+    }
+
+    // Remove newline characters to prevent log forging / line injection
+    var sanitized = value.Replace("\r", string.Empty, StringComparison.Ordinal)
+                         .Replace("\n", string.Empty, StringComparison.Ordinal);
+
+    return sanitized;
+  }
+
   public async Task InvokeAsync(HttpContext context, RequestDelegate next) {
     ArgumentNullException.ThrowIfNull(context);
     ArgumentNullException.ThrowIfNull(next);
 
-    var correlationId = context.Request.Headers.TryGetValue(HeaderName, out var values) && values.Count > 0
+    var rawCorrelationId = context.Request.Headers.TryGetValue(HeaderName, out var values) && values.Count > 0
         ? values[0]!.ToString()!
         : Guid.NewGuid().ToString("N");
+
+    var correlationId = SanitizeForLogging(rawCorrelationId) ?? string.Empty;
 
     context.Response.Headers[HeaderName] = correlationId;
 
     var activity = Activity.Current;
     var scopeState = new Dictionary<string, object?> {
       ["CorrelationId"] = correlationId,
-      ["TraceId"] = activity?.TraceId.ToString(),
-      ["SpanId"] = activity?.SpanId.ToString(),
-      ["RequestPath"] = context.Request.Path.Value,
-      ["Method"] = context.Request.Method
+      ["TraceId"] = SanitizeForLogging(activity?.TraceId.ToString()),
+      ["SpanId"] = SanitizeForLogging(activity?.SpanId.ToString()),
+      ["RequestPath"] = SanitizeForLogging(context.Request.Path.Value),
+      ["Method"] = SanitizeForLogging(context.Request.Method)
     };
 
     using (_logger.BeginScope(scopeState)) {

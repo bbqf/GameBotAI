@@ -1,0 +1,100 @@
+# Data Model: Standalone Windows Installer
+
+## Entity: InstallerPackage
+- Description: Build-time artifact metadata for bootstrapper and MSI outputs.
+- Fields:
+  - `packageId` (string, required, unique)
+  - `version` (string, required, SemVer/build version)
+  - `bundlePath` (string, required)
+  - `msiPath` (string, required)
+  - `isReleaseSigned` (bool, required)
+  - `createdAtUtc` (datetime, required)
+- Validation:
+  - `bundlePath` and `msiPath` must exist at packaging completion.
+  - `isReleaseSigned=true` required for release pipeline.
+
+## Entity: InstallRequest
+- Description: Canonical install property set used by interactive defaults and silent mode.
+- Fields:
+  - `installMode` (enum: `backgroundApp`, required)
+  - `installScope` (enum: `perUser`, required)
+  - `installRoot` (string, required, default `%LocalAppData%\GameBot`)
+  - `dataRoot` (string, required, default `%LocalAppData%\GameBot\data`; canonical silent property `DATA_ROOT`; user-editable in interactive UI)
+  - `bindHost` (string IPv4, required; default `127.0.0.1`; supports `0.0.0.0` for all interfaces)
+  - `port` (int 1..65535, required)
+  - `startOnLogin` (bool, optional; background mode only)
+  - `allowOnlinePrereqFallback` (bool, required)
+  - `unattended` (bool, required)
+- Validation:
+  - `installMode` must be `backgroundApp`.
+  - `installScope` must be `perUser`.
+  - `DATA_ROOT` override must resolve to writable path for current user context.
+  - `bindHost` must be a valid IPv4 address.
+  - `port` must be available at validation time.
+
+## Entity: PortResolution
+- Description: Deterministic service/UI shared port selection outcome.
+- Fields:
+  - `requestedPort` (int or null)
+  - `selectedPort` (int, required)
+  - `preferenceOrder` (int[], required: `[8080, 8088, 8888, 80]`)
+  - `wasFallbackApplied` (bool, required)
+  - `alternatives` (int[], required)
+- Validation:
+  - `selectedPort` must be available at validation time.
+  - `alternatives` must not include selected/occupied ports.
+
+## Entity: PrerequisitePolicy
+- Description: Source policy and allowlist controls for prerequisite acquisition.
+- Fields:
+  - `criticalBundled` (string[], required)
+  - `allowOnlineFallback` (bool, required)
+  - `allowlistedSources` (string[], required when `allowOnlineFallback=true`)
+  - `blockedSourceAttempts` (int, optional)
+- Validation:
+  - Every online URL must match allowlist host/path rules.
+
+## Entity: InstallExecution
+- Description: Runtime installation execution record.
+- Fields:
+  - `runId` (string, required, unique)
+  - `status` (enum: `success`, `failed`, `aborted`, required)
+  - `exitCode` (int, required: one of `0`, `3010`, `1603`, `1618`, `2`)
+  - `warnings` (string[], required)
+  - `errors` (string[], required)
+  - `startedAtUtc` (datetime, required)
+  - `completedAtUtc` (datetime, required)
+  - `durationSeconds` (int, required)
+  - `logFilePath` (string, required)
+- Validation:
+  - `durationSeconds` must satisfy SLO checks for scenario type during acceptance validation.
+
+## Entity: InstalledRuntimeProfile
+- Description: Persisted installed configuration for post-install startup/operation.
+- Fields:
+  - `profileId` (string, required, unique)
+  - `installMode` (enum, required)
+  - `installScope` (enum: `perUser`, required)
+  - `installRoot` (string, required)
+  - `dataRoot` (string, required)
+  - `startupPolicy` (enum: `bootAutoStart`, `loginStartWhenEnabled`, `manual`, required)
+  - `backendEndpoint` (string, required)
+  - `webUiEndpoint` (string, required)
+  - `createdAtUtc` (datetime, required)
+  - `updatedAtUtc` (datetime, required)
+- Validation:
+  - Startup policy must match mode defaults unless explicitly overridden.
+
+## Relationships
+- `InstallRequest` -> produces one `PortResolution` and one `InstallExecution`.
+- `InstallExecution` -> persists one `InstalledRuntimeProfile` on success.
+- `PrerequisitePolicy` -> constrains prerequisite retrieval during `InstallExecution`.
+
+## State Transitions
+- InstallExecution lifecycle:
+  - `started` -> `success`
+  - `started` -> `failed`
+  - `started` -> `aborted`
+
+- InstalledRuntimeProfile lifecycle:
+  - `created` -> `updated` -> `removed` (on uninstall)

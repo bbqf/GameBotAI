@@ -1,0 +1,26 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <TargetName>GameBot</TargetName>
+    <Platform>x64</Platform>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <SuppressIces>ICE30;ICE38;ICE61;ICE64;ICE91</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Product.wxs" />
+    <Compile Include="Fragments\Components.wxs" />
+    <Compile Include="Fragments\PayloadFiles.Generated.wxs" />
+    <Compile Include="Fragments\ConfigTemplates.wxs" />
+    <Compile Include="Fragments\DataDirectories.wxs" />
+    <Compile Include="Fragments\Directories.wxs" />
+    <Compile Include="Fragments\InstallerProperties.wxs" />
+    <Compile Include="Fragments\NetworkConfigUi.wxs" />
+    <Compile Include="Fragments\PortDetection.wxs" />
+    <Compile Include="Fragments\StartupRegistration.wxs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+  </ItemGroup>
+</Project>

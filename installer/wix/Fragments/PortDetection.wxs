@@ -1,0 +1,27 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <Binary Id="PortResolverScript" SourceFile="Scripts\PortResolver.js" />
+
+    <CustomAction
+      Id="DetectAvailablePorts"
+      BinaryRef="PortResolverScript"
+      JScriptCall="DetectAvailablePorts"
+      Execute="immediate"
+      Return="check" />
+
+    <CustomAction
+      Id="DiscoverBindInterfaces"
+      BinaryRef="PortResolverScript"
+      JScriptCall="DiscoverBindInterfaces"
+      Execute="immediate"
+      Return="ignore" />
+
+    <InstallUISequence>
+      <Custom Action="DiscoverBindInterfaces" Before="DetectAvailablePorts" Condition="NOT Installed AND UILevel &gt;= 5" />
+      <Custom Action="DetectAvailablePorts" Before="CostFinalize" Condition="NOT Installed AND UILevel &gt;= 5" />
+    </InstallUISequence>
+    <InstallExecuteSequence>
+      <Custom Action="DetectAvailablePorts" Before="CostFinalize" Condition="NOT Installed AND UILevel &lt; 5" />
+    </InstallExecuteSequence>
+  </Fragment>
+</Wix>

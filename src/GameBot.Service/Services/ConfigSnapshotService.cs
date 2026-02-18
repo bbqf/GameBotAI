@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GameBot.Service.Models;
+using Microsoft.Win32;
 
 namespace GameBot.Service.Services;
 
@@ -145,6 +146,9 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
   }
 
   private Dictionary<string, object?> BuildDefaultRelevantKeys() {
+    var installerBindHost = ReadInstallerNetworkValue("BindHost") ?? "127.0.0.1";
+    var installerPort = ReadInstallerNetworkValue("Port") ?? "8080";
+
     // Always include known GameBot-relevant env vars, even if not set
     var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
       // GAMEBOT_* keys and their effective defaults
@@ -165,6 +169,8 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["GAMEBOT_ADB_RETRIES"] = 2,
       ["GAMEBOT_ADB_RETRY_DELAY_MS"] = 100,
       ["GAMEBOT_HTTP_LOG_LEVEL_MINIMUM"] = "Warning",
+      ["GAMEBOT_BIND_HOST"] = installerBindHost,
+      ["GAMEBOT_PORT"] = installerPort,
 
       // ASP.NET Core configuration env keys and their documented defaults/effective values
       ["Service__Storage__Root"] = _storageRoot,
@@ -175,9 +181,25 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["Service__Triggers__Worker__GameFilter"] = null,
       ["Service__Triggers__Worker__SkipWhenNoSessions"] = "true",
       ["Service__Triggers__Worker__IdleBackoffSeconds"] = 5,
+      ["Service__Network__BindHost"] = installerBindHost,
+      ["Service__Network__Port"] = installerPort,
       ["Logging__LogLevel__Default"] = null,
     };
     return dict;
+  }
+
+  private static string? ReadInstallerNetworkValue(string name) {
+    if (!OperatingSystem.IsWindows()) {
+      return null;
+    }
+
+    const string subKey = @"Software\GameBot\Network";
+    var currentUser = Registry.GetValue($@"HKEY_CURRENT_USER\{subKey}", name, null)?.ToString();
+    if (!string.IsNullOrWhiteSpace(currentUser)) {
+      return currentUser;
+    }
+
+    return null;
   }
 
   private static Dictionary<string, object?> MergeWithPrecedence(

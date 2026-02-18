@@ -1,0 +1,24 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <DirectoryRef Id="APPLICATIONFOLDER">
+      <Component Id="NonServiceExecutableComponent" Guid="955C6399-6835-4DF8-A6A8-AB8F9FCB4AEF">
+        <File Id="GameBotServiceExeForNonServiceMode" Source="payload\service\GameBot.Service.exe" ShortName="GBSVCAPP.EXE" KeyPath="yes" />
+      </Component>
+
+      <Component Id="BackgroundStartupRegistryComponent" Guid="A7D15335-1D5B-42C1-BF89-97D53D0E2D22">
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Microsoft\Windows\CurrentVersion\Run"
+          Name="GameBot"
+          Type="string"
+          Value="&quot;[APPLICATIONFOLDER]GameBot.Service.exe&quot;"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <ComponentGroup Id="StartupRegistrationComponents">
+      <ComponentRef Id="NonServiceExecutableComponent" />
+      <ComponentRef Id="BackgroundStartupRegistryComponent" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>

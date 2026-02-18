@@ -1,0 +1,16 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+        <!-- DATA_ROOT defaulting scaffold:
+          [LocalAppDataFolder]GameBot\data -->
+
+    <DirectoryRef Id="DATAROOTFOLDER">
+      <Component Id="DataRootDirectoryComponent" Guid="7FC0F8BA-8EF2-4F9D-B676-F754B19C8F01">
+        <CreateFolder />
+      </Component>
+    </DirectoryRef>
+
+    <ComponentGroup Id="DataDirectoryComponents">
+      <ComponentRef Id="DataRootDirectoryComponent" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>

@@ -1,0 +1,36 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <Property Id="DATA_ROOT" Value="__UNSET__" />
+    <Property Id="BIND_HOST" Value="127.0.0.1" />
+    <Property Id="SHORTCUT_HOST" Value="localhost" />
+    <Property Id="PERSISTED_BIND_HOST">
+      <RegistrySearch Id="PersistedBindHost" Root="HKCU" Key="Software\GameBot\Network" Name="BindHost" Type="raw" />
+    </Property>
+    <Property Id="PORT" Value="8080" />
+    <Property Id="PERSISTED_PORT">
+      <RegistrySearch Id="PersistedPort" Root="HKCU" Key="Software\GameBot\Network" Name="Port" Type="raw" />
+    </Property>
+    <Property Id="PREFERRED_PORT_ORDER" Value="8080,8088,8888,80" />
+    <Property Id="ALLOW_ONLINE_PREREQ_FALLBACK" Value="1" />
+
+    <SetProperty Id="WixAppFolder" Value="WixPerUserFolder" Sequence="both" Before="CostFinalize" />
+    <SetProperty Id="ALLUSERS" Value="" Sequence="both" Before="CostFinalize" />
+    <SetProperty Id="MSIINSTALLPERUSER" Value="1" Sequence="both" Before="CostFinalize" />
+
+    <CustomAction Id="SetApplicationFolder" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
+
+    <SetProperty Id="BIND_HOST" Value="[PERSISTED_BIND_HOST]" Before="CostFinalize" Condition="PERSISTED_BIND_HOST &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="BIND_HOST" Value="127.0.0.1" Before="CostFinalize" Condition="BIND_HOST = &quot;&quot;" />
+    <SetProperty Id="PORT" Value="[PERSISTED_PORT]" Before="CostFinalize" Condition="PERSISTED_PORT &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_HOST" Value="localhost" Before="CostFinalize" Condition="BIND_HOST = &quot;127.0.0.1&quot;" />
+    <SetProperty Id="SHORTCUT_HOST" Value="[ComputerName]" Before="CostFinalize" Condition="BIND_HOST &lt;&gt; &quot;127.0.0.1&quot;" />
+
+    <InstallUISequence>
+      <Custom Action="SetApplicationFolder" Before="CostFinalize" />
+    </InstallUISequence>
+
+    <InstallExecuteSequence>
+      <Custom Action="SetApplicationFolder" Before="CostFinalize" />
+    </InstallExecuteSequence>
+  </Fragment>
+</Wix>

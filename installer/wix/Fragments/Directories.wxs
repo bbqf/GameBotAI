@@ -1,0 +1,48 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="APPLICATIONFOLDER" Name="GameBot">
+        <Directory Id="WEBUIFOLDER" Name="web-ui" />
+      </Directory>
+      <Directory Id="DATABASEFOLDER" Name="GameBot">
+        <Directory Id="DATAROOTFOLDER" Name="data" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="GameBot" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="StartMenuShortcutComponent" Guid="1912F702-B4C7-413C-9E13-4777B84D8A8F">
+        <Shortcut
+          Id="GameBotStartMenuShortcut"
+          Name="GameBot"
+          Advertise="no"
+          Target="[SystemFolder]rundll32.exe"
+          Arguments="url.dll,FileProtocolHandler http://[SHORTCUT_HOST]:[PORT]/"
+          WorkingDirectory="APPLICATIONFOLDER" />
+        <RemoveFolder Id="RemoveGameBotProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\GameBot" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="BackgroundManualStartShortcutComponent" Guid="A2E38A81-B95B-4D1F-9E7A-C4E6A0C6A4D4">
+        <Shortcut
+          Id="GameBotBackgroundManualStartShortcut"
+          Name="GameBot Background"
+          Description="Start GameBot background application"
+          Advertise="no"
+          Target="[APPLICATIONFOLDER]GameBot.Service.exe"
+          WorkingDirectory="APPLICATIONFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\GameBot" Name="BackgroundManualStartShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <ComponentGroup Id="ShortcutComponents">
+      <ComponentRef Id="StartMenuShortcutComponent" />
+      <ComponentRef Id="BackgroundManualStartShortcutComponent" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>

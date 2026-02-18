@@ -1,0 +1,23 @@
+name: release-installer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-release-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+      - name: Build installer payload
+        shell: pwsh
+        run: ./scripts/package-installer-payload.ps1 -Configuration Release -Runtime win-x64
+      - name: Build installer
+        shell: pwsh
+        run: ./scripts/build-installer.ps1 -Configuration Release
+      - name: Verify signature policy marker
+        shell: pwsh
+        run: |
+          Write-Host "Release signing verification must run in release pipeline with org certificates."

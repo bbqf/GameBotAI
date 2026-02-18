@@ -1,0 +1,23 @@
+name: ci-installer-fast
+
+on:
+  pull_request:
+    paths:
+      - "installer/**"
+      - "scripts/installer/**"
+      - "specs/025-standalone-windows-installer/**"
+  workflow_dispatch:
+
+jobs:
+  installer-fast:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+      - name: Build
+        run: dotnet build -c Debug
+      - name: Security and secret scans
+        shell: pwsh
+        run: ./scripts/installer/run-security-scans.ps1

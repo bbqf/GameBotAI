@@ -149,6 +149,8 @@ export const ExecutionPage: React.FC = () => {
     return runningSessions.find((s) => s.gameId === commandCacheMeta.gameId && s.emulatorId === commandCacheMeta.adbSerial);
   }, [commandCacheMeta, runningSessions]);
 
+  const cachedSession = commandRunningSession ?? selectedRunningSession ?? runningSessions[0];
+
   const primaryRunDetails = commandRunningSession ?? selectedRunningSession ?? runningSessions[0];
 
   const handleRun = async () => {
@@ -252,12 +254,12 @@ export const ExecutionPage: React.FC = () => {
       {commandError && <div className="form-error" role="alert">{commandError}</div>}
       {commandMessage && <div className="form-hint" role="status">{commandMessage}</div>}
 
-      {selectedRunningSession && (
+      {cachedSession && (
         <div className="session-banner" role="status">
-          <div>Cached session: {selectedRunningSession.sessionId}</div>
-          <div>Game: {gameLookup.get(selectedRunningSession.gameId) ?? selectedRunningSession.gameId}</div>
-          <div>Emulator: {selectedRunningSession.emulatorId || '—'}</div>
-          <button type="button" onClick={() => handleStopSession(selectedRunningSession.sessionId)} disabled={running || executing}>
+          <div>Cached session: {cachedSession.sessionId}</div>
+          <div>Game: {gameLookup.get(cachedSession.gameId) ?? cachedSession.gameId}</div>
+          <div>Emulator: {cachedSession.emulatorId || '—'}</div>
+          <button type="button" onClick={() => handleStopSession(cachedSession.sessionId)} disabled={running || executing}>
             Stop session
           </button>
         </div>

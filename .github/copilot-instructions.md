@@ -38,6 +38,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - File-backed images under `data/images` with metadata persisted alongside existing JSON repos if needed. (022-emulator-image-crop)
 - Backend C# 13 / .NET 9; Frontend TypeScript (ES2020) / React 18 (Vite 5) + ASP.NET Core Minimal API, existing GameBot.Domain repos, SharpAdbClient/ADB + System.Drawing/OpenCvSharp (already present), file-based JSON stores under data/, React Testing Library + Playwright for web UI tests; no new external packages. (023-authoring-execution-ui)
 - File-based JSON repos under data/ (commands, triggers, config); running session cache kept in service memory; no new persistence. (023-authoring-execution-ui)
+- C# 13 / .NET 9, PowerShell 5.1+, WiX authoring (XML) + `WixToolset.Sdk` (v6), existing `GameBot.Service` publish output, existing web UI build output (025-standalone-windows-installer)
+- Installer runtime logs under `%LocalAppData%\GameBot\Installer\logs`; installed app files in `%LocalAppData%\GameBot` (per-user only) (025-standalone-windows-installer)
 
 - .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -65,9 +67,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 025-standalone-windows-installer: Added C# 13 / .NET 9, PowerShell 5.1+, WiX authoring (XML) + `WixToolset.Sdk` (v4), existing `GameBot.Service` publish output, existing web UI build output
 - 023-authoring-execution-ui: Added Backend C# 13 / .NET 9; Frontend TypeScript (ES2020) / React 18 (Vite 5) + ASP.NET Core Minimal API, existing GameBot.Domain repos, SharpAdbClient/ADB + System.Drawing/OpenCvSharp (already present), file-based JSON stores under data/, React Testing Library + Playwright for web UI tests; no new external packages.
 - 022-emulator-image-crop: Added C# / .NET 9 (frontend: React 18/Vite) + Existing GameBot emulator session & ADB capture, System.Drawing/OpenCvSharp already in repo; no new packages.
-- 021-images-authoring-ui: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing file-backed image store under `data/images`, React 18 + Vite toolchain
 
 
 <!-- MANUAL ADDITIONS START -->

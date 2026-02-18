@@ -17,6 +17,7 @@ x86/
 # IDEs
 .idea/
 .vscode/
+.vscode/settings.json
 
 # Test results & coverage
 TestResults/
@@ -43,6 +44,12 @@ logs/
 node_modules/
 dist/
 build/
+
+# Installer generated artifacts
+artifacts/
+installer/wix/payload/**
+!installer/wix/payload/
+!installer/wix/payload/README.md
 
 # OS junk
 Thumbs.db

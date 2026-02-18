@@ -1,0 +1,159 @@
+openapi: 3.0.3
+info:
+  title: GameBot Installer Property and Execution Contract
+  version: 0.1.0
+  description: Contract describing canonical installer properties, validation results, and execution outcomes for EXE/MSI flows.
+paths:
+  /installer/validate:
+    post:
+      summary: Validate canonical installer request properties before execution
+      operationId: validateInstallerRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+      responses:
+        '200':
+          description: Validation outcome
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+        '400':
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /installer/execute:
+    post:
+      summary: Execute installer workflow from canonical property set
+      operationId: executeInstaller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+      responses:
+        '200':
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallExecutionResult'
+        '409':
+          description: Install cannot proceed (conflict/running install)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    InstallRequest:
+      type: object
+      required:
+        - installMode
+        - installScope
+        - bindHost
+        - port
+        - unattended
+      properties:
+        installMode:
+          type: string
+          enum: [backgroundApp]
+        installScope:
+          type: string
+          enum: [perUser]
+        installRoot:
+          type: string
+        dataRoot:
+          type: string
+          description: Canonical silent property `DATA_ROOT`; defaults to `%LocalAppData%/GameBot/data` and may be overridden by operator.
+        bindHost:
+          type: string
+          description: IPv4 bind interface for the backend listener (examples: `127.0.0.1`, `0.0.0.0`, `192.168.1.10`).
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        startOnLogin:
+          type: boolean
+          default: true
+        allowOnlinePrereqFallback:
+          type: boolean
+          default: true
+        unattended:
+          type: boolean
+    ValidationResult:
+      type: object
+      required:
+        - canProceed
+        - errors
+        - warnings
+        - resolvedPort
+      properties:
+        canProceed:
+          type: boolean
+        resolvedPort:
+          type: integer
+        alternativePorts:
+          type: array
+          items:
+            type: integer
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    InstallExecutionResult:
+      type: object
+      required:
+        - runId
+        - status
+        - exitCode
+        - logFilePath
+        - completedAtUtc
+      properties:
+        runId:
+          type: string
+        status:
+          type: string
+          enum: [success, failed, aborted]
+        exitCode:
+          type: integer
+          enum: [0, 2, 1603, 1618, 3010]
+        backendEndpoint:
+          type: string
+        webUiEndpoint:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
+        logFilePath:
+          type: string
+        completedAtUtc:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        remediation:
+          type: string

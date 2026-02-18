@@ -4,3 +4,4 @@ build/
 coverage/
 lcov.info
 .vite/
+*.min.js
