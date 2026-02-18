@@ -3,6 +3,9 @@ name: release-installer
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-release-installer:
     runs-on: windows-latest
@@ -17,6 +20,20 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: ./scripts/build-installer.ps1 -Configuration Release
+      - name: Persist CI build counter
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if (git diff --quiet -- installer/versioning/ci-build-counter.json) {
+            Write-Host "No CI build counter changes to persist."
+            exit 0
+          }
+
+          git add installer/versioning/ci-build-counter.json
+          git commit -m "chore(versioning): persist CI build counter [skip ci]"
+          git push
       - name: Verify signature policy marker
         shell: pwsh
         run: |
