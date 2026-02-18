@@ -81,4 +81,3 @@ jobs:
           if-no-files-found: error
           path: |
             installer/wix/bin/x64/Release/GameBotInstaller.exe
-            installer/wix/bin/x64/Release/GameBot.msi
