@@ -146,7 +146,10 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
   public void Apply(OpenApiOperation operation, OperationFilterContext context)
   {
     var path = NormalizePath(context.ApiDescription.RelativePath);
-    if (!path.StartsWith(ApiRoutes.Base, StringComparison.OrdinalIgnoreCase))
+    var isApiRoute = path.StartsWith(ApiRoutes.Base, StringComparison.OrdinalIgnoreCase);
+    var isInstallerRoute = path.StartsWith("/installer", StringComparison.OrdinalIgnoreCase);
+    var isVersioningRoute = path.StartsWith("/versioning", StringComparison.OrdinalIgnoreCase);
+    if (!isApiRoute && !isInstallerRoute && !isVersioningRoute)
     {
       return;
     }
@@ -163,6 +166,29 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ApplyTriggerExamples(operation, path, method, context);
     ApplyGameExamples(operation, path, method, context);
     ApplyImageExamples(operation, path, method, context);
+    ApplyInstallerExamples(operation, path, method, context);
+  }
+
+  private static void ApplyInstallerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
+  {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/installer/compare"))
+    {
+      operation.Summary ??= "Compare installed and candidate installer versions";
+      SetRequestExample(operation, InstallerCompareRequest(), context);
+      SetResponseExample(operation, "200", InstallerCompareResponse(), context);
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/installer/same-build/decision"))
+    {
+      operation.Summary ??= "Resolve same-build install decision";
+      SetRequestExample(operation, SameBuildDecisionRequest(), context);
+      SetResponseExample(operation, "200", SameBuildDecisionResponse(), context);
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/versioning/resolve"))
+    {
+      operation.Summary ??= "Resolve semantic installer version from source inputs";
+      SetRequestExample(operation, VersionResolveRequest(), context);
+      SetResponseExample(operation, "200", VersionResolveResponse(), context);
+    }
   }
 
   private static void ApplyActionExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
@@ -516,6 +542,82 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     var type = schemaType ?? typeof(object);
     return context.SchemaGenerator.GenerateSchema(type, context.SchemaRepository);
   }
+
+  private static OpenApiObject InstallerCompareRequest() => new OpenApiObject
+  {
+    ["installedVersion"] = new OpenApiObject
+    {
+      ["major"] = new OpenApiInteger(1),
+      ["minor"] = new OpenApiInteger(0),
+      ["patch"] = new OpenApiInteger(0),
+      ["build"] = new OpenApiInteger(9)
+    },
+    ["candidateVersion"] = new OpenApiObject
+    {
+      ["major"] = new OpenApiInteger(1),
+      ["minor"] = new OpenApiInteger(0),
+      ["patch"] = new OpenApiInteger(0),
+      ["build"] = new OpenApiInteger(10)
+    }
+  };
+
+  private static OpenApiObject InstallerCompareResponse() => new OpenApiObject
+  {
+    ["outcome"] = new OpenApiString("upgrade"),
+    ["reason"] = new OpenApiString("Candidate version is higher than installed version."),
+    ["preserveProperties"] = new OpenApiBoolean(true)
+  };
+
+  private static OpenApiObject SameBuildDecisionRequest() => new OpenApiObject
+  {
+    ["mode"] = new OpenApiString("interactive"),
+    ["interactiveChoice"] = new OpenApiString("reinstall")
+  };
+
+  private static OpenApiObject SameBuildDecisionResponse() => new OpenApiObject
+  {
+    ["action"] = new OpenApiString("reinstall"),
+    ["mutatesState"] = new OpenApiBoolean(true),
+    ["statusCode"] = new OpenApiInteger(0)
+  };
+
+  private static OpenApiObject VersionResolveRequest() => new OpenApiObject
+  {
+    ["buildContext"] = new OpenApiString("ci"),
+    ["override"] = new OpenApiObject
+    {
+      ["major"] = new OpenApiInteger(1),
+      ["minor"] = new OpenApiInteger(2)
+    },
+    ["releaseLineMarker"] = new OpenApiObject
+    {
+      ["releaseLineId"] = new OpenApiString("main"),
+      ["sequence"] = new OpenApiInteger(4)
+    },
+    ["ciBuildCounter"] = new OpenApiObject
+    {
+      ["lastBuild"] = new OpenApiInteger(18)
+    }
+  };
+
+  private static OpenApiObject VersionResolveResponse() => new OpenApiObject
+  {
+    ["version"] = new OpenApiObject
+    {
+      ["major"] = new OpenApiInteger(1),
+      ["minor"] = new OpenApiInteger(2),
+      ["patch"] = new OpenApiInteger(0),
+      ["build"] = new OpenApiInteger(19)
+    },
+    ["source"] = new OpenApiString("ci"),
+    ["persisted"] = new OpenApiBoolean(true),
+    ["authoritative"] = new OpenApiBoolean(true),
+    ["notes"] = new OpenApiArray
+    {
+      new OpenApiString("minor:auto-transition"),
+      new OpenApiString("build:ci-authoritative")
+    }
+  };
 
   private static OpenApiObject ActionCreateRequest() => new OpenApiObject
   {

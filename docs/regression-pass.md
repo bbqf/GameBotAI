@@ -14,6 +14,10 @@ Scope: Actions, Commands, Triggers, Games, Sequences pages (unified layout).
 - Use realistic sample data; confirm dropdowns populate; confirm create-new links open.
 - Verify order persistence by saving, returning to list, re-opening item.
 - Capture any failures with steps + expected vs actual; file issues with repro.
+- For installer/versioning scenarios, verify state files exist and are readable:
+	- `installer/versioning/version.override.json`
+	- `installer/versioning/release-line.marker.json`
+	- `installer/versioning/ci-build-counter.json`
 
 ## Latest Run
 - Date: __

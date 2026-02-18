@@ -2,8 +2,8 @@
   xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle
     Name="GameBot"
-    Version="1.0.0.0"
-    Manufacturer="GameBot"
+    Version="$(var.InstallerVersion)"
+    Manufacturer="$(var.InstallerManufacturer)"
     UpgradeCode="A4A4E35D-3A8A-4DC0-BF53-C8E3C9A1A101">
 
     <Variable Name="InstallFolder" Type="formatted" Value="[LocalAppDataFolder]GameBot" bal:Overridable="yes" />
@@ -18,6 +18,7 @@
 
     <Chain>
       <MsiPackage Id="GameBotMsi" Name="GameBot.msi" CacheId="GameBotMsi" SourceFile="payload\GameBot.msi" bal:PrimaryPackageType="default">
+        <MsiProperty Name="MSIINSTALLPERUSER" Value="1" />
         <MsiProperty Name="DATA_ROOT" Value="[DATA_ROOT]" />
         <MsiProperty Name="APPLICATIONFOLDER" Value="[InstallFolder]" />
         <MsiProperty Name="BIND_HOST" Value="[BIND_HOST]" />

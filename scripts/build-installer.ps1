@@ -13,12 +13,20 @@ $payloadMsiPath = Join-Path $repoRoot "installer/wix/payload/GameBot.msi"
 $wixBinDir = Join-Path $repoRoot "installer/wix/bin"
 $bundleTargetName = "GameBotInstaller"
 
+Import-Module (Join-Path $PSScriptRoot "installer/common.psm1") -Force
+
+$isCi = ($env:CI -eq "true") -or ($env:GITHUB_ACTIONS -eq "true")
+$buildContext = if ($isCi) { "ci" } else { "local" }
+$versionResolution = Resolve-InstallerVersion -RepoRoot $repoRoot -BuildContext $buildContext
+$installerVersion = $versionResolution.Version
+Write-Host "Resolved installer version: $installerVersion (source=$($versionResolution.Source), persisted=$($versionResolution.Persisted))"
+
 & (Join-Path $PSScriptRoot "package-installer-payload.ps1") -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) {
   throw "Payload packaging failed with exit code $LASTEXITCODE"
 }
 
-dotnet build $msiProject -c $Configuration
+dotnet build $msiProject -c $Configuration /p:InstallerVersion=$installerVersion
 if ($LASTEXITCODE -ne 0) {
   throw "MSI build failed with exit code $LASTEXITCODE"
 }
@@ -49,7 +57,7 @@ foreach ($proc in $runningInstallers) {
   }
 }
 
-dotnet build $wixProject -c $Configuration
+dotnet build $wixProject -c $Configuration /p:InstallerVersion=$installerVersion
 if ($LASTEXITCODE -ne 0) {
   throw "Installer build failed with exit code $LASTEXITCODE"
 }

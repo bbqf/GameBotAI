@@ -44,6 +44,16 @@ if (-not (Test-Path $webUiIndex)) {
 
 Write-Host "Installer smoke checks completed."
 
+$networkConfigRoot = "HKCU:\Software\GameBot\Network"
+if (Test-Path $networkConfigRoot) {
+  $bindHost = (Get-ItemProperty -Path $networkConfigRoot -Name "BindHost" -ErrorAction SilentlyContinue).BindHost
+  $port = (Get-ItemProperty -Path $networkConfigRoot -Name "Port" -ErrorAction SilentlyContinue).Port
+  if ([string]::IsNullOrWhiteSpace($bindHost) -or [string]::IsNullOrWhiteSpace($port)) {
+    throw "Expected persisted network properties (BindHost/Port) were not found after install/upgrade smoke check."
+  }
+  Write-Host "Upgrade retention check: persisted BindHost=$bindHost Port=$port"
+}
+
 $logRoot = Join-Path $env:LocalAppData "GameBot/Installer/logs"
 if (Test-Path $logRoot) {
   $logFiles = Get-ChildItem -Path $logRoot -File | Sort-Object LastWriteTime -Descending

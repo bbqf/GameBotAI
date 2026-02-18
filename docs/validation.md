@@ -1,5 +1,10 @@
 # Validation Log
 
+## Installer versioning inputs
+- Checked-in override values: `installer/versioning/version.override.json`
+- Release-line transition marker: `installer/versioning/release-line.marker.json`
+- CI authoritative build counter: `installer/versioning/ci-build-counter.json`
+
 ## SC-001 – Command creation usability (Authoring UI)
 - **Date**: 2025-12-28
 - **Objective**: Confirm non-technical users can create a new Command without encountering JSON/ID fields and finish within 3 minutes.

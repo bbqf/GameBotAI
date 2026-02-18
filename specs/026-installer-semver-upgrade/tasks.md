@@ -13,11 +13,11 @@
 
 **Purpose**: Prepare checked-in versioning artifacts and build-script wiring points.
 
-- [ ] T001 Create versioning state directory in installer/versioning/
-- [ ] T002 Create checked-in override file in installer/versioning/version.override.json
-- [ ] T003 Create dedicated release-line marker file in installer/versioning/release-line.marker.json
-- [ ] T004 Create CI build counter seed file in installer/versioning/ci-build-counter.json
-- [ ] T005 [P] Add versioning file include notes to docs/validation.md and docs/regression-pass.md
+- [X] T001 Create versioning state directory in installer/versioning/
+- [X] T002 Create checked-in override file in installer/versioning/version.override.json
+- [X] T003 Create dedicated release-line marker file in installer/versioning/release-line.marker.json
+- [X] T004 Create CI build counter seed file in installer/versioning/ci-build-counter.json
+- [X] T005 [P] Add versioning file include notes to docs/validation.md and docs/regression-pass.md
 
 ---
 
@@ -27,13 +27,13 @@
 
 **⚠️ CRITICAL**: No user story implementation starts before this phase completes.
 
-- [ ] T006 Implement semantic version value object and parser in src/GameBot.Domain/Versioning/SemanticVersion.cs
-- [ ] T007 [P] Implement lexicographic comparer for Major.Minor.Patch.Build in src/GameBot.Domain/Versioning/SemanticVersionComparer.cs
-- [ ] T008 [P] Implement version source loader for override/marker/counter files in src/GameBot.Domain/Versioning/VersionSourceLoader.cs
-- [ ] T009 Implement resolution service for CI/local build behavior in src/GameBot.Domain/Versioning/VersionResolutionService.cs
-- [ ] T010 [P] Register versioning services in src/GameBot.Service/Program.cs
-- [ ] T011 [P] Add shared installer/versioning config models in src/GameBot.Service/Models/InstallerVersioningModels.cs
-- [ ] T012 Add foundational unit tests for parser/comparer/resolution in tests/unit/Installer/SemanticVersionFoundationTests.cs
+- [X] T006 Implement semantic version value object and parser in src/GameBot.Domain/Versioning/SemanticVersion.cs
+- [X] T007 [P] Implement lexicographic comparer for Major.Minor.Patch.Build in src/GameBot.Domain/Versioning/SemanticVersionComparer.cs
+- [X] T008 [P] Implement version source loader for override/marker/counter files in src/GameBot.Domain/Versioning/VersionSourceLoader.cs
+- [X] T009 Implement resolution service for CI/local build behavior in src/GameBot.Domain/Versioning/VersionResolutionService.cs
+- [X] T010 [P] Register versioning services in src/GameBot.Service/Program.cs
+- [X] T011 [P] Add shared installer/versioning config models in src/GameBot.Service/Models/InstallerVersioningModels.cs
+- [X] T012 Add foundational unit tests for parser/comparer/resolution in tests/unit/Installer/SemanticVersionFoundationTests.cs
 
 **Checkpoint**: Foundation complete; user story phases can proceed.
 
@@ -47,16 +47,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Add integration test for upgrade property retention in tests/integration/Installer/UpgradePropertyRetentionTests.cs
-- [ ] T014 [P] [US1] Add contract test for compare outcome preserve-properties flag in tests/contract/Installer/InstallerVersionCompareContractTests.cs
+- [X] T013 [P] [US1] Add integration test for upgrade property retention in tests/integration/Installer/UpgradePropertyRetentionTests.cs
+- [X] T014 [P] [US1] Add contract test for compare outcome preserve-properties flag in tests/contract/Installer/InstallerVersionCompareContractTests.cs
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Implement persisted-property snapshot load/apply logic in installer/wix/Fragments/ConfigTemplates.wxs
-- [ ] T016 [US1] Ensure upgrade flow carries persisted properties in installer/wix/Fragments/InstallerProperties.wxs
-- [ ] T017 [US1] Wire preserve-properties behavior into install decision endpoint in src/GameBot.Service/Program.cs
-- [ ] T018 [US1] Add retention-aware comparison result model updates in src/GameBot.Service/Models/InstallerVersioningModels.cs
-- [ ] T019 [US1] Add upgrade-retention smoke steps in scripts/installer/install-smoke.ps1
+- [X] T015 [US1] Implement persisted-property snapshot load/apply logic in installer/wix/Fragments/ConfigTemplates.wxs
+- [X] T016 [US1] Ensure upgrade flow carries persisted properties in installer/wix/Fragments/InstallerProperties.wxs
+- [X] T017 [US1] Wire preserve-properties behavior into install decision endpoint in src/GameBot.Service/Program.cs
+- [X] T018 [US1] Add retention-aware comparison result model updates in src/GameBot.Service/Models/InstallerVersioningModels.cs
+- [X] T019 [US1] Add upgrade-retention smoke steps in scripts/installer/install-smoke.ps1
 
 **Checkpoint**: US1 is independently functional and testable.
 
@@ -70,15 +70,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T020 [P] [US2] Add unit tests for downgrade/upgrade/same-build comparison matrix in tests/unit/Installer/VersionComparisonDecisionTests.cs
-- [ ] T021 [P] [US2] Add integration test for downgrade block flow in tests/integration/Installer/DowngradeBlockFlowTests.cs
+- [X] T020 [P] [US2] Add unit tests for downgrade/upgrade/same-build comparison matrix in tests/unit/Installer/VersionComparisonDecisionTests.cs
+- [X] T021 [P] [US2] Add integration test for downgrade block flow in tests/integration/Installer/DowngradeBlockFlowTests.cs
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] Add downgrade gate condition and message mapping in installer/wix/Product.wxs
-- [ ] T023 [US2] Add compare endpoint for installed vs candidate versions in src/GameBot.Service/Program.cs
-- [ ] T024 [US2] Enforce full 4-part comparison in src/GameBot.Domain/Versioning/SemanticVersionComparer.cs
-- [ ] T025 [US2] Add downgrade diagnostics and remediation hints in scripts/installer/common.psm1
+- [X] T022 [US2] Add downgrade gate condition and message mapping in installer/wix/Product.wxs
+- [X] T023 [US2] Add compare endpoint for installed vs candidate versions in src/GameBot.Service/Program.cs
+- [X] T024 [US2] Enforce full 4-part comparison in src/GameBot.Domain/Versioning/SemanticVersionComparer.cs
+- [X] T025 [US2] Add downgrade diagnostics and remediation hints in scripts/installer/common.psm1
 
 **Checkpoint**: US2 is independently functional and testable.
 
@@ -92,15 +92,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Add integration test for interactive same-build decision flow in tests/integration/Installer/SameBuildInteractiveDecisionTests.cs
-- [ ] T027 [P] [US3] Add integration test for unattended same-build skip/status in tests/integration/Installer/SameBuildUnattendedStatusTests.cs
+- [X] T026 [P] [US3] Add integration test for interactive same-build decision flow in tests/integration/Installer/SameBuildInteractiveDecisionTests.cs
+- [X] T027 [P] [US3] Add integration test for unattended same-build skip/status in tests/integration/Installer/SameBuildUnattendedStatusTests.cs
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Add same-build decision UI/state plumbing in installer/wix/Fragments/NetworkConfigUi.wxs
-- [ ] T029 [US3] Add same-build unattended skip behavior and status mapping in installer/wix/Product.wxs
-- [ ] T030 [US3] Implement same-build decision endpoint behavior in src/GameBot.Service/Program.cs
-- [ ] T031 [US3] Add dedicated same-build status handling in scripts/installer/silent-install-examples.ps1
+- [X] T028 [US3] Add same-build decision UI/state plumbing in installer/wix/Fragments/NetworkConfigUi.wxs
+- [X] T029 [US3] Add same-build unattended skip behavior and status mapping in installer/wix/Product.wxs
+- [X] T030 [US3] Implement same-build decision endpoint behavior in src/GameBot.Service/Program.cs
+- [X] T031 [US3] Add dedicated same-build status handling in scripts/installer/silent-install-examples.ps1
 
 **Checkpoint**: US3 is independently functional and testable.
 
@@ -114,17 +114,17 @@
 
 ### Tests for User Story 4
 
-- [ ] T032 [P] [US4] Add unit tests for override precedence and patch-reset behavior in tests/unit/Installer/VersionResolutionPolicyTests.cs
-- [ ] T033 [P] [US4] Add integration test for CI-authoritative counter persistence in tests/integration/Installer/CiBuildCounterPersistenceTests.cs
-- [ ] T034 [P] [US4] Add integration test for local non-persisted build derivation in tests/integration/Installer/LocalBuildDerivationTests.cs
+- [X] T032 [P] [US4] Add unit tests for override precedence and patch-reset behavior in tests/unit/Installer/VersionResolutionPolicyTests.cs
+- [X] T033 [P] [US4] Add integration test for CI-authoritative counter persistence in tests/integration/Installer/CiBuildCounterPersistenceTests.cs
+- [X] T034 [P] [US4] Add integration test for local non-persisted build derivation in tests/integration/Installer/LocalBuildDerivationTests.cs
 
 ### Implementation for User Story 4
 
-- [ ] T035 [US4] Implement version resolve endpoint and source provenance in src/GameBot.Service/Program.cs
-- [ ] T036 [US4] Implement release-line marker transition handling in src/GameBot.Domain/Versioning/VersionResolutionService.cs
-- [ ] T037 [US4] Wire build-version resolution into installer build pipeline in scripts/build-installer.ps1
-- [ ] T038 [US4] Add CI-only counter write/update script logic in scripts/installer/common.psm1
-- [ ] T039 [US4] Add version metadata injection for MSI/Bundle in installer/wix/Installer.Build.props
+- [X] T035 [US4] Implement version resolve endpoint and source provenance in src/GameBot.Service/Program.cs
+- [X] T036 [US4] Implement release-line marker transition handling in src/GameBot.Domain/Versioning/VersionResolutionService.cs
+- [X] T037 [US4] Wire build-version resolution into installer build pipeline in scripts/build-installer.ps1
+- [X] T038 [US4] Add CI-only counter write/update script logic in scripts/installer/common.psm1
+- [X] T039 [US4] Add version metadata injection for MSI/Bundle in installer/wix/Installer.Build.props
 
 **Checkpoint**: US4 is independently functional and testable.
 

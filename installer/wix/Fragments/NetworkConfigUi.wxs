@@ -4,6 +4,7 @@
       <Dialog Id="NetworkConfigDlg" Width="370" Height="270" Title="[ProductName] Setup">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="20" Transparent="yes" NoPrefix="yes" Text="Configure network settings" />
         <Control Id="Description" Type="Text" X="20" Y="26" Width="330" Height="28" Transparent="yes" NoPrefix="yes" Text="Select bind interface and port used by GameBot." />
+        <Control Id="SameBuildHint" Type="Text" X="20" Y="56" Width="330" Height="20" Transparent="yes" NoPrefix="yes" Text="If this build is already installed, setup will prompt for reinstall or cancel." />
 
         <Control Id="BindHostLabel" Type="Text" X="20" Y="82" Width="150" Height="15" Text="Bind interface:" />
         <Control Id="BindHostCombo" Type="ComboBox" X="180" Y="80" Width="160" Height="18" Property="BIND_HOST" />
