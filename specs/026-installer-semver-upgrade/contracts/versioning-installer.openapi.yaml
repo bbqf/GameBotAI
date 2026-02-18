@@ -1,0 +1,183 @@
+openapi: 3.0.3
+info:
+  title: GameBot Versioning and Installer Upgrade Contract
+  version: 0.1.0
+  description: Contract for semantic version resolution and installer upgrade decision outcomes.
+paths:
+  /versioning/resolve:
+    post:
+      summary: Resolve effective semantic version for CI or local build context
+      operationId: resolveVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionResolveRequest'
+      responses:
+        '200':
+          description: Resolved semantic version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResolveResult'
+        '400':
+          description: Invalid versioning inputs (override/marker/counter)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /installer/compare:
+    post:
+      summary: Compare candidate installer version with installed version
+      operationId: compareInstallerVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallCompareRequest'
+      responses:
+        '200':
+          description: Install comparison outcome
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallCompareResult'
+  /installer/same-build/decision:
+    post:
+      summary: Resolve same-build execution behavior for interactive or unattended mode
+      operationId: resolveSameBuildDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SameBuildDecisionRequest'
+      responses:
+        '200':
+          description: Resolved same-build action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SameBuildDecisionResult'
+components:
+  schemas:
+    SemanticVersion:
+      type: object
+      required: [major, minor, patch, build]
+      properties:
+        major:
+          type: integer
+          minimum: 0
+        minor:
+          type: integer
+          minimum: 0
+        patch:
+          type: integer
+          minimum: 0
+        build:
+          type: integer
+          minimum: 0
+    VersionResolveRequest:
+      type: object
+      required: [buildContext]
+      properties:
+        buildContext:
+          type: string
+          enum: [ci, local]
+        override:
+          type: object
+          properties:
+            major:
+              type: integer
+              minimum: 0
+            minor:
+              type: integer
+              minimum: 0
+            patch:
+              type: integer
+              minimum: 0
+        releaseLineMarker:
+          type: object
+          properties:
+            releaseLineId:
+              type: string
+            sequence:
+              type: integer
+              minimum: 0
+        ciBuildCounter:
+          type: object
+          required: [lastBuild]
+          properties:
+            lastBuild:
+              type: integer
+              minimum: 0
+    VersionResolveResult:
+      type: object
+      required: [version, source, persisted]
+      properties:
+        version:
+          $ref: '#/components/schemas/SemanticVersion'
+        source:
+          type: string
+          enum: [ci, local]
+        persisted:
+          type: boolean
+          description: True only when CI persisted the incremented build counter.
+        notes:
+          type: array
+          items:
+            type: string
+    InstallCompareRequest:
+      type: object
+      required: [installedVersion, candidateVersion]
+      properties:
+        installedVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+        candidateVersion:
+          $ref: '#/components/schemas/SemanticVersion'
+    InstallCompareResult:
+      type: object
+      required: [outcome, reason]
+      properties:
+        outcome:
+          type: string
+          enum: [downgrade, upgrade, sameBuild]
+        reason:
+          type: string
+        preserveProperties:
+          type: boolean
+          description: True for upgrade outcome unless explicit override is supplied.
+    SameBuildDecisionRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [interactive, unattended]
+        interactiveChoice:
+          type: string
+          enum: [reinstall, cancel]
+    SameBuildDecisionResult:
+      type: object
+      required: [action, mutatesState, statusCode]
+      properties:
+        action:
+          type: string
+          enum: [reinstall, cancel, skip]
+        mutatesState:
+          type: boolean
+        statusCode:
+          type: integer
+          description: Dedicated same-build status code in unattended skip path.
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        remediation:
+          type: string

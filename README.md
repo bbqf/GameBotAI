@@ -6,6 +6,7 @@ A .NET 9 (C#) minimal API service that controls Android emulator sessions on Win
 - Spec, plans, and research: `specs/001-android-emulator-service/`
 - API endpoints: `specs/001-android-emulator-service/contracts/endpoints.md`
 - Save Configuration spec: `specs/001-save-config/`
+- Versioning guide: [VERSIONING.md](VERSIONING.md)
 
 ## Requirements
 - Windows 10/11
