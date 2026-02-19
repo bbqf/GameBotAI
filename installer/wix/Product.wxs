@@ -10,7 +10,7 @@
     InstallerVersion="500">
 
     <ui:WixUI Id="WixUI_InstallDir" />
-    <WixVariable Id="WixUILicenseRtf" Value="Assets\License.rtf" />
+    <WixVariable Id="WixUILicenseRtf" Value="Assets\License.generated.rtf" />
 
     <Property Id="WixUISupportPerUser" Value="1" />
     <Property Id="MSIINSTALLPERUSER" Value="1" Secure="yes" />
