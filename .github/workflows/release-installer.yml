@@ -3,6 +3,9 @@ name: release-installer
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-release-installer:
     runs-on: windows-latest
@@ -11,13 +14,70 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "9.0.x"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'src/web-ui/package-lock.json'
+      - name: Install web-ui dependencies
+        shell: pwsh
+        working-directory: src/web-ui
+        run: npm ci
       - name: Build installer payload
         shell: pwsh
         run: ./scripts/package-installer-payload.ps1 -Configuration Release -Runtime win-x64
       - name: Build installer
         shell: pwsh
         run: ./scripts/build-installer.ps1 -Configuration Release
+      - name: Persist CI build counter
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if (git diff --quiet -- installer/versioning/ci-build-counter.json) {
+            Write-Host "No CI build counter changes to persist."
+            exit 0
+          }
+
+          git add installer/versioning/ci-build-counter.json
+          git commit -m "chore(versioning): persist CI build counter [skip ci]"
+          git push
       - name: Verify signature policy marker
         shell: pwsh
         run: |
           Write-Host "Release signing verification must run in release pipeline with org certificates."
+      - name: Compute artifact name
+        shell: pwsh
+        run: |
+          $overridePath = "installer/versioning/version.override.json"
+          $counterPath = "installer/versioning/ci-build-counter.json"
+
+          $override = Get-Content -Path $overridePath -Raw | ConvertFrom-Json
+          $counter = Get-Content -Path $counterPath -Raw | ConvertFrom-Json
+
+          $major = if ($null -ne $override.major) { [int]$override.major } else { 1 }
+          $minor = if ($null -ne $override.minor) { [int]$override.minor } else { 0 }
+          $patch = if ($null -ne $override.patch) { [int]$override.patch } else { 0 }
+          $build = [int]$counter.lastBuild
+
+          $version = "$major.$minor.$patch.$build"
+          $safeBranch = ($env:GITHUB_REF_NAME -replace '[^A-Za-z0-9._-]', '-').ToLowerInvariant()
+
+          if ($safeBranch -eq "main" -or $safeBranch -eq "master") {
+            $artifactName = "gamebot-installer-v$version-win-x64"
+          }
+          else {
+            $artifactName = "gamebot-installer-v$version-$safeBranch-win-x64"
+          }
+
+          "INSTALLER_ARTIFACT_NAME=$artifactName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Artifact name: $artifactName"
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.INSTALLER_ARTIFACT_NAME }}
+          if-no-files-found: error
+          path: |
+            installer/wix/bin/x64/Release/GameBotInstaller.exe

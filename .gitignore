@@ -50,6 +50,7 @@ artifacts/
 installer/wix/payload/**
 !installer/wix/payload/
 !installer/wix/payload/README.md
+installer/wix/Assets/License.generated.rtf
 
 # OS junk
 Thumbs.db

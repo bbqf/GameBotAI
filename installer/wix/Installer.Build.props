@@ -4,5 +4,9 @@
     <InstallerConfiguration Condition="'$(InstallerConfiguration)' == ''">Release</InstallerConfiguration>
     <InstallerVersion Condition="'$(InstallerVersion)' == ''">1.0.0.0</InstallerVersion>
     <InstallerManufacturer Condition="'$(InstallerManufacturer)' == ''">GameBot</InstallerManufacturer>
+    <Version>$(InstallerVersion)</Version>
+    <FileVersion>$(InstallerVersion)</FileVersion>
+    <InformationalVersion>$(InstallerVersion)</InformationalVersion>
+    <DefineConstants>$(DefineConstants);InstallerVersion=$(InstallerVersion);InstallerManufacturer=$(InstallerManufacturer)</DefineConstants>
   </PropertyGroup>
 </Project>

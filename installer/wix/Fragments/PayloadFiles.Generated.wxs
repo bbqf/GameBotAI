@@ -99,8 +99,8 @@
         <Component Id="CMP_4B505E039D3C6EF3569B3570982D9B6C" Guid="*">
           <File Source="payload\web-ui\assets\index-BS4BNAju.css" KeyPath="yes" />
         </Component>
-        <Component Id="CMP_2AED45A20E4BFF34882FB29B505C5AE4" Guid="*">
-          <File Source="payload\web-ui\assets\index-DAkxOFlN.js" KeyPath="yes" />
+        <Component Id="CMP_684B06BB09F750E6B05E82D8BD25FC81" Guid="*">
+          <File Source="payload\web-ui\assets\index-jsLwm4ZT.js" KeyPath="yes" />
         </Component>
       </Directory>
     </DirectoryRef>
@@ -141,7 +141,7 @@
     <ComponentGroup Id="WebUiPayloadFiles">
       <ComponentRef Id="CMP_081615CC192EC9336E182339AF484F1F" />
       <ComponentRef Id="CMP_4B505E039D3C6EF3569B3570982D9B6C" />
-      <ComponentRef Id="CMP_2AED45A20E4BFF34882FB29B505C5AE4" />
+      <ComponentRef Id="CMP_684B06BB09F750E6B05E82D8BD25FC81" />
     </ComponentGroup>
   </Fragment>
 </Wix>

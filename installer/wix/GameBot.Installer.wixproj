@@ -1,4 +1,6 @@
 <Project Sdk="WixToolset.Sdk/6.0.2">
+  <Import Project="Installer.Build.props" />
+
   <PropertyGroup>
     <OutputType>Bundle</OutputType>
     <TargetName>GameBotInstaller</TargetName>

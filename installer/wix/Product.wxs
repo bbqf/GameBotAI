@@ -2,27 +2,28 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
     Name="GameBot"
-    Manufacturer="GameBot"
-    Version="1.0.0.0"
+    Manufacturer="$(var.InstallerManufacturer)"
+    Version="$(var.InstallerVersion)"
     UpgradeCode="B7CA67D4-9DE5-43F5-BE43-EA9A00A3E202"
     Scope="perUser"
     Language="1033"
     InstallerVersion="500">
 
     <ui:WixUI Id="WixUI_InstallDir" />
-    <WixVariable Id="WixUILicenseRtf" Value="Assets\License.rtf" />
+    <WixVariable Id="WixUILicenseRtf" Value="Assets\License.generated.rtf" />
 
     <Property Id="WixUISupportPerUser" Value="1" />
+    <Property Id="MSIINSTALLPERUSER" Value="1" Secure="yes" />
     <Property Id="ApplicationFolderName" Value="GameBot" />
     <Property Id="WixAppFolder" Value="WixPerUserFolder" />
     <Property Id="WIXUI_INSTALLDIR" Value="APPLICATIONFOLDER" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Run GameBot background app now" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
-    <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
+    <Property Id="SAME_BUILD_STATUS_CODE" Value="4090" />
 
     <CustomAction
       Id="LaunchBackgroundApp"
-      Directory="SystemFolder"
+      Directory="APPLICATIONFOLDER"
       ExeCommand="cmd.exe /c start &quot;&quot; /min &quot;[APPLICATIONFOLDER]GameBot.Service.exe&quot;"
       Execute="immediate"
       Return="asyncNoWait"
