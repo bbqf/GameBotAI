@@ -26,9 +26,9 @@ $escapedLines = $licenseLines | ForEach-Object {
   $_.Replace("\\", "\\\\").Replace("{", "\\{").Replace("}", "\\}")
 }
 
-$rtfBody = [string]::Join("\n", ($escapedLines | ForEach-Object { "$_\\par" }))
-$rtf = "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Consolas;}}\\fs20\\f0\n$rtfBody\n}"
-Set-Content -Path $licenseRtfPath -Value $rtf -Encoding UTF8
+$rtfBody = [string]::Join("`r`n", ($escapedLines | ForEach-Object { "$_\par" }))
+$rtf = "{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}\fs20\f0`r`n$rtfBody`r`n}"
+Set-Content -Path $licenseRtfPath -Value $rtf -Encoding Ascii
 Write-Host "Generated installer license RTF from root LICENSE: $licenseRtfPath"
 
 $isCi = ($env:CI -eq "true") -or ($env:GITHUB_ACTIONS -eq "true")
