@@ -137,8 +137,10 @@ function Resolve-InstallerVersion {
   }
   $version = "$major.$minor.$patch.$nextBuild"
 
-  if ($BuildContext -eq "ci" -and -not $PSBoundParameters.ContainsKey('BuildNumberOverride')) {
-    Set-CiBuildCounter -RepoRoot $RepoRoot -LastBuild $nextBuild -UpdatedBy "ci"
+  if ($BuildContext -eq "ci") {
+    if (-not $PSBoundParameters.ContainsKey('BuildNumberOverride')) {
+      Set-CiBuildCounter -RepoRoot $RepoRoot -LastBuild $nextBuild -UpdatedBy "ci"
+    }
   }
 
   $persistedLegacy = ($BuildContext -eq "ci")
