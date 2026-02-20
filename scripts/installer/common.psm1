@@ -141,11 +141,13 @@ function Resolve-InstallerVersion {
     Set-CiBuildCounter -RepoRoot $RepoRoot -LastBuild $nextBuild -UpdatedBy "ci"
   }
 
-  $persisted = ($BuildContext -eq "ci") -and (-not $PSBoundParameters.ContainsKey('BuildNumberOverride'))
+  $persistedLegacy = ($BuildContext -eq "ci")
+  $persisted = $persistedLegacy -and (-not $PSBoundParameters.ContainsKey('BuildNumberOverride'))
 
   return [PSCustomObject]@{
     Version = $version
-    Persisted = $persisted
+    Persisted = ($BuildContext -eq "ci")
+    PersistedCounterWrite = $persisted
     Source = $BuildContext
     LastBuild = $nextBuild
     ReleaseTransitionDetected = $releaseTransitionDetected

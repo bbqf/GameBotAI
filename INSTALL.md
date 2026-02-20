@@ -8,6 +8,7 @@ This document explains how to run the GameBot Windows installer and all currentl
 - Installer type: Bootstrapper EXE that installs MSI payload(s)
 - Modes: interactive wizard and silent/unattended install
 - Installation scope: per-user only
+- ARP visibility: current-user install appears in Windows Installed Apps
 
 ---
 
@@ -19,6 +20,7 @@ This document explains how to run the GameBot Windows installer and all currentl
 2. Run the installer as the current user.
 3. Complete the wizard prompts.
 4. Verify installation:
+  - Installed Apps entry is present for `GameBot`
    - App files are installed
    - Data directory exists and is writable
   - Installer log exists under `%LocalAppData%\GameBot\Installer\logs`
@@ -30,6 +32,18 @@ Use `/quiet` with installer variables:
 ```powershell
 .\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=auto WEB_PORT=auto BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
 ```
+
+### Getting installer binaries from CI
+
+- Installer packages are published by the `release-installer` workflow as GitHub Actions artifacts.
+- The workflow runs for pull requests targeting `master` and can also be started with `workflow_dispatch`.
+- Artifact name format:
+
+  ```text
+  GameBotInstaller-v<version>-<branch>-run<github.run_number>
+  ```
+
+- Download the artifact from the workflow run summary, then use `GameBotInstaller.exe` for install/upgrade.
 
 ---
 
@@ -60,10 +74,17 @@ Notes:
 
 - Supported mode: `backgroundApp`
 - Supported scope: `perUser`
+- Supported installation channel for users: bootstrapper EXE (`GameBotInstaller.exe`)
 - Startup behavior:
   - Registers autostart in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   - Adds a Start Menu shortcut `GameBot Background` for manual start
 - Start Menu shortcut `GameBot` only opens the web UI URL and does not start backend processes.
+
+### Upgrade policy
+
+- Upgrade using the bootstrapper EXE only.
+- Do not deploy raw MSI directly for end-user installs.
+- Installing both MSI and EXE channels on the same machine can create side-by-side registrations and confusing uninstall behavior.
 
 ---
 
@@ -96,6 +117,22 @@ Example:
 
 - Log root: `%LocalAppData%\GameBot\Installer\logs`
 - Retention target: last 10 log files
+
+### Version numbering in CI
+
+- Installer semantic version format is `major.minor.patch.build`.
+- In CI, `build` is sourced from `github.run_number`.
+- `github.run_number` increments only when GitHub creates a new workflow run for `release-installer`.
+- For this repo, that means it changes on new `release-installer` runs from:
+  - pull requests targeting `master` (for example new PR, new commits pushed to the PR branch)
+  - manual `workflow_dispatch` runs
+- Re-running a failed/successful existing run does **not** change `github.run_number`; only `github.run_attempt` increases.
+- Example timeline:
+  - Run A (new PR update): `github.run_number=57`, `github.run_attempt=1`
+  - Re-run Run A: `github.run_number=57`, `github.run_attempt=2`
+  - Push another commit to the same PR (new run): `github.run_number=58`, `github.run_attempt=1`
+- CI does not write version counters back to protected branches.
+- Local/manual builds still support override/version files under `installer/versioning`.
 
 ---
 
@@ -132,6 +169,21 @@ Example:
 - `1618`: close/wait for other installer sessions and retry.
 - `2`: review parameter combination (`MODE`/`SCOPE`, HTTPS certificate, writable `DATA_ROOT`).
 - `1603`: inspect latest log in `%LocalAppData%\GameBot\Installer\logs`.
+- Installed app not visible: ensure install used the current-user bootstrapper and complete the install as the same Windows user.
+- Legacy hidden/stale uninstall entry cleanup (advanced):
+
+  ```powershell
+  Get-ChildItem "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall", "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" |
+    Get-ItemProperty |
+    Where-Object { $_.DisplayName -like "*GameBot*" } |
+    Select-Object DisplayName, DisplayVersion, PSChildName, UninstallString
+  ```
+
+  If a stale MSI product code is found:
+
+  ```powershell
+  msiexec /x "{PRODUCT-CODE-GUID}"
+  ```
 
 ---
 
