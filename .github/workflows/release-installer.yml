@@ -1,10 +1,12 @@
 name: release-installer
 
 on:
+  pull_request:
+    branches: [ master ]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-release-installer:
@@ -30,20 +32,6 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: ./scripts/build-installer.ps1 -Configuration Release
-      - name: Persist CI build counter
-        shell: pwsh
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if (git diff --quiet -- installer/versioning/ci-build-counter.json) {
-            Write-Host "No CI build counter changes to persist."
-            exit 0
-          }
-
-          git add installer/versioning/ci-build-counter.json
-          git commit -m "chore(versioning): persist CI build counter [skip ci]"
-          git push
       - name: Verify signature policy marker
         shell: pwsh
         run: |
@@ -52,18 +40,17 @@ jobs:
         shell: pwsh
         run: |
           $overridePath = "installer/versioning/version.override.json"
-          $counterPath = "installer/versioning/ci-build-counter.json"
 
           $override = Get-Content -Path $overridePath -Raw | ConvertFrom-Json
-          $counter = Get-Content -Path $counterPath -Raw | ConvertFrom-Json
 
           $major = if ($null -ne $override.major) { [int]$override.major } else { 1 }
           $minor = if ($null -ne $override.minor) { [int]$override.minor } else { 0 }
           $patch = if ($null -ne $override.patch) { [int]$override.patch } else { 0 }
-          $build = [int]$counter.lastBuild
+          $build = [int]$env:GITHUB_RUN_NUMBER
 
           $version = "$major.$minor.$patch.$build"
-          $safeBranch = ($env:GITHUB_REF_NAME -replace '[^A-Za-z0-9._-]', '-').ToLowerInvariant()
+          $branchName = if ([string]::IsNullOrWhiteSpace($env:GITHUB_HEAD_REF)) { $env:GITHUB_REF_NAME } else { $env:GITHUB_HEAD_REF }
+          $safeBranch = ($branchName -replace '[^A-Za-z0-9._-]', '-').ToLowerInvariant()
 
           if ($safeBranch -eq "main" -or $safeBranch -eq "master") {
             $artifactName = "gamebot-installer-v$version-win-x64"

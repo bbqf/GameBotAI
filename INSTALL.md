@@ -8,6 +8,7 @@ This document explains how to run the GameBot Windows installer and all currentl
 - Installer type: Bootstrapper EXE that installs MSI payload(s)
 - Modes: interactive wizard and silent/unattended install
 - Installation scope: per-user only
+- ARP visibility: current-user install appears in Windows Installed Apps
 
 ---
 
@@ -19,6 +20,7 @@ This document explains how to run the GameBot Windows installer and all currentl
 2. Run the installer as the current user.
 3. Complete the wizard prompts.
 4. Verify installation:
+  - Installed Apps entry is present for `GameBot`
    - App files are installed
    - Data directory exists and is writable
   - Installer log exists under `%LocalAppData%\GameBot\Installer\logs`
@@ -30,6 +32,18 @@ Use `/quiet` with installer variables:
 ```powershell
 .\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=auto WEB_PORT=auto BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
 ```
+
+### Getting installer binaries from CI
+
+- Installer packages are published by the `release-installer` workflow as GitHub Actions artifacts.
+- The workflow runs for pull requests targeting `master` and can also be started with `workflow_dispatch`.
+- Artifact name format:
+
+  ```text
+  GameBotInstaller-v<version>-<branch>-run<github.run_number>
+  ```
+
+- Download the artifact from the workflow run summary, then use `GameBotInstaller.exe` for install/upgrade.
 
 ---
 
@@ -60,10 +74,17 @@ Notes:
 
 - Supported mode: `backgroundApp`
 - Supported scope: `perUser`
+- Supported installation channel for users: bootstrapper EXE (`GameBotInstaller.exe`)
 - Startup behavior:
   - Registers autostart in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   - Adds a Start Menu shortcut `GameBot Background` for manual start
 - Start Menu shortcut `GameBot` only opens the web UI URL and does not start backend processes.
+
+### Upgrade policy
+
+- Upgrade using the bootstrapper EXE only.
+- Do not deploy raw MSI directly for end-user installs.
+- Installing both MSI and EXE channels on the same machine can create side-by-side registrations and confusing uninstall behavior.
 
 ---
 
@@ -96,6 +117,22 @@ Example:
 
 - Log root: `%LocalAppData%\GameBot\Installer\logs`
 - Retention target: last 10 log files
+
+### Version numbering in CI
+
+- Installer semantic version format is `major.minor.patch.build`.
+- In CI, `build` is sourced from `github.run_number`.
+- `github.run_number` increments only when GitHub creates a new workflow run for `release-installer`.
+- For this repo, that means it changes on new `release-installer` runs from:
+  - pull requests targeting `master` (for example new PR, new commits pushed to the PR branch)
+  - manual `workflow_dispatch` runs
+- Re-running a failed/successful existing run does **not** change `github.run_number`; only `github.run_attempt` increases.
+- Example timeline:
+  - Run A (new PR update): `github.run_number=57`, `github.run_attempt=1`
+  - Re-run Run A: `github.run_number=57`, `github.run_attempt=2`
+  - Push another commit to the same PR (new run): `github.run_number=58`, `github.run_attempt=1`
+- CI does not write version counters back to protected branches.
+- Local/manual builds still support override/version files under `installer/versioning`.
 
 ---
 
@@ -132,6 +169,21 @@ Example:
 - `1618`: close/wait for other installer sessions and retry.
 - `2`: review parameter combination (`MODE`/`SCOPE`, HTTPS certificate, writable `DATA_ROOT`).
 - `1603`: inspect latest log in `%LocalAppData%\GameBot\Installer\logs`.
+- Installed app not visible: ensure install used the current-user bootstrapper and complete the install as the same Windows user.
+- Legacy hidden/stale uninstall entry cleanup (advanced):
+
+  ```powershell
+  Get-ChildItem "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall", "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" |
+    Get-ItemProperty |
+    Where-Object { $_.DisplayName -like "*GameBot*" } |
+    Select-Object DisplayName, DisplayVersion, PSChildName, UninstallString
+  ```
+
+  If a stale MSI product code is found:
+
+  ```powershell
+  msiexec /x "{PRODUCT-CODE-GUID}"
+  ```
 
 ---
 
@@ -141,3 +193,82 @@ Example:
 - Feature specification: `specs/025-standalone-windows-installer/spec.md`
 - Contract schema: `specs/025-standalone-windows-installer/contracts/installer.openapi.yaml`
 - Validation quickstart: `specs/025-standalone-windows-installer/quickstart.md`
+
+---
+
+## 11) CI/PR operations (important)
+
+This section documents the current installer CI/release behavior and operational runbook.
+
+### Workflow and trigger model
+
+- Installer artifacts are produced by GitHub workflow `release-installer`.
+- `release-installer` runs on:
+  - `pull_request` targeting `master`
+  - manual `workflow_dispatch`
+- The workflow uses read-only permissions (`contents: read`) and does not push version files back to protected branches.
+
+### Build/version behavior in CI
+
+- `scripts/build-installer.ps1` sets context:
+  - CI (`CI=true` or `GITHUB_ACTIONS=true`) => `buildContext=ci`
+  - local => `buildContext=local`
+- In CI, `GITHUB_RUN_NUMBER` is parsed and passed as `-BuildNumberOverride` into `Resolve-InstallerVersion`.
+- Effective installer version in CI is therefore:
+
+  ```text
+  <major>.<minor>.<patch>.<github.run_number>
+  ```
+
+- `Resolve-InstallerVersion` still contains explicit `if ($BuildContext -eq "ci")` logic for test compatibility.
+
+### Artifact naming behavior
+
+- `release-installer` computes artifact name from override major/minor/patch + `github.run_number`.
+- Branch is sanitized and included in non-main/non-master artifact names.
+- Current naming examples:
+  - `gamebot-installer-v0.1.0.123-win-x64` (main/master style)
+  - `gamebot-installer-v0.1.0.123-026-installer-semver-upgrade-win-x64` (feature branch)
+
+### Required checks / PR gate
+
+- PRs should wait for `release-installer / build-release-installer` plus normal CI checks to complete before merge.
+- Typical check set includes:
+  - `.NET CI` (`build`, `web-ui-tests`)
+  - `ci-installer-fast`
+  - `ci-installer-logic`
+  - `release-installer` (`build-release-installer`)
+  - `CodeQL`
+
+### Conflict resolution runbook
+
+When a PR shows `DIRTY`/`CONFLICTING` against `master`:
+
+```powershell
+git fetch origin
+git checkout <feature-branch>
+git merge origin/master
+# resolve conflicts in:
+# - .github/workflows/release-installer.yml
+# - scripts/build-installer.ps1
+# - scripts/installer/common.psm1
+git add <resolved-files>
+git commit
+git push
+```
+
+After push:
+- Verify PR becomes `MERGEABLE`.
+- Re-check all workflow runs from the new commit.
+
+### CI assertion compatibility notes
+
+Installer integration tests validate literal script strings in `scripts/installer/common.psm1`.
+Do not remove these expected forms without updating tests:
+
+- `if ($BuildContext -eq "ci")`
+- `Persisted = ($BuildContext -eq "ci")`
+
+These assertions are used by:
+- `tests/integration/Installer/CiBuildCounterPersistenceTests.cs`
+- `tests/integration/Installer/LocalBuildDerivationTests.cs`

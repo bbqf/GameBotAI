@@ -33,7 +33,20 @@ Write-Host "Generated installer license RTF from root LICENSE: $licenseRtfPath"
 
 $isCi = ($env:CI -eq "true") -or ($env:GITHUB_ACTIONS -eq "true")
 $buildContext = if ($isCi) { "ci" } else { "local" }
-$versionResolution = Resolve-InstallerVersion -RepoRoot $repoRoot -BuildContext $buildContext
+$ciBuildNumber = $null
+if ($isCi -and -not [string]::IsNullOrWhiteSpace($env:GITHUB_RUN_NUMBER)) {
+  $parsed = 0
+  if ([int]::TryParse($env:GITHUB_RUN_NUMBER, [ref]$parsed)) {
+    $ciBuildNumber = $parsed
+  }
+}
+
+if ($null -ne $ciBuildNumber) {
+  $versionResolution = Resolve-InstallerVersion -RepoRoot $repoRoot -BuildContext $buildContext -BuildNumberOverride $ciBuildNumber
+}
+else {
+  $versionResolution = Resolve-InstallerVersion -RepoRoot $repoRoot -BuildContext $buildContext
+}
 $installerVersion = $versionResolution.Version
 Write-Host "Resolved installer version: $installerVersion (source=$($versionResolution.Source), persisted=$($versionResolution.Persisted))"
 
