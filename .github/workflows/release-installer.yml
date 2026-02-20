@@ -1,6 +1,10 @@
 name: release-installer
 
 on:
+  push:
+    branches: [ "**" ]
+    paths:
+      - installer/versioning/release-line.marker.json
   workflow_dispatch:
 
 permissions:
