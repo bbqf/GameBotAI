@@ -193,3 +193,82 @@ Example:
 - Feature specification: `specs/025-standalone-windows-installer/spec.md`
 - Contract schema: `specs/025-standalone-windows-installer/contracts/installer.openapi.yaml`
 - Validation quickstart: `specs/025-standalone-windows-installer/quickstart.md`
+
+---
+
+## 11) CI/PR operations (important)
+
+This section documents the current installer CI/release behavior and operational runbook.
+
+### Workflow and trigger model
+
+- Installer artifacts are produced by GitHub workflow `release-installer`.
+- `release-installer` runs on:
+  - `pull_request` targeting `master`
+  - manual `workflow_dispatch`
+- The workflow uses read-only permissions (`contents: read`) and does not push version files back to protected branches.
+
+### Build/version behavior in CI
+
+- `scripts/build-installer.ps1` sets context:
+  - CI (`CI=true` or `GITHUB_ACTIONS=true`) => `buildContext=ci`
+  - local => `buildContext=local`
+- In CI, `GITHUB_RUN_NUMBER` is parsed and passed as `-BuildNumberOverride` into `Resolve-InstallerVersion`.
+- Effective installer version in CI is therefore:
+
+  ```text
+  <major>.<minor>.<patch>.<github.run_number>
+  ```
+
+- `Resolve-InstallerVersion` still contains explicit `if ($BuildContext -eq "ci")` logic for test compatibility.
+
+### Artifact naming behavior
+
+- `release-installer` computes artifact name from override major/minor/patch + `github.run_number`.
+- Branch is sanitized and included in non-main/non-master artifact names.
+- Current naming examples:
+  - `gamebot-installer-v0.1.0.123-win-x64` (main/master style)
+  - `gamebot-installer-v0.1.0.123-026-installer-semver-upgrade-win-x64` (feature branch)
+
+### Required checks / PR gate
+
+- PRs should wait for `release-installer / build-release-installer` plus normal CI checks to complete before merge.
+- Typical check set includes:
+  - `.NET CI` (`build`, `web-ui-tests`)
+  - `ci-installer-fast`
+  - `ci-installer-logic`
+  - `release-installer` (`build-release-installer`)
+  - `CodeQL`
+
+### Conflict resolution runbook
+
+When a PR shows `DIRTY`/`CONFLICTING` against `master`:
+
+```powershell
+git fetch origin
+git checkout <feature-branch>
+git merge origin/master
+# resolve conflicts in:
+# - .github/workflows/release-installer.yml
+# - scripts/build-installer.ps1
+# - scripts/installer/common.psm1
+git add <resolved-files>
+git commit
+git push
+```
+
+After push:
+- Verify PR becomes `MERGEABLE`.
+- Re-check all workflow runs from the new commit.
+
+### CI assertion compatibility notes
+
+Installer integration tests validate literal script strings in `scripts/installer/common.psm1`.
+Do not remove these expected forms without updating tests:
+
+- `if ($BuildContext -eq "ci")`
+- `Persisted = ($BuildContext -eq "ci")`
+
+These assertions are used by:
+- `tests/integration/Installer/CiBuildCounterPersistenceTests.cs`
+- `tests/integration/Installer/LocalBuildDerivationTests.cs`
