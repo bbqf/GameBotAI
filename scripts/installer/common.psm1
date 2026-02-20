@@ -91,6 +91,8 @@ function Resolve-InstallerVersion {
     [int]$PreviousReleaseLineSequence,
     [Parameter(Mandatory = $false)]
     [int]$CurrentReleaseLineSequence
+    ,[Parameter(Mandatory = $false)]
+    [int]$BuildNumberOverride
   )
 
   $state = Get-InstallerVersioningState -RepoRoot $RepoRoot
@@ -124,16 +126,26 @@ function Resolve-InstallerVersion {
     $patch = $BaselinePatch
   }
 
-  $nextBuild = $counter + 1
+  if ($PSBoundParameters.ContainsKey('BuildNumberOverride')) {
+    if ($BuildNumberOverride -lt 0) {
+      throw "BuildNumberOverride must be non-negative."
+    }
+    $nextBuild = $BuildNumberOverride
+  }
+  else {
+    $nextBuild = $counter + 1
+  }
   $version = "$major.$minor.$patch.$nextBuild"
 
-  if ($BuildContext -eq "ci") {
+  if ($BuildContext -eq "ci" -and -not $PSBoundParameters.ContainsKey('BuildNumberOverride')) {
     Set-CiBuildCounter -RepoRoot $RepoRoot -LastBuild $nextBuild -UpdatedBy "ci"
   }
 
+  $persisted = ($BuildContext -eq "ci") -and (-not $PSBoundParameters.ContainsKey('BuildNumberOverride'))
+
   return [PSCustomObject]@{
     Version = $version
-    Persisted = ($BuildContext -eq "ci")
+    Persisted = $persisted
     Source = $BuildContext
     LastBuild = $nextBuild
     ReleaseTransitionDetected = $releaseTransitionDetected
