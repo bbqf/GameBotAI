@@ -50,7 +50,7 @@ else {
 $installerVersion = $versionResolution.Version
 Write-Host "Resolved installer version: $installerVersion (source=$($versionResolution.Source), persisted=$($versionResolution.Persisted))"
 
-& (Join-Path $PSScriptRoot "package-installer-payload.ps1") -Configuration $Configuration
+& (Join-Path $PSScriptRoot "package-installer-payload.ps1") -Configuration $Configuration -InstallerVersion $installerVersion
 if ($LASTEXITCODE -ne 0) {
   throw "Payload packaging failed with exit code $LASTEXITCODE"
 }

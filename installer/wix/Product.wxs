@@ -10,8 +10,6 @@
     InstallerVersion="500">
 
     <ui:WixUI Id="WixUI_InstallDir" />
-    <WixVariable Id="WixUILicenseRtf" Value="Assets\License.generated.rtf" />
-
     <Property Id="WixUISupportPerUser" Value="1" />
     <Property Id="MSIINSTALLPERUSER" Value="1" Secure="yes" />
     <Property Id="ApplicationFolderName" Value="GameBot" />
@@ -33,6 +31,13 @@
     <CustomActionRef Id="DiscoverBindInterfaces" />
     <UI>
       <DialogRef Id="NetworkConfigDlg" />
+      <Publish
+        Dialog="WelcomeDlg"
+        Control="Next"
+        Event="NewDialog"
+        Value="InstallDirDlg"
+        Order="1000"
+        Condition="NOT Installed" />
       <Publish
         Dialog="ExitDialog"
         Control="Finish"
