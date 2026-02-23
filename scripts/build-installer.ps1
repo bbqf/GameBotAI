@@ -14,11 +14,16 @@ $wixBinDir = Join-Path $repoRoot "installer/wix/bin"
 $bundleTargetName = "GameBotInstaller"
 $licenseSourcePath = Join-Path $repoRoot "LICENSE"
 $licenseRtfPath = Join-Path $repoRoot "installer/wix/Assets/License.generated.rtf"
+$licenseRtfDirectory = Split-Path -Parent $licenseRtfPath
 
 Import-Module (Join-Path $PSScriptRoot "installer/common.psm1") -Force
 
 if (-not (Test-Path $licenseSourcePath)) {
   throw "License source file not found at $licenseSourcePath"
+}
+
+if (-not (Test-Path $licenseRtfDirectory)) {
+  New-Item -Path $licenseRtfDirectory -ItemType Directory -Force | Out-Null
 }
 
 $licenseLines = Get-Content -Path $licenseSourcePath
