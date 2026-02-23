@@ -14,6 +14,7 @@ $wixBinDir = Join-Path $repoRoot "installer/wix/bin"
 $bundleTargetName = "GameBotInstaller"
 $licenseSourcePath = Join-Path $repoRoot "LICENSE"
 $licenseRtfPath = Join-Path $repoRoot "installer/wix/Assets/License.generated.rtf"
+$licenseRtfDirectory = Split-Path -Parent $licenseRtfPath
 
 Import-Module (Join-Path $PSScriptRoot "installer/common.psm1") -Force
 
@@ -21,14 +22,18 @@ if (-not (Test-Path $licenseSourcePath)) {
   throw "License source file not found at $licenseSourcePath"
 }
 
+if (-not (Test-Path $licenseRtfDirectory)) {
+  New-Item -Path $licenseRtfDirectory -ItemType Directory -Force | Out-Null
+}
+
 $licenseLines = Get-Content -Path $licenseSourcePath
 $escapedLines = $licenseLines | ForEach-Object {
   $_.Replace("\\", "\\\\").Replace("{", "\\{").Replace("}", "\\}")
 }
 
-$rtfBody = [string]::Join("\n", ($escapedLines | ForEach-Object { "$_\\par" }))
-$rtf = "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Consolas;}}\\fs20\\f0\n$rtfBody\n}"
-Set-Content -Path $licenseRtfPath -Value $rtf -Encoding UTF8
+$rtfBody = [string]::Join("`r`n", ($escapedLines | ForEach-Object { "$_\par" }))
+$rtf = "{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}\fs20\f0`r`n$rtfBody`r`n}"
+Set-Content -Path $licenseRtfPath -Value $rtf -Encoding Ascii
 Write-Host "Generated installer license RTF from root LICENSE: $licenseRtfPath"
 
 $isCi = ($env:CI -eq "true") -or ($env:GITHUB_ACTIONS -eq "true")
@@ -50,7 +55,7 @@ else {
 $installerVersion = $versionResolution.Version
 Write-Host "Resolved installer version: $installerVersion (source=$($versionResolution.Source), persisted=$($versionResolution.Persisted))"
 
-& (Join-Path $PSScriptRoot "package-installer-payload.ps1") -Configuration $Configuration
+& (Join-Path $PSScriptRoot "package-installer-payload.ps1") -Configuration $Configuration -InstallerVersion $installerVersion
 if ($LASTEXITCODE -ne 0) {
   throw "Payload packaging failed with exit code $LASTEXITCODE"
 }

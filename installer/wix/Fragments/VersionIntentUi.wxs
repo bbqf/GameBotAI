@@ -1,0 +1,30 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <UI>
+      <Dialog Id="VersionIntentDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="20" Transparent="yes" NoPrefix="yes" Text="Review setup version" />
+        <Control Id="Description" Type="Text" X="20" Y="26" Width="330" Height="30" Transparent="yes" NoPrefix="yes" Text="This installer will run with the version shown below." />
+        <Control Id="VersionLabel" Type="Text" X="20" Y="70" Width="140" Height="15" Text="Version:" />
+        <Control Id="VersionValue" Type="Text" X="160" Y="70" Width="180" Height="15" Text="[ProductVersion]" />
+
+        <Control Id="InstallModeText" Type="Text" X="20" Y="100" Width="330" Height="30" Transparent="yes" NoPrefix="yes" Text="Operation: install/upgrade" />
+        <Control Id="ReinstallModeText" Type="Text" X="20" Y="100" Width="330" Height="30" Transparent="yes" NoPrefix="yes" Text="Operation: reinstall/maintenance" />
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)" />
+
+        <ControlCondition Action="show" Condition="NOT Installed">InstallModeText</ControlCondition>
+        <ControlCondition Action="hide" Condition="Installed">InstallModeText</ControlCondition>
+        <ControlCondition Action="show" Condition="Installed">ReinstallModeText</ControlCondition>
+        <ControlCondition Action="hide" Condition="NOT Installed">ReinstallModeText</ControlCondition>
+      </Dialog>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VersionIntentDlg" Order="1" Condition="1" />
+      <Publish Dialog="VersionIntentDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Condition="1" />
+      <Publish Dialog="VersionIntentDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Order="1" Condition="NOT Installed" />
+      <Publish Dialog="VersionIntentDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed" />
+      <Publish Dialog="VersionIntentDlg" Control="Cancel" Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+    </UI>
+  </Fragment>
+</Wix>

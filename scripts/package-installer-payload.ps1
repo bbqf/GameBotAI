@@ -3,7 +3,10 @@ param(
   [string]$Configuration = "Release",
 
   [Parameter(Mandatory = $false)]
-  [string]$Runtime = "win-x64"
+  [string]$Runtime = "win-x64",
+
+  [Parameter(Mandatory = $false)]
+  [string]$InstallerVersion
 )
 
 Set-StrictMode -Version Latest
@@ -26,7 +29,25 @@ New-Item -Path $payloadRoot -ItemType Directory -Force | Out-Null
 New-Item -Path (Join-Path $payloadRoot "service") -ItemType Directory -Force | Out-Null
 New-Item -Path (Join-Path $payloadRoot "web-ui") -ItemType Directory -Force | Out-Null
 
-dotnet publish (Join-Path $repoRoot "src/GameBot.Service/GameBot.Service.csproj") -c $Configuration -r $Runtime --self-contained false -o (Join-Path $publishRoot "service")
+$publishArgs = @(
+  "publish",
+  (Join-Path $repoRoot "src/GameBot.Service/GameBot.Service.csproj"),
+  "-c", $Configuration,
+  "-r", $Runtime,
+  "--self-contained", "false",
+  "-o", (Join-Path $publishRoot "service")
+)
+
+if (-not [string]::IsNullOrWhiteSpace($InstallerVersion)) {
+  $publishArgs += @(
+    "/p:Version=$InstallerVersion",
+    "/p:FileVersion=$InstallerVersion",
+    "/p:InformationalVersion=$InstallerVersion",
+    "/p:IncludeSourceRevisionInInformationalVersion=false"
+  )
+}
+
+dotnet @publishArgs
 
 $npmCandidates = @(
   (Join-Path ${env:ProgramFiles} "nodejs/npm.cmd"),

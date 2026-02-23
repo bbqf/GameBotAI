@@ -13,11 +13,17 @@
     <Variable Name="ALLOW_ONLINE_PREREQ_FALLBACK" Type="string" Value="1" bal:Overridable="yes" />
 
     <BootstrapperApplication>
-      <bal:WixInternalUIBootstrapperApplication />
+      <bal:WixStandardBootstrapperApplication
+        Theme="rtfLargeLicense"
+        LicenseFile="Assets\License.generated.rtf"
+        ShowVersion="yes"
+        SuppressOptionsUI="yes"
+        SuppressRepair="no"
+        SuppressDowngradeFailure="no" />
     </BootstrapperApplication>
 
     <Chain>
-      <MsiPackage Id="GameBotMsi" Name="GameBot.msi" CacheId="GameBotMsi" SourceFile="payload\GameBot.msi" bal:PrimaryPackageType="default">
+      <MsiPackage Id="GameBotMsi" Name="GameBot.msi" CacheId="GameBotMsi" SourceFile="payload\GameBot.msi" bal:PrimaryPackageType="default" bal:DisplayInternalUICondition="WixBundleAction = 6">
         <MsiProperty Name="MSIINSTALLPERUSER" Value="1" />
         <MsiProperty Name="DATA_ROOT" Value="[DATA_ROOT]" />
         <MsiProperty Name="APPLICATIONFOLDER" Value="[InstallFolder]" />
