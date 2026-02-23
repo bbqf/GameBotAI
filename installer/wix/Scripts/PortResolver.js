@@ -421,3 +421,47 @@ function DiscoverBindInterfaces() {
 
   return 1;
 }
+
+function readPersistedPortFromRegistry() {
+  try {
+    var shell = new ActiveXObject("WScript.Shell");
+    var value = shell.RegRead("HKCU\\Software\\GameBot\\Network\\Port");
+    return parsePort(value);
+  }
+  catch (ignored) {
+    return -1;
+  }
+}
+
+function NormalizeStartMenuShortcut() {
+  try {
+    var shell = new ActiveXObject("WScript.Shell");
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+
+    var port = parsePort(Session.Property("PORT"));
+    if (port < 1) {
+      port = readPersistedPortFromRegistry();
+    }
+    if (port < 1) {
+      port = 8080;
+    }
+
+    var shortcutPath = shell.ExpandEnvironmentStrings("%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\GameBot\\GameBot.lnk");
+    if (!fso.FileExists(shortcutPath)) {
+      appendDebugLog("Start menu shortcut not found for normalization: " + shortcutPath);
+      return 1;
+    }
+
+    var shortcut = shell.CreateShortcut(shortcutPath);
+    shortcut.TargetPath = shell.ExpandEnvironmentStrings("%WINDIR%\\System32\\rundll32.exe");
+    shortcut.Arguments = "url.dll,FileProtocolHandler http://localhost:" + port + "/";
+    shortcut.WorkingDirectory = Session.Property("APPLICATIONFOLDER");
+    shortcut.Save();
+    appendDebugLog("Normalized GameBot shortcut URL to localhost:" + port);
+  }
+  catch (errorObject) {
+    appendDebugLog("NormalizeStartMenuShortcut failed: " + describeError(errorObject));
+  }
+
+  return 1;
+}
