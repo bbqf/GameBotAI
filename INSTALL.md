@@ -134,6 +134,17 @@ Example:
 - CI does not write version counters back to protected branches.
 - Local/manual builds still support override/version files under `installer/versioning`.
 
+### Version numbering in local builds
+
+- Local builds now attempt to query the latest completed `release-installer` workflow run for the current branch.
+- When available, local build number is set to:
+
+  ```text
+  local build = (latest CI run_number on current branch) + 1
+  ```
+
+- If GitHub context cannot be resolved (for example, no `origin` GitHub remote, no `gh` CLI, or no auth), the build falls back to local counter-based version resolution.
+
 ---
 
 ## 7) Exit codes (silent/unattended)
