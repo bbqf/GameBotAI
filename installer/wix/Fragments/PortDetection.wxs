@@ -16,12 +16,20 @@
       Execute="immediate"
       Return="ignore" />
 
+    <CustomAction
+      Id="NormalizeStartMenuShortcut"
+      BinaryRef="PortResolverScript"
+      JScriptCall="NormalizeStartMenuShortcut"
+      Execute="immediate"
+      Return="ignore" />
+
     <InstallUISequence>
-      <Custom Action="DiscoverBindInterfaces" Before="DetectAvailablePorts" Condition="NOT Installed AND UILevel &gt;= 5" />
-      <Custom Action="DetectAvailablePorts" Before="CostFinalize" Condition="NOT Installed AND UILevel &gt;= 5" />
+      <Custom Action="DiscoverBindInterfaces" Before="DetectAvailablePorts" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5" />
+      <Custom Action="DetectAvailablePorts" Before="CostFinalize" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5" />
     </InstallUISequence>
     <InstallExecuteSequence>
-      <Custom Action="DetectAvailablePorts" Before="CostFinalize" Condition="NOT Installed AND UILevel &lt; 5" />
+      <Custom Action="DetectAvailablePorts" Before="CostFinalize" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND UILevel &lt; 5" />
+      <Custom Action="NormalizeStartMenuShortcut" After="CreateShortcuts" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND NOT REMOVE~=&quot;ALL&quot;" />
     </InstallExecuteSequence>
   </Fragment>
 </Wix>

@@ -144,6 +144,158 @@ public class EmulatorImageCropTests
     }
 
     [Fact]
+    public async Task CropFailsWhenBoundsMissing()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var app = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISessionManager>();
+                services.AddSingleton<ISessionManager>(_ => new FakeSessionManager());
+                services.RemoveAll<GameBot.Domain.Images.ImageStorageOptions>();
+                services.AddSingleton(new GameBot.Domain.Images.ImageStorageOptions(Path.Combine(dataRoot, "images")));
+            });
+        });
+
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+        var cropResp = await client.PostAsJsonAsync(new Uri("/api/images/crop", UriKind.Relative), new
+        {
+            name = "missing-bounds",
+            overwrite = true,
+            sourceCaptureId = "any"
+        }).ConfigureAwait(true);
+
+        cropResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await cropResp.Content.ReadFromJsonAsync<Dictionary<string, object?>>()!.ConfigureAwait(true);
+        payload.Should().NotBeNull();
+        payload!["error"]?.ToString().Should().Be("bounds_required");
+    }
+
+    [Fact]
+    public async Task CropFailsWhenNameMissing()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var app = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISessionManager>();
+                services.AddSingleton<ISessionManager>(_ => new FakeSessionManager());
+                services.RemoveAll<GameBot.Domain.Images.ImageStorageOptions>();
+                services.AddSingleton(new GameBot.Domain.Images.ImageStorageOptions(Path.Combine(dataRoot, "images")));
+            });
+        });
+
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+        var screenshotResp = await client.GetAsync(new Uri("/api/emulator/screenshot", UriKind.Relative)).ConfigureAwait(true);
+        screenshotResp.Headers.TryGetValues("X-Capture-Id", out var captureIds).Should().BeTrue();
+        var captureId = captureIds!.First();
+
+        var cropResp = await client.PostAsJsonAsync(new Uri("/api/images/crop", UriKind.Relative), new
+        {
+            name = "   ",
+            overwrite = true,
+            bounds = new { x = 0, y = 0, width = 16, height = 16 },
+            sourceCaptureId = captureId
+        }).ConfigureAwait(true);
+
+        cropResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await cropResp.Content.ReadFromJsonAsync<Dictionary<string, object?>>()!.ConfigureAwait(true);
+        payload.Should().NotBeNull();
+        payload!["error"]?.ToString().Should().Be("name_required");
+    }
+
+    [Fact]
+    public async Task CropFailsWhenBoundsTooSmall()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var app = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISessionManager>();
+                services.AddSingleton<ISessionManager>(_ => new FakeSessionManager());
+                services.RemoveAll<GameBot.Domain.Images.ImageStorageOptions>();
+                services.AddSingleton(new GameBot.Domain.Images.ImageStorageOptions(Path.Combine(dataRoot, "images")));
+            });
+        });
+
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+        var screenshotResp = await client.GetAsync(new Uri("/api/emulator/screenshot", UriKind.Relative)).ConfigureAwait(true);
+        screenshotResp.Headers.TryGetValues("X-Capture-Id", out var captureIds).Should().BeTrue();
+        var captureId = captureIds!.First();
+
+        var cropResp = await client.PostAsJsonAsync(new Uri("/api/images/crop", UriKind.Relative), new
+        {
+            name = "too-small",
+            overwrite = true,
+            bounds = new { x = 0, y = 0, width = 15, height = 16 },
+            sourceCaptureId = captureId
+        }).ConfigureAwait(true);
+
+        cropResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await cropResp.Content.ReadFromJsonAsync<Dictionary<string, object?>>()!.ConfigureAwait(true);
+        payload.Should().NotBeNull();
+        payload!["error"]?.ToString().Should().Be("bounds_too_small");
+    }
+
+    [Fact]
+    public async Task CropFailsWithConflictWhenImageExistsAndOverwriteFalse()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var app = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISessionManager>();
+                services.AddSingleton<ISessionManager>(_ => new FakeSessionManager());
+                services.RemoveAll<GameBot.Domain.Images.ImageStorageOptions>();
+                services.AddSingleton(new GameBot.Domain.Images.ImageStorageOptions(Path.Combine(dataRoot, "images")));
+            });
+        });
+
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+        var screenshotResp = await client.GetAsync(new Uri("/api/emulator/screenshot", UriKind.Relative)).ConfigureAwait(true);
+        screenshotResp.Headers.TryGetValues("X-Capture-Id", out var captureIds).Should().BeTrue();
+        var captureId = captureIds!.First();
+
+        var firstResp = await client.PostAsJsonAsync(new Uri("/api/images/crop", UriKind.Relative), new
+        {
+            name = "conflict-test",
+            overwrite = true,
+            bounds = new { x = 0, y = 0, width = 16, height = 16 },
+            sourceCaptureId = captureId
+        }).ConfigureAwait(true);
+        firstResp.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var secondResp = await client.PostAsJsonAsync(new Uri("/api/images/crop", UriKind.Relative), new
+        {
+            name = "conflict-test",
+            overwrite = false,
+            bounds = new { x = 0, y = 0, width = 16, height = 16 },
+            sourceCaptureId = captureId
+        }).ConfigureAwait(true);
+
+        secondResp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var payload = await secondResp.Content.ReadFromJsonAsync<Dictionary<string, object?>>()!.ConfigureAwait(true);
+        payload.Should().NotBeNull();
+        payload!["error"]?.ToString().Should().Be("conflict");
+    }
+
+    [Fact]
     public async Task CaptureFailsWhenNoEmulatorSession()
     {
         var dataRoot = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;

@@ -37,7 +37,14 @@
         Event="NewDialog"
         Value="InstallDirDlg"
         Order="1000"
-        Condition="NOT Installed" />
+        Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot;" />
+      <Publish
+        Dialog="WelcomeDlg"
+        Control="Next"
+        Event="NewDialog"
+        Value="VerifyReadyDlg"
+        Order="1001"
+        Condition="NOT Installed AND (WIX_UPGRADE_DETECTED OR PERSISTED_PORT &lt;&gt; &quot;&quot; OR PERSISTED_BIND_HOST &lt;&gt; &quot;&quot;)" />
       <Publish
         Dialog="ExitDialog"
         Control="Finish"

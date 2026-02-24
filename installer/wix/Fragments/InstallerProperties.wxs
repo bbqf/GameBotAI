@@ -1,8 +1,13 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
     <Property Id="DATA_ROOT" Value="__UNSET__" />
+    <Property Id="PROTOCOL" Value="http" />
+    <Property Id="PERSISTED_PROTOCOL">
+      <RegistrySearch Id="PersistedProtocol" Root="HKCU" Key="Software\GameBot\Network" Name="Protocol" Type="raw" />
+    </Property>
     <Property Id="BIND_HOST" Value="127.0.0.1" />
     <Property Id="SHORTCUT_HOST" Value="localhost" />
+    <Property Id="SHORTCUT_URL" Value="http://localhost:8080/" />
     <Property Id="PERSISTED_BIND_HOST">
       <RegistrySearch Id="PersistedBindHost" Root="HKCU" Key="Software\GameBot\Network" Name="BindHost" Type="raw" />
     </Property>
@@ -22,8 +27,16 @@
     <SetProperty Id="BIND_HOST" Value="[PERSISTED_BIND_HOST]" Before="CostFinalize" Condition="PERSISTED_BIND_HOST &lt;&gt; &quot;&quot;" />
     <SetProperty Id="BIND_HOST" Value="127.0.0.1" Before="CostFinalize" Condition="BIND_HOST = &quot;&quot;" />
     <SetProperty Id="PORT" Value="[PERSISTED_PORT]" Before="CostFinalize" Condition="PERSISTED_PORT &lt;&gt; &quot;&quot;" />
-    <SetProperty Id="SHORTCUT_HOST" Value="localhost" Before="CostFinalize" Condition="BIND_HOST = &quot;127.0.0.1&quot;" />
-    <SetProperty Id="SHORTCUT_HOST" Value="[ComputerName]" Before="CostFinalize" Condition="BIND_HOST &lt;&gt; &quot;127.0.0.1&quot;" />
+    <SetProperty Id="PROTOCOL" Value="[PERSISTED_PROTOCOL]" Before="CostFinalize" Condition="PERSISTED_PROTOCOL &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="PROTOCOL" Value="http" Before="CostFinalize" Condition="PROTOCOL = &quot;&quot;" />
+    <SetProperty Id="PORT" Value="8080" Before="CostFinalize" Condition="PORT = &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_HOST" Value="localhost" Before="CostFinalize" Condition="BIND_HOST = &quot;&quot; OR BIND_HOST = &quot;127.0.0.1&quot; OR BIND_HOST = &quot;0.0.0.0&quot;" />
+    <SetProperty Id="SHORTCUT_HOST" Value="[BIND_HOST]" Before="CostFinalize" Condition="BIND_HOST &lt;&gt; &quot;&quot; AND BIND_HOST &lt;&gt; &quot;127.0.0.1&quot; AND BIND_HOST &lt;&gt; &quot;0.0.0.0&quot;" />
+    <SetProperty Id="SHORTCUT_HOST" Value="localhost" Before="CostFinalize" Condition="SHORTCUT_HOST = &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_URL" Value="[PROTOCOL]://localhost:[PORT]/" Before="CostFinalize" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND BIND_HOST = &quot;127.0.0.1&quot;" />
+    <SetProperty Id="SHORTCUT_URL" Value="[PROTOCOL]://[SHORTCUT_HOST]:[PORT]/" Before="CostFinalize" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND SHORTCUT_HOST &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_URL" Value="[PROTOCOL]://localhost:[PORT]/" Before="CostFinalize" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND SHORTCUT_URL = &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_URL" Value="http://localhost:8080/" Before="CostFinalize" Condition="SHORTCUT_URL = &quot;&quot;" />
 
     <InstallUISequence>
       <Custom Action="SetApplicationFolder" Before="CostFinalize" />

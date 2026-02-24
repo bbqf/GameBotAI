@@ -23,6 +23,8 @@ jobs:
       - name: Build
         run: dotnet build GameBot.sln --no-restore -c Release
       - name: Test
+        run: dotnet test GameBot.sln --no-build --no-restore -c Release
+      - name: Coverage gate (installer endpoints)
         run: dotnet test GameBot.sln --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:Include="[GameBot.Service]GameBot.Service.Endpoints.EmulatorImageEndpoints*" /p:Threshold=80 /p:ThresholdType=line /p:ThresholdStat=total
 
   web-ui-tests:

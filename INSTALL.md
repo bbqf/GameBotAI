@@ -134,6 +134,17 @@ Example:
 - CI does not write version counters back to protected branches.
 - Local/manual builds still support override/version files under `installer/versioning`.
 
+### Version numbering in local builds
+
+- Local builds now attempt to query the latest completed `release-installer` workflow run for the current branch.
+- When available, local build number is set to:
+
+  ```text
+  local build = (latest CI run_number on current branch) + 1
+  ```
+
+- If GitHub context cannot be resolved (for example, no `origin` GitHub remote, no `gh` CLI, or no auth), the build falls back to local counter-based version resolution.
+
 ---
 
 ## 7) Exit codes (silent/unattended)
@@ -272,3 +283,53 @@ Do not remove these expected forms without updating tests:
 These assertions are used by:
 - `tests/integration/Installer/CiBuildCounterPersistenceTests.cs`
 - `tests/integration/Installer/LocalBuildDerivationTests.cs`
+
+---
+
+## 12) Finalized UX behavior (regression-locked)
+
+The installer UX and runtime behavior are now validated against the following scenario contract.
+
+### Scenario 1: Fresh install
+
+- Page 1 (Bootstrapper): EULA + exact bundle build version is shown.
+- Page 2 (MSI): installation directory page with default per-user path.
+- Page 3 (MSI): interface/port page with:
+  - bind host combo (default localhost)
+  - port prefilled using deterministic first-available selection order (`8080,8088,8888,80`).
+- Final page: “start background app” suggestion defaults to checked.
+- Shortcuts are created from the resulting configuration.
+
+### Scenario 2: Upgrade
+
+- Page 1 (Bootstrapper): same EULA + exact version display.
+- Configuration pages are skipped (directory + interface/port pages are not shown).
+- Existing configuration is retained.
+- Shortcut values are not rewritten during upgrade paths.
+
+### Scenario 3: Removal
+
+- No configuration pages are shown.
+- Background app launch action is not triggered on uninstall.
+
+### Scenario 4: Downgrade
+
+- Downgrade is blocked.
+- User gets explicit downgrade error message instead of upgrade flow.
+
+### Frontend shortcut stability rules
+
+- Frontend shortcut always uses URL protocol handler via `rundll32`.
+- Effective URL is normalized to avoid blank protocol/host edge cases.
+- Shortcut normalization is constrained to fresh install paths (not upgrade/remove).
+
+### Automated regression coverage
+
+The following tests now enforce this contract:
+
+- `tests/integration/Installer/InstallerAuthoringScenarioTests.cs`
+- `tests/integration/Installer/UpgradePropertyRetentionTests.cs`
+- `tests/integration/Installer/DowngradeBlockFlowTests.cs`
+- `tests/integration/Installer/FirstInstallFlowTests.cs`
+- `tests/integration/Installer/HttpsConfigurationFlowTests.cs`
+- `scripts/installer/scope-smoke.ps1` (authoring smoke assertions)

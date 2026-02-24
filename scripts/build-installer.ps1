@@ -18,6 +18,69 @@ $licenseRtfDirectory = Split-Path -Parent $licenseRtfPath
 
 Import-Module (Join-Path $PSScriptRoot "installer/common.psm1") -Force
 
+function Get-GitHubRepoContext {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RepoRoot
+  )
+
+  try {
+    $origin = (git -C $RepoRoot remote get-url origin 2>$null).Trim()
+    $branch = (git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null).Trim()
+  }
+  catch {
+    return $null
+  }
+
+  if ([string]::IsNullOrWhiteSpace($origin) -or [string]::IsNullOrWhiteSpace($branch)) {
+    return $null
+  }
+
+  $match = [regex]::Match($origin, 'github\.com[:/](?<owner>[^/]+)/(?<repo>[^/.]+?)(?:\.git)?$')
+  if (-not $match.Success) {
+    return $null
+  }
+
+  return [PSCustomObject]@{
+    Owner = $match.Groups['owner'].Value
+    Repo = $match.Groups['repo'].Value
+    Branch = $branch
+  }
+}
+
+function Get-LatestCiRunNumberForBranch {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Owner,
+    [Parameter(Mandatory = $true)]
+    [string]$Repo,
+    [Parameter(Mandatory = $true)]
+    [string]$Branch
+  )
+
+  if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    return $null
+  }
+
+  try {
+    $apiPath = "/repos/$Owner/$Repo/actions/workflows/release-installer.yml/runs"
+    $runNumberText = gh api $apiPath --method GET -f branch=$Branch -f per_page=1 -f status=completed --jq ".workflow_runs[0].run_number" 2>$null
+    if ([string]::IsNullOrWhiteSpace($runNumberText)) {
+      return $null
+    }
+
+    $parsed = 0
+    if ([int]::TryParse($runNumberText.Trim(), [ref]$parsed)) {
+      return $parsed
+    }
+  }
+  catch {
+    return $null
+  }
+
+  return $null
+}
+
 if (-not (Test-Path $licenseSourcePath)) {
   throw "License source file not found at $licenseSourcePath"
 }
@@ -43,6 +106,23 @@ if ($isCi -and -not [string]::IsNullOrWhiteSpace($env:GITHUB_RUN_NUMBER)) {
   $parsed = 0
   if ([int]::TryParse($env:GITHUB_RUN_NUMBER, [ref]$parsed)) {
     $ciBuildNumber = $parsed
+  }
+}
+
+if (-not $isCi) {
+  $repoContext = Get-GitHubRepoContext -RepoRoot $repoRoot
+  if ($null -ne $repoContext) {
+    $latestCiRunNumber = Get-LatestCiRunNumberForBranch -Owner $repoContext.Owner -Repo $repoContext.Repo -Branch $repoContext.Branch
+    if ($null -ne $latestCiRunNumber) {
+      $ciBuildNumber = $latestCiRunNumber + 1
+      Write-Host "Resolved local build number from latest CI run: $latestCiRunNumber -> using $ciBuildNumber"
+    }
+    else {
+      Write-Host "Could not resolve latest CI run number for branch '$($repoContext.Branch)'; using local counter fallback."
+    }
+  }
+  else {
+    Write-Host "Could not resolve GitHub repository context; using local counter fallback."
   }
 }
 

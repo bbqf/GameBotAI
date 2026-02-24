@@ -421,3 +421,64 @@ function DiscoverBindInterfaces() {
 
   return 1;
 }
+
+function readPersistedPortFromRegistry() {
+  try {
+    var shell = new ActiveXObject("WScript.Shell");
+    var value = shell.RegRead("HKCU\\Software\\GameBot\\Network\\Port");
+    return parsePort(value);
+  }
+  catch (ignored) {
+    return -1;
+  }
+}
+
+function NormalizeStartMenuShortcut() {
+  try {
+    var shell = new ActiveXObject("WScript.Shell");
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+
+    var protocol = trimText(Session.Property("PROTOCOL"));
+    if (protocol.length === 0) {
+      protocol = "http";
+    }
+
+    var bindHost = trimText(Session.Property("BIND_HOST"));
+    var resolvedHost = "localhost";
+    if (bindHost.length > 0 && bindHost !== "127.0.0.1" && bindHost !== "0.0.0.0") {
+      var computerName = trimText(Session.Property("ComputerName"));
+      if (computerName.length > 0) {
+        resolvedHost = computerName;
+      }
+      else {
+        resolvedHost = bindHost;
+      }
+    }
+
+    var port = parsePort(Session.Property("PORT"));
+    if (port < 1) {
+      port = readPersistedPortFromRegistry();
+    }
+    if (port < 1) {
+      port = 8080;
+    }
+
+    var shortcutPath = shell.ExpandEnvironmentStrings("%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\GameBot\\GameBot.lnk");
+    if (!fso.FileExists(shortcutPath)) {
+      appendDebugLog("Start menu shortcut not found for normalization: " + shortcutPath);
+      return 1;
+    }
+
+    var shortcut = shell.CreateShortcut(shortcutPath);
+    shortcut.TargetPath = shell.ExpandEnvironmentStrings("%WINDIR%\\System32\\rundll32.exe");
+    shortcut.Arguments = "url.dll,FileProtocolHandler " + protocol + "://" + resolvedHost + ":" + port + "/";
+    shortcut.WorkingDirectory = Session.Property("APPLICATIONFOLDER");
+    shortcut.Save();
+    appendDebugLog("Normalized GameBot shortcut URL to " + protocol + "://" + resolvedHost + ":" + port + "/");
+  }
+  catch (errorObject) {
+    appendDebugLog("NormalizeStartMenuShortcut failed: " + describeError(errorObject));
+  }
+
+  return 1;
+}
