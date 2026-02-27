@@ -86,4 +86,19 @@ describe('CommandsPage detection persistence', () => {
       detection: { referenceImageId: 'tpl2', confidence: 0.9, offsetX: -4, offsetY: 7 },
     }));
   });
+
+  it('shows validation error for primitive tap step without detection image', async () => {
+    listCommandsMock.mockResolvedValue([{ id: 'c2', name: 'BadPrimitive', steps: [{ type: 'PrimitiveTap', order: 0, primitiveTap: { detectionTarget: { referenceImageId: '' } } }] } as any]);
+    getCommandMock.mockResolvedValue({ id: 'c2', name: 'BadPrimitive', steps: [{ type: 'PrimitiveTap', order: 0, primitiveTap: { detectionTarget: { referenceImageId: '' } } }] } as any);
+
+    render(<CommandsPage />);
+    await screen.findByText('BadPrimitive');
+    fireEvent.click(screen.getByText('BadPrimitive'));
+
+    await screen.findByText('Edit Command');
+    fireEvent.click(screen.getAllByText('Save')[0]);
+
+    expect(await screen.findByText('Primitive tap steps require a detection target reference image ID')).toBeInTheDocument();
+    expect(updateCommandMock).not.toHaveBeenCalled();
+  });
 });

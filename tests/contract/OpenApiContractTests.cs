@@ -37,4 +37,19 @@ public sealed class OpenApiContractTests : IDisposable {
     var pathsElement = (System.Text.Json.JsonElement)doc["paths"];
     pathsElement.ToString().Should().Contain("/health");
   }
+
+  [Fact]
+  public async Task SwaggerDocumentIncludesPrimitiveTapCommandContracts() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
+    resp.EnsureSuccessStatusCode();
+
+    using var doc = await System.Text.Json.JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync()).ConfigureAwait(true);
+    var root = doc.RootElement;
+
+    root.ToString().Should().Contain("PrimitiveTap");
+
+    root.ToString().Should().Contain("evaluate-and-execute");
+  }
 }

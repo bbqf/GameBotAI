@@ -1,6 +1,7 @@
 using GameBot.Domain.Commands;
 using GameBot.Service;
 using GameBot.Service.Models;
+using GameBot.Service.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.ObjectModel;
 using System.Text.Json;
@@ -19,6 +20,71 @@ internal static class CommandsEndpoints {
   private static DetectionSelectionStrategyDto MapSelectionToDto(DetectionSelectionStrategy selection) => selection switch {
     DetectionSelectionStrategy.FirstMatch => DetectionSelectionStrategyDto.FirstMatch,
     _ => DetectionSelectionStrategyDto.HighestConfidence
+  };
+
+  private static CommandStepType MapStepTypeFromDto(CommandStepTypeDto dto) => dto switch {
+    CommandStepTypeDto.Action => CommandStepType.Action,
+    CommandStepTypeDto.Command => CommandStepType.Command,
+    _ => CommandStepType.PrimitiveTap
+  };
+
+  private static CommandStepTypeDto MapStepTypeToDto(CommandStepType type) => type switch {
+    CommandStepType.Action => CommandStepTypeDto.Action,
+    CommandStepType.Command => CommandStepTypeDto.Command,
+    _ => CommandStepTypeDto.PrimitiveTap
+  };
+
+  private static PrimitiveTapConfig? ToDomainPrimitiveTap(PrimitiveTapConfigDto? dto) {
+    if (dto is null) return null;
+    var detection = ToDomainDetection(dto.DetectionTarget);
+    if (detection is null) return null;
+    return new PrimitiveTapConfig { DetectionTarget = detection };
+  }
+
+  private static PrimitiveTapConfigDto? ToResponsePrimitiveTap(PrimitiveTapConfig? cfg) {
+    if (cfg is null) return null;
+    return new PrimitiveTapConfigDto { DetectionTarget = ToResponseDetection(cfg.DetectionTarget)! };
+  }
+
+  private static string? ValidateStep(CommandStepDto step) {
+    if (step.Type == CommandStepTypeDto.PrimitiveTap) {
+      if (step.PrimitiveTap is null || step.PrimitiveTap.DetectionTarget is null || string.IsNullOrWhiteSpace(step.PrimitiveTap.DetectionTarget.ReferenceImageId)) {
+        return "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
+      }
+      return null;
+    }
+
+    if (string.IsNullOrWhiteSpace(step.TargetId)) {
+      return "targetId is required for Action/Command steps";
+    }
+    return null;
+  }
+
+  private static CommandStep ToDomainStep(CommandStepDto s) => new() {
+    Type = MapStepTypeFromDto(s.Type),
+    TargetId = s.TargetId ?? string.Empty,
+    PrimitiveTap = s.Type == CommandStepTypeDto.PrimitiveTap ? ToDomainPrimitiveTap(s.PrimitiveTap) : null,
+    Order = s.Order
+  };
+
+  private static CommandStepDto ToResponseStep(CommandStep s) => new() {
+    Type = MapStepTypeToDto(s.Type),
+    TargetId = s.Type == CommandStepType.PrimitiveTap ? null : s.TargetId,
+    PrimitiveTap = s.Type == CommandStepType.PrimitiveTap ? ToResponsePrimitiveTap(s.PrimitiveTap) : null,
+    Order = s.Order
+  };
+
+  private static StepExecutionOutcomeDto ToResponseOutcome(PrimitiveTapStepOutcome outcome) => new() {
+    StepOrder = outcome.StepOrder,
+    Status = outcome.Status,
+    Reason = outcome.Reason,
+    DetectionConfidence = outcome.DetectionConfidence,
+    ResolvedPoint = outcome.ResolvedPoint is null
+      ? null
+      : new ResolvedPointDto {
+        X = outcome.ResolvedPoint.X,
+        Y = outcome.ResolvedPoint.Y
+      }
   };
 
   private static DetectionTarget? ToDomainDetection(DetectionTargetDto? dto) {
@@ -85,17 +151,20 @@ internal static class CommandsEndpoints {
       if (req is null || string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
 
+      foreach (var s in req.Steps) {
+        var err = ValidateStep(s);
+        if (err is not null) {
+          return Results.BadRequest(new { error = new { code = "invalid_request", message = err, hint = (string?)null } });
+        }
+      }
+
       var detectionDto = req.Detection ?? TryReadDetection(root);
 
       var command = new Command {
         Id = string.Empty,
         Name = req.Name,
         TriggerId = req.TriggerId,
-        Steps = new Collection<CommandStep>(req.Steps.Select(s => new CommandStep {
-          Type = s.Type == CommandStepTypeDto.Action ? CommandStepType.Action : CommandStepType.Command,
-          TargetId = s.TargetId,
-          Order = s.Order
-        }).ToList()),
+        Steps = new Collection<CommandStep>(req.Steps.Select(ToDomainStep).ToList()),
         Detection = ToDomainDetection(detectionDto)
       };
 
@@ -104,11 +173,7 @@ internal static class CommandsEndpoints {
         Id = createdDomain.Id,
         Name = createdDomain.Name,
         TriggerId = createdDomain.TriggerId,
-        Steps = new Collection<CommandStepDto>(createdDomain.Steps.Select(s => new CommandStepDto {
-          Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
-          TargetId = s.TargetId,
-          Order = s.Order
-        }).ToList()),
+        Steps = new Collection<CommandStepDto>(createdDomain.Steps.Select(ToResponseStep).ToList()),
         Detection = ToResponseDetection(createdDomain.Detection)
       });
     })
@@ -123,11 +188,7 @@ internal static class CommandsEndpoints {
             Id = c.Id,
             Name = c.Name,
             TriggerId = c.TriggerId,
-            Steps = new Collection<CommandStepDto>(c.Steps.Select(s => new CommandStepDto {
-              Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
-              TargetId = s.TargetId,
-              Order = s.Order
-            }).ToList()),
+            Steps = new Collection<CommandStepDto>(c.Steps.Select(ToResponseStep).ToList()),
             Detection = ToResponseDetection(c.Detection)
           });
     })
@@ -140,11 +201,7 @@ internal static class CommandsEndpoints {
         Id = c.Id,
         Name = c.Name,
         TriggerId = c.TriggerId,
-        Steps = new Collection<CommandStepDto>(c.Steps.Select(s => new CommandStepDto {
-          Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
-          TargetId = s.TargetId,
-          Order = s.Order
-        }).ToList()),
+        Steps = new Collection<CommandStepDto>(c.Steps.Select(ToResponseStep).ToList()),
         Detection = ToResponseDetection(c.Detection)
       });
       return Results.Ok(resp);
@@ -158,13 +215,15 @@ internal static class CommandsEndpoints {
       if (!string.IsNullOrWhiteSpace(req.Name)) existing.Name = req.Name!;
       existing.TriggerId = req.TriggerId ?? existing.TriggerId;
       if (req.Steps is not null) {
+        foreach (var s in req.Steps) {
+          var err = ValidateStep(s);
+          if (err is not null) {
+            return Results.BadRequest(new { error = new { code = "invalid_request", message = err, hint = (string?)null } });
+          }
+        }
         existing.Steps.Clear();
         foreach (var s in req.Steps) {
-          existing.Steps.Add(new CommandStep {
-            Type = s.Type == CommandStepTypeDto.Action ? CommandStepType.Action : CommandStepType.Command,
-            TargetId = s.TargetId,
-            Order = s.Order
-          });
+          existing.Steps.Add(ToDomainStep(s));
         }
       }
       if (req.DetectionSpecified) {
@@ -176,11 +235,7 @@ internal static class CommandsEndpoints {
         Id = updated.Id,
         Name = updated.Name,
         TriggerId = updated.TriggerId,
-        Steps = new Collection<CommandStepDto>(updated.Steps.Select(s => new CommandStepDto {
-          Type = s.Type == CommandStepType.Action ? CommandStepTypeDto.Action : CommandStepTypeDto.Command,
-          TargetId = s.TargetId,
-          Order = s.Order
-        }).ToList()),
+        Steps = new Collection<CommandStepDto>(updated.Steps.Select(ToResponseStep).ToList()),
         Detection = ToResponseDetection(updated.Detection)
       });
     })
@@ -211,8 +266,11 @@ internal static class CommandsEndpoints {
 
     app.MapPost($"{ApiRoutes.Commands}/{{id}}/force-execute", async (string id, string? sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
-        var accepted = await exec.ForceExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
-        return Results.Accepted($"{ApiRoutes.Sessions}/{sessionId}", new { accepted });
+        var result = await exec.ForceExecuteDetailedAsync(sessionId, id, ct).ConfigureAwait(false);
+        return Results.Accepted($"{ApiRoutes.Sessions}/{sessionId}", new {
+          accepted = result.Accepted,
+          stepOutcomes = result.StepOutcomes.Select(ToResponseOutcome).ToArray()
+        });
       }
       catch (InvalidOperationException ex) when (string.Equals(ex.Message, "missing_session_context", StringComparison.OrdinalIgnoreCase)) {
         return Results.BadRequest(new { error = new { code = "missing_session", message = "No sessionId supplied and no connect-to-game context found for this command.", hint = "Run a connect-to-game action first or supply sessionId." } });
@@ -236,11 +294,12 @@ internal static class CommandsEndpoints {
 
     app.MapPost($"{ApiRoutes.Commands}/{{id}}/evaluate-and-execute", async (string id, string? sessionId, GameBot.Service.Services.ICommandExecutor exec, CancellationToken ct) => {
       try {
-        var decision = await exec.EvaluateAndExecuteAsync(sessionId, id, ct).ConfigureAwait(false);
+        var decision = await exec.EvaluateAndExecuteDetailedAsync(sessionId, id, ct).ConfigureAwait(false);
         return Results.Accepted($"{ApiRoutes.Sessions}/{sessionId}", new {
           accepted = decision.Accepted,
           triggerStatus = decision.TriggerStatus.ToString(),
-          message = decision.Reason
+          message = decision.Reason,
+          stepOutcomes = decision.StepOutcomes.Select(ToResponseOutcome).ToArray()
         });
       }
       catch (InvalidOperationException ex) when (string.Equals(ex.Message, "missing_session_context", StringComparison.OrdinalIgnoreCase)) {

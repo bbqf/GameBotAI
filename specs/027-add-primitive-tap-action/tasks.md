@@ -11,9 +11,9 @@
 
 **Purpose**: Align contracts, sample data, and test scaffolding for this feature.
 
-- [ ] T001 Add primitive tap backend test fixture payload in tests/TestAssets/sample-primitive-tap-command.json
-- [ ] T002 [P] Add primitive tap sample command JSON in data/commands/sample-primitive-tap-command.json
-- [ ] T003 [P] Add primitive tap API contract documentation updates in specs/027-add-primitive-tap-action/contracts/primitive-tap.openapi.yaml
+- [X] T001 Add primitive tap backend test fixture payload in tests/TestAssets/sample-primitive-tap-command.json
+- [X] T002 [P] Add primitive tap sample command JSON in data/commands/sample-primitive-tap-command.json
+- [X] T003 [P] Add primitive tap API contract documentation updates in specs/027-add-primitive-tap-action/contracts/primitive-tap.openapi.yaml
 
 ---
 
@@ -23,11 +23,11 @@
 
 **⚠️ CRITICAL**: No user story work begins until this phase is complete.
 
-- [ ] T004 Add PrimitiveTap step type to domain command step enum in src/GameBot.Domain/Commands/CommandStep.cs
-- [ ] T005 [P] Add primitive tap DTO models and outcome DTOs in src/GameBot.Service/Models/Commands.cs
-- [ ] T006 [P] Add primitive tap mapping helpers and validation hooks in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
-- [ ] T007 Add execution outcome response model updates for execute endpoints in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
-- [ ] T008 [P] Extend web UI command DTO/service types for PrimitiveTap and step outcomes in src/web-ui/src/services/commands.ts
+- [X] T004 Add PrimitiveTap step type to domain command step enum in src/GameBot.Domain/Commands/CommandStep.cs
+- [X] T005 [P] Add primitive tap DTO models and outcome DTOs in src/GameBot.Service/Models/Commands.cs
+- [X] T006 [P] Add primitive tap mapping helpers and validation hooks in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
+- [X] T007 Add execution outcome response model updates for execute endpoints in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
+- [X] T008 [P] Extend web UI command DTO/service types for PrimitiveTap and step outcomes in src/web-ui/src/services/commands.ts
 
 **Checkpoint**: Foundation ready for independent user story implementation.
 
@@ -41,20 +41,20 @@
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Add unit tests for primitive tap coordinate selection and highest-confidence behavior in tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs
-- [ ] T010 [P] [US1] Add integration tests for primitive tap success and detection-failed skip in tests/integration/Commands/PrimitiveTapExecutionIntegrationTests.cs
-- [ ] T011 [P] [US1] Add contract test coverage for PrimitiveTap schema and execute response outcomes in tests/contract/OpenApiContractTests.cs
-- [ ] T012 [P] [US1] Add web UI service tests for primitive tap payload and stepOutcomes parsing in src/web-ui/src/services/__tests__/commands.spec.ts
+- [X] T009 [P] [US1] Add unit tests for primitive tap coordinate selection and highest-confidence behavior in tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs
+- [X] T010 [P] [US1] Add integration tests for primitive tap success and detection-failed skip in tests/integration/Commands/PrimitiveTapExecutionIntegrationTests.cs
+- [X] T011 [P] [US1] Add contract test coverage for PrimitiveTap schema and execute response outcomes in tests/contract/OpenApiContractTests.cs
+- [X] T012 [P] [US1] Add web UI service tests for primitive tap payload and stepOutcomes parsing in src/web-ui/src/services/__tests__/commands.spec.ts
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement PrimitiveTap step deserialization/serialization in command create/get/update endpoints in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
-- [ ] T014 [US1] Implement primitive tap detection resolution and highest-confidence selection in executor flow in src/GameBot.Service/Services/CommandExecutor.cs
-- [ ] T015 [US1] Implement primitive tap tap-dispatch conversion and accepted count updates in src/GameBot.Service/Services/CommandExecutor.cs
-- [ ] T016 [US1] Return per-step primitive execution outcomes from force-execute and evaluate-and-execute responses in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
-- [ ] T017 [US1] Add PrimitiveTap authoring controls in command form step editor in src/web-ui/src/components/commands/CommandForm.tsx
-- [ ] T018 [US1] Wire PrimitiveTap create/edit persistence and mapping in commands page in src/web-ui/src/pages/CommandsPage.tsx
-- [ ] T019 [P] [US1] Add UI tests for creating/editing primitive tap steps in src/web-ui/src/pages/__tests__/CommandsPage.spec.tsx
+- [X] T013 [US1] Implement PrimitiveTap step deserialization/serialization in command create/get/update endpoints in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
+- [X] T014 [US1] Implement primitive tap detection resolution and highest-confidence selection in executor flow in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T015 [US1] Implement primitive tap tap-dispatch conversion and accepted count updates in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T016 [US1] Return per-step primitive execution outcomes from force-execute and evaluate-and-execute responses in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
+- [X] T017 [US1] Add PrimitiveTap authoring controls in command form step editor in src/web-ui/src/components/commands/CommandForm.tsx
+- [X] T018 [US1] Wire PrimitiveTap create/edit persistence and mapping in commands page in src/web-ui/src/pages/CommandsPage.tsx
+- [X] T019 [P] [US1] Add UI tests for creating/editing primitive tap steps in src/web-ui/src/pages/__tests__/CommandsPage.spec.tsx
 
 **Checkpoint**: User Story 1 independently functional and testable.
 
@@ -90,15 +90,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Add integration tests for missing-detection validation rejection in tests/integration/Commands/PrimitiveTapValidationIntegrationTests.cs
-- [ ] T027 [P] [US3] Add integration tests for out-of-bounds skipped/invalid-target outcome in tests/integration/Commands/PrimitiveTapExecutionIntegrationTests.cs
-- [ ] T028 [P] [US3] Add UI validation tests for required primitive detection fields in src/web-ui/src/pages/__tests__/CommandsPage.detection.spec.tsx
+- [X] T026 [P] [US3] Add integration tests for missing-detection validation rejection in tests/integration/Commands/PrimitiveTapValidationIntegrationTests.cs
+- [X] T027 [P] [US3] Add integration tests for out-of-bounds skipped/invalid-target outcome in tests/integration/Commands/PrimitiveTapExecutionIntegrationTests.cs
+- [X] T028 [P] [US3] Add UI validation tests for required primitive detection fields in src/web-ui/src/pages/__tests__/CommandsPage.detection.spec.tsx
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] Enforce primitive tap detection-required validation in command create/update endpoints in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
-- [ ] T030 [US3] Enforce out-of-bounds skip behavior and invalid-target outcome in command executor in src/GameBot.Service/Services/CommandExecutor.cs
-- [ ] T031 [US3] Add authoring form validation messages for primitive tap detection requirements in src/web-ui/src/pages/CommandsPage.tsx
+- [X] T029 [US3] Enforce primitive tap detection-required validation in command create/update endpoints in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
+- [X] T030 [US3] Enforce out-of-bounds skip behavior and invalid-target outcome in command executor in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T031 [US3] Add authoring form validation messages for primitive tap detection requirements in src/web-ui/src/pages/CommandsPage.tsx
 
 **Checkpoint**: All user stories independently functional and testable.
 

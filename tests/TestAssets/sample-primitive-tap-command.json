@@ -1,0 +1,20 @@
+{
+  "id": "00000000000000000000000000000002",
+  "name": "Sample Primitive Tap Command",
+  "steps": [
+    {
+      "type": "PrimitiveTap",
+      "order": 0,
+      "targetId": "",
+      "primitiveTap": {
+        "detectionTarget": {
+          "referenceImageId": "home_button",
+          "confidence": 0.95,
+          "offsetX": 0,
+          "offsetY": 0,
+          "selectionStrategy": "HighestConfidence"
+        }
+      }
+    }
+  ]
+}

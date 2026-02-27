@@ -19,7 +19,21 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
   if (dto.steps && dto.steps.length > 0) {
     return dto.steps
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map((s) => ({ id: makeId(), type: s.type, targetId: s.targetId }));
+      .map((s) => ({
+        id: makeId(),
+        type: s.type,
+        targetId: s.targetId,
+        primitiveTap: s.primitiveTap
+          ? {
+            detectionTarget: {
+              referenceImageId: s.primitiveTap.detectionTarget.referenceImageId,
+              confidence: s.primitiveTap.detectionTarget.confidence !== undefined ? String(s.primitiveTap.detectionTarget.confidence) : undefined,
+              offsetX: s.primitiveTap.detectionTarget.offsetX !== undefined ? String(s.primitiveTap.detectionTarget.offsetX) : undefined,
+              offsetY: s.primitiveTap.detectionTarget.offsetY !== undefined ? String(s.primitiveTap.detectionTarget.offsetY) : undefined,
+            }
+          }
+          : undefined
+      }));
   }
   if (dto.actions && dto.actions.length > 0) {
     return dto.actions.map((a) => ({ id: makeId(), type: 'Action' as const, targetId: a }));
@@ -27,7 +41,34 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
   return [];
 };
 
-const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) => ({ type: s.type, targetId: s.targetId, order: idx }));
+const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) => {
+  if (s.type === 'PrimitiveTap') {
+    return {
+      type: 'PrimitiveTap',
+      order: idx,
+      primitiveTap: {
+        detectionTarget: {
+          referenceImageId: s.primitiveTap?.detectionTarget.referenceImageId?.trim() ?? '',
+          confidence: s.primitiveTap?.detectionTarget.confidence !== undefined && s.primitiveTap.detectionTarget.confidence !== ''
+            ? Number(s.primitiveTap.detectionTarget.confidence)
+            : undefined,
+          offsetX: s.primitiveTap?.detectionTarget.offsetX !== undefined && s.primitiveTap.detectionTarget.offsetX !== ''
+            ? Number(s.primitiveTap.detectionTarget.offsetX)
+            : undefined,
+          offsetY: s.primitiveTap?.detectionTarget.offsetY !== undefined && s.primitiveTap.detectionTarget.offsetY !== ''
+            ? Number(s.primitiveTap.detectionTarget.offsetY)
+            : undefined,
+        }
+      }
+    };
+  }
+
+  return {
+    type: s.type,
+    targetId: s.targetId ?? '',
+    order: idx
+  };
+});
 
 const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number; offsetX?: number; offsetY?: number; selectionStrategy?: string }): DetectionTargetForm | undefined => {
   if (!dto) return undefined;
@@ -148,7 +189,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     return commands.map((c) => {
       const stepCount = c.steps?.length ?? c.actions?.length ?? 0;
       const actionStep = c.steps?.find((s) => s.type === 'Action');
-      const gameId = actionStep ? actionGameMap.get(actionStep.targetId) : undefined;
+      const gameId = actionStep?.targetId ? actionGameMap.get(actionStep.targetId) : undefined;
       return { id: c.id, name: c.name, stepCount, gameId };
     });
   }, [commands, actionGameMap]);
@@ -181,6 +222,17 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const validate = (v: CommandFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
+    for (const step of v.steps) {
+      if (step.type === 'PrimitiveTap') {
+        if (!step.primitiveTap?.detectionTarget.referenceImageId?.trim()) {
+          next.steps = 'Primitive tap steps require a detection target reference image ID';
+          break;
+        }
+      } else if (!step.targetId?.trim()) {
+        next.steps = 'Action and command steps require a target';
+        break;
+      }
+    }
     const detectionResult = detectionToDto(v.detection);
     if (detectionResult && 'error' in detectionResult) next.detection = detectionResult.error;
     return Object.keys(next).length ? next : undefined;
