@@ -68,15 +68,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T020 [P] [US2] Add regression unit tests for action-only command execution path in tests/unit/Commands/CommandExecutorTests.cs
-- [ ] T021 [P] [US2] Add integration regression tests for action-only execute/evaluate flows in tests/integration/CommandEvaluateAndExecuteTests.cs
-- [ ] T022 [P] [US2] Add web UI regression tests ensuring legacy Action/Command step authoring still works in src/web-ui/src/pages/__tests__/CommandsPage.spec.tsx
+- [X] T020 [P] [US2] Add regression unit tests for action-only command execution path in tests/unit/Commands/CommandExecutorTests.cs
+- [X] T021 [P] [US2] Add integration regression tests for action-only execute/evaluate flows in tests/integration/CommandEvaluateAndExecuteTests.cs
+- [X] T022 [P] [US2] Add web UI regression tests ensuring legacy Action/Command step authoring still works in src/web-ui/src/pages/__tests__/CommandsPage.spec.tsx
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Ensure Action and Command step mapping remains backward compatible with PrimitiveTap additions in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
-- [ ] T024 [US2] Ensure executor preserves existing behavior for non-PrimitiveTap steps in src/GameBot.Service/Services/CommandExecutor.cs
-- [ ] T025 [US2] Ensure command service and form defaults preserve legacy step rendering in src/web-ui/src/services/commands.ts
+- [X] T023 [US2] Ensure Action and Command step mapping remains backward compatible with PrimitiveTap additions in src/GameBot.Service/Endpoints/CommandsEndpoints.cs
+- [X] T024 [US2] Ensure executor preserves existing behavior for non-PrimitiveTap steps in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T025 [US2] Ensure command service and form defaults preserve legacy step rendering in src/web-ui/src/services/commands.ts
 
 **Checkpoint**: User Stories 1 and 2 both pass independently.
 
@@ -108,16 +108,16 @@
 
 **Purpose**: Final verification, documentation alignment, and quality gates.
 
-- [ ] T032 [P] Update quick verification steps with final request/response examples in specs/027-add-primitive-tap-action/quickstart.md
-- [ ] T033 [P] Add/refresh performance notes for primitive tap detection overhead in specs/027-add-primitive-tap-action/plan.md
-- [ ] T034 Run full backend tests and analyze failures using repo script in scripts/analyze-test-results.ps1
-- [ ] T035 Run web UI command-related tests and fix any contract mismatches in src/web-ui/src/services/__tests__/commands.spec.ts
-- [ ] T036 Run .NET formatting and analyzer checks for touched backend code in src/GameBot.Service/GameBot.Service.csproj
-- [ ] T037 Run frontend lint checks for command authoring/service changes in src/web-ui/package.json
-- [ ] T038 Run repository security/secret scanning and document pass status in docs/validation.md
-- [ ] T039 Collect and verify touched-area coverage thresholds (>=80% line, >=70% branch) in tools/coverage/
-- [ ] T040 Execute primitive tap performance validation and record p95/regression results in docs/perf-checklist.md
-- [ ] T041 Measure command authoring completion time for primitive tap flow and document SC-004 evidence in docs/validation.md
+- [X] T032 [P] Update quick verification steps with final request/response examples in specs/027-add-primitive-tap-action/quickstart.md
+- [X] T033 [P] Add/refresh performance notes for primitive tap detection overhead in specs/027-add-primitive-tap-action/plan.md
+- [X] T034 Run full backend tests and analyze failures using repo script in scripts/analyze-test-results.ps1
+- [X] T035 Run web UI command-related tests and fix any contract mismatches in src/web-ui/src/services/__tests__/commands.spec.ts
+- [X] T036 Run .NET formatting and analyzer checks for touched backend code in src/GameBot.Service/GameBot.Service.csproj
+- [X] T037 Run frontend lint checks for command authoring/service changes in src/web-ui/package.json
+- [X] T038 Run repository security/secret scanning and document pass status in docs/validation.md
+- [X] T039 Collect and verify touched-area coverage thresholds (>=80% line, >=70% branch) in tools/coverage/
+- [X] T040 Execute primitive tap performance validation and record p95/regression results in docs/perf-checklist.md
+- [X] T041 Measure command authoring completion time for primitive tap flow and document SC-004 evidence in docs/validation.md
 
 ---
 

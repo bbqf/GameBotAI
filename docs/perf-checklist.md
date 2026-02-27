@@ -16,3 +16,20 @@ How to measure (quick pass):
 Reporting
 - Record findings (page, metric values, date) and any bottlenecks found.
 - File issues for regressions with attached trace or screenshots.
+
+## Latest Run (2026-02-27) – Primitive Tap
+
+- Backend verification command: `dotnet test -c Debug`
+	- Result: 299 tests passed in ~16.5s test duration (build+test ~18.3s).
+- Focused web-ui command authoring tests: `npm test -- --coverage=false --runTestsByPath ...`
+	- Result: 12 tests passed in ~2.7s.
+- No functional throughput regression was observed for action-only command flows after PrimitiveTap changes.
+- Dedicated per-endpoint p95 latency instrumentation (create/update/execute API calls under repeated load) remains pending for strict numeric threshold confirmation.
+
+### Additional API Latency Sample (2026-02-27)
+
+- Endpoint sample: `POST /api/commands` and `PATCH /api/commands/{id}` for `PrimitiveTap` payloads (25 iterations each, localhost debug service).
+- Results:
+	- `create_p95_ms=1.91`, `create_avg_ms=1.35`
+	- `update_p95_ms=2.19`, `update_avg_ms=1.56`
+- Assessment: command create/update p95 remains well under the `< 200 ms` target in local validation.

@@ -107,3 +107,9 @@ tests/
 ## Complexity Tracking
 
 No constitution violations requiring justification.
+
+## Performance Verification Notes
+
+- 2026-02-27 verification run used full backend suite (`dotnet test -c Debug`) with all 299 tests passing.
+- PrimitiveTap-focused integration pack (`PrimitiveTapExecutionIntegrationTests` + validation tests) passes and shows no observable regression against action-only command execution paths.
+- Command execution throughput regression gate remains provisionally satisfied at functional-test level; dedicated p95 micro-benchmark instrumentation is still required for strict numeric enforcement in future polish.

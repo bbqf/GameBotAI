@@ -29,7 +29,7 @@ $body = @'
   ]
 }
 '@
-Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/commands" -ContentType "application/json" -Body $body
+Invoke-RestMethod -Method Post -Uri "http://localhost:5081/api/commands" -ContentType "application/json" -Body $body
 ```
 
 Expected:
@@ -50,7 +50,7 @@ $invalidBody = @'
   ]
 }
 '@
-Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/commands" -ContentType "application/json" -Body $invalidBody
+Invoke-RestMethod -Method Post -Uri "http://localhost:5081/api/commands" -ContentType "application/json" -Body $invalidBody
 ```
 
 Expected:
@@ -59,7 +59,7 @@ Expected:
 ## 4) Execute and inspect primitive tap outcomes
 ```powershell
 $commandId = "<replace-command-id>"
-Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/commands/$commandId/force-execute?sessionId=<session-id>"
+Invoke-RestMethod -Method Post -Uri "http://localhost:5081/api/commands/$commandId/force-execute?sessionId=<session-id>"
 ```
 
 Expected:
@@ -68,6 +68,35 @@ Expected:
   - `executed`
   - `skipped_detection_failed`
   - `skipped_invalid_target`
+
+Sample success payload:
+```json
+{
+  "accepted": 1,
+  "stepOutcomes": [
+    {
+      "stepOrder": 0,
+      "status": "executed",
+      "resolvedPoint": { "x": 0, "y": 0 },
+      "detectionConfidence": 0.99
+    }
+  ]
+}
+```
+
+Sample skip payload:
+```json
+{
+  "accepted": 0,
+  "stepOutcomes": [
+    {
+      "stepOrder": 0,
+      "status": "skipped_invalid_config",
+      "reason": "template_not_found"
+    }
+  ]
+}
+```
 
 ## 5) Regression-check explicit action flow
 - Execute a pre-existing command that references only explicit action steps.
