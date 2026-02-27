@@ -39,13 +39,32 @@ internal sealed class CommandResponse {
 
 internal enum CommandStepTypeDto {
   Action,
-  Command
+  Command,
+  PrimitiveTap
+}
+
+internal sealed class PrimitiveTapConfigDto {
+  public required DetectionTargetDto DetectionTarget { get; init; }
 }
 
 internal sealed class CommandStepDto {
   public required CommandStepTypeDto Type { get; init; }
-  public required string TargetId { get; init; }
+  public string? TargetId { get; init; }
+  public PrimitiveTapConfigDto? PrimitiveTap { get; init; }
   public int Order { get; init; }
+}
+
+internal sealed class ResolvedPointDto {
+  public required int X { get; init; }
+  public required int Y { get; init; }
+}
+
+internal sealed class StepExecutionOutcomeDto {
+  public required int StepOrder { get; init; }
+  public required string Status { get; init; }
+  public string? Reason { get; init; }
+  public ResolvedPointDto? ResolvedPoint { get; init; }
+  public double? DetectionConfidence { get; init; }
 }
 
 internal enum DetectionSelectionStrategyDto {

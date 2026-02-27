@@ -20,15 +20,34 @@ export type CommandCreate = {
 export type CommandUpdate = CommandCreate;
 
 export type CommandStepDto = {
-  type: 'Action' | 'Command';
-  targetId: string;
+  type: 'Action' | 'Command' | 'PrimitiveTap';
+  targetId?: string;
   order: number;
+  primitiveTap?: PrimitiveTapConfigDto;
+};
+
+export type PrimitiveTapConfigDto = {
+  detectionTarget: DetectionTargetDto;
+};
+
+export type ResolvedPointDto = {
+  x: number;
+  y: number;
+};
+
+export type StepOutcomeDto = {
+  stepOrder: number;
+  status: string;
+  reason?: string;
+  resolvedPoint?: ResolvedPointDto;
+  detectionConfidence?: number;
 };
 
 export type CommandExecuteResponse = {
   accepted: number;
   triggerStatus?: string;
   message?: string;
+  stepOutcomes?: StepOutcomeDto[];
 };
 
 export type DetectionTargetDto = {

@@ -98,6 +98,7 @@ public sealed class CommandEvaluateAndExecuteTests : IDisposable {
       accepted = root.GetProperty("accepted").GetInt32();
       triggerStatus = root.GetProperty("triggerStatus").GetString();
       message = root.GetProperty("message").GetString();
+      root.GetProperty("stepOutcomes").GetArrayLength().Should().Be(0);
     }
     accepted.Should().BeGreaterThan(0);
     triggerStatus.Should().Be("Satisfied");

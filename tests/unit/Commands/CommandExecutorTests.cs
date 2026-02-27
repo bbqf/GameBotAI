@@ -81,6 +81,30 @@ public sealed class CommandExecutorTests {
     triggerRepo.UpsertCount.Should().Be(0);
   }
 
+  [Fact]
+  public async Task ForceExecuteDetailedAsyncActionOnlyCommandKeepsLegacyBehaviorAndNoPrimitiveOutcomes() {
+    var trigger = CreateTrigger();
+    var triggerRepo = new TriggerRepositorySpy(trigger);
+    var command = new Command {
+      Id = "cmd-action-only",
+      Name = "ActionOnly",
+      TriggerId = null,
+      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.Action, TargetId = "act-1", Order = 0 } }
+    };
+    var action = CreateAction("act-1");
+    var commandRepo = new CommandRepositoryStub(command);
+    var actionRepo = new ActionRepositoryStub(action);
+    var sessionManager = new SessionManagerStub(triggerRepo);
+    var triggerService = new TriggerEvaluationService(new[] { new StaticResultEvaluator(TriggerStatus.Satisfied, "unused") });
+    var executor = new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
+
+    var result = await executor.ForceExecuteDetailedAsync(sessionManager.Session.Id, command.Id, CancellationToken.None).ConfigureAwait(false);
+
+    result.Accepted.Should().BeGreaterThan(0);
+    result.StepOutcomes.Should().BeEmpty();
+    sessionManager.SendInputsCalls.Should().Be(1);
+  }
+
   private static Command CreateCommand(string triggerId) => new() {
     Id = "cmd-1",
     Name = "TestCommand",

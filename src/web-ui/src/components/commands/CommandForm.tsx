@@ -4,7 +4,14 @@ import { SearchableDropdown, SearchableOption } from '../SearchableDropdown';
 import { ReorderableList, ReorderableListItem } from '../ReorderableList';
 import './CommandForm.css';
 
-export type StepEntry = { id: string; type: 'Action' | 'Command'; targetId: string };
+export type StepEntry = {
+  id: string;
+  type: 'Action' | 'Command' | 'PrimitiveTap';
+  targetId?: string;
+  primitiveTap?: {
+    detectionTarget: DetectionTargetForm;
+  };
+};
 
 export type DetectionTargetForm = {
   referenceImageId: string;
@@ -38,11 +45,23 @@ const toStepItems = (steps: StepEntry[], actionOpts: SearchableOption[], command
   const actionMap = new Map(actionOpts.map((o) => [o.value, o] as const));
   const commandMap = new Map(commandOpts.map((o) => [o.value, o] as const));
   return steps.map((step) => {
-    const match = step.type === 'Action' ? actionMap.get(step.targetId) : commandMap.get(step.targetId);
+    if (step.type === 'PrimitiveTap') {
+      const imageId = step.primitiveTap?.detectionTarget.referenceImageId ?? '(missing image)';
+      const offsetX = step.primitiveTap?.detectionTarget.offsetX ?? '0';
+      const offsetY = step.primitiveTap?.detectionTarget.offsetY ?? '0';
+      return {
+        id: step.id,
+        label: `Primitive tap: ${imageId}`,
+        description: `Offset (${offsetX}, ${offsetY})`,
+      };
+    }
+
+    const targetId = step.targetId ?? '';
+    const match = step.type === 'Action' ? actionMap.get(targetId) : commandMap.get(targetId);
     const prefix = step.type === 'Action' ? 'Action' : 'Command';
     return {
       id: step.id,
-      label: `${prefix}: ${match?.label ?? step.targetId}`,
+      label: `${prefix}: ${match?.label ?? targetId}`,
       description: match?.description,
     };
   });
@@ -62,12 +81,15 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 }) => {
   const [pendingActionId, setPendingActionId] = useState<string | undefined>(undefined);
   const [pendingCommandId, setPendingCommandId] = useState<string | undefined>(undefined);
+  const [pendingPrimitiveReferenceImageId, setPendingPrimitiveReferenceImageId] = useState('');
+  const [pendingPrimitiveConfidence, setPendingPrimitiveConfidence] = useState('');
+  const [pendingPrimitiveOffsetX, setPendingPrimitiveOffsetX] = useState('0');
+  const [pendingPrimitiveOffsetY, setPendingPrimitiveOffsetY] = useState('0');
 
   const stepItems = useMemo(() => toStepItems(value.steps, actionOptions, commandOptions), [value.steps, actionOptions, commandOptions]);
 
-  const addStep = (type: 'Action' | 'Command', targetId?: string) => {
-    if (!targetId) return;
-    const next = [...value.steps, { id: makeId(), type, targetId }];
+  const addStep = (step: Omit<StepEntry, 'id'>) => {
+    const next = [...value.steps, { ...step, id: makeId() }];
     onChange({ ...value, steps: next });
   };
 
@@ -118,7 +140,17 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           createLabel="Create new action"
         />
         <div className="field">
-          <button type="button" onClick={() => { addStep('Action', pendingActionId); setPendingActionId(undefined); }} disabled={submitting || loading || !pendingActionId}>Add action step</button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!pendingActionId) return;
+              addStep({ type: 'Action', targetId: pendingActionId });
+              setPendingActionId(undefined);
+            }}
+            disabled={submitting || loading || !pendingActionId}
+          >
+            Add action step
+          </button>
         </div>
 
         <SearchableDropdown
@@ -131,7 +163,89 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           placeholder="Select a command"
         />
         <div className="field">
-          <button type="button" onClick={() => { addStep('Command', pendingCommandId); setPendingCommandId(undefined); }} disabled={submitting || loading || !pendingCommandId}>Add command step</button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!pendingCommandId) return;
+              addStep({ type: 'Command', targetId: pendingCommandId });
+              setPendingCommandId(undefined);
+            }}
+            disabled={submitting || loading || !pendingCommandId}
+          >
+            Add command step
+          </button>
+        </div>
+
+        <div className="field grid-3">
+          <div>
+            <label htmlFor="command-primitive-reference">Primitive tap image ID</label>
+            <input
+              id="command-primitive-reference"
+              value={pendingPrimitiveReferenceImageId}
+              onChange={(e) => setPendingPrimitiveReferenceImageId(e.target.value)}
+              disabled={submitting || loading}
+            />
+          </div>
+          <div>
+            <label htmlFor="command-primitive-confidence">Primitive confidence (0-1)</label>
+            <input
+              id="command-primitive-confidence"
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              value={pendingPrimitiveConfidence}
+              onChange={(e) => setPendingPrimitiveConfidence(e.target.value)}
+              disabled={submitting || loading}
+            />
+          </div>
+          <div>
+            <label htmlFor="command-primitive-offset-x">Primitive offset X</label>
+            <input
+              id="command-primitive-offset-x"
+              type="number"
+              value={pendingPrimitiveOffsetX}
+              onChange={(e) => setPendingPrimitiveOffsetX(e.target.value)}
+              disabled={submitting || loading}
+            />
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor="command-primitive-offset-y">Primitive offset Y</label>
+          <input
+            id="command-primitive-offset-y"
+            type="number"
+            value={pendingPrimitiveOffsetY}
+            onChange={(e) => setPendingPrimitiveOffsetY(e.target.value)}
+            disabled={submitting || loading}
+          />
+        </div>
+        <div className="field">
+          <button
+            type="button"
+            onClick={() => {
+              const imageId = pendingPrimitiveReferenceImageId.trim();
+              if (!imageId) return;
+              addStep({
+                type: 'PrimitiveTap',
+                primitiveTap: {
+                  detectionTarget: {
+                    referenceImageId: imageId,
+                    confidence: pendingPrimitiveConfidence || undefined,
+                    offsetX: pendingPrimitiveOffsetX || undefined,
+                    offsetY: pendingPrimitiveOffsetY || undefined,
+                  }
+                }
+              });
+              setPendingPrimitiveReferenceImageId('');
+              setPendingPrimitiveConfidence('');
+              setPendingPrimitiveOffsetX('0');
+              setPendingPrimitiveOffsetY('0');
+            }}
+            disabled={submitting || loading || !pendingPrimitiveReferenceImageId.trim()}
+          >
+            Add primitive tap step
+          </button>
         </div>
 
         <ReorderableList

@@ -163,6 +163,13 @@ export const EmulatorCaptureCropper: React.FC = () => {
     // keyboard/hover previews still work until the next click.
   };
 
+  const handleOverlayKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
+    if (e.key === 'Escape') {
+      setDragStart(null);
+      setSelection(null);
+    }
+  };
+
   const selectionStyle = useMemo(() => {
     if (!capture || !selection || !imageRef.current) return undefined;
     const rect = imageRef.current.getBoundingClientRect();
@@ -243,9 +250,13 @@ export const EmulatorCaptureCropper: React.FC = () => {
         <div className="capture-viewer">
           <div
             className="capture-overlay"
+            role="button"
+            tabIndex={0}
+            aria-label="Capture selection overlay"
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
+            onKeyDown={handleOverlayKeyDown}
             data-testid="capture-overlay"
             onDragStart={(e) => e.preventDefault()}
           >

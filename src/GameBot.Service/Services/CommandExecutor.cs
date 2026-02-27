@@ -5,6 +5,7 @@ using GameBot.Domain.Triggers;
 using GameBot.Emulator.Session;
 using Microsoft.Extensions.Logging;
 using GameBot.Service.Services;
+using System.Globalization;
 
 namespace GameBot.Service.Services;
 
@@ -48,16 +49,28 @@ internal sealed class CommandExecutor : ICommandExecutor {
   }
 
   public async Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default) {
+    var result = await ForceExecuteDetailedAsync(sessionId, commandId, ct).ConfigureAwait(false);
+    return result.Accepted;
+  }
+
+  public async Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, CancellationToken ct = default) {
     var resolvedSessionId = await ResolveSessionIdAsync(sessionId, commandId, ct).ConfigureAwait(false);
     var session = _sessions.GetSession(resolvedSessionId) ?? throw new KeyNotFoundException("Session not found");
     if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
       throw new InvalidOperationException("not_running");
 
     var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    return await ExecuteCommandRecursiveAsync(resolvedSessionId, commandId, visited, ct).ConfigureAwait(false);
+    var stepOutcomes = new List<PrimitiveTapStepOutcome>();
+    var accepted = await ExecuteCommandRecursiveAsync(resolvedSessionId, commandId, visited, stepOutcomes, ct).ConfigureAwait(false);
+    return new CommandForceExecutionResult(accepted, stepOutcomes);
   }
 
   public async Task<CommandEvaluationDecision> EvaluateAndExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default) {
+    var result = await EvaluateAndExecuteDetailedAsync(sessionId, commandId, ct).ConfigureAwait(false);
+    return new CommandEvaluationDecision(result.Accepted, result.TriggerStatus, result.Reason);
+  }
+
+  public async Task<CommandEvaluationExecutionResult> EvaluateAndExecuteDetailedAsync(string? sessionId, string commandId, CancellationToken ct = default) {
     var resolvedSessionId = await ResolveSessionIdAsync(sessionId, commandId, ct).ConfigureAwait(false);
     var session = _sessions.GetSession(resolvedSessionId) ?? throw new KeyNotFoundException("Session not found");
     if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
@@ -68,7 +81,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     if (string.IsNullOrWhiteSpace(cmd.TriggerId)) {
       // No trigger configured: do not execute. Return pending/unsatisfied.
-      return new CommandEvaluationDecision(0, TriggerStatus.Pending, "no_trigger_configured");
+      return new CommandEvaluationExecutionResult(0, TriggerStatus.Pending, "no_trigger_configured", Array.Empty<PrimitiveTapStepOutcome>());
     }
 
     var trigger = await _triggers.GetAsync(cmd.TriggerId!, ct).ConfigureAwait(false);
@@ -81,17 +94,17 @@ internal sealed class CommandExecutor : ICommandExecutor {
     if (res.Status == TriggerStatus.Satisfied) {
       trigger.LastFiredAt = res.EvaluatedAt;
       await _triggers.UpsertAsync(trigger, ct).ConfigureAwait(false);
-      var accepted = await ForceExecuteAsync(resolvedSessionId, commandId, ct).ConfigureAwait(false);
-      Log.TriggerExecuted(_logger, commandId, trigger.Id, accepted);
-      return new CommandEvaluationDecision(accepted, TriggerStatus.Satisfied, res.Reason);
+      var forceResult = await ForceExecuteDetailedAsync(resolvedSessionId, commandId, ct).ConfigureAwait(false);
+      Log.TriggerExecuted(_logger, commandId, trigger.Id, forceResult.Accepted);
+      return new CommandEvaluationExecutionResult(forceResult.Accepted, TriggerStatus.Satisfied, res.Reason, forceResult.StepOutcomes);
     }
 
     await _triggers.UpsertAsync(trigger, ct).ConfigureAwait(false);
     Log.TriggerSkipped(_logger, commandId, trigger.Id, res.Status, res.Reason);
-    return new CommandEvaluationDecision(0, res.Status, res.Reason);
+    return new CommandEvaluationExecutionResult(0, res.Status, res.Reason, Array.Empty<PrimitiveTapStepOutcome>());
   }
 
-  private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, CancellationToken ct) {
+  private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, CancellationToken ct) {
     if (!visited.Add(commandId))
       throw new InvalidOperationException("command_cycle_detected");
 
@@ -151,8 +164,101 @@ internal sealed class CommandExecutor : ICommandExecutor {
         var accepted = await _sessions.SendInputsAsync(sessionId, inputs, ct).ConfigureAwait(false);
         totalAccepted += accepted;
       }
+      else if (step.Type == CommandStepType.PrimitiveTap) {
+        var primitiveDetection = step.PrimitiveTap?.DetectionTarget;
+        if (primitiveDetection is null) {
+          Log.DetectionSkip(_logger, "primitive_tap_missing_detection");
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_missing_detection", null, null));
+          continue;
+        }
+
+        if (!OperatingSystem.IsWindows()) {
+          Log.DetectionSkip(_logger, "primitive_tap_detection_windows_only");
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_detection_windows_only", null, null));
+          continue;
+        }
+
+        try {
+          var screenSrc = _screen;
+          var images = _images;
+          var matcher = _matcher;
+          if (screenSrc is null || images is null || matcher is null) {
+            Log.DetectionSkip(_logger, "services_unavailable");
+            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "services_unavailable", null, null));
+            continue;
+          }
+
+          var screenshotBmp = screenSrc.GetLatestScreenshot();
+          if (screenshotBmp is null) {
+            Log.DetectionSkip(_logger, "screenshot_unavailable");
+            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "screenshot_unavailable", null, null));
+            continue;
+          }
+
+          if (!images.TryGet(primitiveDetection.ReferenceImageId, out var templateBmp) || templateBmp is null) {
+            Log.DetectionSkip(_logger, "template_not_found");
+            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "template_not_found", null, null));
+            continue;
+          }
+
+          using var template = new System.Drawing.Bitmap(templateBmp);
+          using var screenMs = new System.IO.MemoryStream();
+          using var templateMs = new System.IO.MemoryStream();
+          screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
+          template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
+          using var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+          using var templateMat = OpenCvSharp.Mat.FromImageData(templateMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+
+          var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
+          var primitiveAction = new GameBot.Domain.Actions.InputAction {
+            Type = "tap",
+            Args = new Dictionary<string, object> { ["x"] = 0, ["y"] = 0 }
+          };
+
+          var ok = adapter.TryApplyDetectionCoordinates(
+            primitiveAction,
+            primitiveDetection,
+            screenMat,
+            templateMat,
+            primitiveDetection.Confidence,
+            out var err,
+            DetectionSelectionStrategy.HighestConfidence);
+
+          if (!ok || err is not null) {
+            Log.DetectionSkip(_logger, err ?? "primitive_tap_detection_failed");
+            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", err ?? "primitive_tap_detection_failed", null, null));
+            continue;
+          }
+
+          if (!primitiveAction.Args.TryGetValue("x", out var xVal) || !primitiveAction.Args.TryGetValue("y", out var yVal)) {
+            Log.DetectionSkip(_logger, "primitive_tap_coordinates_missing");
+            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_coordinates_missing", null, null));
+            continue;
+          }
+
+          var x = Convert.ToInt32(xVal, CultureInfo.InvariantCulture);
+          var y = Convert.ToInt32(yVal, CultureInfo.InvariantCulture);
+          if (x < 0 || y < 0 || x >= screenshotBmp.Width || y >= screenshotBmp.Height) {
+            Log.DetectionSkip(_logger, "primitive_tap_invalid_target");
+            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_target", "primitive_tap_invalid_target", new PrimitiveTapResolvedPoint(x, y), null));
+            continue;
+          }
+
+          var sessionInput = new GameBot.Emulator.Session.InputAction("tap", new Dictionary<string, object>(primitiveAction.Args), null, null);
+          var accepted = await _sessions.SendInputsAsync(sessionId, new[] { sessionInput }, ct).ConfigureAwait(false);
+          totalAccepted += accepted;
+          var detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
+            ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
+            : (double?)null;
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", null, new PrimitiveTapResolvedPoint(x, y), detectionConfidence));
+        }
+        catch (Exception ex) {
+          Log.DetectionError(_logger, ex);
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", "primitive_tap_exception", null, null));
+        }
+      }
       else {
-        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, ct).ConfigureAwait(false);
+        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, ct).ConfigureAwait(false);
       }
     }
 

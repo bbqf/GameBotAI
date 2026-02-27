@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: GameBot Commands API - Primitive Tap Extension
+  version: 0.1.0
+  description: Contract additions for primitive tap command steps.
+paths:
+  /api/commands:
+    post:
+      summary: Create command (supports primitive tap steps)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommandRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '400':
+          description: Validation failed
+  /api/commands/{id}:
+    get:
+      summary: Get command by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '404':
+          description: Command not found
+    patch:
+      summary: Update command (supports primitive tap steps)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCommandRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '400':
+          description: Validation failed
+        '404':
+          description: Command not found
+  /api/commands/{id}/force-execute:
+    post:
+      summary: Force execute command and return per-step primitive outcomes
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: sessionId
+          required: false
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandExecuteResponse'
+  /api/commands/{id}/evaluate-and-execute:
+    post:
+      summary: Evaluate trigger and execute command, including primitive step outcomes when executed
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: sessionId
+          required: false
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEvaluateAndExecuteResponse'
+components:
+  schemas:
+    CreateCommandRequest:
+      type: object
+      required: [name, steps]
+      properties:
+        name:
+          type: string
+        triggerId:
+          type: string
+          nullable: true
+        detection:
+          $ref: '#/components/schemas/DetectionTarget'
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommandStep'
+
+    UpdateCommandRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        triggerId:
+          type: string
+          nullable: true
+        detection:
+          $ref: '#/components/schemas/DetectionTarget'
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommandStep'
+
+    CommandResponse:
+      type: object
+      required: [id, name, steps]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        triggerId:
+          type: string
+          nullable: true
+        detection:
+          $ref: '#/components/schemas/DetectionTarget'
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommandStep'
+
+    CommandStep:
+      type: object
+      required: [type, order]
+      properties:
+        type:
+          type: string
+          enum: [Action, Command, PrimitiveTap]
+        targetId:
+          type: string
+          nullable: true
+          description: Required for Action/Command; omitted for PrimitiveTap.
+        order:
+          type: integer
+          minimum: 0
+        primitiveTap:
+          $ref: '#/components/schemas/PrimitiveTapConfig'
+      allOf:
+        - if:
+            properties:
+              type:
+                const: PrimitiveTap
+          then:
+            required: [primitiveTap]
+        - if:
+            properties:
+              type:
+                enum: [Action, Command]
+          then:
+            required: [targetId]
+
+    PrimitiveTapConfig:
+      type: object
+      required: [detectionTarget]
+      properties:
+        detectionTarget:
+          $ref: '#/components/schemas/DetectionTarget'
+
+    DetectionTarget:
+      type: object
+      required: [referenceImageId]
+      properties:
+        referenceImageId:
+          type: string
+        confidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        offsetX:
+          type: integer
+        offsetY:
+          type: integer
+        selectionStrategy:
+          type: string
+          enum: [HighestConfidence, FirstMatch]
+          default: HighestConfidence
+
+    PrimitiveTapStepOutcome:
+      type: object
+      required: [stepOrder, status]
+      properties:
+        stepOrder:
+          type: integer
+        status:
+          type: string
+          enum: [executed, skipped_detection_failed, skipped_invalid_target, skipped_invalid_config]
+        reason:
+          type: string
+          nullable: true
+        resolvedPoint:
+          type: object
+          nullable: true
+          properties:
+            x:
+              type: integer
+            y:
+              type: integer
+        detectionConfidence:
+          type: number
+          format: double
+          nullable: true
+
+    CommandExecuteResponse:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: integer
+          minimum: 0
+        stepOutcomes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrimitiveTapStepOutcome'
+
+    CommandEvaluateAndExecuteResponse:
+      type: object
+      required: [accepted, triggerStatus]
+      properties:
+        accepted:
+          type: integer
+          minimum: 0
+        triggerStatus:
+          type: string
+        message:
+          type: string
+          nullable: true
+        stepOutcomes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrimitiveTapStepOutcome'

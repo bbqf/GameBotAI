@@ -28,9 +28,13 @@ describe('CommandForm zoom layout', () => {
 
     expect(screen.getByLabelText(/Name \*/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Reference image ID/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Confidence \(0-1\)/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Offset X/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Offset Y/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Confidence \(0-1\)/i, {
+        selector: '#command-detection-confidence'
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Offset X/i, { selector: '#command-detection-offset-x' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Offset Y/i, { selector: '#command-detection-offset-y' })).toBeInTheDocument();
   });
 
   it('renders key fields at 150% zoom without missing controls', () => {
@@ -47,8 +51,12 @@ describe('CommandForm zoom layout', () => {
 
     expect(screen.getByLabelText(/Name \*/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Reference image ID/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Confidence \(0-1\)/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Offset X/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Offset Y/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Confidence \(0-1\)/i, {
+        selector: '#command-detection-confidence'
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Offset X/i, { selector: '#command-detection-offset-x' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Offset Y/i, { selector: '#command-detection-offset-y' })).toBeInTheDocument();
   });
 });

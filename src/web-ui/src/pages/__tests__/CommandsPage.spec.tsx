@@ -120,4 +120,59 @@ describe('CommandsPage', () => {
     const nameSpan = nameButton.querySelector('.command-name');
     expect(nameSpan?.textContent).toBe(longName);
   });
+
+  it('creates a command with a primitive tap step', async () => {
+    render(<CommandsPage />);
+    await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Primitive Command' } });
+    fireEvent.change(screen.getByLabelText('Primitive tap image ID'), { target: { value: 'home_button' } });
+    fireEvent.change(screen.getByLabelText('Primitive confidence (0-1)'), { target: { value: '0.95' } });
+    fireEvent.change(screen.getByLabelText('Primitive offset X'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Primitive offset Y'), { target: { value: '-1' } });
+
+    fireEvent.click(screen.getByText('Add primitive tap step'));
+
+    createCommandMock.mockResolvedValue({} as any);
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({
+      name: 'Primitive Command',
+      steps: [{
+        type: 'PrimitiveTap',
+        order: 0,
+        primitiveTap: {
+          detectionTarget: {
+            referenceImageId: 'home_button',
+            confidence: 0.95,
+            offsetX: 2,
+            offsetY: -1,
+          }
+        }
+      }],
+      detection: undefined,
+    }));
+  });
+
+  it('creates a command with a legacy command step', async () => {
+    listCommandsMock.mockResolvedValue([{ id: 'existing-cmd', name: 'Existing Command', steps: [] } as any]);
+
+    render(<CommandsPage />);
+    await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Composite Command' } });
+    fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'existing-cmd' } });
+    fireEvent.click(screen.getByText('Add command step'));
+
+    createCommandMock.mockResolvedValue({} as any);
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({
+      name: 'Composite Command',
+      steps: [{ type: 'Command', targetId: 'existing-cmd', order: 0 }],
+      detection: undefined,
+    }));
+  });
 });
