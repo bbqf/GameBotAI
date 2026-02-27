@@ -57,6 +57,8 @@ Thumbs.db
 [Dd]esktop.ini
 $RECYCLE.BIN/
 **/.DS_Store
+*.tmp
+*.swp
 
 # Secrets / local env
 .env

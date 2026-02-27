@@ -1,10 +1,12 @@
 using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Logging;
 using GameBot.Domain.Services;
 using GameBot.Domain.Triggers;
 using GameBot.Emulator.Session;
 using Microsoft.Extensions.Logging;
 using GameBot.Service.Services;
+using GameBot.Service.Services.ExecutionLog;
 using System.Globalization;
 
 namespace GameBot.Service.Services;
@@ -20,8 +22,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly GameBot.Domain.Triggers.Evaluators.IScreenSource? _screen;
   private readonly GameBot.Domain.Vision.ITemplateMatcher? _matcher;
   private readonly ISessionContextCache _sessionCache;
+  private readonly IExecutionLogService? _executionLogService;
 
-  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache) {
+  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null) {
     _commands = commands;
     _actions = actions;
     _sessions = sessions;
@@ -32,10 +35,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _screen = screen;
     _matcher = matcher;
     _sessionCache = sessionCache;
+    _executionLogService = executionLogService;
   }
 
   // Fallback constructor for environments without detection services registered (non-Windows or tests)
-  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache) {
+  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null) {
     _commands = commands;
     _actions = actions;
     _sessions = sessions;
@@ -46,6 +50,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _screen = null;
     _matcher = null;
     _sessionCache = sessionCache;
+    _executionLogService = executionLogService;
   }
 
   public async Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default) {
@@ -62,6 +67,12 @@ internal sealed class CommandExecutor : ICommandExecutor {
     var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var stepOutcomes = new List<PrimitiveTapStepOutcome>();
     var accepted = await ExecuteCommandRecursiveAsync(resolvedSessionId, commandId, visited, stepOutcomes, ct).ConfigureAwait(false);
+    if (_executionLogService is not null) {
+      var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false);
+      var cmdName = cmd?.Name ?? commandId;
+      var status = stepOutcomes.Any(o => !string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase)) ? "failure" : "success";
+      await _executionLogService.LogCommandExecutionAsync(commandId, cmdName, status, stepOutcomes, null, 0, ct).ConfigureAwait(false);
+    }
     return new CommandForceExecutionResult(accepted, stepOutcomes);
   }
 
@@ -81,6 +92,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     if (string.IsNullOrWhiteSpace(cmd.TriggerId)) {
       // No trigger configured: do not execute. Return pending/unsatisfied.
+      if (_executionLogService is not null) {
+        await _executionLogService.LogCommandExecutionAsync(commandId, cmd.Name, "failure", Array.Empty<PrimitiveTapStepOutcome>(), null, 0, ct).ConfigureAwait(false);
+      }
       return new CommandEvaluationExecutionResult(0, TriggerStatus.Pending, "no_trigger_configured", Array.Empty<PrimitiveTapStepOutcome>());
     }
 
@@ -101,6 +115,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     await _triggers.UpsertAsync(trigger, ct).ConfigureAwait(false);
     Log.TriggerSkipped(_logger, commandId, trigger.Id, res.Status, res.Reason);
+    if (_executionLogService is not null) {
+      await _executionLogService.LogCommandExecutionAsync(commandId, cmd.Name, "failure", Array.Empty<PrimitiveTapStepOutcome>(), null, 0, ct).ConfigureAwait(false);
+    }
     return new CommandEvaluationExecutionResult(0, res.Status, res.Reason, Array.Empty<PrimitiveTapStepOutcome>());
   }
 

@@ -166,6 +166,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ApplyTriggerExamples(operation, path, method, context);
     ApplyGameExamples(operation, path, method, context);
     ApplyImageExamples(operation, path, method, context);
+    ApplyExecutionLogExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
   }
 
@@ -492,6 +493,31 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   }
 
+  private static void ApplyExecutionLogExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
+  {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs))
+    {
+      operation.Summary ??= "List execution logs";
+      SetResponseExample(operation, "200", ExecutionLogListResponse(), context, typeof(GameBot.Service.Models.ExecutionLogListResponseDto));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.ExecutionLogs + "/", StringComparison.OrdinalIgnoreCase) && !path.EndsWith("/retention", StringComparison.OrdinalIgnoreCase))
+    {
+      operation.Summary ??= "Get an execution log entry";
+      SetResponseExample(operation, "200", ExecutionLogEntryResponse(), context, typeof(GameBot.Service.Models.ExecutionLogEntryDto));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs + "/retention"))
+    {
+      operation.Summary ??= "Get execution log retention policy";
+      SetResponseExample(operation, "200", ExecutionLogRetentionResponse(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyDto));
+    }
+    else if (IsMethod(method, HttpMethods.Put) && IsPath(path, ApiRoutes.ExecutionLogs + "/retention"))
+    {
+      operation.Summary ??= "Update execution log retention policy";
+      SetRequestExample(operation, ExecutionLogRetentionUpdateRequest(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyPatchDto));
+      SetResponseExample(operation, "200", ExecutionLogRetentionResponse(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyDto));
+    }
+  }
+
   private static string NormalizePath(string? relativePath)
   {
     if (string.IsNullOrWhiteSpace(relativePath)) return string.Empty;
@@ -616,6 +642,84 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     {
       new OpenApiString("minor:auto-transition"),
       new OpenApiString("build:ci-authoritative")
+    }
+  };
+
+  private static OpenApiObject ExecutionLogRetentionUpdateRequest() => new OpenApiObject
+  {
+    ["enabled"] = new OpenApiBoolean(true),
+    ["retentionDays"] = new OpenApiInteger(30),
+    ["cleanupIntervalMinutes"] = new OpenApiInteger(60)
+  };
+
+  private static OpenApiObject ExecutionLogRetentionResponse() => new OpenApiObject
+  {
+    ["enabled"] = new OpenApiBoolean(true),
+    ["retentionDays"] = new OpenApiInteger(30),
+    ["cleanupIntervalMinutes"] = new OpenApiInteger(60),
+    ["updatedAtUtc"] = new OpenApiString("2026-01-01T00:00:00Z")
+  };
+
+  private static OpenApiObject ExecutionLogListResponse() => new OpenApiObject
+  {
+    ["items"] = new OpenApiArray
+    {
+      ExecutionLogEntryResponse()
+    },
+    ["nextCursor"] = new OpenApiString("2026-01-01T00:00:00.0000000+00:00|exe_0001")
+  };
+
+  private static OpenApiObject ExecutionLogEntryResponse() => new OpenApiObject
+  {
+    ["id"] = new OpenApiString("exe_0001"),
+    ["timestampUtc"] = new OpenApiString("2026-01-01T00:00:00Z"),
+    ["executionType"] = new OpenApiString("command"),
+    ["finalStatus"] = new OpenApiString("success"),
+    ["objectRef"] = new OpenApiObject
+    {
+      ["objectType"] = new OpenApiString("command"),
+      ["objectId"] = new OpenApiString("cmd-farm"),
+      ["displayNameSnapshot"] = new OpenApiString("Farm Run"),
+      ["versionSnapshot"] = new OpenApiString("2026.01")
+    },
+    ["navigation"] = new OpenApiObject
+    {
+      ["directPath"] = new OpenApiString("/api/commands/cmd-farm"),
+      ["parentPath"] = new OpenApiString("/api/sequences/seq-daily"),
+      ["pathKind"] = new OpenApiString("command")
+    },
+    ["hierarchy"] = new OpenApiObject
+    {
+      ["rootExecutionId"] = new OpenApiString("exe_root_0001"),
+      ["parentExecutionId"] = new OpenApiString("exe_parent_0001"),
+      ["depth"] = new OpenApiInteger(1),
+      ["sequenceIndex"] = new OpenApiInteger(2)
+    },
+    ["summary"] = new OpenApiString("Command executed successfully"),
+    ["details"] = new OpenApiArray
+    {
+      new OpenApiObject
+      {
+        ["kind"] = new OpenApiString("execution"),
+        ["message"] = new OpenApiString("Trigger matched and command dispatched."),
+        ["attributes"] = new OpenApiObject
+        {
+          ["triggerMatched"] = new OpenApiBoolean(true),
+          ["durationMs"] = new OpenApiInteger(812)
+        },
+        ["sensitivity"] = new OpenApiString("public")
+      }
+    },
+    ["stepOutcomes"] = new OpenApiArray
+    {
+      new OpenApiObject
+      {
+        ["stepOrder"] = new OpenApiInteger(1),
+        ["stepType"] = new OpenApiString("tap"),
+        ["outcome"] = new OpenApiString("executed"),
+        ["reasonCode"] = new OpenApiString("none"),
+        ["reasonText"] = new OpenApiString("Step executed normally")
+      }
     }
   };
 

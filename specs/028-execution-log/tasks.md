@@ -11,7 +11,7 @@
 
 **Purpose**: Prepare execution-log scaffolding, contract references, and fixtures.
 
-- [ ] T001 Add execution log route constant in src/GameBot.Service/ApiRoutes.cs
+- [X] T001 Add execution log route constant in src/GameBot.Service/ApiRoutes.cs
 - [ ] T002 [P] Add execution-log sample payload fixtures in tests/TestAssets/execution-logs/
 - [ ] T003 [P] Add execution-log sample data folder placeholder in data/execution-logs/.gitkeep
 - [ ] T004 [P] Align contract artifact metadata for execution logs in specs/028-execution-log/contracts/execution-log.openapi.yaml
@@ -24,14 +24,14 @@
 
 **⚠️ CRITICAL**: No user story work begins until this phase is complete.
 
-- [ ] T005 Create execution log domain entities and value objects in src/GameBot.Domain/Logging/ExecutionLogModels.cs
-- [ ] T006 [P] Add retention policy domain model in src/GameBot.Domain/Logging/ExecutionLogRetentionPolicy.cs
-- [ ] T007 Create execution log repository interface in src/GameBot.Domain/Logging/IExecutionLogRepository.cs
-- [ ] T008 Implement file-backed execution log repository in src/GameBot.Domain/Logging/FileExecutionLogRepository.cs
-- [ ] T009 [P] Add execution log DTOs for list/detail responses in src/GameBot.Service/Models/ExecutionLogs.cs
-- [ ] T010 [P] Implement execution log masking/sanitization helper in src/GameBot.Service/Services/ExecutionLog/ExecutionLogSanitizer.cs
-- [ ] T011 Implement execution log write/query service in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
-- [ ] T012 Wire execution-log dependencies and storage paths in src/GameBot.Service/Program.cs
+- [X] T005 Create execution log domain entities and value objects in src/GameBot.Domain/Logging/ExecutionLogModels.cs
+- [X] T006 [P] Add retention policy domain model in src/GameBot.Domain/Logging/ExecutionLogRetentionPolicy.cs
+- [X] T007 Create execution log repository interface in src/GameBot.Domain/Logging/IExecutionLogRepository.cs
+- [X] T008 Implement file-backed execution log repository in src/GameBot.Domain/Logging/FileExecutionLogRepository.cs
+- [X] T009 [P] Add execution log DTOs for list/detail responses in src/GameBot.Service/Models/ExecutionLogs.cs
+- [X] T010 [P] Implement execution log masking/sanitization helper in src/GameBot.Service/Services/ExecutionLog/ExecutionLogSanitizer.cs
+- [X] T011 Implement execution log write/query service in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [X] T012 Wire execution-log dependencies and storage paths in src/GameBot.Service/Program.cs
 
 **Checkpoint**: Foundation ready; user stories can be implemented independently.
 
@@ -53,12 +53,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Add execution-log endpoints (list/detail) in src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs
-- [ ] T019 [US1] Map execution-log endpoints in service startup in src/GameBot.Service/Program.cs
-- [ ] T020 [US1] Persist command execution results to execution log in src/GameBot.Service/Services/CommandExecutor.cs
-- [ ] T021 [US1] Persist sequence execution results to execution log in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
-- [ ] T022 [US1] Capture immutable object identity snapshots for logs in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
-- [ ] T023 [US1] Implement paged list/detail query logic in src/GameBot.Domain/Logging/FileExecutionLogRepository.cs
+- [X] T018 [US1] Add execution-log endpoints (list/detail) in src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs
+- [X] T019 [US1] Map execution-log endpoints in service startup in src/GameBot.Service/Program.cs
+- [X] T020 [US1] Persist command execution results to execution log in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T021 [US1] Persist sequence execution results to execution log in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [X] T022 [US1] Capture immutable object identity snapshots for logs in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [X] T023 [US1] Implement paged list/detail query logic in src/GameBot.Domain/Logging/FileExecutionLogRepository.cs
 
 **Checkpoint**: User Story 1 is independently functional and testable.
 
@@ -104,14 +104,14 @@
 
 ### Implementation for User Story 3
 
-- [ ] T037 [US3] Capture concise outcome detail records (detection/tap/skip reasons) in src/GameBot.Service/Services/CommandExecutor.cs
-- [ ] T038 [US3] Normalize step outcomes to executed/not_executed in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
-- [ ] T039 [US3] Enforce masking/redaction prior to persistence in src/GameBot.Service/Services/ExecutionLog/ExecutionLogSanitizer.cs
-- [ ] T040 [US3] Enforce summary/detail conciseness bounds and truncation marker in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
-- [ ] T041 [US3] Add retention policy repository and persistence in src/GameBot.Domain/Logging/ExecutionLogRetentionPolicyRepository.cs
-- [ ] T042 [US3] Add retention get/update endpoints in src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs
-- [ ] T043 [US3] Add asynchronous retention cleanup worker in src/GameBot.Service/Hosted/ExecutionLogRetentionCleanupService.cs
-- [ ] T044 [US3] Register retention cleanup hosted service in src/GameBot.Service/Program.cs
+- [X] T037 [US3] Capture concise outcome detail records (detection/tap/skip reasons) in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T038 [US3] Normalize step outcomes to executed/not_executed in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [X] T039 [US3] Enforce masking/redaction prior to persistence in src/GameBot.Service/Services/ExecutionLog/ExecutionLogSanitizer.cs
+- [X] T040 [US3] Enforce summary/detail conciseness bounds and truncation marker in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [X] T041 [US3] Add retention policy repository and persistence in src/GameBot.Domain/Logging/ExecutionLogRetentionPolicyRepository.cs
+- [X] T042 [US3] Add retention get/update endpoints in src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs
+- [X] T043 [US3] Add asynchronous retention cleanup worker in src/GameBot.Service/Hosted/ExecutionLogRetentionCleanupService.cs
+- [X] T044 [US3] Register retention cleanup hosted service in src/GameBot.Service/Program.cs
 
 **Checkpoint**: All user stories are independently functional and testable.
 

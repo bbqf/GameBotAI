@@ -107,6 +107,9 @@ builder.Services.AddSingleton<ITriggerRepository>(_ => new FileTriggerRepository
 builder.Services.AddSingleton<IActionRepository>(_ => new FileActionRepository(storageRoot));
 builder.Services.AddSingleton<ICommandRepository>(_ => new FileCommandRepository(storageRoot));
 builder.Services.AddSingleton<ISequenceRepository>(_ => new FileSequenceRepository(storageRoot));
+builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
+builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
+builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLogService, GameBot.Service.Services.ExecutionLog.ExecutionLogService>();
 builder.Services.AddSingleton<SemanticVersionComparer>();
 builder.Services.AddSingleton<VersionSourceLoader>();
 builder.Services.AddSingleton<VersionResolutionService>();
@@ -201,6 +204,7 @@ GameBot.Service.Services.DynamicLogFilters.HttpMinLevel = httpMinLevelEnv?.Trim(
 builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
 builder.Services.AddHostedService<GameBot.Service.Hosted.ConfigSnapshotStartupInitializer>();
 builder.Services.AddHostedService<LoggingPolicyStartupInitializer>();
+builder.Services.AddHostedService<GameBot.Service.Hosted.ExecutionLogRetentionCleanupService>();
 
 // Bind detection options (threshold, max results, timeout, overlap)
 builder.Services.Configure<DetectionOptions>(builder.Configuration.GetSection(DetectionOptions.SectionName));
@@ -339,6 +343,7 @@ app.MapMetricsEndpoints();
 app.MapConfigEndpoints();
 app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
+app.MapExecutionLogEndpoints();
 
 app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequestModel request, VersionSourceLoader loader) =>
 {
@@ -614,6 +619,8 @@ sequences.MapDelete("{id}", async (ISequenceRepository repo, string id) =>
 sequences.MapPost("{id}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,
+  GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
+  ISequenceRepository sequenceRepository,
   string id,
   CancellationToken ct) =>
 {
@@ -681,6 +688,24 @@ sequences.MapPost("{id}/execute", async (
     },
     ct: ct
   ).ConfigureAwait(false);
+  var sequence = await sequenceRepository.GetAsync(id).ConfigureAwait(false);
+  var sequenceName = sequence?.Name ?? id;
+  var status = string.Equals(res.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+  await executionLogService.LogSequenceExecutionAsync(
+    id,
+    sequenceName,
+    status,
+    $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
+    parentExecutionId: null,
+    depth: 0,
+    details: new[] {
+      new GameBot.Domain.Logging.ExecutionDetailItem(
+        "sequence",
+        $"Executed commands: {string.Join(",", res.Steps.Select(s => s.CommandId).Take(10))}",
+        new Dictionary<string, object?> { ["executedCount"] = res.Steps.Count },
+        "normal")
+    },
+    ct).ConfigureAwait(false);
   return Results.Ok(res);
 }).WithName("ExecuteSequence").WithTags("Sequences");
 
