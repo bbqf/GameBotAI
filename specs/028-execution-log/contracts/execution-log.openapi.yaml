@@ -1,0 +1,293 @@
+openapi: 3.0.3
+info:
+  title: GameBot Execution Log API
+  version: 0.1.0
+  description: Backend contracts for persisted command and sequence execution logs.
+paths:
+  /api/execution-logs:
+    get:
+      summary: List execution log entries
+      parameters:
+        - in: query
+          name: fromUtc
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: toUtc
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: finalStatus
+          schema:
+            type: string
+            enum: [success, failure]
+        - in: query
+          name: objectType
+          schema:
+            type: string
+            enum: [command, sequence]
+        - in: query
+          name: objectId
+          schema:
+            type: string
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - in: query
+          name: cursor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paged execution log result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogListResponse'
+  /api/execution-logs/{id}:
+    get:
+      summary: Get execution log entry detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogEntry'
+        '404':
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/execution-logs/retention:
+    get:
+      summary: Get execution log retention policy
+      responses:
+        '200':
+          description: Current retention policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogRetentionPolicy'
+    put:
+      summary: Update execution log retention policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionLogRetentionPolicyPatch'
+      responses:
+        '200':
+          description: Updated policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogRetentionPolicy'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    ExecutionLogListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionLogEntry'
+        nextCursor:
+          type: string
+          nullable: true
+
+    ExecutionLogEntry:
+      type: object
+      required:
+        - id
+        - timestampUtc
+        - executionType
+        - finalStatus
+        - objectRef
+        - navigation
+        - hierarchy
+        - summary
+        - details
+        - stepOutcomes
+      properties:
+        id:
+          type: string
+        timestampUtc:
+          type: string
+          format: date-time
+        executionType:
+          type: string
+          enum: [command, sequence]
+        finalStatus:
+          type: string
+          enum: [success, failure]
+        objectRef:
+          $ref: '#/components/schemas/ExecutionObjectReference'
+        navigation:
+          $ref: '#/components/schemas/ExecutionNavigationContext'
+        hierarchy:
+          $ref: '#/components/schemas/ExecutionHierarchyContext'
+        summary:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionDetailItem'
+        stepOutcomes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionStepOutcome'
+
+    ExecutionObjectReference:
+      type: object
+      required: [objectType, objectId, displayNameSnapshot]
+      properties:
+        objectType:
+          type: string
+          enum: [command, sequence]
+        objectId:
+          type: string
+        displayNameSnapshot:
+          type: string
+        versionSnapshot:
+          type: string
+          nullable: true
+
+    ExecutionNavigationContext:
+      type: object
+      required: [directPath, pathKind]
+      properties:
+        directPath:
+          type: string
+          description: Relative route to directly executed object.
+          pattern: '^/'
+        parentPath:
+          type: string
+          nullable: true
+          description: Relative route to parent sequence context, when nested.
+          pattern: '^/'
+        pathKind:
+          type: string
+          enum: [relative-route]
+
+    ExecutionHierarchyContext:
+      type: object
+      required: [rootExecutionId, depth]
+      properties:
+        rootExecutionId:
+          type: string
+        parentExecutionId:
+          type: string
+          nullable: true
+        depth:
+          type: integer
+          minimum: 0
+        sequenceIndex:
+          type: integer
+          nullable: true
+          minimum: 0
+
+    ExecutionStepOutcome:
+      type: object
+      required: [stepOrder, stepType, outcome]
+      properties:
+        stepOrder:
+          type: integer
+          minimum: 0
+        stepType:
+          type: string
+        outcome:
+          type: string
+          enum: [executed, not_executed]
+        reasonCode:
+          type: string
+          nullable: true
+        reasonText:
+          type: string
+          nullable: true
+
+    ExecutionDetailItem:
+      type: object
+      required: [kind, message, sensitivity]
+      properties:
+        kind:
+          type: string
+        message:
+          type: string
+        attributes:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: integer
+              - type: boolean
+        sensitivity:
+          type: string
+          enum: [normal, masked, redacted]
+
+    ExecutionLogRetentionPolicy:
+      type: object
+      required: [enabled, retentionDays, cleanupIntervalMinutes, updatedAtUtc]
+      properties:
+        enabled:
+          type: boolean
+        retentionDays:
+          type: integer
+          minimum: 1
+        cleanupIntervalMinutes:
+          type: integer
+          minimum: 1
+        updatedAtUtc:
+          type: string
+          format: date-time
+
+    ExecutionLogRetentionPolicyPatch:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        retentionDays:
+          type: integer
+          minimum: 1
+        cleanupIntervalMinutes:
+          type: integer
+          minimum: 1
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            hint:
+              type: string
+              nullable: true
