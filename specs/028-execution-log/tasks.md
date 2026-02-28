@@ -12,9 +12,9 @@
 **Purpose**: Prepare execution-log scaffolding, contract references, and fixtures.
 
 - [X] T001 Add execution log route constant in src/GameBot.Service/ApiRoutes.cs
-- [ ] T002 [P] Add execution-log sample payload fixtures in tests/TestAssets/execution-logs/
-- [ ] T003 [P] Add execution-log sample data folder placeholder in data/execution-logs/.gitkeep
-- [ ] T004 [P] Align contract artifact metadata for execution logs in specs/028-execution-log/contracts/execution-log.openapi.yaml
+- [X] T002 [P] Add execution-log sample payload fixtures in tests/TestAssets/execution-logs/
+- [X] T003 [P] Add execution-log sample data folder placeholder in data/execution-logs/.gitkeep
+- [X] T004 [P] Align contract artifact metadata for execution logs in specs/028-execution-log/contracts/execution-log.openapi.yaml
 
 ---
 
@@ -121,14 +121,14 @@
 
 **Purpose**: Validate quality gates, documentation, and performance/operational evidence.
 
-- [ ] T045 [P] Update execution-log usage and validation steps in specs/028-execution-log/quickstart.md
-- [ ] T046 [P] Add implementation validation evidence and privacy checks in docs/validation.md
+- [X] T045 [P] Update execution-log usage and validation steps in specs/028-execution-log/quickstart.md
+- [X] T046 [P] Add implementation validation evidence and privacy checks in docs/validation.md
 - [ ] T047 Run .NET format verification for touched code via GameBot.sln
-- [ ] T048 Run static analysis build (warnings reviewed/justified) via GameBot.sln
-- [ ] T049 Run backend tests and analyze results with scripts/analyze-test-results.ps1
-- [ ] T050 Collect touched-area coverage report (>=80% line, >=70% branch) in tools/coverage/
-- [ ] T051 Run security/secret scan and record results in docs/validation.md
-- [ ] T052 Execute p95 write/query performance measurement and record results in docs/perf-checklist.md
+- [X] T048 Run static analysis build (warnings reviewed/justified) via GameBot.sln
+- [X] T049 Run backend tests and analyze results with scripts/analyze-test-results.ps1
+- [X] T050 Collect touched-area coverage report (>=80% line, >=70% branch) in tools/coverage/
+- [X] T051 Run security/secret scan and record results in docs/validation.md
+- [X] T052 Execute p95 write/query performance measurement and record results in docs/perf-checklist.md
 
 ---
 

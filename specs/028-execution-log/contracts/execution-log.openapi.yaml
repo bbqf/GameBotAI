@@ -3,10 +3,17 @@ info:
   title: GameBot Execution Log API
   version: 0.1.0
   description: Backend contracts for persisted command and sequence execution logs.
+  x-feature-id: 028-execution-log
+  x-last-validated-utc: '2026-02-28T08:30:00Z'
+tags:
+  - name: ExecutionLogs
+    description: Query persisted execution outcomes and manage retention policy.
 paths:
   /api/execution-logs:
     get:
       summary: List execution log entries
+      operationId: ListExecutionLogs
+      tags: [ExecutionLogs]
       parameters:
         - in: query
           name: fromUtc
@@ -53,6 +60,8 @@ paths:
   /api/execution-logs/{id}:
     get:
       summary: Get execution log entry detail
+      operationId: GetExecutionLog
+      tags: [ExecutionLogs]
       parameters:
         - in: path
           name: id
@@ -75,6 +84,8 @@ paths:
   /api/execution-logs/retention:
     get:
       summary: Get execution log retention policy
+      operationId: GetExecutionLogRetentionPolicy
+      tags: [ExecutionLogs]
       responses:
         '200':
           description: Current retention policy
@@ -84,6 +95,8 @@ paths:
                 $ref: '#/components/schemas/ExecutionLogRetentionPolicy'
     put:
       summary: Update execution log retention policy
+      operationId: UpdateExecutionLogRetentionPolicy
+      tags: [ExecutionLogs]
       requestBody:
         required: true
         content:

@@ -33,3 +33,19 @@ Reporting
 	- `create_p95_ms=1.91`, `create_avg_ms=1.35`
 	- `update_p95_ms=2.19`, `update_avg_ms=1.56`
 - Assessment: command create/update p95 remains well under the `< 200 ms` target in local validation.
+
+## Execution Log API Latency Sample (2026-02-27)
+
+- Measurement target:
+	- Write path: `PUT /api/execution-logs/retention`
+	- Query path: `GET /api/execution-logs?pageSize=50`
+- Method:
+	- 25 sequential iterations per endpoint against local debug service (`http://localhost:5081`).
+	- Per-request elapsed time measured with `System.Diagnostics.Stopwatch` in PowerShell.
+- Results:
+	- Write: `p95=4.44 ms`, `avg=10.68 ms`
+	- Query: `p95=6.31 ms`, `avg=4.51 ms`
+- Evidence artifact:
+	- `tools/coverage/execution-log-perf-20260227.json`
+- Assessment:
+	- Both write and query p95 latencies are comfortably below the `< 200 ms` target.

@@ -75,7 +75,9 @@ Expected:
 ## 8) Run automated tests
 ```powershell
 Set-Location C:/src/GameBot
-dotnet test -c Debug
+Get-ChildItem -Path tests -Filter *.trx -Recurse | Remove-Item -Force
+dotnet test -c Debug --logger trx
+./scripts/analyze-test-results.ps1
 ```
 
 Focus areas:

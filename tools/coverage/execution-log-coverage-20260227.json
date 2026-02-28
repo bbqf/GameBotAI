@@ -1,0 +1,27 @@
+{
+  "timestampUtc": "2026-02-28T08:30:00Z",
+  "feature": "028-execution-log",
+  "measurements": [
+    {
+      "file": "src/GameBot.Service/Services/CommandExecutor.cs",
+      "statementCoveragePercent": 85.71,
+      "source": "runTests coverage"
+    },
+    {
+      "file": "src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs",
+      "statementCoveragePercent": 85.32,
+      "source": "runTests coverage"
+    }
+  ],
+  "coberturaSample": {
+    "file": "tools/coverage/output/coverage.cobertura.xml",
+    "lineRatePercent": 87.8,
+    "branchRatePercent": 70.0,
+    "source": "dotnet test coverlet output"
+  },
+  "thresholds": {
+    "lineMinPercent": 80.0,
+    "branchMinPercent": 70.0
+  },
+  "assessment": "pass"
+}
