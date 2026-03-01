@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
@@ -51,5 +52,26 @@ public sealed class OpenApiContractTests : IDisposable {
     root.ToString().Should().Contain("PrimitiveTap");
 
     root.ToString().Should().Contain("evaluate-and-execute");
+  }
+
+  [Fact]
+  public async Task SwaggerDocumentIncludesExecutionLogRetentionEndpoints()
+  {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
+    resp.EnsureSuccessStatusCode();
+
+    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+    var root = doc.RootElement;
+    var paths = root.GetProperty("paths");
+
+    paths.TryGetProperty("/api/execution-logs/retention", out var retentionPath).Should().BeTrue();
+    retentionPath.TryGetProperty("get", out _).Should().BeTrue();
+    retentionPath.TryGetProperty("put", out var putOp).Should().BeTrue();
+
+    putOp.TryGetProperty("requestBody", out var requestBody).Should().BeTrue();
+    requestBody.TryGetProperty("content", out var content).Should().BeTrue();
+    content.TryGetProperty("application/json", out _).Should().BeTrue();
   }
 }

@@ -96,11 +96,11 @@
 
 ### Tests for User Story 3
 
-- [ ] T032 [P] [US3] Add unit tests for detail masking/redaction rules in tests/unit/ExecutionLogs/ExecutionLogSanitizerTests.cs
-- [ ] T033 [P] [US3] Add integration tests for executed/not_executed step outcomes in tests/integration/ExecutionLogs/ExecutionStepOutcomeIntegrationTests.cs
-- [ ] T034 [P] [US3] Add integration tests for retention policy update and cleanup in tests/integration/ExecutionLogs/ExecutionLogRetentionIntegrationTests.cs
-- [ ] T035 [P] [US3] Add contract tests for retention endpoints in tests/contract/OpenApiContractTests.cs
-- [ ] T036 [P] [US3] Add integration tests for summary/detail conciseness bounds and truncation marker in tests/integration/ExecutionLogs/ExecutionLogConcisenessIntegrationTests.cs
+- [X] T032 [P] [US3] Add unit tests for detail masking/redaction rules in tests/unit/ExecutionLogs/ExecutionLogSanitizerTests.cs
+- [X] T033 [P] [US3] Add integration tests for executed/not_executed step outcomes in tests/integration/ExecutionLogs/ExecutionStepOutcomeIntegrationTests.cs
+- [X] T034 [P] [US3] Add integration tests for retention policy update and cleanup in tests/integration/ExecutionLogs/ExecutionLogRetentionIntegrationTests.cs
+- [X] T035 [P] [US3] Add contract tests for retention endpoints in tests/contract/OpenApiContractTests.cs
+- [X] T036 [P] [US3] Add integration tests for summary/detail conciseness bounds and truncation marker in tests/integration/ExecutionLogs/ExecutionLogConcisenessIntegrationTests.cs
 
 ### Implementation for User Story 3
 
