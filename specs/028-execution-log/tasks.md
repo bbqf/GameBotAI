@@ -72,17 +72,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T024 [P] [US2] Add unit tests for hierarchy context construction in tests/unit/ExecutionLogs/ExecutionHierarchyContextTests.cs
+- [X] T024 [P] [US2] Add unit tests for hierarchy context construction in tests/unit/ExecutionLogs/ExecutionHierarchyContextTests.cs
 - [ ] T025 [P] [US2] Add integration tests for nested sequence parent-child linkage in tests/integration/ExecutionLogs/ExecutionHierarchyIntegrationTests.cs
 - [ ] T026 [P] [US2] Add integration tests for direct and parent navigation path persistence in tests/integration/ExecutionLogs/ExecutionNavigationIntegrationTests.cs
 
 ### Implementation for User Story 2
 
-- [ ] T027 [US2] Add hierarchy context builder for root/parent/depth/order fields in src/GameBot.Service/Services/ExecutionLog/ExecutionHierarchyBuilder.cs
-- [ ] T028 [US2] Add navigation context builder for directPath and parentPath in src/GameBot.Service/Services/ExecutionLog/ExecutionNavigationBuilder.cs
-- [ ] T029 [US2] Apply hierarchy + navigation builders during command logging in src/GameBot.Service/Services/CommandExecutor.cs
-- [ ] T030 [US2] Apply hierarchy + navigation builders for nested sequence logging in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
-- [ ] T031 [US2] Extend execution-log response mapping for hierarchy and navigation fields in src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs
+- [X] T027 [US2] Add hierarchy context builder for root/parent/depth/order fields in src/GameBot.Service/Services/ExecutionLog/ExecutionHierarchyBuilder.cs
+- [X] T028 [US2] Add navigation context builder for directPath and parentPath in src/GameBot.Service/Services/ExecutionLog/ExecutionNavigationBuilder.cs
+- [X] T029 [US2] Apply hierarchy + navigation builders during command logging in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T030 [US2] Apply hierarchy + navigation builders for nested sequence logging in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [X] T031 [US2] Extend execution-log response mapping for hierarchy and navigation fields in src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs
 
 **Checkpoint**: User Stories 1 and 2 are independently functional and testable.
 

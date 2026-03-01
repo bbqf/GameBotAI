@@ -71,7 +71,13 @@ internal sealed class CommandExecutor : ICommandExecutor {
       var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false);
       var cmdName = cmd?.Name ?? commandId;
       var status = stepOutcomes.Any(o => !string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase)) ? "failure" : "success";
-      await _executionLogService.LogCommandExecutionAsync(commandId, cmdName, status, stepOutcomes, null, 0, ct).ConfigureAwait(false);
+      await _executionLogService.LogCommandExecutionAsync(
+        commandId,
+        cmdName,
+        status,
+        stepOutcomes,
+        new ExecutionLogContext { Depth = 0 },
+        ct).ConfigureAwait(false);
     }
     return new CommandForceExecutionResult(accepted, stepOutcomes);
   }
@@ -93,7 +99,13 @@ internal sealed class CommandExecutor : ICommandExecutor {
     if (string.IsNullOrWhiteSpace(cmd.TriggerId)) {
       // No trigger configured: do not execute. Return pending/unsatisfied.
       if (_executionLogService is not null) {
-        await _executionLogService.LogCommandExecutionAsync(commandId, cmd.Name, "failure", Array.Empty<PrimitiveTapStepOutcome>(), null, 0, ct).ConfigureAwait(false);
+        await _executionLogService.LogCommandExecutionAsync(
+          commandId,
+          cmd.Name,
+          "failure",
+          Array.Empty<PrimitiveTapStepOutcome>(),
+          new ExecutionLogContext { Depth = 0 },
+          ct).ConfigureAwait(false);
       }
       return new CommandEvaluationExecutionResult(0, TriggerStatus.Pending, "no_trigger_configured", Array.Empty<PrimitiveTapStepOutcome>());
     }
@@ -116,7 +128,13 @@ internal sealed class CommandExecutor : ICommandExecutor {
     await _triggers.UpsertAsync(trigger, ct).ConfigureAwait(false);
     Log.TriggerSkipped(_logger, commandId, trigger.Id, res.Status, res.Reason);
     if (_executionLogService is not null) {
-      await _executionLogService.LogCommandExecutionAsync(commandId, cmd.Name, "failure", Array.Empty<PrimitiveTapStepOutcome>(), null, 0, ct).ConfigureAwait(false);
+      await _executionLogService.LogCommandExecutionAsync(
+        commandId,
+        cmd.Name,
+        "failure",
+        Array.Empty<PrimitiveTapStepOutcome>(),
+        new ExecutionLogContext { Depth = 0 },
+        ct).ConfigureAwait(false);
     }
     return new CommandEvaluationExecutionResult(0, res.Status, res.Reason, Array.Empty<PrimitiveTapStepOutcome>());
   }

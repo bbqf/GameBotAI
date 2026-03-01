@@ -696,8 +696,10 @@ sequences.MapPost("{id}/execute", async (
     sequenceName,
     status,
     $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
-    parentExecutionId: null,
-    depth: 0,
+    new GameBot.Service.Services.ExecutionLog.ExecutionLogContext
+    {
+      Depth = 0
+    },
     details: new[] {
       new GameBot.Domain.Logging.ExecutionDetailItem(
         "sequence",

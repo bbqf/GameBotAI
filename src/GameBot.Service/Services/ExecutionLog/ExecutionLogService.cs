@@ -6,7 +6,9 @@ namespace GameBot.Service.Services.ExecutionLog;
 internal interface IExecutionLogService
 {
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default);
+  Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default);
   Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
+  Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default);
   Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default);
   Task<ExecutionLogRetentionPolicy> GetRetentionAsync(CancellationToken ct = default);
@@ -19,17 +21,31 @@ internal sealed class ExecutionLogService : IExecutionLogService
   private readonly IExecutionLogRepository _repository;
   private readonly IExecutionLogRetentionPolicyRepository _retentionRepository;
 
-  public ExecutionLogService(IExecutionLogRepository repository, IExecutionLogRetentionPolicyRepository retentionRepository)
+  public ExecutionLogService(
+    IExecutionLogRepository repository,
+    IExecutionLogRetentionPolicyRepository retentionRepository)
   {
     _repository = repository;
     _retentionRepository = retentionRepository;
   }
 
   public async Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default)
+    => await LogCommandExecutionAsync(
+      commandId,
+      commandName,
+      finalStatus,
+      primitiveOutcomes,
+      new ExecutionLogContext
+      {
+        ParentExecutionId = parentExecutionId,
+        Depth = depth
+      },
+      ct).ConfigureAwait(false);
+
+  public async Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default)
   {
     var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     var now = DateTimeOffset.UtcNow;
-    var rootExecutionId = parentExecutionId ?? Guid.NewGuid().ToString("N");
 
     var stepOutcomes = primitiveOutcomes
       .Select(o => new ExecutionStepOutcome(
@@ -76,8 +92,8 @@ internal sealed class ExecutionLogService : IExecutionLogService
       ExecutionType = "command",
       FinalStatus = NormalizeStatus(finalStatus),
       ObjectRef = new ExecutionObjectReference("command", commandId, commandName),
-      Navigation = new ExecutionNavigationContext($"/authoring/commands/{commandId}", parentExecutionId is null ? null : $"/authoring/sequences/{parentExecutionId}"),
-      Hierarchy = new ExecutionHierarchyContext(rootExecutionId, parentExecutionId, Math.Max(0, depth), null),
+      Navigation = ExecutionNavigationBuilder.Build("command", commandId, context),
+      Hierarchy = ExecutionHierarchyBuilder.Build(context),
       Summary = TrimSummary($"Command '{commandName}' {NormalizeStatus(finalStatus)} with {stepOutcomes.Count} tracked step outcomes."),
       Details = TrimDetails(ExecutionLogSanitizer.SanitizeDetails(details)),
       StepOutcomes = stepOutcomes,
@@ -88,10 +104,23 @@ internal sealed class ExecutionLogService : IExecutionLogService
   }
 
   public async Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default)
+    => await LogSequenceExecutionAsync(
+      sequenceId,
+      sequenceName,
+      finalStatus,
+      summary,
+      new ExecutionLogContext
+      {
+        ParentExecutionId = parentExecutionId,
+        Depth = depth
+      },
+      details,
+      ct).ConfigureAwait(false);
+
+  public async Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default)
   {
     var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     var now = DateTimeOffset.UtcNow;
-    var rootExecutionId = parentExecutionId ?? Guid.NewGuid().ToString("N");
 
     var entry = new ExecutionLogEntry
     {
@@ -99,8 +128,8 @@ internal sealed class ExecutionLogService : IExecutionLogService
       ExecutionType = "sequence",
       FinalStatus = NormalizeStatus(finalStatus),
       ObjectRef = new ExecutionObjectReference("sequence", sequenceId, sequenceName),
-      Navigation = new ExecutionNavigationContext($"/authoring/sequences/{sequenceId}", null),
-      Hierarchy = new ExecutionHierarchyContext(rootExecutionId, parentExecutionId, Math.Max(0, depth), null),
+      Navigation = ExecutionNavigationBuilder.Build("sequence", sequenceId, context),
+      Hierarchy = ExecutionHierarchyBuilder.Build(context),
       Summary = TrimSummary(summary),
       Details = TrimDetails(ExecutionLogSanitizer.SanitizeDetails(details?.ToList() ?? new List<ExecutionDetailItem>())),
       StepOutcomes = Array.Empty<ExecutionStepOutcome>(),
