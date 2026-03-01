@@ -73,8 +73,8 @@
 ### Tests for User Story 2
 
 - [X] T024 [P] [US2] Add unit tests for hierarchy context construction in tests/unit/ExecutionLogs/ExecutionHierarchyContextTests.cs
-- [ ] T025 [P] [US2] Add integration tests for nested sequence parent-child linkage in tests/integration/ExecutionLogs/ExecutionHierarchyIntegrationTests.cs
-- [ ] T026 [P] [US2] Add integration tests for direct and parent navigation path persistence in tests/integration/ExecutionLogs/ExecutionNavigationIntegrationTests.cs
+- [X] T025 [P] [US2] Add integration tests for nested sequence parent-child linkage in tests/integration/ExecutionLogs/ExecutionHierarchyIntegrationTests.cs
+- [X] T026 [P] [US2] Add integration tests for direct and parent navigation path persistence in tests/integration/ExecutionLogs/ExecutionNavigationIntegrationTests.cs
 
 ### Implementation for User Story 2
 
