@@ -21,9 +21,9 @@
 **Traceability**: Setup tasks are shared enablers for all feature requirements (FR-001 through FR-028) and all success criteria (SC-001 through SC-005).
 
 - [ ] T001 Verify baseline builds/tests via workspace tasks and capture baseline in C:\src\GameBot\specs\029-execution-logs-tab\quickstart.md
-- [ ] T002 Create web UI page/test stubs for execution logs in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx and C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
-- [ ] T003 [P] Create execution logs API client stubs in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts
-- [ ] T004 [P] Add contract test file scaffold for execution logs APIs in C:\src\GameBot\tests\contract\ExecutionLogs\ExecutionLogsApiContractTests.cs
+- [X] T002 Create web UI page/test stubs for execution logs in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx and C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
+- [X] T003 [P] Create execution logs API client stubs in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts
+- [X] T004 [P] Add contract test file scaffold for execution logs APIs in C:\src\GameBot\tests\contract\ExecutionLogs\ExecutionLogsApiContractTests.cs
 
 ---
 
@@ -33,13 +33,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T005 Extend query model for sort/filter defaults and validation in C:\src\GameBot\src\GameBot.Domain\Logging\ExecutionLogModels.cs
-- [ ] T006 [P] Implement repository-side combined sort/filter and default page size 50 in C:\src\GameBot\src\GameBot.Domain\Logging\FileExecutionLogRepository.cs
-- [ ] T007 [P] Add repository unit tests for case-insensitive contains filtering and sortable columns in C:\src\GameBot\tests\unit\ExecutionLogs\ExecutionLogRepositoryQueryTests.cs
-- [ ] T008 Update list endpoint query parameters (`sortBy`, `sortDirection`, column filters, page size) in C:\src\GameBot\src\GameBot.Service\Endpoints\ExecutionLogsEndpoints.cs
-- [ ] T009 [P] Add service-layer query normalization for default sort/paging in C:\src\GameBot\src\GameBot.Service\Services\ExecutionLog\ExecutionLogService.cs
-- [ ] T010 [P] Implement/refresh execution logs contract tests for list and detail endpoints in C:\src\GameBot\tests\contract\ExecutionLogs\ExecutionLogsApiContractTests.cs
-- [ ] T011 Add integration test for combined sort+filter backend behavior in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsQueryIntegrationTests.cs
+- [X] T005 Extend query model for sort/filter defaults and validation in C:\src\GameBot\src\GameBot.Domain\Logging\ExecutionLogModels.cs
+- [X] T006 [P] Implement repository-side combined sort/filter and default page size 50 in C:\src\GameBot\src\GameBot.Domain\Logging\FileExecutionLogRepository.cs
+- [X] T007 [P] Add repository unit tests for case-insensitive contains filtering and sortable columns in C:\src\GameBot\tests\unit\ExecutionLogs\ExecutionLogRepositoryQueryTests.cs
+- [X] T008 Update list endpoint query parameters (`sortBy`, `sortDirection`, column filters, page size) in C:\src\GameBot\src\GameBot.Service\Endpoints\ExecutionLogsEndpoints.cs
+- [X] T009 [P] Add service-layer query normalization for default sort/paging in C:\src\GameBot\src\GameBot.Service\Services\ExecutionLog\ExecutionLogService.cs
+- [X] T010 [P] Implement/refresh execution logs contract tests for list and detail endpoints in C:\src\GameBot\tests\contract\ExecutionLogs\ExecutionLogsApiContractTests.cs
+- [X] T011 Add integration test for combined sort+filter backend behavior in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsQueryIntegrationTests.cs
 
 **Checkpoint**: Foundation ready — user stories can begin.
 
@@ -53,20 +53,20 @@
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add navigation/tab order UI test in C:\src\GameBot\src\web-ui\src\components\__tests__\Navigation.test.tsx
-- [ ] T013 [P] [US1] Add page behavior test for default columns/sort/filter controls in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
-- [ ] T014 [P] [US1] Add backend integration test for default page size 50 and timestamp-desc default sort in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsQueryIntegrationTests.cs
-- [ ] T015 [P] [US1] Add authorization-visibility parity test for Execution Logs tab/data access in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsAuthorizationIntegrationTests.cs
+- [X] T012 [P] [US1] Add navigation/tab order UI test in C:\src\GameBot\src\web-ui\src\components\__tests__\Navigation.test.tsx
+- [X] T013 [P] [US1] Add page behavior test for default columns/sort/filter controls in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
+- [X] T014 [P] [US1] Add backend integration test for default page size 50 and timestamp-desc default sort in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsQueryIntegrationTests.cs
+- [X] T015 [P] [US1] Add authorization-visibility parity test for Execution Logs tab/data access in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsAuthorizationIntegrationTests.cs
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Insert Execution Logs tab between Execution and Configuration in C:\src\GameBot\src\web-ui\src\components\Navigation.tsx
-- [ ] T017 [US1] Register Execution Logs page route/view wiring in C:\src\GameBot\src\web-ui\src\pages\Execution.tsx and C:\src\GameBot\src\web-ui\src\pages\Configuration.tsx
-- [ ] T018 [US1] Apply existing authoring/execution visibility policy to Execution Logs navigation and APIs in C:\src\GameBot\src\web-ui\src\components\Navigation.tsx and C:\src\GameBot\src\GameBot.Service\Endpoints\ExecutionLogsEndpoints.cs
-- [ ] T019 [P] [US1] Implement list query client with sort/filter/page parameters in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts
-- [ ] T020 [US1] Implement execution logs list page with default columns and sort header interactions in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
-- [ ] T021 [US1] Add per-column free-text filter controls and request binding in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
-- [ ] T022 [US1] Add empty-state and no-results-state messaging in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T016 [US1] Insert Execution Logs tab between Execution and Configuration in C:\src\GameBot\src\web-ui\src\components\Navigation.tsx
+- [X] T017 [US1] Register Execution Logs page route/view wiring in C:\src\GameBot\src\web-ui\src\pages\Execution.tsx and C:\src\GameBot\src\web-ui\src\pages\Configuration.tsx
+- [X] T018 [US1] Apply existing authoring/execution visibility policy to Execution Logs navigation and APIs in C:\src\GameBot\src\web-ui\src\components\Navigation.tsx and C:\src\GameBot\src\GameBot.Service\Endpoints\ExecutionLogsEndpoints.cs
+- [X] T019 [P] [US1] Implement list query client with sort/filter/page parameters in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts
+- [X] T020 [US1] Implement execution logs list page with default columns and sort header interactions in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T021 [US1] Add per-column free-text filter controls and request binding in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T022 [US1] Add empty-state and no-results-state messaging in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
 
 **Checkpoint**: User Story 1 is independently functional and testable.
 
@@ -80,17 +80,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T023 [P] [US2] Add detail endpoint contract coverage for required fields and 404 behavior in C:\src\GameBot\tests\contract\ExecutionLogs\ExecutionLogsApiContractTests.cs
+- [X] T023 [P] [US2] Add detail endpoint contract coverage for required fields and 404 behavior in C:\src\GameBot\tests\contract\ExecutionLogs\ExecutionLogsApiContractTests.cs
 - [ ] T024 [P] [US2] Add UI test asserting no raw JSON is rendered in details panel in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
 - [ ] T025 [P] [US2] Add integration test for related object link and snapshot availability mapping in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsDetailIntegrationTests.cs
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Add detail DTO mapping for user-readable fields and step outcomes in C:\src\GameBot\src\GameBot.Service\Endpoints\ExecutionLogsEndpoints.cs
+- [X] T026 [US2] Add detail DTO mapping for user-readable fields and step outcomes in C:\src\GameBot\src\GameBot.Service\Endpoints\ExecutionLogsEndpoints.cs
 - [ ] T027 [P] [US2] Add detail projection helper methods for readable text defaults in C:\src\GameBot\src\GameBot.Service\Services\ExecutionLog\ExecutionLogService.cs
-- [ ] T028 [US2] Implement detail fetch/select behavior from row selection in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts and C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
-- [ ] T029 [US2] Implement detail panel sections (summary, links, snapshot, step outcomes) in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
-- [ ] T030 [US2] Add unavailable-link and missing-snapshot user feedback states in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T028 [US2] Implement detail fetch/select behavior from row selection in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts and C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T029 [US2] Implement detail panel sections (summary, links, snapshot, step outcomes) in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T030 [US2] Add unavailable-link and missing-snapshot user feedback states in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
 
 **Checkpoint**: User Story 2 is independently functional and testable.
 
@@ -106,14 +106,14 @@
 
 - [ ] T031 [P] [US3] Add responsive layout behavior tests (desktop split, phone drill-down) in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogsResponsive.test.tsx
 - [ ] T032 [P] [US3] Add UI test for timestamp display toggle default exact and relative mode switch in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
-- [ ] T033 [P] [US3] Add UI test for latest-request-wins behavior under rapid sort/filter changes in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
+- [X] T033 [P] [US3] Add UI test for latest-request-wins behavior under rapid sort/filter changes in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] Implement responsive desktop split-pane and phone drill-down views in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
-- [ ] T035 [US3] Implement state preservation for sort/filter while navigating list/detail on phone in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
-- [ ] T036 [US3] Implement timestamp display mode toggle (default exact local, switchable relative) in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
-- [ ] T037 [US3] Implement latest-request-wins request coordination in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts and C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T034 [US3] Implement responsive desktop split-pane and phone drill-down views in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T035 [US3] Implement state preservation for sort/filter while navigating list/detail on phone in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T036 [US3] Implement timestamp display mode toggle (default exact local, switchable relative) in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
+- [X] T037 [US3] Implement latest-request-wins request coordination in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts and C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
 
 **Checkpoint**: User Story 3 is independently functional and testable.
 

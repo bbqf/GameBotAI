@@ -1,6 +1,8 @@
 import React from 'react';
 import { TokenGate } from '../components/TokenGate';
 
+export const CONFIGURATION_AREA_PATH = '/configuration';
+
 type ConfigurationPageProps = {
   token: string;
   onTokenChange: (t: string) => void;

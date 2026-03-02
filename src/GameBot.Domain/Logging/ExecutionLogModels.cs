@@ -47,6 +47,13 @@ public sealed class ExecutionLogEntry
 
 public sealed class ExecutionLogQuery
 {
+  public string? SortBy { get; init; } = "timestamp";
+  public string? SortDirection { get; init; } = "desc";
+  public string? FilterTimestamp { get; init; }
+  public string? FilterObjectName { get; init; }
+  public string? FilterStatus { get; init; }
+  public string? PageToken { get; init; }
+
   public DateTimeOffset? FromUtc { get; init; }
   public DateTimeOffset? ToUtc { get; init; }
   public string? FinalStatus { get; init; }

@@ -126,7 +126,10 @@ internal sealed class ExecutionLogService : IExecutionLogService {
   }
 
   public Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default)
-    => _repository.QueryAsync(query, ct);
+  {
+    var normalized = NormalizeQuery(query);
+    return _repository.QueryAsync(normalized, ct);
+  }
 
   public Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default)
     => _repository.GetAsync(id, ct);
@@ -164,5 +167,40 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     var trimmed = details.Take(9).ToList();
     trimmed.Add(new ExecutionDetailItem("meta", "Additional details were truncated.", null, "normal"));
     return trimmed;
+  }
+
+  private static ExecutionLogQuery NormalizeQuery(ExecutionLogQuery? query)
+  {
+    var source = query ?? new ExecutionLogQuery();
+
+    var sortByRaw = source.SortBy?.Trim();
+    var normalizedSortBy = sortByRaw?.ToUpperInvariant() switch
+    {
+      "TIMESTAMP" => "timestamp",
+      "OBJECTNAME" => "objectName",
+      "STATUS" => "status",
+      _ => "timestamp"
+    };
+
+    var normalizedDirection = string.Equals(source.SortDirection, "asc", StringComparison.OrdinalIgnoreCase)
+      ? "asc"
+      : "desc";
+
+    return new ExecutionLogQuery
+    {
+      SortBy = normalizedSortBy,
+      SortDirection = normalizedDirection,
+      FilterTimestamp = source.FilterTimestamp,
+      FilterObjectName = source.FilterObjectName,
+      FilterStatus = source.FilterStatus,
+      PageToken = source.PageToken,
+      FromUtc = source.FromUtc,
+      ToUtc = source.ToUtc,
+      FinalStatus = source.FinalStatus,
+      ObjectType = source.ObjectType,
+      ObjectId = source.ObjectId,
+      PageSize = source.PageSize <= 0 ? 50 : source.PageSize,
+      Cursor = source.Cursor
+    };
   }
 }

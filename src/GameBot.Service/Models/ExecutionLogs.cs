@@ -68,7 +68,51 @@ internal sealed class ExecutionLogEntryDto
 internal sealed class ExecutionLogListResponseDto
 {
   public required IReadOnlyList<ExecutionLogEntryDto> Items { get; init; }
+  public string? NextPageToken { get; init; }
   public string? NextCursor { get; init; }
+}
+
+internal sealed class ExecutionLogListItemDto
+{
+  public required string Id { get; init; }
+  public DateTimeOffset TimestampUtc { get; init; }
+  public required string ObjectName { get; init; }
+  public required string Status { get; init; }
+  public bool HasSnapshot { get; init; }
+}
+
+internal sealed class RelatedObjectLinkDto
+{
+  public required string Label { get; init; }
+  public required string TargetType { get; init; }
+  public required string TargetId { get; init; }
+  public bool IsAvailable { get; init; }
+  public string? UnavailableReason { get; init; }
+}
+
+internal sealed class SnapshotReferenceDto
+{
+  public bool IsAvailable { get; init; }
+  public string? ImageUrl { get; init; }
+  public string? Caption { get; init; }
+}
+
+internal sealed class StepOutcomeDetailDto
+{
+  public required string StepName { get; init; }
+  public required string Status { get; init; }
+  public required string Message { get; init; }
+  public DateTimeOffset? StartedAtUtc { get; init; }
+  public DateTimeOffset? EndedAtUtc { get; init; }
+}
+
+internal sealed class ExecutionLogDetailDto
+{
+  public required string ExecutionId { get; init; }
+  public required string Summary { get; init; }
+  public required IReadOnlyList<RelatedObjectLinkDto> RelatedObjects { get; init; }
+  public required SnapshotReferenceDto Snapshot { get; init; }
+  public required IReadOnlyList<StepOutcomeDetailDto> StepOutcomes { get; init; }
 }
 
 internal sealed class ExecutionLogRetentionPolicyDto

@@ -60,28 +60,49 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
       if (!string.IsNullOrWhiteSpace(query.FinalStatus) && !string.Equals(item.FinalStatus, query.FinalStatus, StringComparison.OrdinalIgnoreCase)) continue;
       if (!string.IsNullOrWhiteSpace(query.ObjectType) && !string.Equals(item.ObjectRef.ObjectType, query.ObjectType, StringComparison.OrdinalIgnoreCase)) continue;
       if (!string.IsNullOrWhiteSpace(query.ObjectId) && !string.Equals(item.ObjectRef.ObjectId, query.ObjectId, StringComparison.OrdinalIgnoreCase)) continue;
+      if (!string.IsNullOrWhiteSpace(query.FilterStatus) && !ContainsIgnoreCase(item.FinalStatus, query.FilterStatus)) continue;
+      if (!string.IsNullOrWhiteSpace(query.FilterObjectName) && !ContainsIgnoreCase(item.ObjectRef.DisplayNameSnapshot, query.FilterObjectName)) continue;
+      if (!string.IsNullOrWhiteSpace(query.FilterTimestamp) && !ContainsIgnoreCase(FormatTimestampSearchText(item.TimestampUtc), query.FilterTimestamp)) continue;
       entries.Add(item);
     }
 
-    var ordered = entries.OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id).ToList();
+    var sortBy = (query.SortBy ?? string.Empty).Trim().ToUpperInvariant();
+    var direction = (query.SortDirection ?? string.Empty).Trim().ToUpperInvariant();
+    var ascending = string.Equals(direction, "ASC", StringComparison.Ordinal);
+
+    var ordered = sortBy switch
+    {
+      "OBJECTNAME" => ascending
+        ? entries.OrderBy(e => e.ObjectRef.DisplayNameSnapshot, StringComparer.OrdinalIgnoreCase).ThenByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
+        : entries.OrderByDescending(e => e.ObjectRef.DisplayNameSnapshot, StringComparer.OrdinalIgnoreCase).ThenByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id),
+      "STATUS" => ascending
+        ? entries.OrderBy(e => e.FinalStatus, StringComparer.OrdinalIgnoreCase).ThenByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
+        : entries.OrderByDescending(e => e.FinalStatus, StringComparer.OrdinalIgnoreCase).ThenByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id),
+      _ => ascending
+        ? entries.OrderBy(e => e.TimestampUtc).ThenByDescending(e => e.Id)
+        : entries.OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
+    };
 
     var startIndex = 0;
-    if (!string.IsNullOrWhiteSpace(query.Cursor))
+    var pageToken = string.IsNullOrWhiteSpace(query.PageToken) ? query.Cursor : query.PageToken;
+    if (!string.IsNullOrWhiteSpace(pageToken))
     {
-      if (int.TryParse(query.Cursor, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0)
+      if (int.TryParse(pageToken, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0)
       {
         startIndex = parsed;
       }
     }
 
-    if (startIndex >= ordered.Count)
+    var orderedList = ordered.ToList();
+
+    if (startIndex >= orderedList.Count)
     {
       return new ExecutionLogPage(Array.Empty<ExecutionLogEntry>(), null);
     }
 
-    var items = ordered.Skip(startIndex).Take(pageSize).ToList();
+    var items = orderedList.Skip(startIndex).Take(pageSize).ToList();
     var nextIndex = startIndex + items.Count;
-    var nextCursor = nextIndex < ordered.Count ? nextIndex.ToString(CultureInfo.InvariantCulture) : null;
+    var nextCursor = nextIndex < orderedList.Count ? nextIndex.ToString(CultureInfo.InvariantCulture) : null;
 
     return new ExecutionLogPage(items, nextCursor);
   }
@@ -114,5 +135,14 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
   public void Dispose()
   {
     _mutex.Dispose();
+  }
+
+  private static bool ContainsIgnoreCase(string source, string value)
+    => source.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+  private static string FormatTimestampSearchText(DateTimeOffset timestampUtc)
+  {
+    var local = timestampUtc.ToLocalTime();
+    return $"{local:O} {local:G} {local:g}";
   }
 }
