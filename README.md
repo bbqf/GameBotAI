@@ -445,6 +445,7 @@ Notes:
 - Storage root for file repositories:
   - Environment: `GAMEBOT_DATA_DIR`
   - Config: `Service:Storage:Root` (default: `<app>/data` under the running process)
+  - Execution-log file paths: see `ENVIRONMENT.md` → [Execution log storage paths (explicit)](ENVIRONMENT.md#execution-log-storage-paths-explicit)
 - Session settings (Options): `Service:Sessions`
   - `MaxConcurrentSessions` (default 3)
   - `IdleTimeoutSeconds` (default 1800)

@@ -49,3 +49,21 @@
 	- Create command with PrimitiveTap: `p95=1.91 ms`, `avg=1.35 ms`
 	- Update command with PrimitiveTap: `p95=2.19 ms`, `avg=1.56 ms`
 - Result: command API latency remains comfortably below the plan target (`< 200 ms p95`).
+
+## Execution Log Feature Validation (2026-02-27)
+
+- **Build validation**: `dotnet build -c Debug` succeeded after implementation wiring and analyzer remediation.
+- **Test validation**: `dotnet test -c Debug --logger trx` succeeded with `299/299` passing tests.
+- **Required failure analysis**: `scripts/analyze-test-results.ps1` reported `All tests passed across 3 TRX file(s)` after clearing stale TRX files.
+- **Contract validation**: Swagger example coverage includes execution-log routes, including `PUT /api/execution-logs/retention` request/response examples.
+- **Privacy check**: Execution log persistence path enforces redaction/masking through `ExecutionLogSanitizer` before repository writes.
+- **Security scans**:
+	- `.NET dependency vulnerability scan`: `dotnet list GameBot.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+	- Repository secret-signature scan (`git grep` over common API key/private-key patterns) returned no matches.
+- **Coverage evidence (touched area)**:
+	- `src/GameBot.Service/Services/CommandExecutor.cs`: `85.71%` statement coverage (`runTests` coverage mode).
+	- `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs`: `85.32%` statement coverage (`runTests` coverage mode).
+	- Coverage artifact recorded at `tools/coverage/execution-log-coverage-20260227.json`.
+- **Performance evidence (p95 write/query)**:
+	- `PUT /api/execution-logs/retention` (25 iterations): `p95=4.44 ms`, `avg=10.68 ms`.
+	- `GET /api/execution-logs?pageSize=50` (25 iterations): `p95=6.31 ms`, `avg=4.51 ms`.

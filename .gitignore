@@ -57,6 +57,8 @@ Thumbs.db
 [Dd]esktop.ini
 $RECYCLE.BIN/
 **/.DS_Store
+*.tmp
+*.swp
 
 # Secrets / local env
 .env
@@ -80,6 +82,12 @@ _ReSharper.Caches/
 
 data.old/ 
 tools/
+!tools/
+tools/*
+!tools/coverage/
+tools/coverage/*
+!tools/coverage/execution-log-coverage-20260227.json
+!tools/coverage/execution-log-perf-20260227.json
 
 # PR helper files (do not commit)
 PR_BODY.md

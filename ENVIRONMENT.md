@@ -61,6 +61,21 @@ Redaction: Any key containing `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-inse
   - Default: `(<app-base>)/data` when not set; or `Service:Storage:Root` if provided.
   - Example (PowerShell): `$env:GAMEBOT_DATA_DIR = "C:\\src\\GameBot\\data"`
 
+### Execution log storage paths (explicit)
+
+Execution log files are persisted under the resolved storage root (from `Service:Storage:Root` or `GAMEBOT_DATA_DIR`; fallback: `<app-base>/data`).
+
+- Execution entries: `<storage-root>/execution-logs/*.json`
+- Retention policy file: `<storage-root>/config/execution-log-policy.json`
+
+Examples:
+- If `$env:GAMEBOT_DATA_DIR = "C:\\src\\GameBot\\data"`:
+  - `C:\\src\\GameBot\\data\\execution-logs\\*.json`
+  - `C:\\src\\GameBot\\data\\config\\execution-log-policy.json`
+- If no overrides are set and the service runs from `src/GameBot.Service/bin/Debug/net9.0`:
+  - `src/GameBot.Service/bin/Debug/net9.0/data/execution-logs/*.json`
+  - `src/GameBot.Service/bin/Debug/net9.0/data/config/execution-log-policy.json`
+
 - GAMEBOT_DYNAMIC_PORT
   - Purpose: Bind service to a dynamically assigned port instead of a fixed one to avoid conflicts in tests/CI.
   - Used in: `Program.cs`

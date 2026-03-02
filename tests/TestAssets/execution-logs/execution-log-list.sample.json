@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "id": "exe_0001",
+      "timestampUtc": "2026-01-01T00:00:00Z",
+      "executionType": "command",
+      "finalStatus": "success",
+      "objectRef": {
+        "objectType": "command",
+        "objectId": "cmd-farm",
+        "displayNameSnapshot": "Farm Run",
+        "versionSnapshot": "2026.01"
+      },
+      "navigation": {
+        "directPath": "/api/commands/cmd-farm",
+        "parentPath": "/api/sequences/seq-daily",
+        "pathKind": "command"
+      },
+      "hierarchy": {
+        "rootExecutionId": "exe_root_0001",
+        "parentExecutionId": "exe_parent_0001",
+        "depth": 1,
+        "sequenceIndex": 2
+      },
+      "summary": "Command executed successfully",
+      "details": [],
+      "stepOutcomes": []
+    }
+  ],
+  "nextCursor": "2026-01-01T00:00:00.0000000+00:00|exe_0001"
+}

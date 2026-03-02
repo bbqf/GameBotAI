@@ -1,0 +1,10 @@
+﻿{
+    "timestampUtc":  "2026-02-28T08:26:28.2031467Z",
+    "endpointWrite":  "PUT /api/execution-logs/retention",
+    "endpointQuery":  "GET /api/execution-logs?pageSize=50",
+    "iterations":  25,
+    "writeP95Ms":  4.44,
+    "writeAvgMs":  10.68,
+    "queryP95Ms":  6.31,
+    "queryAvgMs":  4.51
+}
