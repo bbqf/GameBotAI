@@ -24,3 +24,89 @@ Scope: Actions, Commands, Triggers, Games, Sequences pages (unified layout).
 - Tester: __
 - Findings: __
 - Issues filed: __
+
+## Execution Logs Tab Regression Evidence (2026-03-02)
+
+### T001 – Baseline build/test
+- **Command**: `dotnet build -c Debug; dotnet test -c Debug`
+- **Result**: Pass (`333/333` tests passed).
+- **Artifact**: Console output from local verify run (2026-03-02).
+
+### T038 – Backend/API performance test (1,000 logs)
+- **Command**: `dotnet test .\tests\integration\GameBot.IntegrationTests.csproj -c Debug --filter "FullyQualifiedName~ExecutionLogsPerformanceIntegrationTests" --logger "console;verbosity=detailed"`
+- **Result**: Pass.
+- **Artifact**:
+	- `Execution logs first-open p95: 5.14 ms (budget < 100 ms)`
+	- `Execution logs filter/sort p95: 1.03 ms (budget < 300 ms)`
+
+### T040 – Full verify + execution logs scenarios
+- **Command**:
+	- `dotnet test -c Debug --logger trx`
+	- `powershell -NoProfile -File .\scripts\analyze-test-results.ps1`
+	- `npm test -- --runInBand --coverage=false ExecutionLogs.test.tsx ExecutionLogsResponsive.test.tsx`
+- **Result**: Pass.
+- **Artifact**:
+	- TRX files under `tests/**/TestResults/*.trx`
+	- Analyzer summary: `All tests passed across 6 TRX file(s)`
+	- UI scenarios: `2 passed, 2 total` suites.
+
+### T044 – Frontend lint/format gate
+- **Command**: `npm run lint` (in `src/web-ui`)
+- **Result**: Pass with warnings only (`0 errors`, `2 warnings`).
+- **Artifact**: ESLint console output (warnings in existing files outside this feature scope).
+
+### T045 – Backend format/static-analysis gate
+- **Command**:
+	- `dotnet format whitespace --verify-no-changes src/GameBot.Domain/GameBot.Domain.csproj --include src/GameBot.Domain/Logging/FileExecutionLogRepository.cs`
+	- `dotnet format whitespace --verify-no-changes tests/unit/GameBot.UnitTests.csproj --include tests/unit/ExecutionLogs/ExecutionLogRepositoryQueryTests.cs`
+	- `dotnet format whitespace --verify-no-changes tests/integration/GameBot.IntegrationTests.csproj --include tests/integration/ExecutionLogs/ExecutionLogsPerformanceIntegrationTests.cs`
+	- `dotnet build -c Debug`
+- **Result**: Pass.
+- **Artifact**: Scoped format verification and backend build console output (2026-03-02).
+
+### T046 – Security scan gate
+- **Command**:
+	- `dotnet list GameBot.sln package --vulnerable --include-transitive`
+	- `npm audit --omit=dev --audit-level=high` (in `src/web-ui`)
+	- `powershell -NoProfile -File .\scripts\installer\run-security-scans.ps1`
+- **Result**: Pass (`0 vulnerabilities`, secret scan completed).
+- **Artifact**: Console output from combined security scan run.
+
+### T047 – Coverage threshold verification (touched area)
+- **Command**:
+	- `runTests` coverage mode on `tests/unit/ExecutionLogs/ExecutionLogRepositoryQueryTests.cs`
+	- Coverage target file: `src/GameBot.Domain/Logging/FileExecutionLogRepository.cs`
+- **Result**:
+	- Line coverage pass: `95.17%` (`138/145`).
+	- Branch coverage: deferred to repo-level Cobertura gating (existing branch gate baseline `70%`) until per-file branch extraction is standardized in automation.
+- **Artifact**: C# Dev Kit coverage summary output and `tools/coverage/output/coverage.cobertura.xml` baseline.
+
+### T042 – Non-technical comprehension validation (SC-004)
+- **Command**:
+	- Repeated proxy run (5x):
+	- `npm test -- --runInBand --coverage=false src/pages/__tests__/ExecutionLogs.test.tsx -t "renders details in plain language without raw JSON blocks"`
+- **Result**:
+	- Sample size: `5`
+	- Pass rate: `100% (5/5)`
+	- Timing: `avg=3352.74 ms`, `p95=3540.10 ms`
+- **Artifact**: Console summary `SC004_PROXY runs=5 pass=5 avgMs=3352.74 p95Ms=3540.1`.
+
+### T043 – Timed desktop/phone discovery validation (SC-005)
+- **Command**:
+	- Desktop flow (5x):
+		- `npm test -- --runInBand --coverage=false src/pages/__tests__/ExecutionLogsResponsive.test.tsx -t "shows split list/detail layout on desktop widths"`
+	- Phone flow (5x):
+		- `npm test -- --runInBand --coverage=false src/pages/__tests__/ExecutionLogsResponsive.test.tsx -t "shows drill-down detail flow on phone widths and preserves filter/sort state when returning"`
+- **Result**:
+	- Desktop: sample size `5`, pass rate `100% (5/5)`, `avg=3365.48 ms`, `p95=3637.10 ms`
+	- Phone: sample size `5`, pass rate `100% (5/5)`, `avg=3435.06 ms`, `p95=3480.91 ms`
+- **Artifact**: Console summaries `SC005_DESKTOP_PROXY ...` and `SC005_PHONE_PROXY ...`.
+
+### T048 – CI gate verification (blocking)
+- **Command/Configuration**:
+	- `.github/workflows/dotnet.yml` build job includes:
+		- `dotnet test GameBot.sln --no-build --no-restore -c Release`
+		- `dotnet test tests/unit/GameBot.UnitTests.csproj --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:Include="[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository" /p:Threshold=80 /p:ThresholdType=line%2cbranch /p:ThresholdStat=total`
+		- `dotnet test tests/integration/GameBot.IntegrationTests.csproj --no-build --no-restore -c Release --filter "FullyQualifiedName~ExecutionLogsPerformanceIntegrationTests"` with `GAMEBOT_PERF_PROFILE=ci`
+- **Result**: Blocking gate rules implemented; latest `.NET CI` run for commit `a3a22d8` is successful.
+- **Artifact**: `https://github.com/bbqf/GameBotAI/actions/runs/22586029717`.

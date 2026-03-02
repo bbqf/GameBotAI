@@ -6,10 +6,13 @@ export type NavigationProps = {
   activeArea: NavigationAreaId;
   onChange: (id: NavigationAreaId) => void;
   isCollapsed: boolean;
+  isAreaVisible?: (id: NavigationAreaId) => boolean;
 };
 
-export const Navigation: React.FC<NavigationProps> = ({ areas, activeArea, onChange, isCollapsed }) => {
-  const sorted = [...areas].sort((a, b) => a.order - b.order);
+export const Navigation: React.FC<NavigationProps> = ({ areas, activeArea, onChange, isCollapsed, isAreaVisible }) => {
+  const sorted = [...areas]
+    .filter((area) => (isAreaVisible ? isAreaVisible(area.id) : true))
+    .sort((a, b) => a.order - b.order);
 
   if (isCollapsed) {
     return (

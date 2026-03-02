@@ -26,6 +26,12 @@ jobs:
         run: dotnet test GameBot.sln --no-build --no-restore -c Release
       - name: Coverage gate (installer endpoints)
         run: dotnet test GameBot.sln --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:Include="[GameBot.Service]GameBot.Service.Endpoints.EmulatorImageEndpoints*" /p:Threshold=80 /p:ThresholdType=line /p:ThresholdStat=total
+      - name: Coverage gate (execution logs touched area)
+        run: dotnet test tests/unit/GameBot.UnitTests.csproj --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:Include="[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository" /p:Threshold=80 /p:ThresholdType=line%2cbranch /p:ThresholdStat=total
+      - name: Performance gate (execution logs ci profile)
+        env:
+          GAMEBOT_PERF_PROFILE: ci
+        run: dotnet test tests/integration/GameBot.IntegrationTests.csproj --no-build --no-restore -c Release --filter "FullyQualifiedName~ExecutionLogsPerformanceIntegrationTests"
 
   web-ui-tests:
     runs-on: windows-latest

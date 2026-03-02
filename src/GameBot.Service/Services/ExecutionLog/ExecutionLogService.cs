@@ -3,6 +3,25 @@ using GameBot.Service.Services;
 
 namespace GameBot.Service.Services.ExecutionLog;
 
+internal sealed record ExecutionLogRelatedProjection(
+  string Label,
+  string TargetType,
+  string TargetId,
+  bool IsAvailable,
+  string? UnavailableReason);
+
+internal sealed record ExecutionLogStepProjection(
+  string StepName,
+  string Status,
+  string Message);
+
+internal sealed record ExecutionLogDetailProjection(
+  string Summary,
+  IReadOnlyList<ExecutionLogRelatedProjection> RelatedObjects,
+  bool HasSnapshot,
+  string? SnapshotCaption,
+  IReadOnlyList<ExecutionLogStepProjection> StepOutcomes);
+
 internal interface IExecutionLogService {
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default);
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default);
@@ -126,7 +145,10 @@ internal sealed class ExecutionLogService : IExecutionLogService {
   }
 
   public Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default)
-    => _repository.QueryAsync(query, ct);
+  {
+    var normalized = NormalizeQuery(query);
+    return _repository.QueryAsync(normalized, ct);
+  }
 
   public Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default)
     => _repository.GetAsync(id, ct);
@@ -151,6 +173,49 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     return await _repository.DeleteExpiredAsync(DateTimeOffset.UtcNow, ct).ConfigureAwait(false);
   }
 
+  internal static ExecutionLogDetailProjection BuildDetailProjection(ExecutionLogEntry entry)
+  {
+    var summary = string.IsNullOrWhiteSpace(entry.Summary) ? "Execution completed." : entry.Summary;
+
+    var relatedObjects = new List<ExecutionLogRelatedProjection>
+    {
+      new(
+        entry.ObjectRef.DisplayNameSnapshot,
+        entry.ObjectRef.ObjectType,
+        entry.ObjectRef.ObjectId,
+        true,
+        null)
+    };
+
+    if (!string.IsNullOrWhiteSpace(entry.Navigation.ParentPath))
+    {
+      relatedObjects.Add(new ExecutionLogRelatedProjection(
+        "Parent execution",
+        "execution",
+        entry.Hierarchy.ParentExecutionId ?? string.Empty,
+        !string.IsNullOrWhiteSpace(entry.Hierarchy.ParentExecutionId),
+        string.IsNullOrWhiteSpace(entry.Hierarchy.ParentExecutionId) ? "Parent execution is unavailable." : null));
+    }
+
+    var hasSnapshot = entry.Details.Any(detail =>
+      string.Equals(detail.Kind, "snapshot", StringComparison.OrdinalIgnoreCase) ||
+      (detail.Attributes?.ContainsKey("imageUrl") ?? false));
+
+    var stepOutcomes = entry.StepOutcomes
+      .Select(step => new ExecutionLogStepProjection(
+        string.IsNullOrWhiteSpace(step.StepType) ? $"Step {step.StepOrder}" : step.StepType,
+        step.Outcome,
+        step.ReasonText ?? step.ReasonCode ?? "Step completed."))
+      .ToArray();
+
+    return new ExecutionLogDetailProjection(
+      summary,
+      relatedObjects,
+      hasSnapshot,
+      hasSnapshot ? "Snapshot captured during execution." : null,
+      stepOutcomes);
+  }
+
   private static string NormalizeStatus(string status)
     => string.Equals(status, "success", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
 
@@ -164,5 +229,40 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     var trimmed = details.Take(9).ToList();
     trimmed.Add(new ExecutionDetailItem("meta", "Additional details were truncated.", null, "normal"));
     return trimmed;
+  }
+
+  private static ExecutionLogQuery NormalizeQuery(ExecutionLogQuery? query)
+  {
+    var source = query ?? new ExecutionLogQuery();
+
+    var sortByRaw = source.SortBy?.Trim();
+    var normalizedSortBy = sortByRaw?.ToUpperInvariant() switch
+    {
+      "TIMESTAMP" => "timestamp",
+      "OBJECTNAME" => "objectName",
+      "STATUS" => "status",
+      _ => "timestamp"
+    };
+
+    var normalizedDirection = string.Equals(source.SortDirection, "asc", StringComparison.OrdinalIgnoreCase)
+      ? "asc"
+      : "desc";
+
+    return new ExecutionLogQuery
+    {
+      SortBy = normalizedSortBy,
+      SortDirection = normalizedDirection,
+      FilterTimestamp = source.FilterTimestamp,
+      FilterObjectName = source.FilterObjectName,
+      FilterStatus = source.FilterStatus,
+      PageToken = source.PageToken,
+      FromUtc = source.FromUtc,
+      ToUtc = source.ToUtc,
+      FinalStatus = source.FinalStatus,
+      ObjectType = source.ObjectType,
+      ObjectId = source.ObjectId,
+      PageSize = source.PageSize <= 0 ? 50 : source.PageSize,
+      Cursor = source.Cursor
+    };
   }
 }

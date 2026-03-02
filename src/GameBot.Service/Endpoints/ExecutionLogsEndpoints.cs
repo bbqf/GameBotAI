@@ -1,6 +1,7 @@
 using GameBot.Domain.Logging;
 using GameBot.Service.Models;
 using GameBot.Service.Services.ExecutionLog;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GameBot.Service.Endpoints;
 
@@ -9,8 +10,15 @@ internal static class ExecutionLogsEndpoints
   public static IEndpointRouteBuilder MapExecutionLogEndpoints(this IEndpointRouteBuilder app)
   {
     var group = app.MapGroup(ApiRoutes.ExecutionLogs).WithTags("ExecutionLogs");
+    group.WithMetadata(new ProducesResponseTypeAttribute(StatusCodes.Status401Unauthorized));
 
     group.MapGet("", async (
+      string? sortBy,
+      string? sortDirection,
+      string? filterTimestamp,
+      string? filterObjectName,
+      string? filterStatus,
+      string? pageToken,
       DateTimeOffset? fromUtc,
       DateTimeOffset? toUtc,
       string? finalStatus,
@@ -21,8 +29,17 @@ internal static class ExecutionLogsEndpoints
       IExecutionLogService svc,
       CancellationToken ct) =>
     {
+      var normalizedSortBy = string.IsNullOrWhiteSpace(sortBy) ? "timestamp" : sortBy!;
+      var normalizedSortDirection = string.IsNullOrWhiteSpace(sortDirection) ? "desc" : sortDirection!;
+
       var page = await svc.QueryAsync(new ExecutionLogQuery
       {
+        SortBy = normalizedSortBy,
+        SortDirection = normalizedSortDirection,
+        FilterTimestamp = filterTimestamp,
+        FilterObjectName = filterObjectName,
+        FilterStatus = filterStatus,
+        PageToken = pageToken,
         FromUtc = fromUtc,
         ToUtc = toUtc,
         FinalStatus = finalStatus,
@@ -35,6 +52,7 @@ internal static class ExecutionLogsEndpoints
       return Results.Ok(new ExecutionLogListResponseDto
       {
         Items = page.Items.Select(ToDto).ToArray(),
+        NextPageToken = page.NextCursor,
         NextCursor = page.NextCursor
       });
     }).WithName("ListExecutionLogs");
@@ -50,7 +68,7 @@ internal static class ExecutionLogsEndpoints
         });
       }
 
-      return Results.Ok(ToDto(item));
+      return Results.Ok(ToDetailResponse(item));
     }).WithName("GetExecutionLog");
 
     group.MapGet("/retention", async (IExecutionLogService svc, CancellationToken ct) =>
@@ -124,4 +142,56 @@ internal static class ExecutionLogsEndpoints
         ReasonText = s.ReasonText
       }).ToArray()
     };
+
+  private static object ToDetailResponse(ExecutionLogEntry entry)
+  {
+    var legacy = ToDto(entry);
+    var projection = ExecutionLogService.BuildDetailProjection(entry);
+
+    var detail = new ExecutionLogDetailDto
+    {
+      ExecutionId = entry.Id,
+      Summary = projection.Summary,
+      RelatedObjects = projection.RelatedObjects.Select(related => new RelatedObjectLinkDto
+      {
+        Label = related.Label,
+        TargetType = related.TargetType,
+        TargetId = related.TargetId,
+        IsAvailable = related.IsAvailable,
+        UnavailableReason = related.UnavailableReason
+      }).ToArray(),
+      Snapshot = new SnapshotReferenceDto
+      {
+        IsAvailable = projection.HasSnapshot,
+        ImageUrl = null,
+        Caption = projection.SnapshotCaption
+      },
+      StepOutcomes = projection.StepOutcomes.Select(step => new StepOutcomeDetailDto
+      {
+        StepName = step.StepName,
+        Status = step.Status,
+        Message = step.Message,
+        StartedAtUtc = null,
+        EndedAtUtc = null
+      }).ToArray()
+    };
+
+    return new
+    {
+      legacy.Id,
+      legacy.TimestampUtc,
+      legacy.ExecutionType,
+      legacy.FinalStatus,
+      legacy.ObjectRef,
+      legacy.Navigation,
+      legacy.Hierarchy,
+      legacy.Summary,
+      legacy.Details,
+      LegacyStepOutcomes = legacy.StepOutcomes,
+      detail.ExecutionId,
+      detail.RelatedObjects,
+      detail.Snapshot,
+      detail.StepOutcomes
+    };
+  }
 }

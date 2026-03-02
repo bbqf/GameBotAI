@@ -27,6 +27,15 @@ Use this checklist to verify consistency across Action, Command, Trigger, Game, 
 - **Game**: Basics + Metadata section; metadata rows add/delete; no raw JSON entry needed.
 - **Sequence**: Steps array for commands; reorder preserves order on save/reload.
 
+## Execution Logs Tab Audit Addendum
+- **Tab order**: `Execution` -> `Execution Logs` -> `Configuration`.
+- **Default list view**: Columns visible for Timestamp, Object Name, and Status; default sort is Timestamp descending.
+- **Filtering/sorting**: Per-column text filters and sort headers update list results without exposing raw IDs/JSON.
+- **Detail readability**: Selected row shows summary, related objects, snapshot availability, and step outcomes in plain language.
+- **Responsive behavior**:
+	- Desktop: split list/detail panes shown together.
+	- Phone: list-first drill-down with Back-to-list preserving prior filter/sort/timestamp mode state.
+
 ## Signoff
 - **Date/Reviewer**:
 - **Scope** (pages audited):

@@ -12,8 +12,9 @@ import { normalizeTab } from './lib/navigation';
 import { useNavigationCollapse } from './hooks/useNavigationCollapse';
 import { Navigation } from './components/Navigation';
 import { NavigationAreaId, navigationAreas } from './types/navigation';
-import { ConfigurationPage } from './pages/Configuration';
-import { ExecutionPage } from './pages/Execution';
+import { CONFIGURATION_AREA_PATH, ConfigurationPage } from './pages/Configuration';
+import { EXECUTION_AREA_PATH, EXECUTION_LOGS_AREA_PATH, ExecutionPage } from './pages/Execution';
+import { ExecutionLogsPage } from './pages/ExecutionLogs';
 
 const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolean; id?: string } | undefined => {
   const segments = pathname.split('/').filter(Boolean);
@@ -36,12 +37,15 @@ const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolea
 const getInitialArea = (): NavigationAreaId => {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get('area');
-  if (requested === 'configuration' || requested === 'execution' || requested === 'authoring') return requested;
+  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring') return requested;
   const path = window.location.pathname.toLowerCase();
-  if (path.startsWith('/configuration')) return 'configuration';
-  if (path.startsWith('/execution')) return 'execution';
+  if (path.startsWith(CONFIGURATION_AREA_PATH)) return 'configuration';
+  if (path.startsWith(EXECUTION_LOGS_AREA_PATH)) return 'execution-logs';
+  if (path.startsWith(EXECUTION_AREA_PATH)) return 'execution';
   return 'authoring';
 };
+
+const isAreaVisible = (_areaId: NavigationAreaId): boolean => true;
 
 export const App: React.FC = () => {
   const [token, setTokenState] = useState<string>(token$.get() ?? '');
@@ -125,6 +129,14 @@ export const App: React.FC = () => {
     </section>
   );
 
+  const renderExecutionLogs = () => (
+    <section id="execution-logs-panel" className="execution-logs">
+      <ErrorBoundary>
+        <ExecutionLogsPage />
+      </ErrorBoundary>
+    </section>
+  );
+
   const renderNotFound = () => (
     <section id="not-found-panel" className="not-found">
       <h1>Not Found</h1>
@@ -136,6 +148,7 @@ export const App: React.FC = () => {
     if (isLegacyTriggersPath) return renderNotFound();
     if (activeArea === 'authoring') return renderAuthoring();
     if (activeArea === 'configuration') return renderConfiguration();
+    if (activeArea === 'execution-logs') return renderExecutionLogs();
     return renderExecution();
   };
 
@@ -147,6 +160,7 @@ export const App: React.FC = () => {
         activeArea={activeArea}
         onChange={setActiveArea}
         isCollapsed={isCollapsed}
+        isAreaVisible={isAreaVisible}
       />
       <main className="content">
         {renderActiveArea()}

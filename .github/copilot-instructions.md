@@ -46,6 +46,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - Existing file-backed JSON command repository under `data/commands`; no new persistence store. (027-add-primitive-tap-action)
 - C# 13 / .NET 9 (service/domain), TypeScript ES2020 / React 18 (future consumer only) + ASP.NET Core Minimal API, existing `GameBot.Domain` command/sequence services, file-backed repositories under `data/`, existing config/logging policy infrastructure. (028-execution-log)
 - File-backed JSON execution-log repository under `data/execution-logs` with retention-driven cleanup; retention configuration persisted in existing config store. (028-execution-log)
+- Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing execution-log services/repositories, React 18 + Vite 5 UI stack (029-execution-logs-tab)
+- Existing file-backed execution logs under `data/execution-logs` (no new store) (029-execution-logs-tab)
 
 - .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -73,9 +75,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 029-execution-logs-tab: Added Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing execution-log services/repositories, React 18 + Vite 5 UI stack
 - 028-execution-log: Added C# 13 / .NET 9 (service/domain), TypeScript ES2020 / React 18 (future consumer only) + ASP.NET Core Minimal API, existing `GameBot.Domain` command/sequence services, file-backed repositories under `data/`, existing config/logging policy infrastructure.
 - 027-add-primitive-tap-action: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (authoring UI) + ASP.NET Core Minimal API, `GameBot.Domain` command/action repositories, `CommandExecutor`, existing detection pipeline (`IReferenceImageStore`, `IScreenSource`, `ITemplateMatcher`), existing web-ui authoring APIs.
-- 026-installer-semver-upgrade: Added C# / .NET 9, PowerShell 5.1+, WiX authoring (XML) + `WixToolset.Sdk` (v6), ASP.NET Core minimal API host configuration pipeline, existing JSON config/file repositories, PowerShell build scripts
 
 
 <!-- MANUAL ADDITIONS START -->

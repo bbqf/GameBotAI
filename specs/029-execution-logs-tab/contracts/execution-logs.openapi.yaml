@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: Execution Logs API
+  version: 1.0.0
+  description: Contracts for execution log list and detail views used by the Execution Logs tab.
+servers:
+  - url: http://localhost:5081
+paths:
+  /api/execution-logs:
+    get:
+      summary: List execution logs
+      description: Returns execution logs with combined sorting and per-column filtering.
+      operationId: listExecutionLogs
+      parameters:
+        - name: sortBy
+          in: query
+          description: Column to sort by.
+          schema:
+            type: string
+            enum: [timestamp, objectName, status]
+            default: timestamp
+        - name: sortDirection
+          in: query
+          description: Sort direction.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: filterTimestamp
+          in: query
+          description: Case-insensitive contains filter for timestamp display text.
+          schema:
+            type: string
+        - name: filterObjectName
+          in: query
+          description: Case-insensitive contains filter for execution object name.
+          schema:
+            type: string
+        - name: filterStatus
+          in: query
+          description: Case-insensitive contains filter for status.
+          schema:
+            type: string
+        - name: pageSize
+          in: query
+          description: Number of rows to return. Defaults to 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: pageToken
+          in: query
+          description: Cursor token for subsequent pages.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paged list of execution log entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogListResponse'
+  /api/execution-logs/{executionId}:
+    get:
+      summary: Get execution log detail
+      description: Returns user-facing details for a single execution log entry.
+      operationId: getExecutionLogDetail
+      parameters:
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Execution log detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogDetail'
+        '404':
+          description: Requested execution log was not found.
+components:
+  schemas:
+    ExecutionLogListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionLogListItem'
+        nextPageToken:
+          type: string
+          nullable: true
+    ExecutionLogListItem:
+      type: object
+      required: [id, timestampUtc, objectName, status, hasSnapshot]
+      properties:
+        id:
+          type: string
+        timestampUtc:
+          type: string
+          format: date-time
+        objectName:
+          type: string
+        status:
+          type: string
+        hasSnapshot:
+          type: boolean
+    ExecutionLogDetail:
+      type: object
+      required: [executionId, summary, stepOutcomes]
+      properties:
+        executionId:
+          type: string
+        summary:
+          type: string
+        relatedObjects:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelatedObjectLink'
+        snapshot:
+          $ref: '#/components/schemas/SnapshotReference'
+        stepOutcomes:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepOutcome'
+    RelatedObjectLink:
+      type: object
+      required: [label, targetType, targetId, isAvailable]
+      properties:
+        label:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+        isAvailable:
+          type: boolean
+        unavailableReason:
+          type: string
+          nullable: true
+    SnapshotReference:
+      type: object
+      required: [isAvailable]
+      properties:
+        isAvailable:
+          type: boolean
+        imageUrl:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+    StepOutcome:
+      type: object
+      required: [stepName, status, message]
+      properties:
+        stepName:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        startedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+        endedAtUtc:
+          type: string
+          format: date-time
+          nullable: true

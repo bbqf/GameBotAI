@@ -7,6 +7,9 @@ import { ApiError } from '../lib/api';
 import { StatusChip } from '../features/execution/StatusChip';
 import { RunDetails } from '../features/execution/RunDetails';
 
+export const EXECUTION_AREA_PATH = '/execution';
+export const EXECUTION_LOGS_AREA_PATH = '/execution-logs';
+
 const getAdbSerial = (action?: ActionDto): string => {
   if (!action) return '';
   const raw = action.attributes?.adbSerial;
