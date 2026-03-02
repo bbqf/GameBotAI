@@ -146,50 +146,31 @@ internal static class ExecutionLogsEndpoints
   private static object ToDetailResponse(ExecutionLogEntry entry)
   {
     var legacy = ToDto(entry);
-    var relatedObjects = new List<RelatedObjectLinkDto>
-    {
-      new()
-      {
-        Label = entry.ObjectRef.DisplayNameSnapshot,
-        TargetType = entry.ObjectRef.ObjectType,
-        TargetId = entry.ObjectRef.ObjectId,
-        IsAvailable = true,
-        UnavailableReason = null
-      }
-    };
-
-    if (!string.IsNullOrWhiteSpace(entry.Navigation.ParentPath))
-    {
-      relatedObjects.Add(new RelatedObjectLinkDto
-      {
-        Label = "Parent execution",
-        TargetType = "execution",
-        TargetId = entry.Hierarchy.ParentExecutionId ?? string.Empty,
-        IsAvailable = !string.IsNullOrWhiteSpace(entry.Hierarchy.ParentExecutionId),
-        UnavailableReason = string.IsNullOrWhiteSpace(entry.Hierarchy.ParentExecutionId) ? "Parent execution is unavailable." : null
-      });
-    }
-
-    var hasSnapshot = entry.Details.Any(d =>
-      string.Equals(d.Kind, "snapshot", StringComparison.OrdinalIgnoreCase) ||
-      (d.Attributes?.ContainsKey("imageUrl") ?? false));
+    var projection = ExecutionLogService.BuildDetailProjection(entry);
 
     var detail = new ExecutionLogDetailDto
     {
       ExecutionId = entry.Id,
-      Summary = string.IsNullOrWhiteSpace(entry.Summary) ? "Execution completed." : entry.Summary,
-      RelatedObjects = relatedObjects,
+      Summary = projection.Summary,
+      RelatedObjects = projection.RelatedObjects.Select(related => new RelatedObjectLinkDto
+      {
+        Label = related.Label,
+        TargetType = related.TargetType,
+        TargetId = related.TargetId,
+        IsAvailable = related.IsAvailable,
+        UnavailableReason = related.UnavailableReason
+      }).ToArray(),
       Snapshot = new SnapshotReferenceDto
       {
-        IsAvailable = hasSnapshot,
+        IsAvailable = projection.HasSnapshot,
         ImageUrl = null,
-        Caption = hasSnapshot ? "Snapshot captured during execution." : null
+        Caption = projection.SnapshotCaption
       },
-      StepOutcomes = entry.StepOutcomes.Select(s => new StepOutcomeDetailDto
+      StepOutcomes = projection.StepOutcomes.Select(step => new StepOutcomeDetailDto
       {
-        StepName = string.IsNullOrWhiteSpace(s.StepType) ? $"Step {s.StepOrder}" : s.StepType,
-        Status = s.Outcome,
-        Message = s.ReasonText ?? s.ReasonCode ?? "Step completed.",
+        StepName = step.StepName,
+        Status = step.Status,
+        Message = step.Message,
         StartedAtUtc = null,
         EndedAtUtc = null
       }).ToArray()

@@ -81,13 +81,13 @@
 ### Tests for User Story 2
 
 - [X] T023 [P] [US2] Add detail endpoint contract coverage for required fields and 404 behavior in C:\src\GameBot\tests\contract\ExecutionLogs\ExecutionLogsApiContractTests.cs
-- [ ] T024 [P] [US2] Add UI test asserting no raw JSON is rendered in details panel in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
-- [ ] T025 [P] [US2] Add integration test for related object link and snapshot availability mapping in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsDetailIntegrationTests.cs
+- [X] T024 [P] [US2] Add UI test asserting no raw JSON is rendered in details panel in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
+- [X] T025 [P] [US2] Add integration test for related object link and snapshot availability mapping in C:\src\GameBot\tests\integration\ExecutionLogs\ExecutionLogsDetailIntegrationTests.cs
 
 ### Implementation for User Story 2
 
 - [X] T026 [US2] Add detail DTO mapping for user-readable fields and step outcomes in C:\src\GameBot\src\GameBot.Service\Endpoints\ExecutionLogsEndpoints.cs
-- [ ] T027 [P] [US2] Add detail projection helper methods for readable text defaults in C:\src\GameBot\src\GameBot.Service\Services\ExecutionLog\ExecutionLogService.cs
+- [X] T027 [P] [US2] Add detail projection helper methods for readable text defaults in C:\src\GameBot\src\GameBot.Service\Services\ExecutionLog\ExecutionLogService.cs
 - [X] T028 [US2] Implement detail fetch/select behavior from row selection in C:\src\GameBot\src\web-ui\src\services\executionLogsApi.ts and C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
 - [X] T029 [US2] Implement detail panel sections (summary, links, snapshot, step outcomes) in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
 - [X] T030 [US2] Add unavailable-link and missing-snapshot user feedback states in C:\src\GameBot\src\web-ui\src\pages\ExecutionLogs.tsx
@@ -104,8 +104,8 @@
 
 ### Tests for User Story 3
 
-- [ ] T031 [P] [US3] Add responsive layout behavior tests (desktop split, phone drill-down) in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogsResponsive.test.tsx
-- [ ] T032 [P] [US3] Add UI test for timestamp display toggle default exact and relative mode switch in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
+- [X] T031 [P] [US3] Add responsive layout behavior tests (desktop split, phone drill-down) in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogsResponsive.test.tsx
+- [X] T032 [P] [US3] Add UI test for timestamp display toggle default exact and relative mode switch in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
 - [X] T033 [P] [US3] Add UI test for latest-request-wins behavior under rapid sort/filter changes in C:\src\GameBot\src\web-ui\src\pages\__tests__\ExecutionLogs.test.tsx
 
 ### Implementation for User Story 3

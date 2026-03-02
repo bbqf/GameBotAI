@@ -8,6 +8,8 @@ jest.mock('../../hooks/useNavigationCollapse', () => ({
   useNavigationCollapse: () => ({ isCollapsed: false })
 }));
 
+let nowSpy: jest.SpyInstance<number, []>;
+
 const listExecutionLogsMock = listExecutionLogs as jest.MockedFunction<typeof listExecutionLogs>;
 const getExecutionLogDetailMock = getExecutionLogDetail as jest.MockedFunction<typeof getExecutionLogDetail>;
 
@@ -27,6 +29,7 @@ const createListItem = (id: string, name: string, status: string) => ({
 describe('ExecutionLogsPage', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-03-02T12:00:00.000Z').getTime());
     listExecutionLogsMock.mockResolvedValue({
       items: [createListItem('id-1', 'Alpha Command', 'success')],
       nextPageToken: undefined
@@ -38,6 +41,10 @@ describe('ExecutionLogsPage', () => {
       snapshot: { isAvailable: false },
       stepOutcomes: []
     });
+  });
+
+  afterEach(() => {
+    nowSpy.mockRestore();
   });
 
   it('loads default columns and default sort', async () => {
@@ -95,5 +102,47 @@ describe('ExecutionLogsPage', () => {
     });
 
     expect(screen.queryByText('Stale Command')).not.toBeInTheDocument();
+  });
+
+  it('renders details in plain language without raw JSON blocks', async () => {
+    getExecutionLogDetailMock.mockResolvedValueOnce({
+      executionId: 'id-1',
+      summary: 'The command finished successfully.',
+      relatedObjects: [
+        { label: 'Farm Command', targetType: 'command', targetId: 'cmd-1', isAvailable: true }
+      ],
+      snapshot: { isAvailable: true, caption: 'Snapshot captured during execution.' },
+      stepOutcomes: [
+        { stepName: 'Tap target', status: 'success', message: 'Tapped at the expected location.' }
+      ]
+    });
+
+    const { container } = render(<ExecutionLogsPage />);
+
+    expect(await screen.findByText('The command finished successfully.')).toBeInTheDocument();
+    expect(screen.getByText(/Tap target/)).toBeInTheDocument();
+    expect(screen.getByText(/Tapped at the expected location./)).toBeInTheDocument();
+    expect(container.querySelector('pre.json')).toBeNull();
+    expect(screen.queryByText(/"executionId"/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/"stepOutcomes"/i)).not.toBeInTheDocument();
+  });
+
+  it('defaults to exact local timestamp and switches to relative mode', async () => {
+    listExecutionLogsMock.mockResolvedValueOnce({
+      items: [
+        {
+          ...createListItem('id-1', 'Alpha Command', 'success'),
+          timestampUtc: '2026-03-02T11:57:00.000Z'
+        }
+      ]
+    });
+
+    render(<ExecutionLogsPage />);
+
+    expect(await screen.findByText(/Alpha Command/)).toBeInTheDocument();
+    expect(screen.getByText(new Date('2026-03-02T11:57:00.000Z').toLocaleString())).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Timestamp display'), { target: { value: 'relative' } });
+    expect(await screen.findByText('3m ago')).toBeInTheDocument();
   });
 });

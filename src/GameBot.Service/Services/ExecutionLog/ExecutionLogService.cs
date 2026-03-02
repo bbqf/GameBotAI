@@ -3,6 +3,25 @@ using GameBot.Service.Services;
 
 namespace GameBot.Service.Services.ExecutionLog;
 
+internal sealed record ExecutionLogRelatedProjection(
+  string Label,
+  string TargetType,
+  string TargetId,
+  bool IsAvailable,
+  string? UnavailableReason);
+
+internal sealed record ExecutionLogStepProjection(
+  string StepName,
+  string Status,
+  string Message);
+
+internal sealed record ExecutionLogDetailProjection(
+  string Summary,
+  IReadOnlyList<ExecutionLogRelatedProjection> RelatedObjects,
+  bool HasSnapshot,
+  string? SnapshotCaption,
+  IReadOnlyList<ExecutionLogStepProjection> StepOutcomes);
+
 internal interface IExecutionLogService {
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default);
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default);
@@ -152,6 +171,49 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     var policy = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     if (!policy.Enabled) return 0;
     return await _repository.DeleteExpiredAsync(DateTimeOffset.UtcNow, ct).ConfigureAwait(false);
+  }
+
+  internal static ExecutionLogDetailProjection BuildDetailProjection(ExecutionLogEntry entry)
+  {
+    var summary = string.IsNullOrWhiteSpace(entry.Summary) ? "Execution completed." : entry.Summary;
+
+    var relatedObjects = new List<ExecutionLogRelatedProjection>
+    {
+      new(
+        entry.ObjectRef.DisplayNameSnapshot,
+        entry.ObjectRef.ObjectType,
+        entry.ObjectRef.ObjectId,
+        true,
+        null)
+    };
+
+    if (!string.IsNullOrWhiteSpace(entry.Navigation.ParentPath))
+    {
+      relatedObjects.Add(new ExecutionLogRelatedProjection(
+        "Parent execution",
+        "execution",
+        entry.Hierarchy.ParentExecutionId ?? string.Empty,
+        !string.IsNullOrWhiteSpace(entry.Hierarchy.ParentExecutionId),
+        string.IsNullOrWhiteSpace(entry.Hierarchy.ParentExecutionId) ? "Parent execution is unavailable." : null));
+    }
+
+    var hasSnapshot = entry.Details.Any(detail =>
+      string.Equals(detail.Kind, "snapshot", StringComparison.OrdinalIgnoreCase) ||
+      (detail.Attributes?.ContainsKey("imageUrl") ?? false));
+
+    var stepOutcomes = entry.StepOutcomes
+      .Select(step => new ExecutionLogStepProjection(
+        string.IsNullOrWhiteSpace(step.StepType) ? $"Step {step.StepOrder}" : step.StepType,
+        step.Outcome,
+        step.ReasonText ?? step.ReasonCode ?? "Step completed."))
+      .ToArray();
+
+    return new ExecutionLogDetailProjection(
+      summary,
+      relatedObjects,
+      hasSnapshot,
+      hasSnapshot ? "Snapshot captured during execution." : null,
+      stepOutcomes);
   }
 
   private static string NormalizeStatus(string status)
