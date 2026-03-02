@@ -1,7 +1,6 @@
 namespace GameBot.Service.Services.ExecutionLog;
 
-internal sealed class ExecutionLogContext
-{
+internal sealed class ExecutionLogContext {
   public string? ParentExecutionId { get; init; }
   public string? RootExecutionId { get; init; }
   public int Depth { get; init; }

@@ -8,11 +8,9 @@ using Xunit;
 namespace GameBot.IntegrationTests.ExecutionLogs;
 
 [Collection("ConfigIsolation")]
-public sealed class ExecutionLogConcisenessIntegrationTests
-{
+public sealed class ExecutionLogConcisenessIntegrationTests {
   [Fact]
-  public async Task SequenceLogTrimsSummaryAndTruncatesDetailsWithMarker()
-  {
+  public async Task SequenceLogTrimsSummaryAndTruncatesDetailsWithMarker() {
     TestEnvironment.PrepareCleanDataDir();
 
     using var app = new WebApplicationFactory<Program>();
@@ -33,8 +31,7 @@ public sealed class ExecutionLogConcisenessIntegrationTests
       new ExecutionLogContext { Depth = 0 },
       details).ConfigureAwait(false);
 
-    var item = (await logService.QueryAsync(new ExecutionLogQuery
-    {
+    var item = (await logService.QueryAsync(new ExecutionLogQuery {
       ObjectType = "sequence",
       ObjectId = "seq-concise",
       PageSize = 1

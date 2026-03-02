@@ -4,13 +4,10 @@ using Xunit;
 
 namespace GameBot.UnitTests.ExecutionLogs;
 
-public sealed class ExecutionHierarchyContextTests
-{
+public sealed class ExecutionHierarchyContextTests {
   [Fact]
-  public void BuildUsesParentAsRootWhenRootNotProvided()
-  {
-    var context = ExecutionHierarchyBuilder.Build(new ExecutionLogContext
-    {
+  public void BuildUsesParentAsRootWhenRootNotProvided() {
+    var context = ExecutionHierarchyBuilder.Build(new ExecutionLogContext {
       ParentExecutionId = "parent-001",
       Depth = 2,
       SequenceIndex = 3
@@ -23,10 +20,8 @@ public sealed class ExecutionHierarchyContextTests
   }
 
   [Fact]
-  public void BuildPrefersExplicitRootExecutionIdWhenProvided()
-  {
-    var context = ExecutionHierarchyBuilder.Build(new ExecutionLogContext
-    {
+  public void BuildPrefersExplicitRootExecutionIdWhenProvided() {
+    var context = ExecutionHierarchyBuilder.Build(new ExecutionLogContext {
       RootExecutionId = "root-123",
       ParentExecutionId = "parent-002",
       Depth = -5
@@ -38,8 +33,7 @@ public sealed class ExecutionHierarchyContextTests
   }
 
   [Fact]
-  public void BuildGeneratesRootWhenNoContextProvided()
-  {
+  public void BuildGeneratesRootWhenNoContextProvided() {
     var context = ExecutionHierarchyBuilder.Build(null);
 
     context.RootExecutionId.Should().NotBeNullOrWhiteSpace();
@@ -48,10 +42,8 @@ public sealed class ExecutionHierarchyContextTests
   }
 
   [Fact]
-  public void NavigationBuilderCreatesDirectAndParentPathsForNestedCommand()
-  {
-    var context = ExecutionNavigationBuilder.Build("command", "cmd-001", new ExecutionLogContext
-    {
+  public void NavigationBuilderCreatesDirectAndParentPathsForNestedCommand() {
+    var context = ExecutionNavigationBuilder.Build("command", "cmd-001", new ExecutionLogContext {
       ParentObjectType = "sequence",
       ParentObjectId = "seq-001"
     });

@@ -9,11 +9,9 @@ using Xunit;
 namespace GameBot.IntegrationTests.ExecutionLogs;
 
 [Collection("ConfigIsolation")]
-public sealed class ExecutionStepOutcomeIntegrationTests
-{
+public sealed class ExecutionStepOutcomeIntegrationTests {
   [Fact]
-  public async Task CommandLogNormalizesStepOutcomesToExecutedAndNotExecuted()
-  {
+  public async Task CommandLogNormalizesStepOutcomesToExecutedAndNotExecuted() {
     TestEnvironment.PrepareCleanDataDir();
 
     using var app = new WebApplicationFactory<Program>();
@@ -34,8 +32,7 @@ public sealed class ExecutionStepOutcomeIntegrationTests
       primitiveOutcomes,
       new ExecutionLogContext { Depth = 0 }).ConfigureAwait(false);
 
-    var item = (await logService.QueryAsync(new ExecutionLogQuery
-    {
+    var item = (await logService.QueryAsync(new ExecutionLogQuery {
       ObjectType = "command",
       ObjectId = "cmd-step-outcomes",
       PageSize = 1

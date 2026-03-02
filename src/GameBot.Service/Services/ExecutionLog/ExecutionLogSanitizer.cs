@@ -3,17 +3,14 @@ using GameBot.Domain.Logging;
 
 namespace GameBot.Service.Services.ExecutionLog;
 
-internal static class ExecutionLogSanitizer
-{
+internal static class ExecutionLogSanitizer {
   private static readonly Regex SecretKeyRegex = new("(token|password|secret|apikey|api_key|authorization)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-  public static IReadOnlyList<ExecutionDetailItem> SanitizeDetails(IReadOnlyList<ExecutionDetailItem> details)
-  {
+  public static IReadOnlyList<ExecutionDetailItem> SanitizeDetails(IReadOnlyList<ExecutionDetailItem> details) {
     if (details.Count == 0) return details;
 
     var sanitized = new List<ExecutionDetailItem>(details.Count);
-    foreach (var detail in details)
-    {
+    foreach (var detail in details) {
       var attributes = detail.Attributes is null
         ? null
         : detail.Attributes.ToDictionary(
@@ -32,8 +29,7 @@ internal static class ExecutionLogSanitizer
     return sanitized;
   }
 
-  private static object? MaskIfSensitive(string key, object? value)
-  {
+  private static object? MaskIfSensitive(string key, object? value) {
     if (value is null) return null;
     if (!SecretKeyRegex.IsMatch(key)) return value;
     return "[REDACTED]";

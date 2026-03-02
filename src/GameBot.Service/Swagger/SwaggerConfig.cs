@@ -13,8 +13,7 @@ using GameBot.Service.Endpoints;
 
 namespace GameBot.Service.Swagger;
 
-internal static class SwaggerConfig
-{
+internal static class SwaggerConfig {
   private static readonly string[] ActionsTags = ["Actions"];
   private static readonly string[] CommandsTags = ["Commands"];
   private static readonly string[] GamesTags = ["Games"];
@@ -26,30 +25,24 @@ internal static class SwaggerConfig
   private static readonly string[] MetricsTags = ["Metrics"];
   private static readonly string[] EmulatorsTags = ["Emulators"];
 
-  public static IServiceCollection AddSwaggerDocs(this IServiceCollection services)
-  {
-    services.AddSwaggerGen(options =>
-    {
-      options.SwaggerDoc("v1", new OpenApiInfo
-      {
+  public static IServiceCollection AddSwaggerDocs(this IServiceCollection services) {
+    services.AddSwaggerGen(options => {
+      options.SwaggerDoc("v1", new OpenApiInfo {
         Title = "GameBot API",
         Version = "v1",
         Description = "Canonical GameBot endpoints under /api",
       });
 
-      options.TagActionsBy(api =>
-      {
+      options.TagActionsBy(api => {
         var tags = api.ActionDescriptor.EndpointMetadata.OfType<TagsAttribute>()
                       .SelectMany(t => t.Tags)
                       .ToList();
-        if (tags.Count > 0)
-        {
+        if (tags.Count > 0) {
           return tags;
         }
 
         var derived = DeriveTags(api.RelativePath);
-        if (derived.Length > 0)
-        {
+        if (derived.Length > 0) {
           return derived;
         }
 
@@ -62,77 +55,63 @@ internal static class SwaggerConfig
     return services;
   }
 
-  private static string[] DeriveTags(string? relativePath)
-  {
-    if (string.IsNullOrWhiteSpace(relativePath))
-    {
+  private static string[] DeriveTags(string? relativePath) {
+    if (string.IsNullOrWhiteSpace(relativePath)) {
       return Array.Empty<string>();
     }
 
     var path = "/" + relativePath.TrimStart('/');
 
     if (path.StartsWith(ApiRoutes.Actions, StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWith(ApiRoutes.ActionTypes, StringComparison.OrdinalIgnoreCase))
-    {
+        path.StartsWith(ApiRoutes.ActionTypes, StringComparison.OrdinalIgnoreCase)) {
       return ActionsTags;
     }
 
-    if (path.StartsWith(ApiRoutes.Commands, StringComparison.OrdinalIgnoreCase))
-    {
+    if (path.StartsWith(ApiRoutes.Commands, StringComparison.OrdinalIgnoreCase)) {
       return CommandsTags;
     }
 
-    if (path.StartsWith(ApiRoutes.Games, StringComparison.OrdinalIgnoreCase))
-    {
+    if (path.StartsWith(ApiRoutes.Games, StringComparison.OrdinalIgnoreCase)) {
       return GamesTags;
     }
 
-    if (path.StartsWith(ApiRoutes.Sequences, StringComparison.OrdinalIgnoreCase))
-    {
+    if (path.StartsWith(ApiRoutes.Sequences, StringComparison.OrdinalIgnoreCase)) {
       return SequencesTags;
     }
 
-    if (path.StartsWith(ApiRoutes.Sessions, StringComparison.OrdinalIgnoreCase))
-    {
+    if (path.StartsWith(ApiRoutes.Sessions, StringComparison.OrdinalIgnoreCase)) {
       return SessionsTags;
     }
 
     if (path.StartsWith(ApiRoutes.ConfigLogging, StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWith(ApiRoutes.Config, StringComparison.OrdinalIgnoreCase))
-    {
+        path.StartsWith(ApiRoutes.Config, StringComparison.OrdinalIgnoreCase)) {
       return ConfigurationTags;
     }
 
-    if (path.StartsWith(ApiRoutes.Triggers, StringComparison.OrdinalIgnoreCase))
-    {
+    if (path.StartsWith(ApiRoutes.Triggers, StringComparison.OrdinalIgnoreCase)) {
       return TriggersTags;
     }
 
     if (path.StartsWith(ApiRoutes.Images, StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWith(ApiRoutes.ImageDetect, StringComparison.OrdinalIgnoreCase))
-    {
+        path.StartsWith(ApiRoutes.ImageDetect, StringComparison.OrdinalIgnoreCase)) {
       return ImagesTags;
     }
 
-    if (path.StartsWith(ApiRoutes.Metrics, StringComparison.OrdinalIgnoreCase))
-    {
+    if (path.StartsWith(ApiRoutes.Metrics, StringComparison.OrdinalIgnoreCase)) {
       return MetricsTags;
     }
 
     if (path.StartsWith(ApiRoutes.Adb, StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWith(ApiRoutes.Ocr, StringComparison.OrdinalIgnoreCase))
-    {
+        path.StartsWith(ApiRoutes.Ocr, StringComparison.OrdinalIgnoreCase)) {
       return EmulatorsTags;
     }
 
     return Array.Empty<string>();
   }
 
-  public static IApplicationBuilder UseSwaggerDocs(this IApplicationBuilder app)
-  {
+  public static IApplicationBuilder UseSwaggerDocs(this IApplicationBuilder app) {
     app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
+    app.UseSwaggerUI(options => {
       options.SwaggerEndpoint("/swagger/v1/swagger.json", "GameBot API v1");
       options.DisplayRequestDuration();
       options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.List);
@@ -141,16 +120,13 @@ internal static class SwaggerConfig
   }
 }
 
-internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
-{
-  public void Apply(OpenApiOperation operation, OperationFilterContext context)
-  {
+internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
+  public void Apply(OpenApiOperation operation, OperationFilterContext context) {
     var path = NormalizePath(context.ApiDescription.RelativePath);
     var isApiRoute = path.StartsWith(ApiRoutes.Base, StringComparison.OrdinalIgnoreCase);
     var isInstallerRoute = path.StartsWith("/installer", StringComparison.OrdinalIgnoreCase);
     var isVersioningRoute = path.StartsWith("/versioning", StringComparison.OrdinalIgnoreCase);
-    if (!isApiRoute && !isInstallerRoute && !isVersioningRoute)
-    {
+    if (!isApiRoute && !isInstallerRoute && !isVersioningRoute) {
       return;
     }
 
@@ -170,374 +146,303 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ApplyInstallerExamples(operation, path, method, context);
   }
 
-  private static void ApplyInstallerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/installer/compare"))
-    {
+  private static void ApplyInstallerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/installer/compare")) {
       operation.Summary ??= "Compare installed and candidate installer versions";
       SetRequestExample(operation, InstallerCompareRequest(), context);
       SetResponseExample(operation, "200", InstallerCompareResponse(), context);
     }
-    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/installer/same-build/decision"))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/installer/same-build/decision")) {
       operation.Summary ??= "Resolve same-build install decision";
       SetRequestExample(operation, SameBuildDecisionRequest(), context);
       SetResponseExample(operation, "200", SameBuildDecisionResponse(), context);
     }
-    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/versioning/resolve"))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/versioning/resolve")) {
       operation.Summary ??= "Resolve semantic installer version from source inputs";
       SetRequestExample(operation, VersionResolveRequest(), context);
       SetResponseExample(operation, "200", VersionResolveResponse(), context);
     }
   }
 
-  private static void ApplyActionExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Actions))
-    {
+  private static void ApplyActionExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Actions)) {
       operation.Summary ??= "Create an action";
       SetRequestExample(operation, ActionCreateRequest(), context, typeof(GameBot.Service.Models.CreateActionRequest));
       SetResponseExample(operation, "201", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
     }
-    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Actions))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Actions)) {
       operation.Summary ??= "List actions";
       SetResponseExample(operation, "200", ActionListResponse(), context, typeof(IEnumerable<GameBot.Service.Models.ActionResponse>));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Actions + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Actions + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get an action";
       SetResponseExample(operation, "200", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
     }
-    else if ((IsMethod(method, HttpMethods.Patch) || IsMethod(method, HttpMethods.Put)) && path.StartsWith(ApiRoutes.Actions + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if ((IsMethod(method, HttpMethods.Patch) || IsMethod(method, HttpMethods.Put)) && path.StartsWith(ApiRoutes.Actions + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update an action";
       SetRequestExample(operation, ActionUpdateRequest(), context, typeof(ActionUpdateSchema));
       SetResponseExample(operation, "200", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/duplicate", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/duplicate", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Duplicate an action";
       SetResponseExample(operation, "201", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
     }
   }
 
-  private static void ApplyActionTypesExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ActionTypes))
-    {
+  private static void ApplyActionTypesExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ActionTypes)) {
       operation.Summary ??= "List available action types";
       SetResponseExample(operation, "200", ActionTypesResponse(), context, typeof(ActionTypeCatalogDto));
     }
   }
 
-  private static void ApplyCommandExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Commands))
-    {
+  private static void ApplyCommandExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Commands)) {
       operation.Summary ??= "Create a command";
       SetRequestExample(operation, CommandCreateRequest(), context, typeof(CommandCreateSchema));
       SetResponseExample(operation, "201", CommandCreateResponse(), context, typeof(GameBot.Service.Models.CommandResponse));
     }
-    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Commands))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Commands)) {
       operation.Summary ??= "List commands";
       SetResponseExample(operation, "200", CommandListResponse(), context, typeof(IEnumerable<GameBot.Service.Models.CommandResponse>));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Commands + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Commands + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get a command";
       SetResponseExample(operation, "200", CommandCreateResponse(), context, typeof(GameBot.Service.Models.CommandResponse));
     }
-    else if (IsMethod(method, HttpMethods.Patch) && path.StartsWith(ApiRoutes.Commands + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Patch) && path.StartsWith(ApiRoutes.Commands + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update a command";
       SetRequestExample(operation, CommandUpdateRequest(), context, typeof(GameBot.Service.Models.UpdateCommandRequest));
       SetResponseExample(operation, "200", CommandCreateResponse(), context, typeof(GameBot.Service.Models.CommandResponse));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/force-execute", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/force-execute", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Force execute a command";
       SetResponseExample(operation, "202", SessionInputsResponse(), context, typeof(SessionAcceptedSchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/evaluate-and-execute", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/evaluate-and-execute", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Evaluate trigger then execute";
       SetResponseExample(operation, "202", CommandEvaluateResponse(), context, typeof(CommandEvaluateResponseSchema));
     }
   }
 
-  private static void ApplySequenceExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Sequences))
-    {
+  private static void ApplySequenceExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Sequences)) {
       operation.Summary ??= "Create a sequence";
       SetRequestExample(operation, SequenceCreateRequest(), context, typeof(SequenceRequestSchema));
       SetResponseExample(operation, "201", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Sequences))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Sequences)) {
       operation.Summary ??= "List sequences";
       SetResponseExample(operation, "200", SequenceListResponse(), context, typeof(IEnumerable<SequenceResponseSchema>));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get a sequence";
       SetResponseExample(operation, "200", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update a sequence";
       SetRequestExample(operation, SequenceCreateRequest(), context, typeof(SequenceRequestSchema));
       SetResponseExample(operation, "200", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/execute", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/execute", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Execute a sequence";
       SetResponseExample(operation, "200", SequenceExecuteResponse(), context, typeof(GameBot.Domain.Services.SequenceExecutionResult));
     }
   }
 
-  private static void ApplySessionExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Sessions))
-    {
+  private static void ApplySessionExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Sessions)) {
       operation.Summary ??= "Create a session";
       SetRequestExample(operation, SessionCreateRequest(), context, typeof(GameBot.Service.Models.CreateSessionRequest));
       SetResponseExample(operation, "201", SessionCreateResponse(), context, typeof(GameBot.Service.Models.CreateSessionResponse));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.Contains(ApiRoutes.Sessions + "/running", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.Contains(ApiRoutes.Sessions + "/running", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "List running sessions";
       SetResponseExample(operation, "200", RunningSessionsResponse(), context, typeof(GameBot.Service.Models.RunningSessionsResponse));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/start", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/start", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Start a session";
       SetRequestExample(operation, SessionStartRequest(), context, typeof(GameBot.Service.Models.StartSessionRequest));
       SetResponseExample(operation, "200", SessionStartResponse(), context, typeof(GameBot.Service.Models.StartSessionResponse));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/stop", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/stop", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Stop a session";
       SetRequestExample(operation, SessionStopRequest(), context, typeof(GameBot.Service.Models.StopSessionRequest));
       SetResponseExample(operation, "200", SessionStopResponse(), context, typeof(GameBot.Service.Models.StopSessionResponse));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/{id}/inputs", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/{id}/inputs", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Send inputs to a session";
       SetRequestExample(operation, SessionInputsRequest(), context, typeof(GameBot.Service.Models.InputActionsRequest));
       SetResponseExample(operation, "202", SessionInputsResponse(), context, typeof(SessionAcceptedSchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/{id}/execute-action", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Sessions + "/{id}/execute-action", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Execute an action against a session";
       SetResponseExample(operation, "202", SessionInputsResponse(), context, typeof(SessionAcceptedSchema));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.Contains(ApiRoutes.Sessions + "/{id}/snapshot", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.Contains(ApiRoutes.Sessions + "/{id}/snapshot", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Fetch a session snapshot";
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sessions + "/" , StringComparison.OrdinalIgnoreCase) && path.EndsWith("/device" , StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sessions + "/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/device", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get session device";
       SetResponseExample(operation, "200", SessionDeviceResponse(), context, typeof(SessionDeviceSchema));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sessions + "/" , StringComparison.OrdinalIgnoreCase) && path.EndsWith("/health" , StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sessions + "/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/health", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get session health";
       SetResponseExample(operation, "200", SessionHealthResponse(), context, typeof(SessionHealthSchema));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sessions + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sessions + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get a session";
       SetResponseExample(operation, "200", SessionGetResponse(), context, typeof(SessionDetailSchema));
     }
-    else if (IsMethod(method, HttpMethods.Delete) && path.StartsWith(ApiRoutes.Sessions + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Delete) && path.StartsWith(ApiRoutes.Sessions + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Stop a session";
       SetResponseExample(operation, "202", SessionStopResponse(), context, typeof(SessionStopSchema));
     }
   }
 
-  private static void ApplyConfigurationExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Config))
-    {
+  private static void ApplyConfigurationExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Config)) {
       operation.Summary ??= "Get configuration snapshot";
       SetResponseExample(operation, "200", ConfigurationSnapshotResponse(), context, typeof(ConfigurationSnapshotSchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Config + "/refresh", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Config + "/refresh", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Refresh configuration snapshot";
       SetResponseExample(operation, "200", ConfigurationSnapshotResponse(), context, typeof(ConfigurationSnapshotSchema));
     }
-    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ConfigLogging))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ConfigLogging)) {
       operation.Summary ??= "Get runtime logging policy";
       SetResponseExample(operation, "200", LoggingPolicyResponse(), context, typeof(LoggingPolicySchema));
     }
-    else if (IsMethod(method, HttpMethods.Put) && path.Contains(ApiRoutes.ConfigLogging + "/components/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Put) && path.Contains(ApiRoutes.ConfigLogging + "/components/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update logging component policy";
       SetRequestExample(operation, LoggingPolicyUpdateRequest(), context, typeof(GameBot.Service.Models.Logging.LoggingComponentPatchDto));
       SetResponseExample(operation, "200", LoggingPolicyResponse(), context, typeof(LoggingPolicySchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.ConfigLogging + "/reset", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.ConfigLogging + "/reset", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Reset logging policy";
       SetRequestExample(operation, LoggingPolicyResetRequest(), context, typeof(LoggingPolicyResetRequestSchema));
       SetResponseExample(operation, "200", LoggingPolicyResponse(), context, typeof(LoggingPolicySchema));
     }
   }
 
-  private static void ApplyTriggerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Triggers))
-    {
+  private static void ApplyTriggerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Triggers)) {
       operation.Summary ??= "Create a trigger";
       SetRequestExample(operation, TriggerCreateRequest(), context, typeof(TriggerAuthoringSchema));
       SetResponseExample(operation, "201", TriggerCreateResponse(), context, typeof(TriggerResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Triggers))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Triggers)) {
       operation.Summary ??= "List triggers";
       SetResponseExample(operation, "200", TriggerListResponse(), context, typeof(IEnumerable<TriggerResponseSchema>));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Triggers + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Triggers + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get a trigger";
       SetResponseExample(operation, "200", TriggerCreateResponse(), context, typeof(TriggerResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Triggers + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Triggers + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update a trigger";
       SetRequestExample(operation, TriggerCreateRequest(), context, typeof(TriggerAuthoringSchema));
       SetResponseExample(operation, "200", TriggerCreateResponse(), context, typeof(TriggerResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Triggers + "/{id}/test", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Triggers + "/{id}/test", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Evaluate a trigger";
       SetResponseExample(operation, "200", TriggerTestResponse(), context, typeof(TriggerTestResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect)) {
       operation.Summary ??= "Detect reference image matches";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
     }
   }
 
-  private static void ApplyGameExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Games))
-    {
+  private static void ApplyGameExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Games)) {
       operation.Summary ??= "Create a game";
       SetRequestExample(operation, GameCreateRequest(), context, typeof(GameCreateSchema));
       SetResponseExample(operation, "201", GameCreateResponse(), context, typeof(GameResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Games))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Games)) {
       operation.Summary ??= "List games";
       SetResponseExample(operation, "200", GameListResponse(), context, typeof(IEnumerable<GameResponseSchema>));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Games + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Games + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get a game";
       SetResponseExample(operation, "200", GameCreateResponse(), context, typeof(GameResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Games + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Games + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update a game";
       SetRequestExample(operation, GameUpdateRequest(), context, typeof(GameCreateSchema));
       SetResponseExample(operation, "200", GameCreateResponse(), context, typeof(GameResponseSchema));
     }
   }
 
-  private static void ApplyImageExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Images))
-    {
+  private static void ApplyImageExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Images)) {
       operation.Summary ??= "List image references";
       SetResponseExample(operation, "200", ImageReferenceListResponse(), context, typeof(IEnumerable<ImageReferenceListItemSchema>));
     }
-    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Images))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Images)) {
       operation.Summary ??= "Upload an image reference";
       SetRequestExample(operation, ImageUploadRequest(), context, typeof(GameBot.Service.Endpoints.ImageReferencesEndpoints.UploadImageRequest));
       SetResponseExample(operation, "201", ImageUploadResponse(), context, typeof(ImageUploadResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageCrop))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageCrop)) {
       operation.Summary ??= "Crop and save an emulator screenshot";
       SetRequestExample(operation, ImageCropRequest(), context);
       SetResponseExample(operation, "201", ImageCropResponse(), context);
     }
-    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Images + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Images + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Overwrite an image reference";
       SetRequestExample(operation, ImageOverwriteRequest(), context, typeof(GameBot.Service.Endpoints.ImageReferencesEndpoints.OverwriteImageRequest));
       SetResponseExample(operation, "200", ImageOverwriteResponse(), context, typeof(ImageOverwriteResponseSchema));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Images + "/", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Images + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get an image reference";
       SetResponseExample(operation, "200", ImageReferenceResponse(), context, typeof(ImageReferenceSchema));
     }
-    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect))
-    {
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect)) {
       operation.Summary ??= "Detect reference image matches";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
     }
   }
 
-  private static void ApplyExecutionLogExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context)
-  {
-    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs))
-    {
+  private static void ApplyExecutionLogExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs)) {
       operation.Summary ??= "List execution logs";
       SetResponseExample(operation, "200", ExecutionLogListResponse(), context, typeof(GameBot.Service.Models.ExecutionLogListResponseDto));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.ExecutionLogs + "/", StringComparison.OrdinalIgnoreCase) && !path.EndsWith("/retention", StringComparison.OrdinalIgnoreCase))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.ExecutionLogs + "/", StringComparison.OrdinalIgnoreCase) && !path.EndsWith("/retention", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get an execution log entry";
       SetResponseExample(operation, "200", ExecutionLogEntryResponse(), context, typeof(GameBot.Service.Models.ExecutionLogEntryDto));
     }
-    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs + "/retention"))
-    {
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs + "/retention")) {
       operation.Summary ??= "Get execution log retention policy";
       SetResponseExample(operation, "200", ExecutionLogRetentionResponse(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyDto));
     }
-    else if (IsMethod(method, HttpMethods.Put) && IsPath(path, ApiRoutes.ExecutionLogs + "/retention"))
-    {
+    else if (IsMethod(method, HttpMethods.Put) && IsPath(path, ApiRoutes.ExecutionLogs + "/retention")) {
       operation.Summary ??= "Update execution log retention policy";
       SetRequestExample(operation, ExecutionLogRetentionUpdateRequest(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyPatchDto));
       SetResponseExample(operation, "200", ExecutionLogRetentionResponse(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyDto));
     }
   }
 
-  private static string NormalizePath(string? relativePath)
-  {
+  private static string NormalizePath(string? relativePath) {
     if (string.IsNullOrWhiteSpace(relativePath)) return string.Empty;
     var trimmed = relativePath.TrimStart('/');
     return "/" + trimmed;
   }
 
-  private static bool IsPath(string actual, string expected)
-  {
+  private static bool IsPath(string actual, string expected) {
     static string Normalize(string path) => path.EndsWith('/') ? path.TrimEnd('/') : path;
     return string.Equals(Normalize(actual), Normalize(expected), StringComparison.OrdinalIgnoreCase);
   }
 
   private static bool IsMethod(string method, string expected) => string.Equals(method, expected, StringComparison.OrdinalIgnoreCase);
 
-  private static void SetRequestExample(OpenApiOperation operation, IOpenApiAny example, OperationFilterContext context, Type? schemaType = null)
-  {
+  private static void SetRequestExample(OpenApiOperation operation, IOpenApiAny example, OperationFilterContext context, Type? schemaType = null) {
     operation.RequestBody ??= new OpenApiRequestBody { Content = new Dictionary<string, OpenApiMediaType>() };
-    if (!operation.RequestBody.Content.TryGetValue("application/json", out var media))
-    {
+    if (!operation.RequestBody.Content.TryGetValue("application/json", out var media)) {
       media = new OpenApiMediaType();
       operation.RequestBody.Content["application/json"] = media;
     }
@@ -545,17 +450,14 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     media.Schema ??= GenerateSchema(context, schemaType);
   }
 
-  private static void SetResponseExample(OpenApiOperation operation, string statusCode, IOpenApiAny example, OperationFilterContext context, Type? schemaType = null)
-  {
-    if (!operation.Responses.TryGetValue(statusCode, out var response))
-    {
+  private static void SetResponseExample(OpenApiOperation operation, string statusCode, IOpenApiAny example, OperationFilterContext context, Type? schemaType = null) {
+    if (!operation.Responses.TryGetValue(statusCode, out var response)) {
       response = new OpenApiResponse { Description = statusCode.Length > 0 && statusCode[0] == '2' ? "Success" : "Response" };
       operation.Responses[statusCode] = response;
     }
 
     response.Content ??= new Dictionary<string, OpenApiMediaType>();
-    if (!response.Content.TryGetValue("application/json", out var media))
-    {
+    if (!response.Content.TryGetValue("application/json", out var media)) {
       media = new OpenApiMediaType();
       response.Content["application/json"] = media;
     }
@@ -563,23 +465,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     media.Schema ??= GenerateSchema(context, schemaType);
   }
 
-  private static OpenApiSchema GenerateSchema(OperationFilterContext context, Type? schemaType)
-  {
+  private static OpenApiSchema GenerateSchema(OperationFilterContext context, Type? schemaType) {
     var type = schemaType ?? typeof(object);
     return context.SchemaGenerator.GenerateSchema(type, context.SchemaRepository);
   }
 
-  private static OpenApiObject InstallerCompareRequest() => new OpenApiObject
-  {
-    ["installedVersion"] = new OpenApiObject
-    {
+  private static OpenApiObject InstallerCompareRequest() => new OpenApiObject {
+    ["installedVersion"] = new OpenApiObject {
       ["major"] = new OpenApiInteger(1),
       ["minor"] = new OpenApiInteger(0),
       ["patch"] = new OpenApiInteger(0),
       ["build"] = new OpenApiInteger(9)
     },
-    ["candidateVersion"] = new OpenApiObject
-    {
+    ["candidateVersion"] = new OpenApiObject {
       ["major"] = new OpenApiInteger(1),
       ["minor"] = new OpenApiInteger(0),
       ["patch"] = new OpenApiInteger(0),
@@ -587,49 +485,40 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject InstallerCompareResponse() => new OpenApiObject
-  {
+  private static OpenApiObject InstallerCompareResponse() => new OpenApiObject {
     ["outcome"] = new OpenApiString("upgrade"),
     ["reason"] = new OpenApiString("Candidate version is higher than installed version."),
     ["preserveProperties"] = new OpenApiBoolean(true)
   };
 
-  private static OpenApiObject SameBuildDecisionRequest() => new OpenApiObject
-  {
+  private static OpenApiObject SameBuildDecisionRequest() => new OpenApiObject {
     ["mode"] = new OpenApiString("interactive"),
     ["interactiveChoice"] = new OpenApiString("reinstall")
   };
 
-  private static OpenApiObject SameBuildDecisionResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SameBuildDecisionResponse() => new OpenApiObject {
     ["action"] = new OpenApiString("reinstall"),
     ["mutatesState"] = new OpenApiBoolean(true),
     ["statusCode"] = new OpenApiInteger(0)
   };
 
-  private static OpenApiObject VersionResolveRequest() => new OpenApiObject
-  {
+  private static OpenApiObject VersionResolveRequest() => new OpenApiObject {
     ["buildContext"] = new OpenApiString("ci"),
-    ["override"] = new OpenApiObject
-    {
+    ["override"] = new OpenApiObject {
       ["major"] = new OpenApiInteger(1),
       ["minor"] = new OpenApiInteger(2)
     },
-    ["releaseLineMarker"] = new OpenApiObject
-    {
+    ["releaseLineMarker"] = new OpenApiObject {
       ["releaseLineId"] = new OpenApiString("main"),
       ["sequence"] = new OpenApiInteger(4)
     },
-    ["ciBuildCounter"] = new OpenApiObject
-    {
+    ["ciBuildCounter"] = new OpenApiObject {
       ["lastBuild"] = new OpenApiInteger(18)
     }
   };
 
-  private static OpenApiObject VersionResolveResponse() => new OpenApiObject
-  {
-    ["version"] = new OpenApiObject
-    {
+  private static OpenApiObject VersionResolveResponse() => new OpenApiObject {
+    ["version"] = new OpenApiObject {
       ["major"] = new OpenApiInteger(1),
       ["minor"] = new OpenApiInteger(2),
       ["patch"] = new OpenApiInteger(0),
@@ -645,23 +534,20 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject ExecutionLogRetentionUpdateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject ExecutionLogRetentionUpdateRequest() => new OpenApiObject {
     ["enabled"] = new OpenApiBoolean(true),
     ["retentionDays"] = new OpenApiInteger(30),
     ["cleanupIntervalMinutes"] = new OpenApiInteger(60)
   };
 
-  private static OpenApiObject ExecutionLogRetentionResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ExecutionLogRetentionResponse() => new OpenApiObject {
     ["enabled"] = new OpenApiBoolean(true),
     ["retentionDays"] = new OpenApiInteger(30),
     ["cleanupIntervalMinutes"] = new OpenApiInteger(60),
     ["updatedAtUtc"] = new OpenApiString("2026-01-01T00:00:00Z")
   };
 
-  private static OpenApiObject ExecutionLogListResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ExecutionLogListResponse() => new OpenApiObject {
     ["items"] = new OpenApiArray
     {
       ExecutionLogEntryResponse()
@@ -669,27 +555,23 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ["nextCursor"] = new OpenApiString("2026-01-01T00:00:00.0000000+00:00|exe_0001")
   };
 
-  private static OpenApiObject ExecutionLogEntryResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ExecutionLogEntryResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("exe_0001"),
     ["timestampUtc"] = new OpenApiString("2026-01-01T00:00:00Z"),
     ["executionType"] = new OpenApiString("command"),
     ["finalStatus"] = new OpenApiString("success"),
-    ["objectRef"] = new OpenApiObject
-    {
+    ["objectRef"] = new OpenApiObject {
       ["objectType"] = new OpenApiString("command"),
       ["objectId"] = new OpenApiString("cmd-farm"),
       ["displayNameSnapshot"] = new OpenApiString("Farm Run"),
       ["versionSnapshot"] = new OpenApiString("2026.01")
     },
-    ["navigation"] = new OpenApiObject
-    {
+    ["navigation"] = new OpenApiObject {
       ["directPath"] = new OpenApiString("/api/commands/cmd-farm"),
       ["parentPath"] = new OpenApiString("/api/sequences/seq-daily"),
       ["pathKind"] = new OpenApiString("command")
     },
-    ["hierarchy"] = new OpenApiObject
-    {
+    ["hierarchy"] = new OpenApiObject {
       ["rootExecutionId"] = new OpenApiString("exe_root_0001"),
       ["parentExecutionId"] = new OpenApiString("exe_parent_0001"),
       ["depth"] = new OpenApiInteger(1),
@@ -723,8 +605,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject ActionCreateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject ActionCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Collect coins"),
     ["gameId"] = new OpenApiString("game-123"),
     ["steps"] = new OpenApiArray
@@ -744,8 +625,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ["checkpoints"] = new OpenApiArray { new OpenApiString("after-start"), new OpenApiString("before-exit") }
   };
 
-  private static OpenApiObject ActionCreateResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ActionCreateResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("action-abc"),
     ["name"] = new OpenApiString("Collect coins"),
     ["gameId"] = new OpenApiString("game-123"),
@@ -771,8 +651,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ActionCreateResponse()
   };
 
-  private static OpenApiObject SequenceCreateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject SequenceCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Morning routine"),
     ["steps"] = new OpenApiArray
     {
@@ -781,8 +660,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject ActionTypesResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ActionTypesResponse() => new OpenApiObject {
     ["version"] = new OpenApiString("v1"),
     ["items"] = new OpenApiArray
     {
@@ -849,8 +727,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject SequenceCreateResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SequenceCreateResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("sequence-xyz"),
     ["name"] = new OpenApiString("Morning routine"),
     ["steps"] = new OpenApiArray
@@ -865,28 +742,24 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     SequenceCreateResponse()
   };
 
-  private static OpenApiObject SessionCreateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject SessionCreateRequest() => new OpenApiObject {
     ["gameId"] = new OpenApiString("game-123"),
     ["adbSerial"] = new OpenApiString("emulator-5554")
   };
 
-  private static OpenApiObject SessionCreateResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SessionCreateResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("session-123"),
     ["status"] = new OpenApiString("PENDING"),
     ["gameId"] = new OpenApiString("game-123")
   };
 
-  private static OpenApiObject SessionStartRequest() => new OpenApiObject
-  {
+  private static OpenApiObject SessionStartRequest() => new OpenApiObject {
     ["gameId"] = new OpenApiString("game-123"),
     ["emulatorId"] = new OpenApiString("emulator-5554"),
     ["options"] = new OpenApiObject { ["idleTimeoutSeconds"] = new OpenApiInteger(30) }
   };
 
-  private static OpenApiObject RunningSessionExample() => new OpenApiObject
-  {
+  private static OpenApiObject RunningSessionExample() => new OpenApiObject {
     ["sessionId"] = new OpenApiString("session-abc"),
     ["gameId"] = new OpenApiString("game-123"),
     ["emulatorId"] = new OpenApiString("emulator-5554"),
@@ -895,8 +768,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ["status"] = new OpenApiString("running")
   };
 
-  private static OpenApiObject SessionStartResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SessionStartResponse() => new OpenApiObject {
     ["sessionId"] = new OpenApiString("session-abc"),
     ["runningSessions"] = new OpenApiArray
     {
@@ -913,21 +785,18 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject RunningSessionsResponse() => new OpenApiObject
-  {
+  private static OpenApiObject RunningSessionsResponse() => new OpenApiObject {
     ["sessions"] = new OpenApiArray
     {
       RunningSessionExample()
     }
   };
 
-  private static OpenApiObject SessionStopRequest() => new OpenApiObject
-  {
+  private static OpenApiObject SessionStopRequest() => new OpenApiObject {
     ["sessionId"] = new OpenApiString("session-abc")
   };
 
-  private static OpenApiObject SessionInputsRequest() => new OpenApiObject
-  {
+  private static OpenApiObject SessionInputsRequest() => new OpenApiObject {
     ["actions"] = new OpenApiArray
     {
       new OpenApiObject
@@ -944,25 +813,21 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject SessionInputsResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SessionInputsResponse() => new OpenApiObject {
     ["accepted"] = new OpenApiInteger(1)
   };
 
-  private static OpenApiObject ConfigurationSnapshotResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ConfigurationSnapshotResponse() => new OpenApiObject {
     ["generatedAtUtc"] = new OpenApiString("2025-12-28T12:00:00Z"),
     ["serviceVersion"] = new OpenApiString("1.0.0"),
     ["refreshCount"] = new OpenApiInteger(1),
-    ["parameters"] = new OpenApiObject
-    {
+    ["parameters"] = new OpenApiObject {
       ["GAMEBOT_DATA_DIR"] = new OpenApiObject { ["name"] = new OpenApiString("GAMEBOT_DATA_DIR"), ["source"] = new OpenApiString("Default"), ["value"] = new OpenApiString("C:/data"), ["isSecret"] = new OpenApiBoolean(false) },
       ["Service__Auth__Token"] = new OpenApiObject { ["name"] = new OpenApiString("Service__Auth__Token"), ["source"] = new OpenApiString("File"), ["value"] = new OpenApiString("***"), ["isSecret"] = new OpenApiBoolean(true) }
     }
   };
 
-  private static OpenApiObject LoggingPolicyResponse() => new OpenApiObject
-  {
+  private static OpenApiObject LoggingPolicyResponse() => new OpenApiObject {
     ["updatedAtUtc"] = new OpenApiString("2025-12-28T12:00:00Z"),
     ["components"] = new OpenApiArray
     {
@@ -976,23 +841,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject LoggingPolicyUpdateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject LoggingPolicyUpdateRequest() => new OpenApiObject {
     ["level"] = new OpenApiString("Information"),
     ["enabled"] = new OpenApiBoolean(true),
     ["notes"] = new OpenApiString("Temporary override for debugging")
   };
 
-  private static OpenApiObject LoggingPolicyResetRequest() => new OpenApiObject
-  {
+  private static OpenApiObject LoggingPolicyResetRequest() => new OpenApiObject {
     ["reason"] = new OpenApiString("Revert to defaults")
   };
 
-  private static OpenApiObject TriggerCreateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject TriggerCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Start screen ready"),
-    ["criteria"] = new OpenApiObject
-    {
+    ["criteria"] = new OpenApiObject {
       ["type"] = new OpenApiString("image-match"),
       ["referenceImageId"] = new OpenApiString("start-screen"),
       ["region"] = new OpenApiObject { ["x"] = new OpenApiDouble(0.1), ["y"] = new OpenApiDouble(0.1), ["width"] = new OpenApiDouble(0.5), ["height"] = new OpenApiDouble(0.5) },
@@ -1001,12 +862,10 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ["actions"] = new OpenApiArray { new OpenApiString("action-abc") }
   };
 
-  private static OpenApiObject TriggerCreateResponse() => new OpenApiObject
-  {
+  private static OpenApiObject TriggerCreateResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("trigger-123"),
     ["name"] = new OpenApiString("Start screen ready"),
-    ["criteria"] = new OpenApiObject
-    {
+    ["criteria"] = new OpenApiObject {
       ["type"] = new OpenApiString("image-match"),
       ["referenceImageId"] = new OpenApiString("start-screen"),
       ["region"] = new OpenApiObject { ["x"] = new OpenApiDouble(0.1), ["y"] = new OpenApiDouble(0.1), ["width"] = new OpenApiDouble(0.5), ["height"] = new OpenApiDouble(0.5) },
@@ -1022,23 +881,20 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     TriggerCreateResponse()
   };
 
-  private static OpenApiObject TriggerTestResponse() => new OpenApiObject
-  {
+  private static OpenApiObject TriggerTestResponse() => new OpenApiObject {
     ["status"] = new OpenApiString("Satisfied"),
     ["evaluatedAt"] = new OpenApiString("2025-12-28T12:00:00Z"),
     ["reason"] = new OpenApiString("Image match exceeded threshold")
   };
 
-  private static OpenApiObject ImageDetectRequest() => new OpenApiObject
-  {
+  private static OpenApiObject ImageDetectRequest() => new OpenApiObject {
     ["referenceImageId"] = new OpenApiString("start-screen"),
     ["threshold"] = new OpenApiDouble(0.85),
     ["maxResults"] = new OpenApiInteger(3),
     ["overlap"] = new OpenApiDouble(0.1)
   };
 
-  private static OpenApiObject ImageDetectResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ImageDetectResponse() => new OpenApiObject {
     ["limitsHit"] = new OpenApiBoolean(false),
     ["matches"] = new OpenApiArray
     {
@@ -1056,13 +912,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject ImageCropRequest() => new OpenApiObject
-  {
+  private static OpenApiObject ImageCropRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("battle-start"),
     ["overwrite"] = new OpenApiBoolean(false),
     ["sourceCaptureId"] = new OpenApiString("cap_123"),
-    ["bounds"] = new OpenApiObject
-    {
+    ["bounds"] = new OpenApiObject {
       ["x"] = new OpenApiInteger(120),
       ["y"] = new OpenApiInteger(200),
       ["width"] = new OpenApiInteger(64),
@@ -1070,13 +924,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject ImageCropResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ImageCropResponse() => new OpenApiObject {
     ["name"] = new OpenApiString("battle-start"),
     ["fileName"] = new OpenApiString("battle-start.png"),
     ["storagePath"] = new OpenApiString("data/images/battle-start.png"),
-    ["bounds"] = new OpenApiObject
-    {
+    ["bounds"] = new OpenApiObject {
       ["x"] = new OpenApiInteger(120),
       ["y"] = new OpenApiInteger(200),
       ["width"] = new OpenApiInteger(64),
@@ -1084,8 +936,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject ActionUpdateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject ActionUpdateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Collect coins v2"),
     ["gameId"] = new OpenApiString("game-123"),
     ["steps"] = new OpenApiArray
@@ -1101,14 +952,12 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ["checkpoints"] = new OpenApiArray { new OpenApiString("after-start") }
   };
 
-  private static OpenApiObject CommandCreateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject CommandCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Warmup"),
     ["actions"] = new OpenApiArray { new OpenApiString("action-abc"), new OpenApiString("action-def") }
   };
 
-  private static OpenApiObject CommandUpdateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject CommandUpdateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Warmup v2"),
     ["triggerId"] = new OpenApiString("trigger-1"),
     ["steps"] = new OpenApiArray
@@ -1118,8 +967,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject CommandCreateResponse() => new OpenApiObject
-  {
+  private static OpenApiObject CommandCreateResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("command-123"),
     ["name"] = new OpenApiString("Warmup"),
     ["triggerId"] = new OpenApiString("trigger-1"),
@@ -1131,15 +979,13 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
 
   private static OpenApiArray CommandListResponse() => new OpenApiArray { CommandCreateResponse() };
 
-  private static OpenApiObject CommandEvaluateResponse() => new OpenApiObject
-  {
+  private static OpenApiObject CommandEvaluateResponse() => new OpenApiObject {
     ["accepted"] = new OpenApiBoolean(true),
     ["triggerStatus"] = new OpenApiString("Satisfied"),
     ["message"] = new OpenApiString("Trigger satisfied; executed")
   };
 
-  private static OpenApiObject SequenceExecuteResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SequenceExecuteResponse() => new OpenApiObject {
     ["sequenceId"] = new OpenApiString("sequence-xyz"),
     ["status"] = new OpenApiString("Succeeded"),
     ["startedAt"] = new OpenApiString("2025-12-28T12:00:00Z"),
@@ -1158,8 +1004,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     }
   };
 
-  private static OpenApiObject SessionGetResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SessionGetResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("session-123"),
     ["status"] = new OpenApiString("RUNNING"),
     ["uptime"] = new OpenApiInteger(42),
@@ -1167,39 +1012,33 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     ["gameId"] = new OpenApiString("game-123")
   };
 
-  private static OpenApiObject SessionDeviceResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SessionDeviceResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("session-123"),
     ["deviceSerial"] = new OpenApiString("emulator-5554"),
     ["mode"] = new OpenApiString("ADB")
   };
 
-  private static OpenApiObject SessionHealthResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SessionHealthResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("session-123"),
     ["mode"] = new OpenApiString("ADB"),
     ["deviceSerial"] = new OpenApiString("emulator-5554"),
-    ["adb"] = new OpenApiObject
-    {
+    ["adb"] = new OpenApiObject {
       ["ok"] = new OpenApiBoolean(true),
       ["stdout"] = new OpenApiString("device"),
       ["stderr"] = new OpenApiString(string.Empty)
     }
   };
 
-  private static OpenApiObject SessionStopResponse() => new OpenApiObject
-  {
+  private static OpenApiObject SessionStopResponse() => new OpenApiObject {
     ["stopped"] = new OpenApiBoolean(true)
   };
 
-  private static OpenApiObject GameCreateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject GameCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Awesome Game"),
     ["metadata"] = new OpenApiObject { ["genre"] = new OpenApiString("arcade"), ["version"] = new OpenApiString("1.0.0") }
   };
 
-  private static OpenApiObject GameCreateResponse() => new OpenApiObject
-  {
+  private static OpenApiObject GameCreateResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("game-123"),
     ["name"] = new OpenApiString("Awesome Game"),
     ["metadata"] = new OpenApiObject { ["genre"] = new OpenApiString("arcade"), ["version"] = new OpenApiString("1.0.0") }
@@ -1207,31 +1046,26 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
 
   private static OpenApiArray GameListResponse() => new OpenApiArray { GameCreateResponse() };
 
-  private static OpenApiObject GameUpdateRequest() => new OpenApiObject
-  {
+  private static OpenApiObject GameUpdateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Awesome Game v2"),
     ["description"] = new OpenApiString("Updated description")
   };
 
-  private static OpenApiObject ImageUploadRequest() => new OpenApiObject
-  {
+  private static OpenApiObject ImageUploadRequest() => new OpenApiObject {
     ["id"] = new OpenApiString("start-screen"),
     ["data"] = new OpenApiString("iVBORw0KGgoAAAANSUhEUgAAAAUA")
   };
 
-  private static OpenApiObject ImageUploadResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ImageUploadResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("start-screen"),
     ["overwrite"] = new OpenApiBoolean(false)
   };
 
-  private static OpenApiObject ImageOverwriteRequest() => new OpenApiObject
-  {
+  private static OpenApiObject ImageOverwriteRequest() => new OpenApiObject {
     ["data"] = new OpenApiString("iVBORw0KGgoAAAANSUhEUgAAAAUA")
   };
 
-  private static OpenApiObject ImageOverwriteResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ImageOverwriteResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("start-screen"),
     ["contentType"] = new OpenApiString("image/png"),
     ["sizeBytes"] = new OpenApiInteger(12345),
@@ -1244,40 +1078,34 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter
     new OpenApiObject { ["id"] = new OpenApiString("pause-screen") }
   };
 
-  private static OpenApiObject ImageReferenceResponse() => new OpenApiObject
-  {
+  private static OpenApiObject ImageReferenceResponse() => new OpenApiObject {
     ["id"] = new OpenApiString("start-screen")
   };
 }
 
-internal sealed class ActionUpdateSchema
-{
+internal sealed class ActionUpdateSchema {
   public string? Name { get; set; }
   public string? GameId { get; set; }
   public ICollection<GameBot.Service.Models.InputActionDto>? Steps { get; set; }
   public ICollection<string>? Checkpoints { get; set; }
 }
 
-internal sealed class SequenceRequestSchema
-{
+internal sealed class SequenceRequestSchema {
   public string? Name { get; set; }
   public ICollection<string>? Steps { get; set; }
 }
 
-internal sealed class SequenceResponseSchema
-{
+internal sealed class SequenceResponseSchema {
   public required string Id { get; set; }
   public required string Name { get; set; }
   public ICollection<string> Steps { get; set; } = new List<string>();
 }
 
-internal sealed class SessionAcceptedSchema
-{
+internal sealed class SessionAcceptedSchema {
   public int Accepted { get; set; }
 }
 
-internal sealed class SessionDetailSchema
-{
+internal sealed class SessionDetailSchema {
   public required string Id { get; set; }
   public required string Status { get; set; }
   public long Uptime { get; set; }
@@ -1285,70 +1113,60 @@ internal sealed class SessionDetailSchema
   public string? GameId { get; set; }
 }
 
-internal sealed class SessionDeviceSchema
-{
+internal sealed class SessionDeviceSchema {
   public required string Id { get; set; }
   public string? DeviceSerial { get; set; }
   public string? Mode { get; set; }
 }
 
-internal sealed class SessionHealthSchema
-{
+internal sealed class SessionHealthSchema {
   public required string Id { get; set; }
   public string? Mode { get; set; }
   public string? DeviceSerial { get; set; }
   public SessionHealthAdbSchema? Adb { get; set; }
 }
 
-internal sealed class SessionHealthAdbSchema
-{
+internal sealed class SessionHealthAdbSchema {
   public bool Ok { get; set; }
   public string? Stdout { get; set; }
   public string? Stderr { get; set; }
 }
 
-internal sealed class SessionStopSchema
-{
+internal sealed class SessionStopSchema {
   public string? Status { get; set; }
 }
 
-internal sealed class ConfigurationSnapshotSchema
-{
+internal sealed class ConfigurationSnapshotSchema {
   public DateTimeOffset GeneratedAtUtc { get; set; }
   public string? ServiceVersion { get; set; }
   public int RefreshCount { get; set; }
   public IDictionary<string, ConfigParameterSchema>? Parameters { get; set; }
 }
 
-internal sealed class ConfigParameterSchema
-{
+internal sealed class ConfigParameterSchema {
   public string? Name { get; set; }
   public string? Source { get; set; }
   public string? Value { get; set; }
   public bool IsSecret { get; set; }
 }
 
-internal sealed class LoggingPolicySchema
-{
+internal sealed class LoggingPolicySchema {
   public DateTimeOffset UpdatedAtUtc { get; set; }
   public ICollection<LoggingComponentSchema> Components { get; set; } = new List<LoggingComponentSchema>();
 }
 
-internal sealed class LoggingComponentSchema
-{
+internal sealed class LoggingComponentSchema {
   public string? Name { get; set; }
   public string? Level { get; set; }
   public bool Enabled { get; set; }
   public string? Notes { get; set; }
 }
 
-internal sealed class LoggingPolicyResetRequestSchema
-{
+internal sealed class LoggingPolicyResetRequestSchema {
   public string? Reason { get; set; }
 }
 
-internal sealed class TriggerAuthoringSchema
-{
+internal sealed class TriggerAuthoringSchema {
   public string? Name { get; set; }
   public TriggerCriteriaSchema? Criteria { get; set; }
   public ICollection<string>? Actions { get; set; }
@@ -1356,24 +1174,21 @@ internal sealed class TriggerAuthoringSchema
   public string? Sequence { get; set; }
 }
 
-internal sealed class TriggerCriteriaSchema
-{
+internal sealed class TriggerCriteriaSchema {
   public string? Type { get; set; }
   public string? ReferenceImageId { get; set; }
   public RegionSchema? Region { get; set; }
   public double? SimilarityThreshold { get; set; }
 }
 
-internal sealed class RegionSchema
-{
+internal sealed class RegionSchema {
   public double X { get; set; }
   public double Y { get; set; }
   public double Width { get; set; }
   public double Height { get; set; }
 }
 
-internal sealed class TriggerResponseSchema
-{
+internal sealed class TriggerResponseSchema {
   public required string Id { get; set; }
   public string? Name { get; set; }
   public TriggerCriteriaSchema? Criteria { get; set; }
@@ -1382,64 +1197,55 @@ internal sealed class TriggerResponseSchema
   public string? Sequence { get; set; }
 }
 
-internal sealed class TriggerTestResponseSchema
-{
+internal sealed class TriggerTestResponseSchema {
   public string? Status { get; set; }
   public DateTimeOffset EvaluatedAt { get; set; }
   public string? Reason { get; set; }
 }
 
-internal sealed class CommandCreateSchema
-{
+internal sealed class CommandCreateSchema {
   public required string Name { get; set; }
   public string? TriggerId { get; set; }
   public ICollection<string>? Actions { get; set; }
   public ICollection<GameBot.Service.Models.CommandStepDto>? Steps { get; set; }
 }
 
-internal sealed class CommandEvaluateResponseSchema
-{
+internal sealed class CommandEvaluateResponseSchema {
   public bool Accepted { get; set; }
   public string? TriggerStatus { get; set; }
   public string? Message { get; set; }
 }
 
-internal sealed class GameCreateSchema
-{
+internal sealed class GameCreateSchema {
   public required string Name { get; set; }
   public object? Metadata { get; set; }
   public string? Description { get; set; }
 }
 
-internal sealed class GameResponseSchema
-{
+internal sealed class GameResponseSchema {
   public required string Id { get; set; }
   public required string Name { get; set; }
   public object? Metadata { get; set; }
   public string? Description { get; set; }
 }
 
-internal sealed class ImageUploadResponseSchema
-{
+internal sealed class ImageUploadResponseSchema {
   public string? Id { get; set; }
   public bool Overwrite { get; set; }
 }
 
-internal sealed class ImageOverwriteResponseSchema
-{
+internal sealed class ImageOverwriteResponseSchema {
   public string? Id { get; set; }
   public string? ContentType { get; set; }
   public long SizeBytes { get; set; }
   public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 
-internal sealed class ImageReferenceListItemSchema
-{
+internal sealed class ImageReferenceListItemSchema {
   public string? Id { get; set; }
 }
 
-internal sealed class ImageReferenceSchema
-{
+internal sealed class ImageReferenceSchema {
   public string? Id { get; set; }
   public bool? Fallback { get; set; }
 }

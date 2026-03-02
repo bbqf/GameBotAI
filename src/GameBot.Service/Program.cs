@@ -47,8 +47,7 @@ var loggingGate = new LoggingPolicyGate();
 // Console logging with timestamps + scopes; ensure no duplicate console providers
 builder.Logging.ClearProviders();
 builder.Logging.SetMinimumLevel(LogLevel.Trace);
-builder.Services.Configure<LoggerFilterOptions>(options =>
-{
+builder.Services.Configure<LoggerFilterOptions>(options => {
   options.Rules.Clear();
   options.MinLevel = LogLevel.Trace;
 });
@@ -67,10 +66,8 @@ var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
                   ?? Environment.GetEnvironmentVariable("GAMEBOT_CORS_ORIGINS")
                   ?? "http://localhost:5173")
                   .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-builder.Services.AddCors(options =>
-{
-  options.AddPolicy("WebUiCors", policy =>
-  {
+builder.Services.AddCors(options => {
+  options.AddPolicy("WebUiCors", policy => {
     if (corsOrigins.Length > 0)
       policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Capture-Id");
     else
@@ -116,13 +113,11 @@ builder.Services.AddSingleton<VersionResolutionService>();
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
 builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
-builder.Services.AddSingleton<ILoggingPolicyRepository>(sp =>
-{
+builder.Services.AddSingleton<ILoggingPolicyRepository>(sp => {
   var logger = sp.GetRequiredService<ILogger<LoggingPolicyRepository>>();
   return new LoggingPolicyRepository(storageRoot, () => LoggingPolicySnapshot.CreateDefault(loggingComponentCatalog, LogLevel.Warning, "system-seed"), logger);
 });
-builder.Services.AddSingleton(sp =>
-{
+builder.Services.AddSingleton(sp => {
   var repo = sp.GetRequiredService<ILoggingPolicyRepository>();
   var logger = sp.GetRequiredService<ILogger<RuntimeLoggingPolicyService>>();
   var applier = sp.GetRequiredService<ILoggingPolicyApplier>();
@@ -251,12 +246,10 @@ var hasInstalledWebUi = Directory.Exists(installedWebUiRoot) && File.Exists(Path
   var arch = RuntimeInformation.ProcessArchitecture.ToString();
   var buildInfo = CvRuntime.GetOpenCvBuildInformation();
   string firstLine;
-  if (string.IsNullOrEmpty(buildInfo))
-  {
+  if (string.IsNullOrEmpty(buildInfo)) {
     firstLine = "unavailable";
   }
-  else
-  {
+  else {
     var span = buildInfo.AsSpan();
     var idx = span.IndexOfAny('\r', '\n');
     firstLine = idx >= 0 ? new string(span.Slice(0, idx)) : buildInfo;
@@ -345,10 +338,8 @@ app.MapConfigLoggingEndpoints();
 app.MapCoverageEndpoints();
 app.MapExecutionLogEndpoints();
 
-app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequestModel request, VersionSourceLoader loader) =>
-{
-  if (!Enum.TryParse<BuildContext>(request.BuildContext, ignoreCase: true, out var buildContext))
-  {
+app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequestModel request, VersionSourceLoader loader) => {
+  if (!Enum.TryParse<BuildContext>(request.BuildContext, ignoreCase: true, out var buildContext)) {
     return Results.BadRequest(new { code = "invalid_build_context", message = "buildContext must be one of: ci, local." });
   }
 
@@ -358,35 +349,29 @@ app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequest
   CiBuildCounter? fileCounter = null;
   var notes = new List<string>();
 
-  if (!string.IsNullOrWhiteSpace(versioningDirectory))
-  {
-    try
-    {
+  if (!string.IsNullOrWhiteSpace(versioningDirectory)) {
+    try {
       fileOverride = loader.LoadOverrideFromDirectory(versioningDirectory);
       fileMarker = loader.LoadReleaseLineMarkerFromDirectory(versioningDirectory);
       fileCounter = loader.LoadCiBuildCounterFromDirectory(versioningDirectory);
       notes.Add("source:versioning-files");
     }
-    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-    {
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) {
       return Results.BadRequest(new { code = "invalid_versioning_sources", message = ex.Message });
     }
   }
-  else
-  {
+  else {
     notes.Add("source:request-only");
   }
 
   var requestOverride = request.Override;
-  var effectiveOverride = new VersionOverride
-  {
+  var effectiveOverride = new VersionOverride {
     Major = requestOverride?.Major ?? request.Major ?? fileOverride?.Major,
     Minor = requestOverride?.Minor ?? request.Minor ?? fileOverride?.Minor,
     Patch = requestOverride?.Patch ?? request.Patch ?? fileOverride?.Patch
   };
 
-  if (effectiveOverride.Major is not null || effectiveOverride.Minor is not null || effectiveOverride.Patch is not null)
-  {
+  if (effectiveOverride.Major is not null || effectiveOverride.Minor is not null || effectiveOverride.Patch is not null) {
     notes.Add("source:override");
   }
 
@@ -394,31 +379,26 @@ app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequest
   var previousSequence = fileMarker?.Sequence;
   var requestedSequence = requestMarker?.Sequence ?? request.ReleaseLineSequence ?? fileMarker?.Sequence;
   var transitionDetected = VersionResolutionService.HasReleaseLineTransition(previousSequence, requestedSequence);
-  if (transitionDetected)
-  {
+  if (transitionDetected) {
     notes.Add("source:release-line-transition");
   }
 
   var requestCounter = request.CiBuildCounter?.LastBuild ?? request.LastCiBuild;
   var effectiveLastBuild = requestCounter ?? fileCounter?.LastBuild ?? 0;
-  if (requestCounter.HasValue)
-  {
+  if (requestCounter.HasValue) {
     notes.Add("source:counter-request");
   }
-  else if (fileCounter is not null)
-  {
+  else if (fileCounter is not null) {
     notes.Add("source:counter-file");
   }
 
-  var resolutionInput = new VersionResolutionInput
-  {
+  var resolutionInput = new VersionResolutionInput {
     BaselineVersion = new SemanticVersion(1, 0, 0, Math.Max(0, effectiveLastBuild)),
     Override = effectiveOverride,
     ReleaseLineTransitionDetected = transitionDetected,
     PreviousReleaseLineSequence = previousSequence,
     CurrentReleaseLineSequence = requestedSequence,
-    CiBuildCounter = new CiBuildCounter
-    {
+    CiBuildCounter = new CiBuildCounter {
       LastBuild = Math.Max(0, effectiveLastBuild),
       UpdatedAtUtc = DateTimeOffset.UtcNow,
       UpdatedBy = string.Equals(buildContext, BuildContext.Ci) ? "ci" : "local"
@@ -429,10 +409,8 @@ app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequest
   var resolved = VersionResolutionService.Resolve(resolutionInput);
   var responseNotes = resolved.Notes.Concat(notes).Distinct(StringComparer.Ordinal).ToArray();
 
-  return Results.Ok(new GameBot.Service.Models.VersionResolveResultModel
-  {
-    Version = new GameBot.Service.Models.SemanticVersionModel
-    {
+  return Results.Ok(new GameBot.Service.Models.VersionResolveResultModel {
+    Version = new GameBot.Service.Models.SemanticVersionModel {
       Major = resolved.Version.Major,
       Minor = resolved.Version.Minor,
       Patch = resolved.Version.Patch,
@@ -448,8 +426,7 @@ app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequest
 .WithTags("Versioning")
 .WithName("ResolveVersion");
 
-app.MapPost("/installer/compare", (GameBot.Service.Models.InstallCompareRequestModel request, SemanticVersionComparer comparer) =>
-{
+app.MapPost("/installer/compare", (GameBot.Service.Models.InstallCompareRequestModel request, SemanticVersionComparer comparer) => {
   var installed = new SemanticVersion(
     request.InstalledVersion.Major,
     request.InstalledVersion.Minor,
@@ -462,28 +439,23 @@ app.MapPost("/installer/compare", (GameBot.Service.Models.InstallCompareRequestM
     request.CandidateVersion.Build);
 
   var compare = comparer.Compare(candidate, installed);
-  if (compare < 0)
-  {
-    return Results.Ok(new GameBot.Service.Models.InstallCompareResultModel
-    {
+  if (compare < 0) {
+    return Results.Ok(new GameBot.Service.Models.InstallCompareResultModel {
       Outcome = "downgrade",
       Reason = "Candidate version is lower than installed version.",
       PreserveProperties = false
     });
   }
 
-  if (compare > 0)
-  {
-    return Results.Ok(new GameBot.Service.Models.InstallCompareResultModel
-    {
+  if (compare > 0) {
+    return Results.Ok(new GameBot.Service.Models.InstallCompareResultModel {
       Outcome = "upgrade",
       Reason = "Candidate version is higher than installed version.",
       PreserveProperties = true
     });
   }
 
-  return Results.Ok(new GameBot.Service.Models.InstallCompareResultModel
-  {
+  return Results.Ok(new GameBot.Service.Models.InstallCompareResultModel {
     Outcome = "sameBuild",
     Reason = "Candidate version equals installed version.",
     PreserveProperties = false
@@ -493,30 +465,24 @@ app.MapPost("/installer/compare", (GameBot.Service.Models.InstallCompareRequestM
 .WithTags("Installer")
 .WithName("CompareInstallerVersion");
 
-app.MapPost("/installer/same-build/decision", (GameBot.Service.Models.SameBuildDecisionRequestModel request) =>
-{
-  if (string.Equals(request.Mode, "unattended", StringComparison.OrdinalIgnoreCase))
-  {
-    return Results.Ok(new GameBot.Service.Models.SameBuildDecisionResultModel
-    {
+app.MapPost("/installer/same-build/decision", (GameBot.Service.Models.SameBuildDecisionRequestModel request) => {
+  if (string.Equals(request.Mode, "unattended", StringComparison.OrdinalIgnoreCase)) {
+    return Results.Ok(new GameBot.Service.Models.SameBuildDecisionResultModel {
       Action = "skip",
       MutatesState = false,
       StatusCode = 4090
     });
   }
 
-  if (string.Equals(request.InteractiveChoice, "reinstall", StringComparison.OrdinalIgnoreCase))
-  {
-    return Results.Ok(new GameBot.Service.Models.SameBuildDecisionResultModel
-    {
+  if (string.Equals(request.InteractiveChoice, "reinstall", StringComparison.OrdinalIgnoreCase)) {
+    return Results.Ok(new GameBot.Service.Models.SameBuildDecisionResultModel {
       Action = "reinstall",
       MutatesState = true,
       StatusCode = 0
     });
   }
 
-  return Results.Ok(new GameBot.Service.Models.SameBuildDecisionResultModel
-  {
+  return Results.Ok(new GameBot.Service.Models.SameBuildDecisionResultModel {
     Action = "cancel",
     MutatesState = false,
     StatusCode = 0
@@ -529,23 +495,18 @@ app.MapPost("/installer/same-build/decision", (GameBot.Service.Models.SameBuildD
 // Sequences endpoints
 var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
 
-sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) =>
-{
+sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
   // Authoring shape: { name: string, steps?: string[] }
-  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _))
-  {
+  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
     var name = nameProp.GetString()!.Trim();
     var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
-    if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
-    {
+    if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
       var order = 0;
       var steps = new List<GameBot.Domain.Commands.SequenceStep>();
-      foreach (var el in stepsProp.EnumerateArray())
-      {
-        if (el.ValueKind == System.Text.Json.JsonValueKind.String)
-        {
+      foreach (var el in stepsProp.EnumerateArray()) {
+        if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
           steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
         }
       }
@@ -565,32 +526,26 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) =>
   return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
 }).Accepts<System.Text.Json.JsonElement>("application/json").WithName("CreateSequence");
 
-sequences.MapGet("{id}", async (ISequenceRepository repo, string id) =>
-{
+sequences.MapGet("{id}", async (ISequenceRepository repo, string id) => {
   var found = await repo.GetAsync(id).ConfigureAwait(false);
   if (found is null) return Results.NotFound();
   return Results.Ok(new { id = found.Id, name = found.Name, steps = found.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("GetSequence");
 
-sequences.MapPut("{id}", async (HttpRequest http, ISequenceRepository repo, string id) =>
-{
+sequences.MapPut("{id}", async (HttpRequest http, ISequenceRepository repo, string id) => {
   var existing = await repo.GetAsync(id).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
-  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
-  {
+  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
   }
-  if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
-  {
+  if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
     var order = 0;
     var steps = new List<GameBot.Domain.Commands.SequenceStep>();
-    foreach (var el in stepsProp.EnumerateArray())
-    {
-      if (el.ValueKind == System.Text.Json.JsonValueKind.String)
-      {
+    foreach (var el in stepsProp.EnumerateArray()) {
+      if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
         steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
       }
     }
@@ -601,15 +556,13 @@ sequences.MapPut("{id}", async (HttpRequest http, ISequenceRepository repo, stri
   return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("UpdateSequence");
 
-sequences.MapGet("", async (ISequenceRepository repo) =>
-{
+sequences.MapGet("", async (ISequenceRepository repo) => {
   var list = await repo.ListAsync().ConfigureAwait(false);
   var resp = list.Select(s => new { id = s.Id, name = s.Name, steps = s.Steps.Select(x => x.CommandId).ToArray() });
   return Results.Ok(resp);
 }).WithName("ListSequences");
 
-sequences.MapDelete("{id}", async (ISequenceRepository repo, string id) =>
-{
+sequences.MapDelete("{id}", async (ISequenceRepository repo, string id) => {
   var existing = await repo.GetAsync(id).ConfigureAwait(false);
   if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
   var ok = await repo.DeleteAsync(id).ConfigureAwait(false);
@@ -622,94 +575,84 @@ sequences.MapPost("{id}/execute", async (
   GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
   ISequenceRepository sequenceRepository,
   string id,
-  CancellationToken ct) =>
-{
-  // Minimal stub: delegate is a no-op; command execution integration will be added in later phases
-  var res = await runner.ExecuteAsync(
-    id,
-    _ => Task.CompletedTask,
-    gateEvaluator: (step, token) =>
-    {
-      // Temporary evaluator for integration tests:
-      // TargetId "always" => gate passes; "never" => gate fails
-      if (step.Gate == null) return Task.FromResult(true);
-      var tid = step.Gate.TargetId ?? string.Empty;
-      if (string.Equals(tid, "always", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(true);
-      if (string.Equals(tid, "never", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(false);
-      // Default: pass
-      return Task.FromResult(true);
-    },
-    conditionEvaluator: (cond, token) =>
-    {
-      // Map Blocks.Condition to a transient Trigger and evaluate via TriggerEvaluationService
-      if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase))
-      {
-        var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
-                                         : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
-        var trig = new GameBot.Domain.Triggers.Trigger
-        {
-          Id = "inline-image",
-          Type = GameBot.Domain.Triggers.TriggerType.ImageMatch,
-          Enabled = true,
-          Params = new GameBot.Domain.Triggers.ImageMatchParams
-          {
-            ReferenceImageId = cond.TargetId,
-            Region = region,
-            SimilarityThreshold = cond.ConfidenceThreshold ?? 0.85
-          }
-        };
-        var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
-        return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
-      }
-      if (string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase))
-      {
-        var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
-                                         : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
-        var mode = string.Equals(cond.Mode, "Absent", StringComparison.OrdinalIgnoreCase) ? "not-found" : "found";
-        var trig = new GameBot.Domain.Triggers.Trigger
-        {
-          Id = "inline-text",
-          Type = GameBot.Domain.Triggers.TriggerType.TextMatch,
-          Enabled = true,
-          Params = new GameBot.Domain.Triggers.TextMatchParams
-          {
-            Target = cond.TargetId,
-            Region = region,
-            ConfidenceThreshold = cond.ConfidenceThreshold ?? 0.80,
-            Mode = mode,
-            Language = cond.Language
-          }
-        };
-        var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
-        return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
-      }
-      // Unsupported source
-      return Task.FromResult(false);
-    },
-    ct: ct
-  ).ConfigureAwait(false);
-  var sequence = await sequenceRepository.GetAsync(id).ConfigureAwait(false);
-  var sequenceName = sequence?.Name ?? id;
-  var status = string.Equals(res.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
-  await executionLogService.LogSequenceExecutionAsync(
-    id,
-    sequenceName,
-    status,
-    $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
-    new GameBot.Service.Services.ExecutionLog.ExecutionLogContext
-    {
-      Depth = 0
-    },
-    details: new[] {
+  CancellationToken ct) => {
+    // Minimal stub: delegate is a no-op; command execution integration will be added in later phases
+    var res = await runner.ExecuteAsync(
+      id,
+      _ => Task.CompletedTask,
+      gateEvaluator: (step, token) => {
+        // Temporary evaluator for integration tests:
+        // TargetId "always" => gate passes; "never" => gate fails
+        if (step.Gate == null) return Task.FromResult(true);
+        var tid = step.Gate.TargetId ?? string.Empty;
+        if (string.Equals(tid, "always", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(true);
+        if (string.Equals(tid, "never", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(false);
+        // Default: pass
+        return Task.FromResult(true);
+      },
+      conditionEvaluator: (cond, token) => {
+        // Map Blocks.Condition to a transient Trigger and evaluate via TriggerEvaluationService
+        if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)) {
+          var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
+                                           : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
+          var trig = new GameBot.Domain.Triggers.Trigger {
+            Id = "inline-image",
+            Type = GameBot.Domain.Triggers.TriggerType.ImageMatch,
+            Enabled = true,
+            Params = new GameBot.Domain.Triggers.ImageMatchParams {
+              ReferenceImageId = cond.TargetId,
+              Region = region,
+              SimilarityThreshold = cond.ConfidenceThreshold ?? 0.85
+            }
+          };
+          var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
+          return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
+        }
+        if (string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase)) {
+          var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
+                                           : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
+          var mode = string.Equals(cond.Mode, "Absent", StringComparison.OrdinalIgnoreCase) ? "not-found" : "found";
+          var trig = new GameBot.Domain.Triggers.Trigger {
+            Id = "inline-text",
+            Type = GameBot.Domain.Triggers.TriggerType.TextMatch,
+            Enabled = true,
+            Params = new GameBot.Domain.Triggers.TextMatchParams {
+              Target = cond.TargetId,
+              Region = region,
+              ConfidenceThreshold = cond.ConfidenceThreshold ?? 0.80,
+              Mode = mode,
+              Language = cond.Language
+            }
+          };
+          var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
+          return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
+        }
+        // Unsupported source
+        return Task.FromResult(false);
+      },
+      ct: ct
+    ).ConfigureAwait(false);
+    var sequence = await sequenceRepository.GetAsync(id).ConfigureAwait(false);
+    var sequenceName = sequence?.Name ?? id;
+    var status = string.Equals(res.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+    await executionLogService.LogSequenceExecutionAsync(
+      id,
+      sequenceName,
+      status,
+      $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
+      new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
+        Depth = 0
+      },
+      details: new[] {
       new GameBot.Domain.Logging.ExecutionDetailItem(
         "sequence",
         $"Executed commands: {string.Join(",", res.Steps.Select(s => s.CommandId).Take(10))}",
         new Dictionary<string, object?> { ["executedCount"] = res.Steps.Count },
         "normal")
-    },
-    ct).ConfigureAwait(false);
-  return Results.Ok(res);
-}).WithName("ExecuteSequence").WithTags("Sequences");
+      },
+      ct).ConfigureAwait(false);
+    return Results.Ok(res);
+  }).WithName("ExecuteSequence").WithTags("Sequences");
 
 // Legacy guard rails: respond with guidance instead of serving old roots
 MapLegacyGuard("/actions", ApiRoutes.Actions);
@@ -741,8 +684,7 @@ if (hasInstalledWebUi) {
 
 app.Run();
 
-void MapLegacyGuard(string legacyRoot, string canonicalRoot)
-{
+void MapLegacyGuard(string legacyRoot, string canonicalRoot) {
   app.MapMethods(legacyRoot, new[] { HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete },
     (HttpContext ctx) => Results.Json(
       new { error = new { code = "legacy_route", message = "Use the canonical API base path.", hint = canonicalRoot } },
@@ -756,32 +698,26 @@ void MapLegacyGuard(string legacyRoot, string canonicalRoot)
     .ExcludeFromDescription();
 }
 
-static string? ReadInstallerNetworkValue(string name)
-{
-  if (!OperatingSystem.IsWindows())
-  {
+static string? ReadInstallerNetworkValue(string name) {
+  if (!OperatingSystem.IsWindows()) {
     return null;
   }
 
   const string subKey = @"Software\GameBot\Network";
 
   var currentUser = Registry.GetValue($@"HKEY_CURRENT_USER\{subKey}", name, null)?.ToString();
-  if (!string.IsNullOrWhiteSpace(currentUser))
-  {
+  if (!string.IsNullOrWhiteSpace(currentUser)) {
     return currentUser;
   }
 
   return null;
 }
 
-static string? TryFindVersioningDirectory()
-{
+static string? TryFindVersioningDirectory() {
   var directory = new DirectoryInfo(AppContext.BaseDirectory);
-  while (directory is not null)
-  {
+  while (directory is not null) {
     var candidate = Path.Combine(directory.FullName, "installer", "versioning");
-    if (Directory.Exists(candidate))
-    {
+    if (Directory.Exists(candidate)) {
       return candidate;
     }
 
@@ -791,112 +727,86 @@ static string? TryFindVersioningDirectory()
   return null;
 }
 
-static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq)
-{
+static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq) {
   var errs = new List<string>();
   // Validate blocks if present
-  if (seq.Blocks is { Count: > 0 })
-  {
-    foreach (var b in seq.Blocks)
-    {
+  if (seq.Blocks is { Count: > 0 }) {
+    foreach (var b in seq.Blocks) {
       ValidateBlock(b, errs, isTopLevel: true);
     }
   }
   return errs;
 }
 
-static void ValidateBlock(object blockObj, List<string> errs, bool isTopLevel)
-{
-  if (blockObj is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Object)
-  {
+static void ValidateBlock(object blockObj, List<string> errs, bool isTopLevel) {
+  if (blockObj is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Object) {
     string? type = null;
-    if (je.TryGetProperty("type", out var tProp) && tProp.ValueKind == System.Text.Json.JsonValueKind.String)
-    {
+    if (je.TryGetProperty("type", out var tProp) && tProp.ValueKind == System.Text.Json.JsonValueKind.String) {
       type = tProp.GetString();
     }
-    if (string.IsNullOrWhiteSpace(type))
-    {
+    if (string.IsNullOrWhiteSpace(type)) {
       errs.Add("Block missing required 'type'.");
       return;
     }
     var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "repeatCount", "repeatUntil", "while", "ifElse" };
-    if (!allowed.Contains(type))
-    {
+    if (!allowed.Contains(type)) {
       errs.Add($"Unsupported block type '{type}'.");
       return;
     }
 
     // Common: steps array for all but else-only
-    if (je.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
-    {
-      foreach (var item in stepsProp.EnumerateArray())
-      {
+    if (je.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
+      foreach (var item in stepsProp.EnumerateArray()) {
         // item can be a Step (object without 'type') or a nested Block (object with 'type')
-        if (item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("type", out var nestedType))
-        {
+        if (item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("type", out var nestedType)) {
           ValidateBlock(item, errs, isTopLevel: false);
         }
       }
     }
 
-    if (type.Equals("ifElse", StringComparison.OrdinalIgnoreCase))
-    {
-      if (!je.TryGetProperty("condition", out var cond) || cond.ValueKind != System.Text.Json.JsonValueKind.Object)
-      {
+    if (type.Equals("ifElse", StringComparison.OrdinalIgnoreCase)) {
+      if (!je.TryGetProperty("condition", out var cond) || cond.ValueKind != System.Text.Json.JsonValueKind.Object) {
         errs.Add("ifElse block requires 'condition'.");
       }
       // Validate elseSteps only for ifElse
-      if (je.TryGetProperty("elseSteps", out var elseProp) && elseProp.ValueKind == System.Text.Json.JsonValueKind.Array)
-      {
-        foreach (var item in elseProp.EnumerateArray())
-        {
-          if (item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("type", out var nestedType))
-          {
+      if (je.TryGetProperty("elseSteps", out var elseProp) && elseProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
+        foreach (var item in elseProp.EnumerateArray()) {
+          if (item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("type", out var nestedType)) {
             ValidateBlock(item, errs, isTopLevel: false);
           }
         }
       }
     }
-    else if (type.Equals("repeatUntil", StringComparison.OrdinalIgnoreCase) || type.Equals("while", StringComparison.OrdinalIgnoreCase))
-    {
-      if (!je.TryGetProperty("condition", out var cond) || cond.ValueKind != System.Text.Json.JsonValueKind.Object)
-      {
+    else if (type.Equals("repeatUntil", StringComparison.OrdinalIgnoreCase) || type.Equals("while", StringComparison.OrdinalIgnoreCase)) {
+      if (!je.TryGetProperty("condition", out var cond) || cond.ValueKind != System.Text.Json.JsonValueKind.Object) {
         errs.Add($"{type} block requires 'condition'.");
       }
       var hasTimeout = je.TryGetProperty("timeoutMs", out var to) && to.ValueKind == System.Text.Json.JsonValueKind.Number && to.GetInt32() >= 0;
       var hasMaxIter = je.TryGetProperty("maxIterations", out var mi) && mi.ValueKind == System.Text.Json.JsonValueKind.Number && mi.GetInt32() >= 1;
-      if (!hasTimeout && !hasMaxIter)
-      {
+      if (!hasTimeout && !hasMaxIter) {
         errs.Add($"{type} block must set 'timeoutMs' or 'maxIterations'.");
       }
-      if (je.TryGetProperty("cadenceMs", out var cadence) && cadence.ValueKind == System.Text.Json.JsonValueKind.Number)
-      {
+      if (je.TryGetProperty("cadenceMs", out var cadence) && cadence.ValueKind == System.Text.Json.JsonValueKind.Number) {
         var c = cadence.GetInt32();
-        if (c < 50 || c > 5000)
-        {
+        if (c < 50 || c > 5000) {
           errs.Add($"{type} cadenceMs out of bounds (50-5000): {c}.");
         }
       }
     }
-    else if (type.Equals("repeatCount", StringComparison.OrdinalIgnoreCase))
-    {
-      if (!je.TryGetProperty("maxIterations", out var mi) || mi.ValueKind != System.Text.Json.JsonValueKind.Number || mi.GetInt32() < 0)
-      {
+    else if (type.Equals("repeatCount", StringComparison.OrdinalIgnoreCase)) {
+      if (!je.TryGetProperty("maxIterations", out var mi) || mi.ValueKind != System.Text.Json.JsonValueKind.Number || mi.GetInt32() < 0) {
         errs.Add("repeatCount requires non-negative 'maxIterations'.");
       }
-      if (je.TryGetProperty("cadenceMs", out var cadence) && cadence.ValueKind == System.Text.Json.JsonValueKind.Number)
-      {
+      if (je.TryGetProperty("cadenceMs", out var cadence) && cadence.ValueKind == System.Text.Json.JsonValueKind.Number) {
         var c = cadence.GetInt32();
-        if (c != 0 && (c < 50 || c > 5000))
-        {
+        if (c != 0 && (c < 50 || c > 5000)) {
           errs.Add($"repeatCount cadenceMs must be 0 or within 50-5000: {c}.");
         }
       }
     }
 
     // If a non-ifElse block provides elseSteps, flag as error (T015)
-    if (!type.Equals("ifElse", StringComparison.OrdinalIgnoreCase) && je.TryGetProperty("elseSteps", out var elseAny) && elseAny.ValueKind == System.Text.Json.JsonValueKind.Array)
-    {
+    if (!type.Equals("ifElse", StringComparison.OrdinalIgnoreCase) && je.TryGetProperty("elseSteps", out var elseAny) && elseAny.ValueKind == System.Text.Json.JsonValueKind.Array) {
       errs.Add($"'elseSteps' is only valid for ifElse blocks, not '{type}'.");
     }
   }

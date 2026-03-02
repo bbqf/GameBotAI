@@ -9,11 +9,9 @@ using Xunit;
 namespace GameBot.IntegrationTests.ExecutionLogs;
 
 [Collection("ConfigIsolation")]
-public sealed class ExecutionHierarchyIntegrationTests
-{
+public sealed class ExecutionHierarchyIntegrationTests {
   [Fact]
-  public async Task NestedSequenceAndCommandPersistParentChildHierarchy()
-  {
+  public async Task NestedSequenceAndCommandPersistParentChildHierarchy() {
     TestEnvironment.PrepareCleanDataDir();
 
     using var app = new WebApplicationFactory<Program>();
@@ -29,8 +27,7 @@ public sealed class ExecutionHierarchyIntegrationTests
       new ExecutionLogContext { Depth = 0 },
       details: null).ConfigureAwait(false);
 
-    var parent = (await logService.QueryAsync(new ExecutionLogQuery
-    {
+    var parent = (await logService.QueryAsync(new ExecutionLogQuery {
       ObjectType = "sequence",
       ObjectId = "seq-parent",
       PageSize = 1
@@ -41,8 +38,7 @@ public sealed class ExecutionHierarchyIntegrationTests
       "Child Command",
       "success",
       Array.Empty<PrimitiveTapStepOutcome>(),
-      new ExecutionLogContext
-      {
+      new ExecutionLogContext {
         ParentExecutionId = parent.Id,
         RootExecutionId = parent.Hierarchy.RootExecutionId,
         ParentObjectType = "sequence",
@@ -51,8 +47,7 @@ public sealed class ExecutionHierarchyIntegrationTests
         SequenceIndex = 0
       }).ConfigureAwait(false);
 
-    var child = (await logService.QueryAsync(new ExecutionLogQuery
-    {
+    var child = (await logService.QueryAsync(new ExecutionLogQuery {
       ObjectType = "command",
       ObjectId = "cmd-child",
       PageSize = 1
@@ -65,8 +60,7 @@ public sealed class ExecutionHierarchyIntegrationTests
   }
 
   [Fact]
-  public async Task NestedCommandPersistsDirectAndParentNavigationPaths()
-  {
+  public async Task NestedCommandPersistsDirectAndParentNavigationPaths() {
     TestEnvironment.PrepareCleanDataDir();
 
     using var app = new WebApplicationFactory<Program>();
@@ -82,8 +76,7 @@ public sealed class ExecutionHierarchyIntegrationTests
       new ExecutionLogContext { Depth = 0 },
       details: null).ConfigureAwait(false);
 
-    var parent = (await logService.QueryAsync(new ExecutionLogQuery
-    {
+    var parent = (await logService.QueryAsync(new ExecutionLogQuery {
       ObjectType = "sequence",
       ObjectId = "seq-navigate",
       PageSize = 1
@@ -94,8 +87,7 @@ public sealed class ExecutionHierarchyIntegrationTests
       "Navigation Child",
       "failure",
       Array.Empty<PrimitiveTapStepOutcome>(),
-      new ExecutionLogContext
-      {
+      new ExecutionLogContext {
         ParentExecutionId = parent.Id,
         RootExecutionId = parent.Hierarchy.RootExecutionId,
         ParentObjectType = "sequence",
@@ -103,8 +95,7 @@ public sealed class ExecutionHierarchyIntegrationTests
         Depth = 1
       }).ConfigureAwait(false);
 
-    var child = (await logService.QueryAsync(new ExecutionLogQuery
-    {
+    var child = (await logService.QueryAsync(new ExecutionLogQuery {
       ObjectType = "command",
       ObjectId = "cmd-navigate",
       PageSize = 1

@@ -3,8 +3,7 @@ using GameBot.Service.Services;
 
 namespace GameBot.Service.Services.ExecutionLog;
 
-internal interface IExecutionLogService
-{
+internal interface IExecutionLogService {
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default);
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default);
   Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
@@ -16,15 +15,13 @@ internal interface IExecutionLogService
   Task<int> CleanupExpiredAsync(CancellationToken ct = default);
 }
 
-internal sealed class ExecutionLogService : IExecutionLogService
-{
+internal sealed class ExecutionLogService : IExecutionLogService {
   private readonly IExecutionLogRepository _repository;
   private readonly IExecutionLogRetentionPolicyRepository _retentionRepository;
 
   public ExecutionLogService(
     IExecutionLogRepository repository,
-    IExecutionLogRetentionPolicyRepository retentionRepository)
-  {
+    IExecutionLogRetentionPolicyRepository retentionRepository) {
     _repository = repository;
     _retentionRepository = retentionRepository;
   }
@@ -35,15 +32,13 @@ internal sealed class ExecutionLogService : IExecutionLogService
       commandName,
       finalStatus,
       primitiveOutcomes,
-      new ExecutionLogContext
-      {
+      new ExecutionLogContext {
         ParentExecutionId = parentExecutionId,
         Depth = depth
       },
       ct).ConfigureAwait(false);
 
-  public async Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default)
-  {
+  public async Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default) {
     var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     var now = DateTimeOffset.UtcNow;
 
@@ -57,28 +52,23 @@ internal sealed class ExecutionLogService : IExecutionLogService
       .ToList();
 
     var details = new List<ExecutionDetailItem>();
-    foreach (var outcome in primitiveOutcomes)
-    {
-      if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) && outcome.ResolvedPoint is not null)
-      {
+    foreach (var outcome in primitiveOutcomes) {
+      if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) && outcome.ResolvedPoint is not null) {
         details.Add(new ExecutionDetailItem(
           "tap",
           $"Tap executed at ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}).",
-          new Dictionary<string, object?>
-          {
+          new Dictionary<string, object?> {
             ["x"] = outcome.ResolvedPoint.X,
             ["y"] = outcome.ResolvedPoint.Y,
             ["confidence"] = outcome.DetectionConfidence
           },
           "normal"));
       }
-      else
-      {
+      else {
         details.Add(new ExecutionDetailItem(
           "step",
           $"Step {outcome.StepOrder} was not executed: {outcome.Reason ?? outcome.Status}",
-          new Dictionary<string, object?>
-          {
+          new Dictionary<string, object?> {
             ["reasonCode"] = outcome.Status,
             ["reason"] = outcome.Reason
           },
@@ -86,8 +76,7 @@ internal sealed class ExecutionLogService : IExecutionLogService
       }
     }
 
-    var entry = new ExecutionLogEntry
-    {
+    var entry = new ExecutionLogEntry {
       TimestampUtc = now,
       ExecutionType = "command",
       FinalStatus = NormalizeStatus(finalStatus),
@@ -109,21 +98,18 @@ internal sealed class ExecutionLogService : IExecutionLogService
       sequenceName,
       finalStatus,
       summary,
-      new ExecutionLogContext
-      {
+      new ExecutionLogContext {
         ParentExecutionId = parentExecutionId,
         Depth = depth
       },
       details,
       ct).ConfigureAwait(false);
 
-  public async Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default)
-  {
+  public async Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) {
     var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     var now = DateTimeOffset.UtcNow;
 
-    var entry = new ExecutionLogEntry
-    {
+    var entry = new ExecutionLogEntry {
       TimestampUtc = now,
       ExecutionType = "sequence",
       FinalStatus = NormalizeStatus(finalStatus),
@@ -148,11 +134,9 @@ internal sealed class ExecutionLogService : IExecutionLogService
   public Task<ExecutionLogRetentionPolicy> GetRetentionAsync(CancellationToken ct = default)
     => _retentionRepository.GetAsync(ct);
 
-  public async Task<ExecutionLogRetentionPolicy> UpdateRetentionAsync(bool enabled, int? retentionDays, int? cleanupIntervalMinutes, CancellationToken ct = default)
-  {
+  public async Task<ExecutionLogRetentionPolicy> UpdateRetentionAsync(bool enabled, int? retentionDays, int? cleanupIntervalMinutes, CancellationToken ct = default) {
     var current = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
-    var updated = new ExecutionLogRetentionPolicy
-    {
+    var updated = new ExecutionLogRetentionPolicy {
       Enabled = enabled,
       RetentionDays = retentionDays ?? current.RetentionDays,
       CleanupIntervalMinutes = cleanupIntervalMinutes ?? current.CleanupIntervalMinutes,
@@ -161,8 +145,7 @@ internal sealed class ExecutionLogService : IExecutionLogService
     return await _retentionRepository.SaveAsync(updated, ct).ConfigureAwait(false);
   }
 
-  public async Task<int> CleanupExpiredAsync(CancellationToken ct = default)
-  {
+  public async Task<int> CleanupExpiredAsync(CancellationToken ct = default) {
     var policy = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     if (!policy.Enabled) return 0;
     return await _repository.DeleteExpiredAsync(DateTimeOffset.UtcNow, ct).ConfigureAwait(false);
@@ -171,14 +154,12 @@ internal sealed class ExecutionLogService : IExecutionLogService
   private static string NormalizeStatus(string status)
     => string.Equals(status, "success", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
 
-  private static string TrimSummary(string summary)
-  {
+  private static string TrimSummary(string summary) {
     var text = string.IsNullOrWhiteSpace(summary) ? "Execution completed." : summary.Trim();
     return text.Length <= 240 ? text : text[..240];
   }
 
-  private static IReadOnlyList<ExecutionDetailItem> TrimDetails(IReadOnlyList<ExecutionDetailItem> details)
-  {
+  private static IReadOnlyList<ExecutionDetailItem> TrimDetails(IReadOnlyList<ExecutionDetailItem> details) {
     if (details.Count <= 10) return details;
     var trimmed = details.Take(9).ToList();
     trimmed.Add(new ExecutionDetailItem("meta", "Additional details were truncated.", null, "normal"));

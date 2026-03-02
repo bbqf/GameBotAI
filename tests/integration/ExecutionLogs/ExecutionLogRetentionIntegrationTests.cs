@@ -8,11 +8,9 @@ using Xunit;
 namespace GameBot.IntegrationTests.ExecutionLogs;
 
 [Collection("ConfigIsolation")]
-public sealed class ExecutionLogRetentionIntegrationTests
-{
+public sealed class ExecutionLogRetentionIntegrationTests {
   [Fact]
-  public async Task RetentionPolicyUpdatePersistsAndCleanupDeletesExpiredEntries()
-  {
+  public async Task RetentionPolicyUpdatePersistsAndCleanupDeletesExpiredEntries() {
     TestEnvironment.PrepareCleanDataDir();
 
     using var app = new WebApplicationFactory<Program>();
@@ -32,8 +30,7 @@ public sealed class ExecutionLogRetentionIntegrationTests
     persisted.RetentionDays.Should().Be(3);
     persisted.CleanupIntervalMinutes.Should().Be(5);
 
-    var expired = new ExecutionLogEntry
-    {
+    var expired = new ExecutionLogEntry {
       Id = "expired-entry-001",
       TimestampUtc = DateTimeOffset.UtcNow.AddDays(-10),
       ExecutionType = "command",

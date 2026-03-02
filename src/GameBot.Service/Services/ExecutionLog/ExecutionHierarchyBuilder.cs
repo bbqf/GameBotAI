@@ -2,10 +2,8 @@ using GameBot.Domain.Logging;
 
 namespace GameBot.Service.Services.ExecutionLog;
 
-internal static class ExecutionHierarchyBuilder
-{
-  public static ExecutionHierarchyContext Build(ExecutionLogContext? context)
-  {
+internal static class ExecutionHierarchyBuilder {
+  public static ExecutionHierarchyContext Build(ExecutionLogContext? context) {
     var parentExecutionId = NullIfWhiteSpace(context?.ParentExecutionId);
     var rootExecutionId = NullIfWhiteSpace(context?.RootExecutionId)
                           ?? parentExecutionId

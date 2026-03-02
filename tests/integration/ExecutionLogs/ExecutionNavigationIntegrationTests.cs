@@ -8,11 +8,9 @@ using Xunit;
 namespace GameBot.IntegrationTests.ExecutionLogs;
 
 [Collection("ConfigIsolation")]
-public sealed class ExecutionNavigationIntegrationTests
-{
+public sealed class ExecutionNavigationIntegrationTests {
   [Fact]
-  public async Task StandaloneSequenceHasDirectPathAndNoParentPath()
-  {
+  public async Task StandaloneSequenceHasDirectPathAndNoParentPath() {
     TestEnvironment.PrepareCleanDataDir();
 
     using var app = new WebApplicationFactory<Program>();
@@ -28,8 +26,7 @@ public sealed class ExecutionNavigationIntegrationTests
       new ExecutionLogContext { Depth = 0 },
       details: null).ConfigureAwait(false);
 
-    var sequence = (await logService.QueryAsync(new ExecutionLogQuery
-    {
+    var sequence = (await logService.QueryAsync(new ExecutionLogQuery {
       ObjectType = "sequence",
       ObjectId = "seq-alone",
       PageSize = 1

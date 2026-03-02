@@ -156,7 +156,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
         // If the command includes a detection target, attempt to resolve coordinates for tap actions
         if (cmd.Detection is not null && OperatingSystem.IsWindows()) {
           try {
-            #nullable disable
+#nullable disable
             var detection = cmd.Detection!;
             var screenSrc = _screen;
             var images = _images;
@@ -176,20 +176,20 @@ internal sealed class CommandExecutor : ICommandExecutor {
               if (matcher is null) { Log.DetectionSkip(_logger, "matcher_unavailable"); }
               else {
                 var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
-              foreach (var inp in inputs) {
-                var ok = adapter.TryApplyDetectionCoordinates(
-                  new GameBot.Domain.Actions.InputAction { Type = inp.Type, Args = inp.Args, DelayMs = inp.DelayMs, DurationMs = inp.DurationMs },
-                  detection,
-                  screenMat,
-                  templateMat,
-                  detection.Confidence,
-                  out var err);
-                if (!ok && err is not null) { Log.DetectionSkip(_logger, err); }
-              }
+                foreach (var inp in inputs) {
+                  var ok = adapter.TryApplyDetectionCoordinates(
+                    new GameBot.Domain.Actions.InputAction { Type = inp.Type, Args = inp.Args, DelayMs = inp.DelayMs, DurationMs = inp.DurationMs },
+                    detection,
+                    screenMat,
+                    templateMat,
+                    detection.Confidence,
+                    out var err);
+                  if (!ok && err is not null) { Log.DetectionSkip(_logger, err); }
+                }
               }
               screenMat.Dispose();
               templateMat.Dispose();
-              #nullable restore
+#nullable restore
             }
           }
           catch (Exception ex) {

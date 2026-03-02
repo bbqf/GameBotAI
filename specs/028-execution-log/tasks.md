@@ -123,7 +123,7 @@
 
 - [X] T045 [P] Update execution-log usage and validation steps in specs/028-execution-log/quickstart.md
 - [X] T046 [P] Add implementation validation evidence and privacy checks in docs/validation.md
-- [ ] T047 Run .NET format verification for touched code via GameBot.sln
+- [x] T047 Run .NET format verification for touched code via GameBot.sln
 - [X] T048 Run static analysis build (warnings reviewed/justified) via GameBot.sln
 - [X] T049 Run backend tests and analyze results with scripts/analyze-test-results.ps1
 - [X] T050 Collect touched-area coverage report (>=80% line, >=70% branch) in tools/coverage/

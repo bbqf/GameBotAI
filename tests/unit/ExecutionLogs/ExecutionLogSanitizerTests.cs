@@ -5,11 +5,9 @@ using Xunit;
 
 namespace GameBot.UnitTests.ExecutionLogs;
 
-public sealed class ExecutionLogSanitizerTests
-{
+public sealed class ExecutionLogSanitizerTests {
   [Fact]
-  public void SanitizeDetailsRedactsSensitiveKeys()
-  {
+  public void SanitizeDetailsRedactsSensitiveKeys() {
     var details = new[]
     {
       new ExecutionDetailItem(
@@ -35,8 +33,7 @@ public sealed class ExecutionLogSanitizerTests
   }
 
   [Fact]
-  public void SanitizeDetailsKeepsSensitivityWhenNoSensitiveKeys()
-  {
+  public void SanitizeDetailsKeepsSensitivityWhenNoSensitiveKeys() {
     var details = new[]
     {
       new ExecutionDetailItem(
