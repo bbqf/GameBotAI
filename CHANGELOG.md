@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-02]
+
+### Added
+- Execution Logs top-level navigation tab between `Execution` and `Configuration`.
+- Execution Logs list page with sortable columns (`timestamp`, `objectName`, `status`) and per-column text filters.
+- Readable execution detail view with summary, related objects, snapshot availability, and step outcomes (no raw JSON rendering).
+- Responsive behavior for desktop split-pane and phone drill-down flow with preserved list state.
+- Timestamp display mode toggle (exact local default, switchable relative) and latest-request-wins coordination under rapid query changes.
+- Backend performance integration test for 1,000-log datasets with strict local and CI-relaxed p95 profiles.
+
+### Changed
+- Execution log repository query path now uses an in-memory index loaded once and incrementally updated, reducing repeated disk-deserialization overhead on list requests.
+
+### Tests
+- Added/updated coverage across unit, integration, contract, and web-ui tests for execution logs query/detail/responsive behavior.
+
 ## [2025-12-17]
 
 ### Added

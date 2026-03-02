@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace GameBot.Domain.Logging;
@@ -7,6 +8,8 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
 {
   private readonly string _dir;
   private readonly SemaphoreSlim _mutex = new(1, 1);
+  private ImmutableArray<ExecutionLogEntry> _entries = ImmutableArray<ExecutionLogEntry>.Empty;
+  private bool _entriesLoaded;
   private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
   {
     WriteIndented = true
@@ -27,6 +30,10 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
     {
       using var fs = File.Create(path);
       await JsonSerializer.SerializeAsync(fs, entry, JsonOptions, ct).ConfigureAwait(false);
+      if (_entriesLoaded)
+      {
+        _entries = _entries.Add(entry);
+      }
     }
     finally
     {
@@ -47,14 +54,12 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
   {
     query ??= new ExecutionLogQuery();
     var pageSize = Math.Clamp(query.PageSize <= 0 ? 50 : query.PageSize, 1, 200);
+    await EnsureEntriesLoadedAsync(ct).ConfigureAwait(false);
 
     var entries = new List<ExecutionLogEntry>();
-    foreach (var file in Directory.EnumerateFiles(_dir, "*.json"))
+    foreach (var item in _entries)
     {
       ct.ThrowIfCancellationRequested();
-      using var fs = File.OpenRead(file);
-      var item = await JsonSerializer.DeserializeAsync<ExecutionLogEntry>(fs, JsonOptions, ct).ConfigureAwait(false);
-      if (item is null) continue;
       if (query.FromUtc.HasValue && item.TimestampUtc < query.FromUtc.Value) continue;
       if (query.ToUtc.HasValue && item.TimestampUtc > query.ToUtc.Value) continue;
       if (!string.IsNullOrWhiteSpace(query.FinalStatus) && !string.Equals(item.FinalStatus, query.FinalStatus, StringComparison.OrdinalIgnoreCase)) continue;
@@ -109,25 +114,31 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
 
   public async Task<int> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken ct = default)
   {
+    await EnsureEntriesLoadedAsync(ct).ConfigureAwait(false);
     var deleted = 0;
-    foreach (var file in Directory.EnumerateFiles(_dir, "*.json"))
+    var remaining = ImmutableArray.CreateBuilder<ExecutionLogEntry>(_entries.Length);
+    foreach (var entry in _entries)
     {
       ct.ThrowIfCancellationRequested();
-      try
+      if (entry.RetentionExpiresUtc <= nowUtc)
       {
-        var text = await File.ReadAllTextAsync(file, ct).ConfigureAwait(false);
-        var entry = JsonSerializer.Deserialize<ExecutionLogEntry>(text, JsonOptions);
-        if (entry is null) continue;
-        if (entry.RetentionExpiresUtc <= nowUtc)
+        try
         {
+          var file = Path.Combine(_dir, entry.Id + ".json");
           File.Delete(file);
           deleted++;
         }
+        catch
+        {
+        }
       }
-      catch
+      else
       {
+        remaining.Add(entry);
       }
     }
+
+    _entries = remaining.ToImmutable();
 
     return deleted;
   }
@@ -144,5 +155,41 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
   {
     var local = timestampUtc.ToLocalTime();
     return $"{local:O} {local:G} {local:g}";
+  }
+
+  private async Task EnsureEntriesLoadedAsync(CancellationToken ct)
+  {
+    if (_entriesLoaded)
+    {
+      return;
+    }
+
+    await _mutex.WaitAsync(ct).ConfigureAwait(false);
+    try
+    {
+      if (_entriesLoaded)
+      {
+        return;
+      }
+
+      var loaded = ImmutableArray.CreateBuilder<ExecutionLogEntry>();
+      foreach (var file in Directory.EnumerateFiles(_dir, "*.json"))
+      {
+        ct.ThrowIfCancellationRequested();
+        using var fs = File.OpenRead(file);
+        var item = await JsonSerializer.DeserializeAsync<ExecutionLogEntry>(fs, JsonOptions, ct).ConfigureAwait(false);
+        if (item is not null)
+        {
+          loaded.Add(item);
+        }
+      }
+
+      _entries = loaded.ToImmutable();
+      _entriesLoaded = true;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
   }
 }

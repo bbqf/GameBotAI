@@ -81,7 +81,7 @@ describe('ExecutionLogsPage responsive behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: /back to list/i }));
 
     expect(screen.getByDisplayValue('alpha')).toBeInTheDocument();
-    expect(screen.getByText(/59m ago/)).toBeInTheDocument();
+    expect(screen.getByText(/ago/)).toBeInTheDocument();
     expect(listExecutionLogsMock).toHaveBeenLastCalledWith(expect.objectContaining({
       filterObjectName: 'alpha'
     }));

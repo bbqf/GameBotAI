@@ -12,6 +12,9 @@
    - Run workspace task `build` (`dotnet build -c Debug`).
 2. Run tests:
    - Run workspace task `test` (`dotnet test -c Debug`).
+3. Capture baseline evidence in this file and `docs/regression-pass.md`:
+   - Record date/time, commands executed, and pass/fail summary.
+   - Include artifact/output references (TRX path, console snippet, or test output file).
 
 ## 2) Run service and web UI
 
@@ -51,6 +54,12 @@
   - First open list load: `<200ms`
   - Filter/sort update: `<450ms`
 - Fail CI when thresholds are exceeded at p95.
+- The integration test `tests/integration/ExecutionLogs/ExecutionLogsPerformanceIntegrationTests.cs`
+   supports this via environment profile:
+   - Local/default strict mode: `GAMEBOT_PERF_PROFILE` unset (asserts `<100ms` and `<300ms`).
+   - CI relaxed mode: set `GAMEBOT_PERF_PROFILE=ci` (asserts `<200ms` and `<450ms`).
+- Suggested CI hook command:
+   - `dotnet test .\tests\integration\GameBot.IntegrationTests.csproj -c Debug --filter "FullyQualifiedName~ExecutionLogsPerformanceIntegrationTests"`
 
 ## 6) Non-functional checks
 

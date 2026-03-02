@@ -97,8 +97,9 @@ export const ExecutionLogsPage: React.FC = () => {
         setNextPageToken(undefined);
         setError(err?.message ?? 'Failed to load execution logs');
       } finally {
-        if (!isMounted || requestId !== listRequestId.current) return;
-        setLoadingList(false);
+        if (isMounted && requestId === listRequestId.current) {
+          setLoadingList(false);
+        }
       }
     };
 
@@ -126,8 +127,9 @@ export const ExecutionLogsPage: React.FC = () => {
         setDetail(undefined);
         setDetailError(err?.message ?? 'Failed to load execution detail');
       } finally {
-        if (!isMounted || requestId !== detailRequestId.current) return;
-        setLoadingDetail(false);
+        if (isMounted && requestId === detailRequestId.current) {
+          setLoadingDetail(false);
+        }
       }
     };
 
