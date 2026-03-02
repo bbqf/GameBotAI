@@ -73,4 +73,21 @@ public sealed class OpenApiContractTests : IDisposable {
     requestBody.TryGetProperty("content", out var content).Should().BeTrue();
     content.TryGetProperty("application/json", out _).Should().BeTrue();
   }
+
+  [Fact]
+  public async Task SwaggerDocumentIncludesExecutionLogListAndDetailEndpoints() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
+    resp.EnsureSuccessStatusCode();
+
+    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+    var paths = doc.RootElement.GetProperty("paths");
+
+    paths.TryGetProperty("/api/execution-logs", out var listPath).Should().BeTrue();
+    listPath.TryGetProperty("get", out _).Should().BeTrue();
+
+    paths.TryGetProperty("/api/execution-logs/{id}", out var detailPath).Should().BeTrue();
+    detailPath.TryGetProperty("get", out _).Should().BeTrue();
+  }
 }

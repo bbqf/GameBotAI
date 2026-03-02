@@ -45,11 +45,11 @@
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Add unit tests for execution entry mapping and required fields in tests/unit/ExecutionLogs/ExecutionLogEntryMappingTests.cs
-- [ ] T014 [P] [US1] Add integration tests for command execution log persistence in tests/integration/ExecutionLogs/CommandExecutionLoggingIntegrationTests.cs
-- [ ] T015 [P] [US1] Add integration tests for sequence execution log persistence in tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs
-- [ ] T016 [P] [US1] Add contract tests for execution-log list/detail endpoints in tests/contract/OpenApiContractTests.cs
-- [ ] T017 [P] [US1] Add integration test for historical log actionability after object rename/delete in tests/integration/ExecutionLogs/ExecutionLogObjectSnapshotIntegrationTests.cs
+- [X] T013 [P] [US1] Add unit tests for execution entry mapping and required fields in tests/unit/ExecutionLogs/ExecutionLogEntryMappingTests.cs
+- [X] T014 [P] [US1] Add integration tests for command execution log persistence in tests/integration/ExecutionLogs/CommandExecutionLoggingIntegrationTests.cs
+- [X] T015 [P] [US1] Add integration tests for sequence execution log persistence in tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs
+- [X] T016 [P] [US1] Add contract tests for execution-log list/detail endpoints in tests/contract/OpenApiContractTests.cs
+- [X] T017 [P] [US1] Add integration test for historical log actionability after object rename/delete in tests/integration/ExecutionLogs/ExecutionLogObjectSnapshotIntegrationTests.cs
 
 ### Implementation for User Story 1
 
