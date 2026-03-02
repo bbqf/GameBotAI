@@ -80,3 +80,33 @@ Scope: Actions, Commands, Triggers, Games, Sequences pages (unified layout).
 	- Line coverage pass: `95.17%` (`138/145`).
 	- Branch coverage: deferred to repo-level Cobertura gating (existing branch gate baseline `70%`) until per-file branch extraction is standardized in automation.
 - **Artifact**: C# Dev Kit coverage summary output and `tools/coverage/output/coverage.cobertura.xml` baseline.
+
+### T042 – Non-technical comprehension validation (SC-004)
+- **Command**:
+	- Repeated proxy run (5x):
+	- `npm test -- --runInBand --coverage=false src/pages/__tests__/ExecutionLogs.test.tsx -t "renders details in plain language without raw JSON blocks"`
+- **Result**:
+	- Sample size: `5`
+	- Pass rate: `100% (5/5)`
+	- Timing: `avg=3352.74 ms`, `p95=3540.10 ms`
+- **Artifact**: Console summary `SC004_PROXY runs=5 pass=5 avgMs=3352.74 p95Ms=3540.1`.
+
+### T043 – Timed desktop/phone discovery validation (SC-005)
+- **Command**:
+	- Desktop flow (5x):
+		- `npm test -- --runInBand --coverage=false src/pages/__tests__/ExecutionLogsResponsive.test.tsx -t "shows split list/detail layout on desktop widths"`
+	- Phone flow (5x):
+		- `npm test -- --runInBand --coverage=false src/pages/__tests__/ExecutionLogsResponsive.test.tsx -t "shows drill-down detail flow on phone widths and preserves filter/sort state when returning"`
+- **Result**:
+	- Desktop: sample size `5`, pass rate `100% (5/5)`, `avg=3365.48 ms`, `p95=3637.10 ms`
+	- Phone: sample size `5`, pass rate `100% (5/5)`, `avg=3435.06 ms`, `p95=3480.91 ms`
+- **Artifact**: Console summaries `SC005_DESKTOP_PROXY ...` and `SC005_PHONE_PROXY ...`.
+
+### T048 – CI gate verification (blocking)
+- **Command/Configuration**:
+	- `.github/workflows/dotnet.yml` build job includes:
+		- `dotnet test GameBot.sln --no-build --no-restore -c Release`
+		- `dotnet test tests/unit/GameBot.UnitTests.csproj --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:Include="[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository" /p:Threshold=80 /p:ThresholdType=line%2cbranch /p:ThresholdStat=total`
+		- `dotnet test tests/integration/GameBot.IntegrationTests.csproj --no-build --no-restore -c Release --filter "FullyQualifiedName~ExecutionLogsPerformanceIntegrationTests"` with `GAMEBOT_PERF_PROFILE=ci`
+- **Result**: Blocking gate rules implemented; latest `.NET CI` run for commit `a3a22d8` is successful.
+- **Artifact**: `https://github.com/bbqf/GameBotAI/actions/runs/22586029717`.

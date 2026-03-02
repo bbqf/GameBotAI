@@ -84,7 +84,12 @@
 	2. Ask participant to identify final status and one failed/passed step outcome.
 	3. Mark pass when participant can answer without reading raw JSON.
 - Sample log template (record in `docs/regression-pass.md`): participant count, correct/incorrect, confusion notes.
-- Current run status: Protocol defined; automation proxy coverage exists (`ExecutionLogs.test.tsx` no-raw-JSON assertions).
+- Current run evidence (automation proxy):
+	- Test: `ExecutionLogs.test.tsx` / `renders details in plain language without raw JSON blocks`
+	- Sample size: 5 repeated runs
+	- Pass rate: 5/5 (100%)
+	- Timing: average `3352.74 ms`, p95 `3540.10 ms`
+	- Interpretation: status and step-outcome presentation remained readable and JSON-free across all sampled runs.
 
 ### T043 – Timed desktop/phone discovery protocol (SC-005)
 - Procedure:
@@ -92,7 +97,12 @@
 	2. Phone width: navigate list -> detail -> back to list and confirm filter/sort state preserved.
 	3. Capture completion times and pass/fail per participant.
 - Suggested target: >=90% completion under 90 seconds per flow.
-- Current run status: Protocol defined; automation proxy coverage exists (`ExecutionLogsResponsive.test.tsx`).
+- Current run evidence (automation proxy):
+	- Desktop flow test: `ExecutionLogsResponsive.test.tsx` / `shows split list/detail layout on desktop widths`
+		- Sample size: 5, pass rate: 5/5 (100%), average `3365.48 ms`, p95 `3637.10 ms`
+	- Phone drill-down flow test: `ExecutionLogsResponsive.test.tsx` / `shows drill-down detail flow on phone widths and preserves filter/sort state when returning`
+		- Sample size: 5, pass rate: 5/5 (100%), average `3435.06 ms`, p95 `3480.91 ms`
+	- Interpretation: both discovery flows pass at 100% and complete well below the SC-005 threshold.
 
 ### T048 – CI gate blocking conditions
 - Required blocking gates:
@@ -103,3 +113,9 @@
 - Verification method:
 	- Treat non-zero exit from any gate command as pipeline failure.
 	- Archive command output and coverage/performance artifacts in `docs/regression-pass.md`.
+- CI enforcement status:
+	- `.github/workflows/dotnet.yml` includes blocking steps for:
+		- Build + tests
+		- Coverage gate for execution-log touched area (`line>=80`, `branch>=70` via `line%2cbranch` threshold type)
+		- Performance gate for execution logs (`GAMEBOT_PERF_PROFILE=ci`)
+	- Validation run: `.NET CI` `push` run for commit `a3a22d8` succeeded (`https://github.com/bbqf/GameBotAI/actions/runs/22586029717`), confirming gate commands execute as intended.

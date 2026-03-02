@@ -129,13 +129,13 @@
 - [X] T039 [P] Add CI-relaxed performance assertions and pipeline hook documentation in C:\src\GameBot\specs\029-execution-logs-tab\quickstart.md and C:\src\GameBot\docs\validation.md
 - [X] T040 Run full verify (`build`, `test`, and execution logs scenarios) and record evidence in C:\src\GameBot\docs\regression-pass.md
 - [X] T041 [P] Update feature docs and release notes for new tab behavior in C:\src\GameBot\CHANGELOG.md and C:\src\GameBot\docs\ui-audit.md
-- [ ] T042 [P] Define and run non-technical usability validation for status/step-outcome comprehension (SC-004) in C:\src\GameBot\docs\validation.md and C:\src\GameBot\docs\regression-pass.md
-- [ ] T043 [P] Define and run timed desktop/phone task-completion validation for execution discovery (SC-005) in C:\src\GameBot\docs\validation.md and C:\src\GameBot\docs\regression-pass.md
+- [X] T042 [P] Define and run non-technical usability validation for status/step-outcome comprehension (SC-004) in C:\src\GameBot\docs\validation.md and C:\src\GameBot\docs\regression-pass.md
+- [X] T043 [P] Define and run timed desktop/phone task-completion validation for execution discovery (SC-005) in C:\src\GameBot\docs\validation.md and C:\src\GameBot\docs\regression-pass.md
 - [X] T044 [P] Add frontend lint/format gate execution task and evidence capture in C:\src\GameBot\docs\regression-pass.md
 - [ ] T045 [P] Add backend format/static-analysis gate execution task and evidence capture in C:\src\GameBot\docs\regression-pass.md
 - [X] T046 [P] Add security scan (SAST/secret scan) execution task and evidence capture in C:\src\GameBot\docs\regression-pass.md
 - [X] T047 [P] Add coverage threshold verification task (>=80% line, >=70% branch for touched areas) in C:\src\GameBot\docs\regression-pass.md
-- [ ] T048 [P] Add CI gate verification task for test/coverage/performance blocking conditions in C:\src\GameBot\docs\validation.md
+- [X] T048 [P] Add CI gate verification task for test/coverage/performance blocking conditions in C:\src\GameBot\docs\validation.md
 
 **Per-Task Done Criteria**:
 
