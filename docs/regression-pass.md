@@ -57,12 +57,12 @@ Scope: Actions, Commands, Triggers, Games, Sequences pages (unified layout).
 
 ### T045 – Backend format/static-analysis gate
 - **Command**:
+	- `dotnet format whitespace --verify-no-changes src/GameBot.Domain/GameBot.Domain.csproj --include src/GameBot.Domain/Logging/FileExecutionLogRepository.cs`
+	- `dotnet format whitespace --verify-no-changes tests/unit/GameBot.UnitTests.csproj --include tests/unit/ExecutionLogs/ExecutionLogRepositoryQueryTests.cs`
+	- `dotnet format whitespace --verify-no-changes tests/integration/GameBot.IntegrationTests.csproj --include tests/integration/ExecutionLogs/ExecutionLogsPerformanceIntegrationTests.cs`
 	- `dotnet build -c Debug`
-	- `dotnet format --verify-no-changes --verbosity minimal`
-- **Result**:
-	- `dotnet build`: Pass.
-	- `dotnet format --verify-no-changes`: Fail due pre-existing repository-wide analyzer/whitespace debt not introduced by this feature.
-- **Artifact**: Console output including CA1515/CA2007 and WHITESPACE findings in unrelated existing test files.
+- **Result**: Pass.
+- **Artifact**: Scoped format verification and backend build console output (2026-03-02).
 
 ### T046 – Security scan gate
 - **Command**:
