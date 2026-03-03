@@ -119,3 +119,18 @@
 		- Coverage gate for execution-log touched area (`line>=80`, `branch>=70` via `line%2cbranch` threshold type)
 		- Performance gate for execution logs (`GAMEBOT_PERF_PROFILE=ci`)
 	- Validation run: `.NET CI` `push` run for commit `a3a22d8` succeeded (`https://github.com/bbqf/GameBotAI/actions/runs/22586029717`), confirming gate commands execute as intended.
+
+## Conditional Flow Phase 6 Validation (2026-03-03)
+
+- **Regression compatibility (T050)**:
+	- Added `tests/integration/Sequences/LegacySequenceCompatibilityIntegrationTests.cs` to verify legacy linear `steps: string[]` create/get/execute behavior remains intact.
+- **Performance validation (T051)**:
+	- Added `tests/integration/Sequences/ConditionalExecutionPerformanceIntegrationTests.cs` asserting conditional-step p95 latency stays within `<=200 ms` under `10` concurrent executions with `50` command steps and `10` conditional steps.
+- **OpenAPI backward compatibility (T052)**:
+	- Extended `tests/contract/OpenApiBackwardCompatTests.cs` to assert conditional sequence routes and schemas remain published in Swagger.
+- **Quality gates in analyzer script (T053/T054)**:
+	- `scripts/analyze-test-results.ps1` now supports optional `-VerifyCoverage` (Cobertura thresholds) and `-VerifySecurity` (`dotnet list --vulnerable`, `npm audit`, installer secret scans).
+- **Full verification run (T056)**:
+	- `dotnet test -c Debug --logger trx --results-directory TestResults` passed (`362/362`).
+	- `powershell -NoProfile -File scripts/analyze-test-results.ps1 -ResultsDir TestResults -LatestOnly -VerifySecurity` passed.
+	- Security verification reported no dependency vulnerabilities or secret-scan findings.

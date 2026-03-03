@@ -151,13 +151,13 @@
 
 **Purpose**: Final regression, performance, and documentation alignment across all stories.
 
-- [ ] T050 [P] Add regression integration test for legacy non-conditional sequence compatibility in tests/integration/Sequences/LegacySequenceCompatibilityIntegrationTests.cs
-- [ ] T051 [P] Add performance validation test for conditional-step p95 latency target using NFR-002 normal-load profile in tests/integration/Sequences/ConditionalExecutionPerformanceIntegrationTests.cs
-- [ ] T052 Update OpenAPI/contract regression assertions for sequence conditional flow in tests/contract/OpenApiBackwardCompatTests.cs
-- [ ] T053 Add coverage gate verification step (>=80% line, >=70% branch on touched areas) in scripts/analyze-test-results.ps1
-- [ ] T054 Add security scan verification step (SAST + secret scan evidence capture) in scripts/analyze-test-results.ps1
-- [ ] T055 Update validation and rollout notes for conditional flow in docs/validation.md
-- [ ] T056 Execute full verification run and record outcomes in specs/030-sequence-conditional-logic/quickstart.md
+- [x] T050 [P] Add regression integration test for legacy non-conditional sequence compatibility in tests/integration/Sequences/LegacySequenceCompatibilityIntegrationTests.cs
+- [x] T051 [P] Add performance validation test for conditional-step p95 latency target using NFR-002 normal-load profile in tests/integration/Sequences/ConditionalExecutionPerformanceIntegrationTests.cs
+- [x] T052 Update OpenAPI/contract regression assertions for sequence conditional flow in tests/contract/OpenApiBackwardCompatTests.cs
+- [x] T053 Add coverage gate verification step (>=80% line, >=70% branch on touched areas) in scripts/analyze-test-results.ps1
+- [x] T054 Add security scan verification step (SAST + secret scan evidence capture) in scripts/analyze-test-results.ps1
+- [x] T055 Update validation and rollout notes for conditional flow in docs/validation.md
+- [x] T056 Execute full verification run and record outcomes in specs/030-sequence-conditional-logic/quickstart.md
 
 ---
 
