@@ -22,7 +22,12 @@ public sealed record ExecutionStepOutcome(
   string StepType,
   string Outcome,
   string? ReasonCode,
-  string? ReasonText);
+  string? ReasonText,
+  string? SequenceId = null,
+  string? StepId = null,
+  string? SequenceLabel = null,
+  string? StepLabel = null,
+  ConditionEvaluationTrace? ConditionTrace = null);
 
 public sealed record ExecutionDetailItem(
   string Kind,

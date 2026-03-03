@@ -40,11 +40,35 @@ export type ExecutionLogSnapshotDto = {
 };
 
 export type ExecutionLogStepOutcomeDto = {
+  sequenceId?: string;
+  sequenceLabel?: string;
+  stepId?: string;
+  stepLabel?: string;
   stepName: string;
   status: string;
   message: string;
+  deepLink?: ExecutionLogStepDeepLinkDto;
+  conditionTrace?: ExecutionLogConditionTraceDto;
   startedAtUtc?: string;
   endedAtUtc?: string;
+};
+
+export type ExecutionLogStepDeepLinkDto = {
+  sequenceId: string;
+  stepId?: string;
+  sequenceLabel: string;
+  stepLabel: string;
+  resolutionStatus: 'resolved' | 'step_missing' | 'sequence_missing';
+  directPath: string;
+  fallbackRoute?: string;
+};
+
+export type ExecutionLogConditionTraceDto = {
+  finalResult: boolean;
+  selectedBranch: string;
+  failureReason?: string;
+  operandResults: Record<string, unknown>[];
+  operatorSteps: Record<string, unknown>[];
 };
 
 export type ExecutionLogDetailDto = {

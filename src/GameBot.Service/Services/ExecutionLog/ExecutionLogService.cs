@@ -1,5 +1,6 @@
 using GameBot.Domain.Logging;
 using GameBot.Service.Services;
+using System.Text.Json;
 
 namespace GameBot.Service.Services.ExecutionLog;
 
@@ -11,9 +12,24 @@ internal sealed record ExecutionLogRelatedProjection(
   string? UnavailableReason);
 
 internal sealed record ExecutionLogStepProjection(
+  string SequenceId,
+  string SequenceLabel,
+  string? StepId,
+  string StepLabel,
   string StepName,
   string Status,
-  string Message);
+  string Message,
+  ExecutionLogStepDeepLinkProjection DeepLink,
+  ConditionEvaluationTrace? ConditionTrace);
+
+internal sealed record ExecutionLogStepDeepLinkProjection(
+  string SequenceId,
+  string? StepId,
+  string SequenceLabel,
+  string StepLabel,
+  string ResolutionStatus,
+  string DirectPath,
+  string? FallbackRoute);
 
 internal sealed record ExecutionLogDetailProjection(
   string Summary,
@@ -127,6 +143,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
   public async Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) {
     var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     var now = DateTimeOffset.UtcNow;
+    var sanitizedDetails = TrimDetails(ExecutionLogSanitizer.SanitizeDetails(details?.ToList() ?? new List<ExecutionDetailItem>()));
+    var stepOutcomes = BuildSequenceStepOutcomes(sequenceId, sequenceName, context, sanitizedDetails);
 
     var entry = new ExecutionLogEntry {
       TimestampUtc = now,
@@ -136,8 +154,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       Navigation = ExecutionNavigationBuilder.Build("sequence", sequenceId, context),
       Hierarchy = ExecutionHierarchyBuilder.Build(context),
       Summary = TrimSummary(summary),
-      Details = TrimDetails(ExecutionLogSanitizer.SanitizeDetails(details?.ToList() ?? new List<ExecutionDetailItem>())),
-      StepOutcomes = Array.Empty<ExecutionStepOutcome>(),
+      Details = sanitizedDetails,
+      StepOutcomes = stepOutcomes,
       RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
     };
 
@@ -203,9 +221,15 @@ internal sealed class ExecutionLogService : IExecutionLogService {
 
     var stepOutcomes = entry.StepOutcomes
       .Select(step => new ExecutionLogStepProjection(
+        ResolveSequenceId(entry, step),
+        ResolveSequenceLabel(entry, step),
+        step.StepId,
+        ResolveStepLabel(step),
         string.IsNullOrWhiteSpace(step.StepType) ? $"Step {step.StepOrder}" : step.StepType,
         step.Outcome,
-        step.ReasonText ?? step.ReasonCode ?? "Step completed."))
+        step.ReasonText ?? step.ReasonCode ?? "Step completed.",
+        BuildDeepLink(entry, step),
+        step.ConditionTrace))
       .ToArray();
 
     return new ExecutionLogDetailProjection(
@@ -218,6 +242,148 @@ internal sealed class ExecutionLogService : IExecutionLogService {
 
   private static string NormalizeStatus(string status)
     => string.Equals(status, "success", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+
+  private static List<ExecutionStepOutcome> BuildSequenceStepOutcomes(
+    string sequenceId,
+    string sequenceName,
+    ExecutionLogContext context,
+    IReadOnlyList<ExecutionDetailItem> details) {
+    var results = new List<ExecutionStepOutcome>();
+    var stepOrder = 1;
+
+    foreach (var detail in details.Where(detail => string.Equals(detail.Kind, "step", StringComparison.OrdinalIgnoreCase))) {
+      var attributes = detail.Attributes;
+      var order = TryGetInt(attributes, "stepOrder") ?? stepOrder;
+      stepOrder = Math.Max(stepOrder, order + 1);
+
+      var status = TryGetString(attributes, "status") ?? "executed";
+      var stepType = TryGetString(attributes, "stepType") ?? "step";
+      var reasonCode = TryGetString(attributes, "reasonCode");
+      var resolvedSequenceId = TryGetString(attributes, "sequenceId") ?? context.SequenceId ?? sequenceId;
+      var resolvedSequenceLabel = TryGetString(attributes, "sequenceLabel") ?? context.SequenceLabel ?? sequenceName;
+      var resolvedStepId = TryGetString(attributes, "stepId") ?? context.StepId;
+      var resolvedStepLabel = TryGetString(attributes, "stepLabel") ?? context.StepLabel;
+      var conditionTrace = TryGetConditionTrace(attributes, "conditionTrace");
+
+      results.Add(new ExecutionStepOutcome(
+        order,
+        stepType,
+        status,
+        reasonCode,
+        detail.Message,
+        resolvedSequenceId,
+        resolvedStepId,
+        resolvedSequenceLabel,
+        resolvedStepLabel,
+        conditionTrace));
+    }
+
+    return results;
+  }
+
+  private static ExecutionLogStepDeepLinkProjection BuildDeepLink(ExecutionLogEntry entry, ExecutionStepOutcome step) {
+    var sequenceId = ResolveSequenceId(entry, step);
+    var sequenceLabel = ResolveSequenceLabel(entry, step);
+    var stepLabel = ResolveStepLabel(step);
+    if (string.IsNullOrWhiteSpace(sequenceId)) {
+      return new ExecutionLogStepDeepLinkProjection(
+        string.Empty,
+        step.StepId,
+        sequenceLabel,
+        stepLabel,
+        "sequence_missing",
+        "/authoring/sequences",
+        "/authoring/sequences");
+    }
+
+    if (string.IsNullOrWhiteSpace(step.StepId)) {
+      var fallbackRoute = $"/authoring/sequences/{sequenceId}";
+      return new ExecutionLogStepDeepLinkProjection(
+        sequenceId,
+        null,
+        sequenceLabel,
+        stepLabel,
+        "step_missing",
+        fallbackRoute,
+        fallbackRoute);
+    }
+
+    return new ExecutionLogStepDeepLinkProjection(
+      sequenceId,
+      step.StepId,
+      sequenceLabel,
+      stepLabel,
+      "resolved",
+      $"/authoring/sequences/{sequenceId}?stepId={Uri.EscapeDataString(step.StepId)}",
+      null);
+  }
+
+  private static string ResolveSequenceId(ExecutionLogEntry entry, ExecutionStepOutcome step)
+    => string.IsNullOrWhiteSpace(step.SequenceId) ? entry.ObjectRef.ObjectId : step.SequenceId;
+
+  private static string ResolveSequenceLabel(ExecutionLogEntry entry, ExecutionStepOutcome step)
+    => string.IsNullOrWhiteSpace(step.SequenceLabel) ? entry.ObjectRef.DisplayNameSnapshot : step.SequenceLabel;
+
+  private static string ResolveStepLabel(ExecutionStepOutcome step)
+    => string.IsNullOrWhiteSpace(step.StepLabel)
+      ? (string.IsNullOrWhiteSpace(step.StepType) ? $"Step {step.StepOrder}" : step.StepType)
+      : step.StepLabel;
+
+  private static string? TryGetString(Dictionary<string, object?>? attributes, string key) {
+    if (attributes is null || !attributes.TryGetValue(key, out var value) || value is null) {
+      return null;
+    }
+
+    return value switch {
+      string s => s,
+      _ => value.ToString()
+    };
+  }
+
+  private static int? TryGetInt(Dictionary<string, object?>? attributes, string key) {
+    if (attributes is null || !attributes.TryGetValue(key, out var value) || value is null) {
+      return null;
+    }
+
+    return value switch {
+      int intValue => intValue,
+      long longValue => (int)longValue,
+      JsonElement { ValueKind: JsonValueKind.Number } element when element.TryGetInt32(out var parsed) => parsed,
+      string text when int.TryParse(text, out var parsed) => parsed,
+      _ => null
+    };
+  }
+
+  private static ConditionEvaluationTrace? TryGetConditionTrace(Dictionary<string, object?>? attributes, string key) {
+    if (attributes is null || !attributes.TryGetValue(key, out var value) || value is null) {
+      return null;
+    }
+
+    if (value is ConditionEvaluationTrace trace) {
+      return trace;
+    }
+
+    if (value is JsonElement element && element.ValueKind == JsonValueKind.Object) {
+      var finalResult = element.TryGetProperty("finalResult", out var finalResultElement) && finalResultElement.ValueKind is JsonValueKind.True or JsonValueKind.False
+        ? finalResultElement.GetBoolean()
+        : false;
+      var selectedBranch = element.TryGetProperty("selectedBranch", out var selectedBranchElement) && selectedBranchElement.ValueKind == JsonValueKind.String
+        ? selectedBranchElement.GetString() ?? "none"
+        : "none";
+      var failureReason = element.TryGetProperty("failureReason", out var failureReasonElement) && failureReasonElement.ValueKind == JsonValueKind.String
+        ? failureReasonElement.GetString()
+        : null;
+
+      return new ConditionEvaluationTrace(
+        finalResult,
+        selectedBranch,
+        failureReason,
+        Array.Empty<Dictionary<string, object?>>(),
+        Array.Empty<Dictionary<string, object?>>());
+    }
+
+    return null;
+  }
 
   private static string TrimSummary(string summary) {
     var text = string.IsNullOrWhiteSpace(summary) ? "Execution completed." : summary.Trim();

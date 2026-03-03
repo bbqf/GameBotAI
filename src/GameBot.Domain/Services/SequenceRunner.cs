@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Text.Json;
 using GameBot.Domain.Commands.Blocks;
+using GameBot.Domain.Logging;
 
 namespace GameBot.Domain.Services
 {
@@ -76,7 +77,7 @@ namespace GameBot.Domain.Services
             return result;
         }
 
-        private static async Task ExecuteFlowGraphAsync(
+        private async Task ExecuteFlowGraphAsync(
             CommandSequence sequence,
             Func<string, Task> executeCommandAsync,
             Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
@@ -101,7 +102,6 @@ namespace GameBot.Domain.Services
 
             var limiter = new CycleIterationLimiter();
             limiter.Reset();
-            var evaluator = new ConditionEvaluator();
             var commandOutcomes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             while (true)
@@ -129,17 +129,31 @@ namespace GameBot.Domain.Services
                     }
 
                     bool conditionResult;
+                    ConditionEvaluationTrace conditionTrace;
                     try
                     {
-                        conditionResult = await evaluator.EvaluateAsync(
+                        var evaluation = await EvaluateConditionWithTraceAsync(
                             currentStep.Condition,
                             (operand, token) => EvaluateFlowOperandAsync(operand, conditionEvaluator, commandOutcomes, token),
                             ct).ConfigureAwait(false);
+                        conditionResult = evaluation.Result;
+                        conditionTrace = evaluation.Trace;
+                        result.AddConditionTrace(currentStep.StepId, currentStep.Label, conditionTrace);
                     }
                     catch
                     {
                         result.Fail($"condition step '{currentStep.StepId}' could not be evaluated");
                         return;
+                    }
+
+                    if (_logger != null)
+                    {
+                        LogConditionTrace(
+                            _logger,
+                            currentStep.StepId,
+                            conditionTrace.SelectedBranch,
+                            JsonSerializer.Serialize(conditionTrace),
+                            null);
                     }
 
                     if (!linksBySource.TryGetValue(currentStep.StepId, out var branchLinks))
@@ -252,6 +266,120 @@ namespace GameBot.Domain.Services
             }
 
             throw new InvalidOperationException($"Unsupported operand type '{operand.OperandType}'.");
+        }
+
+        private static async ValueTask<(bool Result, ConditionEvaluationTrace Trace)> EvaluateConditionWithTraceAsync(
+            ConditionExpression expression,
+            Func<ConditionOperand, CancellationToken, ValueTask<bool>> operandEvaluator,
+            CancellationToken ct)
+        {
+            var operandResults = new List<Dictionary<string, object?>>();
+            var operatorSteps = new List<Dictionary<string, object?>>();
+            var result = await EvaluateConditionNodeWithTraceAsync(expression, operandEvaluator, operandResults, operatorSteps, ct).ConfigureAwait(false);
+            var trace = new ConditionEvaluationTrace(
+                result,
+                result ? "true" : "false",
+                null,
+                operandResults,
+                operatorSteps);
+            return (result, trace);
+        }
+
+        private static async ValueTask<bool> EvaluateConditionNodeWithTraceAsync(
+            ConditionExpression expression,
+            Func<ConditionOperand, CancellationToken, ValueTask<bool>> operandEvaluator,
+            List<Dictionary<string, object?>> operandResults,
+            List<Dictionary<string, object?>> operatorSteps,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            switch (expression.NodeType)
+            {
+                case ConditionNodeType.Operand:
+                    if (expression.Operand is null)
+                    {
+                        throw new InvalidOperationException("Operand node requires operand metadata.");
+                    }
+
+                    var operandResult = await operandEvaluator(expression.Operand, ct).ConfigureAwait(false);
+                    operandResults.Add(new Dictionary<string, object?> {
+                        ["operandType"] = expression.Operand.OperandType.ToString(),
+                        ["targetRef"] = expression.Operand.TargetRef,
+                        ["expectedState"] = expression.Operand.ExpectedState,
+                        ["threshold"] = expression.Operand.Threshold,
+                        ["result"] = operandResult
+                    });
+                    return operandResult;
+
+                case ConditionNodeType.And:
+                    if (expression.Children.Count < 2)
+                    {
+                        throw new InvalidOperationException("AND node requires at least two children.");
+                    }
+
+                    var andResult = true;
+                    for (var index = 0; index < expression.Children.Count; index++)
+                    {
+                        var childResult = await EvaluateConditionNodeWithTraceAsync(expression.Children[index], operandEvaluator, operandResults, operatorSteps, ct).ConfigureAwait(false);
+                        andResult = andResult && childResult;
+                        operatorSteps.Add(new Dictionary<string, object?> {
+                            ["operator"] = "and",
+                            ["childIndex"] = index,
+                            ["childResult"] = childResult,
+                            ["aggregateResult"] = andResult
+                        });
+                        if (!andResult)
+                        {
+                            break;
+                        }
+                    }
+
+                    return andResult;
+
+                case ConditionNodeType.Or:
+                    if (expression.Children.Count < 2)
+                    {
+                        throw new InvalidOperationException("OR node requires at least two children.");
+                    }
+
+                    var orResult = false;
+                    for (var index = 0; index < expression.Children.Count; index++)
+                    {
+                        var childResult = await EvaluateConditionNodeWithTraceAsync(expression.Children[index], operandEvaluator, operandResults, operatorSteps, ct).ConfigureAwait(false);
+                        orResult = orResult || childResult;
+                        operatorSteps.Add(new Dictionary<string, object?> {
+                            ["operator"] = "or",
+                            ["childIndex"] = index,
+                            ["childResult"] = childResult,
+                            ["aggregateResult"] = orResult
+                        });
+                        if (orResult)
+                        {
+                            break;
+                        }
+                    }
+
+                    return orResult;
+
+                case ConditionNodeType.Not:
+                    if (expression.Children.Count != 1)
+                    {
+                        throw new InvalidOperationException("NOT node requires exactly one child.");
+                    }
+
+                    var notChildResult = await EvaluateConditionNodeWithTraceAsync(expression.Children[0], operandEvaluator, operandResults, operatorSteps, ct).ConfigureAwait(false);
+                    var notResult = !notChildResult;
+                    operatorSteps.Add(new Dictionary<string, object?> {
+                        ["operator"] = "not",
+                        ["childResult"] = notChildResult,
+                        ["aggregateResult"] = notResult
+                    });
+                    return notResult;
+
+                default:
+                    throw new InvalidOperationException($"Unsupported condition node type '{expression.NodeType}'.");
+            }
         }
 
         private async Task<bool> ExecuteSingleStepAsync(
@@ -934,6 +1062,8 @@ namespace GameBot.Domain.Services
             LoggerMessage.Define<string, int>(LogLevel.Information, new EventId(51006, nameof(LogCommandEnd)), "Command execute end {CommandId} duration {DurationMs}ms");
         private static readonly Action<ILogger, string, string, Exception?> LogSequenceEnd =
             LoggerMessage.Define<string, string>(LogLevel.Information, new EventId(51007, nameof(LogSequenceEnd)), "Sequence end {SequenceId} with status {Status}");
+        private static readonly Action<ILogger, string, string, string, Exception?> LogConditionTrace =
+            LoggerMessage.Define<string, string, string>(LogLevel.Debug, new EventId(51012, nameof(LogConditionTrace)), "Condition trace for step {StepId}: branch {SelectedBranch} trace {TraceJson}");
 
         // Block-level logging (T020)
         private static readonly Action<ILogger, string, string, Exception?> LogBlockStart =
@@ -975,6 +1105,8 @@ namespace GameBot.Domain.Services
         public System.Collections.Generic.IReadOnlyList<StepResult> Steps => _steps.AsReadOnly();
         private readonly System.Collections.Generic.List<BlockResult> _blocks = new();
         public System.Collections.Generic.IReadOnlyList<BlockResult> Blocks => _blocks.AsReadOnly();
+        private readonly System.Collections.Generic.List<ConditionStepTraceResult> _conditionTraces = new();
+        public System.Collections.Generic.IReadOnlyList<ConditionStepTraceResult> ConditionTraces => _conditionTraces.AsReadOnly();
 
         public static SequenceExecutionResult Start(string sequenceId)
         {
@@ -1013,6 +1145,16 @@ namespace GameBot.Domain.Services
             _blocks.Add(block);
         }
 
+        public void AddConditionTrace(string stepId, string? stepLabel, ConditionEvaluationTrace trace)
+        {
+            _conditionTraces.Add(new ConditionStepTraceResult
+            {
+                StepId = stepId,
+                StepLabel = stepLabel,
+                Trace = trace
+            });
+        }
+
         public void Complete()
         {
             EndedAt = DateTimeOffset.UtcNow;
@@ -1027,6 +1169,13 @@ namespace GameBot.Domain.Services
             EndedAt = DateTimeOffset.UtcNow;
             Status = "Failed";
         }
+    }
+
+    public class ConditionStepTraceResult
+    {
+        public string StepId { get; set; } = string.Empty;
+        public string? StepLabel { get; set; }
+        public ConditionEvaluationTrace Trace { get; set; } = new(false, "none", null, Array.Empty<Dictionary<string, object?>>(), Array.Empty<Dictionary<string, object?>>());
     }
 
     public class StepResult

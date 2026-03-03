@@ -128,20 +128,20 @@
 
 ### Tests for User Story 3
 
-- [ ] T039 [P] [US3] Add unit tests for condition trace envelope projection in tests/unit/ExecutionLogs/ConditionTraceLoggingTests.cs
-- [ ] T040 [P] [US3] Add unit tests for deep-link metadata shaping in tests/unit/ExecutionLogs/SequenceStepDeepLinkTests.cs
-- [ ] T041 [P] [US3] Add integration tests for enriched step-level execution logs in tests/integration/ExecutionLogs/ConditionalSequenceStepLoggingIntegrationTests.cs
-- [ ] T042 [P] [US3] Add contract tests for enriched execution log response schema in tests/contract/ExecutionLogs/ConditionalExecutionLogsContractTests.cs
-- [ ] T043 [P] [US3] Add integration test asserting no additional deep-link-specific authorization check is introduced in tests/integration/ExecutionLogs/DeepLinkRoutingAuthorizationIntegrationTests.cs
+- [x] T039 [P] [US3] Add unit tests for condition trace envelope projection in tests/unit/ExecutionLogs/ConditionTraceLoggingTests.cs
+- [x] T040 [P] [US3] Add unit tests for deep-link metadata shaping in tests/unit/ExecutionLogs/SequenceStepDeepLinkTests.cs
+- [x] T041 [P] [US3] Add integration tests for enriched step-level execution logs in tests/integration/ExecutionLogs/ConditionalSequenceStepLoggingIntegrationTests.cs
+- [x] T042 [P] [US3] Add contract tests for enriched execution log response schema in tests/contract/ExecutionLogs/ConditionalExecutionLogsContractTests.cs
+- [x] T043 [P] [US3] Add integration test asserting no additional deep-link-specific authorization check is introduced in tests/integration/ExecutionLogs/DeepLinkRoutingAuthorizationIntegrationTests.cs
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Add condition evaluation trace model and mapping in src/GameBot.Domain/Logging/ConditionEvaluationTrace.cs
-- [ ] T045 [US3] Extend execution log context with sequence/step immutable IDs and readable labels in src/GameBot.Service/Services/ExecutionLog/ExecutionLogContext.cs
-- [ ] T046 [US3] Emit debug-level operand/operator/final-result traces in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T047 [US3] Extend execution log service to persist enriched step entries in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
-- [ ] T048 [US3] Return enriched execution log payloads from endpoint in src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs
-- [ ] T049 [US3] Implement deep-link missing-step fallback handling in execution log UI in src/web-ui/src/pages/ExecutionLogs.tsx
+- [x] T044 [US3] Add condition evaluation trace model and mapping in src/GameBot.Domain/Logging/ConditionEvaluationTrace.cs
+- [x] T045 [US3] Extend execution log context with sequence/step immutable IDs and readable labels in src/GameBot.Service/Services/ExecutionLog/ExecutionLogContext.cs
+- [x] T046 [US3] Emit debug-level operand/operator/final-result traces in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T047 [US3] Extend execution log service to persist enriched step entries in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [x] T048 [US3] Return enriched execution log payloads from endpoint in src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs
+- [x] T049 [US3] Implement deep-link missing-step fallback handling in execution log UI in src/web-ui/src/pages/ExecutionLogs.tsx
 
 **Checkpoint**: US3 is independently functional and testable.
 

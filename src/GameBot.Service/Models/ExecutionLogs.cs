@@ -99,11 +99,35 @@ internal sealed class SnapshotReferenceDto
 
 internal sealed class StepOutcomeDetailDto
 {
+  public string? SequenceId { get; init; }
+  public string? SequenceLabel { get; init; }
+  public string? StepId { get; init; }
+  public string? StepLabel { get; init; }
   public required string StepName { get; init; }
   public required string Status { get; init; }
   public required string Message { get; init; }
+  public AuthoringDeepLinkDto? DeepLink { get; init; }
+  public ConditionEvaluationTraceDto? ConditionTrace { get; init; }
   public DateTimeOffset? StartedAtUtc { get; init; }
   public DateTimeOffset? EndedAtUtc { get; init; }
+}
+
+internal sealed class AuthoringDeepLinkDto {
+  public required string SequenceId { get; init; }
+  public string? StepId { get; init; }
+  public required string SequenceLabel { get; init; }
+  public required string StepLabel { get; init; }
+  public required string ResolutionStatus { get; init; }
+  public required string DirectPath { get; init; }
+  public string? FallbackRoute { get; init; }
+}
+
+internal sealed class ConditionEvaluationTraceDto {
+  public bool FinalResult { get; init; }
+  public required string SelectedBranch { get; init; }
+  public string? FailureReason { get; init; }
+  public required IReadOnlyList<Dictionary<string, object?>> OperandResults { get; init; }
+  public required IReadOnlyList<Dictionary<string, object?>> OperatorSteps { get; init; }
 }
 
 internal sealed class ExecutionLogDetailDto

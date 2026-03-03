@@ -755,21 +755,66 @@ sequences.MapPost("{sequenceId}/execute", async (
     var sequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
     var sequenceName = sequence?.Name ?? sequenceId;
     var status = string.Equals(res.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+    var flowStepsByCommandRef = (sequence?.FlowSteps ?? Array.Empty<GameBot.Domain.Commands.FlowStep>())
+      .GroupBy(step => string.IsNullOrWhiteSpace(step.PayloadRef) ? step.StepId : step.PayloadRef!, StringComparer.Ordinal)
+      .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+    var detailItems = new List<GameBot.Domain.Logging.ExecutionDetailItem> {
+      new(
+        "sequence",
+        $"Executed commands: {string.Join(",", res.Steps.Select(s => s.CommandId).Take(10))}",
+        new Dictionary<string, object?> { ["executedCount"] = res.Steps.Count },
+        "normal")
+    };
+
+    var stepOrder = 1;
+    foreach (var step in res.Steps) {
+      flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
+      var stepId = flowStep?.StepId ?? step.CommandId;
+      var stepLabel = flowStep?.Label ?? step.CommandId;
+      detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
+        "step",
+        $"Step '{stepLabel}' executed.",
+        new Dictionary<string, object?> {
+          ["stepOrder"] = stepOrder++,
+          ["stepType"] = "command",
+          ["status"] = "executed",
+          ["sequenceId"] = sequenceId,
+          ["sequenceLabel"] = sequenceName,
+          ["stepId"] = stepId,
+          ["stepLabel"] = stepLabel
+        },
+        "normal"));
+    }
+
+    foreach (var trace in res.ConditionTraces) {
+      detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
+        "step",
+        $"Condition step '{trace.StepLabel ?? trace.StepId}' evaluated to {trace.Trace.FinalResult}.",
+        new Dictionary<string, object?> {
+          ["stepOrder"] = stepOrder++,
+          ["stepType"] = "condition",
+          ["status"] = "executed",
+          ["sequenceId"] = sequenceId,
+          ["sequenceLabel"] = sequenceName,
+          ["stepId"] = trace.StepId,
+          ["stepLabel"] = trace.StepLabel ?? trace.StepId,
+          ["conditionTrace"] = trace.Trace
+        },
+        "normal"));
+    }
+
     await executionLogService.LogSequenceExecutionAsync(
       sequenceId,
       sequenceName,
       status,
       $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
       new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
-        Depth = 0
+        Depth = 0,
+        SequenceId = sequenceId,
+        SequenceLabel = sequenceName
       },
-      details: new[] {
-      new GameBot.Domain.Logging.ExecutionDetailItem(
-        "sequence",
-        $"Executed commands: {string.Join(",", res.Steps.Select(s => s.CommandId).Take(10))}",
-        new Dictionary<string, object?> { ["executedCount"] = res.Steps.Count },
-        "normal")
-      },
+      details: detailItems,
       ct).ConfigureAwait(false);
     return Results.Ok(res);
   }).WithName("ExecuteSequence").WithTags("Sequences");
