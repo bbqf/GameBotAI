@@ -44,4 +44,23 @@ describe('ConditionExpressionBuilder', () => {
     expect(updatedValue.nodeType).toBe('not');
     expect(updatedValue.children).toHaveLength(1);
   });
+
+  it('exposes image detection controls and updates threshold', () => {
+    const Harness: React.FC = () => {
+      const [value, setValue] = useState<ConditionExpression>(operandNode);
+      return <ConditionExpressionBuilder value={value} onChange={setValue} />;
+    };
+
+    render(<Harness />);
+
+    fireEvent.change(screen.getByLabelText('Operand Type'), { target: { value: 'image-detection' } });
+    fireEvent.change(screen.getByLabelText('Expected State'), { target: { value: 'present' } });
+
+    const thresholdInput = screen.getByLabelText('Threshold');
+    fireEvent.change(thresholdInput, { target: { value: '0.92' } });
+
+    expect(screen.getByLabelText('Operand Type')).toHaveValue('image-detection');
+    expect(screen.getByLabelText('Expected State')).toHaveValue('present');
+    expect(screen.getByLabelText('Threshold')).toHaveValue(0.92);
+  });
 });

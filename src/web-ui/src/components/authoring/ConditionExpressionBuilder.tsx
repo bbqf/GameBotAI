@@ -35,6 +35,8 @@ const updateChild = (value: ConditionExpression, index: number, child: Condition
 });
 
 export const ConditionExpressionBuilder: React.FC<ConditionExpressionBuilderProps> = ({ value, onChange }) => {
+  const operand = value.operand ?? defaultOperand();
+
   return (
     <fieldset className="field">
       <legend>Condition Expression</legend>
@@ -53,21 +55,88 @@ export const ConditionExpressionBuilder: React.FC<ConditionExpressionBuilderProp
 
       {value.nodeType === 'operand' && (
         <>
+          <label htmlFor="condition-operand-type">Operand Type</label>
+          <select
+            id="condition-operand-type"
+            aria-label="Operand Type"
+            value={operand.operandType}
+            onChange={(event) => {
+              const nextType = event.target.value as ConditionOperand['operandType'];
+              onChange({
+                nodeType: 'operand',
+                operand: {
+                  ...operand,
+                  operandType: nextType,
+                  threshold: nextType === 'image-detection' ? (operand.threshold ?? 0.85) : undefined
+                }
+              });
+            }}
+          >
+            <option value="command-outcome">Command Outcome</option>
+            <option value="image-detection">Image Detection</option>
+          </select>
+
           <label htmlFor="condition-operand-target">Operand Target (0)</label>
           <input
             id="condition-operand-target"
             aria-label="Operand Target (0)"
-            value={value.operand?.targetRef ?? ''}
+            value={operand.targetRef}
             onChange={(event) => {
               onChange({
                 nodeType: 'operand',
                 operand: {
-                  ...(value.operand ?? defaultOperand()),
+                  ...operand,
                   targetRef: event.target.value
                 }
               });
             }}
           />
+
+          <label htmlFor="condition-expected-state">Expected State</label>
+          <select
+            id="condition-expected-state"
+            aria-label="Expected State"
+            value={operand.expectedState}
+            onChange={(event) => {
+              onChange({
+                nodeType: 'operand',
+                operand: {
+                  ...operand,
+                  expectedState: event.target.value
+                }
+              });
+            }}
+          >
+            <option value="success">Success</option>
+            <option value="failed">Failed</option>
+            <option value="present">Present</option>
+            <option value="absent">Absent</option>
+          </select>
+
+          {operand.operandType === 'image-detection' && (
+            <>
+              <label htmlFor="condition-threshold">Threshold</label>
+              <input
+                id="condition-threshold"
+                aria-label="Threshold"
+                type="number"
+                min={0}
+                max={1}
+                step={0.01}
+                value={operand.threshold ?? 0.85}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  onChange({
+                    nodeType: 'operand',
+                    operand: {
+                      ...operand,
+                      threshold: Number.isFinite(parsed) ? parsed : 0.85
+                    }
+                  });
+                }}
+              />
+            </>
+          )}
         </>
       )}
 
