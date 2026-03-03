@@ -1,0 +1,331 @@
+openapi: 3.0.3
+info:
+  title: Sequence Conditional Flow API
+  version: 1.0.0
+  description: Contracts for visual sequence authoring, conditional execution, and step-level traceability.
+servers:
+  - url: http://localhost:5081
+paths:
+  /api/sequences:
+    post:
+      summary: Create sequence flow
+      operationId: createSequenceFlow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceFlowUpsertRequest'
+      responses:
+        '201':
+          description: Sequence flow created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceFlow'
+  /api/sequences/{sequenceId}:
+    get:
+      summary: Get sequence flow
+      operationId: getSequenceFlow
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sequence flow definition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceFlow'
+        '404':
+          description: Sequence not found.
+    patch:
+      summary: Update sequence flow
+      operationId: updateSequenceFlow
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceFlowUpsertRequest'
+      responses:
+        '200':
+          description: Sequence flow updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceFlow'
+        '400':
+          description: Validation error (e.g., unresolved branch target, unbounded cycle).
+  /api/sequences/{sequenceId}/validate:
+    post:
+      summary: Validate sequence flow graph
+      operationId: validateSequenceFlow
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceFlowValidationResult'
+  /api/sequences/{sequenceId}/execute:
+    post:
+      summary: Execute sequence flow
+      operationId: executeSequenceFlow
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId:
+                  type: string
+      responses:
+        '200':
+          description: Execution summary and step-level context.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceExecutionResult'
+        '409':
+          description: Execution failed at condition evaluation or cycle iteration limit exhaustion.
+  /api/execution-logs/{executionId}:
+    get:
+      summary: Get enriched execution log
+      operationId: getExecutionLogWithSequenceContext
+      parameters:
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Execution log detail including step deep links and condition traces.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogDetail'
+        '404':
+          description: Execution log not found.
+components:
+  schemas:
+    SequenceFlowUpsertRequest:
+      type: object
+      required: [name, entryStepId, steps, links]
+      properties:
+        name:
+          type: string
+        entryStepId:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStep'
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/BranchLink'
+    SequenceFlow:
+      type: object
+      required: [sequenceId, name, version, entryStepId, steps, links]
+      properties:
+        sequenceId:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+        entryStepId:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStep'
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/BranchLink'
+    FlowStep:
+      type: object
+      required: [stepId, label, stepType]
+      properties:
+        stepId:
+          type: string
+        label:
+          type: string
+        stepType:
+          type: string
+          enum: [action, command, condition, terminal]
+        payloadRef:
+          type: string
+          nullable: true
+        iterationLimit:
+          type: integer
+          minimum: 1
+          nullable: true
+        condition:
+          $ref: '#/components/schemas/ConditionExpression'
+    BranchLink:
+      type: object
+      required: [linkId, sourceStepId, targetStepId, branchType]
+      properties:
+        linkId:
+          type: string
+        sourceStepId:
+          type: string
+        targetStepId:
+          type: string
+        branchType:
+          type: string
+          enum: [next, true, false]
+    ConditionExpression:
+      type: object
+      required: [nodeType]
+      properties:
+        nodeType:
+          type: string
+          enum: [and, or, not, operand]
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConditionExpression'
+        operand:
+          $ref: '#/components/schemas/ConditionOperand'
+    ConditionOperand:
+      type: object
+      required: [operandType, targetRef, expectedState]
+      properties:
+        operandType:
+          type: string
+          enum: [command-outcome, image-detection]
+        targetRef:
+          type: string
+        expectedState:
+          type: string
+        threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          nullable: true
+    SequenceFlowValidationResult:
+      type: object
+      required: [isValid, errors]
+      properties:
+        isValid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    SequenceExecutionResult:
+      type: object
+      required: [executionId, sequenceId, status, stepResults]
+      properties:
+        executionId:
+          type: string
+        sequenceId:
+          type: string
+        status:
+          type: string
+          enum: [succeeded, failed]
+        failureReason:
+          type: string
+          nullable: true
+        failureCode:
+          type: string
+          nullable: true
+          enum: [condition_evaluation_failed, cycle_iteration_limit_reached]
+        stepResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepExecutionResult'
+    StepExecutionResult:
+      type: object
+      required: [stepId, stepLabel, status, deepLink]
+      properties:
+        stepId:
+          type: string
+        stepLabel:
+          type: string
+        status:
+          type: string
+          enum: [succeeded, failed, skipped]
+        deepLink:
+          $ref: '#/components/schemas/AuthoringDeepLink'
+        conditionTrace:
+          $ref: '#/components/schemas/ConditionEvaluationTrace'
+    AuthoringDeepLink:
+      type: object
+      required: [sequenceId, stepId, sequenceLabel, stepLabel]
+      properties:
+        sequenceId:
+          type: string
+        stepId:
+          type: string
+        sequenceLabel:
+          type: string
+        stepLabel:
+          type: string
+    ConditionEvaluationTrace:
+      type: object
+      required: [finalResult, selectedBranch]
+      properties:
+        finalResult:
+          type: boolean
+        selectedBranch:
+          type: string
+          enum: [true, false, none]
+        failureReason:
+          type: string
+          nullable: true
+        operandResults:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        operatorSteps:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ExecutionLogDetail:
+      type: object
+      required: [executionId, sequenceId, sequenceLabel, stepEntries]
+      properties:
+        executionId:
+          type: string
+        sequenceId:
+          type: string
+        sequenceLabel:
+          type: string
+        stepEntries:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepExecutionResult'
