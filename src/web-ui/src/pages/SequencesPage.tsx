@@ -13,6 +13,7 @@ import { validateConditionalFlow } from '../lib/validation';
 import { buildSequenceFlow, ConditionDraft, createDefaultConditionExpression } from '../lib/sequenceFlowGraph';
 import { ConditionExpressionBuilder } from '../components/authoring/ConditionExpressionBuilder';
 import { SequenceBranchConnector } from '../components/authoring/SequenceBranchConnector';
+import type { FlowStep, ConditionExpression, BranchLink } from '../types/sequenceFlow';
 
 type SequenceStep = { id: string; commandId: string };
 
@@ -54,6 +55,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [conditionalEnabled, setConditionalEnabled] = useState(false);
   const [entryStepId, setEntryStepId] = useState('');
   const [conditions, setConditions] = useState<ConditionDraft[]>([]);
+  const [loadedVersion, setLoadedVersion] = useState(1);
 
   useEffect(() => {
     let mounted = true;
@@ -108,13 +110,17 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const loadSequenceIntoForm = async (id: string) => {
     const s = await getSequence(id);
     const commandIds = toCommandStepIds(s.steps);
+    const flowSteps = isFlowStepArray(s.steps) ? s.steps : [];
+    const links = Array.isArray(s.links) ? s.links : [];
+    const hasConditionalFlow = !!s.entryStepId && flowSteps.length > 0 && links.length > 0;
     setEditingId(id);
     setCreating(false);
     setPendingStepId(undefined);
     setForm({ name: s.name, steps: toStepEntries(commandIds) });
-    setConditionalEnabled(false);
-    setEntryStepId(commandIds[0] ?? '');
-    setConditions([]);
+    setLoadedVersion(s.version ?? 1);
+    setConditionalEnabled(hasConditionalFlow);
+    setEntryStepId(hasConditionalFlow ? s.entryStepId! : (commandIds[0] ?? ''));
+    setConditions(hasConditionalFlow ? toConditionDrafts(flowSteps, links, commandIds[0] ?? '') : []);
     setDirty(false);
   };
 
@@ -124,6 +130,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     setConditionalEnabled(false);
     setEntryStepId('');
     setConditions([]);
+    setLoadedVersion(1);
     setErrors(undefined);
     setDirty(false);
   };
@@ -458,7 +465,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               const conditionalPayload = conditionalEnabled
                 ? buildSequenceFlow(
                   form.name.trim(),
-                  1,
+                  loadedVersion,
                   commandStepIds,
                   entryStepId || commandStepIds[0] || '',
                   conditions)
@@ -556,6 +563,110 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               <div className="form-hint">Use Move up/down to set the execution order before saving.</div>
             </FormSection>
 
+            <FormSection title="Conditional Flow" description="Optional branching by condition." id="sequence-edit-conditional-flow">
+              <div className="field">
+                <label htmlFor="edit-conditional-flow-enabled">
+                  <input
+                    id="edit-conditional-flow-enabled"
+                    aria-label="Enable conditional flow"
+                    type="checkbox"
+                    checked={conditionalEnabled}
+                    onChange={(event) => {
+                      setConditionalEnabled(event.target.checked);
+                      if (event.target.checked && !entryStepId) {
+                        setEntryStepId(commandStepIds[0] ?? '');
+                      }
+                      setDirty(true);
+                    }}
+                    disabled={submitting || loading}
+                  />
+                  Enable conditional flow
+                </label>
+              </div>
+
+              {conditionalEnabled && (
+                <>
+                  <div className="field">
+                    <label htmlFor="sequence-edit-entry-step">Entry Step</label>
+                    <select
+                      id="sequence-edit-entry-step"
+                      aria-label="Entry Step"
+                      value={entryStepId}
+                      onChange={(event) => {
+                        setEntryStepId(event.target.value);
+                        setDirty(true);
+                      }}
+                    >
+                      <option value="">Select entry step</option>
+                      {commandStepIds.map((commandId) => (
+                        <option key={commandId} value={commandId}>{commandLookup.get(commandId) ?? commandId}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextIndex = conditions.length + 1;
+                        setConditions((prev) => [
+                          ...prev,
+                          {
+                            stepId: `condition-${nextIndex}`,
+                            sourceStepId: entryStepId || commandStepIds[0] || '',
+                            trueTargetId: '',
+                            falseTargetId: '',
+                            expression: createDefaultConditionExpression()
+                          }
+                        ]);
+                        setDirty(true);
+                      }}
+                      disabled={submitting || loading || commandStepIds.length === 0}
+                    >
+                      Add Condition Step
+                    </button>
+                  </div>
+
+                  {conditions.map((condition, index) => (
+                    <div key={`edit-${index}`} className="field">
+                      <label htmlFor={`edit-condition-step-id-${index}`}>Condition Step Id</label>
+                      <input
+                        id={`edit-condition-step-id-${index}`}
+                        aria-label="Condition Step Id"
+                        value={condition.stepId}
+                        onChange={(event) => {
+                          setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, stepId: event.target.value } : item));
+                          setDirty(true);
+                        }}
+                      />
+
+                      <SequenceBranchConnector
+                        options={commandStepIds.map((stepId) => ({ value: stepId, label: commandLookup.get(stepId) ?? stepId }))}
+                        trueTargetId={condition.trueTargetId}
+                        falseTargetId={condition.falseTargetId}
+                        onTrueTargetChange={(value) => {
+                          setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, trueTargetId: value } : item));
+                          setDirty(true);
+                        }}
+                        onFalseTargetChange={(value) => {
+                          setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, falseTargetId: value } : item));
+                          setDirty(true);
+                        }}
+                      />
+
+                      <ConditionExpressionBuilder
+                        value={condition.expression}
+                        onChange={(value) => {
+                          setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, expression: value } : item));
+                          setDirty(true);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </>
+              )}
+            </FormSection>
+
             <FormActions
               submitting={submitting}
               onCancel={() => {
@@ -618,4 +729,26 @@ const toCommandStepIds = (steps: SequenceDto['steps']): string[] => {
   return (steps as Array<{ stepType?: string; payloadRef?: string | null }> )
     .filter((step) => step.stepType === 'command' && !!step.payloadRef)
     .map((step) => step.payloadRef as string);
+};
+
+const isFlowStepArray = (steps: SequenceDto['steps']): steps is FlowStep[] => {
+  return Array.isArray(steps) && steps.every((step) => typeof step === 'object' && step !== null && 'stepId' in step);
+};
+
+const toConditionDrafts = (steps: FlowStep[], links: BranchLink[], fallbackSourceStepId: string): ConditionDraft[] => {
+  return steps
+    .filter((step) => step.stepType === 'condition')
+    .map((step) => {
+      const nextLink = links.find((link) => link.targetStepId === step.stepId && link.branchType === 'next');
+      const trueLink = links.find((link) => link.sourceStepId === step.stepId && link.branchType === 'true');
+      const falseLink = links.find((link) => link.sourceStepId === step.stepId && link.branchType === 'false');
+
+      return {
+        stepId: step.stepId,
+        sourceStepId: nextLink?.sourceStepId ?? fallbackSourceStepId,
+        trueTargetId: trueLink?.targetStepId ?? '',
+        falseTargetId: falseLink?.targetStepId ?? '',
+        expression: step.condition ?? (createDefaultConditionExpression() as ConditionExpression)
+      };
+    });
 };

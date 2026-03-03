@@ -58,6 +58,22 @@ As an automation author, I can visually design sequence flow with condition grou
 
 ---
 
+### User Story 4 - Edit existing conditional sequences (Priority: P2)
+
+As an automation author, I can open an existing sequence with conditional steps, modify its condition nodes and branches, and save changes without losing previously authored conditional logic.
+
+**Why this priority**: Conditional authoring is incomplete unless existing sequences can be safely edited after initial creation.
+
+**Independent Test**: Open an existing sequence that already contains condition steps, change operand type/target/threshold and branch targets, save, reload, and verify the updated conditional graph is preserved and remains editable.
+
+**Acceptance Scenarios**:
+
+1. **Given** an existing sequence with conditional steps, **When** the author opens edit mode, **Then** all conditional nodes, branch links, and expression settings are loaded into the editor.
+2. **Given** an existing sequence with an image-detection condition, **When** the author updates expected state or threshold and saves, **Then** the persisted sequence reflects those updated values after reload.
+3. **Given** an existing sequence with branch links, **When** the author changes true/false targets and saves, **Then** the updated branch routing is preserved and used for subsequent execution.
+
+---
+
 ### User Story 3 - Trace execution with precise context (Priority: P3)
 
 As an operator, I can inspect logs and traces that identify the exact step and sequence that executed, with direct navigation to the authored item.
@@ -79,6 +95,7 @@ As an operator, I can inspect logs and traces that identify the exact step and s
 - A condition references an image target that no longer exists.
 - A command outcome is unavailable due to timeout/interruption.
 - Nested logic contains contradictory or always-true/always-false expressions.
+- Existing sequence edit mode opens but conditional graph controls are unavailable or partially populated.
 - A sequence includes cycles through conditional branches without explicit iteration limits.
 - A cycle reaches its iteration limit during execution.
 - Two authors attempt to save different edits to the same sequence version at the same time.
@@ -110,6 +127,8 @@ As an operator, I can inspect logs and traces that identify the exact step and s
 - **FR-019**: If a deep-link target step is missing, the authoring UI MUST open the referenced sequence overview and display a clear "referenced step missing" message.
 - **FR-020**: Deep-link navigation in the authoring UI MUST rely on existing UI routing behavior and MUST NOT add extra authorization checks specific to sequence/step references.
 - **FR-021**: For cyclic branches with configured maximum iteration limits, iteration counters MUST reset at the start of each sequence run.
+- **FR-022**: When editing an existing sequence that contains conditional flow, the authoring UI MUST load and display all persisted conditional steps, branch links, and expression operands/operators.
+- **FR-023**: The system MUST allow authors to modify and save conditional-flow fields (including operand type, expected state, and threshold for image-detection operands) for existing sequences, and MUST preserve those updates after reload.
 
 ### Non-Functional Requirements
 

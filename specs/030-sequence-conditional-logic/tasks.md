@@ -98,6 +98,28 @@
 
 ---
 
+## Phase 4B: User Story 4 - Edit existing conditional sequences (Priority: P2)
+
+**Goal**: Ensure existing sequences with conditional steps can be opened, edited, and saved without losing conditional graph semantics.
+
+**Independent Test**: Load an existing sequence containing conditional flow, edit operand and branch settings, save, reload, and verify edited conditional configuration is preserved and re-editable.
+
+### Tests for User Story 4
+
+- [x] T057 [P] [US4] Add UI test for loading existing conditional graph into edit mode in src/web-ui/src/pages/__tests__/SequencesPage.conditionalEdit.spec.tsx
+- [x] T058 [P] [US4] Add UI test for editing image-detection operand settings in src/web-ui/src/components/authoring/__tests__/ConditionExpressionBuilder.edit.spec.tsx
+- [x] T059 [P] [US4] Add integration test for edit-save-reload conditional parity in tests/integration/Sequences/ConditionalEditRoundTripIntegrationTests.cs
+
+### Implementation for User Story 4
+
+- [x] T060 [US4] Hydrate conditional editor state from existing sequence flow payload in src/web-ui/src/pages/SequencesPage.tsx
+- [x] T061 [US4] Persist edited conditional flow fields for existing sequences via update path in src/web-ui/src/services/sequences.ts
+- [x] T062 [US4] Ensure backend update/patch round-trip returns edited conditional flow shape in src/GameBot.Service/Program.cs
+
+**Checkpoint**: US4 is independently functional and testable.
+
+---
+
 ## Phase 5: User Story 3 - Trace execution with precise context (Priority: P3)
 
 **Goal**: Emit enriched execution logs with sequence/step context, deep-link metadata, and debug-level condition traces.
@@ -150,6 +172,7 @@
 
 - **US1 (P1)**: Depends only on foundational phase and defines MVP delivery.
 - **US2 (P2)**: Depends on foundational phase and US1 API payload shape.
+- **US4 (P2)**: Depends on US2 conditional authoring baseline and sequence flow payload round-trip.
 - **US3 (P3)**: Depends on foundational phase and US1 execution/runtime hooks.
 
 ### Within-Story Ordering
@@ -190,8 +213,9 @@
 ### Incremental Delivery
 
 1. Deliver US2 visual authoring after US1 contract stabilization.
-2. Deliver US3 observability enhancements after US1 runtime hooks.
-3. Finish polish/performance and full verification.
+2. Deliver US4 conditional edit-mode parity after US2 authoring baseline is in place.
+3. Deliver US3 observability enhancements after US1 runtime hooks.
+4. Finish polish/performance and full verification.
 
 ### Team Parallelization
 
