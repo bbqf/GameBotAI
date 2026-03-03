@@ -79,20 +79,20 @@
 
 ### Tests for User Story 2
 
-- [ ] T028 [P] [US2] Add UI tests for conditional flow authoring interactions in src/web-ui/src/pages/__tests__/SequencesPage.conditionalFlow.spec.tsx
-- [ ] T029 [P] [US2] Add UI tests for nested expression builder semantics in src/web-ui/src/components/authoring/__tests__/ConditionExpressionBuilder.spec.tsx
-- [ ] T030 [P] [US2] Add frontend validation tests for missing branch targets and invalid references in src/web-ui/src/lib/__tests__/sequenceFlowValidation.spec.ts
-- [ ] T031 [P] [US2] Add integration test for visual round-trip save/reload parity in tests/integration/Sequences/ConditionalAuthoringRoundTripIntegrationTests.cs
+- [x] T028 [P] [US2] Add UI tests for conditional flow authoring interactions in src/web-ui/src/pages/__tests__/SequencesPage.conditionalFlow.spec.tsx
+- [x] T029 [P] [US2] Add UI tests for nested expression builder semantics in src/web-ui/src/components/authoring/__tests__/ConditionExpressionBuilder.spec.tsx
+- [x] T030 [P] [US2] Add frontend validation tests for missing branch targets and invalid references in src/web-ui/src/lib/__tests__/sequenceFlowValidation.spec.ts
+- [x] T031 [P] [US2] Add integration test for visual round-trip save/reload parity in tests/integration/Sequences/ConditionalAuthoringRoundTripIntegrationTests.cs
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Implement sequence flow graph state utilities in src/web-ui/src/lib/sequenceFlowGraph.ts
-- [ ] T033 [P] [US2] Implement visual condition expression builder component in src/web-ui/src/components/authoring/ConditionExpressionBuilder.tsx
-- [ ] T034 [P] [US2] Implement true/false branch connector component in src/web-ui/src/components/authoring/SequenceBranchConnector.tsx
-- [ ] T035 [US2] Integrate conditional visual editor into sequence authoring page in src/web-ui/src/pages/SequencesPage.tsx
-- [ ] T036 [US2] Implement client-side flow validation messages for unresolved targets in src/web-ui/src/lib/validation.ts
-- [ ] T037 [US2] Preserve semantic equivalence on save/reload mapping in src/web-ui/src/services/sequences.ts
-- [ ] T038 [US2] Implement optimistic concurrency conflict UX prompt/reload flow in src/web-ui/src/pages/SequencesPage.tsx
+- [x] T032 [US2] Implement sequence flow graph state utilities in src/web-ui/src/lib/sequenceFlowGraph.ts
+- [x] T033 [P] [US2] Implement visual condition expression builder component in src/web-ui/src/components/authoring/ConditionExpressionBuilder.tsx
+- [x] T034 [P] [US2] Implement true/false branch connector component in src/web-ui/src/components/authoring/SequenceBranchConnector.tsx
+- [x] T035 [US2] Integrate conditional visual editor into sequence authoring page in src/web-ui/src/pages/SequencesPage.tsx
+- [x] T036 [US2] Implement client-side flow validation messages for unresolved targets in src/web-ui/src/lib/validation.ts
+- [x] T037 [US2] Preserve semantic equivalence on save/reload mapping in src/web-ui/src/services/sequences.ts
+- [x] T038 [US2] Implement optimistic concurrency conflict UX prompt/reload flow in src/web-ui/src/pages/SequencesPage.tsx
 
 **Checkpoint**: US2 is independently functional and testable.
 

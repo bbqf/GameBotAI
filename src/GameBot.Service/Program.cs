@@ -31,6 +31,7 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 using GameBot.Service.Services.Conditions;
 
 var builder = WebApplication.CreateBuilder(args);
+var flowRequestJsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
 var loggingComponentCatalog = new[]
 {
@@ -509,6 +510,30 @@ var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
 sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
+  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+    var flowGraph = MapToFlowGraph(string.Empty, flowRequest);
+
+    var flowSequence = new GameBot.Domain.Commands.CommandSequence {
+      Id = string.Empty,
+      Name = flowRequest.Name.Trim(),
+      Version = flowRequest.Version > 0 ? flowRequest.Version : 1,
+      CreatedAt = DateTimeOffset.UtcNow,
+      UpdatedAt = DateTimeOffset.UtcNow
+    };
+    flowSequence.SetFlowGraph(flowGraph);
+    var legacySteps = flowRequest.Steps
+      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
+                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
+      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
+        Order = index,
+        CommandId = step.PayloadRef!
+      });
+    flowSequence.SetSteps(legacySteps);
+
+    var createdFlow = await repo.CreateAsync(flowSequence).ConfigureAwait(false);
+    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdFlow.Id}", UriKind.Relative), ToSequenceResponse(createdFlow));
+  }
+
   // Authoring shape: { name: string, steps?: string[] }
   if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
     var name = nameProp.GetString()!.Trim();
@@ -524,7 +549,7 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
       seq.SetSteps(steps);
     }
     var created = await repo.CreateAsync(seq).ConfigureAwait(false);
-    return Results.Created($"{ApiRoutes.Sequences}/{created.Id}", new { id = created.Id, name = created.Name, steps = created.Steps.Select(s => s.CommandId).ToArray() });
+    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{created.Id}", UriKind.Relative), ToSequenceResponse(created));
   }
   // Fallback to domain shape
   var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
@@ -540,7 +565,7 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
 sequences.MapGet("{sequenceId}", async (ISequenceRepository repo, string sequenceId) => {
   var found = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (found is null) return Results.NotFound();
-  return Results.Ok(new { id = found.Id, name = found.Name, steps = found.Steps.Select(s => s.CommandId).ToArray() });
+  return Results.Ok(ToSequenceResponse(found));
 }).WithName("GetSequence");
 
 sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
@@ -562,6 +587,20 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
   }
+  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+    flowRequest.Name = existing.Name;
+    var graph = MapToFlowGraph(existing.Id, flowRequest);
+
+    existing.SetFlowGraph(graph);
+    var legacySteps = flowRequest.Steps
+      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
+                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
+      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
+        Order = index,
+        CommandId = step.PayloadRef!
+      });
+    existing.SetSteps(legacySteps);
+  }
   if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
     var order = 0;
     var steps = new List<GameBot.Domain.Commands.SequenceStep>();
@@ -575,7 +614,7 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
   existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-  return Results.Ok(new { id = saved.Id, name = saved.Name, version = saved.Version, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
+  return Results.Ok(ToSequenceResponse(saved));
 }).WithName("UpdateSequence");
 
 sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
@@ -597,6 +636,20 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
   }
+  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+    flowRequest.Name = existing.Name;
+    var graph = MapToFlowGraph(existing.Id, flowRequest);
+
+    existing.SetFlowGraph(graph);
+    var legacySteps = flowRequest.Steps
+      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
+                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
+      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
+        Order = index,
+        CommandId = step.PayloadRef!
+      });
+    existing.SetSteps(legacySteps);
+  }
   if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
     var order = 0;
     var steps = new List<GameBot.Domain.Commands.SequenceStep>();
@@ -610,7 +663,7 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
   existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-  return Results.Ok(new { id = saved.Id, name = saved.Name, version = saved.Version, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
+  return Results.Ok(ToSequenceResponse(saved));
 }).WithName("PatchSequence");
 
 sequences.MapPost("{sequenceId}/validate", (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator) => {
@@ -792,6 +845,89 @@ static string? TryFindVersioningDirectory() {
   }
 
   return null;
+}
+
+static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequence) {
+  if (sequence.FlowSteps.Count > 0 || sequence.FlowLinks.Count > 0) {
+    var flowSteps = sequence.FlowSteps.Select(step => new {
+      stepId = step.StepId,
+      label = step.Label,
+      stepType = step.StepType.ToString().ToLowerInvariant(),
+      payloadRef = step.PayloadRef,
+      iterationLimit = step.IterationLimit,
+      condition = MapConditionToDto(step.Condition)
+    }).ToArray();
+
+    var flowLinks = sequence.FlowLinks.Select(link => new {
+      linkId = link.LinkId,
+      sourceStepId = link.SourceStepId,
+      targetStepId = link.TargetStepId,
+      branchType = link.BranchType.ToString().ToLowerInvariant()
+    }).ToArray();
+
+    return new {
+      id = sequence.Id,
+      name = sequence.Name,
+      version = sequence.Version,
+      entryStepId = sequence.EntryStepId,
+      steps = flowSteps,
+      links = flowLinks
+    };
+  }
+
+  return new {
+    id = sequence.Id,
+    name = sequence.Name,
+    version = sequence.Version,
+    steps = sequence.Steps.Select(step => step.CommandId).ToArray()
+  };
+}
+
+static object? MapConditionToDto(ConditionExpression? expression) {
+  if (expression is null) {
+    return null;
+  }
+
+  return new {
+    nodeType = expression.NodeType.ToString().ToLowerInvariant(),
+    children = expression.Children.Select(MapConditionToDto).Where(child => child is not null).ToArray(),
+    operand = expression.Operand is null
+      ? null
+      : new {
+        operandType = expression.Operand.OperandType.ToString()
+          .ToLowerInvariant()
+          .Replace("commandoutcome", "command-outcome", StringComparison.Ordinal)
+          .Replace("imagedetection", "image-detection", StringComparison.Ordinal),
+        targetRef = expression.Operand.TargetRef,
+        expectedState = expression.Operand.ExpectedState,
+        threshold = expression.Operand.Threshold
+      }
+  };
+}
+
+bool TryReadFlowRequest(System.Text.Json.JsonElement root, out SequenceFlowUpsertRequestDto? request) {
+  request = null;
+  if (!root.TryGetProperty("entryStepId", out var entryStepIdProp) || entryStepIdProp.ValueKind != JsonValueKind.String) {
+    return false;
+  }
+
+  if (!root.TryGetProperty("links", out var linksProp) || linksProp.ValueKind != JsonValueKind.Array) {
+    return false;
+  }
+
+  if (!root.TryGetProperty("steps", out var stepsProp) || stepsProp.ValueKind != JsonValueKind.Array) {
+    return false;
+  }
+
+  var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
+  if (firstStep.ValueKind != JsonValueKind.Object || !firstStep.TryGetProperty("stepId", out _)) {
+    return false;
+  }
+
+  request = JsonSerializer.Deserialize<SequenceFlowUpsertRequestDto>(
+    root.GetRawText(),
+    flowRequestJsonOptions);
+  return request is not null;
 }
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq) {
