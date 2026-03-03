@@ -28,6 +28,7 @@ using Microsoft.Win32;
 using GameBot.Domain.Versioning;
 using GameBot.Service.Contracts.Sequences;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using GameBot.Service.Services.Conditions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -118,6 +119,8 @@ builder.Services.AddSingleton<VersionResolutionService>();
 builder.Services.AddSingleton<ISequenceFlowValidator, SequenceFlowValidator>();
 builder.Services.AddSingleton<CycleIterationLimiter>();
 builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
+builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
+builder.Services.AddSingleton<IImageDetectionConditionAdapter, ImageDetectionConditionAdapter>();
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
 builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
@@ -545,6 +548,16 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
   if (existing is null) return Results.NotFound();
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
+  if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
+    var requestedVersion = versionProp.GetInt32();
+    if (requestedVersion != existing.Version) {
+      return Results.Conflict(new SequenceSaveConflictDto {
+        SequenceId = existing.Id,
+        CurrentVersion = existing.Version,
+        Message = "Sequence has changed. Reload and retry your save."
+      });
+    }
+  }
   if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
@@ -559,9 +572,10 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
     }
     existing.SetSteps(steps);
   }
+  existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-  return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
+  return Results.Ok(new { id = saved.Id, name = saved.Name, version = saved.Version, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("UpdateSequence");
 
 sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
@@ -569,6 +583,16 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
   if (existing is null) return Results.NotFound();
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
+  if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
+    var requestedVersion = versionProp.GetInt32();
+    if (requestedVersion != existing.Version) {
+      return Results.Conflict(new SequenceSaveConflictDto {
+        SequenceId = existing.Id,
+        CurrentVersion = existing.Version,
+        Message = "Sequence has changed. Reload and retry your save."
+      });
+    }
+  }
   if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
@@ -583,9 +607,10 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
     }
     existing.SetSteps(steps);
   }
+  existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-  return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
+  return Results.Ok(new { id = saved.Id, name = saved.Name, version = saved.Version, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
 }).WithName("PatchSequence");
 
 sequences.MapPost("{sequenceId}/validate", (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator) => {

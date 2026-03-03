@@ -48,24 +48,24 @@
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Add unit tests for nested AND/OR/NOT evaluation order in tests/unit/Sequences/ConditionExpressionEvaluatorTests.cs
-- [ ] T014 [P] [US1] Add unit tests for command-outcome operands in tests/unit/Sequences/CommandOutcomeConditionTests.cs
-- [ ] T015 [P] [US1] Add unit tests for image-detection threshold operands in tests/unit/Sequences/ImageDetectionConditionTests.cs
-- [ ] T016 [P] [US1] Add integration tests for branch routing and unevaluable-condition fail-stop in tests/integration/Sequences/ConditionalExecutionIntegrationTests.cs
-- [ ] T017 [P] [US1] Add contract tests for sequence create/update/validate/execute conditional payloads in tests/contract/Sequences/SequenceConditionalContractsTests.cs
+- [x] T013 [P] [US1] Add unit tests for nested AND/OR/NOT evaluation order in tests/unit/Sequences/ConditionExpressionEvaluatorTests.cs
+- [x] T014 [P] [US1] Add unit tests for command-outcome operands in tests/unit/Sequences/CommandOutcomeConditionTests.cs
+- [x] T015 [P] [US1] Add unit tests for image-detection threshold operands in tests/unit/Sequences/ImageDetectionConditionTests.cs
+- [x] T016 [P] [US1] Add integration tests for branch routing and unevaluable-condition fail-stop in tests/integration/Sequences/ConditionalExecutionIntegrationTests.cs
+- [x] T017 [P] [US1] Add contract tests for sequence create/update/validate/execute conditional payloads in tests/contract/Sequences/SequenceConditionalContractsTests.cs
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Extend sequence aggregate for conditional flow persistence in src/GameBot.Domain/Commands/CommandSequence.cs
-- [ ] T019 [US1] Implement recursive condition evaluation in src/GameBot.Domain/Services/ConditionEvaluator.cs
-- [ ] T020 [US1] Implement command-outcome condition adapter in src/GameBot.Service/Services/Conditions/CommandOutcomeConditionAdapter.cs
-- [ ] T021 [P] [US1] Implement image-detection condition adapter in src/GameBot.Service/Services/Conditions/ImageDetectionConditionAdapter.cs
-- [ ] T022 [US1] Integrate condition result routing into sequence runner in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T023 [US1] Enforce unevaluable-condition failure reason + immediate stop in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T024 [US1] Enforce cycle iteration-limit stop and per-run counter reset in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T025 [US1] Implement sequence flow validate endpoint behavior in src/GameBot.Service/Program.cs
-- [ ] T026 [US1] Implement stale-version save conflict response (`409` + sequenceId/currentVersion) in src/GameBot.Service/Program.cs
-- [ ] T027 [US1] Update sequence API client methods for conditional payloads and conflict handling in src/web-ui/src/services/sequences.ts
+- [x] T018 [US1] Extend sequence aggregate for conditional flow persistence in src/GameBot.Domain/Commands/CommandSequence.cs
+- [x] T019 [US1] Implement recursive condition evaluation in src/GameBot.Domain/Services/ConditionEvaluator.cs
+- [x] T020 [US1] Implement command-outcome condition adapter in src/GameBot.Service/Services/Conditions/CommandOutcomeConditionAdapter.cs
+- [x] T021 [P] [US1] Implement image-detection condition adapter in src/GameBot.Service/Services/Conditions/ImageDetectionConditionAdapter.cs
+- [x] T022 [US1] Integrate condition result routing into sequence runner in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T023 [US1] Enforce unevaluable-condition failure reason + immediate stop in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T024 [US1] Enforce cycle iteration-limit stop and per-run counter reset in src/GameBot.Domain/Services/SequenceRunner.cs
+- [x] T025 [US1] Implement sequence flow validate endpoint behavior in src/GameBot.Service/Program.cs
+- [x] T026 [US1] Implement stale-version save conflict response (`409` + sequenceId/currentVersion) in src/GameBot.Service/Program.cs
+- [x] T027 [US1] Update sequence API client methods for conditional payloads and conflict handling in src/web-ui/src/services/sequences.ts
 
 **Checkpoint**: US1 is independently functional and testable.
 

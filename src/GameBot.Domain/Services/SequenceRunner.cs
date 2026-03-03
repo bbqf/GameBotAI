@@ -47,6 +47,14 @@ namespace GameBot.Domain.Services
 
             var result = SequenceExecutionResult.Start(sequenceId);
             if (_logger != null) LogSequenceStart(_logger, sequenceId, null);
+
+            if (!string.IsNullOrWhiteSpace(sequence.EntryStepId) && sequence.FlowSteps.Count > 0)
+            {
+                await ExecuteFlowGraphAsync(sequence, executeCommandAsync, conditionEvaluator, result, ct).ConfigureAwait(false);
+                if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
+                return result;
+            }
+
             foreach (var step in sequence.Steps.OrderBy(s => s.Order))
             {
                 ct.ThrowIfCancellationRequested();
@@ -66,6 +74,184 @@ namespace GameBot.Domain.Services
             result.Complete();
             if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
             return result;
+        }
+
+        private static async Task ExecuteFlowGraphAsync(
+            CommandSequence sequence,
+            Func<string, Task> executeCommandAsync,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            SequenceExecutionResult result,
+            CancellationToken ct)
+        {
+            var stepsById = sequence.FlowSteps
+                .Where(step => !string.IsNullOrWhiteSpace(step.StepId))
+                .ToDictionary(step => step.StepId, StringComparer.Ordinal);
+
+            if (!stepsById.TryGetValue(sequence.EntryStepId, out var entryStep))
+            {
+                result.Fail("sequence flow entry step not found");
+                return;
+            }
+
+            var currentStep = entryStep;
+
+            var linksBySource = sequence.FlowLinks
+                .GroupBy(link => link.SourceStepId, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+
+            var limiter = new CycleIterationLimiter();
+            limiter.Reset();
+            var evaluator = new ConditionEvaluator();
+            var commandOutcomes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (!limiter.TryIncrement(currentStep.StepId, currentStep.IterationLimit, out _, out var failureReason))
+                {
+                    result.Fail(failureReason);
+                    return;
+                }
+
+                if (currentStep.StepType == FlowStepType.Terminal)
+                {
+                    result.Complete();
+                    return;
+                }
+
+                if (currentStep.StepType == FlowStepType.Condition)
+                {
+                    if (currentStep.Condition is null)
+                    {
+                        result.Fail($"condition step '{currentStep.StepId}' has no condition expression");
+                        return;
+                    }
+
+                    bool conditionResult;
+                    try
+                    {
+                        conditionResult = await evaluator.EvaluateAsync(
+                            currentStep.Condition,
+                            (operand, token) => EvaluateFlowOperandAsync(operand, conditionEvaluator, commandOutcomes, token),
+                            ct).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        result.Fail($"condition step '{currentStep.StepId}' could not be evaluated");
+                        return;
+                    }
+
+                    if (!linksBySource.TryGetValue(currentStep.StepId, out var branchLinks))
+                    {
+                        result.Fail($"condition step '{currentStep.StepId}' has no branch links");
+                        return;
+                    }
+
+                    var requiredBranch = conditionResult ? BranchType.True : BranchType.False;
+                    var nextLink = branchLinks.FirstOrDefault(link => link.BranchType == requiredBranch);
+                    if (nextLink is null)
+                    {
+                        result.Fail($"condition step '{currentStep.StepId}' target branch is unresolved");
+                        return;
+                    }
+
+                    if (!stepsById.TryGetValue(nextLink.TargetStepId, out var nextConditionStep))
+                    {
+                        result.Fail($"condition step '{currentStep.StepId}' target branch is unresolved");
+                        return;
+                    }
+
+                    currentStep = nextConditionStep;
+
+                    continue;
+                }
+
+                var commandId = string.IsNullOrWhiteSpace(currentStep.PayloadRef)
+                    ? currentStep.StepId
+                    : currentStep.PayloadRef!;
+
+                try
+                {
+                    await executeCommandAsync(commandId).ConfigureAwait(false);
+                }
+                catch
+                {
+                    result.Fail($"step '{currentStep.StepId}' command execution failed");
+                    return;
+                }
+
+                result.AddStep(commandId, 0);
+                commandOutcomes[currentStep.StepId] = "success";
+                if (!string.IsNullOrWhiteSpace(currentStep.PayloadRef))
+                {
+                    commandOutcomes[currentStep.PayloadRef] = "success";
+                }
+
+                if (!linksBySource.TryGetValue(currentStep.StepId, out var outgoing))
+                {
+                    result.Complete();
+                    return;
+                }
+
+                var next = outgoing.FirstOrDefault(link => link.BranchType == BranchType.Next);
+                if (next is null)
+                {
+                    result.Complete();
+                    return;
+                }
+
+                if (!stepsById.TryGetValue(next.TargetStepId, out var nextStep))
+                {
+                    result.Fail($"step '{currentStep.StepId}' next target is unresolved");
+                    return;
+                }
+
+                currentStep = nextStep;
+            }
+        }
+
+        private static async ValueTask<bool> EvaluateFlowOperandAsync(
+            ConditionOperand operand,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            Dictionary<string, string> commandOutcomes,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (operand.OperandType == ConditionOperandType.CommandOutcome)
+            {
+                if (!commandOutcomes.TryGetValue(operand.TargetRef, out var actualState))
+                {
+                    throw new InvalidOperationException($"Command outcome '{operand.TargetRef}' is unavailable.");
+                }
+
+                return string.Equals(actualState, operand.ExpectedState, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (operand.OperandType == ConditionOperandType.ImageDetection)
+            {
+                if (conditionEvaluator is null)
+                {
+                    throw new InvalidOperationException("Image detection evaluator is unavailable.");
+                }
+
+                var mode = string.Equals(operand.ExpectedState, "absent", StringComparison.OrdinalIgnoreCase)
+                    ? "Absent"
+                    : "Present";
+
+                var condition = new Condition
+                {
+                    Source = "image",
+                    TargetId = operand.TargetRef,
+                    Mode = mode,
+                    ConfidenceThreshold = operand.Threshold
+                };
+
+                return await conditionEvaluator(condition, ct).ConfigureAwait(false);
+            }
+
+            throw new InvalidOperationException($"Unsupported operand type '{operand.OperandType}'.");
         }
 
         private async Task<bool> ExecuteSingleStepAsync(
@@ -185,11 +371,32 @@ namespace GameBot.Domain.Services
             if (!block.TryGetProperty("condition", out var condEl) || condEl.ValueKind != JsonValueKind.Object)
             {
                 result.AddBlock(new BlockResult { BlockType = "ifElse", Iterations = 0, DurationMs = 0, Status = "Failed" });
+                result.Fail("ifElse missing condition");
                 if (_logger != null) LogBlockEnd(_logger, "ifElse", "Failed", 0, 0, null);
                 return;
             }
+            if (conditionEvaluator == null)
+            {
+                result.AddBlock(new BlockResult { BlockType = "ifElse", Iterations = 0, DurationMs = 0, Status = "Failed" });
+                result.Fail("ifElse condition evaluator unavailable");
+                if (_logger != null) LogBlockEnd(_logger, "ifElse", "Failed", 0, 0, null);
+                return;
+            }
+
             var cond = ParseCondition(condEl);
-            var takeIf = conditionEvaluator != null && await conditionEvaluator(cond, ct).ConfigureAwait(false);
+            bool takeIf;
+            try
+            {
+                takeIf = await conditionEvaluator(cond, ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                result.AddBlock(new BlockResult { BlockType = "ifElse", Iterations = 0, DurationMs = 0, Status = "Failed" });
+                result.Fail("ifElse condition evaluation failed");
+                if (_logger != null) LogBlockEnd(_logger, "ifElse", "Failed", 0, 0, null);
+                return;
+            }
+
             if (_logger != null) LogBlockEvaluation(_logger, "ifElse", "condition", takeIf, null);
             var stepsProp = takeIf ? "steps" : "elseSteps";
             if (TryGetArray(block, stepsProp, out var items) && items.Count > 0)
