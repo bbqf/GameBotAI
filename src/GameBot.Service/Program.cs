@@ -26,8 +26,12 @@ using GameBot.Domain.Images;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Win32;
 using GameBot.Domain.Versioning;
+using GameBot.Service.Contracts.Sequences;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using GameBot.Service.Services.Conditions;
 
 var builder = WebApplication.CreateBuilder(args);
+var flowRequestJsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
 var loggingComponentCatalog = new[]
 {
@@ -60,6 +64,9 @@ builder.Logging.AddRuntimeLoggingGate(loggingGate);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerDocs();
+builder.Services.AddSwaggerGen(options => {
+  options.DocumentFilter<ConditionalFlowSchemaDocumentFilter>();
+});
 builder.Services.AddControllers();
 // CORS for local web UI development (default: allow http://localhost:5173)
 var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
@@ -110,6 +117,11 @@ builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLo
 builder.Services.AddSingleton<SemanticVersionComparer>();
 builder.Services.AddSingleton<VersionSourceLoader>();
 builder.Services.AddSingleton<VersionResolutionService>();
+builder.Services.AddSingleton<ISequenceFlowValidator, SequenceFlowValidator>();
+builder.Services.AddSingleton<CycleIterationLimiter>();
+builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
+builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
+builder.Services.AddSingleton<IImageDetectionConditionAdapter, ImageDetectionConditionAdapter>();
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
 builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
@@ -498,6 +510,30 @@ var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
 sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
+  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+    var flowGraph = MapToFlowGraph(string.Empty, flowRequest);
+
+    var flowSequence = new GameBot.Domain.Commands.CommandSequence {
+      Id = string.Empty,
+      Name = flowRequest.Name.Trim(),
+      Version = flowRequest.Version > 0 ? flowRequest.Version : 1,
+      CreatedAt = DateTimeOffset.UtcNow,
+      UpdatedAt = DateTimeOffset.UtcNow
+    };
+    flowSequence.SetFlowGraph(flowGraph);
+    var legacySteps = flowRequest.Steps
+      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
+                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
+      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
+        Order = index,
+        CommandId = step.PayloadRef!
+      });
+    flowSequence.SetSteps(legacySteps);
+
+    var createdFlow = await repo.CreateAsync(flowSequence).ConfigureAwait(false);
+    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdFlow.Id}", UriKind.Relative), ToSequenceResponse(createdFlow));
+  }
+
   // Authoring shape: { name: string, steps?: string[] }
   if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
     var name = nameProp.GetString()!.Trim();
@@ -513,7 +549,7 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
       seq.SetSteps(steps);
     }
     var created = await repo.CreateAsync(seq).ConfigureAwait(false);
-    return Results.Created($"{ApiRoutes.Sequences}/{created.Id}", new { id = created.Id, name = created.Name, steps = created.Steps.Select(s => s.CommandId).ToArray() });
+    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{created.Id}", UriKind.Relative), ToSequenceResponse(created));
   }
   // Fallback to domain shape
   var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
@@ -526,20 +562,44 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
   return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
 }).Accepts<System.Text.Json.JsonElement>("application/json").WithName("CreateSequence");
 
-sequences.MapGet("{id}", async (ISequenceRepository repo, string id) => {
-  var found = await repo.GetAsync(id).ConfigureAwait(false);
+sequences.MapGet("{sequenceId}", async (ISequenceRepository repo, string sequenceId) => {
+  var found = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (found is null) return Results.NotFound();
-  return Results.Ok(new { id = found.Id, name = found.Name, steps = found.Steps.Select(s => s.CommandId).ToArray() });
+  return Results.Ok(ToSequenceResponse(found));
 }).WithName("GetSequence");
 
-sequences.MapPut("{id}", async (HttpRequest http, ISequenceRepository repo, string id) => {
-  var existing = await repo.GetAsync(id).ConfigureAwait(false);
+sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
+  var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
   var root = doc.RootElement;
+  if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
+    var requestedVersion = versionProp.GetInt32();
+    if (requestedVersion != existing.Version) {
+      return Results.Conflict(new SequenceSaveConflictDto {
+        SequenceId = existing.Id,
+        CurrentVersion = existing.Version,
+        Message = "Sequence has changed. Reload and retry your save."
+      });
+    }
+  }
   if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
+  }
+  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+    flowRequest.Name = existing.Name;
+    var graph = MapToFlowGraph(existing.Id, flowRequest);
+
+    existing.SetFlowGraph(graph);
+    var legacySteps = flowRequest.Steps
+      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
+                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
+      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
+        Order = index,
+        CommandId = step.PayloadRef!
+      });
+    existing.SetSteps(legacySteps);
   }
   if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
     var order = 0;
@@ -551,10 +611,70 @@ sequences.MapPut("{id}", async (HttpRequest http, ISequenceRepository repo, stri
     }
     existing.SetSteps(steps);
   }
+  existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-  return Results.Ok(new { id = saved.Id, name = saved.Name, steps = saved.Steps.Select(s => s.CommandId).ToArray() });
+  return Results.Ok(ToSequenceResponse(saved));
 }).WithName("UpdateSequence");
+
+sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
+  var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+  if (existing is null) return Results.NotFound();
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+  var root = doc.RootElement;
+  if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
+    var requestedVersion = versionProp.GetInt32();
+    if (requestedVersion != existing.Version) {
+      return Results.Conflict(new SequenceSaveConflictDto {
+        SequenceId = existing.Id,
+        CurrentVersion = existing.Version,
+        Message = "Sequence has changed. Reload and retry your save."
+      });
+    }
+  }
+  if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
+    var name = nameProp.GetString()!.Trim();
+    if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
+  }
+  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+    flowRequest.Name = existing.Name;
+    var graph = MapToFlowGraph(existing.Id, flowRequest);
+
+    existing.SetFlowGraph(graph);
+    var legacySteps = flowRequest.Steps
+      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
+                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
+      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
+        Order = index,
+        CommandId = step.PayloadRef!
+      });
+    existing.SetSteps(legacySteps);
+  }
+  if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
+    var order = 0;
+    var steps = new List<GameBot.Domain.Commands.SequenceStep>();
+    foreach (var el in stepsProp.EnumerateArray()) {
+      if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
+        steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
+      }
+    }
+    existing.SetSteps(steps);
+  }
+  existing.Version += 1;
+  existing.UpdatedAt = DateTimeOffset.UtcNow;
+  var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
+  return Results.Ok(ToSequenceResponse(saved));
+}).WithName("PatchSequence");
+
+sequences.MapPost("{sequenceId}/validate", (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator) => {
+  var graph = MapToFlowGraph(sequenceId, request);
+  var result = validator.Validate(graph);
+  if (!result.IsValid) {
+    return Results.BadRequest(new { valid = false, errors = result.Errors });
+  }
+
+  return Results.Ok(new { valid = true, errors = Array.Empty<string>() });
+}).WithName("ValidateSequence");
 
 sequences.MapGet("", async (ISequenceRepository repo) => {
   var list = await repo.ListAsync().ConfigureAwait(false);
@@ -562,23 +682,23 @@ sequences.MapGet("", async (ISequenceRepository repo) => {
   return Results.Ok(resp);
 }).WithName("ListSequences");
 
-sequences.MapDelete("{id}", async (ISequenceRepository repo, string id) => {
-  var existing = await repo.GetAsync(id).ConfigureAwait(false);
+sequences.MapDelete("{sequenceId}", async (ISequenceRepository repo, string sequenceId) => {
+  var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
-  var ok = await repo.DeleteAsync(id).ConfigureAwait(false);
+  var ok = await repo.DeleteAsync(sequenceId).ConfigureAwait(false);
   return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
 }).WithName("DeleteSequence");
 
-sequences.MapPost("{id}/execute", async (
+sequences.MapPost("{sequenceId}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,
   GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
   ISequenceRepository sequenceRepository,
-  string id,
+  string sequenceId,
   CancellationToken ct) => {
     // Minimal stub: delegate is a no-op; command execution integration will be added in later phases
     var res = await runner.ExecuteAsync(
-      id,
+      sequenceId,
       _ => Task.CompletedTask,
       gateEvaluator: (step, token) => {
         // Temporary evaluator for integration tests:
@@ -632,24 +752,69 @@ sequences.MapPost("{id}/execute", async (
       },
       ct: ct
     ).ConfigureAwait(false);
-    var sequence = await sequenceRepository.GetAsync(id).ConfigureAwait(false);
-    var sequenceName = sequence?.Name ?? id;
+    var sequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
+    var sequenceName = sequence?.Name ?? sequenceId;
     var status = string.Equals(res.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
-    await executionLogService.LogSequenceExecutionAsync(
-      id,
-      sequenceName,
-      status,
-      $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
-      new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
-        Depth = 0
-      },
-      details: new[] {
-      new GameBot.Domain.Logging.ExecutionDetailItem(
+    var flowStepsByCommandRef = (sequence?.FlowSteps ?? Array.Empty<GameBot.Domain.Commands.FlowStep>())
+      .GroupBy(step => string.IsNullOrWhiteSpace(step.PayloadRef) ? step.StepId : step.PayloadRef!, StringComparer.Ordinal)
+      .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+    var detailItems = new List<GameBot.Domain.Logging.ExecutionDetailItem> {
+      new(
         "sequence",
         $"Executed commands: {string.Join(",", res.Steps.Select(s => s.CommandId).Take(10))}",
         new Dictionary<string, object?> { ["executedCount"] = res.Steps.Count },
         "normal")
+    };
+
+    var stepOrder = 1;
+    foreach (var step in res.Steps) {
+      flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
+      var stepId = flowStep?.StepId ?? step.CommandId;
+      var stepLabel = flowStep?.Label ?? step.CommandId;
+      detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
+        "step",
+        $"Step '{stepLabel}' executed.",
+        new Dictionary<string, object?> {
+          ["stepOrder"] = stepOrder++,
+          ["stepType"] = "command",
+          ["status"] = "executed",
+          ["sequenceId"] = sequenceId,
+          ["sequenceLabel"] = sequenceName,
+          ["stepId"] = stepId,
+          ["stepLabel"] = stepLabel
+        },
+        "normal"));
+    }
+
+    foreach (var trace in res.ConditionTraces) {
+      detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
+        "step",
+        $"Condition step '{trace.StepLabel ?? trace.StepId}' evaluated to {trace.Trace.FinalResult}.",
+        new Dictionary<string, object?> {
+          ["stepOrder"] = stepOrder++,
+          ["stepType"] = "condition",
+          ["status"] = "executed",
+          ["sequenceId"] = sequenceId,
+          ["sequenceLabel"] = sequenceName,
+          ["stepId"] = trace.StepId,
+          ["stepLabel"] = trace.StepLabel ?? trace.StepId,
+          ["conditionTrace"] = trace.Trace
+        },
+        "normal"));
+    }
+
+    await executionLogService.LogSequenceExecutionAsync(
+      sequenceId,
+      sequenceName,
+      status,
+      $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
+      new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
+        Depth = 0,
+        SequenceId = sequenceId,
+        SequenceLabel = sequenceName
       },
+      details: detailItems,
       ct).ConfigureAwait(false);
     return Results.Ok(res);
   }).WithName("ExecuteSequence").WithTags("Sequences");
@@ -725,6 +890,89 @@ static string? TryFindVersioningDirectory() {
   }
 
   return null;
+}
+
+static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequence) {
+  if (sequence.FlowSteps.Count > 0 || sequence.FlowLinks.Count > 0) {
+    var flowSteps = sequence.FlowSteps.Select(step => new {
+      stepId = step.StepId,
+      label = step.Label,
+      stepType = step.StepType.ToString().ToLowerInvariant(),
+      payloadRef = step.PayloadRef,
+      iterationLimit = step.IterationLimit,
+      condition = MapConditionToDto(step.Condition)
+    }).ToArray();
+
+    var flowLinks = sequence.FlowLinks.Select(link => new {
+      linkId = link.LinkId,
+      sourceStepId = link.SourceStepId,
+      targetStepId = link.TargetStepId,
+      branchType = link.BranchType.ToString().ToLowerInvariant()
+    }).ToArray();
+
+    return new {
+      id = sequence.Id,
+      name = sequence.Name,
+      version = sequence.Version,
+      entryStepId = sequence.EntryStepId,
+      steps = flowSteps,
+      links = flowLinks
+    };
+  }
+
+  return new {
+    id = sequence.Id,
+    name = sequence.Name,
+    version = sequence.Version,
+    steps = sequence.Steps.Select(step => step.CommandId).ToArray()
+  };
+}
+
+static object? MapConditionToDto(ConditionExpression? expression) {
+  if (expression is null) {
+    return null;
+  }
+
+  return new {
+    nodeType = expression.NodeType.ToString().ToLowerInvariant(),
+    children = expression.Children.Select(MapConditionToDto).Where(child => child is not null).ToArray(),
+    operand = expression.Operand is null
+      ? null
+      : new {
+        operandType = expression.Operand.OperandType.ToString()
+          .ToLowerInvariant()
+          .Replace("commandoutcome", "command-outcome", StringComparison.Ordinal)
+          .Replace("imagedetection", "image-detection", StringComparison.Ordinal),
+        targetRef = expression.Operand.TargetRef,
+        expectedState = expression.Operand.ExpectedState,
+        threshold = expression.Operand.Threshold
+      }
+  };
+}
+
+bool TryReadFlowRequest(System.Text.Json.JsonElement root, out SequenceFlowUpsertRequestDto? request) {
+  request = null;
+  if (!root.TryGetProperty("entryStepId", out var entryStepIdProp) || entryStepIdProp.ValueKind != JsonValueKind.String) {
+    return false;
+  }
+
+  if (!root.TryGetProperty("links", out var linksProp) || linksProp.ValueKind != JsonValueKind.Array) {
+    return false;
+  }
+
+  if (!root.TryGetProperty("steps", out var stepsProp) || stepsProp.ValueKind != JsonValueKind.Array) {
+    return false;
+  }
+
+  var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
+  if (firstStep.ValueKind != JsonValueKind.Object || !firstStep.TryGetProperty("stepId", out _)) {
+    return false;
+  }
+
+  request = JsonSerializer.Deserialize<SequenceFlowUpsertRequestDto>(
+    root.GetRawText(),
+    flowRequestJsonOptions);
+  return request is not null;
 }
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq) {
@@ -808,6 +1056,107 @@ static void ValidateBlock(object blockObj, List<string> errs, bool isTopLevel) {
     // If a non-ifElse block provides elseSteps, flag as error (T015)
     if (!type.Equals("ifElse", StringComparison.OrdinalIgnoreCase) && je.TryGetProperty("elseSteps", out var elseAny) && elseAny.ValueKind == System.Text.Json.JsonValueKind.Array) {
       errs.Add($"'elseSteps' is only valid for ifElse blocks, not '{type}'.");
+    }
+  }
+}
+
+static SequenceFlowGraph MapToFlowGraph(string sequenceId, SequenceFlowUpsertRequestDto request) {
+  var graph = new SequenceFlowGraph {
+    SequenceId = sequenceId,
+    Name = request.Name,
+    Version = request.Version,
+    EntryStepId = request.EntryStepId
+  };
+
+  graph.SetSteps(request.Steps.Select(step => new FlowStep {
+    StepId = step.StepId,
+    Label = step.Label,
+    StepType = step.StepType.Trim().ToLowerInvariant() switch {
+      "action" => FlowStepType.Action,
+      "command" => FlowStepType.Command,
+      "condition" => FlowStepType.Condition,
+      "terminal" => FlowStepType.Terminal,
+      _ => FlowStepType.Command
+    },
+    PayloadRef = step.PayloadRef,
+    IterationLimit = step.IterationLimit,
+    Condition = MapCondition(step.Condition)
+  }));
+
+  graph.SetLinks(request.Links.Select(link => new BranchLink {
+    LinkId = link.LinkId,
+    SourceStepId = link.SourceStepId,
+    TargetStepId = link.TargetStepId,
+    BranchType = link.BranchType.Trim().ToLowerInvariant() switch {
+      "next" => BranchType.Next,
+      "true" => BranchType.True,
+      "false" => BranchType.False,
+      _ => BranchType.Next
+    }
+  }));
+
+  return graph;
+}
+
+static ConditionExpression? MapCondition(ConditionExpressionDto? dto) {
+  if (dto is null) {
+    return null;
+  }
+
+  var expression = new ConditionExpression {
+    NodeType = dto.NodeType.Trim().ToLowerInvariant() switch {
+      "and" => ConditionNodeType.And,
+      "or" => ConditionNodeType.Or,
+      "not" => ConditionNodeType.Not,
+      "operand" => ConditionNodeType.Operand,
+      _ => ConditionNodeType.Operand
+    },
+    Operand = dto.Operand is null
+      ? null
+      : new ConditionOperand {
+        OperandType = dto.Operand.OperandType.Trim().ToLowerInvariant() switch {
+          "command-outcome" => ConditionOperandType.CommandOutcome,
+          "image-detection" => ConditionOperandType.ImageDetection,
+          _ => ConditionOperandType.CommandOutcome
+        },
+        TargetRef = dto.Operand.TargetRef,
+        ExpectedState = dto.Operand.ExpectedState,
+        Threshold = dto.Operand.Threshold
+      }
+  };
+
+  if (dto.Children is not null) {
+    expression.SetChildren(dto.Children.Select(MapCondition).Where(c => c is not null).Select(c => c!));
+  }
+
+  return expression;
+}
+
+internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
+  public void Apply(Microsoft.OpenApi.Models.OpenApiDocument swaggerDoc, DocumentFilterContext context) {
+    _ = swaggerDoc;
+    context.SchemaGenerator.GenerateSchema(typeof(SequenceFlowUpsertRequestDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequenceFlowDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(FlowStepDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(BranchLinkDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(ConditionExpressionDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(ConditionOperandDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequenceSaveConflictDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(ConditionEvaluationTraceDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(AuthoringDeepLinkDto), context.SchemaRepository);
+
+    AliasSchema(context, nameof(SequenceFlowUpsertRequestDto), "SequenceFlowUpsertRequest");
+    AliasSchema(context, nameof(SequenceFlowDto), "SequenceFlow");
+    AliasSchema(context, nameof(ConditionExpressionDto), "ConditionExpression");
+    AliasSchema(context, nameof(ConditionOperandDto), "ConditionOperand");
+    AliasSchema(context, nameof(SequenceSaveConflictDto), "SequenceSaveConflict");
+    AliasSchema(context, nameof(ConditionEvaluationTraceDto), "ConditionEvaluationTrace");
+    AliasSchema(context, nameof(AuthoringDeepLinkDto), "AuthoringDeepLink");
+  }
+
+  private static void AliasSchema(DocumentFilterContext context, string sourceName, string aliasName) {
+    if (context.SchemaRepository.Schemas.TryGetValue(sourceName, out var schema)) {
+      context.SchemaRepository.Schemas[aliasName] = schema;
     }
   }
 }

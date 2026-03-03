@@ -235,8 +235,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       operation.Summary ??= "List sequences";
       SetResponseExample(operation, "200", SequenceListResponse(), context, typeof(IEnumerable<SequenceResponseSchema>));
     }
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/validate", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Validate a sequence flow";
+      SetRequestExample(operation, SequenceFlowValidateRequest(), context, typeof(GameBot.Service.Contracts.Sequences.SequenceFlowUpsertRequestDto));
+      SetResponseExample(operation, "200", SequenceFlowValidateResponse(), context, typeof(SequenceValidateResponseSchema));
+      SetResponseExample(operation, "400", SequenceFlowValidateErrorResponse(), context, typeof(SequenceValidateResponseSchema));
+    }
     else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get a sequence";
+      SetResponseExample(operation, "200", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
+    }
+    else if (IsMethod(method, HttpMethods.Patch) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Patch a sequence";
+      SetRequestExample(operation, SequenceCreateRequest(), context, typeof(SequenceRequestSchema));
       SetResponseExample(operation, "200", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
     }
     else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
@@ -742,6 +753,53 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     SequenceCreateResponse()
   };
 
+  private static OpenApiObject SequenceFlowValidateRequest() => new OpenApiObject {
+    ["name"] = new OpenApiString("Collect reward if found"),
+    ["version"] = new OpenApiInteger(3),
+    ["entryStepId"] = new OpenApiString("start"),
+    ["steps"] = new OpenApiArray {
+      new OpenApiObject {
+        ["stepId"] = new OpenApiString("start"),
+        ["label"] = new OpenApiString("Run detector"),
+        ["stepType"] = new OpenApiString("command"),
+        ["payloadRef"] = new OpenApiString("cmd-001")
+      },
+      new OpenApiObject {
+        ["stepId"] = new OpenApiString("decision"),
+        ["label"] = new OpenApiString("Check result"),
+        ["stepType"] = new OpenApiString("condition"),
+        ["condition"] = new OpenApiObject {
+          ["nodeType"] = new OpenApiString("operand"),
+          ["operand"] = new OpenApiObject {
+            ["operandType"] = new OpenApiString("command-outcome"),
+            ["targetRef"] = new OpenApiString("cmd-001"),
+            ["expectedState"] = new OpenApiString("success")
+          }
+        }
+      }
+    },
+    ["links"] = new OpenApiArray {
+      new OpenApiObject {
+        ["linkId"] = new OpenApiString("l1"),
+        ["sourceStepId"] = new OpenApiString("start"),
+        ["targetStepId"] = new OpenApiString("decision"),
+        ["branchType"] = new OpenApiString("next")
+      }
+    }
+  };
+
+  private static OpenApiObject SequenceFlowValidateResponse() => new OpenApiObject {
+    ["valid"] = new OpenApiBoolean(true),
+    ["errors"] = new OpenApiArray()
+  };
+
+  private static OpenApiObject SequenceFlowValidateErrorResponse() => new OpenApiObject {
+    ["valid"] = new OpenApiBoolean(false),
+    ["errors"] = new OpenApiArray {
+      new OpenApiString("Condition step 'decision' must have exactly one True and one False branch.")
+    }
+  };
+
   private static OpenApiObject SessionCreateRequest() => new OpenApiObject {
     ["gameId"] = new OpenApiString("game-123"),
     ["adbSerial"] = new OpenApiString("emulator-5554")
@@ -1099,6 +1157,11 @@ internal sealed class SequenceResponseSchema {
   public required string Id { get; set; }
   public required string Name { get; set; }
   public ICollection<string> Steps { get; set; } = new List<string>();
+}
+
+internal sealed class SequenceValidateResponseSchema {
+  public bool Valid { get; set; }
+  public ICollection<string> Errors { get; set; } = new List<string>();
 }
 
 internal sealed class SessionAcceptedSchema {

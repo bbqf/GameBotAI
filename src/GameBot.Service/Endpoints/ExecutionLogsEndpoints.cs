@@ -168,9 +168,31 @@ internal static class ExecutionLogsEndpoints
       },
       StepOutcomes = projection.StepOutcomes.Select(step => new StepOutcomeDetailDto
       {
+        SequenceId = step.SequenceId,
+        SequenceLabel = step.SequenceLabel,
+        StepId = step.StepId,
+        StepLabel = step.StepLabel,
         StepName = step.StepName,
         Status = step.Status,
         Message = step.Message,
+        DeepLink = new AuthoringDeepLinkDto {
+          SequenceId = step.DeepLink.SequenceId,
+          StepId = step.DeepLink.StepId,
+          SequenceLabel = step.DeepLink.SequenceLabel,
+          StepLabel = step.DeepLink.StepLabel,
+          ResolutionStatus = step.DeepLink.ResolutionStatus,
+          DirectPath = step.DeepLink.DirectPath,
+          FallbackRoute = step.DeepLink.FallbackRoute
+        },
+        ConditionTrace = step.ConditionTrace is null
+          ? null
+          : new ConditionEvaluationTraceDto {
+            FinalResult = step.ConditionTrace.FinalResult,
+            SelectedBranch = step.ConditionTrace.SelectedBranch,
+            FailureReason = step.ConditionTrace.FailureReason,
+            OperandResults = step.ConditionTrace.OperandResults,
+            OperatorSteps = step.ConditionTrace.OperatorSteps
+          },
         StartedAtUtc = null,
         EndedAtUtc = null
       }).ToArray()

@@ -1,0 +1,75 @@
+{
+  "name": "Sample Conditional Sequence",
+  "version": 1,
+  "entryStepId": "step-start",
+  "steps": [
+    {
+      "stepId": "step-start",
+      "label": "Run Detect Command",
+      "stepType": "command",
+      "payloadRef": "00000000000000000000000000000001"
+    },
+    {
+      "stepId": "step-condition",
+      "label": "IF Detection Succeeds",
+      "stepType": "condition",
+      "condition": {
+        "nodeType": "operand",
+        "operand": {
+          "operandType": "command-outcome",
+          "targetRef": "00000000000000000000000000000001",
+          "expectedState": "success"
+        }
+      }
+    },
+    {
+      "stepId": "step-true",
+      "label": "True Branch Action",
+      "stepType": "action",
+      "payloadRef": "d6bfccf5000000000000000000000001"
+    },
+    {
+      "stepId": "step-false",
+      "label": "False Branch Action",
+      "stepType": "action",
+      "payloadRef": "d6bfccf5000000000000000000000002"
+    },
+    {
+      "stepId": "step-end",
+      "label": "End",
+      "stepType": "terminal"
+    }
+  ],
+  "links": [
+    {
+      "linkId": "link-1",
+      "sourceStepId": "step-start",
+      "targetStepId": "step-condition",
+      "branchType": "next"
+    },
+    {
+      "linkId": "link-2",
+      "sourceStepId": "step-condition",
+      "targetStepId": "step-true",
+      "branchType": "true"
+    },
+    {
+      "linkId": "link-3",
+      "sourceStepId": "step-condition",
+      "targetStepId": "step-false",
+      "branchType": "false"
+    },
+    {
+      "linkId": "link-4",
+      "sourceStepId": "step-true",
+      "targetStepId": "step-end",
+      "branchType": "next"
+    },
+    {
+      "linkId": "link-5",
+      "sourceStepId": "step-false",
+      "targetStepId": "step-end",
+      "branchType": "next"
+    }
+  ]
+}

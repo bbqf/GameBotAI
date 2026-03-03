@@ -29,6 +29,20 @@ public sealed class OpenApiBackwardCompatTests {
     text.Should().Contain("\"/api/images/{id}\"");
     text.Should().Contain("\"/api/ocr/coverage\"");
     text.Should().Contain("\"/api/images/detect\"");
+    text.Should().Contain("\"/api/sequences/{sequenceId}/validate\"");
+    text.Should().Contain("\"/api/sequences/{sequenceId}/execute\"");
+    text.Should().Contain("\"/api/execution-logs/{id}\"");
+
+    var components = json!.TryGetValue("components", out var componentsValue)
+      ? (JsonElement)componentsValue
+      : default;
+    var schemasText = components.ValueKind == JsonValueKind.Object && components.TryGetProperty("schemas", out var schemas)
+      ? schemas.ToString()
+      : string.Empty;
+
+    schemasText.Should().Contain("\"ConditionExpressionDto\"");
+    schemasText.Should().Contain("\"ConditionOperandDto\"");
+    schemasText.Should().Contain("\"SequenceFlowUpsertRequestDto\"");
 
     // Legacy roots should no longer be published
   }

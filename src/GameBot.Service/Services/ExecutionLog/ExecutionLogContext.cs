@@ -7,4 +7,8 @@ internal sealed class ExecutionLogContext {
   public int? SequenceIndex { get; init; }
   public string? ParentObjectType { get; init; }
   public string? ParentObjectId { get; init; }
+  public string? SequenceId { get; init; }
+  public string? SequenceLabel { get; init; }
+  public string? StepId { get; init; }
+  public string? StepLabel { get; init; }
 }

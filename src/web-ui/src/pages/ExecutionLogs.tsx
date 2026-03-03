@@ -159,6 +159,27 @@ export const ExecutionLogsPage: React.FC = () => {
     }
   };
 
+  const openStepDeepLink = (step: ExecutionLogDetailDto['stepOutcomes'][number]) => {
+    const deepLink = step.deepLink;
+    if (!deepLink) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('area', 'authoring');
+    params.set('tab', 'Sequences');
+    params.set('id', deepLink.sequenceId);
+    if (deepLink.resolutionStatus === 'resolved' && deepLink.stepId) {
+      params.set('stepId', deepLink.stepId);
+      params.delete('missingStep');
+    } else {
+      params.delete('stepId');
+      params.set('missingStep', '1');
+    }
+
+    window.location.assign(`${window.location.pathname}?${params.toString()}`);
+  };
+
   const renderList = () => (
     <section className="execution-logs-list" aria-label="Execution logs list">
       <div className="execution-logs-controls">
@@ -279,6 +300,21 @@ export const ExecutionLogsPage: React.FC = () => {
                 {detail.stepOutcomes.map((step, index) => (
                   <li key={`${step.stepName}-${index}`}>
                     <strong>{step.stepName}</strong>: {step.status} — {step.message}
+                    {step.deepLink && (
+                      <div className="actions" style={{ marginTop: '0.25rem' }}>
+                        <button type="button" onClick={() => openStepDeepLink(step)}>
+                          Open in sequence
+                        </button>
+                        {step.deepLink.resolutionStatus !== 'resolved' && (
+                          <span className="form-hint">Referenced step missing. Opening sequence overview.</span>
+                        )}
+                      </div>
+                    )}
+                    {step.conditionTrace && (
+                      <div className="form-hint">
+                        Condition trace: final result {step.conditionTrace.finalResult ? 'true' : 'false'} ({step.conditionTrace.selectedBranch} branch)
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
