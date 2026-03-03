@@ -48,6 +48,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-05
 - File-backed JSON execution-log repository under `data/execution-logs` with retention-driven cleanup; retention configuration persisted in existing config store. (028-execution-log)
 - Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing execution-log services/repositories, React 18 + Vite 5 UI stack (029-execution-logs-tab)
 - Existing file-backed execution logs under `data/execution-logs` (no new store) (029-execution-logs-tab)
+- Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing sequence/command execution services, existing image detection pipeline, existing execution-log services, React/Vite authoring UI stack (030-sequence-conditional-logic)
+- Existing file-backed JSON stores under `data/commands/sequences`, `data/commands`, and `data/execution-logs` (030-sequence-conditional-logic)
 
 - .NET 9 + ASP.NET Core Minimal API; SharpAdbClient (ADB integration); System.Drawing/Imaging or Windows Graphics Capture for snapshots (001-android-emulator-service)
 
@@ -75,9 +77,9 @@ After running `dotnet test -c Debug --logger trx;`, execute `scripts/analyze-tes
 Coding style: Follow standard .NET 9 C# conventions
 
 ## Recent Changes
+- 030-sequence-conditional-logic: Added Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing sequence/command execution services, existing image detection pipeline, existing execution-log services, React/Vite authoring UI stack
+- 030-sequence-conditional-logic: Added Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing sequence/command execution services, existing image detection pipeline, existing execution-log services, React/Vite authoring UI stack
 - 029-execution-logs-tab: Added Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing execution-log services/repositories, React 18 + Vite 5 UI stack
-- 028-execution-log: Added C# 13 / .NET 9 (service/domain), TypeScript ES2020 / React 18 (future consumer only) + ASP.NET Core Minimal API, existing `GameBot.Domain` command/sequence services, file-backed repositories under `data/`, existing config/logging policy infrastructure.
-- 027-add-primitive-tap-action: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (authoring UI) + ASP.NET Core Minimal API, `GameBot.Domain` command/action repositories, `CommandExecutor`, existing detection pipeline (`IReferenceImageStore`, `IScreenSource`, `ITemplateMatcher`), existing web-ui authoring APIs.
 
 
 <!-- MANUAL ADDITIONS START -->
