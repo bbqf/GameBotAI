@@ -69,6 +69,7 @@ A change is Done only when all gates pass:
 - Quality: lint/format/static analysis clean; security scan clean or approved with risk notes.
 - Do not use underscores in method names, only CamelCase
 - Tests: all required tests pass in CI; coverage baselines met or improved; flaky tests eliminated or quarantined with owner.
+- Release blocker: any local or CI red build/test result is a hard stop; no task/phase may be marked complete and no implementation may proceed until failures are fixed or explicitly waived by a maintainer with documented rationale.
 - UX: interfaces documented; help text/messages updated; any breaking change accompanied by version note and migration path.
 - Performance: declared goals documented; perf note included for hot-path changes; no regression beyond agreed budgets.
 - Documentation: public APIs and configuration updated; changelog entry added when user-visible.
@@ -78,7 +79,7 @@ A change is Done only when all gates pass:
 - Propose: open a plan/spec referencing goals, UX, tests, and performance budgets.
 - Implement: small, reviewable PRs; keep commits logically grouped and well-described.
 - Review: reviewers MUST check against this constitution (quality, tests, UX, performance) and request evidence as needed.
-- Gate: CI enforces quality/test gates; maintainers may approve explicit, time-bound waivers with follow-up tasks.
+- Gate: CI enforces quality/test gates; red build/test states block progression; maintainers may approve explicit, time-bound waivers with follow-up tasks.
 - Traceability: link PRs to plans/specs and record decisions in the PR description.
 
 ## Governance
@@ -88,4 +89,4 @@ A change is Done only when all gates pass:
 - Versioning: Semantic versioning for this document: MAJOR (principle removals/redefinitions), MINOR (new sections/principles), PATCH (clarifications).
 - Compliance: Periodic audits review adherence. Non-compliance requires remediation tasks prioritized in the next cycle.
 
-**Version**: 1.0.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2025-11-05
+**Version**: 1.1.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-03-03

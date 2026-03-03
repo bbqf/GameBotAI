@@ -14,10 +14,10 @@
 
 **Purpose**: Prepare baseline contracts, fixtures, and shared type scaffolding.
 
-- [ ] T001 Add conditional-flow OpenAPI contract snapshot test fixture in tests/contract/Sequences/SequenceConditionalFlowOpenApiTests.cs
-- [ ] T002 [P] Add backend conditional-flow DTO scaffolding in src/GameBot.Service/Contracts/Sequences/ConditionalFlowDtos.cs
-- [ ] T003 [P] Add frontend conditional-flow type scaffolding in src/web-ui/src/types/sequenceFlow.ts
-- [ ] T004 Add conditional-sequence sample payload in samples/sample-sequence-conditional-flow.json
+- [x] T001 Add conditional-flow OpenAPI contract snapshot test fixture in tests/contract/Sequences/SequenceConditionalFlowOpenApiTests.cs
+- [x] T002 [P] Add backend conditional-flow DTO scaffolding in src/GameBot.Service/Contracts/Sequences/ConditionalFlowDtos.cs
+- [x] T003 [P] Add frontend conditional-flow type scaffolding in src/web-ui/src/types/sequenceFlow.ts
+- [x] T004 Add conditional-sequence sample payload in samples/sample-sequence-conditional-flow.json
 
 ---
 
@@ -27,14 +27,14 @@
 
 **⚠️ CRITICAL**: No user story implementation starts before this phase is complete.
 
-- [ ] T005 Implement sequence-flow graph domain model in src/GameBot.Domain/Commands/SequenceFlowGraph.cs
-- [ ] T006 Implement condition expression/operand domain model in src/GameBot.Domain/Commands/ConditionExpression.cs
-- [ ] T007 Implement branch-link domain model and invariants in src/GameBot.Domain/Commands/BranchLink.cs
-- [ ] T008 Implement flow graph validator (branch-target integrity and cycle detection) in src/GameBot.Domain/Services/SequenceFlowValidator.cs
-- [ ] T009 Implement cycle-limit validation/enforcement helpers in src/GameBot.Domain/Services/CycleIterationLimiter.cs
-- [ ] T010 Implement condition evaluator interface and baseline implementation in src/GameBot.Domain/Services/ConditionEvaluator.cs
-- [ ] T011 [P] Register conditional-flow services in src/GameBot.Service/Program.cs
-- [ ] T012 [P] Register conditional-flow schemas in specs/openapi.json generation path in src/GameBot.Service/Program.cs
+- [x] T005 Implement sequence-flow graph domain model in src/GameBot.Domain/Commands/SequenceFlowGraph.cs
+- [x] T006 Implement condition expression/operand domain model in src/GameBot.Domain/Commands/ConditionExpression.cs
+- [x] T007 Implement branch-link domain model and invariants in src/GameBot.Domain/Commands/BranchLink.cs
+- [x] T008 Implement flow graph validator (branch-target integrity and cycle detection) in src/GameBot.Domain/Services/SequenceFlowValidator.cs
+- [x] T009 Implement cycle-limit validation/enforcement helpers in src/GameBot.Domain/Services/CycleIterationLimiter.cs
+- [x] T010 Implement condition evaluator interface and baseline implementation in src/GameBot.Domain/Services/ConditionEvaluator.cs
+- [x] T011 [P] Register conditional-flow services in src/GameBot.Service/Program.cs
+- [x] T012 [P] Register conditional-flow schemas in specs/openapi.json generation path in src/GameBot.Service/Program.cs
 
 **Checkpoint**: Graph modeling, validation, and evaluation primitives are ready.
 
