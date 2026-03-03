@@ -15,6 +15,14 @@
 - Q: How should cycles in sequence flow be handled? → A: Allow cycles only when each cycle has an explicit maximum iteration limit.
 - Q: What should happen when a cycle reaches its maximum iteration limit? → A: Mark the current step failed and stop the sequence.
 
+### Session 2026-03-03
+
+- Q: What maximum added latency should one conditional step evaluation (including condition trace logging) have under normal load? → A: p95 ≤ 200 ms.
+- Q: When a sequence save is rejected due to a stale version, what response contract should the API return? → A: HTTP 409 Conflict with payload containing current version and sequence id.
+- Q: If a log deep link points to a sequence/step that no longer exists, what should the UI do? → A: Open the sequence overview and show a "referenced step missing" message.
+- Q: What authorization behavior should deep-link navigation enforce for sequence/step references? → A: No additional check; rely on UI routing only.
+- Q: For cyclic branches, when should the iteration counter reset? → A: Reset at start of each sequence run.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Branch sequence paths by condition (Priority: P1)
@@ -75,6 +83,7 @@ As an operator, I can inspect logs and traces that identify the exact step and s
 - A cycle reaches its iteration limit during execution.
 - Two authors attempt to save different edits to the same sequence version at the same time.
 - Deep-link metadata exists but the target sequence or step was renamed or removed.
+- Deep-link navigation to a removed step falls back to sequence overview with an explicit missing-step message.
 
 ## Requirements *(mandatory)*
 
@@ -89,14 +98,23 @@ As an operator, I can inspect logs and traces that identify the exact step and s
 - **FR-007**: The visual representation MUST clearly distinguish true and false branch directions for each conditional step.
 - **FR-008**: Authors MUST be able to edit condition logic visually and preserve the same semantics after save and reload.
 - **FR-009**: The system MUST prevent saving or activating a sequence with unresolved branch targets or invalid conditional references.
-- **FR-010**: Runtime logs MUST record execution entries with explicit sequence identifier and step identifier for every executed step.
-- **FR-011**: Runtime logs MUST include deep-link metadata that can navigate directly to the corresponding sequence step in the authoring interface using immutable sequence/step identifiers and include readable sequence/step labels for operator context.
+- **FR-010**: Runtime logs MUST record execution entries with explicit immutable sequence identifier and step identifier for every executed step.
+- **FR-011**: Runtime logs MUST extend FR-010 entries with deep-link metadata that can navigate directly to the corresponding sequence step in the authoring interface and include readable sequence/step labels for operator context.
 - **FR-012**: The system MUST emit debug-level trace entries for every condition evaluation, including operand values, logical operator outcomes, and final decision.
 - **FR-013**: Condition-evaluation logs MUST make it possible to reconstruct why a branch decision was taken.
 - **FR-014**: When condition evaluation cannot be completed, the system MUST record the failure reason, mark the condition step as failed, and stop the sequence immediately.
 - **FR-015**: The system MUST allow cyclic sequence paths only when each cycle defines an explicit maximum iteration limit, and MUST reject save/activation when a cycle lacks that limit.
 - **FR-016**: When a cycle reaches its maximum iteration limit during execution, the system MUST mark the current step as failed and stop the sequence.
 - **FR-017**: The system MUST enforce optimistic concurrency for sequence saves so that updates with stale sequence versions are rejected with a conflict response.
+- **FR-018**: For stale-version sequence save attempts, the API MUST return HTTP 409 Conflict and include the current sequence version and sequence identifier in the response payload.
+- **FR-019**: If a deep-link target step is missing, the authoring UI MUST open the referenced sequence overview and display a clear "referenced step missing" message.
+- **FR-020**: Deep-link navigation in the authoring UI MUST rely on existing UI routing behavior and MUST NOT add extra authorization checks specific to sequence/step references.
+- **FR-021**: For cyclic branches with configured maximum iteration limits, iteration counters MUST reset at the start of each sequence run.
+
+### Non-Functional Requirements
+
+- **NFR-001**: Under normal load, added latency for a single conditional-step evaluation (including condition trace logging) MUST be p95 ≤ 200 ms.
+- **NFR-002**: For this feature, normal load is defined as 10 concurrent sequence executions, each with 50 steps and 10 conditional steps, measured over a continuous 15-minute run on the standard local validation workstation profile.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -111,15 +129,16 @@ As an operator, I can inspect logs and traces that identify the exact step and s
 
 - Conditional branching is introduced for sequence authoring and execution; existing non-conditional sequences continue to work without modification.
 - Command outcome conditions use the command result available within the same sequence execution context.
-- Deep links are available to authenticated users who have access to the referenced sequence in the authoring UI.
+- Deep links are resolved through existing authoring UI routing behavior without additional deep-link-specific authorization checks.
 - Debug-level condition traces are retained according to existing logging retention policies.
+- Standard local validation workstation profile is the baseline for performance checks (Developer Windows machine, Debug configuration, no competing stress workload).
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
 - **SC-001**: In acceptance testing, 100% of conditional sequences with defined true/false branches route to the expected branch for both positive and negative condition outcomes.
-- **SC-002**: At least 90% of test users can create and validate a branching sequence with one nested logical condition in under 10 minutes without external assistance.
-- **SC-003**: For sequence runs executed during validation, 100% of step-level log entries include immutable sequence/step identifiers, readable sequence/step labels, and authoring deep-link metadata.
-- **SC-004**: For runs with debug logging enabled, 100% of evaluated conditions include traceable logs that show operand results, operator evaluation, and final branch decision.
-- **SC-005**: During operator review sessions, median time to identify the exact failing step in a conditional sequence is reduced by at least 50% compared with current baseline workflows.
+- **SC-002**: For sequence runs executed during validation, 100% of step-level log entries include immutable sequence/step identifiers, readable sequence/step labels, and authoring deep-link metadata.
+- **SC-003**: For runs with debug logging enabled, 100% of evaluated conditions include traceable logs that show operand results, operator evaluation, and final branch decision.
+- **SC-004**: In performance validation under normal load, conditional-step evaluation (including condition trace logging) achieves p95 latency ≤ 200 ms.
+- **SC-005**: Performance validation for SC-004 uses NFR-002 normal-load profile (10 concurrent executions, 50 steps each, 10 condition steps each, 15-minute run).

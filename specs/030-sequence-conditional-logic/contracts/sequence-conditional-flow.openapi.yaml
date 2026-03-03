@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Sequence Conditional Flow API
-  version: 1.0.0
-  description: Contracts for visual sequence authoring, conditional execution, and step-level traceability.
+  version: 1.1.0
+  description: Contracts for visual sequence authoring, conditional execution, optimistic concurrency, and enriched execution logs.
 servers:
   - url: http://localhost:5081
 paths:
@@ -23,6 +23,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SequenceFlow'
+        '400':
+          description: Validation error.
   /api/sequences/{sequenceId}:
     get:
       summary: Get sequence flow
@@ -65,7 +67,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/SequenceFlow'
         '400':
-          description: Validation error (e.g., unresolved branch target, unbounded cycle).
+          description: Validation error (unresolved branch target, invalid conditional reference, or unbounded cycle).
+        '409':
+          description: Stale sequence version conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSaveConflict'
   /api/sequences/{sequenceId}/validate:
     post:
       summary: Validate sequence flow graph
@@ -110,7 +118,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/SequenceExecutionResult'
         '409':
-          description: Execution failed at condition evaluation or cycle iteration limit exhaustion.
+          description: Execution failed due to condition-evaluation failure or cycle iteration limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceExecutionResult'
   /api/execution-logs/{executionId}:
     get:
       summary: Get enriched execution log
@@ -130,14 +142,17 @@ paths:
                 $ref: '#/components/schemas/ExecutionLogDetail'
         '404':
           description: Execution log not found.
+
 components:
   schemas:
     SequenceFlowUpsertRequest:
       type: object
-      required: [name, entryStepId, steps, links]
+      required: [name, version, entryStepId, steps, links]
       properties:
         name:
           type: string
+        version:
+          type: integer
         entryStepId:
           type: string
         steps:
@@ -148,6 +163,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BranchLink'
+
     SequenceFlow:
       type: object
       required: [sequenceId, name, version, entryStepId, steps, links]
@@ -168,6 +184,18 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BranchLink'
+
+    SequenceSaveConflict:
+      type: object
+      required: [sequenceId, currentVersion, message]
+      properties:
+        sequenceId:
+          type: string
+        currentVersion:
+          type: integer
+        message:
+          type: string
+
     FlowStep:
       type: object
       required: [stepId, label, stepType]
@@ -188,6 +216,7 @@ components:
           nullable: true
         condition:
           $ref: '#/components/schemas/ConditionExpression'
+
     BranchLink:
       type: object
       required: [linkId, sourceStepId, targetStepId, branchType]
@@ -201,6 +230,7 @@ components:
         branchType:
           type: string
           enum: [next, true, false]
+
     ConditionExpression:
       type: object
       required: [nodeType]
@@ -214,6 +244,7 @@ components:
             $ref: '#/components/schemas/ConditionExpression'
         operand:
           $ref: '#/components/schemas/ConditionOperand'
+
     ConditionOperand:
       type: object
       required: [operandType, targetRef, expectedState]
@@ -230,6 +261,7 @@ components:
           minimum: 0
           maximum: 1
           nullable: true
+
     SequenceFlowValidationResult:
       type: object
       required: [isValid, errors]
@@ -244,6 +276,7 @@ components:
           type: array
           items:
             type: string
+
     SequenceExecutionResult:
       type: object
       required: [executionId, sequenceId, status, stepResults]
@@ -266,6 +299,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StepExecutionResult'
+
     StepExecutionResult:
       type: object
       required: [stepId, stepLabel, status, deepLink]
@@ -281,9 +315,10 @@ components:
           $ref: '#/components/schemas/AuthoringDeepLink'
         conditionTrace:
           $ref: '#/components/schemas/ConditionEvaluationTrace'
+
     AuthoringDeepLink:
       type: object
-      required: [sequenceId, stepId, sequenceLabel, stepLabel]
+      required: [sequenceId, stepId, sequenceLabel, stepLabel, resolutionStatus]
       properties:
         sequenceId:
           type: string
@@ -293,6 +328,13 @@ components:
           type: string
         stepLabel:
           type: string
+        resolutionStatus:
+          type: string
+          enum: [resolved, step_missing, sequence_missing]
+        fallbackRoute:
+          type: string
+          nullable: true
+
     ConditionEvaluationTrace:
       type: object
       required: [finalResult, selectedBranch]
@@ -315,6 +357,7 @@ components:
           items:
             type: object
             additionalProperties: true
+
     ExecutionLogDetail:
       type: object
       required: [executionId, sequenceId, sequenceLabel, stepEntries]

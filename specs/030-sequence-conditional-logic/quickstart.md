@@ -3,64 +3,60 @@
 ## Prerequisites
 
 - Windows development environment
-- .NET SDK matching repository requirements
-- Node.js environment for web UI
-- Existing auth token configuration for API testing
+- .NET SDK and Node.js versions used by this repository
+- Backend and web-ui dependencies restored
 
 ## 1) Build and baseline tests
 
 1. Run workspace task `build` (`dotnet build -c Debug`).
 2. Run workspace task `test` (`dotnet test -c Debug`).
-3. Record baseline pass results in PR notes.
+3. Confirm baseline is green before feature validation.
 
 ## 2) Run service and authoring UI
 
-1. Start backend with task `run-service`.
-2. Start frontend with task `run-web-ui`.
-3. Open the Sequences authoring screen and verify conditional flow editor is available.
+1. Start backend task `run-service`.
+2. Start frontend task `run-web-ui`.
+3. Open authoring UI and navigate to sequence editor.
 
-## 3) Authoring validation flow
+## 3) Validate conditional authoring and branching
 
-1. Create a sequence graph with:
-   - One command step
-   - One condition step using command-outcome operand
-   - Distinct true/false branches
-2. Save and reload; verify graph structure and condition expression persist unchanged.
-3. Add nested condition logic using AND/OR/NOT and verify visual branch labels remain clear.
+1. Create a sequence with one command step and one condition step.
+2. Configure true/false branches with valid targets.
+3. Save and reload; confirm visual graph and logical expression are preserved.
+4. Execute once with condition true and once false; verify expected branch path each run.
 
-## 4) Image-detection condition validation
+## 4) Validate nested logic and image operand
 
-1. Configure an image-detection operand with threshold.
-2. Execute the sequence with a matching screen state; verify true branch is selected when at least one match meets threshold.
-3. Execute with non-matching state; verify false branch is selected.
+1. Build nested expression using `AND` + `OR` + `NOT`.
+2. Configure image operand and threshold.
+3. Execute with matching screen state; verify at least-one-match-at-threshold selects true branch.
+4. Execute with no qualifying match; verify false branch is selected.
 
-## 5) Failure and cycle policy validation
+## 5) Validate failure and bounded-cycle behavior
 
-1. Force condition evaluation failure (missing image target or evaluator error).
-2. Verify condition step status is failed and sequence stops immediately.
-3. Author a cycle without iteration limit; verify save/activation is rejected.
-4. Author cycle with explicit iteration limit; verify execution marks current step failed and stops when the limit is reached.
+1. Cause an unevaluable condition (missing image target or evaluator error).
+2. Verify current condition step is marked failed and sequence stops immediately.
+3. Create a cycle without iteration limits; verify save/activation is rejected.
+4. Add explicit cycle limit and run past limit; verify current step fails and sequence stops.
+5. Start a new run and verify cycle counters reset at run start.
 
-## 6) Logging and observability validation
+## 6) Validate optimistic concurrency contract
 
-1. Execute a conditional sequence and inspect step logs.
-2. Confirm each log entry includes:
-   - Immutable sequence ID + step ID
-   - Readable sequence label + step label
-   - Deep-link metadata to authoring step
-3. Enable debug-level logging and confirm each condition step emits:
-   - Operand evaluation outcomes
-   - Operator application trace
-   - Final boolean and selected branch
+1. Open same sequence in two editor instances.
+2. Save instance A, then attempt save from stale instance B.
+3. Verify API returns HTTP `409` with payload containing `sequenceId` and `currentVersion`.
+4. Reload stale editor and retry save successfully.
 
-## 7) Performance validation
+## 7) Validate logging and deep-link behavior
 
-- Compare sequence execution latency for equivalent linear vs conditional flows.
-- Verify median overhead from condition evaluation + enriched logging stays within 10%.
-- Verify p95 execute response for a 50-step sequence remains below 250ms in local validation runs.
+1. Execute a conditional sequence and inspect execution logs.
+2. Verify each step log includes immutable IDs (`sequenceId`, `stepId`) and readable labels.
+3. Enable debug logging; verify each condition includes operand results, operator evaluation, and final decision.
+4. Follow a valid deep link; verify direct navigation to sequence step.
+5. Remove a previously linked step and open historical log deep link; verify fallback to sequence overview with "referenced step missing" message.
 
-## 8) Regression checks
+## 8) Validate performance target
 
-- Verify existing non-conditional sequences execute unchanged.
-- Verify existing execution log views can render enriched step metadata without regression.
-- Verify contract and integration tests cover success, failure, and bounded-cycle paths.
+1. Run repeated conditional-step evaluations with debug traces enabled under normal load.
+2. Measure conditional-step evaluation latency distribution.
+3. Verify p95 added latency per conditional step is ≤ 200 ms.
