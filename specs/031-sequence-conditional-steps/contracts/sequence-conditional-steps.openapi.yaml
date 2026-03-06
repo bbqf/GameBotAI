@@ -1,0 +1,283 @@
+openapi: 3.0.3
+info:
+  title: Sequence Conditional Steps API (Minimal)
+  version: 1.0.0
+  description: Contracts for minimal conditional sequence steps in clean-slate scope.
+servers:
+  - url: http://localhost:5081
+paths:
+  /api/sequences:
+    post:
+      summary: Create sequence
+      operationId: createSequence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '201':
+          description: Sequence created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sequence'
+        '400':
+          description: Validation error.
+
+  /api/sequences/{sequenceId}:
+    get:
+      summary: Get sequence
+      operationId: getSequence
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sequence found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sequence'
+        '404':
+          description: Sequence not found.
+    patch:
+      summary: Update sequence
+      operationId: updateSequence
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '200':
+          description: Sequence updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sequence'
+        '400':
+          description: Validation error.
+        '409':
+          description: Version conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionConflict'
+
+  /api/sequences/{sequenceId}/validate:
+    post:
+      summary: Validate sequence payload
+      operationId: validateSequence
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+        '400':
+          description: Validation failed.
+
+  /api/sequences/{sequenceId}/execute:
+    post:
+      summary: Execute sequence
+      operationId: executeSequence
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Execution completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceExecutionResult'
+        '409':
+          description: Execution failed due to step/evaluation failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceExecutionResult'
+
+
+components:
+  schemas:
+    Sequence:
+      type: object
+      required: [sequenceId, name, version, steps]
+      properties:
+        sequenceId:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+
+    SequenceUpsertRequest:
+      type: object
+      required: [name, version, steps]
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+
+    SequenceStep:
+      oneOf:
+        - $ref: '#/components/schemas/ActionStep'
+        - $ref: '#/components/schemas/ConditionalStep'
+      discriminator:
+        propertyName: stepType
+        mapping:
+          action: '#/components/schemas/ActionStep'
+          conditional: '#/components/schemas/ConditionalStep'
+
+    ActionStep:
+      type: object
+      required: [stepId, stepType, action]
+      properties:
+        stepId:
+          type: string
+        stepType:
+          type: string
+          enum: [action]
+        label:
+          type: string
+        action:
+          $ref: '#/components/schemas/ActionPayload'
+
+    ConditionalStep:
+      type: object
+      required: [stepId, stepType, condition, action]
+      properties:
+        stepId:
+          type: string
+        stepType:
+          type: string
+          enum: [conditional]
+        label:
+          type: string
+        condition:
+          $ref: '#/components/schemas/ImageVisibleCondition'
+        action:
+          $ref: '#/components/schemas/ActionPayload'
+
+    ImageVisibleCondition:
+      type: object
+      required: [type, imageId]
+      properties:
+        type:
+          type: string
+          enum: [imageVisible]
+        imageId:
+          type: string
+        minSimilarity:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    ActionPayload:
+      type: object
+      description: Generic action payload validated against the existing action execution infrastructure contract.
+      required: [type, parameters]
+      properties:
+        type:
+          type: string
+          description: Action type identifier. Must match one of the currently supported action types.
+        parameters:
+          type: object
+          description: Action-specific payload. Validation rules depend on `type`.
+          additionalProperties: true
+      additionalProperties: false
+
+    ValidationResult:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+
+    SequenceExecutionResult:
+      type: object
+      required: [sequenceId, status, stepResults]
+      properties:
+        sequenceId:
+          type: string
+        status:
+          type: string
+          enum: [completed, failed]
+        failureReason:
+          type: string
+          nullable: true
+        stepResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepExecutionRecord'
+
+    StepExecutionRecord:
+      type: object
+      required: [stepId, stepType, actionOutcome]
+      properties:
+        stepId:
+          type: string
+        stepType:
+          type: string
+          enum: [action, conditional]
+        conditionSummary:
+          type: string
+          nullable: true
+        conditionResult:
+          type: string
+          enum: [true, false, error]
+          nullable: true
+        actionOutcome:
+          type: string
+          enum: [executed, skipped, failed]
+        message:
+          type: string
+          nullable: true
+
+    VersionConflict:
+      type: object
+      required: [sequenceId, currentVersion, message]
+      properties:
+        sequenceId:
+          type: string
+        currentVersion:
+          type: integer
+        message:
+          type: string
+
