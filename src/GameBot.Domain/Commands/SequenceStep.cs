@@ -1,5 +1,20 @@
+using System.Collections.Generic;
+
 namespace GameBot.Domain.Commands
 {
+    public enum SequenceStepType
+    {
+        Command,
+        Action,
+        Conditional
+    }
+
+    public sealed class SequenceActionPayload
+    {
+        public string Type { get; set; } = string.Empty;
+        public Dictionary<string, object?> Parameters { get; } = new();
+    }
+
     /// <summary>
     /// Minimal step model; detailed validation and behaviors added in US1/US2/US3 phases.
     /// </summary>
@@ -7,6 +22,9 @@ namespace GameBot.Domain.Commands
     {
         public int Order { get; set; }
         public string CommandId { get; set; } = string.Empty;
+        public SequenceStepType StepType { get; set; } = SequenceStepType.Command;
+        public SequenceActionPayload? Action { get; set; }
+        public ImageVisibleCondition? ConditionExpression { get; set; }
         public int? DelayMs { get; set; }
         public DelayRangeMs? DelayRangeMs { get; set; }
         public int? TimeoutMs { get; set; }

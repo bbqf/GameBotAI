@@ -1,0 +1,64 @@
+{
+  "name": "sample-conditional-sequence",
+  "version": 1,
+  "entryStepId": "step-1",
+  "steps": [
+    {
+      "stepId": "step-1",
+      "label": "Conditional Tap A",
+      "stepType": "condition",
+      "condition": {
+        "nodeType": "operand",
+        "operand": {
+          "operandType": "image-detection",
+          "targetRef": "image-a",
+          "expectedState": "present",
+          "threshold": 0.85
+        }
+      }
+    },
+    {
+      "stepId": "step-2",
+      "label": "Tap when A visible",
+      "stepType": "action",
+      "payloadRef": "action-tap-a"
+    },
+    {
+      "stepId": "step-3",
+      "label": "Final unconditional",
+      "stepType": "action",
+      "payloadRef": "action-final"
+    },
+    {
+      "stepId": "step-end",
+      "label": "End",
+      "stepType": "terminal"
+    }
+  ],
+  "links": [
+    {
+      "linkId": "l1",
+      "sourceStepId": "step-1",
+      "targetStepId": "step-2",
+      "branchType": "true"
+    },
+    {
+      "linkId": "l2",
+      "sourceStepId": "step-1",
+      "targetStepId": "step-3",
+      "branchType": "false"
+    },
+    {
+      "linkId": "l3",
+      "sourceStepId": "step-2",
+      "targetStepId": "step-3",
+      "branchType": "next"
+    },
+    {
+      "linkId": "l4",
+      "sourceStepId": "step-3",
+      "targetStepId": "step-end",
+      "branchType": "next"
+    }
+  ]
+}

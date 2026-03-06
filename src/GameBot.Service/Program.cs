@@ -118,6 +118,8 @@ builder.Services.AddSingleton<SemanticVersionComparer>();
 builder.Services.AddSingleton<VersionSourceLoader>();
 builder.Services.AddSingleton<VersionResolutionService>();
 builder.Services.AddSingleton<ISequenceFlowValidator, SequenceFlowValidator>();
+builder.Services.AddSingleton<SequenceStepValidationService>();
+builder.Services.AddSingleton<ActionPayloadValidationService>();
 builder.Services.AddSingleton<CycleIterationLimiter>();
 builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
 builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
@@ -507,11 +509,16 @@ app.MapPost("/installer/same-build/decision", (GameBot.Service.Models.SameBuildD
 // Sequences endpoints
 var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
 
-sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
-  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, CancellationToken ct) => {
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
   var root = doc.RootElement;
-  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+  var isFlowCandidate = IsFlowRequestCandidate(root);
+  if (TryReadFlowRequest(root, out var flowRequest, out var flowRequestError) && flowRequest is not null) {
     var flowGraph = MapToFlowGraph(string.Empty, flowRequest);
+    var validationErrors = await ValidateFlowForPersistenceAsync(flowGraph, stepValidationService, actionPayloadValidationService, ct).ConfigureAwait(false);
+    if (validationErrors.Count > 0) {
+      return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = validationErrors });
+    }
 
     var flowSequence = new GameBot.Domain.Commands.CommandSequence {
       Id = string.Empty,
@@ -532,6 +539,10 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
 
     var createdFlow = await repo.CreateAsync(flowSequence).ConfigureAwait(false);
     return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdFlow.Id}", UriKind.Relative), ToSequenceResponse(createdFlow));
+  }
+
+  if (isFlowCandidate && !string.IsNullOrWhiteSpace(flowRequestError)) {
+    return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = new[] { flowRequestError } });
   }
 
   // Authoring shape: { name: string, steps?: string[] }
@@ -568,11 +579,12 @@ sequences.MapGet("{sequenceId}", async (ISequenceRepository repo, string sequenc
   return Results.Ok(ToSequenceResponse(found));
 }).WithName("GetSequence");
 
-sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
+sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, string sequenceId, CancellationToken ct) => {
   var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
-  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
   var root = doc.RootElement;
+  var isFlowCandidate = IsFlowRequestCandidate(root);
   if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
     var requestedVersion = versionProp.GetInt32();
     if (requestedVersion != existing.Version) {
@@ -587,9 +599,13 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
   }
-  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+  if (TryReadFlowRequest(root, out var flowRequest, out var flowRequestError) && flowRequest is not null) {
     flowRequest.Name = existing.Name;
     var graph = MapToFlowGraph(existing.Id, flowRequest);
+    var validationErrors = await ValidateFlowForPersistenceAsync(graph, stepValidationService, actionPayloadValidationService, ct).ConfigureAwait(false);
+    if (validationErrors.Count > 0) {
+      return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = validationErrors });
+    }
 
     existing.SetFlowGraph(graph);
     var legacySteps = flowRequest.Steps
@@ -600,6 +616,9 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
         CommandId = step.PayloadRef!
       });
     existing.SetSteps(legacySteps);
+  }
+  else if (isFlowCandidate && !string.IsNullOrWhiteSpace(flowRequestError)) {
+    return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = new[] { flowRequestError } });
   }
   if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
     var order = 0;
@@ -617,11 +636,12 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
   return Results.Ok(ToSequenceResponse(saved));
 }).WithName("UpdateSequence");
 
-sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
+sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, string sequenceId, CancellationToken ct) => {
   var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
-  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
   var root = doc.RootElement;
+  var isFlowCandidate = IsFlowRequestCandidate(root);
   if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
     var requestedVersion = versionProp.GetInt32();
     if (requestedVersion != existing.Version) {
@@ -636,9 +656,13 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
   }
-  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
+  if (TryReadFlowRequest(root, out var flowRequest, out var flowRequestError) && flowRequest is not null) {
     flowRequest.Name = existing.Name;
     var graph = MapToFlowGraph(existing.Id, flowRequest);
+    var validationErrors = await ValidateFlowForPersistenceAsync(graph, stepValidationService, actionPayloadValidationService, ct).ConfigureAwait(false);
+    if (validationErrors.Count > 0) {
+      return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = validationErrors });
+    }
 
     existing.SetFlowGraph(graph);
     var legacySteps = flowRequest.Steps
@@ -649,6 +673,9 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
         CommandId = step.PayloadRef!
       });
     existing.SetSteps(legacySteps);
+  }
+  else if (isFlowCandidate && !string.IsNullOrWhiteSpace(flowRequestError)) {
+    return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = new[] { flowRequestError } });
   }
   if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
     var order = 0;
@@ -950,28 +977,88 @@ static object? MapConditionToDto(ConditionExpression? expression) {
   };
 }
 
-bool TryReadFlowRequest(System.Text.Json.JsonElement root, out SequenceFlowUpsertRequestDto? request) {
-  request = null;
-  if (!root.TryGetProperty("entryStepId", out var entryStepIdProp) || entryStepIdProp.ValueKind != JsonValueKind.String) {
-    return false;
-  }
-
-  if (!root.TryGetProperty("links", out var linksProp) || linksProp.ValueKind != JsonValueKind.Array) {
-    return false;
-  }
-
+bool IsFlowRequestCandidate(System.Text.Json.JsonElement root) {
   if (!root.TryGetProperty("steps", out var stepsProp) || stepsProp.ValueKind != JsonValueKind.Array) {
     return false;
   }
 
   var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
-  if (firstStep.ValueKind != JsonValueKind.Object || !firstStep.TryGetProperty("stepId", out _)) {
+  if (firstStep.ValueKind != JsonValueKind.Object) {
     return false;
   }
 
-  request = JsonSerializer.Deserialize<SequenceFlowUpsertRequestDto>(
-    root.GetRawText(),
-    flowRequestJsonOptions);
+  return root.TryGetProperty("entryStepId", out _)
+         || root.TryGetProperty("links", out _)
+         || firstStep.TryGetProperty("stepType", out _);
+}
+
+bool TryReadFlowRequest(System.Text.Json.JsonElement root, out SequenceFlowUpsertRequestDto? request, out string? error) {
+  request = null;
+  error = null;
+  var isFlowCandidate = IsFlowRequestCandidate(root);
+  if (!root.TryGetProperty("entryStepId", out var entryStepIdProp) || entryStepIdProp.ValueKind != JsonValueKind.String) {
+    if (isFlowCandidate) {
+      error = "entryStepId is required for sequence flow payload.";
+    }
+    return false;
+  }
+
+  if (!root.TryGetProperty("links", out var linksProp) || linksProp.ValueKind != JsonValueKind.Array) {
+    if (isFlowCandidate) {
+      error = "links array is required for sequence flow payload.";
+    }
+    return false;
+  }
+
+  if (!root.TryGetProperty("steps", out var stepsProp) || stepsProp.ValueKind != JsonValueKind.Array) {
+    if (isFlowCandidate) {
+      error = "steps array is required for sequence flow payload.";
+    }
+    return false;
+  }
+
+  var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
+  if (firstStep.ValueKind != JsonValueKind.Object || !firstStep.TryGetProperty("stepId", out _)) {
+    if (isFlowCandidate) {
+      error = "steps must contain step objects with stepId.";
+    }
+    return false;
+  }
+
+  var allowedStepTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "action", "command", "condition", "terminal" };
+  foreach (var stepElement in stepsProp.EnumerateArray()) {
+    if (stepElement.ValueKind != JsonValueKind.Object) {
+      error = "each step must be an object.";
+      return false;
+    }
+
+    if (!stepElement.TryGetProperty("stepType", out var stepTypeProp) || stepTypeProp.ValueKind != JsonValueKind.String) {
+      error = "each step must include string stepType.";
+      return false;
+    }
+
+    var stepType = stepTypeProp.GetString();
+    if (string.IsNullOrWhiteSpace(stepType) || !allowedStepTypes.Contains(stepType.Trim())) {
+      error = $"unsupported stepType '{stepType ?? string.Empty}'.";
+      return false;
+    }
+  }
+
+  try {
+    request = JsonSerializer.Deserialize<SequenceFlowUpsertRequestDto>(
+      root.GetRawText(),
+      flowRequestJsonOptions);
+  }
+  catch (JsonException ex) {
+    error = string.IsNullOrWhiteSpace(ex.Message) ? "Malformed sequence flow payload." : ex.Message;
+    return false;
+  }
+
+  if (request is not null && request.Steps.Any(s => string.IsNullOrWhiteSpace(s.StepType))) {
+    error = "each step must include non-empty stepType.";
+    return false;
+  }
+
   return request is not null;
 }
 
@@ -1076,7 +1163,7 @@ static SequenceFlowGraph MapToFlowGraph(string sequenceId, SequenceFlowUpsertReq
       "command" => FlowStepType.Command,
       "condition" => FlowStepType.Condition,
       "terminal" => FlowStepType.Terminal,
-      _ => FlowStepType.Command
+      _ => throw new InvalidOperationException($"Unsupported flow step type '{step.StepType}'.")
     },
     PayloadRef = step.PayloadRef,
     IterationLimit = step.IterationLimit,
@@ -1130,6 +1217,19 @@ static ConditionExpression? MapCondition(ConditionExpressionDto? dto) {
   }
 
   return expression;
+}
+
+static async Task<List<string>> ValidateFlowForPersistenceAsync(
+  SequenceFlowGraph graph,
+  SequenceStepValidationService stepValidationService,
+  ActionPayloadValidationService actionPayloadValidationService,
+  CancellationToken ct) {
+  var errors = new List<string>();
+
+  errors.AddRange(stepValidationService.Validate(graph));
+  errors.AddRange(await actionPayloadValidationService.ValidateAsync(graph, ct).ConfigureAwait(false));
+
+  return errors;
 }
 
 internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {

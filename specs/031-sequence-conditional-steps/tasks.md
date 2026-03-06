@@ -14,10 +14,10 @@
 
 **Purpose**: Prepare fixtures, contract baseline, and shared scaffolding.
 
-- [ ] T001 Create mixed-step sample payload in samples/sample-sequence-conditional-steps.json
-- [ ] T002 [P] Create empty-repository test fixture in tests/TestAssets/sequences/empty-repository.json
-- [ ] T003 [P] Create unsupported-action fixture in tests/TestAssets/sequences/unsupported-action-payload.json
-- [ ] T004 Add OpenAPI snapshot baseline test file in tests/contract/Sequences/SequenceConditionalStepsOpenApiTests.cs
+- [X] T001 Create mixed-step sample payload in samples/sample-sequence-conditional-steps.json
+- [X] T002 [P] Create empty-repository test fixture in tests/TestAssets/sequences/empty-repository.json
+- [X] T003 [P] Create unsupported-action fixture in tests/TestAssets/sequences/unsupported-action-payload.json
+- [X] T004 Add OpenAPI snapshot baseline test file in tests/contract/Sequences/SequenceConditionalStepsOpenApiTests.cs
 
 ---
 
@@ -27,14 +27,14 @@
 
 **⚠️ CRITICAL**: No user story work starts before this phase completes.
 
-- [ ] T005 Implement discriminated step DTOs (`action`/`conditional`) in src/GameBot.Service/Models/SequenceStepContracts.cs
-- [ ] T006 Implement domain step union model in src/GameBot.Domain/Commands/SequenceStep.cs
-- [ ] T007 Implement `imageVisible` condition model in src/GameBot.Domain/Commands/ImageVisibleCondition.cs
-- [ ] T008 Implement schema validation service for required/unknown fields in src/GameBot.Domain/Services/SequenceStepValidationService.cs
-- [ ] T009 Implement action payload validator integration and supported-action-type source resolver using existing action execution infrastructure contract in src/GameBot.Domain/Services/ActionPayloadValidationService.cs
-- [ ] T010 Implement empty-state first-save repository behavior in src/GameBot.Domain/Repositories/SequenceRepository.cs
-- [ ] T011 Implement sequence endpoint schema enforcement (`stepType` required) in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
-- [ ] T012 Register conditional-step services and validators in src/GameBot.Service/Program.cs
+- [X] T005 Implement discriminated step DTOs (`action`/`conditional`) in src/GameBot.Service/Models/SequenceStepContracts.cs
+- [X] T006 Implement domain step union model in src/GameBot.Domain/Commands/SequenceStep.cs
+- [X] T007 Implement `imageVisible` condition model in src/GameBot.Domain/Commands/ImageVisibleCondition.cs
+- [X] T008 Implement schema validation service for required/unknown fields in src/GameBot.Domain/Services/SequenceStepValidationService.cs
+- [X] T009 Implement action payload validator integration and supported-action-type source resolver using existing action execution infrastructure contract in src/GameBot.Domain/Services/ActionPayloadValidationService.cs
+- [X] T010 Implement empty-state first-save repository behavior in src/GameBot.Domain/Repositories/SequenceRepository.cs
+- [X] T011 Implement sequence endpoint schema enforcement (`stepType` required) in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
+- [X] T012 Register conditional-step services and validators in src/GameBot.Service/Program.cs
 
 **Checkpoint**: Core schema + runtime infrastructure is ready for story work.
 

@@ -71,6 +71,7 @@ namespace GameBot.Domain.Commands
         public async Task<CommandSequence> CreateAsync(CommandSequence sequence)
         {
             ArgumentNullException.ThrowIfNull(sequence);
+            Directory.CreateDirectory(_root);
             if (string.IsNullOrWhiteSpace(sequence.Id))
             {
                 sequence.Id = Guid.NewGuid().ToString("N");
@@ -87,6 +88,7 @@ namespace GameBot.Domain.Commands
         public async Task<CommandSequence> UpdateAsync(CommandSequence sequence)
         {
             ArgumentNullException.ThrowIfNull(sequence);
+            Directory.CreateDirectory(_root);
             if (string.IsNullOrWhiteSpace(sequence.Id))
             {
                 throw new InvalidOperationException("Sequence Id is required for update");
