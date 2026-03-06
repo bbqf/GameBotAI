@@ -73,16 +73,16 @@
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] Add integration tests for A/B permutation outcomes in tests/integration/Sequences/ConditionalPermutationIntegrationTests.cs
-- [ ] T023 [P] [US2] Add UI tests for mixed step authoring flow in src/web-ui/src/pages/__tests__/SequencesPage.conditionalSteps.spec.tsx
-- [ ] T024 [P] [US2] Add UI validation tests for conditional fields in src/web-ui/src/lib/__tests__/sequenceConditionalValidation.spec.ts
+- [X] T022 [P] [US2] Add integration tests for A/B permutation outcomes in tests/integration/Sequences/ConditionalPermutationIntegrationTests.cs
+- [X] T023 [P] [US2] Add UI tests for mixed step authoring flow in src/web-ui/src/pages/__tests__/SequencesPage.conditionalSteps.spec.tsx
+- [X] T024 [P] [US2] Add UI validation tests for conditional fields in src/web-ui/src/lib/__tests__/sequenceConditionalValidation.spec.ts
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] Implement sequence API client mappings for conditional steps in src/web-ui/src/services/sequences.ts
-- [ ] T026 [US2] Implement minimal conditional-step editor controls in src/web-ui/src/pages/SequencesPage.tsx
-- [ ] T027 [US2] Implement client-side validation for `imageId`, condition type, and action payload in src/web-ui/src/lib/validation.ts
-- [ ] T028 [US2] Implement mixed-step serialization/deserialization mappings in src/web-ui/src/lib/sequenceMapping.ts
+- [X] T025 [US2] Implement sequence API client mappings for conditional steps in src/web-ui/src/services/sequences.ts
+- [X] T026 [US2] Implement minimal conditional-step editor controls in src/web-ui/src/pages/SequencesPage.tsx
+- [X] T027 [US2] Implement client-side validation for `imageId`, condition type, and action payload in src/web-ui/src/lib/validation.ts
+- [X] T028 [US2] Implement mixed-step serialization/deserialization mappings in src/web-ui/src/lib/sequenceMapping.ts
 
 **Checkpoint**: US2 fully functional and independently testable.
 

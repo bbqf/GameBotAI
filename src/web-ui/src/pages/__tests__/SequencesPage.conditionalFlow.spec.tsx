@@ -39,6 +39,7 @@ describe('SequencesPage conditional flow authoring', () => {
 
     fireEvent.click(screen.getByText('Add Condition Step'));
     fireEvent.change(screen.getByLabelText('Condition Step Id'), { target: { value: 'cond-1' } });
+    fireEvent.change(screen.getByLabelText('Operand Target (0)'), { target: { value: 'cmd-1' } });
     fireEvent.change(screen.getByLabelText('True Target'), { target: { value: 'cmd-2' } });
 
     fireEvent.click(screen.getByText('Save'));
@@ -64,6 +65,7 @@ describe('SequencesPage conditional flow authoring', () => {
 
     fireEvent.click(screen.getByText('Add Condition Step'));
     fireEvent.change(screen.getByLabelText('Condition Step Id'), { target: { value: 'cond-1' } });
+    fireEvent.change(screen.getByLabelText('Operand Target (0)'), { target: { value: 'cmd-1' } });
     fireEvent.change(screen.getByLabelText('True Target'), { target: { value: 'cmd-2' } });
     fireEvent.change(screen.getByLabelText('False Target'), { target: { value: 'cmd-1' } });
 

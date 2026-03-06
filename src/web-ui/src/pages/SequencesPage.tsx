@@ -11,6 +11,7 @@ import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { navigateToUnified } from '../lib/navigation';
 import { validateConditionalFlow } from '../lib/validation';
 import { buildSequenceFlow, ConditionDraft, createDefaultConditionExpression } from '../lib/sequenceFlowGraph';
+import { isFlowStepArray, toCommandStepIds, toConditionDrafts } from '../lib/sequenceMapping';
 import { ConditionExpressionBuilder } from '../components/authoring/ConditionExpressionBuilder';
 import { SequenceBranchConnector } from '../components/authoring/SequenceBranchConnector';
 import type { FlowStep, ConditionExpression, BranchLink } from '../types/sequenceFlow';
@@ -716,39 +717,3 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   );
 };
 
-const toCommandStepIds = (steps: SequenceDto['steps']): string[] => {
-  if (steps.length === 0) {
-    return [];
-  }
-
-  const first = steps[0];
-  if (typeof first === 'string') {
-    return steps as string[];
-  }
-
-  return (steps as Array<{ stepType?: string; payloadRef?: string | null }> )
-    .filter((step) => step.stepType === 'command' && !!step.payloadRef)
-    .map((step) => step.payloadRef as string);
-};
-
-const isFlowStepArray = (steps: SequenceDto['steps']): steps is FlowStep[] => {
-  return Array.isArray(steps) && steps.every((step) => typeof step === 'object' && step !== null && 'stepId' in step);
-};
-
-const toConditionDrafts = (steps: FlowStep[], links: BranchLink[], fallbackSourceStepId: string): ConditionDraft[] => {
-  return steps
-    .filter((step) => step.stepType === 'condition')
-    .map((step) => {
-      const nextLink = links.find((link) => link.targetStepId === step.stepId && link.branchType === 'next');
-      const trueLink = links.find((link) => link.sourceStepId === step.stepId && link.branchType === 'true');
-      const falseLink = links.find((link) => link.sourceStepId === step.stepId && link.branchType === 'false');
-
-      return {
-        stepId: step.stepId,
-        sourceStepId: nextLink?.sourceStepId ?? fallbackSourceStepId,
-        trueTargetId: trueLink?.targetStepId ?? '',
-        falseTargetId: falseLink?.targetStepId ?? '',
-        expression: step.condition ?? (createDefaultConditionExpression() as ConditionExpression)
-      };
-    });
-};
