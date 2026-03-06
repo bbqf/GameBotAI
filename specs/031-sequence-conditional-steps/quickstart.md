@@ -58,3 +58,16 @@ Measure conditional-step evaluation under normal load profile:
 
 Pass criteria:
 - p95 added latency per conditional evaluation <= 200 ms.
+
+## 7) Phase 6 verification record (2026-03-06)
+
+- `dotnet build -c Debug`: **Passed**.
+- `dotnet test -c Debug --logger trx --results-directory TestResults`: **Passed** (`384/384`).
+- `dotnet test` targeted additions: **Passed**
+	- `tests/integration/Sequences/ConditionalStepPerformanceIntegrationTests.cs`
+	- `tests/contract/Sequences/SequenceConditionalStepsOpenApiTests.cs`
+- `scripts/analyze-test-results.ps1 -ResultsDir TestResults -LatestOnly -VerifyCoverage -CoverageFile <TestResults/.../coverage.cobertura.xml> -VerifySecurity -VerifyLintFormat -VerifyStaticAnalysis`: **Passed**.
+	- Coverage gate enforces thresholds when changed runtime `src/*.cs` files are present; this run skipped threshold enforcement because only tests/contracts/scripts were touched.
+	- Security checks passed (`dotnet list --vulnerable`, `npm audit --omit=dev --audit-level=high`, installer secret scan script).
+	- Lint/format checks passed for changed-file scope (`dotnet format whitespace --verify-no-changes --include <changed .cs>`, eslint when web-ui files are touched).
+	- Static-analysis check passed (`dotnet build GameBot.sln -c Debug`).

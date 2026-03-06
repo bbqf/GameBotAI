@@ -93,3 +93,17 @@ tests/
 ## Complexity Tracking
 
 No constitution violations requiring justification.
+
+## Phase 6 Verification Outcomes (2026-03-06)
+
+- Added and validated NFR-003 performance coverage via `ConditionalStepPerformanceIntegrationTests` (30 total steps, 10 conditional steps, p95 budget assertion <= 200 ms).
+- Updated OpenAPI contract assertions in `SequenceConditionalStepsOpenApiTests` to validate conditional-step schema keys and required `stepType`.
+- Extended `scripts/analyze-test-results.ps1` with explicit quality gates:
+    - Coverage gate (`-VerifyCoverage`) with touched-runtime-file scope
+    - Security gate (`-VerifySecurity`)
+    - Lint/format gate (`-VerifyLintFormat`) for changed files
+    - Static-analysis gate (`-VerifyStaticAnalysis`)
+- Verification commands and outcomes:
+    - `dotnet build -c Debug`: passed
+    - `dotnet test -c Debug --logger trx --results-directory TestResults`: passed (`384/384`)
+    - `scripts/analyze-test-results.ps1 -ResultsDir TestResults -LatestOnly -VerifyCoverage -CoverageFile <TestResults/.../coverage.cobertura.xml> -VerifySecurity -VerifyLintFormat -VerifyStaticAnalysis`: passed

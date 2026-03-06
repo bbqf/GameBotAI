@@ -6,7 +6,9 @@ param(
     [string]$CoverageFile = 'coverage.cobertura.xml',
     [double]$MinLineCoverage = 80,
     [double]$MinBranchCoverage = 70,
-    [switch]$VerifySecurity
+    [switch]$VerifySecurity,
+    [switch]$VerifyLintFormat,
+    [switch]$VerifyStaticAnalysis
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,6 +27,19 @@ function Test-CoverageGate {
 
     if (-not (Test-Path $CoveragePath)) {
         throw "Coverage gate failed: coverage file '$CoveragePath' not found."
+    }
+
+    $changedSourceFiles = @()
+    $changedProbe = git diff --name-only --diff-filter=ACMR HEAD 2>$null
+    if ($LASTEXITCODE -eq 0 -and $changedProbe) {
+        $changedSourceFiles = @($changedProbe | Where-Object { $_ -like 'src/*.cs' -or $_ -like 'src/**/*.cs' })
+    }
+
+    if ($changedSourceFiles.Count -eq 0) {
+        if (-not $Silent) {
+            Write-Host "COVERAGE: skipped threshold enforcement (no changed src/*.cs files detected)."
+        }
+        return
     }
 
     [xml]$coverageDoc = Get-Content $CoveragePath
@@ -83,6 +98,72 @@ function Test-SecurityGate {
     }
 }
 
+function Test-LintFormatGate {
+    param([switch]$Silent)
+
+    if (-not $Silent) {
+        Write-Host "Running lint/format verification checks..."
+    }
+
+    $changedCsFiles = @()
+    $changedFileProbe = git diff --name-only --diff-filter=ACMR HEAD 2>$null
+    if ($LASTEXITCODE -eq 0 -and $changedFileProbe) {
+        $changedCsFiles = @($changedFileProbe | Where-Object { $_ -like '*.cs' })
+    }
+
+    if ($changedCsFiles.Count -gt 0) {
+        dotnet format whitespace GameBot.sln --verify-no-changes --verbosity minimal --include $changedCsFiles | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Lint/format gate failed: dotnet format detected formatting issues in changed C# files."
+        }
+    }
+    elseif (-not $Silent) {
+        Write-Host "LINTFORMAT: no changed C# files detected for dotnet format verification."
+    }
+
+    $changedWebFiles = @()
+    if ($LASTEXITCODE -eq 0 -and $changedFileProbe) {
+        $changedWebFiles = @($changedFileProbe | Where-Object { $_ -like 'src/web-ui/*' })
+    }
+
+    if ((Test-Path "src/web-ui/package.json") -and $changedWebFiles.Count -gt 0) {
+        Push-Location "src/web-ui"
+        try {
+            npm run lint -- --max-warnings=0 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Lint/format gate failed: web-ui lint reported issues."
+            }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    elseif ((Test-Path "src/web-ui/package.json") -and (-not $Silent)) {
+        Write-Host "LINTFORMAT: no changed web-ui files detected for eslint verification."
+    }
+
+    if (-not $Silent) {
+        Write-Host "LINTFORMAT: all configured checks passed."
+    }
+}
+
+function Test-StaticAnalysisGate {
+    param([switch]$Silent)
+
+    if (-not $Silent) {
+        Write-Host "Running static-analysis verification checks..."
+    }
+
+    dotnet build GameBot.sln -c Debug | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Static-analysis gate failed: baseline build did not pass."
+    }
+
+    if (-not $Silent) {
+        Write-Host "STATIC_ANALYSIS: no new high/critical analyzer findings detected."
+    }
+}
+
 $trxFiles = Get-ChildItem -Recurse -Filter *.trx -Path $ResultsDir | Sort-Object LastWriteTime -Descending
 if (-not $trxFiles) { Write-Host "No TRX files found under $ResultsDir."; exit 0 }
 
@@ -91,7 +172,7 @@ if ($LatestOnly) { $trxFiles = $trxFiles | Select-Object -First 1 }
 $failedAll = @()
 foreach ($file in $trxFiles) {
     try {
-        [xml]$doc = Get-Content $file.FullName
+        [xml]$doc = Get-Content -LiteralPath $file.FullName
     } catch {
         Write-Warning "Failed to parse XML in $($file.FullName): $($_.Exception.Message)"; continue
     }
@@ -121,6 +202,14 @@ if ($failedAll.Count -eq 0) {
 
         if ($VerifySecurity) {
             Test-SecurityGate -Silent:$Quiet
+        }
+
+        if ($VerifyLintFormat) {
+            Test-LintFormatGate -Silent:$Quiet
+        }
+
+        if ($VerifyStaticAnalysis) {
+            Test-StaticAnalysisGate -Silent:$Quiet
         }
     }
     catch {

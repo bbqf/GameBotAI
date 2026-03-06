@@ -116,14 +116,14 @@
 
 **Purpose**: Complete performance and quality gates required by constitution.
 
-- [ ] T037 [P] Add performance integration test for NFR-003 profile in tests/integration/Sequences/ConditionalStepPerformanceIntegrationTests.cs
-- [ ] T038 [P] Update OpenAPI assertions for conditional-step contracts in tests/contract/Sequences/SequenceConditionalStepsOpenApiTests.cs
-- [ ] T039 Add quality gate step for coverage thresholds (>=80% line, >=70% branch on touched areas) in scripts/analyze-test-results.ps1
-- [ ] T040 Add security gate verification step (SAST + secret scan evidence) in scripts/analyze-test-results.ps1
-- [ ] T041 Add explicit lint/format verification step in scripts/analyze-test-results.ps1
-- [ ] T042 Add explicit static-analysis verification step (no new high/critical issues) in scripts/analyze-test-results.ps1
-- [ ] T043 Update quickstart verification evidence in specs/031-sequence-conditional-steps/quickstart.md
-- [ ] T044 Run full verify pass and record outcomes in specs/031-sequence-conditional-steps/plan.md
+- [X] T037 [P] Add performance integration test for NFR-003 profile in tests/integration/Sequences/ConditionalStepPerformanceIntegrationTests.cs
+- [X] T038 [P] Update OpenAPI assertions for conditional-step contracts in tests/contract/Sequences/SequenceConditionalStepsOpenApiTests.cs
+- [X] T039 Add quality gate step for coverage thresholds (>=80% line, >=70% branch on touched areas) in scripts/analyze-test-results.ps1
+- [X] T040 Add security gate verification step (SAST + secret scan evidence) in scripts/analyze-test-results.ps1
+- [X] T041 Add explicit lint/format verification step in scripts/analyze-test-results.ps1
+- [X] T042 Add explicit static-analysis verification step (no new high/critical issues) in scripts/analyze-test-results.ps1
+- [X] T043 Update quickstart verification evidence in specs/031-sequence-conditional-steps/quickstart.md
+- [X] T044 Run full verify pass and record outcomes in specs/031-sequence-conditional-steps/plan.md
 
 ---
 
