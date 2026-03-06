@@ -521,10 +521,15 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, Sequenc
       return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = validationErrors });
     }
 
+    var existingSequences = await repo.ListAsync().ConfigureAwait(false);
+    var isFirstSequence = existingSequences.Count == 0;
+    var normalizedVersion = isFirstSequence ? 1 : (flowRequest.Version > 0 ? flowRequest.Version : 1);
+    flowGraph.Version = normalizedVersion;
+
     var flowSequence = new GameBot.Domain.Commands.CommandSequence {
       Id = string.Empty,
       Name = flowRequest.Name.Trim(),
-      Version = flowRequest.Version > 0 ? flowRequest.Version : 1,
+      Version = normalizedVersion,
       CreatedAt = DateTimeOffset.UtcNow,
       UpdatedAt = DateTimeOffset.UtcNow
     };

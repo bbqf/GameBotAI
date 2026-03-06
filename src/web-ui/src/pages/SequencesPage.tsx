@@ -183,6 +183,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           Create Sequence
         </button>
       </div>
+      {!loading && sequences.length === 0 && (
+        <div className="form-hint" role="status">No sequences yet. Create your first sequence to start authoring automation flow.</div>
+      )}
       <table className="sequences-table" aria-label="Sequences table">
         <thead>
           <tr>

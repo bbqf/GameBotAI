@@ -23,6 +23,14 @@ describe('SequencesPage', () => {
     ] as any);
   });
 
+  it('shows empty-state guidance when no sequences exist', async () => {
+    render(<SequencesPage />);
+
+    await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
+    await screen.findByText('No sequences found.');
+    expect(screen.getByText(/No sequences yet\. Create your first sequence/i)).toBeInTheDocument();
+  });
+
   it('creates a sequence with ordered steps', async () => {
     render(<SequencesPage />);
 

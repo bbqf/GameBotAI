@@ -134,3 +134,28 @@
 	- `dotnet test -c Debug --logger trx --results-directory TestResults` passed (`362/362`).
 	- `powershell -NoProfile -File scripts/analyze-test-results.ps1 -ResultsDir TestResults -LatestOnly -VerifySecurity` passed.
 	- Security verification reported no dependency vulnerabilities or secret-scan findings.
+
+## Conditional Sequence Steps US3 Validation (2026-03-06)
+
+- **Empty-state create/save (T029/T033)**:
+	- Start with clean data directory using `TestEnvironment.PrepareCleanDataDir()`.
+	- Confirm `GET /api/sequences` returns an empty array.
+	- Create first mixed sequence via `POST /api/sequences` using command + conditional + action + terminal steps.
+	- Expected: `201 Created`, generated `id`, and normalized `version=1` for first saved sequence.
+
+- **Empty-state execute flow (T030)**:
+	- Execute the first created mixed sequence through `POST /api/sequences/{sequenceId}/execute`.
+	- Expected: `status="Succeeded"`, deterministic command execution count, and a single condition trace with expected `finalResult`.
+
+- **Deterministic outcome oracle (T031)**:
+	- Execute the same sequence twice with identical inputs.
+	- Query execution logs for both runs and compare ordered tuples `("conditionResult", "actionOutcome")` derived from step outcomes.
+	- Ignore run metadata (`executionId`, timestamps) during comparison.
+
+- **Action payload contract validation (T032/T034)**:
+	- Reject unsupported action payload types (for example `unsupported:{...}`) at create time with `400`.
+	- Reject malformed action payload references (for example `:{...}`) with `400`.
+	- Validation enforced both pre-persistence (service validation) and at persistence path (`FileSequenceRepository`) for defense in depth.
+
+- **Empty-state UX confirmation (T035)**:
+	- Sequences authoring page displays explicit guidance when no sequences exist: create-first-sequence prompt visible before first save.

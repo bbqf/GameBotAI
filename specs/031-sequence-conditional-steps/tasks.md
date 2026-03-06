@@ -96,17 +96,17 @@
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Add integration test for first-sequence create/save in tests/integration/Sequences/EmptyStateCreateSequenceIntegrationTests.cs
-- [ ] T030 [P] [US3] Add integration test for first-sequence execute flow in tests/integration/Sequences/EmptyStateExecuteSequenceIntegrationTests.cs
-- [ ] T031 [P] [US3] Add integration test for deterministic repeated outcomes using ordered (`conditionResult`, `actionOutcome`) tuple comparison in tests/integration/Sequences/DeterministicSequenceOutcomeIntegrationTests.cs
-- [ ] T032 [P] [US3] Add contract tests for unsupported/malformed action payload rejection in tests/contract/Sequences/SequenceActionPayloadValidationContractTests.cs
+- [X] T029 [P] [US3] Add integration test for first-sequence create/save in tests/integration/Sequences/EmptyStateCreateSequenceIntegrationTests.cs
+- [X] T030 [P] [US3] Add integration test for first-sequence execute flow in tests/integration/Sequences/EmptyStateExecuteSequenceIntegrationTests.cs
+- [X] T031 [P] [US3] Add integration test for deterministic repeated outcomes using ordered (`conditionResult`, `actionOutcome`) tuple comparison in tests/integration/Sequences/DeterministicSequenceOutcomeIntegrationTests.cs
+- [X] T032 [P] [US3] Add contract tests for unsupported/malformed action payload rejection in tests/contract/Sequences/SequenceActionPayloadValidationContractTests.cs
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Implement create-first-sequence endpoint flow for empty repository in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
-- [ ] T034 [US3] Enforce supported action payload validation on persistence path in src/GameBot.Domain/Repositories/SequenceRepository.cs
-- [ ] T035 [US3] Add empty-state authoring UX handling/message in src/web-ui/src/pages/SequencesPage.tsx
-- [ ] T036 [US3] Document clean-slate setup and first sequence workflow in docs/validation.md
+- [X] T033 [US3] Implement create-first-sequence endpoint flow for empty repository in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
+- [X] T034 [US3] Enforce supported action payload validation on persistence path in src/GameBot.Domain/Repositories/SequenceRepository.cs
+- [X] T035 [US3] Add empty-state authoring UX handling/message in src/web-ui/src/pages/SequencesPage.tsx
+- [X] T036 [US3] Document clean-slate setup and first sequence workflow in docs/validation.md
 
 **Checkpoint**: US3 fully functional and independently testable.
 

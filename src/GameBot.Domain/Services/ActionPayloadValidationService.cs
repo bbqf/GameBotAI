@@ -25,8 +25,14 @@ public sealed class ActionPayloadValidationService {
       }
 
       if (step.StepType == FlowStepType.Action && step.PayloadRef.Contains(':', StringComparison.Ordinal)) {
-        var candidateType = step.PayloadRef.Split(':', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(candidateType) && !_supportedActionTypes.Contains(candidateType)) {
+        var separatorIndex = step.PayloadRef.IndexOf(':', StringComparison.Ordinal);
+        if (separatorIndex <= 0) {
+          errors.Add($"Action step '{step.StepId}' has malformed action payload reference.");
+          continue;
+        }
+
+        var candidateType = step.PayloadRef[..separatorIndex].Trim();
+        if (!_supportedActionTypes.Contains(candidateType)) {
           errors.Add($"Action step '{step.StepId}' references unsupported action type '{candidateType}'.");
         }
       }
