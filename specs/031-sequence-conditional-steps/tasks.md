@@ -48,18 +48,18 @@
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Add unit tests for conditional true/false/error outcomes in tests/unit/Sequences/ConditionalStepEvaluationTests.cs
-- [ ] T014 [P] [US1] Add unit tests for default vs explicit `minSimilarity` behavior in tests/unit/Sequences/ImageVisibleThresholdTests.cs
-- [ ] T015 [P] [US1] Add integration tests for execute/skip/fail-stop flow in tests/integration/Sequences/ConditionalStepExecutionIntegrationTests.cs
-- [ ] T016 [P] [US1] Add contract tests for conditional step request/response schema in tests/contract/Sequences/SequenceConditionalStepsContractTests.cs
+- [X] T013 [P] [US1] Add unit tests for conditional true/false/error outcomes in tests/unit/Sequences/ConditionalStepEvaluationTests.cs
+- [X] T014 [P] [US1] Add unit tests for default vs explicit `minSimilarity` behavior in tests/unit/Sequences/ImageVisibleThresholdTests.cs
+- [X] T015 [P] [US1] Add integration tests for execute/skip/fail-stop flow in tests/integration/Sequences/ConditionalStepExecutionIntegrationTests.cs
+- [X] T016 [P] [US1] Add contract tests for conditional step request/response schema in tests/contract/Sequences/SequenceConditionalStepsContractTests.cs
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Implement conditional evaluation in runtime sequence runner in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T018 [US1] Implement image detection adapter for `imageVisible` in src/GameBot.Service/Services/Conditions/ImageVisibleConditionAdapter.cs
-- [ ] T019 [US1] Enforce ordered execution for mixed `action` and `conditional` steps in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T020 [US1] Implement save-time image reference validation in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
-- [ ] T021 [US1] Extend step execution logging fields in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [X] T017 [US1] Implement conditional evaluation in runtime sequence runner in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T018 [US1] Implement image detection adapter for `imageVisible` in src/GameBot.Service/Services/Conditions/ImageVisibleConditionAdapter.cs
+- [X] T019 [US1] Enforce ordered execution for mixed `action` and `conditional` steps in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T020 [US1] Implement save-time image reference validation in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
+- [X] T021 [US1] Extend step execution logging fields in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
 
 **Checkpoint**: US1 fully functional and independently testable.
 

@@ -11,6 +11,8 @@ using Xunit;
 namespace GameBot.IntegrationTests.Sequences;
 
 public sealed class ConditionalEditRoundTripIntegrationTests {
+  private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
+
   [Fact]
   public async Task PatchConditionalFlowPersistsEditedOperandAndBranchesAfterReload() {
     TestEnvironment.PrepareCleanDataDir();
@@ -19,6 +21,11 @@ public sealed class ConditionalEditRoundTripIntegrationTests {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+
+    var uploadA = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "image-a", data = OneByOnePngBase64 }).ConfigureAwait(false);
+    uploadA.StatusCode.Should().Be(HttpStatusCode.Created);
+    var uploadB = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "image-b", data = OneByOnePngBase64 }).ConfigureAwait(false);
+    uploadB.StatusCode.Should().Be(HttpStatusCode.Created);
 
     var createPayload = new {
       name = "conditional-edit-sequence",

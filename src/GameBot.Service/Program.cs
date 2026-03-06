@@ -124,6 +124,7 @@ builder.Services.AddSingleton<CycleIterationLimiter>();
 builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
 builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
 builder.Services.AddSingleton<IImageDetectionConditionAdapter, ImageDetectionConditionAdapter>();
+builder.Services.AddSingleton<IImageVisibleConditionAdapter, ImageVisibleConditionAdapter>();
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
 builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
@@ -509,13 +510,13 @@ app.MapPost("/installer/same-build/decision", (GameBot.Service.Models.SameBuildD
 // Sequences endpoints
 var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
 
-sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, CancellationToken ct) => {
+sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, IImageRepository imageRepository, CancellationToken ct) => {
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
   var root = doc.RootElement;
   var isFlowCandidate = IsFlowRequestCandidate(root);
   if (TryReadFlowRequest(root, out var flowRequest, out var flowRequestError) && flowRequest is not null) {
     var flowGraph = MapToFlowGraph(string.Empty, flowRequest);
-    var validationErrors = await ValidateFlowForPersistenceAsync(flowGraph, stepValidationService, actionPayloadValidationService, ct).ConfigureAwait(false);
+    var validationErrors = await ValidateFlowForPersistenceAsync(flowGraph, stepValidationService, actionPayloadValidationService, imageRepository, ct).ConfigureAwait(false);
     if (validationErrors.Count > 0) {
       return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = validationErrors });
     }
@@ -579,7 +580,7 @@ sequences.MapGet("{sequenceId}", async (ISequenceRepository repo, string sequenc
   return Results.Ok(ToSequenceResponse(found));
 }).WithName("GetSequence");
 
-sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, string sequenceId, CancellationToken ct) => {
+sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
   var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
@@ -602,7 +603,7 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
   if (TryReadFlowRequest(root, out var flowRequest, out var flowRequestError) && flowRequest is not null) {
     flowRequest.Name = existing.Name;
     var graph = MapToFlowGraph(existing.Id, flowRequest);
-    var validationErrors = await ValidateFlowForPersistenceAsync(graph, stepValidationService, actionPayloadValidationService, ct).ConfigureAwait(false);
+    var validationErrors = await ValidateFlowForPersistenceAsync(graph, stepValidationService, actionPayloadValidationService, imageRepository, ct).ConfigureAwait(false);
     if (validationErrors.Count > 0) {
       return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = validationErrors });
     }
@@ -636,7 +637,7 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
   return Results.Ok(ToSequenceResponse(saved));
 }).WithName("UpdateSequence");
 
-sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, string sequenceId, CancellationToken ct) => {
+sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, ActionPayloadValidationService actionPayloadValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
   var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
@@ -659,7 +660,7 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
   if (TryReadFlowRequest(root, out var flowRequest, out var flowRequestError) && flowRequest is not null) {
     flowRequest.Name = existing.Name;
     var graph = MapToFlowGraph(existing.Id, flowRequest);
-    var validationErrors = await ValidateFlowForPersistenceAsync(graph, stepValidationService, actionPayloadValidationService, ct).ConfigureAwait(false);
+    var validationErrors = await ValidateFlowForPersistenceAsync(graph, stepValidationService, actionPayloadValidationService, imageRepository, ct).ConfigureAwait(false);
     if (validationErrors.Count > 0) {
       return Results.BadRequest(new { message = "Invalid sequence flow payload", errors = validationErrors });
     }
@@ -719,6 +720,7 @@ sequences.MapDelete("{sequenceId}", async (ISequenceRepository repo, string sequ
 sequences.MapPost("{sequenceId}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,
+  IImageVisibleConditionAdapter imageVisibleConditionAdapter,
   GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
   ISequenceRepository sequenceRepository,
   string sequenceId,
@@ -740,20 +742,7 @@ sequences.MapPost("{sequenceId}/execute", async (
       conditionEvaluator: (cond, token) => {
         // Map Blocks.Condition to a transient Trigger and evaluate via TriggerEvaluationService
         if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)) {
-          var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
-                                           : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
-          var trig = new GameBot.Domain.Triggers.Trigger {
-            Id = "inline-image",
-            Type = GameBot.Domain.Triggers.TriggerType.ImageMatch,
-            Enabled = true,
-            Params = new GameBot.Domain.Triggers.ImageMatchParams {
-              ReferenceImageId = cond.TargetId,
-              Region = region,
-              SimilarityThreshold = cond.ConfidenceThreshold ?? 0.85
-            }
-          };
-          var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
-          return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
+          return imageVisibleConditionAdapter.EvaluateAsync(cond, token).AsTask();
         }
         if (string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase)) {
           var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
@@ -806,6 +795,7 @@ sequences.MapPost("{sequenceId}/execute", async (
           ["stepOrder"] = stepOrder++,
           ["stepType"] = "command",
           ["status"] = "executed",
+          ["actionOutcome"] = "executed",
           ["sequenceId"] = sequenceId,
           ["sequenceLabel"] = sequenceName,
           ["stepId"] = stepId,
@@ -822,6 +812,8 @@ sequences.MapPost("{sequenceId}/execute", async (
           ["stepOrder"] = stepOrder++,
           ["stepType"] = "condition",
           ["status"] = "executed",
+          ["conditionResult"] = trace.Trace.FinalResult,
+          ["actionOutcome"] = trace.Trace.FinalResult ? "executed" : "skipped",
           ["sequenceId"] = sequenceId,
           ["sequenceLabel"] = sequenceName,
           ["stepId"] = trace.StepId,
@@ -1223,13 +1215,68 @@ static async Task<List<string>> ValidateFlowForPersistenceAsync(
   SequenceFlowGraph graph,
   SequenceStepValidationService stepValidationService,
   ActionPayloadValidationService actionPayloadValidationService,
+  IImageRepository imageRepository,
   CancellationToken ct) {
   var errors = new List<string>();
 
   errors.AddRange(stepValidationService.Validate(graph));
   errors.AddRange(await actionPayloadValidationService.ValidateAsync(graph, ct).ConfigureAwait(false));
+  errors.AddRange(await ValidateImageReferencesAsync(graph, imageRepository, ct).ConfigureAwait(false));
 
   return errors;
+}
+
+static async Task<IReadOnlyList<string>> ValidateImageReferencesAsync(
+  SequenceFlowGraph graph,
+  IImageRepository imageRepository,
+  CancellationToken ct) {
+  ArgumentNullException.ThrowIfNull(graph);
+  ArgumentNullException.ThrowIfNull(imageRepository);
+
+  var errors = new List<string>();
+  var missingByImageId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+  var cache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+  foreach (var step in graph.Steps.Where(step => step.Condition is not null)) {
+    ct.ThrowIfCancellationRequested();
+
+    var imageRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    CollectImageDetectionReferences(step.Condition!, imageRefs);
+    foreach (var imageRef in imageRefs) {
+      if (!cache.TryGetValue(imageRef, out var exists)) {
+        exists = await imageRepository.ExistsAsync(imageRef, ct).ConfigureAwait(false);
+        cache[imageRef] = exists;
+      }
+
+      if (exists) {
+        continue;
+      }
+
+      if (!missingByImageId.TryGetValue(imageRef, out var steps)) {
+        steps = new List<string>();
+        missingByImageId[imageRef] = steps;
+      }
+
+      steps.Add(step.StepId);
+    }
+  }
+
+  foreach (var missing in missingByImageId.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
+    errors.Add($"Image reference '{missing.Key}' does not exist (used by: {string.Join(", ", missing.Value.Distinct(StringComparer.OrdinalIgnoreCase))}).");
+  }
+
+  return errors;
+}
+
+static void CollectImageDetectionReferences(ConditionExpression expression, ISet<string> imageReferences) {
+  if (expression.Operand is { OperandType: ConditionOperandType.ImageDetection } operand
+      && !string.IsNullOrWhiteSpace(operand.TargetRef)) {
+    imageReferences.Add(operand.TargetRef.Trim());
+  }
+
+  foreach (var child in expression.Children) {
+    CollectImageDetectionReferences(child, imageReferences);
+  }
 }
 
 internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
