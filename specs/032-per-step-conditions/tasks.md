@@ -99,16 +99,16 @@
 
 ### Tests for User Story 3
 
-- [ ] T032 [P] [US3] Add web UI test ensuring entry-step and branch-link controls are absent in src/web-ui/src/pages/__tests__/SequencesPage.noBranching.spec.tsx
-- [ ] T033 [P] [US3] Add contract test asserting sequence payload excludes entry-step and links in tests/contract/Sequences/SequencePerStepNoBranchingContractTests.cs
-- [ ] T034 [P] [US3] Add integration test for loading/saving linear per-step schema without graph fields in tests/integration/Sequences/PerStepNoBranchingSchemaIntegrationTests.cs
+- [X] T032 [P] [US3] Add web UI test ensuring entry-step and branch-link controls are absent in src/web-ui/src/pages/__tests__/SequencesPage.noBranching.spec.tsx
+- [X] T033 [P] [US3] Add contract test asserting sequence payload excludes entry-step and links in tests/contract/Sequences/SequencePerStepNoBranchingContractTests.cs
+- [X] T034 [P] [US3] Add integration test for loading/saving linear per-step schema without graph fields in tests/integration/Sequences/PerStepNoBranchingSchemaIntegrationTests.cs
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Remove entry-step and branch-link controls from sequence authoring UI in src/web-ui/src/pages/SequencesPage.tsx
-- [ ] T036 [US3] Remove obsolete branch graph builders from sequence mapping utilities in src/web-ui/src/lib/sequenceFlowGraph.ts
-- [ ] T037 [US3] Remove entry-step/links endpoint contract handling in src/GameBot.Service/Models/SequenceStepContracts.cs
-- [ ] T038 [US3] Update sequence API contract model and OpenAPI annotations for no-branch payload in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
+- [X] T035 [US3] Remove entry-step and branch-link controls from sequence authoring UI in src/web-ui/src/pages/SequencesPage.tsx
+- [X] T036 [US3] Remove obsolete branch graph builders from sequence mapping utilities in src/web-ui/src/lib/sequenceFlowGraph.ts
+- [X] T037 [US3] Remove entry-step/links endpoint contract handling in src/GameBot.Service/Models/SequenceStepContracts.cs
+- [X] T038 [US3] Update sequence API contract model and OpenAPI annotations for no-branch payload in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
 
 **Checkpoint**: US3 UX simplification is complete and independently testable.
 

@@ -9,12 +9,9 @@ import { SearchableDropdown, SearchableOption } from '../components/SearchableDr
 import { ReorderableList, ReorderableListItem } from '../components/ReorderableList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { navigateToUnified } from '../lib/navigation';
-import { validateConditionalFlow, validatePerStepConditions } from '../lib/validation';
-import { buildSequenceFlow, ConditionDraft, createDefaultConditionExpression } from '../lib/sequenceFlowGraph';
-import { isFlowStepArray, isLinearStepArray, toCommandStepIds, toConditionDrafts, toLinearSteps } from '../lib/sequenceMapping';
-import { ConditionExpressionBuilder } from '../components/authoring/ConditionExpressionBuilder';
-import { SequenceBranchConnector } from '../components/authoring/SequenceBranchConnector';
-import type { FlowStep, ConditionExpression, BranchLink, SequenceLinearStep } from '../types/sequenceFlow';
+import { validatePerStepConditions } from '../lib/validation';
+import { isLinearStepArray, toCommandStepIds, toLinearSteps } from '../lib/sequenceMapping';
+import type { SequenceLinearStep } from '../types/sequenceFlow';
 
 type SequenceStep = {
   id: string;
@@ -88,8 +85,6 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
   });
 };
 
-const toPayloadSteps = (steps: SequenceStep[]) => steps.map((s) => s.commandId);
-
 const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
   return steps.map((step) => {
     const condition = step.conditionType === 'imageVisible'
@@ -141,10 +136,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [filterName, setFilterName] = useState('');
   const [tableMessage, setTableMessage] = useState<string | undefined>(undefined);
   const [tableError, setTableError] = useState<string | undefined>(undefined);
-  const [conditionalEnabled, setConditionalEnabled] = useState(false);
-  const [perStepEnabled, setPerStepEnabled] = useState(false);
-  const [entryStepId, setEntryStepId] = useState('');
-  const [conditions, setConditions] = useState<ConditionDraft[]>([]);
+  const [perStepEnabled, setPerStepEnabled] = useState(true);
   const [loadedVersion, setLoadedVersion] = useState(1);
 
   useEffect(() => {
@@ -201,35 +193,24 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     const s = await getSequence(id);
     const commandIds = toCommandStepIds(s.steps);
     const linearSteps = toLinearSteps(s.steps);
-    const flowSteps = isFlowStepArray(s.steps) ? s.steps : [];
-    const links = Array.isArray(s.links) ? s.links : [];
-    const hasConditionalFlow = !!s.entryStepId && flowSteps.length > 0 && links.length > 0;
     const hasPerStep = isLinearStepArray(s.steps) && linearSteps.length > 0;
     setEditingId(id);
     setCreating(false);
     setPendingStepId(undefined);
     setForm({ name: s.name, steps: hasPerStep ? toStepEntriesFromLinear(linearSteps) : toStepEntries(commandIds) });
     setLoadedVersion(s.version ?? 1);
-    setPerStepEnabled(hasPerStep);
-    setConditionalEnabled(hasConditionalFlow && !hasPerStep);
-    setEntryStepId(hasConditionalFlow ? s.entryStepId! : (commandIds[0] ?? ''));
-    setConditions(hasConditionalFlow ? toConditionDrafts(flowSteps, links, commandIds[0] ?? '') : []);
+    setPerStepEnabled(true);
     setDirty(false);
   };
 
   const resetForm = () => {
     setForm(emptyForm);
     setPendingStepId(undefined);
-    setPerStepEnabled(false);
-    setConditionalEnabled(false);
-    setEntryStepId('');
-    setConditions([]);
+    setPerStepEnabled(true);
     setLoadedVersion(1);
     setErrors(undefined);
     setDirty(false);
   };
-
-  const commandStepIds = useMemo(() => form.steps.map((step) => step.commandId), [form.steps]);
 
   const stepItems = useMemo<ReorderableListItem[]>(() => {
     return form.steps.map((s, idx) => ({
@@ -339,30 +320,17 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               return;
             }
 
-            const conditionalPayload = conditionalEnabled
-              ? buildSequenceFlow(
-                form.name.trim(),
-                1,
-                commandStepIds,
-                entryStepId || commandStepIds[0] || '',
-                conditions)
-              : null;
-
             const linearPayload = perStepEnabled
               ? {
                 name: form.name.trim(),
                 version: 1,
                 steps: toLinearPayloadSteps(form.steps)
               }
-              : null;
-
-            if (conditionalPayload) {
-              const conditionalErrors = validateConditionalFlow(conditionalPayload);
-              if (conditionalErrors.length > 0) {
-                setErrors({ form: conditionalErrors[0] });
-                return;
-              }
-            }
+              : {
+                name: form.name.trim(),
+                version: 1,
+                steps: toLinearPayloadSteps(form.steps)
+              };
 
             if (linearPayload) {
               const linearErrors = validatePerStepConditions(linearPayload.steps);
@@ -375,21 +343,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             setSubmitting(true);
             try {
               await createSequence(
-                conditionalPayload
-                  ? {
-                    name: conditionalPayload.name,
-                    version: conditionalPayload.version,
-                    entryStepId: conditionalPayload.entryStepId,
-                    steps: conditionalPayload.steps,
-                    links: conditionalPayload.links
-                  }
-                  : linearPayload
-                    ? {
-                      name: linearPayload.name,
-                      version: linearPayload.version,
-                      steps: linearPayload.steps
-                    }
-                  : { name: form.name.trim(), steps: toPayloadSteps(form.steps) }
+                {
+                  name: linearPayload.name,
+                  version: linearPayload.version,
+                  steps: linearPayload.steps
+                }
               );
               setCreating(false);
               setForm(emptyForm);
@@ -457,112 +415,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             <div className="form-hint">Steps execute in listed order; drag buttons to reorder before saving.</div>
           </FormSection>
 
-          <FormSection title="Conditional Flow" description="Optional branching by condition." id="sequence-conditional-flow">
-            <div className="field">
-              <label htmlFor="conditional-flow-enabled">
-                <input
-                  id="conditional-flow-enabled"
-                  aria-label="Enable conditional flow"
-                  type="checkbox"
-                  checked={conditionalEnabled}
-                  onChange={(event) => {
-                    setConditionalEnabled(event.target.checked);
-                    if (event.target.checked) {
-                      setPerStepEnabled(false);
-                    }
-                    if (event.target.checked && !entryStepId) {
-                      setEntryStepId(commandStepIds[0] ?? '');
-                    }
-                    setDirty(true);
-                  }}
-                  disabled={submitting || loading}
-                />
-                Enable conditional flow
-              </label>
-            </div>
-
-            {conditionalEnabled && (
-              <>
-                <div className="field">
-                  <label htmlFor="sequence-entry-step">Entry Step</label>
-                  <select
-                    id="sequence-entry-step"
-                    aria-label="Entry Step"
-                    value={entryStepId}
-                    onChange={(event) => {
-                      setEntryStepId(event.target.value);
-                      setDirty(true);
-                    }}
-                  >
-                    <option value="">Select entry step</option>
-                    {commandStepIds.map((commandId) => (
-                      <option key={commandId} value={commandId}>{commandLookup.get(commandId) ?? commandId}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="field">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextIndex = conditions.length + 1;
-                      setConditions((prev) => [
-                        ...prev,
-                        {
-                          stepId: `condition-${nextIndex}`,
-                          sourceStepId: entryStepId || commandStepIds[0] || '',
-                          trueTargetId: '',
-                          falseTargetId: '',
-                          expression: createDefaultConditionExpression()
-                        }
-                      ]);
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading || commandStepIds.length === 0}
-                  >
-                    Add Condition Step
-                  </button>
-                </div>
-
-                {conditions.map((condition, index) => (
-                  <div key={index} className="field">
-                    <label htmlFor={`condition-step-id-${index}`}>Condition Step Id</label>
-                    <input
-                      id={`condition-step-id-${index}`}
-                      aria-label="Condition Step Id"
-                      value={condition.stepId}
-                      onChange={(event) => {
-                        setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, stepId: event.target.value } : item));
-                        setDirty(true);
-                      }}
-                    />
-
-                    <SequenceBranchConnector
-                      options={commandStepIds.map((stepId) => ({ value: stepId, label: commandLookup.get(stepId) ?? stepId }))}
-                      trueTargetId={condition.trueTargetId}
-                      falseTargetId={condition.falseTargetId}
-                      onTrueTargetChange={(value) => {
-                        setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, trueTargetId: value } : item));
-                        setDirty(true);
-                      }}
-                      onFalseTargetChange={(value) => {
-                        setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, falseTargetId: value } : item));
-                        setDirty(true);
-                      }}
-                    />
-
-                    <ConditionExpressionBuilder
-                      value={condition.expression}
-                      onChange={(value) => {
-                        setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, expression: value } : item));
-                        setDirty(true);
-                      }}
-                    />
-                  </div>
-                ))}
-              </>
-            )}
-          </FormSection>
 
           <FormSection title="Per-Step Conditions" description="Optional conditions evaluated before each step." id="sequence-per-step-conditions">
             <div className="field">
@@ -574,9 +426,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   checked={perStepEnabled}
                   onChange={(event) => {
                     setPerStepEnabled(event.target.checked);
-                    if (event.target.checked) {
-                      setConditionalEnabled(false);
-                    }
                     setDirty(true);
                   }}
                   disabled={submitting || loading}
@@ -727,30 +576,17 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 return;
               }
 
-              const conditionalPayload = conditionalEnabled
-                ? buildSequenceFlow(
-                  form.name.trim(),
-                  loadedVersion,
-                  commandStepIds,
-                  entryStepId || commandStepIds[0] || '',
-                  conditions)
-                : null;
-
               const linearPayload = perStepEnabled
                 ? {
                   name: form.name.trim(),
                   version: loadedVersion,
                   steps: toLinearPayloadSteps(form.steps)
                 }
-                : null;
-
-              if (conditionalPayload) {
-                const conditionalErrors = validateConditionalFlow(conditionalPayload);
-                if (conditionalErrors.length > 0) {
-                  setErrors({ form: conditionalErrors[0] });
-                  return;
-                }
-              }
+                : {
+                  name: form.name.trim(),
+                  version: loadedVersion,
+                  steps: toLinearPayloadSteps(form.steps)
+                };
 
               if (linearPayload) {
                 const linearErrors = validatePerStepConditions(linearPayload.steps);
@@ -764,21 +600,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               try {
                 await updateSequence(
                   editingId,
-                  conditionalPayload
-                    ? {
-                      name: conditionalPayload.name,
-                      version: conditionalPayload.version,
-                      entryStepId: conditionalPayload.entryStepId,
-                      steps: conditionalPayload.steps,
-                      links: conditionalPayload.links
-                    }
-                    : linearPayload
-                      ? {
-                        name: linearPayload.name,
-                        version: linearPayload.version,
-                        steps: linearPayload.steps
-                      }
-                    : { name: form.name.trim(), steps: toPayloadSteps(form.steps) }
+                  {
+                    name: linearPayload.name,
+                    version: linearPayload.version,
+                    steps: linearPayload.steps
+                  }
                 );
                 await reloadSequences();
                 setEditingId(undefined);
@@ -850,112 +676,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               <div className="form-hint">Use Move up/down to set the execution order before saving.</div>
             </FormSection>
 
-            <FormSection title="Conditional Flow" description="Optional branching by condition." id="sequence-edit-conditional-flow">
-              <div className="field">
-                <label htmlFor="edit-conditional-flow-enabled">
-                  <input
-                    id="edit-conditional-flow-enabled"
-                    aria-label="Enable conditional flow"
-                    type="checkbox"
-                    checked={conditionalEnabled}
-                    onChange={(event) => {
-                      setConditionalEnabled(event.target.checked);
-                      if (event.target.checked) {
-                        setPerStepEnabled(false);
-                      }
-                      if (event.target.checked && !entryStepId) {
-                        setEntryStepId(commandStepIds[0] ?? '');
-                      }
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  />
-                  Enable conditional flow
-                </label>
-              </div>
-
-              {conditionalEnabled && (
-                <>
-                  <div className="field">
-                    <label htmlFor="sequence-edit-entry-step">Entry Step</label>
-                    <select
-                      id="sequence-edit-entry-step"
-                      aria-label="Entry Step"
-                      value={entryStepId}
-                      onChange={(event) => {
-                        setEntryStepId(event.target.value);
-                        setDirty(true);
-                      }}
-                    >
-                      <option value="">Select entry step</option>
-                      {commandStepIds.map((commandId) => (
-                        <option key={commandId} value={commandId}>{commandLookup.get(commandId) ?? commandId}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="field">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextIndex = conditions.length + 1;
-                        setConditions((prev) => [
-                          ...prev,
-                          {
-                            stepId: `condition-${nextIndex}`,
-                            sourceStepId: entryStepId || commandStepIds[0] || '',
-                            trueTargetId: '',
-                            falseTargetId: '',
-                            expression: createDefaultConditionExpression()
-                          }
-                        ]);
-                        setDirty(true);
-                      }}
-                      disabled={submitting || loading || commandStepIds.length === 0}
-                    >
-                      Add Condition Step
-                    </button>
-                  </div>
-
-                  {conditions.map((condition, index) => (
-                    <div key={`edit-${index}`} className="field">
-                      <label htmlFor={`edit-condition-step-id-${index}`}>Condition Step Id</label>
-                      <input
-                        id={`edit-condition-step-id-${index}`}
-                        aria-label="Condition Step Id"
-                        value={condition.stepId}
-                        onChange={(event) => {
-                          setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, stepId: event.target.value } : item));
-                          setDirty(true);
-                        }}
-                      />
-
-                      <SequenceBranchConnector
-                        options={commandStepIds.map((stepId) => ({ value: stepId, label: commandLookup.get(stepId) ?? stepId }))}
-                        trueTargetId={condition.trueTargetId}
-                        falseTargetId={condition.falseTargetId}
-                        onTrueTargetChange={(value) => {
-                          setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, trueTargetId: value } : item));
-                          setDirty(true);
-                        }}
-                        onFalseTargetChange={(value) => {
-                          setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, falseTargetId: value } : item));
-                          setDirty(true);
-                        }}
-                      />
-
-                      <ConditionExpressionBuilder
-                        value={condition.expression}
-                        onChange={(value) => {
-                          setConditions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, expression: value } : item));
-                          setDirty(true);
-                        }}
-                      />
-                    </div>
-                  ))}
-                </>
-              )}
-            </FormSection>
 
             <FormSection title="Per-Step Conditions" description="Optional conditions evaluated before each step." id="sequence-edit-per-step-conditions">
               <div className="field">
@@ -967,9 +687,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                     checked={perStepEnabled}
                     onChange={(event) => {
                       setPerStepEnabled(event.target.checked);
-                      if (event.target.checked) {
-                        setConditionalEnabled(false);
-                      }
                       setDirty(true);
                     }}
                     disabled={submitting || loading}

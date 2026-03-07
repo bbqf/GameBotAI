@@ -1,9 +1,7 @@
 import { ApiError, deleteJson, getJson, patchJson, postJson, putJson } from '../lib/api';
-import { toSequenceFlowRequest } from '../lib/sequenceMapping';
 import type {
   BranchLink,
   FlowStep,
-  SequenceFlow,
   SequenceFlowUpsertRequest,
   SequenceLinearStep,
   SequenceLinearUpsertRequest,
@@ -47,19 +45,6 @@ export const deleteSequence = (id: string) => deleteJson<void>(`${base}/${id}`);
 
 export const validateSequenceFlow = (sequenceId: string, input: SequenceFlowUpsertRequest) =>
   postJson<{ valid: boolean; errors: string[] }>(`${base}/${sequenceId}/validate`, input);
-
-export const getSequenceFlow = async (sequenceId: string): Promise<SequenceFlow> => {
-  const dto = await getJson<SequenceDto>(`${base}/${sequenceId}`);
-  const flow = toSequenceFlowRequest(dto);
-  if (!flow) {
-    throw new ApiError(400, 'Sequence does not have conditional flow data.');
-  }
-
-  return {
-    sequenceId: dto.id,
-    ...flow
-  };
-};
 
 export const executeSequence = (sequenceId: string) => postJson<unknown>(`${base}/${sequenceId}/execute`, {});
 
