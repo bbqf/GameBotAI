@@ -1,0 +1,31 @@
+{
+  "name": "invalid-command-outcome-state",
+  "version": 1,
+  "steps": [
+    {
+      "stepId": "step-a",
+      "action": {
+        "type": "tap",
+        "parameters": {
+          "x": 100,
+          "y": 100
+        }
+      }
+    },
+    {
+      "stepId": "step-b",
+      "action": {
+        "type": "tap",
+        "parameters": {
+          "x": 200,
+          "y": 200
+        }
+      },
+      "condition": {
+        "type": "commandOutcome",
+        "stepRef": "step-a",
+        "expectedState": "unknown"
+      }
+    }
+  ]
+}

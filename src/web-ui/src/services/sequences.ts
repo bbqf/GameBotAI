@@ -1,23 +1,33 @@
 import { ApiError, deleteJson, getJson, patchJson, postJson, putJson } from '../lib/api';
 import { toSequenceFlowRequest } from '../lib/sequenceMapping';
-import type { BranchLink, FlowStep, SequenceFlow, SequenceFlowUpsertRequest, SequenceSaveConflict } from '../types/sequenceFlow';
+import type {
+  BranchLink,
+  FlowStep,
+  SequenceFlow,
+  SequenceFlowUpsertRequest,
+  SequenceLinearStep,
+  SequenceLinearUpsertRequest,
+  SequenceSaveConflict
+} from '../types/sequenceFlow';
 
 export type SequenceDto = {
   id: string;
   name: string;
   version?: number;
   entryStepId?: string;
-  steps: string[] | FlowStep[];
+  steps: string[] | FlowStep[] | SequenceLinearStep[];
   links?: BranchLink[];
 };
 
 export type SequenceCreate = {
   name: string;
-  steps?: string[] | FlowStep[];
+  steps?: string[] | FlowStep[] | SequenceLinearStep[];
   version?: number;
   entryStepId?: string;
   links?: BranchLink[];
 };
+
+export type SequenceLinearCreate = SequenceLinearUpsertRequest;
 
 export type SequenceUpdate = SequenceCreate;
 

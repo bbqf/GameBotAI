@@ -5,6 +5,7 @@ namespace GameBot.Domain.Services;
 
 public sealed class ActionPayloadValidationService {
   private readonly HashSet<string> _supportedActionTypes = new(StringComparer.OrdinalIgnoreCase) {
+    ActionTypes.Command,
     ActionTypes.Tap,
     ActionTypes.Swipe,
     ActionTypes.Key,

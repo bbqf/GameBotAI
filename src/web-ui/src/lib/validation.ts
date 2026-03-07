@@ -1,5 +1,6 @@
 import { ApiError, ApiValidationError } from './api';
 import type { ConditionExpression, SequenceFlowUpsertRequest } from '../types/sequenceFlow';
+import type { SequenceLinearStep } from '../types/sequenceFlow';
 
 export type ParsedValidation = {
   byField: Record<string, string[]>;
@@ -140,6 +141,54 @@ const validateConditionExpression = (expression: ConditionExpression, stepId: st
 
   for (const child of children) {
     errors.push(...validateConditionExpression(child, stepId));
+  }
+
+  return errors;
+};
+
+export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[] => {
+  const errors: string[] = [];
+  const seenStepIds = new Set<string>();
+
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index];
+    const stepLabel = step.stepId || `index:${index}`;
+
+    if (!step.stepId?.trim()) {
+      errors.push(`Step at index ${index} requires stepId.`);
+      continue;
+    }
+
+    if (seenStepIds.has(step.stepId)) {
+      errors.push(`Duplicate step id '${step.stepId}'.`);
+    }
+    seenStepIds.add(step.stepId);
+
+    if (step.condition?.type === 'imageVisible') {
+      if (!step.condition.imageId?.trim()) {
+        errors.push(`Step '${stepLabel}' imageVisible condition requires imageId.`);
+      }
+      if (step.condition.minSimilarity != null && (step.condition.minSimilarity < 0 || step.condition.minSimilarity > 1)) {
+        errors.push(`Step '${stepLabel}' imageVisible minSimilarity must be between 0 and 1.`);
+      }
+    }
+
+    if (step.condition?.type === 'commandOutcome') {
+      if (!step.condition.stepRef?.trim()) {
+        errors.push(`Step '${stepLabel}' commandOutcome condition requires stepRef.`);
+      } else {
+        const refIndex = steps.findIndex((candidate) => candidate.stepId === step.condition?.stepRef);
+        if (refIndex < 0) {
+          errors.push(`Step '${stepLabel}' commandOutcome references unknown prior step '${step.condition.stepRef}'.`);
+        } else if (refIndex >= index) {
+          errors.push(`Step '${stepLabel}' commandOutcome stepRef '${step.condition.stepRef}' must reference a prior step.`);
+        }
+      }
+
+      if (!['success', 'failed', 'skipped'].includes(step.condition.expectedState)) {
+        errors.push(`Step '${stepLabel}' commandOutcome expectedState must be one of success|failed|skipped.`);
+      }
+    }
   }
 
   return errors;

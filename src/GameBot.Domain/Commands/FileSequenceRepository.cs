@@ -117,11 +117,50 @@ namespace GameBot.Domain.Commands
         {
             var supportedActionTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
+                ActionTypes.Command,
                 ActionTypes.Tap,
                 ActionTypes.Swipe,
                 ActionTypes.Key,
                 ActionTypes.ConnectToGame
             };
+
+            foreach (var step in sequence.Steps)
+            {
+                if (step.Action is null)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(step.Action.Type))
+                {
+                    throw new InvalidOperationException($"Step '{step.StepId}' action type is required.");
+                }
+
+                if (!supportedActionTypes.Contains(step.Action.Type))
+                {
+                    throw new InvalidOperationException($"Step '{step.StepId}' references unsupported action type '{step.Action.Type}'.");
+                }
+
+                if (step.Condition is ImageVisibleStepCondition imageCondition)
+                {
+                    if (string.IsNullOrWhiteSpace(imageCondition.ImageId))
+                    {
+                        throw new InvalidOperationException($"Step '{step.StepId}' imageVisible condition requires imageId.");
+                    }
+
+                    if (imageCondition.MinSimilarity is < 0 or > 1)
+                    {
+                        throw new InvalidOperationException($"Step '{step.StepId}' imageVisible minSimilarity must be within 0..1.");
+                    }
+                }
+                else if (step.Condition is CommandOutcomeStepCondition outcomeCondition)
+                {
+                    if (string.IsNullOrWhiteSpace(outcomeCondition.StepRef))
+                    {
+                        throw new InvalidOperationException($"Step '{step.StepId}' commandOutcome condition requires stepRef.");
+                    }
+                }
+            }
 
             foreach (var step in sequence.FlowSteps)
             {

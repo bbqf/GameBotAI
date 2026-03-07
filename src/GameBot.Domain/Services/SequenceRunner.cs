@@ -56,10 +56,20 @@ namespace GameBot.Domain.Services
                 return result;
             }
 
+            var linearStepOutcomes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var step in sequence.Steps.OrderBy(s => s.Order))
             {
                 ct.ThrowIfCancellationRequested();
-                var earlyStop = await ExecuteSingleStepAsync(step, executeCommandAsync, gateEvaluator, result, sequenceId, ct).ConfigureAwait(false);
+                var earlyStop = await ExecuteSingleStepAsync(
+                    step,
+                    executeCommandAsync,
+                    gateEvaluator,
+                    conditionEvaluator,
+                    linearStepOutcomes,
+                    result,
+                    sequenceId,
+                    ct).ConfigureAwait(false);
                 if (earlyStop)
                 {
                     if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
@@ -195,7 +205,7 @@ namespace GameBot.Domain.Services
                     return;
                 }
 
-                result.AddStep(commandId, 0);
+                result.AddStep(commandId, 0, actionOutcome: "executed");
                 commandOutcomes[currentStep.StepId] = "success";
                 if (!string.IsNullOrWhiteSpace(currentStep.PayloadRef))
                 {
@@ -386,10 +396,103 @@ namespace GameBot.Domain.Services
             SequenceStep step,
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            Dictionary<string, string> stepOutcomes,
             SequenceExecutionResult result,
             string sequenceId,
             CancellationToken ct)
         {
+            var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : step.CommandId;
+
+            if (step.Condition is ImageVisibleStepCondition imageCondition)
+            {
+                if (conditionEvaluator is null)
+                {
+                    result.AddStep(
+                        step.CommandId,
+                        0,
+                        "Failed",
+                        conditionType: "imageVisible",
+                        conditionResult: "error",
+                        actionOutcome: "failed",
+                        message: "Per-step imageVisible condition evaluator is unavailable");
+                    result.Fail("Per-step imageVisible condition evaluator is unavailable");
+                    if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+
+                bool conditionResult;
+                try
+                {
+                    conditionResult = await conditionEvaluator(new Condition
+                    {
+                        Source = "image",
+                        TargetId = imageCondition.ImageId,
+                        Mode = "Present",
+                        ConfidenceThreshold = imageCondition.MinSimilarity
+                    }, ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    result.AddStep(
+                        step.CommandId,
+                        0,
+                        "Failed",
+                        conditionType: "imageVisible",
+                        conditionResult: "error",
+                        actionOutcome: "failed",
+                        message: $"Step '{stepKey}' condition evaluation failed");
+                    result.Fail($"Step '{stepKey}' condition evaluation failed");
+                    if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+
+                if (!conditionResult)
+                {
+                    result.AddStep(
+                        step.CommandId,
+                        0,
+                        "Skipped",
+                        conditionType: "imageVisible",
+                        conditionResult: "false",
+                        actionOutcome: "skipped");
+                    if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "skipped";
+                    return false;
+                }
+            }
+
+            if (step.Condition is CommandOutcomeStepCondition commandOutcomeCondition)
+            {
+                if (string.IsNullOrWhiteSpace(commandOutcomeCondition.StepRef)
+                    || !stepOutcomes.TryGetValue(commandOutcomeCondition.StepRef, out var actualOutcome))
+                {
+                    result.AddStep(
+                        step.CommandId,
+                        0,
+                        "Failed",
+                        conditionType: "commandOutcome",
+                        conditionResult: "error",
+                        actionOutcome: "failed",
+                        message: $"Step '{stepKey}' commandOutcome reference '{commandOutcomeCondition.StepRef}' is unavailable");
+                    result.Fail($"Step '{stepKey}' commandOutcome reference '{commandOutcomeCondition.StepRef}' is unavailable");
+                    if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+
+                if (!string.Equals(actualOutcome, commandOutcomeCondition.ExpectedState, StringComparison.OrdinalIgnoreCase))
+                {
+                    result.AddStep(
+                        step.CommandId,
+                        0,
+                        "Skipped",
+                        conditionType: "commandOutcome",
+                        conditionResult: "false",
+                        actionOutcome: "skipped");
+                    if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "skipped";
+                    return false;
+                }
+            }
+
             var appliedDelay = GetAppliedDelay(step);
             if (appliedDelay > 0)
             {
@@ -426,11 +529,54 @@ namespace GameBot.Domain.Services
 
             if (_logger != null) LogCommandStart(_logger, step.CommandId, null);
             var cmdStart = DateTimeOffset.UtcNow;
-            await executeCommandAsync(step.CommandId).ConfigureAwait(false);
+            try
+            {
+                await executeCommandAsync(step.CommandId).ConfigureAwait(false);
+            }
+            catch
+            {
+                result.AddStep(
+                    step.CommandId,
+                    appliedDelay,
+                    "Failed",
+                    conditionType: step.Condition is null ? null : step.Condition.Type,
+                    conditionResult: step.Condition is null ? null : "true",
+                    actionOutcome: "failed",
+                    message: $"step '{stepKey}' command execution failed");
+                result.Fail($"step '{stepKey}' command execution failed");
+                if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+                return true;
+            }
             var durationMs = (int)(DateTimeOffset.UtcNow - cmdStart).TotalMilliseconds;
-            result.AddStep(step.CommandId, appliedDelay);
+            result.AddStep(
+                step.CommandId,
+                appliedDelay,
+                "Succeeded",
+                conditionType: step.Condition is null ? null : step.Condition.Type,
+                conditionResult: step.Condition is null ? null : "true",
+                actionOutcome: "executed");
+            if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
             if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
             return false;
+        }
+
+        private Task<bool> ExecuteSingleStepAsync(
+            SequenceStep step,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            SequenceExecutionResult result,
+            string sequenceId,
+            CancellationToken ct)
+        {
+            return ExecuteSingleStepAsync(
+                step,
+                executeCommandAsync,
+                gateEvaluator,
+                conditionEvaluator: null,
+                stepOutcomes: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                result,
+                sequenceId,
+                ct);
         }
 
         private async Task ExecuteBlocksAsync(
@@ -1128,15 +1274,26 @@ namespace GameBot.Domain.Services
             };
         }
 
-        public void AddStep(string commandId, int appliedDelayMs)
+        public void AddStep(
+            string commandId,
+            int appliedDelayMs,
+            string status = "Succeeded",
+            string? conditionType = null,
+            string? conditionResult = null,
+            string? actionOutcome = null,
+            string? message = null)
         {
             _steps.Add(new StepResult
             {
                 CommandId = commandId,
-                Status = "Succeeded",
+                Status = status,
                 Attempts = 1,
                 DurationMs = 0,
-                AppliedDelayMs = appliedDelayMs
+                AppliedDelayMs = appliedDelayMs,
+                ConditionType = conditionType,
+                ConditionResult = conditionResult,
+                ActionOutcome = actionOutcome,
+                Message = message
             });
         }
 
@@ -1187,5 +1344,9 @@ namespace GameBot.Domain.Services
         public int DurationMs { get; set; }
         public string? Error { get; set; }
         public int AppliedDelayMs { get; set; }
+        public string? ConditionType { get; set; }
+        public string? ConditionResult { get; set; }
+        public string? ActionOutcome { get; set; }
+        public string? Message { get; set; }
     }
 }

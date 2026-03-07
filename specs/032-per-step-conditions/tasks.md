@@ -14,10 +14,10 @@
 
 **Purpose**: Add fixtures and baseline scaffolding for per-step condition model tests.
 
-- [ ] T001 Create per-step sample payload fixture in samples/sample-sequence-per-step-conditions.json
-- [ ] T002 [P] Create invalid forward-reference fixture for commandOutcome in tests/TestAssets/sequences/command-outcome-forward-ref-invalid.json
-- [ ] T003 [P] Create invalid expectedState fixture for commandOutcome in tests/TestAssets/sequences/command-outcome-invalid-state.json
-- [ ] T004 Add OpenAPI baseline test scaffold in tests/contract/Sequences/SequencePerStepConditionsOpenApiTests.cs
+- [X] T001 Create per-step sample payload fixture in samples/sample-sequence-per-step-conditions.json
+- [X] T002 [P] Create invalid forward-reference fixture for commandOutcome in tests/TestAssets/sequences/command-outcome-forward-ref-invalid.json
+- [X] T003 [P] Create invalid expectedState fixture for commandOutcome in tests/TestAssets/sequences/command-outcome-invalid-state.json
+- [X] T004 Add OpenAPI baseline test scaffold in tests/contract/Sequences/SequencePerStepConditionsOpenApiTests.cs
 
 ---
 
@@ -27,13 +27,13 @@
 
 **⚠️ CRITICAL**: No user story implementation starts before this phase completes.
 
-- [ ] T005 Implement per-step condition domain union (`imageVisible`, `commandOutcome`) in src/GameBot.Domain/Commands/SequenceStepCondition.cs
-- [ ] T006 Implement per-step condition fields on sequence step model in src/GameBot.Domain/Commands/SequenceStep.cs
-- [ ] T007 Implement commandOutcome validation rules (prior-step reference and expectedState enum) in src/GameBot.Domain/Services/SequenceStepValidationService.cs
-- [ ] T008 Implement API request/response contracts for per-step optional condition in src/GameBot.Service/Models/SequenceStepContracts.cs
-- [ ] T009 Implement endpoint payload mapping and validation wiring for per-step conditions in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
-- [ ] T010 Implement repository persistence shape for per-step conditions in src/GameBot.Domain/Commands/FileSequenceRepository.cs
-- [ ] T011 Remove entry-step/links contract dependency from sequence service pipeline in src/GameBot.Service/Program.cs
+- [X] T005 Implement per-step condition domain union (`imageVisible`, `commandOutcome`) in src/GameBot.Domain/Commands/SequenceStepCondition.cs
+- [X] T006 Implement per-step condition fields on sequence step model in src/GameBot.Domain/Commands/SequenceStep.cs
+- [X] T007 Implement commandOutcome validation rules (prior-step reference and expectedState enum) in src/GameBot.Domain/Services/SequenceStepValidationService.cs
+- [X] T008 Implement API request/response contracts for per-step optional condition in src/GameBot.Service/Models/SequenceStepContracts.cs
+- [X] T009 Implement endpoint payload mapping and validation wiring for per-step conditions in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
+- [X] T010 Implement repository persistence shape for per-step conditions in src/GameBot.Domain/Commands/FileSequenceRepository.cs
+- [X] T011 Remove entry-step/links contract dependency from sequence service pipeline in src/GameBot.Service/Program.cs
 
 **Checkpoint**: Foundational schema and validation pipeline ready for independent story implementation.
 
@@ -47,20 +47,20 @@
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add contract tests for sequence create/update/get with optional per-step conditions in tests/contract/Sequences/SequencePerStepConditionsContractTests.cs
-- [ ] T013 [P] [US1] Add integration test for mixed-step create/reload round trip in tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs
-- [ ] T014 [P] [US1] Add integration test for first-sequence empty-state save with per-step conditions in tests/integration/Sequences/PerStepConditionEmptyStateCreateIntegrationTests.cs
-- [ ] T015 [P] [US1] Add web UI authoring test for per-step condition controls and persistence mapping in src/web-ui/src/pages/__tests__/SequencesPage.perStepConditions.spec.tsx
+- [X] T012 [P] [US1] Add contract tests for sequence create/update/get with optional per-step conditions in tests/contract/Sequences/SequencePerStepConditionsContractTests.cs
+- [X] T013 [P] [US1] Add integration test for mixed-step create/reload round trip in tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs
+- [X] T014 [P] [US1] Add integration test for first-sequence empty-state save with per-step conditions in tests/integration/Sequences/PerStepConditionEmptyStateCreateIntegrationTests.cs
+- [X] T015 [P] [US1] Add web UI authoring test for per-step condition controls and persistence mapping in src/web-ui/src/pages/__tests__/SequencesPage.perStepConditions.spec.tsx
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Implement per-step condition DTO-to-domain mapping in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
-- [ ] T017 [US1] Implement save-time condition shape validation messages per step in src/GameBot.Domain/Services/SequenceStepValidationService.cs
-- [ ] T018 [US1] Implement sequence API client types for optional per-step condition payload in src/web-ui/src/services/sequences.ts
-- [ ] T019 [US1] Implement per-step condition type definitions in src/web-ui/src/types/sequenceFlow.ts
-- [ ] T020 [US1] Implement per-step sequence mapping serialize/deserialize logic in src/web-ui/src/lib/sequenceMapping.ts
-- [ ] T021 [US1] Implement authoring controls for optional step conditions in src/web-ui/src/pages/SequencesPage.tsx
-- [ ] T022 [US1] Implement client-side per-step condition validation in src/web-ui/src/lib/validation.ts
+- [X] T016 [US1] Implement per-step condition DTO-to-domain mapping in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
+- [X] T017 [US1] Implement save-time condition shape validation messages per step in src/GameBot.Domain/Services/SequenceStepValidationService.cs
+- [X] T018 [US1] Implement sequence API client types for optional per-step condition payload in src/web-ui/src/services/sequences.ts
+- [X] T019 [US1] Implement per-step condition type definitions in src/web-ui/src/types/sequenceFlow.ts
+- [X] T020 [US1] Implement per-step sequence mapping serialize/deserialize logic in src/web-ui/src/lib/sequenceMapping.ts
+- [X] T021 [US1] Implement authoring controls for optional step conditions in src/web-ui/src/pages/SequencesPage.tsx
+- [X] T022 [US1] Implement client-side per-step condition validation in src/web-ui/src/lib/validation.ts
 
 **Checkpoint**: US1 is fully functional and independently testable in create/edit/save/reload flows.
 
@@ -74,18 +74,18 @@
 
 ### Tests for User Story 2
 
-- [ ] T023 [P] [US2] Add unit tests for per-step condition true/false/error execution outcomes in tests/unit/Sequences/PerStepConditionRunnerTests.cs
-- [ ] T024 [P] [US2] Add integration tests for map/bag visibility permutations in tests/integration/Sequences/PerStepConditionExecutionPermutationIntegrationTests.cs
-- [ ] T025 [P] [US2] Add integration tests for commandOutcome prior-step reference behavior in tests/integration/Sequences/PerStepCommandOutcomeExecutionIntegrationTests.cs
+- [X] T023 [P] [US2] Add unit tests for per-step condition true/false/error execution outcomes in tests/unit/Sequences/PerStepConditionRunnerTests.cs
+- [X] T024 [P] [US2] Add integration tests for map/bag visibility permutations in tests/integration/Sequences/PerStepConditionExecutionPermutationIntegrationTests.cs
+- [X] T025 [P] [US2] Add integration tests for commandOutcome prior-step reference behavior in tests/integration/Sequences/PerStepCommandOutcomeExecutionIntegrationTests.cs
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Implement per-step condition evaluation pipeline in sequence runner in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T027 [US2] Implement commandOutcome state tracking for prior-step references in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T028 [US2] Implement imageVisible and commandOutcome evaluator routing in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T029 [US2] Implement fail-stop behavior for condition evaluation errors in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T030 [US2] Extend step execution outcome fields for conditionType/conditionResult/actionOutcome in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
-- [ ] T031 [US2] Implement execution response mapping for per-step outcomes in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
+- [X] T026 [US2] Implement per-step condition evaluation pipeline in sequence runner in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T027 [US2] Implement commandOutcome state tracking for prior-step references in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T028 [US2] Implement imageVisible and commandOutcome evaluator routing in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T029 [US2] Implement fail-stop behavior for condition evaluation errors in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T030 [US2] Extend step execution outcome fields for conditionType/conditionResult/actionOutcome in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
+- [X] T031 [US2] Implement execution response mapping for per-step outcomes in src/GameBot.Service/Endpoints/SequencesEndpoints.cs
 
 **Checkpoint**: US2 runtime semantics are deterministic and independently testable.
 

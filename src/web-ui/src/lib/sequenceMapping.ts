@@ -1,5 +1,11 @@
 import type { SequenceDto } from '../services/sequences';
-import type { BranchLink, ConditionExpression, FlowStep, SequenceFlowUpsertRequest } from '../types/sequenceFlow';
+import type {
+  BranchLink,
+  ConditionExpression,
+  FlowStep,
+  SequenceFlowUpsertRequest,
+  SequenceLinearStep
+} from '../types/sequenceFlow';
 import type { ConditionDraft } from './sequenceFlowGraph';
 import { createDefaultConditionExpression } from './sequenceFlowGraph';
 
@@ -17,9 +23,27 @@ export const toCommandStepIds = (steps: SequenceDto['steps']): string[] => {
     return steps as string[];
   }
 
+  if (isLinearStepArray(steps)) {
+    return steps
+      .map((step) => step.action?.parameters?.commandId)
+      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+  }
+
   return (steps as Array<{ stepType?: string; payloadRef?: string | null }>)
     .filter((step) => step.stepType === 'command' && !!step.payloadRef)
     .map((step) => step.payloadRef as string);
+};
+
+export const isLinearStepArray = (steps: SequenceDto['steps']): steps is SequenceLinearStep[] => {
+  return Array.isArray(steps)
+    && steps.every((step) => typeof step === 'object'
+      && step !== null
+      && 'stepId' in step
+      && 'action' in step);
+};
+
+export const toLinearSteps = (steps: SequenceDto['steps']): SequenceLinearStep[] => {
+  return isLinearStepArray(steps) ? steps : [];
 };
 
 export const toConditionDrafts = (steps: FlowStep[], links: BranchLink[], fallbackSourceStepId: string): ConditionDraft[] => {

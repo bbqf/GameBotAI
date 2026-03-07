@@ -72,3 +72,37 @@ export type ConditionEvaluationTrace = {
   operandResults?: Array<Record<string, unknown>>;
   operatorSteps?: Array<Record<string, unknown>>;
 };
+
+export type PerStepConditionType = 'imageVisible' | 'commandOutcome';
+
+export type ImageVisibleStepCondition = {
+  type: 'imageVisible';
+  imageId: string;
+  minSimilarity?: number | null;
+};
+
+export type CommandOutcomeStepCondition = {
+  type: 'commandOutcome';
+  stepRef: string;
+  expectedState: 'success' | 'failed' | 'skipped';
+};
+
+export type SequenceStepCondition = ImageVisibleStepCondition | CommandOutcomeStepCondition;
+
+export type SequenceActionPayload = {
+  type: string;
+  parameters: Record<string, unknown>;
+};
+
+export type SequenceLinearStep = {
+  stepId: string;
+  label?: string;
+  action: SequenceActionPayload;
+  condition?: SequenceStepCondition | null;
+};
+
+export type SequenceLinearUpsertRequest = {
+  name: string;
+  version: number;
+  steps: SequenceLinearStep[];
+};
