@@ -34,10 +34,13 @@ describe('SequencesPage per-step conditions', () => {
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'cmd-back' } });
     fireEvent.click(screen.getByText('Add to steps'));
 
-    fireEvent.click(screen.getByLabelText('Enable per-step conditions'));
-    fireEvent.change(screen.getByLabelText('Condition Type (cmd-back)'), { target: { value: 'commandOutcome' } });
-    fireEvent.change(screen.getByLabelText('Step Ref (cmd-back)'), { target: { value: 'step-1' } });
-    fireEvent.change(screen.getByLabelText('Expected State (cmd-back)'), { target: { value: 'skipped' } });
+    expect(screen.queryByLabelText('Enable per-step conditions')).not.toBeInTheDocument();
+    expect(screen.queryByText('Per-Step Conditions')).not.toBeInTheDocument();
+
+    const conditionTypeFields = screen.getAllByLabelText('Condition Type');
+    fireEvent.change(conditionTypeFields[1], { target: { value: 'commandOutcome' } });
+    fireEvent.change(screen.getByLabelText('Step Ref'), { target: { value: 'step-1' } });
+    fireEvent.change(screen.getByLabelText('Expected State'), { target: { value: 'skipped' } });
 
     fireEvent.click(screen.getByText('Save'));
 

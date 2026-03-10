@@ -33,9 +33,9 @@ const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID 
 
 const emptyForm: SequenceFormValue = { name: '', steps: [] };
 
-const createDefaultStep = (commandId: string, index: number): SequenceStep => ({
+const createDefaultStep = (commandId: string, stepId: string): SequenceStep => ({
   id: makeId(),
-  stepId: `step-${index + 1}`,
+  stepId,
   commandId,
   conditionType: 'none',
   imageId: '',
@@ -44,7 +44,21 @@ const createDefaultStep = (commandId: string, index: number): SequenceStep => ({
   expectedState: 'success'
 });
 
-const toStepEntries = (ids?: string[]): SequenceStep[] => (ids ?? []).map((cmdId, index) => createDefaultStep(cmdId, index));
+const toStepEntries = (ids?: string[]): SequenceStep[] => (ids ?? []).map((cmdId, index) => createDefaultStep(cmdId, `step-${index + 1}`));
+
+const nextGeneratedStepId = (steps: SequenceStep[]): string => {
+  const highest = steps.reduce((max, step) => {
+    const match = /^step-(\d+)$/i.exec(step.stepId.trim());
+    if (!match) {
+      return max;
+    }
+
+    const parsed = Number(match[1]);
+    return Number.isFinite(parsed) ? Math.max(max, parsed) : max;
+  }, 0);
+
+  return `step-${highest + 1}`;
+};
 
 const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] => {
   return steps.map((step, index) => {
@@ -79,7 +93,7 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
     }
 
     return {
-      ...createDefaultStep(commandId, index),
+      ...createDefaultStep(commandId, step.stepId),
       stepId: step.stepId
     };
   });
@@ -136,7 +150,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [filterName, setFilterName] = useState('');
   const [tableMessage, setTableMessage] = useState<string | undefined>(undefined);
   const [tableError, setTableError] = useState<string | undefined>(undefined);
-  const [perStepEnabled, setPerStepEnabled] = useState(true);
   const [loadedVersion, setLoadedVersion] = useState(1);
 
   useEffect(() => {
@@ -199,26 +212,141 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     setPendingStepId(undefined);
     setForm({ name: s.name, steps: hasPerStep ? toStepEntriesFromLinear(linearSteps) : toStepEntries(commandIds) });
     setLoadedVersion(s.version ?? 1);
-    setPerStepEnabled(true);
     setDirty(false);
   };
 
   const resetForm = () => {
     setForm(emptyForm);
     setPendingStepId(undefined);
-    setPerStepEnabled(true);
     setLoadedVersion(1);
     setErrors(undefined);
     setDirty(false);
   };
 
+  const renderStepConditionEditor = (step: SequenceStep, index: number): React.ReactNode => (
+    <div className="sequence-step-condition-editor">
+      <div className="sequence-step-condition-field sequence-step-condition-field--type">
+        <label htmlFor={`step-condition-type-${step.id}`}>Condition Type</label>
+        <select
+          id={`step-condition-type-${step.id}`}
+          value={step.conditionType}
+          onChange={(event) => {
+            const value = event.target.value as SequenceStep['conditionType'];
+            setForm((prev) => ({
+              ...prev,
+              steps: prev.steps.map((candidate) => candidate.id === step.id
+                ? {
+                  ...candidate,
+                  conditionType: value,
+                  imageId: value === 'imageVisible' ? candidate.imageId : '',
+                  minSimilarity: value === 'imageVisible' ? candidate.minSimilarity : '',
+                  outcomeStepRef: value === 'commandOutcome' ? candidate.outcomeStepRef : '',
+                  expectedState: value === 'commandOutcome' ? candidate.expectedState : 'success'
+                }
+                : candidate)
+            }));
+            setDirty(true);
+          }}
+          disabled={submitting || loading}
+        >
+          <option value="none">None</option>
+          <option value="imageVisible">imageVisible</option>
+          <option value="commandOutcome">commandOutcome</option>
+        </select>
+      </div>
+
+      {step.conditionType === 'imageVisible' && (
+        <>
+          <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
+            <label htmlFor={`step-image-id-${step.id}`}>Image Id</label>
+            <input
+              id={`step-image-id-${step.id}`}
+              value={step.imageId}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, imageId: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            />
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--min-similarity">
+            <label htmlFor={`step-min-similarity-${step.id}`}>Min Similarity</label>
+            <input
+              id={`step-min-similarity-${step.id}`}
+              value={step.minSimilarity}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            />
+          </div>
+        </>
+      )}
+
+      {step.conditionType === 'commandOutcome' && (
+        <>
+          <div className="sequence-step-condition-field sequence-step-condition-field--step-ref">
+            <label htmlFor={`step-step-ref-${step.id}`}>Step Ref</label>
+            <select
+              id={`step-step-ref-${step.id}`}
+              value={step.outcomeStepRef}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, outcomeStepRef: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            >
+              <option value="">Select prior step</option>
+              {form.steps.slice(0, index).map((candidate, candidateIndex) => (
+                <option key={candidate.id} value={candidate.stepId}>{`Step ${candidateIndex + 1}`}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--expected-state">
+            <label htmlFor={`step-expected-state-${step.id}`}>Expected State</label>
+            <select
+              id={`step-expected-state-${step.id}`}
+              value={step.expectedState}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id
+                    ? { ...candidate, expectedState: event.target.value as SequenceStep['expectedState'] }
+                    : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            >
+              <option value="success">success</option>
+              <option value="failed">failed</option>
+              <option value="skipped">skipped</option>
+            </select>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   const stepItems = useMemo<ReorderableListItem[]>(() => {
     return form.steps.map((s, idx) => ({
       id: s.id,
       label: commandLookup.get(s.commandId) ?? s.commandId,
-      description: `Step ${idx + 1}`
+      details: renderStepConditionEditor(s, idx)
     }));
-  }, [form.steps, commandLookup]);
+  }, [form.steps, commandLookup, submitting, loading]);
 
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
@@ -320,17 +448,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               return;
             }
 
-            const linearPayload = perStepEnabled
-              ? {
-                name: form.name.trim(),
-                version: 1,
-                steps: toLinearPayloadSteps(form.steps)
-              }
-              : {
-                name: form.name.trim(),
-                version: 1,
-                steps: toLinearPayloadSteps(form.steps)
-              };
+            const linearPayload = {
+              name: form.name.trim(),
+              version: 1,
+              steps: toLinearPayloadSteps(form.steps)
+            };
 
             if (linearPayload) {
               const linearErrors = validatePerStepConditions(linearPayload.steps);
@@ -377,7 +499,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             </div>
           </FormSection>
 
-          <FormSection title="Steps" description="Add commands in the order they should run." id="sequence-steps">
+          <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-steps">
             <SearchableDropdown
               id="sequence-step-dropdown"
               label="Add command"
@@ -392,7 +514,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             <div className="field">
               <button type="button" onClick={() => {
                 if (!pendingStepId) return;
-                const next = [...form.steps, createDefaultStep(pendingStepId, form.steps.length)];
+                const next = [...form.steps, createDefaultStep(pendingStepId, nextGeneratedStepId(form.steps))];
                 setForm({ ...form, steps: next });
                 setPendingStepId(undefined);
                 setDirty(true);
@@ -416,146 +538,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           </FormSection>
 
 
-          <FormSection title="Per-Step Conditions" description="Optional conditions evaluated before each step." id="sequence-per-step-conditions">
-            <div className="field">
-              <label htmlFor="per-step-conditions-enabled">
-                <input
-                  id="per-step-conditions-enabled"
-                  aria-label="Enable per-step conditions"
-                  type="checkbox"
-                  checked={perStepEnabled}
-                  onChange={(event) => {
-                    setPerStepEnabled(event.target.checked);
-                    setDirty(true);
-                  }}
-                  disabled={submitting || loading}
-                />
-                Enable per-step conditions
-              </label>
-            </div>
-
-            {perStepEnabled && form.steps.map((step, index) => (
-              <div key={`create-per-step-${step.id}`} className="field">
-                <label htmlFor={`create-step-id-${step.id}`}>Step Id ({step.commandId})</label>
-                <input
-                  id={`create-step-id-${step.id}`}
-                  aria-label={`Step Id (${step.commandId})`}
-                  value={step.stepId}
-                  onChange={(event) => {
-                    setForm((prev) => ({
-                      ...prev,
-                      steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, stepId: event.target.value } : candidate)
-                    }));
-                    setDirty(true);
-                  }}
-                />
-
-                <label htmlFor={`create-step-condition-type-${step.id}`}>Condition Type ({step.commandId})</label>
-                <select
-                  id={`create-step-condition-type-${step.id}`}
-                  aria-label={`Condition Type (${step.commandId})`}
-                  value={step.conditionType}
-                  onChange={(event) => {
-                    const value = event.target.value as SequenceStep['conditionType'];
-                    setForm((prev) => ({
-                      ...prev,
-                      steps: prev.steps.map((candidate) => candidate.id === step.id
-                        ? {
-                          ...candidate,
-                          conditionType: value,
-                          imageId: value === 'imageVisible' ? candidate.imageId : '',
-                          minSimilarity: value === 'imageVisible' ? candidate.minSimilarity : '',
-                          outcomeStepRef: value === 'commandOutcome' ? candidate.outcomeStepRef : '',
-                          expectedState: value === 'commandOutcome' ? candidate.expectedState : 'success'
-                        }
-                        : candidate)
-                    }));
-                    setDirty(true);
-                  }}
-                >
-                  <option value="none">None</option>
-                  <option value="imageVisible">imageVisible</option>
-                  <option value="commandOutcome">commandOutcome</option>
-                </select>
-
-                {step.conditionType === 'imageVisible' && (
-                  <>
-                    <label htmlFor={`create-step-image-id-${step.id}`}>Image Id ({step.commandId})</label>
-                    <input
-                      id={`create-step-image-id-${step.id}`}
-                      aria-label={`Image Id (${step.commandId})`}
-                      value={step.imageId}
-                      onChange={(event) => {
-                        setForm((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, imageId: event.target.value } : candidate)
-                        }));
-                        setDirty(true);
-                      }}
-                    />
-
-                    <label htmlFor={`create-step-min-similarity-${step.id}`}>Min Similarity ({step.commandId})</label>
-                    <input
-                      id={`create-step-min-similarity-${step.id}`}
-                      aria-label={`Min Similarity (${step.commandId})`}
-                      value={step.minSimilarity}
-                      onChange={(event) => {
-                        setForm((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: event.target.value } : candidate)
-                        }));
-                        setDirty(true);
-                      }}
-                    />
-                  </>
-                )}
-
-                {step.conditionType === 'commandOutcome' && (
-                  <>
-                    <label htmlFor={`create-step-step-ref-${step.id}`}>Step Ref ({step.commandId})</label>
-                    <select
-                      id={`create-step-step-ref-${step.id}`}
-                      aria-label={`Step Ref (${step.commandId})`}
-                      value={step.outcomeStepRef}
-                      onChange={(event) => {
-                        setForm((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, outcomeStepRef: event.target.value } : candidate)
-                        }));
-                        setDirty(true);
-                      }}
-                    >
-                      <option value="">Select prior step</option>
-                      {form.steps.slice(0, index).map((candidate) => (
-                        <option key={candidate.id} value={candidate.stepId}>{candidate.stepId}</option>
-                      ))}
-                    </select>
-
-                    <label htmlFor={`create-step-expected-state-${step.id}`}>Expected State ({step.commandId})</label>
-                    <select
-                      id={`create-step-expected-state-${step.id}`}
-                      aria-label={`Expected State (${step.commandId})`}
-                      value={step.expectedState}
-                      onChange={(event) => {
-                        setForm((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((candidate) => candidate.id === step.id
-                            ? { ...candidate, expectedState: event.target.value as SequenceStep['expectedState'] }
-                            : candidate)
-                        }));
-                        setDirty(true);
-                      }}
-                    >
-                      <option value="success">success</option>
-                      <option value="failed">failed</option>
-                      <option value="skipped">skipped</option>
-                    </select>
-                  </>
-                )}
-              </div>
-            ))}
-          </FormSection>
-
           <FormActions submitting={submitting} onCancel={() => { if (!confirmNavigate()) return; setCreating(false); resetForm(); }}>
             {loading && <span className="form-hint">Loading…</span>}
           </FormActions>
@@ -576,17 +558,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 return;
               }
 
-              const linearPayload = perStepEnabled
-                ? {
-                  name: form.name.trim(),
-                  version: loadedVersion,
-                  steps: toLinearPayloadSteps(form.steps)
-                }
-                : {
-                  name: form.name.trim(),
-                  version: loadedVersion,
-                  steps: toLinearPayloadSteps(form.steps)
-                };
+              const linearPayload = {
+                name: form.name.trim(),
+                version: loadedVersion,
+                steps: toLinearPayloadSteps(form.steps)
+              };
 
               if (linearPayload) {
                 const linearErrors = validatePerStepConditions(linearPayload.steps);
@@ -638,7 +614,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               </div>
             </FormSection>
 
-            <FormSection title="Steps" description="Add commands in the order they should run." id="sequence-edit-steps">
+            <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-edit-steps">
               <SearchableDropdown
                 id="sequence-edit-step-dropdown"
                 label="Add command"
@@ -653,7 +629,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               <div className="field">
                 <button type="button" onClick={() => {
                   if (!pendingStepId) return;
-                  const next = [...form.steps, createDefaultStep(pendingStepId, form.steps.length)];
+                  const next = [...form.steps, createDefaultStep(pendingStepId, nextGeneratedStepId(form.steps))];
                   setForm({ ...form, steps: next });
                   setPendingStepId(undefined);
                   setDirty(true);
@@ -676,146 +652,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               <div className="form-hint">Use Move up/down to set the execution order before saving.</div>
             </FormSection>
 
-
-            <FormSection title="Per-Step Conditions" description="Optional conditions evaluated before each step." id="sequence-edit-per-step-conditions">
-              <div className="field">
-                <label htmlFor="edit-per-step-conditions-enabled">
-                  <input
-                    id="edit-per-step-conditions-enabled"
-                    aria-label="Enable per-step conditions"
-                    type="checkbox"
-                    checked={perStepEnabled}
-                    onChange={(event) => {
-                      setPerStepEnabled(event.target.checked);
-                      setDirty(true);
-                    }}
-                    disabled={submitting || loading}
-                  />
-                  Enable per-step conditions
-                </label>
-              </div>
-
-              {perStepEnabled && form.steps.map((step, index) => (
-                <div key={`edit-per-step-${step.id}`} className="field">
-                  <label htmlFor={`edit-step-id-${step.id}`}>Step Id ({step.commandId})</label>
-                  <input
-                    id={`edit-step-id-${step.id}`}
-                    aria-label={`Step Id (${step.commandId})`}
-                    value={step.stepId}
-                    onChange={(event) => {
-                      setForm((prev) => ({
-                        ...prev,
-                        steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, stepId: event.target.value } : candidate)
-                      }));
-                      setDirty(true);
-                    }}
-                  />
-
-                  <label htmlFor={`edit-step-condition-type-${step.id}`}>Condition Type ({step.commandId})</label>
-                  <select
-                    id={`edit-step-condition-type-${step.id}`}
-                    aria-label={`Condition Type (${step.commandId})`}
-                    value={step.conditionType}
-                    onChange={(event) => {
-                      const value = event.target.value as SequenceStep['conditionType'];
-                      setForm((prev) => ({
-                        ...prev,
-                        steps: prev.steps.map((candidate) => candidate.id === step.id
-                          ? {
-                            ...candidate,
-                            conditionType: value,
-                            imageId: value === 'imageVisible' ? candidate.imageId : '',
-                            minSimilarity: value === 'imageVisible' ? candidate.minSimilarity : '',
-                            outcomeStepRef: value === 'commandOutcome' ? candidate.outcomeStepRef : '',
-                            expectedState: value === 'commandOutcome' ? candidate.expectedState : 'success'
-                          }
-                          : candidate)
-                      }));
-                      setDirty(true);
-                    }}
-                  >
-                    <option value="none">None</option>
-                    <option value="imageVisible">imageVisible</option>
-                    <option value="commandOutcome">commandOutcome</option>
-                  </select>
-
-                  {step.conditionType === 'imageVisible' && (
-                    <>
-                      <label htmlFor={`edit-step-image-id-${step.id}`}>Image Id ({step.commandId})</label>
-                      <input
-                        id={`edit-step-image-id-${step.id}`}
-                        aria-label={`Image Id (${step.commandId})`}
-                        value={step.imageId}
-                        onChange={(event) => {
-                          setForm((prev) => ({
-                            ...prev,
-                            steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, imageId: event.target.value } : candidate)
-                          }));
-                          setDirty(true);
-                        }}
-                      />
-
-                      <label htmlFor={`edit-step-min-similarity-${step.id}`}>Min Similarity ({step.commandId})</label>
-                      <input
-                        id={`edit-step-min-similarity-${step.id}`}
-                        aria-label={`Min Similarity (${step.commandId})`}
-                        value={step.minSimilarity}
-                        onChange={(event) => {
-                          setForm((prev) => ({
-                            ...prev,
-                            steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: event.target.value } : candidate)
-                          }));
-                          setDirty(true);
-                        }}
-                      />
-                    </>
-                  )}
-
-                  {step.conditionType === 'commandOutcome' && (
-                    <>
-                      <label htmlFor={`edit-step-step-ref-${step.id}`}>Step Ref ({step.commandId})</label>
-                      <select
-                        id={`edit-step-step-ref-${step.id}`}
-                        aria-label={`Step Ref (${step.commandId})`}
-                        value={step.outcomeStepRef}
-                        onChange={(event) => {
-                          setForm((prev) => ({
-                            ...prev,
-                            steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, outcomeStepRef: event.target.value } : candidate)
-                          }));
-                          setDirty(true);
-                        }}
-                      >
-                        <option value="">Select prior step</option>
-                        {form.steps.slice(0, index).map((candidate) => (
-                          <option key={candidate.id} value={candidate.stepId}>{candidate.stepId}</option>
-                        ))}
-                      </select>
-
-                      <label htmlFor={`edit-step-expected-state-${step.id}`}>Expected State ({step.commandId})</label>
-                      <select
-                        id={`edit-step-expected-state-${step.id}`}
-                        aria-label={`Expected State (${step.commandId})`}
-                        value={step.expectedState}
-                        onChange={(event) => {
-                          setForm((prev) => ({
-                            ...prev,
-                            steps: prev.steps.map((candidate) => candidate.id === step.id
-                              ? { ...candidate, expectedState: event.target.value as SequenceStep['expectedState'] }
-                              : candidate)
-                          }));
-                          setDirty(true);
-                        }}
-                      >
-                        <option value="success">success</option>
-                        <option value="failed">failed</option>
-                        <option value="skipped">skipped</option>
-                      </select>
-                    </>
-                  )}
-                </div>
-              ))}
-            </FormSection>
 
             <FormActions
               submitting={submitting}

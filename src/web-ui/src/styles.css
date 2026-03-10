@@ -34,6 +34,20 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shado
 pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-color-border); padding: var(--gb-space-3); overflow: auto; border-radius: var(--gb-radius-md); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6); }
 .form-error { color: var(--gb-color-danger); margin-top: var(--gb-space-2); font-weight: 600; }
 .form-hint { color: var(--gb-color-muted); margin-top: var(--gb-space-2); }
+.reorderable-list ol { margin: 0; padding-left: 1.25rem; }
+.reorderable-list__item { margin-bottom: var(--gb-space-2); }
+.reorderable-list__content { display: grid; gap: var(--gb-space-2); }
+.reorderable-list__label { font-weight: 600; }
+.reorderable-list__details { display: flex; flex-wrap: nowrap; gap: var(--gb-space-2); align-items: flex-end; overflow-x: auto; padding-bottom: 2px; }
+.sequence-step-condition-field { display: flex; flex-direction: column; min-width: 0; flex: 0 0 180px; }
+.sequence-step-condition-field--type { flex-basis: 180px; }
+.sequence-step-condition-field--image-id { flex: 1 1 320px; }
+.sequence-step-condition-field--step-ref { flex: 1 1 220px; }
+.sequence-step-condition-field--expected-state { flex-basis: 170px; }
+.sequence-step-condition-field--min-similarity { flex-basis: 170px; }
+.reorderable-list__details label { display: block; color: var(--gb-color-muted); font-size: 0.85rem; margin-bottom: 2px; }
+.reorderable-list__details input,
+.reorderable-list__details select { width: 100%; padding: var(--gb-space-2) var(--gb-space-3); border: 1px solid var(--gb-color-border-strong); border-radius: var(--gb-radius-md); background: var(--gb-color-surface); }
 .capture-panel { margin: var(--gb-space-4) 0; padding: var(--gb-space-3); border: 1px solid var(--gb-color-border); border-radius: var(--gb-radius-lg); background: linear-gradient(180deg, var(--gb-color-surface) 0%, var(--gb-color-surface-alt) 90%); box-shadow: var(--gb-shadow-card); }
 .capture-viewer { margin: var(--gb-space-3) 0; border: 1px dashed var(--gb-color-border-strong); padding: var(--gb-space-2); background: var(--gb-color-surface-alt); border-radius: var(--gb-radius-md); }
 .capture-overlay { position: relative; display: inline-block; max-width: 100%; cursor: crosshair; }
@@ -65,4 +79,6 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 	.row input[type="text"], .row input[type="password"] { flex: 1 1 auto; width: 100%; }
 	.links button { margin-right: var(--gb-space-2); }
 	.execution-logs-layout--desktop { grid-template-columns: 1fr; }
+	.reorderable-list__details { flex-wrap: wrap; overflow-x: visible; }
+	.sequence-step-condition-field { flex: 1 1 100%; }
 }

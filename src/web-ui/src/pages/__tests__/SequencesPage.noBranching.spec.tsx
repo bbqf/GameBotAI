@@ -28,6 +28,8 @@ describe('SequencesPage no-branching authoring', () => {
     expect(screen.queryByLabelText(/Entry Step/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/True Target/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/False Target/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Enable per-step conditions/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Per-Step Conditions/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Conditional Flow/i)).not.toBeInTheDocument();
   });
 });

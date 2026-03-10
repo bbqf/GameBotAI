@@ -4,6 +4,7 @@ export type ReorderableListItem = {
   id: string;
   label: string;
   description?: string;
+  details?: React.ReactNode;
 };
 
 type ReorderableListProps = {
@@ -57,12 +58,13 @@ export const ReorderableList: React.FC<ReorderableListProps> = ({
 
   return (
     <div className="reorderable-list">
-      <ul>
+      <ol>
         {items.map((item, index) => (
           <li key={item.id} className="reorderable-list__item">
             <div className="reorderable-list__content">
               <div className="reorderable-list__label">{item.label}</div>
               {item.description && <div className="reorderable-list__description">{item.description}</div>}
+              {item.details && <div className="reorderable-list__details">{item.details}</div>}
             </div>
             <div className="reorderable-list__controls">
               <button type="button" aria-label="Move up" onClick={() => handleMove(index, index - 1)} disabled={disabled || index === 0}>↑</button>
@@ -72,7 +74,7 @@ export const ReorderableList: React.FC<ReorderableListProps> = ({
             </div>
           </li>
         ))}
-      </ul>
+      </ol>
       {onAdd && <button type="button" onClick={onAdd} disabled={disabled}>Add item</button>}
     </div>
   );
