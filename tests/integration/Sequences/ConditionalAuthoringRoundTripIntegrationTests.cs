@@ -12,7 +12,6 @@ namespace GameBot.IntegrationTests.Sequences;
 
 public sealed class ConditionalAuthoringRoundTripIntegrationTests {
   private static readonly string[] ExpectedStepIds = { "start", "decision", "then-step", "else-step" };
-  private static readonly string[] ExpectedBranchTypes = { "next", "true", "false" };
 
   [Fact]
   public async Task CreateAndGetSequencePreservesConditionalFlowShape() {
@@ -26,25 +25,44 @@ public sealed class ConditionalAuthoringRoundTripIntegrationTests {
     var createPayload = new {
       name = "round-trip-flow",
       version = 1,
-      entryStepId = "start",
       steps = new object[] {
-        new { stepId = "start", label = "Start", stepType = "command", payloadRef = "cmd-1" },
+        new {
+          stepId = "start",
+          label = "Start",
+          action = new {
+            type = "tap",
+            parameters = new { x = 100, y = 200 }
+          }
+        },
         new {
           stepId = "decision",
           label = "Decision",
-          stepType = "condition",
+          action = new {
+            type = "tap",
+            parameters = new { x = 180, y = 260 }
+          },
           condition = new {
-            nodeType = "operand",
-            operand = new { operandType = "command-outcome", targetRef = "cmd-1", expectedState = "success" }
+            type = "commandOutcome",
+            stepRef = "start",
+            expectedState = "success"
           }
         },
-        new { stepId = "then-step", label = "Then", stepType = "action", payloadRef = "action-1" },
-        new { stepId = "else-step", label = "Else", stepType = "action", payloadRef = "action-2" }
-      },
-      links = new object[] {
-        new { linkId = "l1", sourceStepId = "start", targetStepId = "decision", branchType = "next" },
-        new { linkId = "l2", sourceStepId = "decision", targetStepId = "then-step", branchType = "true" },
-        new { linkId = "l3", sourceStepId = "decision", targetStepId = "else-step", branchType = "false" }
+        new {
+          stepId = "then-step",
+          label = "Then",
+          action = new {
+            type = "tap",
+            parameters = new { x = 280, y = 360 }
+          }
+        },
+        new {
+          stepId = "else-step",
+          label = "Else",
+          action = new {
+            type = "tap",
+            parameters = new { x = 380, y = 460 }
+          }
+        }
       }
     };
 
@@ -60,12 +78,10 @@ public sealed class ConditionalAuthoringRoundTripIntegrationTests {
     getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     var fetched = await getResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
 
-    fetched.GetProperty("entryStepId").GetString().Should().Be("start");
-
     var fetchedSteps = fetched.GetProperty("steps").EnumerateArray().Select(x => x.GetProperty("stepId").GetString()).ToArray();
     fetchedSteps.Should().Contain(ExpectedStepIds);
 
-    var fetchedLinks = fetched.GetProperty("links").EnumerateArray().Select(x => x.GetProperty("branchType").GetString()).ToArray();
-    fetchedLinks.Should().Contain(ExpectedBranchTypes);
+    var decisionStep = fetched.GetProperty("steps").EnumerateArray().First(x => x.GetProperty("stepId").GetString() == "decision");
+    decisionStep.GetProperty("condition").GetProperty("type").GetString().Should().Be("commandOutcome");
   }
 }

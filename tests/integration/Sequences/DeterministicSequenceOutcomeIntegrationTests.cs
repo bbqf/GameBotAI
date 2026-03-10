@@ -24,26 +24,36 @@ public sealed class DeterministicSequenceOutcomeIntegrationTests {
     var createPayload = new {
       name = "deterministic-outcomes",
       version = 1,
-      entryStepId = "start",
       steps = new object[] {
-        new { stepId = "start", label = "Start", stepType = "command", payloadRef = "cmd-1" },
         new {
-          stepId = "decision",
-          label = "Decision",
-          stepType = "condition",
-          condition = new {
-            nodeType = "operand",
-            operand = new { operandType = "command-outcome", targetRef = "cmd-1", expectedState = "success" }
+          stepId = "start",
+          label = "Start",
+          action = new {
+            type = "tap",
+            parameters = new { x = 100, y = 200 }
           }
         },
-        new { stepId = "then", label = "Then", stepType = "action", payloadRef = "tap:{\"x\":12,\"y\":34}" },
-        new { stepId = "end", label = "End", stepType = "terminal" }
-      },
-      links = new object[] {
-        new { linkId = "n1", sourceStepId = "start", targetStepId = "decision", branchType = "next" },
-        new { linkId = "t1", sourceStepId = "decision", targetStepId = "then", branchType = "true" },
-        new { linkId = "f1", sourceStepId = "decision", targetStepId = "end", branchType = "false" },
-        new { linkId = "n2", sourceStepId = "then", targetStepId = "end", branchType = "next" }
+        new {
+          stepId = "then",
+          label = "Then",
+          action = new {
+            type = "tap",
+            parameters = new { x = 12, y = 34 }
+          },
+          condition = new {
+            type = "commandOutcome",
+            stepRef = "start",
+            expectedState = "success"
+          }
+        },
+        new {
+          stepId = "end",
+          label = "End",
+          action = new {
+            type = "tap",
+            parameters = new { x = 10, y = 10 }
+          }
+        }
       }
     };
 

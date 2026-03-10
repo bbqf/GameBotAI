@@ -118,14 +118,14 @@
 
 **Purpose**: Final quality gates, documentation, and verification evidence.
 
-- [ ] T039 [P] Add OpenAPI assertions for per-step condition schema and commandOutcome constraints in tests/contract/Sequences/SequencePerStepConditionsOpenApiTests.cs
-- [ ] T040 [P] Add performance non-regression integration test for mixed per-step conditions in tests/integration/Sequences/PerStepConditionPerformanceIntegrationTests.cs
-- [ ] T041 Add explicit coverage gate verification (>=80% line, >=70% branch on touched areas) in scripts/analyze-test-results.ps1
-- [ ] T042 Add explicit security scan gate verification (SAST + secret scan evidence) in scripts/analyze-test-results.ps1
-- [ ] T043 Add explicit lint/format and static-analysis gate verification in scripts/analyze-test-results.ps1
-- [ ] T044 Update quickstart verification evidence for final behavior in specs/032-per-step-conditions/quickstart.md
-- [ ] T045 Run full verification pass and record outcomes in specs/032-per-step-conditions/plan.md
-- [ ] T046 Add final validation summary for per-step condition feature in docs/validation.md
+- [X] T039 [P] Add OpenAPI assertions for per-step condition schema and commandOutcome constraints in tests/contract/Sequences/SequencePerStepConditionsOpenApiTests.cs
+- [X] T040 [P] Add performance non-regression integration test for mixed per-step conditions in tests/integration/Sequences/PerStepConditionPerformanceIntegrationTests.cs
+- [X] T041 Add explicit coverage gate verification (>=80% line, >=70% branch on touched areas) in scripts/analyze-test-results.ps1
+- [X] T042 Add explicit security scan gate verification (SAST + secret scan evidence) in scripts/analyze-test-results.ps1
+- [X] T043 Add explicit lint/format and static-analysis gate verification in scripts/analyze-test-results.ps1
+- [X] T044 Update quickstart verification evidence for final behavior in specs/032-per-step-conditions/quickstart.md
+- [X] T045 Run full verification pass and record outcomes in specs/032-per-step-conditions/plan.md
+- [X] T046 Add final validation summary for per-step condition feature in docs/validation.md
 
 ---
 

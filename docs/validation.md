@@ -159,3 +159,20 @@
 
 - **Empty-state UX confirmation (T035)**:
 	- Sequences authoring page displays explicit guidance when no sequences exist: create-first-sequence prompt visible before first save.
+
+## Per-Step Optional Conditions Final Validation (2026-03-10)
+
+- **Scope completed**: final Phase 6 tasks (`T039`-`T046`) for `032-per-step-conditions`.
+- **OpenAPI and contract quality**:
+	- `tests/contract/Sequences/SequencePerStepConditionsOpenApiTests.cs` assertions validated per-step condition schema and `commandOutcome` constraints.
+	- Legacy branching-oriented contract tests were migrated to linear per-step payloads to preserve full-suite compatibility.
+- **Runtime/performance quality**:
+	- `tests/integration/Sequences/PerStepConditionPerformanceIntegrationTests.cs` passed, confirming mixed per-step condition non-regression against the existing p95 budget.
+	- Legacy branching-oriented integration tests were migrated to linear per-step payloads to preserve deterministic and empty-state execution coverage.
+- **Full verification evidence**:
+	- `dotnet test -c Debug --logger trx --results-directory TestResults`: passed (`401/401`).
+	- `powershell -NoProfile -File scripts/analyze-test-results.ps1 -ResultsDir TestResults -LatestOnly -VerifyCoverage -VerifySecurity -VerifyLintFormat -VerifyStaticAnalysis`: passed.
+- **Quality gate evidence (scripted)**:
+	- Coverage gate now supports touched-file threshold enforcement (`>=80%` line, `>=70%` branch) when changed `src/*.cs` files are present in the diff.
+	- Security gate records explicit SAST/dependency and secret-scan results.
+	- Lint/format and static-analysis gates run as explicit blocking checks.

@@ -18,32 +18,36 @@ public sealed class SequenceConditionalStepsContractTests {
   }
 
   [Fact]
-  public async Task CreateSequenceFlowRejectsStepWithoutStepType() {
+  public async Task CreateSequenceFlowRejectsForwardCommandOutcomeReference() {
     using var app = CreateFactory();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     var payload = new {
-      name = "missing-step-type",
+      name = "invalid-forward-reference",
       version = 1,
-      entryStepId = "start",
       steps = new object[] {
-        new { stepId = "start", label = "Start", payloadRef = "cmd-1" },
         new {
-          stepId = "decision",
-          label = "Decision",
-          stepType = "condition",
+          stepId = "start",
+          label = "Start",
+          action = new {
+            type = "tap",
+            parameters = new { x = 50, y = 50 }
+          },
           condition = new {
-            nodeType = "operand",
-            operand = new { operandType = "command-outcome", targetRef = "cmd-1", expectedState = "success" }
+            type = "commandOutcome",
+            stepRef = "next",
+            expectedState = "success"
           }
         },
-        new { stepId = "end", label = "End", stepType = "terminal" }
-      },
-      links = new object[] {
-        new { linkId = "l1", sourceStepId = "start", targetStepId = "decision", branchType = "next" },
-        new { linkId = "l2", sourceStepId = "decision", targetStepId = "end", branchType = "true" },
-        new { linkId = "l3", sourceStepId = "decision", targetStepId = "end", branchType = "false" }
+        new {
+          stepId = "next",
+          label = "Next",
+          action = new {
+            type = "tap",
+            parameters = new { x = 120, y = 840 }
+          }
+        }
       }
     };
 
@@ -51,7 +55,7 @@ public sealed class SequenceConditionalStepsContractTests {
 
     response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-    content.Should().Contain("stepType");
+    content.Should().MatchRegex("(?i)prior step|earlier step|must refer");
   }
 
   [Fact]
@@ -63,26 +67,28 @@ public sealed class SequenceConditionalStepsContractTests {
     var payload = new {
       name = "schema-roundtrip",
       version = 1,
-      entryStepId = "start",
       steps = new object[] {
-        new { stepId = "start", label = "Start", stepType = "command", payloadRef = "cmd-1" },
         new {
-          stepId = "decision",
-          label = "Decision",
-          stepType = "condition",
-          condition = new {
-            nodeType = "operand",
-            operand = new { operandType = "command-outcome", targetRef = "cmd-1", expectedState = "success" }
+          stepId = "start",
+          label = "Start",
+          action = new {
+            type = "tap",
+            parameters = new { x = 100, y = 200 }
           }
         },
-        new { stepId = "next", label = "Next", stepType = "command", payloadRef = "cmd-2" },
-        new { stepId = "end", label = "End", stepType = "terminal" }
-      },
-      links = new object[] {
-        new { linkId = "l1", sourceStepId = "start", targetStepId = "decision", branchType = "next" },
-        new { linkId = "l2", sourceStepId = "decision", targetStepId = "next", branchType = "true" },
-        new { linkId = "l3", sourceStepId = "decision", targetStepId = "end", branchType = "false" },
-        new { linkId = "l4", sourceStepId = "next", targetStepId = "end", branchType = "next" }
+        new {
+          stepId = "next",
+          label = "Next",
+          action = new {
+            type = "tap",
+            parameters = new { x = 300, y = 400 }
+          },
+          condition = new {
+            type = "commandOutcome",
+            stepRef = "start",
+            expectedState = "success"
+          }
+        }
       }
     };
 
@@ -93,10 +99,10 @@ public sealed class SequenceConditionalStepsContractTests {
     var decisionStep = created
       .GetProperty("steps")
       .EnumerateArray()
-      .FirstOrDefault(step => string.Equals(step.GetProperty("stepId").GetString(), "decision", StringComparison.Ordinal));
+      .FirstOrDefault(step => string.Equals(step.GetProperty("stepId").GetString(), "next", StringComparison.Ordinal));
 
     decisionStep.ValueKind.Should().NotBe(JsonValueKind.Undefined);
-    decisionStep.GetProperty("stepType").GetString().Should().Be("condition");
+    decisionStep.GetProperty("condition").GetProperty("type").GetString().Should().Be("commandOutcome");
     decisionStep.TryGetProperty("condition", out var condition).Should().BeTrue();
     condition.ValueKind.Should().NotBe(JsonValueKind.Undefined);
   }
@@ -111,22 +117,20 @@ public sealed class SequenceConditionalStepsContractTests {
     var payload = new {
       name = "missing-image-ref",
       version = 1,
-      entryStepId = "start",
       steps = new object[] {
         new {
           stepId = "start",
           label = "Condition",
-          stepType = "condition",
+          action = new {
+            type = "tap",
+            parameters = new { x = 80, y = 80 }
+          },
           condition = new {
-            nodeType = "operand",
-            operand = new { operandType = "image-detection", targetRef = missingImageId, expectedState = "present", threshold = 0.8 }
+            type = "imageVisible",
+            imageId = missingImageId,
+            minSimilarity = 0.8
           }
-        },
-        new { stepId = "end", label = "End", stepType = "terminal" }
-      },
-      links = new object[] {
-        new { linkId = "l1", sourceStepId = "start", targetStepId = "end", branchType = "true" },
-        new { linkId = "l2", sourceStepId = "start", targetStepId = "end", branchType = "false" }
+        }
       }
     };
 

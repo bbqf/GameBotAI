@@ -31,26 +31,44 @@ public sealed class EmptyStateCreateSequenceIntegrationTests {
     var createPayload = new {
       name = "empty-state-first-sequence",
       version = 0,
-      entryStepId = "start",
       steps = new object[] {
-        new { stepId = "start", label = "Start", stepType = "command", payloadRef = "cmd-1" },
+        new {
+          stepId = "start",
+          label = "Start",
+          action = new {
+            type = "tap",
+            parameters = new { x = 120, y = 840 }
+          }
+        },
         new {
           stepId = "decision",
           label = "Decision",
-          stepType = "condition",
+          action = new {
+            type = "tap",
+            parameters = new { x = 200, y = 880 }
+          },
           condition = new {
-            nodeType = "operand",
-            operand = new { operandType = "command-outcome", targetRef = "cmd-1", expectedState = "success" }
+            type = "commandOutcome",
+            stepRef = "start",
+            expectedState = "success"
           }
         },
-        new { stepId = "action-then", label = "Then", stepType = "action", payloadRef = "tap:{\"x\":100,\"y\":200}" },
-        new { stepId = "end", label = "End", stepType = "terminal" }
-      },
-      links = new object[] {
-        new { linkId = "n1", sourceStepId = "start", targetStepId = "decision", branchType = "next" },
-        new { linkId = "t1", sourceStepId = "decision", targetStepId = "action-then", branchType = "true" },
-        new { linkId = "f1", sourceStepId = "decision", targetStepId = "end", branchType = "false" },
-        new { linkId = "n2", sourceStepId = "action-then", targetStepId = "end", branchType = "next" }
+        new {
+          stepId = "action-then",
+          label = "Then",
+          action = new {
+            type = "tap",
+            parameters = new { x = 100, y = 200 }
+          }
+        },
+        new {
+          stepId = "end",
+          label = "End",
+          action = new {
+            type = "tap",
+            parameters = new { x = 20, y = 20 }
+          }
+        }
       }
     };
 
@@ -64,7 +82,6 @@ public sealed class EmptyStateCreateSequenceIntegrationTests {
     var getResponse = await client.GetAsync(new Uri($"/api/sequences/{sequenceId}", UriKind.Relative)).ConfigureAwait(false);
     getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     var fetched = await getResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
-    fetched.GetProperty("entryStepId").GetString().Should().Be("start");
     fetched.GetProperty("steps").EnumerateArray().Select(step => step.GetProperty("stepId").GetString()).Should().Contain(ExpectedFirstSequenceStepIds);
   }
 }

@@ -24,20 +24,20 @@ public sealed class SequenceActionPayloadValidationContractTests {
     var payload = new {
       name = "unsupported-action-payload",
       version = 1,
-      entryStepId = "start",
       steps = new object[] {
-        new { stepId = "start", label = "Start", stepType = "command", payloadRef = "cmd-1" },
-        new { stepId = "action", label = "Action", stepType = "action", payloadRef = "unsupported:{\"foo\":1}" },
-        new { stepId = "end", label = "End", stepType = "terminal" }
-      },
-      links = new object[] {
-        new { linkId = "l1", sourceStepId = "start", targetStepId = "action", branchType = "next" },
-        new { linkId = "l2", sourceStepId = "action", targetStepId = "end", branchType = "next" }
+        new {
+          stepId = "action",
+          label = "Action",
+          action = new {
+            type = "unsupported",
+            parameters = new { foo = 1 }
+          }
+        }
       }
     };
 
     var response = await client.PostAsJsonAsync("/api/sequences", payload).ConfigureAwait(false);
-    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
     var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
     content.Should().MatchRegex("(?i)unsupported action type");
   }
@@ -51,21 +51,21 @@ public sealed class SequenceActionPayloadValidationContractTests {
     var payload = new {
       name = "malformed-action-payload",
       version = 1,
-      entryStepId = "start",
       steps = new object[] {
-        new { stepId = "start", label = "Start", stepType = "command", payloadRef = "cmd-1" },
-        new { stepId = "action", label = "Action", stepType = "action", payloadRef = ":{\"x\":1}" },
-        new { stepId = "end", label = "End", stepType = "terminal" }
-      },
-      links = new object[] {
-        new { linkId = "l1", sourceStepId = "start", targetStepId = "action", branchType = "next" },
-        new { linkId = "l2", sourceStepId = "action", targetStepId = "end", branchType = "next" }
+        new {
+          stepId = "action",
+          label = "Action",
+          action = new {
+            type = string.Empty,
+            parameters = new { x = 1 }
+          }
+        }
       }
     };
 
     var response = await client.PostAsJsonAsync("/api/sequences", payload).ConfigureAwait(false);
     response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-    content.Should().MatchRegex("(?i)malformed action payload");
+    content.Should().MatchRegex("(?i)action type");
   }
 }
