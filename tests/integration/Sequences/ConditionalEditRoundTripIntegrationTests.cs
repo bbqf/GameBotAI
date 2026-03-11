@@ -11,8 +11,10 @@ using Xunit;
 namespace GameBot.IntegrationTests.Sequences;
 
 public sealed class ConditionalEditRoundTripIntegrationTests {
+  private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
+
   [Fact]
-  public async Task PatchConditionalFlowPersistsEditedOperandAndBranchesAfterReload() {
+  public async Task PatchConditionalFlowPersistsEditedConditionAfterReload() {
     TestEnvironment.PrepareCleanDataDir();
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
 
@@ -20,27 +22,36 @@ public sealed class ConditionalEditRoundTripIntegrationTests {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 
+    var uploadA = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "image-a", data = OneByOnePngBase64 }).ConfigureAwait(false);
+    uploadA.StatusCode.Should().Be(HttpStatusCode.Created);
+    var uploadB = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "image-b", data = OneByOnePngBase64 }).ConfigureAwait(false);
+    uploadB.StatusCode.Should().Be(HttpStatusCode.Created);
+
     var createPayload = new {
       name = "conditional-edit-sequence",
       version = 1,
-      entryStepId = "cmd-1",
       steps = new object[] {
-        new { stepId = "cmd-1", label = "Command One", stepType = "command", payloadRef = "cmd-1" },
         new {
-          stepId = "cond-1",
-          label = "Condition One",
-          stepType = "condition",
-          condition = new {
-            nodeType = "operand",
-            operand = new { operandType = "image-detection", targetRef = "image-a", expectedState = "present", threshold = 0.80 }
+          stepId = "step-1",
+          label = "Step One",
+          action = new {
+            type = "tap",
+            parameters = new { x = 120, y = 840 }
           }
         },
-        new { stepId = "cmd-2", label = "Command Two", stepType = "command", payloadRef = "cmd-2" }
-      },
-      links = new object[] {
-        new { linkId = "n1", sourceStepId = "cmd-1", targetStepId = "cond-1", branchType = "next" },
-        new { linkId = "t1", sourceStepId = "cond-1", targetStepId = "cmd-2", branchType = "true" },
-        new { linkId = "f1", sourceStepId = "cond-1", targetStepId = "cmd-1", branchType = "false" }
+        new {
+          stepId = "step-2",
+          label = "Step Two",
+          action = new {
+            type = "tap",
+            parameters = new { x = 220, y = 940 }
+          },
+          condition = new {
+            type = "imageVisible",
+            imageId = "image-a",
+            minSimilarity = 0.80
+          }
+        }
       }
     };
 
@@ -53,24 +64,28 @@ public sealed class ConditionalEditRoundTripIntegrationTests {
     var patchPayload = new {
       name = "conditional-edit-sequence",
       version = 1,
-      entryStepId = "cmd-1",
       steps = new object[] {
-        new { stepId = "cmd-1", label = "Command One", stepType = "command", payloadRef = "cmd-1" },
         new {
-          stepId = "cond-1",
-          label = "Condition One",
-          stepType = "condition",
-          condition = new {
-            nodeType = "operand",
-            operand = new { operandType = "image-detection", targetRef = "image-b", expectedState = "absent", threshold = 0.95 }
+          stepId = "step-1",
+          label = "Step One",
+          action = new {
+            type = "tap",
+            parameters = new { x = 120, y = 840 }
           }
         },
-        new { stepId = "cmd-2", label = "Command Two", stepType = "command", payloadRef = "cmd-2" }
-      },
-      links = new object[] {
-        new { linkId = "n1", sourceStepId = "cmd-1", targetStepId = "cond-1", branchType = "next" },
-        new { linkId = "t1", sourceStepId = "cond-1", targetStepId = "cmd-1", branchType = "true" },
-        new { linkId = "f1", sourceStepId = "cond-1", targetStepId = "cmd-2", branchType = "false" }
+        new {
+          stepId = "step-2",
+          label = "Step Two",
+          action = new {
+            type = "tap",
+            parameters = new { x = 220, y = 940 }
+          },
+          condition = new {
+            type = "imageVisible",
+            imageId = "image-b",
+            minSimilarity = 0.95
+          }
+        }
       }
     };
 
@@ -81,15 +96,10 @@ public sealed class ConditionalEditRoundTripIntegrationTests {
     getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     var fetched = await getResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
 
-    var conditionStep = fetched.GetProperty("steps").EnumerateArray().First(step => step.GetProperty("stepId").GetString() == "cond-1");
-    var operand = conditionStep.GetProperty("condition").GetProperty("operand");
-    operand.GetProperty("operandType").GetString().Should().Be("image-detection");
-    operand.GetProperty("targetRef").GetString().Should().Be("image-b");
-    operand.GetProperty("expectedState").GetString().Should().Be("absent");
-    operand.GetProperty("threshold").GetDouble().Should().Be(0.95);
-
-    var trueBranch = fetched.GetProperty("links").EnumerateArray().First(link =>
-      link.GetProperty("sourceStepId").GetString() == "cond-1" && link.GetProperty("branchType").GetString() == "true");
-    trueBranch.GetProperty("targetStepId").GetString().Should().Be("cmd-1");
+    var conditionStep = fetched.GetProperty("steps").EnumerateArray().First(step => step.GetProperty("stepId").GetString() == "step-2");
+    var condition = conditionStep.GetProperty("condition");
+    condition.GetProperty("type").GetString().Should().Be("imageVisible");
+    condition.GetProperty("imageId").GetString().Should().Be("image-b");
+    condition.GetProperty("minSimilarity").GetDouble().Should().Be(0.95);
   }
 }

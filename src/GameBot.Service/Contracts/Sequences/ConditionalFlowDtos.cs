@@ -18,9 +18,9 @@ internal sealed class SequenceFlowDto {
 }
 
 internal sealed class FlowStepDto {
-  public string StepId { get; set; } = string.Empty;
+  public required string StepId { get; set; }
   public string Label { get; set; } = string.Empty;
-  public string StepType { get; set; } = string.Empty;
+  public required string StepType { get; set; }
   public string? PayloadRef { get; set; }
   public int? IterationLimit { get; set; }
   public ConditionExpressionDto? Condition { get; set; }

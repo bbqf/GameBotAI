@@ -23,6 +23,14 @@ describe('SequencesPage', () => {
     ] as any);
   });
 
+  it('shows empty-state guidance when no sequences exist', async () => {
+    render(<SequencesPage />);
+
+    await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
+    await screen.findByText('No sequences found.');
+    expect(screen.getByText(/No sequences yet\. Create your first sequence/i)).toBeInTheDocument();
+  });
+
   it('creates a sequence with ordered steps', async () => {
     render(<SequencesPage />);
 
@@ -43,12 +51,43 @@ describe('SequencesPage', () => {
     createSequenceMock.mockResolvedValue({} as any);
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(createSequenceMock).toHaveBeenCalledWith({ name: 'Seq A', steps: ['c2', 'c1'] }));
+    await waitFor(() => expect(createSequenceMock).toHaveBeenCalledWith({
+      name: 'Seq A',
+      version: 1,
+      steps: [
+        {
+          stepId: 'step-2',
+          action: { type: 'command', parameters: { commandId: 'c2' } },
+          condition: null
+        },
+        {
+          stepId: 'step-1',
+          action: { type: 'command', parameters: { commandId: 'c1' } },
+          condition: null
+        }
+      ]
+    }));
   });
 
   it('loads and updates an existing sequence', async () => {
     listSequencesMock.mockResolvedValue([{ id: 's1', name: 'Sequence 1', steps: ['c1', 'c2'] }] as any);
-    getSequenceMock.mockResolvedValue({ id: 's1', name: 'Sequence 1', steps: ['c1', 'c2'] } as any);
+    getSequenceMock.mockResolvedValue({
+      id: 's1',
+      name: 'Sequence 1',
+      version: 1,
+      steps: [
+        {
+          stepId: 'step-1',
+          action: { type: 'command', parameters: { commandId: 'c1' } },
+          condition: null
+        },
+        {
+          stepId: 'step-2',
+          action: { type: 'command', parameters: { commandId: 'c2' } },
+          condition: null
+        }
+      ]
+    } as any);
     updateSequenceMock.mockResolvedValue({} as any);
 
     render(<SequencesPage />);
@@ -64,7 +103,17 @@ describe('SequencesPage', () => {
 
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('s1', { name: 'Sequence 1', steps: ['c2'] }));
+    await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('s1', {
+      name: 'Sequence 1',
+      version: 1,
+      steps: [
+        {
+          stepId: 'step-2',
+          action: { type: 'command', parameters: { commandId: 'c2' } },
+          condition: null
+        }
+      ]
+    }));
     await waitFor(() => expect(screen.queryByText('Edit Sequence')).not.toBeInTheDocument());
   });
 });

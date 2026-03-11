@@ -256,14 +256,15 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       var order = TryGetInt(attributes, "stepOrder") ?? stepOrder;
       stepOrder = Math.Max(stepOrder, order + 1);
 
-      var status = TryGetString(attributes, "status") ?? "executed";
+      var status = TryGetString(attributes, "actionOutcome") ?? TryGetString(attributes, "status") ?? "executed";
       var stepType = TryGetString(attributes, "stepType") ?? "step";
       var reasonCode = TryGetString(attributes, "reasonCode");
       var resolvedSequenceId = TryGetString(attributes, "sequenceId") ?? context.SequenceId ?? sequenceId;
       var resolvedSequenceLabel = TryGetString(attributes, "sequenceLabel") ?? context.SequenceLabel ?? sequenceName;
       var resolvedStepId = TryGetString(attributes, "stepId") ?? context.StepId;
       var resolvedStepLabel = TryGetString(attributes, "stepLabel") ?? context.StepLabel;
-      var conditionTrace = TryGetConditionTrace(attributes, "conditionTrace");
+      var conditionTrace = TryGetConditionTrace(attributes, "conditionTrace")
+                           ?? BuildConditionTraceFromAttributes(attributes);
 
       results.Add(new ExecutionStepOutcome(
         order,
@@ -380,6 +381,28 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         failureReason,
         Array.Empty<Dictionary<string, object?>>(),
         Array.Empty<Dictionary<string, object?>>());
+    }
+
+    return null;
+  }
+
+  private static ConditionEvaluationTrace? BuildConditionTraceFromAttributes(Dictionary<string, object?>? attributes) {
+    var raw = TryGetString(attributes, "conditionResult");
+    if (string.IsNullOrWhiteSpace(raw)) {
+      return null;
+    }
+
+    var value = raw.Trim();
+    if (string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)) {
+      return new ConditionEvaluationTrace(true, "true", null, Array.Empty<Dictionary<string, object?>>(), Array.Empty<Dictionary<string, object?>>());
+    }
+
+    if (string.Equals(value, "false", StringComparison.OrdinalIgnoreCase)) {
+      return new ConditionEvaluationTrace(false, "false", null, Array.Empty<Dictionary<string, object?>>(), Array.Empty<Dictionary<string, object?>>());
+    }
+
+    if (string.Equals(value, "error", StringComparison.OrdinalIgnoreCase)) {
+      return new ConditionEvaluationTrace(false, "error", "condition-evaluation-error", Array.Empty<Dictionary<string, object?>>(), Array.Empty<Dictionary<string, object?>>());
     }
 
     return null;

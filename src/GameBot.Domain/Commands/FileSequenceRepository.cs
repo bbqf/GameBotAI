@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
+using GameBot.Domain.Actions;
 
 namespace GameBot.Domain.Commands
 {
@@ -71,6 +72,8 @@ namespace GameBot.Domain.Commands
         public async Task<CommandSequence> CreateAsync(CommandSequence sequence)
         {
             ArgumentNullException.ThrowIfNull(sequence);
+            ValidateActionPayloads(sequence);
+            Directory.CreateDirectory(_root);
             if (string.IsNullOrWhiteSpace(sequence.Id))
             {
                 sequence.Id = Guid.NewGuid().ToString("N");
@@ -87,6 +90,8 @@ namespace GameBot.Domain.Commands
         public async Task<CommandSequence> UpdateAsync(CommandSequence sequence)
         {
             ArgumentNullException.ThrowIfNull(sequence);
+            ValidateActionPayloads(sequence);
+            Directory.CreateDirectory(_root);
             if (string.IsNullOrWhiteSpace(sequence.Id))
             {
                 throw new InvalidOperationException("Sequence Id is required for update");
@@ -106,6 +111,86 @@ namespace GameBot.Domain.Commands
             if (!File.Exists(path)) return Task.FromResult(false);
             File.Delete(path);
             return Task.FromResult(true);
+        }
+
+        private static void ValidateActionPayloads(CommandSequence sequence)
+        {
+            var supportedActionTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ActionTypes.Command,
+                ActionTypes.Tap,
+                ActionTypes.Swipe,
+                ActionTypes.Key,
+                ActionTypes.ConnectToGame
+            };
+
+            foreach (var step in sequence.Steps)
+            {
+                if (step.Action is null)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(step.Action.Type))
+                {
+                    throw new InvalidOperationException($"Step '{step.StepId}' action type is required.");
+                }
+
+                if (!supportedActionTypes.Contains(step.Action.Type))
+                {
+                    throw new InvalidOperationException($"Step '{step.StepId}' references unsupported action type '{step.Action.Type}'.");
+                }
+
+                if (step.Condition is ImageVisibleStepCondition imageCondition)
+                {
+                    if (string.IsNullOrWhiteSpace(imageCondition.ImageId))
+                    {
+                        throw new InvalidOperationException($"Step '{step.StepId}' imageVisible condition requires imageId.");
+                    }
+
+                    if (imageCondition.MinSimilarity is < 0 or > 1)
+                    {
+                        throw new InvalidOperationException($"Step '{step.StepId}' imageVisible minSimilarity must be within 0..1.");
+                    }
+                }
+                else if (step.Condition is CommandOutcomeStepCondition outcomeCondition)
+                {
+                    if (string.IsNullOrWhiteSpace(outcomeCondition.StepRef))
+                    {
+                        throw new InvalidOperationException($"Step '{step.StepId}' commandOutcome condition requires stepRef.");
+                    }
+                }
+            }
+
+            foreach (var step in sequence.FlowSteps)
+            {
+                if (step.StepType != FlowStepType.Action)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(step.PayloadRef))
+                {
+                    throw new InvalidOperationException($"Action step '{step.StepId}' requires payloadRef.");
+                }
+
+                if (!step.PayloadRef.Contains(':', StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var separatorIndex = step.PayloadRef.IndexOf(':', StringComparison.Ordinal);
+                if (separatorIndex <= 0)
+                {
+                    throw new InvalidOperationException($"Action step '{step.StepId}' has malformed action payload reference.");
+                }
+
+                var actionType = step.PayloadRef[..separatorIndex].Trim();
+                if (!supportedActionTypes.Contains(actionType))
+                {
+                    throw new InvalidOperationException($"Action step '{step.StepId}' references unsupported action type '{actionType}'.");
+                }
+            }
         }
     }
 }

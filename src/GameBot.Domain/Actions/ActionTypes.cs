@@ -4,6 +4,7 @@ namespace GameBot.Domain.Actions;
 /// Canonical action type keys shared across authoring, persistence, and execution.
 /// </summary>
 public static class ActionTypes {
+  public const string Command = "command";
   public const string Tap = "tap";
   public const string Swipe = "swipe";
   public const string Key = "key";

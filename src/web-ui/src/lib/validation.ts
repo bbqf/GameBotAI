@@ -1,5 +1,6 @@
 import { ApiError, ApiValidationError } from './api';
-import type { SequenceFlowUpsertRequest } from '../types/sequenceFlow';
+import type { ConditionExpression, SequenceFlowUpsertRequest } from '../types/sequenceFlow';
+import type { SequenceLinearStep } from '../types/sequenceFlow';
 
 export type ParsedValidation = {
   byField: Record<string, string[]>;
@@ -72,9 +73,22 @@ export const validateConditionalFlow = (flow: Pick<SequenceFlowUpsertRequest, 'e
   }
 
   for (const step of flow.steps) {
+    if (step.stepType === 'action' || step.stepType === 'command') {
+      if (!step.payloadRef || !step.payloadRef.trim()) {
+        errors.push(`Step "${step.stepId}" requires an action payload reference.`);
+      }
+    }
+
     if (step.stepType !== 'condition') {
       continue;
     }
+
+    if (!step.condition) {
+      errors.push(`Condition step "${step.stepId}" requires a condition expression.`);
+      continue;
+    }
+
+    errors.push(...validateConditionExpression(step.condition, step.stepId));
 
     const trueLinks = flow.links.filter((link) => link.sourceStepId === step.stepId && link.branchType === 'true');
     const falseLinks = flow.links.filter((link) => link.sourceStepId === step.stepId && link.branchType === 'false');
@@ -82,6 +96,98 @@ export const validateConditionalFlow = (flow: Pick<SequenceFlowUpsertRequest, 'e
 
     if (trueLinks.length !== 1 || falseLinks.length !== 1 || hasBlankBranchTarget) {
       errors.push(`Condition step "${step.stepId}" must define one true and one false branch.`);
+    }
+  }
+
+  return errors;
+};
+
+const validateConditionExpression = (expression: ConditionExpression, stepId: string): string[] => {
+  const errors: string[] = [];
+  const nodeType = expression.nodeType;
+
+  if (nodeType === 'operand') {
+    const operand = expression.operand;
+    if (!operand) {
+      errors.push(`Condition step "${stepId}" has an operand node without operand metadata.`);
+      return errors;
+    }
+
+    if (!operand.targetRef || !operand.targetRef.trim()) {
+      errors.push(`Condition step "${stepId}" must set imageId/targetRef for operand "${operand.operandType}".`);
+    }
+
+    if (operand.operandType === 'image-detection') {
+      if (!['present', 'absent'].includes((operand.expectedState ?? '').toLowerCase())) {
+        errors.push(`Condition step "${stepId}" image-detection expectedState must be present or absent.`);
+      }
+
+      if (operand.threshold != null && (operand.threshold < 0 || operand.threshold > 1)) {
+        errors.push(`Condition step "${stepId}" threshold must be between 0 and 1.`);
+      }
+    }
+
+    return errors;
+  }
+
+  const children = expression.children ?? [];
+  if ((nodeType === 'and' || nodeType === 'or') && children.length < 2) {
+    errors.push(`Condition step "${stepId}" ${nodeType.toUpperCase()} node must include at least two children.`);
+  }
+
+  if (nodeType === 'not' && children.length !== 1) {
+    errors.push(`Condition step "${stepId}" NOT node must include exactly one child.`);
+  }
+
+  for (const child of children) {
+    errors.push(...validateConditionExpression(child, stepId));
+  }
+
+  return errors;
+};
+
+export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[] => {
+  const errors: string[] = [];
+  const seenStepIds = new Set<string>();
+
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index];
+    const stepLabel = step.stepId || `index:${index}`;
+
+    if (!step.stepId?.trim()) {
+      errors.push(`Step at index ${index} requires stepId.`);
+      continue;
+    }
+
+    if (seenStepIds.has(step.stepId)) {
+      errors.push(`Duplicate step id '${step.stepId}'.`);
+    }
+    seenStepIds.add(step.stepId);
+
+    if (step.condition?.type === 'imageVisible') {
+      if (!step.condition.imageId?.trim()) {
+        errors.push(`Step '${stepLabel}' imageVisible condition requires imageId.`);
+      }
+      if (step.condition.minSimilarity != null && (step.condition.minSimilarity < 0 || step.condition.minSimilarity > 1)) {
+        errors.push(`Step '${stepLabel}' imageVisible minSimilarity must be between 0 and 1.`);
+      }
+    }
+
+    if (step.condition?.type === 'commandOutcome') {
+      if (!step.condition.stepRef?.trim()) {
+        errors.push(`Step '${stepLabel}' commandOutcome condition requires stepRef.`);
+      } else {
+        const refIndex = steps.findIndex((candidate) => candidate.stepId === step.condition?.stepRef);
+        if (refIndex < 0) {
+          errors.push(`Step '${stepLabel}' commandOutcome references unknown prior step '${step.condition.stepRef}'.`);
+        } else if (refIndex >= index) {
+          errors.push(`Step '${stepLabel}' commandOutcome stepRef '${step.condition.stepRef}' must reference a prior step.`);
+        }
+      }
+
+      if (!['success', 'failed', 'skipped'].includes(step.condition.expectedState)) {
+        errors.push(`Step '${stepLabel}' commandOutcome expectedState must be one of success|failed|skipped.`);
+      }
     }
   }
 

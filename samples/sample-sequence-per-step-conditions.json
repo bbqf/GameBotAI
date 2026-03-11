@@ -1,0 +1,54 @@
+{
+  "name": "sample-per-step-conditions",
+  "version": 1,
+  "steps": [
+    {
+      "stepId": "go-home",
+      "label": "Go Home If Map Visible",
+      "action": {
+        "type": "tap",
+        "parameters": {
+          "x": 120,
+          "y": 840
+        }
+      },
+      "condition": {
+        "type": "imageVisible",
+        "imageId": "map-image",
+        "minSimilarity": 0.85
+      }
+    },
+    {
+      "stepId": "go-back",
+      "label": "Go Back If Bag Visible",
+      "action": {
+        "type": "tap",
+        "parameters": {
+          "x": 64,
+          "y": 64
+        }
+      },
+      "condition": {
+        "type": "imageVisible",
+        "imageId": "bag-image",
+        "minSimilarity": 0.85
+      }
+    },
+    {
+      "stepId": "open-event-menu",
+      "label": "Open Event Menu",
+      "action": {
+        "type": "tap",
+        "parameters": {
+          "x": 520,
+          "y": 900
+        }
+      },
+      "condition": {
+        "type": "commandOutcome",
+        "stepRef": "go-back",
+        "expectedState": "skipped"
+      }
+    }
+  ]
+}

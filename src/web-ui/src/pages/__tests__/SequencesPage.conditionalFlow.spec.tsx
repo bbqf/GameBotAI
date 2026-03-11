@@ -11,7 +11,7 @@ const listSequencesMock = listSequences as jest.MockedFunction<typeof listSequen
 const createSequenceMock = createSequence as jest.MockedFunction<typeof createSequence>;
 const listCommandsMock = listCommands as jest.MockedFunction<typeof listCommands>;
 
-describe('SequencesPage conditional flow authoring', () => {
+describe('SequencesPage commandOutcome authoring', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     listSequencesMock.mockResolvedValue([] as any);
@@ -22,7 +22,7 @@ describe('SequencesPage conditional flow authoring', () => {
     createSequenceMock.mockResolvedValue({ id: 'seq-1', name: 'Flow Sequence', steps: [] } as any);
   });
 
-  it('shows validation when a condition is missing false branch target', async () => {
+  it('shows validation when commandOutcome is missing stepRef', async () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
@@ -34,20 +34,16 @@ describe('SequencesPage conditional flow authoring', () => {
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'cmd-2' } });
     fireEvent.click(screen.getByText('Add to steps'));
 
-    fireEvent.click(screen.getByLabelText('Enable conditional flow'));
-    fireEvent.change(screen.getByLabelText('Entry Step'), { target: { value: 'cmd-1' } });
-
-    fireEvent.click(screen.getByText('Add Condition Step'));
-    fireEvent.change(screen.getByLabelText('Condition Step Id'), { target: { value: 'cond-1' } });
-    fireEvent.change(screen.getByLabelText('True Target'), { target: { value: 'cmd-2' } });
+    const conditionTypeFields = screen.getAllByLabelText('Condition Type');
+    fireEvent.change(conditionTypeFields[1], { target: { value: 'commandOutcome' } });
 
     fireEvent.click(screen.getByText('Save'));
 
-    expect(await screen.findByText(/unresolved target step/i)).toBeInTheDocument();
+    expect(await screen.findByText(/requires stepRef/i)).toBeInTheDocument();
     expect(createSequenceMock).not.toHaveBeenCalled();
   });
 
-  it('submits conditional flow payload when branch targets are complete', async () => {
+  it('submits commandOutcome payload when required fields are complete', async () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
@@ -59,20 +55,27 @@ describe('SequencesPage conditional flow authoring', () => {
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'cmd-2' } });
     fireEvent.click(screen.getByText('Add to steps'));
 
-    fireEvent.click(screen.getByLabelText('Enable conditional flow'));
-    fireEvent.change(screen.getByLabelText('Entry Step'), { target: { value: 'cmd-1' } });
-
-    fireEvent.click(screen.getByText('Add Condition Step'));
-    fireEvent.change(screen.getByLabelText('Condition Step Id'), { target: { value: 'cond-1' } });
-    fireEvent.change(screen.getByLabelText('True Target'), { target: { value: 'cmd-2' } });
-    fireEvent.change(screen.getByLabelText('False Target'), { target: { value: 'cmd-1' } });
+    const conditionTypeFields = screen.getAllByLabelText('Condition Type');
+    fireEvent.change(conditionTypeFields[1], { target: { value: 'commandOutcome' } });
+    fireEvent.change(screen.getByLabelText('Step Ref'), { target: { value: 'step-1' } });
+    fireEvent.change(screen.getByLabelText('Expected State'), { target: { value: 'success' } });
 
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => {
       expect(createSequenceMock).toHaveBeenCalledWith(expect.objectContaining({
         name: 'Flow Sequence',
-        entryStepId: 'cmd-1'
+        version: 1,
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            stepId: 'step-2',
+            condition: expect.objectContaining({
+              type: 'commandOutcome',
+              stepRef: 'step-1',
+              expectedState: 'success'
+            })
+          })
+        ])
       }));
     });
   });

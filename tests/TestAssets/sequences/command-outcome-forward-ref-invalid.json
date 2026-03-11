@@ -1,0 +1,31 @@
+{
+  "name": "invalid-forward-ref-sequence",
+  "version": 1,
+  "steps": [
+    {
+      "stepId": "step-a",
+      "action": {
+        "type": "tap",
+        "parameters": {
+          "x": 100,
+          "y": 100
+        }
+      },
+      "condition": {
+        "type": "commandOutcome",
+        "stepRef": "step-b",
+        "expectedState": "success"
+      }
+    },
+    {
+      "stepId": "step-b",
+      "action": {
+        "type": "tap",
+        "parameters": {
+          "x": 200,
+          "y": 200
+        }
+      }
+    }
+  ]
+}

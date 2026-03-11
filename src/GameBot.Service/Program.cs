@@ -27,11 +27,14 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Win32;
 using GameBot.Domain.Versioning;
 using GameBot.Service.Contracts.Sequences;
+using GameBot.Service.Models;
+using SequencesAuthoringDeepLinkDto = GameBot.Service.Contracts.Sequences.AuthoringDeepLinkDto;
+using SequencesConditionEvaluationTraceDto = GameBot.Service.Contracts.Sequences.ConditionEvaluationTraceDto;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using GameBot.Service.Services.Conditions;
 
 var builder = WebApplication.CreateBuilder(args);
-var flowRequestJsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+var perStepRequestJsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
 var loggingComponentCatalog = new[]
 {
@@ -118,10 +121,13 @@ builder.Services.AddSingleton<SemanticVersionComparer>();
 builder.Services.AddSingleton<VersionSourceLoader>();
 builder.Services.AddSingleton<VersionResolutionService>();
 builder.Services.AddSingleton<ISequenceFlowValidator, SequenceFlowValidator>();
+builder.Services.AddSingleton<SequenceStepValidationService>();
+builder.Services.AddSingleton<ActionPayloadValidationService>();
 builder.Services.AddSingleton<CycleIterationLimiter>();
 builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
 builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
 builder.Services.AddSingleton<IImageDetectionConditionAdapter, ImageDetectionConditionAdapter>();
+builder.Services.AddSingleton<IImageVisibleConditionAdapter, ImageVisibleConditionAdapter>();
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
 builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
@@ -506,32 +512,47 @@ app.MapPost("/installer/same-build/decision", (GameBot.Service.Models.SameBuildD
 
 // Sequences endpoints
 var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
+var legacyBranchingErrors = new[] { "entryStepId and links are no longer supported. Use per-step conditions on steps[].condition." };
 
-sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo) => {
-  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, CancellationToken ct) => {
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
   var root = doc.RootElement;
-  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
-    var flowGraph = MapToFlowGraph(string.Empty, flowRequest);
+  if (HasLegacyBranchingFields(root)) {
+    return Results.BadRequest(new {
+      message = "Invalid sequence payload",
+      errors = legacyBranchingErrors
+    });
+  }
 
-    var flowSequence = new GameBot.Domain.Commands.CommandSequence {
+  var isPerStepCandidate = IsPerStepRequestCandidate(root);
+  if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
+    var perStepSequence = new GameBot.Domain.Commands.CommandSequence {
       Id = string.Empty,
-      Name = flowRequest.Name.Trim(),
-      Version = flowRequest.Version > 0 ? flowRequest.Version : 1,
+      Name = perStepRequest.Name.Trim(),
+      Version = perStepRequest.Version > 0 ? perStepRequest.Version : 1,
       CreatedAt = DateTimeOffset.UtcNow,
       UpdatedAt = DateTimeOffset.UtcNow
     };
-    flowSequence.SetFlowGraph(flowGraph);
-    var legacySteps = flowRequest.Steps
-      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
-                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
-      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
-        Order = index,
-        CommandId = step.PayloadRef!
-      });
-    flowSequence.SetSteps(legacySteps);
 
-    var createdFlow = await repo.CreateAsync(flowSequence).ConfigureAwait(false);
-    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdFlow.Id}", UriKind.Relative), ToSequenceResponse(createdFlow));
+    var linearSteps = MapToLinearSteps(perStepRequest);
+    var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+    if (perStepValidationErrors.Count > 0) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
+    }
+
+    var existingSequences = await repo.ListAsync().ConfigureAwait(false);
+    if (existingSequences.Count == 0) {
+      perStepSequence.Version = 1;
+    }
+
+    perStepSequence.SetFlowGraph(null);
+    perStepSequence.SetSteps(linearSteps);
+    var createdPerStep = await repo.CreateAsync(perStepSequence).ConfigureAwait(false);
+    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), ToSequenceResponse(createdPerStep));
+  }
+
+  if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
+    return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
   }
 
   // Authoring shape: { name: string, steps?: string[] }
@@ -568,11 +589,18 @@ sequences.MapGet("{sequenceId}", async (ISequenceRepository repo, string sequenc
   return Results.Ok(ToSequenceResponse(found));
 }).WithName("GetSequence");
 
-sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
+sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
   var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
-  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
   var root = doc.RootElement;
+  if (HasLegacyBranchingFields(root)) {
+    return Results.BadRequest(new {
+      message = "Invalid sequence payload",
+      errors = legacyBranchingErrors
+    });
+  }
+
   if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
     var requestedVersion = versionProp.GetInt32();
     if (requestedVersion != existing.Version) {
@@ -587,21 +615,24 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
   }
-  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
-    flowRequest.Name = existing.Name;
-    var graph = MapToFlowGraph(existing.Id, flowRequest);
+  var isPerStepCandidate = IsPerStepRequestCandidate(root);
+  if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
+    existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
+    var linearSteps = MapToLinearSteps(perStepRequest);
+    var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+    if (perStepValidationErrors.Count > 0) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
+    }
 
-    existing.SetFlowGraph(graph);
-    var legacySteps = flowRequest.Steps
-      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
-                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
-      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
-        Order = index,
-        CommandId = step.PayloadRef!
-      });
-    existing.SetSteps(legacySteps);
+    existing.SetFlowGraph(null);
+    existing.SetSteps(linearSteps);
   }
-  if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
+  else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
+    return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
+  }
+  if (root.TryGetProperty("steps", out var stepsProp)
+      && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array
+      && stepsProp.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String)) {
     var order = 0;
     var steps = new List<GameBot.Domain.Commands.SequenceStep>();
     foreach (var el in stepsProp.EnumerateArray()) {
@@ -617,11 +648,18 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
   return Results.Ok(ToSequenceResponse(saved));
 }).WithName("UpdateSequence");
 
-sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, string sequenceId) => {
+sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
   var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
-  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body).ConfigureAwait(false);
+  using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
   var root = doc.RootElement;
+  if (HasLegacyBranchingFields(root)) {
+    return Results.BadRequest(new {
+      message = "Invalid sequence payload",
+      errors = legacyBranchingErrors
+    });
+  }
+
   if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
     var requestedVersion = versionProp.GetInt32();
     if (requestedVersion != existing.Version) {
@@ -636,21 +674,24 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
     var name = nameProp.GetString()!.Trim();
     if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
   }
-  if (TryReadFlowRequest(root, out var flowRequest) && flowRequest is not null) {
-    flowRequest.Name = existing.Name;
-    var graph = MapToFlowGraph(existing.Id, flowRequest);
+  var isPerStepCandidate = IsPerStepRequestCandidate(root);
+  if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
+    existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
+    var linearSteps = MapToLinearSteps(perStepRequest);
+    var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+    if (perStepValidationErrors.Count > 0) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
+    }
 
-    existing.SetFlowGraph(graph);
-    var legacySteps = flowRequest.Steps
-      .Where(step => string.Equals(step.StepType, "command", StringComparison.OrdinalIgnoreCase)
-                     && !string.IsNullOrWhiteSpace(step.PayloadRef))
-      .Select((step, index) => new GameBot.Domain.Commands.SequenceStep {
-        Order = index,
-        CommandId = step.PayloadRef!
-      });
-    existing.SetSteps(legacySteps);
+    existing.SetFlowGraph(null);
+    existing.SetSteps(linearSteps);
   }
-  if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
+  else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
+    return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
+  }
+  if (root.TryGetProperty("steps", out var stepsProp)
+      && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array
+      && stepsProp.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String)) {
     var order = 0;
     var steps = new List<GameBot.Domain.Commands.SequenceStep>();
     foreach (var el in stepsProp.EnumerateArray()) {
@@ -692,6 +733,7 @@ sequences.MapDelete("{sequenceId}", async (ISequenceRepository repo, string sequ
 sequences.MapPost("{sequenceId}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,
+  IImageVisibleConditionAdapter imageVisibleConditionAdapter,
   GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
   ISequenceRepository sequenceRepository,
   string sequenceId,
@@ -713,20 +755,7 @@ sequences.MapPost("{sequenceId}/execute", async (
       conditionEvaluator: (cond, token) => {
         // Map Blocks.Condition to a transient Trigger and evaluate via TriggerEvaluationService
         if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)) {
-          var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
-                                           : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
-          var trig = new GameBot.Domain.Triggers.Trigger {
-            Id = "inline-image",
-            Type = GameBot.Domain.Triggers.TriggerType.ImageMatch,
-            Enabled = true,
-            Params = new GameBot.Domain.Triggers.ImageMatchParams {
-              ReferenceImageId = cond.TargetId,
-              Region = region,
-              SimilarityThreshold = cond.ConfidenceThreshold ?? 0.85
-            }
-          };
-          var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
-          return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
+          return imageVisibleConditionAdapter.EvaluateAsync(cond, token).AsTask();
         }
         if (string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase)) {
           var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
@@ -772,13 +801,20 @@ sequences.MapPost("{sequenceId}/execute", async (
       flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
       var stepId = flowStep?.StepId ?? step.CommandId;
       var stepLabel = flowStep?.Label ?? step.CommandId;
+      var actionOutcome = string.IsNullOrWhiteSpace(step.ActionOutcome)
+        ? (string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase) ? "skipped" : "executed")
+        : step.ActionOutcome;
       detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
         "step",
-        $"Step '{stepLabel}' executed.",
+        $"Step '{stepLabel}' {actionOutcome}.",
         new Dictionary<string, object?> {
           ["stepOrder"] = stepOrder++,
           ["stepType"] = "command",
-          ["status"] = "executed",
+          ["status"] = step.Status,
+          ["actionOutcome"] = actionOutcome,
+          ["conditionType"] = step.ConditionType,
+          ["conditionResult"] = step.ConditionResult,
+          ["message"] = step.Message,
           ["sequenceId"] = sequenceId,
           ["sequenceLabel"] = sequenceName,
           ["stepId"] = stepId,
@@ -795,6 +831,8 @@ sequences.MapPost("{sequenceId}/execute", async (
           ["stepOrder"] = stepOrder++,
           ["stepType"] = "condition",
           ["status"] = "executed",
+          ["conditionResult"] = trace.Trace.FinalResult,
+          ["actionOutcome"] = trace.Trace.FinalResult ? "executed" : "skipped",
           ["sequenceId"] = sequenceId,
           ["sequenceLabel"] = sequenceName,
           ["stepId"] = trace.StepId,
@@ -920,6 +958,25 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
     };
   }
 
+  if (sequence.Steps.Any(step => !string.IsNullOrWhiteSpace(step.StepId) || step.Action is not null || step.Condition is not null)) {
+    return new {
+      id = sequence.Id,
+      name = sequence.Name,
+      version = sequence.Version,
+      steps = sequence.Steps.Select(step => new {
+        stepId = step.StepId,
+        label = step.Label,
+        action = step.Action is null
+          ? null
+          : new {
+            type = step.Action.Type,
+            parameters = step.Action.Parameters
+          },
+        condition = MapPerStepConditionToDto(step.Condition)
+      }).ToArray()
+    };
+  }
+
   return new {
     id = sequence.Id,
     name = sequence.Name,
@@ -950,13 +1007,29 @@ static object? MapConditionToDto(ConditionExpression? expression) {
   };
 }
 
-bool TryReadFlowRequest(System.Text.Json.JsonElement root, out SequenceFlowUpsertRequestDto? request) {
-  request = null;
-  if (!root.TryGetProperty("entryStepId", out var entryStepIdProp) || entryStepIdProp.ValueKind != JsonValueKind.String) {
-    return false;
-  }
+static object? MapPerStepConditionToDto(SequenceStepCondition? condition) {
+  return condition switch {
+    ImageVisibleStepCondition imageVisible => new {
+      type = "imageVisible",
+      imageId = imageVisible.ImageId,
+      minSimilarity = imageVisible.MinSimilarity
+    },
+    CommandOutcomeStepCondition commandOutcome => new {
+      type = "commandOutcome",
+      stepRef = commandOutcome.StepRef,
+      expectedState = commandOutcome.ExpectedState
+    },
+    _ => null
+  };
+}
 
-  if (!root.TryGetProperty("links", out var linksProp) || linksProp.ValueKind != JsonValueKind.Array) {
+bool HasLegacyBranchingFields(System.Text.Json.JsonElement root) {
+  return root.TryGetProperty("entryStepId", out _)
+         || root.TryGetProperty("links", out _);
+}
+
+bool IsPerStepRequestCandidate(System.Text.Json.JsonElement root) {
+  if (HasLegacyBranchingFields(root)) {
     return false;
   }
 
@@ -965,14 +1038,66 @@ bool TryReadFlowRequest(System.Text.Json.JsonElement root, out SequenceFlowUpser
   }
 
   var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
-  if (firstStep.ValueKind != JsonValueKind.Object || !firstStep.TryGetProperty("stepId", out _)) {
+  return firstStep.ValueKind == JsonValueKind.Object && firstStep.TryGetProperty("action", out _);
+}
+
+bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsertContract? request, out string? error) {
+  request = null;
+  error = null;
+
+  var isPerStepCandidate = IsPerStepRequestCandidate(root);
+  if (!isPerStepCandidate) {
     return false;
   }
 
-  request = JsonSerializer.Deserialize<SequenceFlowUpsertRequestDto>(
-    root.GetRawText(),
-    flowRequestJsonOptions);
-  return request is not null;
+  if (!root.TryGetProperty("name", out var nameProp) || nameProp.ValueKind != JsonValueKind.String) {
+    error = "name is required for sequence payload.";
+    return false;
+  }
+
+  if (!root.TryGetProperty("steps", out var stepsProp) || stepsProp.ValueKind != JsonValueKind.Array) {
+    error = "steps array is required for sequence payload.";
+    return false;
+  }
+
+  foreach (var stepElement in stepsProp.EnumerateArray()) {
+    if (stepElement.ValueKind != JsonValueKind.Object) {
+      error = "each step must be an object.";
+      return false;
+    }
+
+    if (!stepElement.TryGetProperty("stepId", out var stepIdProp) || stepIdProp.ValueKind != JsonValueKind.String) {
+      error = "each step must include string stepId.";
+      return false;
+    }
+
+    if (!stepElement.TryGetProperty("action", out var actionProp) || actionProp.ValueKind != JsonValueKind.Object) {
+      error = "each step must include action object.";
+      return false;
+    }
+  }
+
+  try {
+    request = JsonSerializer.Deserialize<SequenceUpsertContract>(
+      root.GetRawText(),
+      perStepRequestJsonOptions);
+  }
+  catch (JsonException ex) {
+    error = string.IsNullOrWhiteSpace(ex.Message) ? "Malformed sequence payload." : ex.Message;
+    return false;
+  }
+
+  if (request is null) {
+    error = "Malformed sequence payload.";
+    return false;
+  }
+
+  if (request.Steps is null || request.Steps.Count == 0) {
+    error = "steps must contain at least one step.";
+    return false;
+  }
+
+  return true;
 }
 
 static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq) {
@@ -1076,7 +1201,7 @@ static SequenceFlowGraph MapToFlowGraph(string sequenceId, SequenceFlowUpsertReq
       "command" => FlowStepType.Command,
       "condition" => FlowStepType.Condition,
       "terminal" => FlowStepType.Terminal,
-      _ => FlowStepType.Command
+      _ => throw new InvalidOperationException($"Unsupported flow step type '{step.StepType}'.")
     },
     PayloadRef = step.PayloadRef,
     IterationLimit = step.IterationLimit,
@@ -1096,6 +1221,53 @@ static SequenceFlowGraph MapToFlowGraph(string sequenceId, SequenceFlowUpsertReq
   }));
 
   return graph;
+}
+
+static List<SequenceStep> MapToLinearSteps(SequenceUpsertContract request) {
+  var result = new List<SequenceStep>(request.Steps.Count);
+  for (var index = 0; index < request.Steps.Count; index++) {
+    var step = request.Steps[index];
+    var mapped = new SequenceStep {
+      Order = index,
+      StepId = step.StepId,
+      Label = step.Label,
+      CommandId = step.StepId,
+      StepType = SequenceStepType.Action,
+      Action = new SequenceActionPayload {
+        Type = step.Action.Type
+      },
+      Condition = MapPerStepCondition(step.Condition)
+    };
+
+    foreach (var parameter in step.Action.Parameters) {
+      mapped.Action.Parameters[parameter.Key] = parameter.Value;
+    }
+
+    if (string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+        && step.Action.Parameters.TryGetValue("commandId", out var commandId)
+        && commandId.ValueKind == JsonValueKind.String
+        && !string.IsNullOrWhiteSpace(commandId.GetString())) {
+      mapped.CommandId = commandId.GetString()!;
+    }
+
+    result.Add(mapped);
+  }
+
+  return result;
+}
+
+static SequenceStepCondition? MapPerStepCondition(SequenceStepConditionContract? condition) {
+  return condition switch {
+    ImageVisibleConditionContract imageVisible => new ImageVisibleStepCondition {
+      ImageId = imageVisible.ImageId,
+      MinSimilarity = imageVisible.MinSimilarity
+    },
+    CommandOutcomeConditionContract commandOutcome => new CommandOutcomeStepCondition {
+      StepRef = commandOutcome.StepRef,
+      ExpectedState = commandOutcome.ExpectedState
+    },
+    _ => null
+  };
 }
 
 static ConditionExpression? MapCondition(ConditionExpressionDto? dto) {
@@ -1132,6 +1304,76 @@ static ConditionExpression? MapCondition(ConditionExpressionDto? dto) {
   return expression;
 }
 
+static async Task<List<string>> ValidatePerStepForPersistenceAsync(
+  IReadOnlyList<SequenceStep> steps,
+  SequenceStepValidationService stepValidationService,
+  IImageRepository imageRepository,
+  CancellationToken ct) {
+  var errors = new List<string>();
+  errors.AddRange(stepValidationService.Validate(steps));
+  errors.AddRange(await ValidatePerStepImageReferencesAsync(steps, imageRepository, ct).ConfigureAwait(false));
+
+  for (var index = 0; index < steps.Count; index++) {
+    ct.ThrowIfCancellationRequested();
+    var step = steps[index];
+    var stepLabel = string.IsNullOrWhiteSpace(step.StepId) ? $"index:{index}" : step.StepId;
+    if (step.Action is null) {
+      continue;
+    }
+
+    if (string.IsNullOrWhiteSpace(step.Action.Type)) {
+      errors.Add($"Step '{stepLabel}' action type is required.");
+    }
+
+    if (step.Condition is ImageVisibleStepCondition imageVisible
+        && imageVisible.MinSimilarity is < 0 or > 1) {
+      errors.Add($"Step '{stepLabel}' imageVisible minSimilarity must be within 0..1.");
+    }
+  }
+
+  return errors;
+}
+
+static async Task<IReadOnlyList<string>> ValidatePerStepImageReferencesAsync(
+  IReadOnlyList<SequenceStep> steps,
+  IImageRepository imageRepository,
+  CancellationToken ct) {
+  var errors = new List<string>();
+  var missingByImageId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+  var cache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+  foreach (var step in steps.Where(step => step.Condition is ImageVisibleStepCondition)) {
+    ct.ThrowIfCancellationRequested();
+    var imageCondition = (ImageVisibleStepCondition)step.Condition!;
+    var imageId = imageCondition.ImageId?.Trim();
+    if (string.IsNullOrWhiteSpace(imageId)) {
+      continue;
+    }
+
+    if (!cache.TryGetValue(imageId, out var exists)) {
+      exists = await imageRepository.ExistsAsync(imageId, ct).ConfigureAwait(false);
+      cache[imageId] = exists;
+    }
+
+    if (exists) {
+      continue;
+    }
+
+    if (!missingByImageId.TryGetValue(imageId, out var stepsForImage)) {
+      stepsForImage = new List<string>();
+      missingByImageId[imageId] = stepsForImage;
+    }
+
+    stepsForImage.Add(string.IsNullOrWhiteSpace(step.StepId) ? $"index:{step.Order}" : step.StepId);
+  }
+
+  foreach (var missing in missingByImageId.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
+    errors.Add($"Image reference '{missing.Key}' does not exist (used by: {string.Join(", ", missing.Value.Distinct(StringComparer.OrdinalIgnoreCase))}).");
+  }
+
+  return errors;
+}
+
 internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
   public void Apply(Microsoft.OpenApi.Models.OpenApiDocument swaggerDoc, DocumentFilterContext context) {
     _ = swaggerDoc;
@@ -1142,16 +1384,28 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     context.SchemaGenerator.GenerateSchema(typeof(ConditionExpressionDto), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(ConditionOperandDto), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(SequenceSaveConflictDto), context.SchemaRepository);
-    context.SchemaGenerator.GenerateSchema(typeof(ConditionEvaluationTraceDto), context.SchemaRepository);
-    context.SchemaGenerator.GenerateSchema(typeof(AuthoringDeepLinkDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequencesConditionEvaluationTraceDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequencesAuthoringDeepLinkDto), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequenceUpsertContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequenceStepContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequenceActionContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequenceStepConditionContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(ImageVisibleConditionContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(CommandOutcomeConditionContract), context.SchemaRepository);
 
     AliasSchema(context, nameof(SequenceFlowUpsertRequestDto), "SequenceFlowUpsertRequest");
     AliasSchema(context, nameof(SequenceFlowDto), "SequenceFlow");
     AliasSchema(context, nameof(ConditionExpressionDto), "ConditionExpression");
     AliasSchema(context, nameof(ConditionOperandDto), "ConditionOperand");
     AliasSchema(context, nameof(SequenceSaveConflictDto), "SequenceSaveConflict");
-    AliasSchema(context, nameof(ConditionEvaluationTraceDto), "ConditionEvaluationTrace");
-    AliasSchema(context, nameof(AuthoringDeepLinkDto), "AuthoringDeepLink");
+    AliasSchema(context, nameof(SequencesConditionEvaluationTraceDto), "ConditionEvaluationTrace");
+    AliasSchema(context, nameof(SequencesAuthoringDeepLinkDto), "AuthoringDeepLink");
+    AliasSchema(context, nameof(SequenceUpsertContract), "SequenceUpsertRequest");
+    AliasSchema(context, nameof(SequenceStepContract), "SequenceStep");
+    AliasSchema(context, nameof(SequenceActionContract), "SequenceAction");
+    AliasSchema(context, nameof(SequenceStepConditionContract), "SequenceStepCondition");
+    AliasSchema(context, nameof(ImageVisibleConditionContract), "ImageVisibleCondition");
+    AliasSchema(context, nameof(CommandOutcomeConditionContract), "CommandOutcomeCondition");
   }
 
   private static void AliasSchema(DocumentFilterContext context, string sourceName, string aliasName) {

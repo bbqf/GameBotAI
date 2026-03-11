@@ -1,0 +1,14 @@
+{
+  "name": "unsupported-action-sequence",
+  "version": 1,
+  "entryStepId": "unsupported-step",
+  "steps": [
+    {
+      "stepId": "unsupported-step",
+      "label": "Unsupported action",
+      "stepType": "action",
+      "payloadRef": "unsupported-action-type"
+    }
+  ],
+  "links": []
+}
