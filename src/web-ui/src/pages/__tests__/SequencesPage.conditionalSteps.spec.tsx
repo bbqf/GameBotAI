@@ -23,7 +23,7 @@ describe('SequencesPage mixed conditional authoring', () => {
     createSequenceMock.mockResolvedValue({ id: 'seq-us2', name: 'US2 Flow', steps: [] } as any);
   });
 
-  it('submits a mixed command/condition flow payload', async () => {
+  it('submits a mixed per-step condition payload', async () => {
     render(<SequencesPage />);
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
 
@@ -37,32 +37,45 @@ describe('SequencesPage mixed conditional authoring', () => {
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'cmd-final' } });
     fireEvent.click(screen.getByText('Add to steps'));
 
-    fireEvent.click(screen.getByLabelText('Enable conditional flow'));
-    fireEvent.change(screen.getByLabelText('Entry Step'), { target: { value: 'cmd-a' } });
-
-    fireEvent.click(screen.getByText('Add Condition Step'));
-    fireEvent.change(screen.getByLabelText('Condition Step Id'), { target: { value: 'cond-a' } });
-    fireEvent.change(screen.getByLabelText('True Target'), { target: { value: 'cmd-b' } });
-    fireEvent.change(screen.getByLabelText('False Target'), { target: { value: 'cmd-final' } });
-    fireEvent.change(screen.getByLabelText('Operand Type'), { target: { value: 'image-detection' } });
-    fireEvent.change(screen.getByLabelText('Operand Target (0)'), { target: { value: 'image-a' } });
-    fireEvent.change(screen.getByLabelText('Expected State'), { target: { value: 'present' } });
+    const conditionTypeFields = screen.getAllByLabelText('Condition Type');
+    fireEvent.change(conditionTypeFields[1], { target: { value: 'imageVisible' } });
+    fireEvent.change(screen.getByLabelText('Image Id'), { target: { value: 'image-a' } });
+    fireEvent.change(screen.getByLabelText('Min Similarity'), { target: { value: '0.82' } });
 
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => {
       expect(createSequenceMock).toHaveBeenCalledWith(expect.objectContaining({
         name: 'US2 Flow',
-        entryStepId: 'cmd-a',
+        version: 1,
         steps: expect.arrayContaining([
-          expect.objectContaining({ stepId: 'cmd-a', stepType: 'command', payloadRef: 'cmd-a' }),
-          expect.objectContaining({ stepId: 'cond-a', stepType: 'condition' }),
-          expect.objectContaining({ stepId: 'cmd-final', stepType: 'command', payloadRef: 'cmd-final' })
-        ]),
-        links: expect.arrayContaining([
-          expect.objectContaining({ sourceStepId: 'cmd-a', targetStepId: 'cond-a', branchType: 'next' }),
-          expect.objectContaining({ sourceStepId: 'cond-a', targetStepId: 'cmd-b', branchType: 'true' }),
-          expect.objectContaining({ sourceStepId: 'cond-a', targetStepId: 'cmd-final', branchType: 'false' })
+          expect.objectContaining({
+            stepId: 'step-1',
+            action: expect.objectContaining({
+              type: 'command',
+              parameters: expect.objectContaining({ commandId: 'cmd-a' })
+            }),
+            condition: null
+          }),
+          expect.objectContaining({
+            stepId: 'step-2',
+            action: expect.objectContaining({
+              type: 'command',
+              parameters: expect.objectContaining({ commandId: 'cmd-b' })
+            }),
+            condition: expect.objectContaining({
+              type: 'imageVisible',
+              imageId: 'image-a',
+              minSimilarity: 0.82
+            })
+          }),
+          expect.objectContaining({
+            stepId: 'step-3',
+            action: expect.objectContaining({
+              type: 'command',
+              parameters: expect.objectContaining({ commandId: 'cmd-final' })
+            })
+          })
         ])
       }));
     });

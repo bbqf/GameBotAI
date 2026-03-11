@@ -25,29 +25,29 @@ describe('SequencesPage conditional edit mode', () => {
       id: 'seq-1',
       name: 'Conditional Sequence',
       version: 3,
-      entryStepId: 'cmd-1',
       steps: [
-        { stepId: 'cmd-1', label: 'Command One', stepType: 'command', payloadRef: 'cmd-1' },
         {
-          stepId: 'cond-1',
-          label: 'Condition 1',
-          stepType: 'condition',
-          condition: {
-            nodeType: 'operand',
-            operand: {
-              operandType: 'image-detection',
-              targetRef: 'image-a',
-              expectedState: 'present',
-              threshold: 0.85
-            }
-          }
+          stepId: 'step-1',
+          label: 'Command One',
+          action: {
+            type: 'command',
+            parameters: { commandId: 'cmd-1' }
+          },
+          condition: null
         },
-        { stepId: 'cmd-2', label: 'Command Two', stepType: 'command', payloadRef: 'cmd-2' }
-      ],
-      links: [
-        { linkId: 'n1', sourceStepId: 'cmd-1', targetStepId: 'cond-1', branchType: 'next' },
-        { linkId: 't1', sourceStepId: 'cond-1', targetStepId: 'cmd-2', branchType: 'true' },
-        { linkId: 'f1', sourceStepId: 'cond-1', targetStepId: 'cmd-1', branchType: 'false' }
+        {
+          stepId: 'step-2',
+          label: 'Command Two',
+          action: {
+            type: 'command',
+            parameters: { commandId: 'cmd-2' }
+          },
+          condition: {
+            type: 'imageVisible',
+            imageId: 'image-a',
+            minSimilarity: 0.85
+          }
+        }
       ]
     } as any);
   });
@@ -59,19 +59,27 @@ describe('SequencesPage conditional edit mode', () => {
     fireEvent.click(screen.getByText('Conditional Sequence'));
 
     await screen.findByText('Edit Sequence');
-    expect(screen.getByLabelText('Enable conditional flow')).toBeChecked();
-    expect(screen.getByLabelText('Condition Step Id')).toHaveValue('cond-1');
-    expect(screen.getByLabelText('Operand Type')).toHaveValue('image-detection');
-    expect(screen.getByLabelText('Threshold')).toHaveValue(0.85);
+    const conditionTypeFields = screen.getAllByLabelText('Condition Type');
+    expect(conditionTypeFields[1]).toHaveValue('imageVisible');
+    expect(screen.getByLabelText('Image Id')).toHaveValue('image-a');
+    expect(screen.getByLabelText('Min Similarity')).toHaveValue('0.85');
 
-    fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '0.93' } });
-    fireEvent.change(screen.getByLabelText('True Target'), { target: { value: 'cmd-1' } });
+    fireEvent.change(screen.getByLabelText('Min Similarity'), { target: { value: '0.93' } });
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => {
       expect(updateSequenceMock).toHaveBeenCalledWith('seq-1', expect.objectContaining({
         version: 3,
-        entryStepId: 'cmd-1'
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            stepId: 'step-2',
+            condition: expect.objectContaining({
+              type: 'imageVisible',
+              imageId: 'image-a',
+              minSimilarity: 0.93
+            })
+          })
+        ])
       }));
     });
   });
