@@ -1,12 +1,16 @@
 import React from 'react';
-import type { LoopStepEntry, StepEntry } from '../../types/stepEntry';
+import type { LoopStepEntry, StepEntry, ActionStepEntry } from '../../types/stepEntry';
+import type { SequenceStepCondition } from '../../types/sequenceFlow';
 import { LoopBlockHeader } from './LoopBlockHeader';
 import { BreakStepRow } from './BreakStepRow';
+
+export type CommandOption = { value: string; label: string };
 
 export type LoopBlockProps = {
   loop: LoopStepEntry;
   onChange: (updated: LoopStepEntry) => void;
   onRemove: () => void;
+  commandOptions?: CommandOption[];
   disabled?: boolean;
 };
 
@@ -22,7 +26,7 @@ const move = (items: StepEntry[], from: number, to: number): StepEntry[] => {
   return next;
 };
 
-export const LoopBlock: React.FC<LoopBlockProps> = ({ loop, onChange, onRemove, disabled }) => {
+export const LoopBlock: React.FC<LoopBlockProps> = ({ loop, onChange, onRemove, commandOptions = [], disabled }) => {
   const body = loop.body;
 
   const handleBodyReorder = (from: number, to: number) => {
@@ -67,6 +71,10 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({ loop, onChange, onRemove, 
           count={loop.count}
           condition={loop.condition}
           maxIterations={loop.maxIterations}
+          disabled={disabled}
+          onCountChange={(count) => onChange({ ...loop, count })}
+          onMaxIterationsChange={(maxIterations) => onChange({ ...loop, maxIterations })}
+          onConditionChange={(condition: SequenceStepCondition) => onChange({ ...loop, condition })}
         />
         <button type="button" onClick={onRemove} disabled={disabled} data-testid="loop-remove">Remove Loop</button>
       </div>
@@ -93,7 +101,22 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({ loop, onChange, onRemove, 
                   />
                 ) : (
                   <div className="loop-block__action-step" data-testid="loop-action-step">
-                    <span>{step.type === 'Action' ? (step.commandId || step.stepId) : step.stepId}</span>
+                    <select
+                      data-testid="loop-body-command-select"
+                      value={(step as ActionStepEntry).commandId}
+                      disabled={disabled}
+                      onChange={(e) => {
+                        const updated = body.map((s, i) =>
+                          i === index ? { ...s, commandId: e.target.value } as StepEntry : s
+                        );
+                        onChange({ ...loop, body: updated });
+                      }}
+                    >
+                      <option value="">Select command…</option>
+                      {commandOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>

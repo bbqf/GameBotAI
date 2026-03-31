@@ -12,8 +12,8 @@ import { navigateToUnified } from '../lib/navigation';
 import { validatePerStepConditions } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
-import type { LoopStepEntry } from '../types/stepEntry';
-import type { SequenceLinearStep } from '../types/sequenceFlow';
+import type { LoopStepEntry, BreakStepEntry, StepEntry } from '../types/stepEntry';
+import type { SequenceLinearStep, LoopConfigDto } from '../types/sequenceFlow';
 
 type SequenceStep = {
   id: string;
@@ -65,8 +65,80 @@ const nextGeneratedStepId = (steps: SequenceStep[]): string => {
   return `step-${highest + 1}`;
 };
 
+const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
+  return body.map<StepEntry>((child) => {
+    if (child.stepType === 'Break') {
+      return {
+        type: 'Break',
+        id: makeId(),
+        stepId: child.stepId,
+        breakCondition: child.breakCondition ?? undefined
+      } satisfies BreakStepEntry;
+    }
+    const cmdId = typeof child.action?.parameters?.commandId === 'string'
+      ? child.action.parameters.commandId
+      : child.stepId;
+    return {
+      type: 'Action',
+      id: makeId(),
+      stepId: child.stepId,
+      commandId: cmdId,
+      conditionType: child.condition?.type === 'imageVisible' ? 'imageVisible'
+        : child.condition?.type === 'commandOutcome' ? 'commandOutcome' : 'none',
+      imageId: child.condition?.type === 'imageVisible' ? child.condition.imageId : '',
+      minSimilarity: child.condition?.type === 'imageVisible' && child.condition.minSimilarity != null ? String(child.condition.minSimilarity) : '',
+      outcomeStepRef: child.condition?.type === 'commandOutcome' ? child.condition.stepRef : '',
+      expectedState: child.condition?.type === 'commandOutcome' ? child.condition.expectedState : 'success'
+    };
+  });
+};
+
+const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
+  const loop = step.loop!;
+  const base: Pick<LoopStepEntry, 'type' | 'id' | 'stepId'> = { type: 'Loop', id: makeId(), stepId: step.stepId };
+  const body = linearBodyToStepEntries(step.body ?? []);
+  if (loop.loopType === 'count') {
+    return { ...base, loopType: 'count', count: loop.count, maxIterations: loop.maxIterations ?? undefined, body };
+  }
+  if (loop.loopType === 'while') {
+    return { ...base, loopType: 'while', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, body };
+  }
+  // repeatUntil
+  return { ...base, loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, body };
+};
+
 const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] => {
-  return steps.map((step, index) => {
+  return steps.map((step) => {
+    if (step.stepType === 'Loop' && step.loop) {
+      const loopEntry = loopDtoToEntry(step);
+      return {
+        id: makeId(),
+        stepId: step.stepId,
+        stepType: 'Loop' as const,
+        commandId: '',
+        conditionType: 'none' as const,
+        imageId: '',
+        minSimilarity: '',
+        outcomeStepRef: '',
+        expectedState: 'success' as const,
+        loopEntry
+      };
+    }
+
+    if (step.stepType === 'Break') {
+      return {
+        id: makeId(),
+        stepId: step.stepId,
+        stepType: 'Break' as const,
+        commandId: '',
+        conditionType: 'none' as const,
+        imageId: '',
+        minSimilarity: '',
+        outcomeStepRef: '',
+        expectedState: 'success' as const
+      };
+    }
+
     const commandId = typeof step.action?.parameters?.commandId === 'string'
       ? step.action.parameters.commandId
       : step.stepId;
@@ -106,31 +178,90 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
   });
 };
 
+const buildConditionPayload = (step: SequenceStep) => {
+  if (step.conditionType === 'imageVisible') {
+    return {
+      type: 'imageVisible' as const,
+      imageId: step.imageId.trim(),
+      minSimilarity: step.minSimilarity.trim() === '' ? null : Number(step.minSimilarity)
+    };
+  }
+  if (step.conditionType === 'commandOutcome') {
+    return {
+      type: 'commandOutcome' as const,
+      stepRef: step.outcomeStepRef.trim(),
+      expectedState: step.expectedState
+    };
+  }
+  return null;
+};
+
+const buildLoopConfigPayload = (loop: LoopStepEntry): LoopConfigDto | null => {
+  if (loop.loopType === 'count') {
+    return { loopType: 'count', count: loop.count ?? 1, maxIterations: loop.maxIterations ?? null };
+  }
+  if (loop.loopType === 'while' && loop.condition) {
+    return { loopType: 'while', condition: loop.condition, maxIterations: loop.maxIterations ?? null };
+  }
+  if (loop.loopType === 'repeatUntil' && loop.condition) {
+    return { loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? null };
+  }
+  return null;
+};
+
+const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
+  if (entry.type === 'Break') {
+    const br = entry as BreakStepEntry;
+    return {
+      stepId: br.stepId.trim(),
+      stepType: 'Break',
+      breakCondition: br.breakCondition ?? null
+    };
+  }
+  // Action body step
+  const a = entry as { stepId: string; commandId: string; conditionType: string; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
+  const cond = a.conditionType === 'imageVisible'
+    ? { type: 'imageVisible' as const, imageId: a.imageId.trim(), minSimilarity: a.minSimilarity.trim() === '' ? null : Number(a.minSimilarity) }
+    : a.conditionType === 'commandOutcome'
+      ? { type: 'commandOutcome' as const, stepRef: a.outcomeStepRef.trim(), expectedState: a.expectedState }
+      : null;
+  return {
+    stepId: entry.stepId.trim(),
+    stepType: 'Action',
+    action: { type: 'command', parameters: { commandId: a.commandId } },
+    condition: cond
+  };
+};
+
 const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
   return steps.map((step) => {
-    const condition = step.conditionType === 'imageVisible'
-      ? {
-        type: 'imageVisible' as const,
-        imageId: step.imageId.trim(),
-        minSimilarity: step.minSimilarity.trim() === '' ? null : Number(step.minSimilarity)
-      }
-      : step.conditionType === 'commandOutcome'
-        ? {
-          type: 'commandOutcome' as const,
-          stepRef: step.outcomeStepRef.trim(),
-          expectedState: step.expectedState
-        }
-        : null;
+    if (step.stepType === 'Loop' && step.loopEntry) {
+      return {
+        stepId: step.stepId.trim(),
+        stepType: 'Loop' as const,
+        loop: buildLoopConfigPayload(step.loopEntry),
+        body: step.loopEntry.body.map(bodyEntryToPayloadStep)
+      };
+    }
+
+    if (step.stepType === 'Break') {
+      return {
+        stepId: step.stepId.trim(),
+        stepType: 'Break' as const,
+        breakCondition: null // top-level breaks are unconditional
+      };
+    }
 
     return {
       stepId: step.stepId.trim(),
+      stepType: 'Action' as const,
       action: {
         type: 'command',
         parameters: {
           commandId: step.commandId
         }
       },
-      condition
+      condition: buildConditionPayload(step)
     };
   });
 };
@@ -395,6 +526,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 setForm((prev) => ({ ...prev, steps: prev.steps.filter((step) => step.id !== s.id) }));
                 setDirty(true);
               }}
+              commandOptions={commandOptions}
               disabled={submitting || loading}
             />
           ),
@@ -406,7 +538,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         details: renderStepConditionEditor(s, idx),
       };
     });
-  }, [form.steps, commandLookup, submitting, loading]);
+  }, [form.steps, commandOptions, commandLookup, submitting, loading]);
 
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};

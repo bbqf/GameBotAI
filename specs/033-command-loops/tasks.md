@@ -12,11 +12,11 @@
 
 **Purpose**: Create new files and establish shared foundations before any user-story work begins.
 
-- [ ] T001 Add `LoopConfig.cs` to `src/GameBot.Domain/Commands/` with the `[JsonPolymorphic]` hierarchy: abstract `LoopConfig` (with optional `MaxIterations`), `CountLoopConfig` (`Count`), `WhileLoopConfig` (`Condition`), `RepeatUntilLoopConfig` (`Condition`). Add XML doc comments to all public members (constitution: public APIs require documentation).
-- [ ] T002 [P] Extend `SequenceStepType` enum in `src/GameBot.Domain/Commands/SequenceStep.cs` with `Loop` and `Break` values
-- [ ] T003 *(depends on T002 — enum values must exist before referencing them)* Add `Loop`, `Body`, and `BreakCondition` properties to `SequenceStep` in `src/GameBot.Domain/Commands/SequenceStep.cs`
-- [ ] T004 [P] Add `LoopMaxIterations` property (default 1000) to `AppConfig` in `src/GameBot.Domain/Config/AppConfig.cs`
-- [ ] T005 [P] Create `TemplateSubstitutor.cs` in `src/GameBot.Domain/Utils/` with `Substitute(string template, IReadOnlyDictionary<string,string> context)` and `SubstitutePayload(SequenceActionPayload, context)` methods using compiled `{{(\w+)}}` regex. Add XML doc comments to all public members (constitution: public APIs require documentation).
+- [X] T001 Add `LoopConfig.cs` to `src/GameBot.Domain/Commands/` with the `[JsonPolymorphic]` hierarchy: abstract `LoopConfig` (with optional `MaxIterations`), `CountLoopConfig` (`Count`), `WhileLoopConfig` (`Condition`), `RepeatUntilLoopConfig` (`Condition`). Add XML doc comments to all public members (constitution: public APIs require documentation).
+- [X] T002 [P] Extend `SequenceStepType` enum in `src/GameBot.Domain/Commands/SequenceStep.cs` with `Loop` and `Break` values
+- [X] T003 *(depends on T002 — enum values must exist before referencing them)* Add `Loop`, `Body`, and `BreakCondition` properties to `SequenceStep` in `src/GameBot.Domain/Commands/SequenceStep.cs`
+- [X] T004 [P] Add `LoopMaxIterations` property (default 1000) to `AppConfig` in `src/GameBot.Domain/Config/AppConfig.cs`
+- [X] T005 [P] Create `TemplateSubstitutor.cs` in `src/GameBot.Domain/Utils/` with `Substitute(string template, IReadOnlyDictionary<string,string> context)` and `SubstitutePayload(SequenceActionPayload, context)` methods using compiled `{{(\w+)}}` regex. Add XML doc comments to all public members (constitution: public APIs require documentation).
 
 ---
 
@@ -24,15 +24,15 @@
 
 **Purpose**: Persistence, serialization round-trip, and validation gate — must be complete before any execution or UI story can be tested.
 
-- [ ] T006 Ensure `LoopConfig` polymorphic subtypes survive round-trip serialize/deserialize via `FileSequenceRepository` in `src/GameBot.Domain/Commands/FileSequenceRepository.cs`. **Before implementing**: inspect how `FileSequenceRepository` handles `SequenceStepCondition` — if it uses `[JsonPolymorphic]` / `[JsonDerivedType]` attribute-based autodiscovery with a shared `JsonSerializerOptions`, no manual subtype registration is needed and T006 becomes: verify round-trip works with attributes alone and add a failing test to confirm. Only add manual registration if the options are built without attribute scanning.
-- [ ] T007 Add loop-specific validation rules to `SequenceValidator` in `src/GameBot.Domain/Validation/SequenceValidator.cs`:
+- [X] T006 Ensure `LoopConfig` polymorphic subtypes survive round-trip serialize/deserialize via `FileSequenceRepository` in `src/GameBot.Domain/Commands/FileSequenceRepository.cs`. **Before implementing**: inspect how `FileSequenceRepository` handles `SequenceStepCondition` — if it uses `[JsonPolymorphic]` / `[JsonDerivedType]` attribute-based autodiscovery with a shared `JsonSerializerOptions`, no manual subtype registration is needed and T006 becomes: verify round-trip works with attributes alone and add a failing test to confirm. Only add manual registration if the options are built without attribute scanning.
+- [X] T007 Add loop-specific validation rules to `SequenceValidator` in `src/GameBot.Domain/Validation/SequenceValidator.cs`:
   - `CountLoopConfig.Count >= 0` (FR-004)
   - `LoopConfig.MaxIterations > 0` when set (FR-008)
   - Loop body MUST NOT contain `StepType == Loop` steps (FR-012)
   - `StepType == Break` only inside a loop body (FR-021)
   - `{{iteration}}` placeholder only inside loop body parameters (FR-002a)
   - `commandOutcome` condition in loop MUST NOT forward-reference within body (FR-006)
-- [ ] T008 Write contract tests in `tests/contract/SequenceLoopContractTests.cs`:
+- [X] T008 Write contract tests in `tests/contract/SequenceLoopContractTests.cs`:
   - Round-trip serialize/deserialize for `count` loop step with inner action step
   - Round-trip for `while` loop step with `imageVisible` condition
   - Round-trip for `repeatUntil` loop step with `commandOutcome` condition
@@ -47,20 +47,20 @@
 
 **Independent test criteria**: Create sequence with one count-based loop (N=3), one inner tap step using `{{iteration}}` in a parameter, execute it, verify tap called 3 times and iteration values 1/2/3 logged.
 
-- [ ] T009 [US1] Write unit tests in `tests/GameBot.Domain.Tests/SequenceRunnerLoopTests.cs` for count-based loop:
+- [X] T009 [US1] Write unit tests in `tests/GameBot.Domain.Tests/SequenceRunnerLoopTests.cs` for count-based loop:
   - N=5 inner step executes exactly 5 times
   - N=0 body is skipped, execution continues
   - N=3 with `{{iteration}}` placeholder: values 1, 2, 3 substituted per iteration
-- [ ] T010 [P] [US1] Write unit tests in `tests/GameBot.Domain.Tests/TemplateSubstitutorTests.cs`:
+- [X] T010 [P] [US1] Write unit tests in `tests/GameBot.Domain.Tests/TemplateSubstitutorTests.cs`:
   - `{{iteration}}` replaced with correct string value
   - Unknown keys left as-is
   - Non-string JSON values untouched
   - Multiple placeholders in one string all substituted
   - Empty context returns template unchanged
-- [ ] T012 [US1] Extend `ExecutionLogModels.cs` in `src/GameBot.Domain/Logging/ExecutionLogModels.cs`:
+- [X] T012 [US1] Extend `ExecutionLogModels.cs` in `src/GameBot.Domain/Logging/ExecutionLogModels.cs`:
   - Add `LoopIterationOutcome` record (`IterationIndex`, `BreakTriggered`, `StepOutcomes`). Add XML doc comments to all public members (constitution: public APIs require documentation).
   - Add `IReadOnlyList<LoopIterationOutcome>? LoopIterations` to `ExecutionStepOutcome`
-- [ ] T011 *(depends on T012 — `LoopIterationOutcome` must be defined before the runner references it)* [US1] Implement count-based loop execution in `SequenceRunner` in `src/GameBot.Domain/Services/SequenceRunner.cs`:
+- [X] T011 *(depends on T012 — `LoopIterationOutcome` must be defined before the runner references it)* [US1] Implement count-based loop execution in `SequenceRunner` in `src/GameBot.Domain/Services/SequenceRunner.cs`:
   - Add `ExecuteLoopStepAsync` dispatch branch for `StepType == Loop`
   - For `loopType == count`: iterate `Count` times, inject `{"iteration": i.ToString()}` context dict, call `SubstitutePayload` before each body step dispatch
   - Record `LoopIterationOutcome` per iteration with inner `StepOutcomes`
@@ -74,23 +74,23 @@
 
 **Independent test criteria**: Open a sequence with a count loop + a while loop side-by-side; confirm each has its own bounded block with no visual overlap; break step inside a loop renders inside the boundary.
 
-- [ ] T013 [US5] Create `LoopBlockHeader.tsx` in `src/web-ui/src/components/sequences/`:
+- [X] T013 [US5] Create `LoopBlockHeader.tsx` in `src/web-ui/src/components/sequences/`:
   - Props: `loopType: 'count' | 'while' | 'repeatUntil'`, `count?: number`, `condition?: SequenceStepCondition`, `maxIterations?: number`
   - Renders: loop type badge, human-readable parameter summary (e.g. "× 10", "while imageVisible"), `{{iteration}}` variable name hint for count/while loops
-- [ ] T014 [P] [US5] Create `BreakStepRow.tsx` in `src/web-ui/src/components/sequences/`:
+- [X] T014 [P] [US5] Create `BreakStepRow.tsx` in `src/web-ui/src/components/sequences/`:
   - Props: `breakCondition?: SequenceStepCondition`, `onEdit: () => void`, `onRemove: () => void`
   - Renders a single-row break step. Unconditional break = `breakCondition` is `undefined`/`null`; represented in the UI as an **"Always break" toggle** (checked = unconditional, unchecked = condition-based). When unconditional, the condition editor is hidden and `breakCondition` is `undefined` in the `onChange` payload.
   - Test case (include in T017): toggling "Always break" on fires `onChange` with `breakCondition: undefined`; toggling off shows the condition editor.
-- [ ] T015 *(depends on T016 — `StepEntry` union and `LoopStepEntry` alias must be defined before `LoopBlock` imports them)* [US5] Create `LoopBlock.tsx` in `src/web-ui/src/components/sequences/`:
+- [X] T015 *(depends on T016 — `StepEntry` union and `LoopStepEntry` alias must be defined before `LoopBlock` imports them)* [US5] Create `LoopBlock.tsx` in `src/web-ui/src/components/sequences/`:
   - Props: `loop: LoopStepEntry` where `LoopStepEntry = Extract<StepEntry, { type: 'Loop' }>` (exported alias from T016's type definitions); `onChange`, `onRemove`, `availableImages`, `availableStepRefs`
   - Renders `LoopBlockHeader`, colored left-border container, indented inner `ReorderableList` of body steps
   - Body step types dispatched to existing `ActionStepRow` / `ConditionalStepRow` / `BreakStepRow` as appropriate. **Before coding**: confirm `ConditionalStepRow` exists at `src/web-ui/src/components/sequences/ConditionalStepRow.tsx` (feature 032); update import path if the name differs.
   - "Add step inside loop" affordance at the bottom of the body
-- [ ] T016 [US5] Extend `SequencesPage.tsx` in `src/web-ui/src/pages/SequencesPage.tsx`:
+- [X] T016 [US5] Extend `SequencesPage.tsx` in `src/web-ui/src/pages/SequencesPage.tsx`:
   - Add `'Loop'` and `'Break'` to the step type union and `StepEntry` type
   - In the step list render dispatch, handle `type === 'Loop'` → `<LoopBlock>` and `type === 'Break'` → `<BreakStepRow>`
   - Add "Add loop" option in the step-type selector (with sub-choice: count / while / repeatUntil)
-- [ ] T017 [US5] Write render tests in `tests/web-ui/src/components/sequences/LoopBlock.test.tsx`:
+- [X] T017 [US5] Write render tests in `tests/web-ui/src/components/sequences/LoopBlock.test.tsx`:
   - Count loop renders header with count value and `{{iteration}}` hint
   - While loop renders header with condition summary
   - RepeatUntil loop renders correct header label
@@ -107,12 +107,12 @@
 
 **Independent test criteria**: Execute while loop with mock condition returning true×2 then false; confirm 2 iterations, then stop. Execute with false on entry; confirm 0 iterations. Execute with never-false mock hitting limit 3; confirm failure.
 
-- [ ] T018 [US2] Extend `SequenceRunnerLoopTests.cs` with while-loop tests:
+- [X] T018 [US2] Extend `SequenceRunnerLoopTests.cs` with while-loop tests:
   - Condition true × 2 then false → body runs exactly twice
   - Condition false on entry → body skipped, outcome = `skipped`
   - Condition never false, limit = 3 → loop fails after 3 iterations, command fails
   - Condition evaluation throws → loop step outcome = `failed`, command stops
-- [ ] T019 [US2] Implement while loop execution branch in `SequenceRunner.ExecuteLoopStepAsync` in `src/GameBot.Domain/Services/SequenceRunner.cs`:
+- [X] T019 [US2] Implement while loop execution branch in `SequenceRunner.ExecuteLoopStepAsync` in `src/GameBot.Domain/Services/SequenceRunner.cs`:
   - Re-evaluate condition before each iteration; false → exit loop (`success`/`skipped`)
   - Condition eval error → fail loop step, propagate failure
   - Increment iteration counter; compare against `MaxIterations` (per-loop) or `AppConfig.LoopMaxIterations`; if exceeded → fail with `limitReached` reason code
@@ -125,12 +125,12 @@
 
 **Independent test criteria**: Execute repeat-until with exit condition true after first iteration → body runs once. Execute with condition true after 3 iterations → body runs 3 times. Execute with never-true condition → fails at limit.
 
-- [ ] T020 [US3] Extend `SequenceRunnerLoopTests.cs` with repeat-until tests:
+- [X] T020 [US3] Extend `SequenceRunnerLoopTests.cs` with repeat-until tests:
   - Exit condition true after iteration 1 → body runs exactly once
   - Exit condition true after iteration 3 → body runs exactly 3 times
   - Exit condition never true, limit = 3 → fails after 3 iterations
   - Condition eval error after first body execution → loop fails, command stops
-- [ ] T021 [US3] Implement repeat-until loop execution branch in `SequenceRunner.ExecuteLoopStepAsync` in `src/GameBot.Domain/Services/SequenceRunner.cs`:
+- [X] T021 [US3] Implement repeat-until loop execution branch in `SequenceRunner.ExecuteLoopStepAsync` in `src/GameBot.Domain/Services/SequenceRunner.cs`:
   - Execute body first; then evaluate exit condition; true → exit (`success`)
   - Condition eval error → fail loop step
   - Safety limit check after body; if exceeded → fail with `limitReached`
@@ -143,12 +143,12 @@
 
 **Independent test criteria**: Count loop N=10, break step with condition true on iteration 3 → 3 iterations total. Break condition never met → loop runs all 10. Unconditional break → exactly 1 iteration.
 
-- [ ] T022 [US4] Extend `SequenceRunnerLoopTests.cs` with break-step tests:
+- [X] T022 [US4] Extend `SequenceRunnerLoopTests.cs` with break-step tests:
   - Conditional break triggers on iteration 3 of N=10 count loop → 3 iterations, `BreakTriggered=true` in log
   - Conditional break never triggered → loop runs to completion normally
   - Unconditional break (null condition) → loop exits after first iteration
   - Break step condition eval error → loop fails immediately
-- [ ] T023 [US4] Implement break step execution in `SequenceRunner` in `src/GameBot.Domain/Services/SequenceRunner.cs`:
+- [X] T023 [US4] Implement break step execution in `SequenceRunner` in `src/GameBot.Domain/Services/SequenceRunner.cs`:
   - In the body-step dispatch loop, detect `StepType == Break`
   - If `BreakCondition` is null → signal break immediately
   - If `BreakCondition` is set → evaluate; true → signal break; false → continue to next body step; error → fail loop
@@ -161,17 +161,17 @@
 
 **Purpose**: Validation endpoint wiring, error messages, and integration validation.
 
-- [ ] T024 [P] Wire extended validator into `POST /api/sequences/{sequenceId}/validate` endpoint in `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`: ensure loop-specific rules from T007 are invoked and errors returned with step-level context
-- [ ] T025 [P] Write `LoopValidationTests.cs` in `tests/GameBot.Domain.Tests/` covering all rules in T007:
+- [X] T024 [P] Wire extended validator into `POST /api/sequences/{sequenceId}/validate` endpoint in `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`: ensure loop-specific rules from T007 are invoked and errors returned with step-level context
+- [X] T025 [P] Write `LoopValidationTests.cs` in `tests/GameBot.Domain.Tests/` covering all rules in T007:
   - Count < 0 rejected with message
   - MaxIterations = 0 rejected
   - Loop body containing a loop step rejected
   - Break step at top level rejected
   - `{{iteration}}` in top-level step parameter rejected
   - `commandOutcome` forward-reference in loop body rejected
-- [ ] T026 [P] Add `loopMaxIterations` key to `data/config/config.json` default template / seeding logic so new installs start with the 1000-iteration default
-- [ ] T027 Run `dotnet build -c Debug` and fix any compilation errors introduced by new types before marking implementation complete; then run `dotnet test --collect:"XPlat Code Coverage" -c Debug` and confirm new-code line coverage ≥80% and branch coverage ≥70% for `SequenceRunner`, `TemplateSubstitutor`, and `SequenceValidator` touched paths (constitution requirement)
-- [ ] T028 [P] Record dispatch-only timing for a 10-iteration count-based loop (no real action I/O) in the PR description and confirm the SequenceRunner loop-dispatch overhead is ≤5 ms/iteration; note result inline as a micro-benchmark comment in `SequenceRunner.cs` (constitution hot-path perf note requirement)
+- [X] T026 [P] Add `loopMaxIterations` key to `data/config/config.json` default template / seeding logic so new installs start with the 1000-iteration default
+- [X] T027 Run `dotnet build -c Debug` and fix any compilation errors introduced by new types before marking implementation complete; then run `dotnet test --collect:"XPlat Code Coverage" -c Debug` and confirm new-code line coverage ≥80% and branch coverage ≥70% for `SequenceRunner`, `TemplateSubstitutor`, and `SequenceValidator` touched paths (constitution requirement)
+- [X] T028 [P] Record dispatch-only timing for a 10-iteration count-based loop (no real action I/O) in the PR description and confirm the SequenceRunner loop-dispatch overhead is ≤5 ms/iteration; note result inline as a micro-benchmark comment in `SequenceRunner.cs` (constitution hot-path perf note requirement)
 - [X] T029 [P] Add changelog entry to `CHANGELOG.md` describing the new loop step types (count-based, while, repeat-until), break step, and `{{iteration}}` placeholder (constitution: user-visible features require changelog entry)
 
 ---

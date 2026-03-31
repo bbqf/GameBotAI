@@ -13,8 +13,12 @@ internal sealed record SequenceUpsertContract {
 internal sealed record SequenceStepContract {
   public required string StepId { get; init; }
   public string? Label { get; init; }
-  public required SequenceActionContract Action { get; init; }
+  public string? StepType { get; init; }
+  public SequenceActionContract? Action { get; init; }
   public SequenceStepConditionContract? Condition { get; init; }
+  public LoopConfigContract? Loop { get; init; }
+  public IReadOnlyList<SequenceStepContract>? Body { get; init; }
+  public SequenceStepConditionContract? BreakCondition { get; init; }
 }
 
 internal sealed record SequenceActionContract {
@@ -35,4 +39,24 @@ internal sealed record ImageVisibleConditionContract : SequenceStepConditionCont
 internal sealed record CommandOutcomeConditionContract : SequenceStepConditionContract {
   public required string StepRef { get; init; }
   public required string ExpectedState { get; init; }
+}
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "loopType")]
+[JsonDerivedType(typeof(CountLoopConfigContract), typeDiscriminator: "count")]
+[JsonDerivedType(typeof(WhileLoopConfigContract), typeDiscriminator: "while")]
+[JsonDerivedType(typeof(RepeatUntilLoopConfigContract), typeDiscriminator: "repeatUntil")]
+internal abstract record LoopConfigContract {
+  public int? MaxIterations { get; init; }
+}
+
+internal sealed record CountLoopConfigContract : LoopConfigContract {
+  public int Count { get; init; }
+}
+
+internal sealed record WhileLoopConfigContract : LoopConfigContract {
+  public required SequenceStepConditionContract Condition { get; init; }
+}
+
+internal sealed record RepeatUntilLoopConfigContract : LoopConfigContract {
+  public required SequenceStepConditionContract Condition { get; init; }
 }

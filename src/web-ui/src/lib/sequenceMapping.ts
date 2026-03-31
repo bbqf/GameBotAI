@@ -34,7 +34,7 @@ export const isLinearStepArray = (steps: SequenceDto['steps']): steps is Sequenc
     && steps.every((step) => typeof step === 'object'
       && step !== null
       && 'stepId' in step
-      && 'action' in step);
+      && ('action' in step || 'stepType' in step));
 };
 
 export const toLinearSteps = (steps: SequenceDto['steps']): SequenceLinearStep[] => {

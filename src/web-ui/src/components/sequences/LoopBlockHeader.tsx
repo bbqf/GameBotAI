@@ -6,6 +6,10 @@ export type LoopBlockHeaderProps = {
   count?: number;
   condition?: SequenceStepCondition;
   maxIterations?: number;
+  disabled?: boolean;
+  onCountChange?: (count: number) => void;
+  onMaxIterationsChange?: (maxIterations: number | undefined) => void;
+  onConditionChange?: (condition: SequenceStepCondition) => void;
 };
 
 const loopTypeBadge: Record<string, string> = {
@@ -14,30 +18,98 @@ const loopTypeBadge: Record<string, string> = {
   repeatUntil: 'Repeat‑Until',
 };
 
-const conditionSummary = (condition?: SequenceStepCondition): string => {
-  if (!condition) return '';
-  if (condition.type === 'imageVisible') return `imageVisible "${condition.imageId}"`;
-  if (condition.type === 'commandOutcome') return `commandOutcome ${condition.stepRef} = ${condition.expectedState}`;
-  return '';
-};
-
-export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({ loopType, count, condition, maxIterations }) => {
+export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
+  loopType, count, condition, maxIterations, disabled,
+  onCountChange, onMaxIterationsChange, onConditionChange,
+}) => {
   const badge = loopTypeBadge[loopType] ?? loopType;
-
-  let summary = '';
-  if (loopType === 'count') {
-    summary = `× ${count ?? 0}`;
-  } else {
-    summary = conditionSummary(condition);
-  }
 
   return (
     <div className="loop-block-header" data-testid="loop-block-header">
       <span className="loop-block-header__badge" data-testid="loop-type-badge">{badge}</span>
-      <span className="loop-block-header__summary" data-testid="loop-summary">{summary}</span>
-      {maxIterations != null && (
-        <span className="loop-block-header__limit" data-testid="loop-max-iterations">max {maxIterations}</span>
+
+      {loopType === 'count' ? (
+        <label className="loop-block-header__count-field">
+          ×{' '}
+          <input
+            type="number"
+            min={0}
+            data-testid="loop-count-input"
+            value={count ?? 0}
+            disabled={disabled}
+            onChange={(e) => onCountChange?.(Math.max(0, parseInt(e.target.value, 10) || 0))}
+            style={{ width: '60px' }}
+          />
+        </label>
+      ) : (
+        <div className="loop-block-header__condition-fields">
+          <select
+            data-testid="loop-condition-type"
+            value={condition?.type ?? 'imageVisible'}
+            disabled={disabled}
+            onChange={(e) => {
+              const type = e.target.value as 'imageVisible' | 'commandOutcome';
+              if (type === 'imageVisible') {
+                onConditionChange?.({ type: 'imageVisible', imageId: condition?.type === 'imageVisible' ? condition.imageId : '', minSimilarity: null });
+              } else {
+                onConditionChange?.({ type: 'commandOutcome', stepRef: condition?.type === 'commandOutcome' ? condition.stepRef : '', expectedState: condition?.type === 'commandOutcome' ? condition.expectedState : 'success' });
+              }
+            }}
+          >
+            <option value="imageVisible">imageVisible</option>
+            <option value="commandOutcome">commandOutcome</option>
+          </select>
+
+          {condition?.type === 'imageVisible' && (
+            <input
+              data-testid="loop-condition-imageId"
+              placeholder="Image ID"
+              value={condition.imageId}
+              disabled={disabled}
+              onChange={(e) => onConditionChange?.({ ...condition, imageId: e.target.value })}
+            />
+          )}
+          {condition?.type === 'commandOutcome' && (
+            <>
+              <input
+                data-testid="loop-condition-stepRef"
+                placeholder="Step ref"
+                value={condition.stepRef}
+                disabled={disabled}
+                onChange={(e) => onConditionChange?.({ ...condition, stepRef: e.target.value })}
+              />
+              <select
+                data-testid="loop-condition-expectedState"
+                value={condition.expectedState}
+                disabled={disabled}
+                onChange={(e) => onConditionChange?.({ ...condition, expectedState: e.target.value as 'success' | 'failed' | 'skipped' })}
+              >
+                <option value="success">success</option>
+                <option value="failed">failed</option>
+                <option value="skipped">skipped</option>
+              </select>
+            </>
+          )}
+        </div>
       )}
+
+      <label className="loop-block-header__limit-field">
+        Max:{' '}
+        <input
+          type="number"
+          min={1}
+          data-testid="loop-max-iterations"
+          placeholder="∞"
+          value={maxIterations ?? ''}
+          disabled={disabled}
+          onChange={(e) => {
+            const val = parseInt(e.target.value, 10);
+            onMaxIterationsChange?.(isNaN(val) ? undefined : Math.max(1, val));
+          }}
+          style={{ width: '60px' }}
+        />
+      </label>
+
       {(loopType === 'count' || loopType === 'while') && (
         <span className="loop-block-header__hint" data-testid="loop-iteration-hint">{'{{iteration}}'}</span>
       )}

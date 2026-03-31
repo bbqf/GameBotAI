@@ -978,17 +978,7 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
       id = sequence.Id,
       name = sequence.Name,
       version = sequence.Version,
-      steps = sequence.Steps.Select(step => new {
-        stepId = step.StepId,
-        label = step.Label,
-        action = step.Action is null
-          ? null
-          : new {
-            type = step.Action.Type,
-            parameters = step.Action.Parameters
-          },
-        condition = MapPerStepConditionToDto(step.Condition)
-      }).ToArray()
+      steps = sequence.Steps.Select(MapStepToDto).ToArray()
     };
   }
 
@@ -1038,6 +1028,51 @@ static object? MapPerStepConditionToDto(SequenceStepCondition? condition) {
   };
 }
 
+static object MapStepToDto(SequenceStep step) {
+  var stepType = step.StepType switch {
+    SequenceStepType.Loop => "Loop",
+    SequenceStepType.Break => "Break",
+    _ => "Action"
+  };
+
+  return new {
+    stepId = step.StepId,
+    label = step.Label,
+    stepType,
+    action = step.Action is null
+      ? null
+      : new {
+        type = step.Action.Type,
+        parameters = step.Action.Parameters
+      },
+    condition = MapPerStepConditionToDto(step.Condition),
+    loop = MapLoopConfigToDto(step.Loop),
+    body = step.Body.Count > 0 ? step.Body.Select(MapStepToDto).ToArray() : null,
+    breakCondition = MapPerStepConditionToDto(step.BreakCondition)
+  };
+}
+
+static object? MapLoopConfigToDto(LoopConfig? loop) {
+  return loop switch {
+    CountLoopConfig count => new {
+      loopType = "count",
+      count = count.Count,
+      maxIterations = count.MaxIterations
+    },
+    WhileLoopConfig while_ => new {
+      loopType = "while",
+      condition = MapPerStepConditionToDto(while_.Condition),
+      maxIterations = while_.MaxIterations
+    },
+    RepeatUntilLoopConfig repeatUntil => new {
+      loopType = "repeatUntil",
+      condition = MapPerStepConditionToDto(repeatUntil.Condition),
+      maxIterations = repeatUntil.MaxIterations
+    },
+    _ => null
+  };
+}
+
 bool HasLegacyBranchingFields(System.Text.Json.JsonElement root) {
   return root.TryGetProperty("entryStepId", out _)
          || root.TryGetProperty("links", out _);
@@ -1053,7 +1088,8 @@ bool IsPerStepRequestCandidate(System.Text.Json.JsonElement root) {
   }
 
   var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
-  return firstStep.ValueKind == JsonValueKind.Object && firstStep.TryGetProperty("action", out _);
+  return firstStep.ValueKind == JsonValueKind.Object
+    && (firstStep.TryGetProperty("action", out _) || firstStep.TryGetProperty("stepType", out _));
 }
 
 bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsertContract? request, out string? error) {
@@ -1086,8 +1122,12 @@ bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsert
       return false;
     }
 
-    if (!stepElement.TryGetProperty("action", out var actionProp) || actionProp.ValueKind != JsonValueKind.Object) {
-      error = "each step must include action object.";
+    var hasStepType = stepElement.TryGetProperty("stepType", out var stepTypeProp) && stepTypeProp.ValueKind == JsonValueKind.String;
+    var stepTypeValue = hasStepType ? stepTypeProp.GetString()?.Trim().ToLowerInvariant() : null;
+    var isLoopOrBreak = stepTypeValue is "loop" or "break";
+
+    if (!isLoopOrBreak && (!stepElement.TryGetProperty("action", out var actionProp) || actionProp.ValueKind != JsonValueKind.Object)) {
+      error = "each action step must include action object.";
       return false;
     }
   }
@@ -1242,32 +1282,123 @@ static List<SequenceStep> MapToLinearSteps(SequenceUpsertContract request) {
   var result = new List<SequenceStep>(request.Steps.Count);
   for (var index = 0; index < request.Steps.Count; index++) {
     var step = request.Steps[index];
-    var mapped = new SequenceStep {
-      Order = index,
-      StepId = step.StepId,
-      Label = step.Label,
-      CommandId = step.StepId,
-      StepType = SequenceStepType.Action,
-      Action = new SequenceActionPayload {
-        Type = step.Action.Type
-      },
-      Condition = MapPerStepCondition(step.Condition)
-    };
+    var parsedStepType = ParseStepType(step.StepType);
 
-    foreach (var parameter in step.Action.Parameters) {
-      mapped.Action.Parameters[parameter.Key] = parameter.Value;
+    if (parsedStepType == SequenceStepType.Loop) {
+      var mapped = new SequenceStep {
+        Order = index,
+        StepId = step.StepId,
+        Label = step.Label,
+        StepType = SequenceStepType.Loop,
+        Loop = MapLoopConfig(step.Loop),
+        Body = MapBodySteps(step.Body)
+      };
+      result.Add(mapped);
+      continue;
     }
 
-    if (string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
-        && step.Action.Parameters.TryGetValue("commandId", out var commandId)
-        && commandId.ValueKind == JsonValueKind.String
-        && !string.IsNullOrWhiteSpace(commandId.GetString())) {
-      mapped.CommandId = commandId.GetString()!;
+    if (parsedStepType == SequenceStepType.Break) {
+      var mapped = new SequenceStep {
+        Order = index,
+        StepId = step.StepId,
+        Label = step.Label,
+        StepType = SequenceStepType.Break,
+        BreakCondition = MapPerStepCondition(step.BreakCondition)
+      };
+      result.Add(mapped);
+      continue;
     }
 
-    result.Add(mapped);
+    {
+      var mapped = new SequenceStep {
+        Order = index,
+        StepId = step.StepId,
+        Label = step.Label,
+        CommandId = step.StepId,
+        StepType = SequenceStepType.Action,
+        Action = step.Action is not null ? new SequenceActionPayload { Type = step.Action.Type } : null,
+        Condition = MapPerStepCondition(step.Condition)
+      };
+
+      if (step.Action is not null) {
+        foreach (var parameter in step.Action.Parameters) {
+          mapped.Action!.Parameters[parameter.Key] = parameter.Value;
+        }
+
+        if (string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+            && step.Action.Parameters.TryGetValue("commandId", out var commandId)
+            && commandId.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(commandId.GetString())) {
+          mapped.CommandId = commandId.GetString()!;
+        }
+      }
+
+      result.Add(mapped);
+    }
   }
 
+  return result;
+}
+
+static SequenceStepType ParseStepType(string? stepType) {
+  if (string.IsNullOrWhiteSpace(stepType)) return SequenceStepType.Action;
+  return stepType.Trim().ToLowerInvariant() switch {
+    "loop" => SequenceStepType.Loop,
+    "break" => SequenceStepType.Break,
+    "action" => SequenceStepType.Action,
+    "command" => SequenceStepType.Command,
+    _ => SequenceStepType.Action
+  };
+}
+
+static LoopConfig? MapLoopConfig(LoopConfigContract? contract) {
+  return contract switch {
+    CountLoopConfigContract count => new CountLoopConfig { Count = count.Count, MaxIterations = count.MaxIterations },
+    WhileLoopConfigContract while_ => new WhileLoopConfig { Condition = MapPerStepCondition(while_.Condition)!, MaxIterations = while_.MaxIterations },
+    RepeatUntilLoopConfigContract repeatUntil => new RepeatUntilLoopConfig { Condition = MapPerStepCondition(repeatUntil.Condition)!, MaxIterations = repeatUntil.MaxIterations },
+    _ => null
+  };
+}
+
+static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContract>? body) {
+  if (body is null || body.Count == 0) return Array.Empty<SequenceStep>();
+  var result = new List<SequenceStep>(body.Count);
+  for (var i = 0; i < body.Count; i++) {
+    var child = body[i];
+    var childType = ParseStepType(child.StepType);
+
+    if (childType == SequenceStepType.Break) {
+      result.Add(new SequenceStep {
+        Order = i,
+        StepId = child.StepId,
+        Label = child.Label,
+        StepType = SequenceStepType.Break,
+        BreakCondition = MapPerStepCondition(child.BreakCondition)
+      });
+    } else {
+      var mapped = new SequenceStep {
+        Order = i,
+        StepId = child.StepId,
+        Label = child.Label,
+        CommandId = child.StepId,
+        StepType = SequenceStepType.Action,
+        Action = child.Action is not null ? new SequenceActionPayload { Type = child.Action.Type } : null,
+        Condition = MapPerStepCondition(child.Condition)
+      };
+      if (child.Action is not null) {
+        foreach (var parameter in child.Action.Parameters) {
+          mapped.Action!.Parameters[parameter.Key] = parameter.Value;
+        }
+        if (string.Equals(child.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+            && child.Action.Parameters.TryGetValue("commandId", out var cid)
+            && cid.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(cid.GetString())) {
+          mapped.CommandId = cid.GetString()!;
+        }
+      }
+      result.Add(mapped);
+    }
+  }
   return result;
 }
 

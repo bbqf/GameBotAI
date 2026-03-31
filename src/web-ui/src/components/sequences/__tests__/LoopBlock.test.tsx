@@ -3,17 +3,31 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { LoopBlockHeader } from '../LoopBlockHeader';
 import { BreakStepRow } from '../BreakStepRow';
 import { LoopBlock } from '../LoopBlock';
-import type { LoopStepEntry, StepEntry } from '../../../types/stepEntry';
+import type { LoopStepEntry } from '../../../types/stepEntry';
+import type { CommandOption } from '../LoopBlock';
+
+const testCommands: CommandOption[] = [
+  { value: 'cmd-a', label: 'Command A' },
+  { value: 'cmd-b', label: 'Command B' },
+];
 
 describe('LoopBlockHeader', () => {
-  it('renders count loop header with count value and iteration hint', () => {
+  it('renders count loop header with editable count input and iteration hint', () => {
     render(<LoopBlockHeader loopType="count" count={10} />);
     expect(screen.getByTestId('loop-type-badge')).toHaveTextContent('Count');
-    expect(screen.getByTestId('loop-summary')).toHaveTextContent('× 10');
+    const input = screen.getByTestId('loop-count-input') as HTMLInputElement;
+    expect(input.value).toBe('10');
     expect(screen.getByTestId('loop-iteration-hint')).toHaveTextContent('{{iteration}}');
   });
 
-  it('renders while loop header with condition summary', () => {
+  it('fires onCountChange when count input is changed', () => {
+    const onCountChange = jest.fn();
+    render(<LoopBlockHeader loopType="count" count={3} onCountChange={onCountChange} />);
+    fireEvent.change(screen.getByTestId('loop-count-input'), { target: { value: '7' } });
+    expect(onCountChange).toHaveBeenCalledWith(7);
+  });
+
+  it('renders while loop header with condition type selector', () => {
     render(
       <LoopBlockHeader
         loopType="while"
@@ -21,11 +35,12 @@ describe('LoopBlockHeader', () => {
       />
     );
     expect(screen.getByTestId('loop-type-badge')).toHaveTextContent('While');
-    expect(screen.getByTestId('loop-summary')).toHaveTextContent('imageVisible "my-img"');
+    expect(screen.getByTestId('loop-condition-type')).toHaveValue('imageVisible');
+    expect(screen.getByTestId('loop-condition-imageId')).toHaveValue('my-img');
     expect(screen.getByTestId('loop-iteration-hint')).toBeInTheDocument();
   });
 
-  it('renders repeatUntil loop header', () => {
+  it('renders repeatUntil loop header without iteration hint', () => {
     render(
       <LoopBlockHeader
         loopType="repeatUntil"
@@ -36,9 +51,67 @@ describe('LoopBlockHeader', () => {
     expect(screen.queryByTestId('loop-iteration-hint')).not.toBeInTheDocument();
   });
 
-  it('renders max iterations when provided', () => {
-    render(<LoopBlockHeader loopType="count" count={5} maxIterations={100} />);
-    expect(screen.getByTestId('loop-max-iterations')).toHaveTextContent('max 100');
+  it('renders editable max iterations input', () => {
+    const onMaxChange = jest.fn();
+    render(<LoopBlockHeader loopType="count" count={5} maxIterations={100} onMaxIterationsChange={onMaxChange} />);
+    const input = screen.getByTestId('loop-max-iterations') as HTMLInputElement;
+    expect(input.value).toBe('100');
+    fireEvent.change(input, { target: { value: '50' } });
+    expect(onMaxChange).toHaveBeenCalledWith(50);
+  });
+
+  it('renders commandOutcome condition fields for while loop', () => {
+    render(
+      <LoopBlockHeader
+        loopType="while"
+        condition={{ type: 'commandOutcome', stepRef: 'step-1', expectedState: 'success' }}
+      />
+    );
+    expect(screen.getByTestId('loop-condition-stepRef')).toHaveValue('step-1');
+    expect(screen.getByTestId('loop-condition-expectedState')).toHaveValue('success');
+  });
+
+  it('fires onConditionChange when switching condition type', () => {
+    const onConditionChange = jest.fn();
+    render(
+      <LoopBlockHeader
+        loopType="while"
+        condition={{ type: 'imageVisible', imageId: 'x', minSimilarity: null }}
+        onConditionChange={onConditionChange}
+      />
+    );
+    fireEvent.change(screen.getByTestId('loop-condition-type'), { target: { value: 'commandOutcome' } });
+    expect(onConditionChange).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'commandOutcome' })
+    );
+  });
+
+  it('fires onConditionChange when editing imageId', () => {
+    const onConditionChange = jest.fn();
+    render(
+      <LoopBlockHeader
+        loopType="while"
+        condition={{ type: 'imageVisible', imageId: '', minSimilarity: null }}
+        onConditionChange={onConditionChange}
+      />
+    );
+    fireEvent.change(screen.getByTestId('loop-condition-imageId'), { target: { value: 'new-img' } });
+    expect(onConditionChange).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'imageVisible', imageId: 'new-img' })
+    );
+  });
+
+  it('clears max iterations when input is emptied', () => {
+    const onMaxChange = jest.fn();
+    render(<LoopBlockHeader loopType="count" count={5} maxIterations={100} onMaxIterationsChange={onMaxChange} />);
+    fireEvent.change(screen.getByTestId('loop-max-iterations'), { target: { value: '' } });
+    expect(onMaxChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it('shows empty max input when maxIterations is not set', () => {
+    render(<LoopBlockHeader loopType="count" count={5} />);
+    const input = screen.getByTestId('loop-max-iterations') as HTMLInputElement;
+    expect(input.value).toBe('');
   });
 });
 
@@ -79,6 +152,21 @@ describe('BreakStepRow', () => {
     render(<BreakStepRow breakCondition={undefined} onChange={() => {}} onRemove={onRemove} />);
     fireEvent.click(screen.getByTestId('break-remove'));
     expect(onRemove).toHaveBeenCalled();
+  });
+
+  it('renders commandOutcome condition fields when condition is commandOutcome', () => {
+    render(
+      <BreakStepRow
+        breakCondition={{ type: 'commandOutcome', stepRef: 'step-2', expectedState: 'failed' }}
+        onChange={() => {}}
+        onRemove={() => {}}
+      />
+    );
+    expect(screen.getByTestId('break-condition-editor')).toBeInTheDocument();
+    expect(screen.getByText('Step Ref')).toBeInTheDocument();
+    expect(screen.getByText('step-2')).toBeInTheDocument();
+    expect(screen.getByText('Expected State')).toBeInTheDocument();
+    expect(screen.getByText('failed')).toBeInTheDocument();
   });
 });
 
@@ -139,7 +227,7 @@ describe('LoopBlock', () => {
         { type: 'Action', id: 'a2', stepId: 'a2', commandId: 'cmd-b', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
       ],
     };
-    render(<LoopBlock loop={loop} onChange={onChange} onRemove={() => {}} />);
+    render(<LoopBlock loop={loop} onChange={onChange} onRemove={() => {}} commandOptions={testCommands} />);
     const moveDownButtons = screen.getAllByLabelText('Move down');
     fireEvent.click(moveDownButtons[0]);
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -153,5 +241,124 @@ describe('LoopBlock', () => {
     render(<LoopBlock loop={baseLoop} onChange={() => {}} onRemove={onRemove} />);
     fireEvent.click(screen.getByTestId('loop-remove'));
     expect(onRemove).toHaveBeenCalled();
+  });
+
+  it('deleting an action step from body calls onChange with that step removed', () => {
+    const onChange = jest.fn();
+    const loop: LoopStepEntry = {
+      ...baseLoop,
+      body: [
+        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd-a', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+        { type: 'Action', id: 'a2', stepId: 'a2', commandId: 'cmd-b', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+      ],
+    };
+    render(<LoopBlock loop={loop} onChange={onChange} onRemove={() => {}} commandOptions={testCommands} />);
+    const deleteButtons = screen.getAllByText('Delete');
+    fireEvent.click(deleteButtons[0]);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const updated = onChange.mock.calls[0][0] as LoopStepEntry;
+    expect(updated.body).toHaveLength(1);
+    expect(updated.body[0].id).toBe('a2');
+  });
+
+  it('renders command dropdown for action step in body with options', () => {
+    const loop: LoopStepEntry = {
+      ...baseLoop,
+      body: [
+        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd-a', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+      ],
+    };
+    render(<LoopBlock loop={loop} onChange={() => {}} onRemove={() => {}} commandOptions={testCommands} />);
+    const select = screen.getByTestId('loop-body-command-select') as HTMLSelectElement;
+    expect(select.value).toBe('cmd-a');
+    expect(screen.getByText('Command A')).toBeInTheDocument();
+    expect(screen.getByText('Command B')).toBeInTheDocument();
+  });
+
+  it('changing command in body step fires onChange with updated commandId', () => {
+    const onChange = jest.fn();
+    const loop: LoopStepEntry = {
+      ...baseLoop,
+      body: [
+        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd-a', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+      ],
+    };
+    render(<LoopBlock loop={loop} onChange={onChange} onRemove={() => {}} commandOptions={testCommands} />);
+    fireEvent.change(screen.getByTestId('loop-body-command-select'), { target: { value: 'cmd-b' } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const updated = onChange.mock.calls[0][0] as LoopStepEntry;
+    expect(updated.body[0].type).toBe('Action');
+    expect((updated.body[0] as any).commandId).toBe('cmd-b');
+  });
+
+  it('editing break condition inside body calls onChange with updated body', () => {
+    const onChange = jest.fn();
+    const loop: LoopStepEntry = {
+      ...baseLoop,
+      body: [
+        { type: 'Break', id: 'brk-1', stepId: 'brk-1', breakCondition: { type: 'imageVisible', imageId: 'x', minSimilarity: null } },
+      ],
+    };
+    render(<LoopBlock loop={loop} onChange={onChange} onRemove={() => {}} />);
+    // Toggle "Always break" to clear the condition
+    fireEvent.click(screen.getByTestId('always-break-toggle'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const updated = onChange.mock.calls[0][0] as LoopStepEntry;
+    expect(updated.body[0].type).toBe('Break');
+    expect((updated.body[0] as any).breakCondition).toBeUndefined();
+  });
+
+  it('move up on first step is disabled', () => {
+    const loop: LoopStepEntry = {
+      ...baseLoop,
+      body: [
+        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+      ],
+    };
+    render(<LoopBlock loop={loop} onChange={() => {}} onRemove={() => {}} />);
+    const moveUp = screen.getByLabelText('Move up');
+    expect(moveUp).toBeDisabled();
+  });
+
+  it('move down on last step is disabled', () => {
+    const loop: LoopStepEntry = {
+      ...baseLoop,
+      body: [
+        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+      ],
+    };
+    render(<LoopBlock loop={loop} onChange={() => {}} onRemove={() => {}} />);
+    const moveDown = screen.getByLabelText('Move down');
+    expect(moveDown).toBeDisabled();
+  });
+
+  it('removing a break step from body via its Remove button calls onChange without that step', () => {
+    const onChange = jest.fn();
+    const loop: LoopStepEntry = {
+      ...baseLoop,
+      body: [
+        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+        { type: 'Break', id: 'brk-1', stepId: 'brk-1', breakCondition: undefined },
+      ],
+    };
+    render(<LoopBlock loop={loop} onChange={onChange} onRemove={() => {}} />);
+    fireEvent.click(screen.getByTestId('break-remove'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const updated = onChange.mock.calls[0][0] as LoopStepEntry;
+    expect(updated.body).toHaveLength(1);
+    expect(updated.body[0].id).toBe('a1');
+  });
+
+  it('disables all controls when disabled prop is true', () => {
+    const loop: LoopStepEntry = {
+      ...baseLoop,
+      body: [
+        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+      ],
+    };
+    render(<LoopBlock loop={loop} onChange={() => {}} onRemove={() => {}} disabled />);
+    expect(screen.getByTestId('loop-remove')).toBeDisabled();
+    expect(screen.getByTestId('add-body-step')).toBeDisabled();
+    expect(screen.getByTestId('add-break-step')).toBeDisabled();
   });
 });

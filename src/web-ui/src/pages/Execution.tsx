@@ -3,6 +3,7 @@ import { listActions, ActionDto } from '../services/actionsApi';
 import { useGames } from '../services/useGames';
 import { getRunningSessions, startSession, stopSession, RunningSessionDto } from '../services/sessionsApi';
 import { listCommands, forceExecuteCommand, CommandDto } from '../services/commands';
+import { listSequences, executeSequence, SequenceDto } from '../services/sequences';
 import { ApiError } from '../lib/api';
 import { StatusChip } from '../features/execution/StatusChip';
 import { RunDetails } from '../features/execution/RunDetails';
@@ -35,6 +36,12 @@ export const ExecutionPage: React.FC = () => {
   const [manualSessionId, setManualSessionId] = useState('');
   const [executing, setExecuting] = useState(false);
   const [commandCacheMeta, setCommandCacheMeta] = useState<{ gameId: string; adbSerial: string; actionName?: string } | undefined>(undefined);
+  const [sequences, setSequences] = useState<SequenceDto[]>([]);
+  const [loadingSequences, setLoadingSequences] = useState(true);
+  const [selectedSequenceId, setSelectedSequenceId] = useState<string | undefined>(undefined);
+  const [sequenceMessage, setSequenceMessage] = useState<string | undefined>(undefined);
+  const [sequenceError, setSequenceError] = useState<string | undefined>(undefined);
+  const [executingSequence, setExecutingSequence] = useState(false);
 
   const gameLookup = useMemo(() => {
     const map = new Map<string, string>();
@@ -111,6 +118,25 @@ export const ExecutionPage: React.FC = () => {
   }, [refreshRunningSessions]);
 
   useEffect(() => {
+    const load = async () => {
+      setLoadingSequences(true);
+      try {
+        const data = await listSequences();
+        if (Array.isArray(data)) {
+          setSequences(data);
+        } else {
+          setSequences([]);
+        }
+      } catch (err: any) {
+        setSequences([]);
+      } finally {
+        setLoadingSequences(false);
+      }
+    };
+    void load();
+  }, []);
+
+  useEffect(() => {
     if (!selectedActionId && connectActions.length > 0) {
       setSelectedActionId(connectActions[0].id);
     }
@@ -121,6 +147,12 @@ export const ExecutionPage: React.FC = () => {
       setSelectedCommandId(commands[0].id);
     }
   }, [commands, selectedCommandId]);
+
+  useEffect(() => {
+    if (!selectedSequenceId && sequences.length > 0) {
+      setSelectedSequenceId(sequences[0].id);
+    }
+  }, [sequences, selectedSequenceId]);
 
   const findCommandCacheMeta = (commandId?: string) => {
     if (!commandId) return undefined;
@@ -202,18 +234,21 @@ export const ExecutionPage: React.FC = () => {
     let resolvedSessionId = manualSessionId.trim();
     const meta = findCommandCacheMeta(selectedCommandId);
     if (!resolvedSessionId) {
-      if (!meta) {
+      if (meta) {
+        const runningSession = runningSessions.find((s) => s.gameId === meta.gameId && s.emulatorId === meta.adbSerial && `${s.status}`.toLowerCase() === 'running');
+        if (!runningSession) {
+          setExecuting(false);
+          setCommandError(`No running session found for ${meta.gameId}/${meta.adbSerial}. Start a session first or enter a sessionId.`);
+          return;
+        }
+        resolvedSessionId = runningSession.sessionId;
+      } else if (cachedSession) {
+        resolvedSessionId = cachedSession.sessionId;
+      } else {
         setExecuting(false);
-        setCommandError('No connect-to-game step found for this command. Enter a sessionId or update the command to include one.');
+        setCommandError('No running session available. Start a session first or enter a sessionId.');
         return;
       }
-      const runningSession = runningSessions.find((s) => s.gameId === meta.gameId && s.emulatorId === meta.adbSerial && `${s.status}`.toLowerCase() === 'running');
-      if (!runningSession) {
-        setExecuting(false);
-        setCommandError(`No running session found for ${meta.gameId}/${meta.adbSerial}. Start a session first or enter a sessionId.`);
-        return;
-      }
-      resolvedSessionId = runningSession.sessionId;
     }
 
     try {
@@ -231,6 +266,30 @@ export const ExecutionPage: React.FC = () => {
       }
     } finally {
       setExecuting(false);
+    }
+  };
+
+  const handleExecuteSequence = async () => {
+    if (!selectedSequenceId) {
+      setSequenceError('Select a sequence to execute.');
+      return;
+    }
+
+    setExecutingSequence(true);
+    setSequenceMessage(undefined);
+    setSequenceError(undefined);
+
+    try {
+      await executeSequence(selectedSequenceId);
+      setSequenceMessage('Sequence executed successfully.');
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setSequenceError(err.message);
+      } else {
+        setSequenceError(err?.message ?? 'Failed to execute sequence');
+      }
+    } finally {
+      setExecutingSequence(false);
     }
   };
 
@@ -256,6 +315,8 @@ export const ExecutionPage: React.FC = () => {
       {message && <div className="form-hint" role="status">{message}</div>}
       {commandError && <div className="form-error" role="alert">{commandError}</div>}
       {commandMessage && <div className="form-hint" role="status">{commandMessage}</div>}
+      {sequenceError && <div className="form-error" role="alert">{sequenceError}</div>}
+      {sequenceMessage && <div className="form-hint" role="status">{sequenceMessage}</div>}
 
       {cachedSession && (
         <div className="session-banner" role="status">
@@ -378,6 +439,32 @@ export const ExecutionPage: React.FC = () => {
 
         <div className="form-actions">
           <button type="button" onClick={handleExecuteCommand} disabled={executing || loadingCommands || commands.length === 0}>Execute command</button>
+        </div>
+      </section>
+
+      <section aria-label="Execute sequence">
+        <h2>Execute a sequence</h2>
+        <p>Run a sequence directly. The sequence runner will execute all steps in order.</p>
+
+        <div className="field">
+          <label htmlFor="sequence-select">Sequence</label>
+          <select
+            id="sequence-select"
+            aria-label="Sequence"
+            value={selectedSequenceId ?? ''}
+            onChange={(e) => { setSelectedSequenceId(e.target.value); setSequenceMessage(undefined); setSequenceError(undefined); }}
+            disabled={loadingSequences || executingSequence || sequences.length === 0}
+          >
+            {sequences.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          {loadingSequences && <div className="form-hint">Loading sequences...</div>}
+          {!loadingSequences && sequences.length === 0 && <div className="form-hint">No sequences available.</div>}
+        </div>
+
+        <div className="form-actions">
+          <button type="button" onClick={handleExecuteSequence} disabled={executingSequence || loadingSequences || sequences.length === 0}>Execute sequence</button>
         </div>
       </section>
     </div>
