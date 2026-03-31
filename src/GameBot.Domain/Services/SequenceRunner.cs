@@ -866,11 +866,20 @@ namespace GameBot.Domain.Services
 
                 if (step.StepType == SequenceStepType.Break)
                 {
+                    var brkKey = string.IsNullOrWhiteSpace(step.StepId) ? "break" : step.StepId;
+
                     if (step.BreakCondition is null)
                     {
                         // Unconditional break
+                        result.AddStep(brkKey, 0, "Succeeded",
+                            conditionType: "unconditional",
+                            conditionResult: "true",
+                            actionOutcome: "break",
+                            message: "Unconditional break triggered");
                         return (false, true, stepsExecuted);
                     }
+
+                    var condDesc = DescribeBreakCondition(step.BreakCondition);
 
                     // Conditional break
                     bool breakCond;
@@ -881,13 +890,30 @@ namespace GameBot.Domain.Services
                     }
                     catch
                     {
-                        var brkKey = string.IsNullOrWhiteSpace(step.StepId) ? "break" : step.StepId;
-                        result.AddStep(brkKey, 0, "Failed", message: $"Break step '{brkKey}' condition evaluation failed.");
+                        result.AddStep(brkKey, 0, "Failed",
+                            conditionType: condDesc.Type,
+                            conditionResult: "error",
+                            actionOutcome: "failed",
+                            message: $"Break step '{brkKey}' condition evaluation failed ({condDesc.Detail}).");
                         result.Fail($"Break step '{brkKey}' condition evaluation failed.");
                         return (true, false, stepsExecuted);
                     }
 
-                    if (breakCond) return (false, true, stepsExecuted);
+                    if (breakCond)
+                    {
+                        result.AddStep(brkKey, 0, "Succeeded",
+                            conditionType: condDesc.Type,
+                            conditionResult: "true",
+                            actionOutcome: "break",
+                            message: $"Break triggered: {condDesc.Detail} evaluated to true");
+                        return (false, true, stepsExecuted);
+                    }
+
+                    result.AddStep(brkKey, 0, "Skipped",
+                        conditionType: condDesc.Type,
+                        conditionResult: "false",
+                        actionOutcome: "continue",
+                        message: $"Break skipped: {condDesc.Detail} evaluated to false");
                     continue; // condition false → keep executing body
                 }
 
@@ -947,6 +973,16 @@ namespace GameBot.Domain.Services
             }
 
             return condition.Negate ? !result : result;
+        }
+
+        private static (string Type, string Detail) DescribeBreakCondition(SequenceStepCondition condition)
+        {
+            var negatePrefix = condition.Negate ? "NOT " : "";
+            if (condition is ImageVisibleStepCondition img)
+                return ("imageVisible", $"{negatePrefix}imageVisible(imageId={img.ImageId}, minSimilarity={img.MinSimilarity?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "default"})");
+            if (condition is CommandOutcomeStepCondition co)
+                return ("commandOutcome", $"{negatePrefix}commandOutcome(stepRef={co.StepRef}, expected={co.ExpectedState})");
+            return (condition.GetType().Name, $"{negatePrefix}{condition.GetType().Name}");
         }
 
         /// <summary>
