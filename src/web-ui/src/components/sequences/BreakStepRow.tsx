@@ -67,17 +67,33 @@ export const BreakStepRow: React.FC<BreakStepRowProps> = ({ breakCondition, onCh
             </select>
           </div>
           {breakCondition.type === 'imageVisible' && (
-            <div className="break-step-row__field">
-              <label>Image ID</label>
-              <input
-                type="text"
-                data-testid="break-image-id"
-                value={breakCondition.imageId}
-                disabled={disabled}
-                placeholder="Enter image ID"
-                onChange={(e) => onChange({ ...breakCondition, imageId: e.target.value })}
-              />
-            </div>
+            <>
+              <div className="break-step-row__field">
+                <label>Image ID</label>
+                <input
+                  type="text"
+                  data-testid="break-image-id"
+                  value={breakCondition.imageId}
+                  disabled={disabled}
+                  placeholder="Enter image ID"
+                  onChange={(e) => onChange({ ...breakCondition, imageId: e.target.value })}
+                />
+              </div>
+              <div className="break-step-row__field">
+                <label>Min Similarity</label>
+                <input
+                  type="text"
+                  data-testid="break-min-similarity"
+                  value={breakCondition.minSimilarity ?? ''}
+                  disabled={disabled}
+                  placeholder="default: 0.85"
+                  onChange={(e) => {
+                    const raw = e.target.value.trim();
+                    onChange({ ...breakCondition, minSimilarity: raw === '' ? null : Number(raw) });
+                  }}
+                />
+              </div>
+            </>
           )}
           {breakCondition.type === 'commandOutcome' && (
             <>

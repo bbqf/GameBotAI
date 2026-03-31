@@ -73,13 +73,27 @@ export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
           </select>
 
           {condition?.type === 'imageVisible' && (
-            <input
-              data-testid="loop-condition-imageId"
-              placeholder="Image ID"
-              value={condition.imageId}
-              disabled={disabled}
-              onChange={(e) => onConditionChange?.({ ...condition, imageId: e.target.value })}
-            />
+            <>
+              <input
+                data-testid="loop-condition-imageId"
+                placeholder="Image ID"
+                value={condition.imageId}
+                disabled={disabled}
+                onChange={(e) => onConditionChange?.({ ...condition, imageId: e.target.value })}
+              />
+              <input
+                type="text"
+                data-testid="loop-condition-minSimilarity"
+                placeholder="default: 0.85"
+                value={condition.minSimilarity ?? ''}
+                disabled={disabled}
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  onConditionChange?.({ ...condition, minSimilarity: raw === '' ? null : Number(raw) });
+                }}
+                style={{ width: '90px' }}
+              />
+            </>
           )}
           {condition?.type === 'commandOutcome' && (
             <>
