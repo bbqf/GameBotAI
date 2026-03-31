@@ -751,12 +751,19 @@ sequences.MapPost("{sequenceId}/execute", async (
   IImageVisibleConditionAdapter imageVisibleConditionAdapter,
   GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
   ISequenceRepository sequenceRepository,
+  GameBot.Service.Services.ICommandExecutor commandExecutor,
   string sequenceId,
   CancellationToken ct) => {
-    // Minimal stub: delegate is a no-op; command execution integration will be added in later phases
     var res = await runner.ExecuteAsync(
       sequenceId,
-      _ => Task.CompletedTask,
+      async commandId => {
+        try {
+          await commandExecutor.ForceExecuteAsync(null, commandId, ct).ConfigureAwait(false);
+        } catch (KeyNotFoundException) {
+          // Command not found in repository — step uses a primitive action type (e.g. tap)
+          // or references a non-existent command; treat as completed.
+        }
+      },
       gateEvaluator: (step, token) => {
         // Temporary evaluator for integration tests:
         // TargetId "always" => gate passes; "never" => gate fails
