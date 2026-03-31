@@ -1065,12 +1065,14 @@ static object? MapPerStepConditionToDto(SequenceStepCondition? condition) {
     ImageVisibleStepCondition imageVisible => new {
       type = "imageVisible",
       imageId = imageVisible.ImageId,
-      minSimilarity = imageVisible.MinSimilarity
+      minSimilarity = imageVisible.MinSimilarity,
+      negate = imageVisible.Negate
     },
     CommandOutcomeStepCondition commandOutcome => new {
       type = "commandOutcome",
       stepRef = commandOutcome.StepRef,
-      expectedState = commandOutcome.ExpectedState
+      expectedState = commandOutcome.ExpectedState,
+      negate = commandOutcome.Negate
     },
     _ => null
   };
@@ -1454,11 +1456,13 @@ static SequenceStepCondition? MapPerStepCondition(SequenceStepConditionContract?
   return condition switch {
     ImageVisibleConditionContract imageVisible => new ImageVisibleStepCondition {
       ImageId = imageVisible.ImageId,
-      MinSimilarity = imageVisible.MinSimilarity
+      MinSimilarity = imageVisible.MinSimilarity,
+      Negate = imageVisible.Negate
     },
     CommandOutcomeConditionContract commandOutcome => new CommandOutcomeStepCondition {
       StepRef = commandOutcome.StepRef,
-      ExpectedState = commandOutcome.ExpectedState
+      ExpectedState = commandOutcome.ExpectedState,
+      Negate = commandOutcome.Negate
     },
     _ => null
   };

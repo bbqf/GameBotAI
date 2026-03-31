@@ -79,12 +79,14 @@ export type ImageVisibleStepCondition = {
   type: 'imageVisible';
   imageId: string;
   minSimilarity?: number | null;
+  negate?: boolean;
 };
 
 export type CommandOutcomeStepCondition = {
   type: 'commandOutcome';
   stepRef: string;
   expectedState: 'success' | 'failed' | 'skipped';
+  negate?: boolean;
 };
 
 export type SequenceStepCondition = ImageVisibleStepCondition | CommandOutcomeStepCondition;

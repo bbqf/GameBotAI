@@ -33,7 +33,9 @@ internal sealed record SequenceActionContract {
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ImageVisibleConditionContract), typeDiscriminator: "imageVisible")]
 [JsonDerivedType(typeof(CommandOutcomeConditionContract), typeDiscriminator: "commandOutcome")]
-internal abstract record SequenceStepConditionContract;
+internal abstract record SequenceStepConditionContract {
+  public bool Negate { get; init; }
+}
 
 internal sealed record ImageVisibleConditionContract : SequenceStepConditionContract {
   public required string ImageId { get; init; }

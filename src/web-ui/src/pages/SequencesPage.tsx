@@ -21,6 +21,7 @@ type SequenceStep = {
   stepType: 'Action' | 'Loop' | 'Break';
   commandId: string;
   conditionType: 'none' | 'imageVisible' | 'commandOutcome';
+  conditionNegate: boolean;
   imageId: string;
   minSimilarity: string;
   outcomeStepRef: string;
@@ -43,6 +44,7 @@ const createDefaultStep = (commandId: string, stepId: string): SequenceStep => (
   stepType: 'Action',
   commandId,
   conditionType: 'none',
+  conditionNegate: false,
   imageId: '',
   minSimilarity: '',
   outcomeStepRef: '',
@@ -85,6 +87,7 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
       commandId: cmdId,
       conditionType: child.condition?.type === 'imageVisible' ? 'imageVisible'
         : child.condition?.type === 'commandOutcome' ? 'commandOutcome' : 'none',
+      conditionNegate: child.condition?.negate ?? false,
       imageId: child.condition?.type === 'imageVisible' ? child.condition.imageId : '',
       minSimilarity: child.condition?.type === 'imageVisible' && child.condition.minSimilarity != null ? String(child.condition.minSimilarity) : '',
       outcomeStepRef: child.condition?.type === 'commandOutcome' ? child.condition.stepRef : '',
@@ -117,6 +120,7 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         stepType: 'Loop' as const,
         commandId: '',
         conditionType: 'none' as const,
+        conditionNegate: false,
         imageId: '',
         minSimilarity: '',
         outcomeStepRef: '',
@@ -132,6 +136,7 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         stepType: 'Break' as const,
         commandId: '',
         conditionType: 'none' as const,
+        conditionNegate: false,
         imageId: '',
         minSimilarity: '',
         outcomeStepRef: '',
@@ -150,6 +155,7 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         stepType: 'Action' as const,
         commandId,
         conditionType: 'imageVisible',
+        conditionNegate: step.condition.negate ?? false,
         imageId: step.condition.imageId,
         minSimilarity: step.condition.minSimilarity == null ? '' : String(step.condition.minSimilarity),
         outcomeStepRef: '',
@@ -164,6 +170,7 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         stepType: 'Action' as const,
         commandId,
         conditionType: 'commandOutcome',
+        conditionNegate: step.condition.negate ?? false,
         imageId: '',
         minSimilarity: '',
         outcomeStepRef: step.condition.stepRef,
@@ -183,14 +190,16 @@ const buildConditionPayload = (step: SequenceStep) => {
     return {
       type: 'imageVisible' as const,
       imageId: step.imageId.trim(),
-      minSimilarity: step.minSimilarity.trim() === '' ? null : Number(step.minSimilarity)
+      minSimilarity: step.minSimilarity.trim() === '' ? null : Number(step.minSimilarity),
+      negate: step.conditionNegate || undefined
     };
   }
   if (step.conditionType === 'commandOutcome') {
     return {
       type: 'commandOutcome' as const,
       stepRef: step.outcomeStepRef.trim(),
-      expectedState: step.expectedState
+      expectedState: step.expectedState,
+      negate: step.conditionNegate || undefined
     };
   }
   return null;
@@ -219,11 +228,11 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
     };
   }
   // Action body step
-  const a = entry as { stepId: string; commandId: string; conditionType: string; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
+  const a = entry as { stepId: string; commandId: string; conditionType: string; conditionNegate: boolean; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
   const cond = a.conditionType === 'imageVisible'
-    ? { type: 'imageVisible' as const, imageId: a.imageId.trim(), minSimilarity: a.minSimilarity.trim() === '' ? null : Number(a.minSimilarity) }
+    ? { type: 'imageVisible' as const, imageId: a.imageId.trim(), minSimilarity: a.minSimilarity.trim() === '' ? null : Number(a.minSimilarity), negate: a.conditionNegate || undefined }
     : a.conditionType === 'commandOutcome'
-      ? { type: 'commandOutcome' as const, stepRef: a.outcomeStepRef.trim(), expectedState: a.expectedState }
+      ? { type: 'commandOutcome' as const, stepRef: a.outcomeStepRef.trim(), expectedState: a.expectedState, negate: a.conditionNegate || undefined }
       : null;
   return {
     stepId: entry.stepId.trim(),
@@ -393,6 +402,27 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         </select>
       </div>
 
+      {step.conditionType !== 'none' && (
+        <div className="sequence-step-condition-field sequence-step-condition-field--negate">
+          <label>
+            <input
+              type="checkbox"
+              data-testid={`step-condition-negate-${step.id}`}
+              checked={step.conditionNegate}
+              onChange={(e) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, conditionNegate: e.target.checked } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            />
+            NOT
+          </label>
+        </div>
+      )}
+
       {step.conditionType === 'imageVisible' && (
         <>
           <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
@@ -496,6 +526,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       stepType: 'Loop',
       commandId: '',
       conditionType: 'none',
+      conditionNegate: false,
       imageId: '',
       minSimilarity: '',
       outcomeStepRef: '',

@@ -43,6 +43,18 @@ export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
         </label>
       ) : (
         <div className="loop-block-header__condition-fields">
+          <label className="loop-block-header__negate-toggle">
+            <input
+              type="checkbox"
+              data-testid="loop-condition-negate"
+              checked={condition?.negate ?? false}
+              disabled={disabled}
+              onChange={(e) => {
+                if (condition) onConditionChange?.({ ...condition, negate: e.target.checked });
+              }}
+            />
+            NOT
+          </label>
           <select
             data-testid="loop-condition-type"
             value={condition?.type ?? 'imageVisible'}

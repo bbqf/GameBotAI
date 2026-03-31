@@ -36,24 +36,74 @@ export const BreakStepRow: React.FC<BreakStepRowProps> = ({ breakCondition, onCh
       {!isUnconditional && (
         <div className="break-step-row__condition" data-testid="break-condition-editor">
           <div className="break-step-row__field">
+            <label>
+              <input
+                type="checkbox"
+                data-testid="break-negate-toggle"
+                checked={breakCondition.negate ?? false}
+                disabled={disabled}
+                onChange={(e) => onChange({ ...breakCondition, negate: e.target.checked })}
+              />
+              NOT
+            </label>
+          </div>
+          <div className="break-step-row__field">
             <label>Condition Type</label>
-            <span>{breakCondition.type}</span>
+            <select
+              data-testid="break-condition-type"
+              value={breakCondition.type}
+              disabled={disabled}
+              onChange={(e) => {
+                const newType = e.target.value;
+                if (newType === 'imageVisible') {
+                  onChange({ type: 'imageVisible', imageId: '', minSimilarity: null });
+                } else {
+                  onChange({ type: 'commandOutcome', stepRef: '', expectedState: 'success' });
+                }
+              }}
+            >
+              <option value="imageVisible">Image Visible</option>
+              <option value="commandOutcome">Command Outcome</option>
+            </select>
           </div>
           {breakCondition.type === 'imageVisible' && (
             <div className="break-step-row__field">
               <label>Image ID</label>
-              <span>{breakCondition.imageId}</span>
+              <input
+                type="text"
+                data-testid="break-image-id"
+                value={breakCondition.imageId}
+                disabled={disabled}
+                placeholder="Enter image ID"
+                onChange={(e) => onChange({ ...breakCondition, imageId: e.target.value })}
+              />
             </div>
           )}
           {breakCondition.type === 'commandOutcome' && (
             <>
               <div className="break-step-row__field">
                 <label>Step Ref</label>
-                <span>{breakCondition.stepRef}</span>
+                <input
+                  type="text"
+                  data-testid="break-step-ref"
+                  value={breakCondition.stepRef}
+                  disabled={disabled}
+                  placeholder="Enter step reference"
+                  onChange={(e) => onChange({ ...breakCondition, stepRef: e.target.value })}
+                />
               </div>
               <div className="break-step-row__field">
                 <label>Expected State</label>
-                <span>{breakCondition.expectedState}</span>
+                <select
+                  data-testid="break-expected-state"
+                  value={breakCondition.expectedState}
+                  disabled={disabled}
+                  onChange={(e) => onChange({ ...breakCondition, expectedState: e.target.value as 'success' | 'failed' | 'skipped' })}
+                >
+                  <option value="success">success</option>
+                  <option value="failed">failed</option>
+                  <option value="skipped">skipped</option>
+                </select>
               </div>
             </>
           )}

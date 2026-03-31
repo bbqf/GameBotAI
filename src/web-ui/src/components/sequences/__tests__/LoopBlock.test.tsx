@@ -155,18 +155,69 @@ describe('BreakStepRow', () => {
   });
 
   it('renders commandOutcome condition fields when condition is commandOutcome', () => {
+    const onChange = jest.fn();
     render(
       <BreakStepRow
         breakCondition={{ type: 'commandOutcome', stepRef: 'step-2', expectedState: 'failed' }}
-        onChange={() => {}}
+        onChange={onChange}
         onRemove={() => {}}
       />
     );
     expect(screen.getByTestId('break-condition-editor')).toBeInTheDocument();
-    expect(screen.getByText('Step Ref')).toBeInTheDocument();
-    expect(screen.getByText('step-2')).toBeInTheDocument();
-    expect(screen.getByText('Expected State')).toBeInTheDocument();
-    expect(screen.getByText('failed')).toBeInTheDocument();
+    expect(screen.getByTestId('break-step-ref')).toHaveValue('step-2');
+    expect(screen.getByTestId('break-expected-state')).toHaveValue('failed');
+  });
+
+  it('changing condition type to imageVisible resets fields', () => {
+    const onChange = jest.fn();
+    render(
+      <BreakStepRow
+        breakCondition={{ type: 'commandOutcome', stepRef: 'step-2', expectedState: 'failed' }}
+        onChange={onChange}
+        onRemove={() => {}}
+      />
+    );
+    fireEvent.change(screen.getByTestId('break-condition-type'), { target: { value: 'imageVisible' } });
+    expect(onChange).toHaveBeenCalledWith({ type: 'imageVisible', imageId: '', minSimilarity: null });
+  });
+
+  it('editing imageId fires onChange', () => {
+    const onChange = jest.fn();
+    render(
+      <BreakStepRow
+        breakCondition={{ type: 'imageVisible', imageId: '', minSimilarity: null }}
+        onChange={onChange}
+        onRemove={() => {}}
+      />
+    );
+    fireEvent.change(screen.getByTestId('break-image-id'), { target: { value: 'img-abc' } });
+    expect(onChange).toHaveBeenCalledWith({ type: 'imageVisible', imageId: 'img-abc', minSimilarity: null });
+  });
+
+  it('editing step ref fires onChange', () => {
+    const onChange = jest.fn();
+    render(
+      <BreakStepRow
+        breakCondition={{ type: 'commandOutcome', stepRef: '', expectedState: 'success' }}
+        onChange={onChange}
+        onRemove={() => {}}
+      />
+    );
+    fireEvent.change(screen.getByTestId('break-step-ref'), { target: { value: 'step-5' } });
+    expect(onChange).toHaveBeenCalledWith({ type: 'commandOutcome', stepRef: 'step-5', expectedState: 'success' });
+  });
+
+  it('changing expected state fires onChange', () => {
+    const onChange = jest.fn();
+    render(
+      <BreakStepRow
+        breakCondition={{ type: 'commandOutcome', stepRef: 'step-1', expectedState: 'success' }}
+        onChange={onChange}
+        onRemove={() => {}}
+      />
+    );
+    fireEvent.change(screen.getByTestId('break-expected-state'), { target: { value: 'skipped' } });
+    expect(onChange).toHaveBeenCalledWith({ type: 'commandOutcome', stepRef: 'step-1', expectedState: 'skipped' });
   });
 });
 

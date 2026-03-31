@@ -474,6 +474,8 @@ namespace GameBot.Domain.Services
                     return true;
                 }
 
+                conditionResult = imageCondition.Negate ? !conditionResult : conditionResult;
+
                 if (!conditionResult)
                 {
                     result.AddStep(
@@ -506,7 +508,10 @@ namespace GameBot.Domain.Services
                     return true;
                 }
 
-                if (!string.Equals(actualOutcome, commandOutcomeCondition.ExpectedState, StringComparison.OrdinalIgnoreCase))
+                var outcomeMatches = string.Equals(actualOutcome, commandOutcomeCondition.ExpectedState, StringComparison.OrdinalIgnoreCase);
+                outcomeMatches = commandOutcomeCondition.Negate ? !outcomeMatches : outcomeMatches;
+
+                if (!outcomeMatches)
                 {
                     result.AddStep(
                         step.CommandId,
@@ -916,11 +921,13 @@ namespace GameBot.Domain.Services
             Dictionary<string, string> stepOutcomes,
             CancellationToken ct)
         {
+            bool result;
+
             if (condition is ImageVisibleStepCondition imgCond)
             {
                 if (conditionEvaluator is null)
                     throw new InvalidOperationException("Image-visible condition evaluator is unavailable.");
-                return await conditionEvaluator(new Condition
+                result = await conditionEvaluator(new Condition
                 {
                     Source = "image",
                     TargetId = imgCond.ImageId,
@@ -928,15 +935,18 @@ namespace GameBot.Domain.Services
                     ConfidenceThreshold = imgCond.MinSimilarity
                 }, ct).ConfigureAwait(false);
             }
-
-            if (condition is CommandOutcomeStepCondition coCond)
+            else if (condition is CommandOutcomeStepCondition coCond)
             {
                 if (!stepOutcomes.TryGetValue(coCond.StepRef, out var actual))
                     throw new InvalidOperationException($"commandOutcome reference '{coCond.StepRef}' is not available.");
-                return string.Equals(actual, coCond.ExpectedState, StringComparison.OrdinalIgnoreCase);
+                result = string.Equals(actual, coCond.ExpectedState, StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unsupported loop condition type '{condition.GetType().Name}'.");
             }
 
-            throw new InvalidOperationException($"Unsupported loop condition type '{condition.GetType().Name}'.");
+            return condition.Negate ? !result : result;
         }
 
         /// <summary>
