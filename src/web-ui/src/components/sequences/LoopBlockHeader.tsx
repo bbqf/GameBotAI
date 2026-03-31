@@ -83,13 +83,21 @@ export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
               />
               <input
                 type="text"
+                inputMode="decimal"
                 data-testid="loop-condition-minSimilarity"
-                placeholder="default: 0.85"
+                placeholder="0–1 (default: 0.85)"
                 value={condition.minSimilarity ?? ''}
                 disabled={disabled}
                 onChange={(e) => {
-                  const raw = e.target.value.trim();
-                  onConditionChange?.({ ...condition, minSimilarity: raw === '' ? null : Number(raw) });
+                  const raw = e.target.value;
+                  if (raw === '' || raw === '.' || raw === '0.') {
+                    onConditionChange?.({ ...condition, minSimilarity: raw === '' ? null : condition.minSimilarity });
+                    return;
+                  }
+                  const num = Number(raw);
+                  if (!isNaN(num) && num >= 0 && num <= 1) {
+                    onConditionChange?.({ ...condition, minSimilarity: num });
+                  }
                 }}
                 style={{ width: '90px' }}
               />

@@ -83,13 +83,21 @@ export const BreakStepRow: React.FC<BreakStepRowProps> = ({ breakCondition, onCh
                 <label>Min Similarity</label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   data-testid="break-min-similarity"
                   value={breakCondition.minSimilarity ?? ''}
                   disabled={disabled}
-                  placeholder="default: 0.85"
+                  placeholder="0–1 (default: 0.85)"
                   onChange={(e) => {
-                    const raw = e.target.value.trim();
-                    onChange({ ...breakCondition, minSimilarity: raw === '' ? null : Number(raw) });
+                    const raw = e.target.value;
+                    if (raw === '' || raw === '.' || raw === '0.') {
+                      onChange({ ...breakCondition, minSimilarity: raw === '' ? null : breakCondition.minSimilarity });
+                      return;
+                    }
+                    const num = Number(raw);
+                    if (!isNaN(num) && num >= 0 && num <= 1) {
+                      onChange({ ...breakCondition, minSimilarity: num });
+                    }
                   }}
                 />
               </div>

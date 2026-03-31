@@ -445,13 +445,27 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             <label htmlFor={`step-min-similarity-${step.id}`}>Min Similarity</label>
             <input
               id={`step-min-similarity-${step.id}`}
+              inputMode="decimal"
+              placeholder="0–1 (default: 0.85)"
               value={step.minSimilarity}
               onChange={(event) => {
-                setForm((prev) => ({
-                  ...prev,
-                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: event.target.value } : candidate)
-                }));
-                setDirty(true);
+                const raw = event.target.value;
+                if (raw === '' || raw === '.' || raw === '0.') {
+                  setForm((prev) => ({
+                    ...prev,
+                    steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: raw } : candidate)
+                  }));
+                  setDirty(true);
+                  return;
+                }
+                const num = Number(raw);
+                if (!isNaN(num) && num >= 0 && num <= 1) {
+                  setForm((prev) => ({
+                    ...prev,
+                    steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: raw } : candidate)
+                  }));
+                  setDirty(true);
+                }
               }}
               disabled={submitting || loading}
             />
