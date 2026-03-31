@@ -1,5 +1,6 @@
 import React from 'react';
 import type { SequenceStepCondition } from '../../types/sequenceFlow';
+import { SimilarityInput } from './SimilarityInput';
 
 export type LoopBlockHeaderProps = {
   loopType: 'count' | 'while' | 'repeatUntil';
@@ -81,24 +82,11 @@ export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
                 disabled={disabled}
                 onChange={(e) => onConditionChange?.({ ...condition, imageId: e.target.value })}
               />
-              <input
-                type="text"
-                inputMode="decimal"
+              <SimilarityInput
                 data-testid="loop-condition-minSimilarity"
-                placeholder="0–1 (default: 0.85)"
-                value={condition.minSimilarity ?? ''}
+                value={condition.minSimilarity}
                 disabled={disabled}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === '' || raw === '.' || raw === '0.') {
-                    onConditionChange?.({ ...condition, minSimilarity: raw === '' ? null : condition.minSimilarity });
-                    return;
-                  }
-                  const num = Number(raw);
-                  if (!isNaN(num) && num >= 0 && num <= 1) {
-                    onConditionChange?.({ ...condition, minSimilarity: num });
-                  }
-                }}
+                onChange={(v) => onConditionChange?.({ ...condition, minSimilarity: v })}
                 style={{ width: '90px' }}
               />
             </>

@@ -450,12 +450,24 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               value={step.minSimilarity}
               onChange={(event) => {
                 const raw = event.target.value;
-                if (raw === '' || raw === '.' || raw === '0.') {
+                if (raw === '') {
                   setForm((prev) => ({
                     ...prev,
-                    steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: raw } : candidate)
+                    steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: '' } : candidate)
                   }));
                   setDirty(true);
+                  return;
+                }
+                // Allow any partial decimal that could become a valid 0-1 number
+                if (/^[01]?\.\d*$|^\.\d*$/.test(raw)) {
+                  const parsed = Number(raw);
+                  if (isNaN(parsed) || parsed <= 1) {
+                    setForm((prev) => ({
+                      ...prev,
+                      steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: raw } : candidate)
+                    }));
+                    setDirty(true);
+                  }
                   return;
                 }
                 const num = Number(raw);

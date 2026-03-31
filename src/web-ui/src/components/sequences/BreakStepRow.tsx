@@ -1,5 +1,6 @@
 import React from 'react';
 import type { SequenceStepCondition } from '../../types/sequenceFlow';
+import { SimilarityInput } from './SimilarityInput';
 
 export type BreakStepRowProps = {
   breakCondition?: SequenceStepCondition;
@@ -81,24 +82,11 @@ export const BreakStepRow: React.FC<BreakStepRowProps> = ({ breakCondition, onCh
               </div>
               <div className="break-step-row__field">
                 <label>Min Similarity</label>
-                <input
-                  type="text"
-                  inputMode="decimal"
+                <SimilarityInput
                   data-testid="break-min-similarity"
-                  value={breakCondition.minSimilarity ?? ''}
+                  value={breakCondition.minSimilarity}
                   disabled={disabled}
-                  placeholder="0–1 (default: 0.85)"
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === '' || raw === '.' || raw === '0.') {
-                      onChange({ ...breakCondition, minSimilarity: raw === '' ? null : breakCondition.minSimilarity });
-                      return;
-                    }
-                    const num = Number(raw);
-                    if (!isNaN(num) && num >= 0 && num <= 1) {
-                      onChange({ ...breakCondition, minSimilarity: num });
-                    }
-                  }}
+                  onChange={(v) => onChange({ ...breakCondition, minSimilarity: v })}
                 />
               </div>
             </>
