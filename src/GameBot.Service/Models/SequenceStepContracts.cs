@@ -4,6 +4,10 @@ using System.Text.Json.Serialization;
 
 namespace GameBot.Service.Models;
 
+internal sealed record SequenceExecuteRequest {
+  public string? SessionId { get; init; }
+}
+
 internal sealed record SequenceUpsertContract {
   public required string Name { get; init; }
   public int Version { get; init; }

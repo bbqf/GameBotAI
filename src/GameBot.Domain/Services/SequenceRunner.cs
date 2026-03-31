@@ -560,8 +560,9 @@ namespace GameBot.Domain.Services
             {
                 await executeCommandAsync(step.CommandId).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
+                var reason = !string.IsNullOrWhiteSpace(ex.Message) ? ex.Message : $"step '{stepKey}' command execution failed";
                 result.AddStep(
                     step.CommandId,
                     appliedDelay,
@@ -569,8 +570,8 @@ namespace GameBot.Domain.Services
                     conditionType: step.Condition is null ? null : step.Condition.Type,
                     conditionResult: step.Condition is null ? null : "true",
                     actionOutcome: "failed",
-                    message: $"step '{stepKey}' command execution failed");
-                result.Fail($"step '{stepKey}' command execution failed");
+                    message: reason);
+                result.Fail(reason);
                 if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
                 return true;
             }

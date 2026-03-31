@@ -753,12 +753,26 @@ sequences.MapPost("{sequenceId}/execute", async (
   ISequenceRepository sequenceRepository,
   GameBot.Service.Services.ICommandExecutor commandExecutor,
   string sequenceId,
+  HttpContext httpContext,
   CancellationToken ct) => {
+    // Read optional sessionId from request body
+    string? sessionId = null;
+    try {
+      var body = await httpContext.Request.ReadFromJsonAsync<SequenceExecuteRequest>(ct).ConfigureAwait(false);
+      sessionId = body?.SessionId;
+    } catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
+      // empty body, malformed JSON, or missing content-type — no sessionId override
+    }
+
     var res = await runner.ExecuteAsync(
       sequenceId,
       async commandId => {
         try {
-          await commandExecutor.ForceExecuteAsync(null, commandId, ct).ConfigureAwait(false);
+          await commandExecutor.ForceExecuteAsync(sessionId, commandId, ct).ConfigureAwait(false);
+        } catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
+          throw new InvalidOperationException($"No cached session found for command '{commandId}'. Start a session first.");
+        } catch (InvalidOperationException ex) when (ex.Message == "missing_session_context") {
+          throw new InvalidOperationException($"No session available for command '{commandId}'. Start a session or pass a sessionId.");
         } catch (KeyNotFoundException) {
           // Command not found in repository — step uses a primitive action type (e.g. tap)
           // or references a non-existent command; treat as completed.
@@ -805,16 +819,17 @@ sequences.MapPost("{sequenceId}/execute", async (
     ).ConfigureAwait(false);
     var sequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
     var sequenceName = sequence?.Name ?? sequenceId;
-    var status = string.Equals(res.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+    var status = string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
     var flowStepsByCommandRef = (sequence?.FlowSteps ?? Array.Empty<GameBot.Domain.Commands.FlowStep>())
       .GroupBy(step => string.IsNullOrWhiteSpace(step.PayloadRef) ? step.StepId : step.PayloadRef!, StringComparer.Ordinal)
       .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
+    var commandSteps = res.Steps.Where(s => s.LoopIterations is null).ToList();
     var detailItems = new List<GameBot.Domain.Logging.ExecutionDetailItem> {
       new(
         "sequence",
-        $"Executed commands: {string.Join(",", res.Steps.Select(s => s.CommandId).Take(10))}",
-        new Dictionary<string, object?> { ["executedCount"] = res.Steps.Count },
+        $"Executed commands: {string.Join(",", commandSteps.Select(s => s.CommandId).Take(10))}",
+        new Dictionary<string, object?> { ["executedCount"] = commandSteps.Count },
         "normal")
     };
 
@@ -823,12 +838,38 @@ sequences.MapPost("{sequenceId}/execute", async (
       flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
       var stepId = flowStep?.StepId ?? step.CommandId;
       var stepLabel = flowStep?.Label ?? step.CommandId;
+
+      // Loop summary entries are not command executions — emit a loop-type detail instead.
+      if (step.LoopIterations is not null) {
+        var iterCount = step.LoopIterations.Count;
+        detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
+          "step",
+          $"Loop '{stepLabel}' {step.Status.ToLowerInvariant()} after {iterCount} iteration{(iterCount == 1 ? "" : "s")}.",
+          new Dictionary<string, object?> {
+            ["stepOrder"] = stepOrder++,
+            ["stepType"] = "loop",
+            ["status"] = step.Status,
+            ["actionOutcome"] = step.Status.ToLowerInvariant(),
+            ["iterations"] = iterCount,
+            ["message"] = step.Message,
+            ["sequenceId"] = sequenceId,
+            ["sequenceLabel"] = sequenceName,
+            ["stepId"] = stepId,
+            ["stepLabel"] = stepLabel
+          },
+          "normal"));
+        continue;
+      }
+
       var actionOutcome = string.IsNullOrWhiteSpace(step.ActionOutcome)
         ? (string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase) ? "skipped" : "executed")
         : step.ActionOutcome;
+      var stepDisplayMessage = !string.IsNullOrWhiteSpace(step.Message)
+        ? $"Step '{stepLabel}' {actionOutcome}: {step.Message}"
+        : $"Step '{stepLabel}' {actionOutcome}.";
       detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
         "step",
-        $"Step '{stepLabel}' {actionOutcome}.",
+        stepDisplayMessage,
         new Dictionary<string, object?> {
           ["stepOrder"] = stepOrder++,
           ["stepType"] = "command",
@@ -868,7 +909,7 @@ sequences.MapPost("{sequenceId}/execute", async (
       sequenceId,
       sequenceName,
       status,
-      $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
+      $"Sequence '{sequenceName}' {status} with {commandSteps.Count} step{(commandSteps.Count == 1 ? "" : "s")} executed.",
       new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
         Depth = 0,
         SequenceId = sequenceId,

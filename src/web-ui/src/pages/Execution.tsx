@@ -280,7 +280,7 @@ export const ExecutionPage: React.FC = () => {
     setSequenceError(undefined);
 
     try {
-      await executeSequence(selectedSequenceId);
+      await executeSequence(selectedSequenceId, cachedSession?.sessionId);
       setSequenceMessage('Sequence executed successfully.');
     } catch (err: any) {
       if (err instanceof ApiError) {

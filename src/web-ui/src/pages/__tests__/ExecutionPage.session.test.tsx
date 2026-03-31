@@ -148,7 +148,7 @@ describe('ExecutionPage sequence execution', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Execute sequence' }));
 
-    await waitFor(() => expect(mockExecuteSequence).toHaveBeenCalledWith('seq-1'));
+    await waitFor(() => expect(mockExecuteSequence).toHaveBeenCalledWith('seq-1', undefined));
     expect(await screen.findByText('Sequence executed successfully.')).toBeInTheDocument();
   });
 
