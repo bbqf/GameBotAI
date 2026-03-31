@@ -17,6 +17,17 @@ public sealed record ExecutionHierarchyContext(
   int Depth,
   int? SequenceIndex);
 
+/// <summary>
+/// Captures the outcome of a single iteration within a loop step execution.
+/// </summary>
+public sealed record LoopIterationOutcome(
+  /// <summary>1-based iteration index.</summary>
+  int IterationIndex,
+  /// <summary>Whether a break step terminated this iteration early.</summary>
+  bool BreakTriggered,
+  /// <summary>Outcomes of the individual body steps run during this iteration.</summary>
+  IReadOnlyList<string> StepOutcomes);
+
 public sealed record ExecutionStepOutcome(
   int StepOrder,
   string StepType,
@@ -27,7 +38,13 @@ public sealed record ExecutionStepOutcome(
   string? StepId = null,
   string? SequenceLabel = null,
   string? StepLabel = null,
-  ConditionEvaluationTrace? ConditionTrace = null);
+  ConditionEvaluationTrace? ConditionTrace = null)
+{
+  /// <summary>
+  /// Per-iteration outcomes recorded for loop steps.  <c>null</c> for non-loop steps.
+  /// </summary>
+  public IReadOnlyList<LoopIterationOutcome>? LoopIterations { get; init; }
+}
 
 public sealed record ExecutionDetailItem(
   string Kind,

@@ -6,12 +6,17 @@ namespace GameBot.Domain.Commands
     {
         Command,
         Action,
-        Conditional
+        Conditional,
+        /// <summary>Executes a loop (count, while, or repeat-until) over its <see cref="SequenceStep.Body"/>.</summary>
+        Loop,
+        /// <summary>Exits the enclosing loop immediately, optionally only when a condition is true.</summary>
+        Break
     }
 
     public sealed class SequenceActionPayload
     {
         public string Type { get; set; } = string.Empty;
+        [System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Populate)]
         public Dictionary<string, object?> Parameters { get; } = new();
     }
 
@@ -33,6 +38,16 @@ namespace GameBot.Domain.Commands
         public int? TimeoutMs { get; set; }
         public RetryPolicy? Retry { get; set; }
         public GateConfig? Gate { get; set; }
+
+        // Loop-step properties (StepType == Loop)
+        /// <summary>Loop configuration (count, while, or repeat-until). Required when <see cref="StepType"/> is <see cref="SequenceStepType.Loop"/>.</summary>
+        public LoopConfig? Loop { get; set; }
+        /// <summary>Child steps executed on each loop iteration. Empty list is valid (zero-body loop).</summary>
+        public IReadOnlyList<SequenceStep> Body { get; init; } = Array.Empty<SequenceStep>();
+
+        // Break-step property (StepType == Break)
+        /// <summary>Optional condition for a conditional break. When <c>null</c> the break is unconditional.</summary>
+        public SequenceStepCondition? BreakCondition { get; set; }
     }
 
     public class DelayRangeMs

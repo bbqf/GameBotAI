@@ -172,7 +172,7 @@
 - [ ] T026 [P] Add `loopMaxIterations` key to `data/config/config.json` default template / seeding logic so new installs start with the 1000-iteration default
 - [ ] T027 Run `dotnet build -c Debug` and fix any compilation errors introduced by new types before marking implementation complete; then run `dotnet test --collect:"XPlat Code Coverage" -c Debug` and confirm new-code line coverage ≥80% and branch coverage ≥70% for `SequenceRunner`, `TemplateSubstitutor`, and `SequenceValidator` touched paths (constitution requirement)
 - [ ] T028 [P] Record dispatch-only timing for a 10-iteration count-based loop (no real action I/O) in the PR description and confirm the SequenceRunner loop-dispatch overhead is ≤5 ms/iteration; note result inline as a micro-benchmark comment in `SequenceRunner.cs` (constitution hot-path perf note requirement)
-- [ ] T029 [P] Add changelog entry to `CHANGELOG.md` describing the new loop step types (count-based, while, repeat-until), break step, and `{{iteration}}` placeholder (constitution: user-visible features require changelog entry)
+- [X] T029 [P] Add changelog entry to `CHANGELOG.md` describing the new loop step types (count-based, while, repeat-until), break step, and `{{iteration}}` placeholder (constitution: user-visible features require changelog entry)
 
 ---
 

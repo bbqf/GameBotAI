@@ -128,6 +128,12 @@ builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
 builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
 builder.Services.AddSingleton<IImageDetectionConditionAdapter, ImageDetectionConditionAdapter>();
 builder.Services.AddSingleton<IImageVisibleConditionAdapter, ImageVisibleConditionAdapter>();
+builder.Services.AddSingleton(_ =>
+{
+    var loopMaxEnv = Environment.GetEnvironmentVariable("GAMEBOT_LOOP_MAX_ITERATIONS");
+    var loopMax = int.TryParse(loopMaxEnv, out var parsed) && parsed > 0 ? parsed : 1000;
+    return new GameBot.Domain.Config.AppConfig { LoopMaxIterations = loopMax };
+});
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
 builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
@@ -707,11 +713,20 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
   return Results.Ok(ToSequenceResponse(saved));
 }).WithName("PatchSequence");
 
-sequences.MapPost("{sequenceId}/validate", (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator) => {
+sequences.MapPost("{sequenceId}/validate", async (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator, ISequenceRepository repo, SequenceStepValidationService stepValidationService) => {
   var graph = MapToFlowGraph(sequenceId, request);
-  var result = validator.Validate(graph);
-  if (!result.IsValid) {
-    return Results.BadRequest(new { valid = false, errors = result.Errors });
+  var flowResult = validator.Validate(graph);
+
+  // Also run step-level validation (includes loop rules) on persisted steps
+  var stepErrors = new List<string>();
+  var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+  if (existing is not null) {
+    stepErrors.AddRange(stepValidationService.Validate(existing.Steps));
+  }
+
+  var allErrors = flowResult.Errors.Concat(stepErrors).ToArray();
+  if (allErrors.Length > 0) {
+    return Results.BadRequest(new { valid = false, errors = allErrors });
   }
 
   return Results.Ok(new { valid = true, errors = Array.Empty<string>() });

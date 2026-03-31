@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Command Loop Steps (033-command-loops)
+  - Count-based loops (`count`): execute body steps exactly N times.
+  - While loops (`while`): re-evaluate condition before each iteration; skip body if false on entry.
+  - Repeat-until loops (`repeatUntil`): execute body, then check exit condition; always runs at least once.
+  - Break step (`Break`): unconditional or conditional early exit from a loop body.
+  - `{{iteration}}` placeholder substitution in `CommandId` and action parameters inside loop bodies.
+  - Configurable safety limit (`maxIterations`) per loop step and global `GAMEBOT_LOOP_MAX_ITERATIONS` (default 1000).
+  - Per-iteration execution log entries (`LoopIterationOutcome`) with break detection.
+  - Validation rules: no nested loops, no top-level breaks, no `{{iteration}}` outside loops, commandOutcome back-ref only.
+  - Extended `/api/sequences/{id}/validate` endpoint with step-level loop validation.
+  - UI visualization: `LoopBlockHeader`, `BreakStepRow`, `LoopBlock` components with "Add Loop" (count/while/repeatUntil) affordance in SequencesPage.
+
+### Tests
+- 15 loop validation unit tests, 15 runner loop tests, 9 template substitutor tests, 6 contract round-trip tests, 14 UI component tests.
+
 ## [2026-03-02]
 
 ### Added
