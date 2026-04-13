@@ -57,11 +57,13 @@ describe('SequencesPage', () => {
       steps: [
         {
           stepId: 'step-2',
+          stepType: 'Action',
           action: { type: 'command', parameters: { commandId: 'c2' } },
           condition: null
         },
         {
           stepId: 'step-1',
+          stepType: 'Action',
           action: { type: 'command', parameters: { commandId: 'c1' } },
           condition: null
         }
@@ -109,6 +111,7 @@ describe('SequencesPage', () => {
       steps: [
         {
           stepId: 'step-2',
+          stepType: 'Action',
           action: { type: 'command', parameters: { commandId: 'c2' } },
           condition: null
         }

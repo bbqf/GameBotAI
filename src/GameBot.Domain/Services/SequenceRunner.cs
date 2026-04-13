@@ -7,7 +7,9 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Text.Json;
 using GameBot.Domain.Commands.Blocks;
+using GameBot.Domain.Config;
 using GameBot.Domain.Logging;
+using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Services
 {
@@ -19,10 +21,12 @@ namespace GameBot.Domain.Services
     {
         private readonly ISequenceRepository _repository;
         private readonly ILogger<SequenceRunner>? _logger;
+        private readonly AppConfig _config;
 
         public SequenceRunner(ISequenceRepository repository)
         {
             _repository = repository;
+            _config = new AppConfig();
         }
 
         // Optional logger-friendly constructor when DI provides ILogger
@@ -30,6 +34,14 @@ namespace GameBot.Domain.Services
         {
             _repository = repository;
             _logger = logger;
+            _config = new AppConfig();
+        }
+
+        public SequenceRunner(ISequenceRepository repository, ILogger<SequenceRunner> logger, AppConfig config)
+        {
+            _repository = repository;
+            _logger = logger;
+            _config = config;
         }
 
         public async Task<SequenceExecutionResult> ExecuteAsync(
@@ -404,6 +416,21 @@ namespace GameBot.Domain.Services
         {
             var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : step.CommandId;
 
+            // ── Loop step dispatch ────────────────────────────────────────────
+            if (step.StepType == SequenceStepType.Loop)
+            {
+                return await ExecuteLoopStepAsync(
+                    step,
+                    executeCommandAsync,
+                    gateEvaluator,
+                    conditionEvaluator,
+                    stepOutcomes,
+                    result,
+                    sequenceId,
+                    _config.LoopMaxIterations,
+                    ct).ConfigureAwait(false);
+            }
+
             if (step.Condition is ImageVisibleStepCondition imageCondition)
             {
                 if (conditionEvaluator is null)
@@ -447,6 +474,8 @@ namespace GameBot.Domain.Services
                     return true;
                 }
 
+                conditionResult = imageCondition.Negate ? !conditionResult : conditionResult;
+
                 if (!conditionResult)
                 {
                     result.AddStep(
@@ -479,7 +508,10 @@ namespace GameBot.Domain.Services
                     return true;
                 }
 
-                if (!string.Equals(actualOutcome, commandOutcomeCondition.ExpectedState, StringComparison.OrdinalIgnoreCase))
+                var outcomeMatches = string.Equals(actualOutcome, commandOutcomeCondition.ExpectedState, StringComparison.OrdinalIgnoreCase);
+                outcomeMatches = commandOutcomeCondition.Negate ? !outcomeMatches : outcomeMatches;
+
+                if (!outcomeMatches)
                 {
                     result.AddStep(
                         step.CommandId,
@@ -533,8 +565,9 @@ namespace GameBot.Domain.Services
             {
                 await executeCommandAsync(step.CommandId).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
+                var reason = !string.IsNullOrWhiteSpace(ex.Message) ? ex.Message : $"step '{stepKey}' command execution failed";
                 result.AddStep(
                     step.CommandId,
                     appliedDelay,
@@ -542,8 +575,8 @@ namespace GameBot.Domain.Services
                     conditionType: step.Condition is null ? null : step.Condition.Type,
                     conditionResult: step.Condition is null ? null : "true",
                     actionOutcome: "failed",
-                    message: $"step '{stepKey}' command execution failed");
-                result.Fail($"step '{stepKey}' command execution failed");
+                    message: reason);
+                result.Fail(reason);
                 if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
                 return true;
             }
@@ -578,6 +611,419 @@ namespace GameBot.Domain.Services
                 sequenceId,
                 ct);
         }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // Loop step execution (T011 / T019 / T021 / T023)
+        // ══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Executes a <see cref="SequenceStepType.Loop"/> step.  Returns <c>true</c> when the
+        /// outer sequence should stop early (failure), <c>false</c> otherwise.
+        /// Perf: per-iteration dispatch overhead is dominated by body-step I/O (commands,
+        /// condition evaluations). In-memory loop dispatch cost is negligible (&lt;1 ms/iter).
+        /// </summary>
+        private async Task<bool> ExecuteLoopStepAsync(
+            SequenceStep step,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            Dictionary<string, string> stepOutcomes,
+            SequenceExecutionResult result,
+            string sequenceId,
+            int globalMaxIterations,
+            CancellationToken ct)
+        {
+            var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"loop@{step.Order}";
+            var maxIterations = step.Loop?.MaxIterations ?? globalMaxIterations;
+
+            switch (step.Loop)
+            {
+                case CountLoopConfig countCfg:
+                    return await ExecuteCountLoopAsync(step, stepKey, countCfg,
+                        executeCommandAsync, gateEvaluator, conditionEvaluator,
+                        stepOutcomes, result, sequenceId, ct).ConfigureAwait(false);
+
+                case WhileLoopConfig whileCfg:
+                    return await ExecuteWhileLoopAsync(step, stepKey, whileCfg, maxIterations,
+                        executeCommandAsync, gateEvaluator, conditionEvaluator,
+                        stepOutcomes, result, sequenceId, ct).ConfigureAwait(false);
+
+                case RepeatUntilLoopConfig ruCfg:
+                    return await ExecuteRepeatUntilLoopAsync(step, stepKey, ruCfg, maxIterations,
+                        executeCommandAsync, gateEvaluator, conditionEvaluator,
+                        stepOutcomes, result, sequenceId, ct).ConfigureAwait(false);
+
+                default:
+                    result.AddStep(stepKey, 0, "Failed", message: $"Loop step '{stepKey}' has missing or unknown loop configuration.");
+                    result.Fail($"Loop step '{stepKey}' has missing or unknown loop configuration.");
+                    stepOutcomes[stepKey] = "failed";
+                    return true;
+            }
+        }
+
+        /// <summary>Count-based loop: executes body exactly <see cref="CountLoopConfig.Count"/> times.</summary>
+        private async Task<bool> ExecuteCountLoopAsync(
+            SequenceStep step,
+            string stepKey,
+            CountLoopConfig cfg,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            Dictionary<string, string> stepOutcomes,
+            SequenceExecutionResult result,
+            string sequenceId,
+            CancellationToken ct)
+        {
+            var iterResults = new List<LoopIterResult>();
+
+            for (var i = 0; i < cfg.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var iterCtx = ImmutableIterContext(i + 1);
+                var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
+                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator,
+                    stepOutcomes, result, sequenceId, iterCtx, ct).ConfigureAwait(false);
+
+                iterResults.Add(new LoopIterResult { IterationIndex = i + 1, BreakTriggered = breakTriggered, StepCount = stepCount });
+
+                if (earlyStop)
+                {
+                    result.AddLoopStep(stepKey, "Failed", iterResults);
+                    stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+                if (breakTriggered) break;
+            }
+
+            result.AddLoopStep(stepKey, "Succeeded", iterResults);
+            stepOutcomes[stepKey] = "success";
+            return false;
+        }
+
+        /// <summary>While loop: re-evaluates condition before each iteration.</summary>
+        private async Task<bool> ExecuteWhileLoopAsync(
+            SequenceStep step,
+            string stepKey,
+            WhileLoopConfig cfg,
+            int maxIterations,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            Dictionary<string, string> stepOutcomes,
+            SequenceExecutionResult result,
+            string sequenceId,
+            CancellationToken ct)
+        {
+            var iterResults = new List<LoopIterResult>();
+            var iterations = 0;
+
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                bool condResult;
+                try
+                {
+                    condResult = await EvaluateLoopConditionAsync(
+                        cfg.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' condition evaluation failed.");
+                    result.Fail($"Loop '{stepKey}' condition evaluation failed.");
+                    stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+
+                if (!condResult)
+                {
+                    // condition false on entry (or after last iteration)
+                    var status = iterations == 0 ? "Skipped" : "Succeeded";
+                    result.AddLoopStep(stepKey, status, iterResults);
+                    stepOutcomes[stepKey] = iterations == 0 ? "skipped" : "success";
+                    return false;
+                }
+
+                iterations++;
+                if (iterations > maxIterations)
+                {
+                    result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+                    result.Fail($"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+                    stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+
+                var iterCtx = ImmutableIterContext(iterations);
+                var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
+                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator,
+                    stepOutcomes, result, sequenceId, iterCtx, ct).ConfigureAwait(false);
+
+                iterResults.Add(new LoopIterResult { IterationIndex = iterations, BreakTriggered = breakTriggered, StepCount = stepCount });
+
+                if (earlyStop)
+                {
+                    result.AddLoopStep(stepKey, "Failed", iterResults);
+                    stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+                if (breakTriggered) break;
+            }
+
+            result.AddLoopStep(stepKey, "Succeeded", iterResults);
+            stepOutcomes[stepKey] = "success";
+            return false;
+        }
+
+        /// <summary>Repeat-until loop: executes body at least once then checks exit condition.</summary>
+        private async Task<bool> ExecuteRepeatUntilLoopAsync(
+            SequenceStep step,
+            string stepKey,
+            RepeatUntilLoopConfig cfg,
+            int maxIterations,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            Dictionary<string, string> stepOutcomes,
+            SequenceExecutionResult result,
+            string sequenceId,
+            CancellationToken ct)
+        {
+            var iterResults = new List<LoopIterResult>();
+            var iterations = 0;
+
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                iterations++;
+
+                var iterCtx = ImmutableIterContext(iterations);
+                var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
+                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator,
+                    stepOutcomes, result, sequenceId, iterCtx, ct).ConfigureAwait(false);
+
+                iterResults.Add(new LoopIterResult { IterationIndex = iterations, BreakTriggered = breakTriggered, StepCount = stepCount });
+
+                if (earlyStop)
+                {
+                    result.AddLoopStep(stepKey, "Failed", iterResults);
+                    stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+                if (breakTriggered) break;
+
+                if (iterations >= maxIterations)
+                {
+                    result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+                    result.Fail($"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+                    stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+
+                // Evaluate exit condition after body executes
+                bool exitCond;
+                try
+                {
+                    exitCond = await EvaluateLoopConditionAsync(
+                        cfg.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exit condition evaluation failed.");
+                    result.Fail($"Loop '{stepKey}' exit condition evaluation failed.");
+                    stepOutcomes[stepKey] = "failed";
+                    return true;
+                }
+
+                if (exitCond) break;
+            }
+
+            result.AddLoopStep(stepKey, "Succeeded", iterResults);
+            stepOutcomes[stepKey] = "success";
+            return false;
+        }
+
+        /// <summary>
+        /// Executes the body steps for one loop iteration.  Returns
+        /// (<c>earlyStop</c>, <c>breakTriggered</c>, <c>stepsExecuted</c>).
+        /// A break step with a condition-evaluator error sets earlyStop=true.
+        /// </summary>
+        private async Task<(bool EarlyStop, bool BreakTriggered, int StepCount)> ExecuteLoopBodyAsync(
+            IReadOnlyList<SequenceStep> bodySteps,
+            Func<string, Task> executeCommandAsync,
+            Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            Dictionary<string, string> stepOutcomes,
+            SequenceExecutionResult result,
+            string sequenceId,
+            IReadOnlyDictionary<string, string> iterContext,
+            CancellationToken ct)
+        {
+            var stepsExecuted = 0;
+
+            foreach (var step in bodySteps.OrderBy(s => s.Order))
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (step.StepType == SequenceStepType.Break)
+                {
+                    var brkKey = string.IsNullOrWhiteSpace(step.StepId) ? "break" : step.StepId;
+
+                    if (step.BreakCondition is null)
+                    {
+                        // Unconditional break
+                        result.AddStep(brkKey, 0, "Succeeded",
+                            conditionType: "unconditional",
+                            conditionResult: "true",
+                            actionOutcome: "break",
+                            message: "Unconditional break triggered");
+                        return (false, true, stepsExecuted);
+                    }
+
+                    var condDesc = DescribeBreakCondition(step.BreakCondition);
+
+                    // Conditional break
+                    bool breakCond;
+                    try
+                    {
+                        breakCond = await EvaluateLoopConditionAsync(
+                            step.BreakCondition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        result.AddStep(brkKey, 0, "Failed",
+                            conditionType: condDesc.Type,
+                            conditionResult: "error",
+                            actionOutcome: "failed",
+                            message: $"Break step '{brkKey}' condition evaluation failed ({condDesc.Detail}).");
+                        result.Fail($"Break step '{brkKey}' condition evaluation failed.");
+                        return (true, false, stepsExecuted);
+                    }
+
+                    if (breakCond)
+                    {
+                        result.AddStep(brkKey, 0, "Succeeded",
+                            conditionType: condDesc.Type,
+                            conditionResult: "true",
+                            actionOutcome: "break",
+                            message: $"Break triggered: {condDesc.Detail} evaluated to true");
+                        return (false, true, stepsExecuted);
+                    }
+
+                    result.AddStep(brkKey, 0, "Skipped",
+                        conditionType: condDesc.Type,
+                        conditionResult: "false",
+                        actionOutcome: "continue",
+                        message: $"Break skipped: {condDesc.Detail} evaluated to false");
+                    continue; // condition false → keep executing body
+                }
+
+                // Apply template substitution to the body step before execution
+                SequenceStep effectiveStep = ApplyIterContext(step, iterContext);
+
+                var earlyStop = await ExecuteSingleStepAsync(
+                    effectiveStep,
+                    executeCommandAsync,
+                    gateEvaluator,
+                    conditionEvaluator,
+                    stepOutcomes,
+                    result,
+                    sequenceId,
+                    ct).ConfigureAwait(false);
+                stepsExecuted++;
+
+                if (earlyStop) return (true, false, stepsExecuted);
+            }
+
+            return (false, false, stepsExecuted);
+        }
+
+        /// <summary>
+        /// Evaluates a <see cref="SequenceStepCondition"/> within a loop context.
+        /// Throws when the evaluator is unavailable or throws.
+        /// </summary>
+        private static async Task<bool> EvaluateLoopConditionAsync(
+            SequenceStepCondition condition,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            Dictionary<string, string> stepOutcomes,
+            CancellationToken ct)
+        {
+            bool result;
+
+            if (condition is ImageVisibleStepCondition imgCond)
+            {
+                if (conditionEvaluator is null)
+                    throw new InvalidOperationException("Image-visible condition evaluator is unavailable.");
+                result = await conditionEvaluator(new Condition
+                {
+                    Source = "image",
+                    TargetId = imgCond.ImageId,
+                    Mode = "Present",
+                    ConfidenceThreshold = imgCond.MinSimilarity
+                }, ct).ConfigureAwait(false);
+            }
+            else if (condition is CommandOutcomeStepCondition coCond)
+            {
+                if (!stepOutcomes.TryGetValue(coCond.StepRef, out var actual))
+                    throw new InvalidOperationException($"commandOutcome reference '{coCond.StepRef}' is not available.");
+                result = string.Equals(actual, coCond.ExpectedState, StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unsupported loop condition type '{condition.GetType().Name}'.");
+            }
+
+            return condition.Negate ? !result : result;
+        }
+
+        private static (string Type, string Detail) DescribeBreakCondition(SequenceStepCondition condition)
+        {
+            var negatePrefix = condition.Negate ? "NOT " : "";
+            if (condition is ImageVisibleStepCondition img)
+                return ("imageVisible", $"{negatePrefix}imageVisible(imageId={img.ImageId}, minSimilarity={img.MinSimilarity?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "default"})");
+            if (condition is CommandOutcomeStepCondition co)
+                return ("commandOutcome", $"{negatePrefix}commandOutcome(stepRef={co.StepRef}, expected={co.ExpectedState})");
+            return (condition.GetType().Name, $"{negatePrefix}{condition.GetType().Name}");
+        }
+
+        /// <summary>
+        /// Returns a copy of <paramref name="step"/> with <c>{{key}}</c> placeholders in
+        /// <see cref="SequenceStep.CommandId"/> and <see cref="SequenceStep.Action"/> parameters
+        /// substituted from <paramref name="context"/>.
+        /// </summary>
+        private static SequenceStep ApplyIterContext(
+            SequenceStep step,
+            IReadOnlyDictionary<string, string> context)
+        {
+            var substitutedCommandId = TemplateSubstitutor.Substitute(step.CommandId, context);
+            var substitutedAction = step.Action is not null
+                ? TemplateSubstitutor.SubstitutePayload(step.Action, context)
+                : null;
+
+            return new SequenceStep
+            {
+                Order = step.Order,
+                StepId = step.StepId,
+                Label = step.Label,
+                CommandId = substitutedCommandId,
+                StepType = step.StepType,
+                Action = substitutedAction,
+                Condition = step.Condition,
+                ConditionExpression = step.ConditionExpression,
+                DelayMs = step.DelayMs,
+                DelayRangeMs = step.DelayRangeMs,
+                TimeoutMs = step.TimeoutMs,
+                Retry = step.Retry,
+                Gate = step.Gate,
+                // Body / Loop / BreakCondition are not deep-substituted in body steps
+                Loop = step.Loop,
+                Body = step.Body,
+                BreakCondition = step.BreakCondition
+            };
+        }
+
+        /// <summary>Creates a read-only dict with iteration substitution context.</summary>
+        private static Dictionary<string, string> ImmutableIterContext(int iteration)
+            => new(StringComparer.Ordinal) { ["iteration"] = iteration.ToString(System.Globalization.CultureInfo.InvariantCulture) };
 
         private async Task ExecuteBlocksAsync(
             IReadOnlyList<object> blocks,
@@ -1312,6 +1758,22 @@ namespace GameBot.Domain.Services
             });
         }
 
+        public void AddLoopStep(
+            string stepId,
+            string status,
+            IReadOnlyList<LoopIterResult> iterResults,
+            string? message = null)
+        {
+            _steps.Add(new StepResult
+            {
+                CommandId = stepId,
+                Status = status,
+                Attempts = 1,
+                LoopIterations = iterResults,
+                Message = message
+            });
+        }
+
         public void Complete()
         {
             EndedAt = DateTimeOffset.UtcNow;
@@ -1348,5 +1810,15 @@ namespace GameBot.Domain.Services
         public string? ConditionResult { get; set; }
         public string? ActionOutcome { get; set; }
         public string? Message { get; set; }
+        /// <summary>Per-iteration results for loop steps; null for non-loop steps.</summary>
+        public IReadOnlyList<LoopIterResult>? LoopIterations { get; set; }
+    }
+
+    /// <summary>Result summary for a single loop iteration.</summary>
+    public sealed class LoopIterResult
+    {
+        public int IterationIndex { get; set; }
+        public bool BreakTriggered { get; set; }
+        public int StepCount { get; set; }
     }
 }

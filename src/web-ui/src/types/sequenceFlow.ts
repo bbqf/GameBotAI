@@ -79,12 +79,14 @@ export type ImageVisibleStepCondition = {
   type: 'imageVisible';
   imageId: string;
   minSimilarity?: number | null;
+  negate?: boolean;
 };
 
 export type CommandOutcomeStepCondition = {
   type: 'commandOutcome';
   stepRef: string;
   expectedState: 'success' | 'failed' | 'skipped';
+  negate?: boolean;
 };
 
 export type SequenceStepCondition = ImageVisibleStepCondition | CommandOutcomeStepCondition;
@@ -94,11 +96,20 @@ export type SequenceActionPayload = {
   parameters: Record<string, unknown>;
 };
 
+export type LoopConfigDto =
+  | { loopType: 'count'; count: number; maxIterations?: number | null }
+  | { loopType: 'while'; condition: SequenceStepCondition; maxIterations?: number | null }
+  | { loopType: 'repeatUntil'; condition: SequenceStepCondition; maxIterations?: number | null };
+
 export type SequenceLinearStep = {
   stepId: string;
   label?: string;
-  action: SequenceActionPayload;
+  stepType?: 'Action' | 'Loop' | 'Break';
+  action?: SequenceActionPayload | null;
   condition?: SequenceStepCondition | null;
+  loop?: LoopConfigDto | null;
+  body?: SequenceLinearStep[] | null;
+  breakCondition?: SequenceStepCondition | null;
 };
 
 export type SequenceLinearUpsertRequest = {

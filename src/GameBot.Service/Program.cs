@@ -128,6 +128,12 @@ builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
 builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
 builder.Services.AddSingleton<IImageDetectionConditionAdapter, ImageDetectionConditionAdapter>();
 builder.Services.AddSingleton<IImageVisibleConditionAdapter, ImageVisibleConditionAdapter>();
+builder.Services.AddSingleton(_ =>
+{
+    var loopMaxEnv = Environment.GetEnvironmentVariable("GAMEBOT_LOOP_MAX_ITERATIONS");
+    var loopMax = int.TryParse(loopMaxEnv, out var parsed) && parsed > 0 ? parsed : 1000;
+    return new GameBot.Domain.Config.AppConfig { LoopMaxIterations = loopMax };
+});
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
 builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
@@ -168,8 +174,15 @@ if (OperatingSystem.IsWindows()) {
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
   var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
   if (useAdb) {
-    // ADB-backed dynamic screen source via sessions
-    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource, GameBot.Emulator.Session.AdbScreenSource>();
+    // ADB-backed dynamic screen source via sessions, wrapped with a short-TTL cache
+    // to prevent duplicate ADB screencap calls within the same loop iteration
+    // (e.g. PrimitiveTap detection + break-condition check both needing a screenshot).
+    builder.Services.AddSingleton<GameBot.Emulator.Session.AdbScreenSource>();
+    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(sp => {
+      var inner = sp.GetRequiredService<GameBot.Emulator.Session.AdbScreenSource>();
+      var ttlMs = int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_SCREENSHOT_CACHE_TTL_MS"), out var t) && t >= 0 ? t : 500;
+      return new GameBot.Domain.Triggers.Evaluators.CachedScreenSource(inner, ttlMs);
+    });
   }
   else {
     // Test/stub mode: optional fixed bitmap via env variable
@@ -707,11 +720,20 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
   return Results.Ok(ToSequenceResponse(saved));
 }).WithName("PatchSequence");
 
-sequences.MapPost("{sequenceId}/validate", (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator) => {
+sequences.MapPost("{sequenceId}/validate", async (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator, ISequenceRepository repo, SequenceStepValidationService stepValidationService) => {
   var graph = MapToFlowGraph(sequenceId, request);
-  var result = validator.Validate(graph);
-  if (!result.IsValid) {
-    return Results.BadRequest(new { valid = false, errors = result.Errors });
+  var flowResult = validator.Validate(graph);
+
+  // Also run step-level validation (includes loop rules) on persisted steps
+  var stepErrors = new List<string>();
+  var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+  if (existing is not null) {
+    stepErrors.AddRange(stepValidationService.Validate(existing.Steps));
+  }
+
+  var allErrors = flowResult.Errors.Concat(stepErrors).ToArray();
+  if (allErrors.Length > 0) {
+    return Results.BadRequest(new { valid = false, errors = allErrors });
   }
 
   return Results.Ok(new { valid = true, errors = Array.Empty<string>() });
@@ -736,12 +758,33 @@ sequences.MapPost("{sequenceId}/execute", async (
   IImageVisibleConditionAdapter imageVisibleConditionAdapter,
   GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
   ISequenceRepository sequenceRepository,
+  GameBot.Service.Services.ICommandExecutor commandExecutor,
   string sequenceId,
+  HttpContext httpContext,
   CancellationToken ct) => {
-    // Minimal stub: delegate is a no-op; command execution integration will be added in later phases
+    // Read optional sessionId from request body
+    string? sessionId = null;
+    try {
+      var body = await httpContext.Request.ReadFromJsonAsync<SequenceExecuteRequest>(ct).ConfigureAwait(false);
+      sessionId = body?.SessionId;
+    } catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
+      // empty body, malformed JSON, or missing content-type — no sessionId override
+    }
+
     var res = await runner.ExecuteAsync(
       sequenceId,
-      _ => Task.CompletedTask,
+      async commandId => {
+        try {
+          await commandExecutor.ForceExecuteAsync(sessionId, commandId, ct).ConfigureAwait(false);
+        } catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
+          throw new InvalidOperationException($"No cached session found for command '{commandId}'. Start a session first.");
+        } catch (InvalidOperationException ex) when (ex.Message == "missing_session_context") {
+          throw new InvalidOperationException($"No session available for command '{commandId}'. Start a session or pass a sessionId.");
+        } catch (KeyNotFoundException) {
+          // Command not found in repository — step uses a primitive action type (e.g. tap)
+          // or references a non-existent command; treat as completed.
+        }
+      },
       gateEvaluator: (step, token) => {
         // Temporary evaluator for integration tests:
         // TargetId "always" => gate passes; "never" => gate fails
@@ -783,16 +826,17 @@ sequences.MapPost("{sequenceId}/execute", async (
     ).ConfigureAwait(false);
     var sequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
     var sequenceName = sequence?.Name ?? sequenceId;
-    var status = string.Equals(res.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+    var status = string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
     var flowStepsByCommandRef = (sequence?.FlowSteps ?? Array.Empty<GameBot.Domain.Commands.FlowStep>())
       .GroupBy(step => string.IsNullOrWhiteSpace(step.PayloadRef) ? step.StepId : step.PayloadRef!, StringComparer.Ordinal)
       .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
+    var commandSteps = res.Steps.Where(s => s.LoopIterations is null).ToList();
     var detailItems = new List<GameBot.Domain.Logging.ExecutionDetailItem> {
       new(
         "sequence",
-        $"Executed commands: {string.Join(",", res.Steps.Select(s => s.CommandId).Take(10))}",
-        new Dictionary<string, object?> { ["executedCount"] = res.Steps.Count },
+        $"Executed commands: {string.Join(",", commandSteps.Select(s => s.CommandId).Take(10))}",
+        new Dictionary<string, object?> { ["executedCount"] = commandSteps.Count },
         "normal")
     };
 
@@ -801,12 +845,38 @@ sequences.MapPost("{sequenceId}/execute", async (
       flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
       var stepId = flowStep?.StepId ?? step.CommandId;
       var stepLabel = flowStep?.Label ?? step.CommandId;
+
+      // Loop summary entries are not command executions — emit a loop-type detail instead.
+      if (step.LoopIterations is not null) {
+        var iterCount = step.LoopIterations.Count;
+        detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
+          "step",
+          $"Loop '{stepLabel}' {step.Status.ToLowerInvariant()} after {iterCount} iteration{(iterCount == 1 ? "" : "s")}.",
+          new Dictionary<string, object?> {
+            ["stepOrder"] = stepOrder++,
+            ["stepType"] = "loop",
+            ["status"] = step.Status,
+            ["actionOutcome"] = step.Status.ToLowerInvariant(),
+            ["iterations"] = iterCount,
+            ["message"] = step.Message,
+            ["sequenceId"] = sequenceId,
+            ["sequenceLabel"] = sequenceName,
+            ["stepId"] = stepId,
+            ["stepLabel"] = stepLabel
+          },
+          "normal"));
+        continue;
+      }
+
       var actionOutcome = string.IsNullOrWhiteSpace(step.ActionOutcome)
         ? (string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase) ? "skipped" : "executed")
         : step.ActionOutcome;
+      var stepDisplayMessage = !string.IsNullOrWhiteSpace(step.Message)
+        ? $"Step '{stepLabel}' {actionOutcome}: {step.Message}"
+        : $"Step '{stepLabel}' {actionOutcome}.";
       detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
         "step",
-        $"Step '{stepLabel}' {actionOutcome}.",
+        stepDisplayMessage,
         new Dictionary<string, object?> {
           ["stepOrder"] = stepOrder++,
           ["stepType"] = "command",
@@ -846,7 +916,7 @@ sequences.MapPost("{sequenceId}/execute", async (
       sequenceId,
       sequenceName,
       status,
-      $"Sequence '{sequenceName}' {status} with {res.Steps.Count} executed commands.",
+      $"Sequence '{sequenceName}' {status} with {commandSteps.Count} step{(commandSteps.Count == 1 ? "" : "s")} executed.",
       new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
         Depth = 0,
         SequenceId = sequenceId,
@@ -963,17 +1033,7 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
       id = sequence.Id,
       name = sequence.Name,
       version = sequence.Version,
-      steps = sequence.Steps.Select(step => new {
-        stepId = step.StepId,
-        label = step.Label,
-        action = step.Action is null
-          ? null
-          : new {
-            type = step.Action.Type,
-            parameters = step.Action.Parameters
-          },
-        condition = MapPerStepConditionToDto(step.Condition)
-      }).ToArray()
+      steps = sequence.Steps.Select(MapStepToDto).ToArray()
     };
   }
 
@@ -1012,12 +1072,59 @@ static object? MapPerStepConditionToDto(SequenceStepCondition? condition) {
     ImageVisibleStepCondition imageVisible => new {
       type = "imageVisible",
       imageId = imageVisible.ImageId,
-      minSimilarity = imageVisible.MinSimilarity
+      minSimilarity = imageVisible.MinSimilarity,
+      negate = imageVisible.Negate
     },
     CommandOutcomeStepCondition commandOutcome => new {
       type = "commandOutcome",
       stepRef = commandOutcome.StepRef,
-      expectedState = commandOutcome.ExpectedState
+      expectedState = commandOutcome.ExpectedState,
+      negate = commandOutcome.Negate
+    },
+    _ => null
+  };
+}
+
+static object MapStepToDto(SequenceStep step) {
+  var stepType = step.StepType switch {
+    SequenceStepType.Loop => "Loop",
+    SequenceStepType.Break => "Break",
+    _ => "Action"
+  };
+
+  return new {
+    stepId = step.StepId,
+    label = step.Label,
+    stepType,
+    action = step.Action is null
+      ? null
+      : new {
+        type = step.Action.Type,
+        parameters = step.Action.Parameters
+      },
+    condition = MapPerStepConditionToDto(step.Condition),
+    loop = MapLoopConfigToDto(step.Loop),
+    body = step.Body.Count > 0 ? step.Body.Select(MapStepToDto).ToArray() : null,
+    breakCondition = MapPerStepConditionToDto(step.BreakCondition)
+  };
+}
+
+static object? MapLoopConfigToDto(LoopConfig? loop) {
+  return loop switch {
+    CountLoopConfig count => new {
+      loopType = "count",
+      count = count.Count,
+      maxIterations = count.MaxIterations
+    },
+    WhileLoopConfig while_ => new {
+      loopType = "while",
+      condition = MapPerStepConditionToDto(while_.Condition),
+      maxIterations = while_.MaxIterations
+    },
+    RepeatUntilLoopConfig repeatUntil => new {
+      loopType = "repeatUntil",
+      condition = MapPerStepConditionToDto(repeatUntil.Condition),
+      maxIterations = repeatUntil.MaxIterations
     },
     _ => null
   };
@@ -1038,7 +1145,8 @@ bool IsPerStepRequestCandidate(System.Text.Json.JsonElement root) {
   }
 
   var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
-  return firstStep.ValueKind == JsonValueKind.Object && firstStep.TryGetProperty("action", out _);
+  return firstStep.ValueKind == JsonValueKind.Object
+    && (firstStep.TryGetProperty("action", out _) || firstStep.TryGetProperty("stepType", out _));
 }
 
 bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsertContract? request, out string? error) {
@@ -1071,8 +1179,12 @@ bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsert
       return false;
     }
 
-    if (!stepElement.TryGetProperty("action", out var actionProp) || actionProp.ValueKind != JsonValueKind.Object) {
-      error = "each step must include action object.";
+    var hasStepType = stepElement.TryGetProperty("stepType", out var stepTypeProp) && stepTypeProp.ValueKind == JsonValueKind.String;
+    var stepTypeValue = hasStepType ? stepTypeProp.GetString()?.Trim().ToLowerInvariant() : null;
+    var isLoopOrBreak = stepTypeValue is "loop" or "break";
+
+    if (!isLoopOrBreak && (!stepElement.TryGetProperty("action", out var actionProp) || actionProp.ValueKind != JsonValueKind.Object)) {
+      error = "each action step must include action object.";
       return false;
     }
   }
@@ -1227,32 +1339,123 @@ static List<SequenceStep> MapToLinearSteps(SequenceUpsertContract request) {
   var result = new List<SequenceStep>(request.Steps.Count);
   for (var index = 0; index < request.Steps.Count; index++) {
     var step = request.Steps[index];
-    var mapped = new SequenceStep {
-      Order = index,
-      StepId = step.StepId,
-      Label = step.Label,
-      CommandId = step.StepId,
-      StepType = SequenceStepType.Action,
-      Action = new SequenceActionPayload {
-        Type = step.Action.Type
-      },
-      Condition = MapPerStepCondition(step.Condition)
-    };
+    var parsedStepType = ParseStepType(step.StepType);
 
-    foreach (var parameter in step.Action.Parameters) {
-      mapped.Action.Parameters[parameter.Key] = parameter.Value;
+    if (parsedStepType == SequenceStepType.Loop) {
+      var mapped = new SequenceStep {
+        Order = index,
+        StepId = step.StepId,
+        Label = step.Label,
+        StepType = SequenceStepType.Loop,
+        Loop = MapLoopConfig(step.Loop),
+        Body = MapBodySteps(step.Body)
+      };
+      result.Add(mapped);
+      continue;
     }
 
-    if (string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
-        && step.Action.Parameters.TryGetValue("commandId", out var commandId)
-        && commandId.ValueKind == JsonValueKind.String
-        && !string.IsNullOrWhiteSpace(commandId.GetString())) {
-      mapped.CommandId = commandId.GetString()!;
+    if (parsedStepType == SequenceStepType.Break) {
+      var mapped = new SequenceStep {
+        Order = index,
+        StepId = step.StepId,
+        Label = step.Label,
+        StepType = SequenceStepType.Break,
+        BreakCondition = MapPerStepCondition(step.BreakCondition)
+      };
+      result.Add(mapped);
+      continue;
     }
 
-    result.Add(mapped);
+    {
+      var mapped = new SequenceStep {
+        Order = index,
+        StepId = step.StepId,
+        Label = step.Label,
+        CommandId = step.StepId,
+        StepType = SequenceStepType.Action,
+        Action = step.Action is not null ? new SequenceActionPayload { Type = step.Action.Type } : null,
+        Condition = MapPerStepCondition(step.Condition)
+      };
+
+      if (step.Action is not null) {
+        foreach (var parameter in step.Action.Parameters) {
+          mapped.Action!.Parameters[parameter.Key] = parameter.Value;
+        }
+
+        if (string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+            && step.Action.Parameters.TryGetValue("commandId", out var commandId)
+            && commandId.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(commandId.GetString())) {
+          mapped.CommandId = commandId.GetString()!;
+        }
+      }
+
+      result.Add(mapped);
+    }
   }
 
+  return result;
+}
+
+static SequenceStepType ParseStepType(string? stepType) {
+  if (string.IsNullOrWhiteSpace(stepType)) return SequenceStepType.Action;
+  return stepType.Trim().ToLowerInvariant() switch {
+    "loop" => SequenceStepType.Loop,
+    "break" => SequenceStepType.Break,
+    "action" => SequenceStepType.Action,
+    "command" => SequenceStepType.Command,
+    _ => SequenceStepType.Action
+  };
+}
+
+static LoopConfig? MapLoopConfig(LoopConfigContract? contract) {
+  return contract switch {
+    CountLoopConfigContract count => new CountLoopConfig { Count = count.Count, MaxIterations = count.MaxIterations },
+    WhileLoopConfigContract while_ => new WhileLoopConfig { Condition = MapPerStepCondition(while_.Condition)!, MaxIterations = while_.MaxIterations },
+    RepeatUntilLoopConfigContract repeatUntil => new RepeatUntilLoopConfig { Condition = MapPerStepCondition(repeatUntil.Condition)!, MaxIterations = repeatUntil.MaxIterations },
+    _ => null
+  };
+}
+
+static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContract>? body) {
+  if (body is null || body.Count == 0) return Array.Empty<SequenceStep>();
+  var result = new List<SequenceStep>(body.Count);
+  for (var i = 0; i < body.Count; i++) {
+    var child = body[i];
+    var childType = ParseStepType(child.StepType);
+
+    if (childType == SequenceStepType.Break) {
+      result.Add(new SequenceStep {
+        Order = i,
+        StepId = child.StepId,
+        Label = child.Label,
+        StepType = SequenceStepType.Break,
+        BreakCondition = MapPerStepCondition(child.BreakCondition)
+      });
+    } else {
+      var mapped = new SequenceStep {
+        Order = i,
+        StepId = child.StepId,
+        Label = child.Label,
+        CommandId = child.StepId,
+        StepType = SequenceStepType.Action,
+        Action = child.Action is not null ? new SequenceActionPayload { Type = child.Action.Type } : null,
+        Condition = MapPerStepCondition(child.Condition)
+      };
+      if (child.Action is not null) {
+        foreach (var parameter in child.Action.Parameters) {
+          mapped.Action!.Parameters[parameter.Key] = parameter.Value;
+        }
+        if (string.Equals(child.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+            && child.Action.Parameters.TryGetValue("commandId", out var cid)
+            && cid.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(cid.GetString())) {
+          mapped.CommandId = cid.GetString()!;
+        }
+      }
+      result.Add(mapped);
+    }
+  }
   return result;
 }
 
@@ -1260,11 +1463,13 @@ static SequenceStepCondition? MapPerStepCondition(SequenceStepConditionContract?
   return condition switch {
     ImageVisibleConditionContract imageVisible => new ImageVisibleStepCondition {
       ImageId = imageVisible.ImageId,
-      MinSimilarity = imageVisible.MinSimilarity
+      MinSimilarity = imageVisible.MinSimilarity,
+      Negate = imageVisible.Negate
     },
     CommandOutcomeConditionContract commandOutcome => new CommandOutcomeStepCondition {
       StepRef = commandOutcome.StepRef,
-      ExpectedState = commandOutcome.ExpectedState
+      ExpectedState = commandOutcome.ExpectedState,
+      Negate = commandOutcome.Negate
     },
     _ => null
   };

@@ -46,7 +46,8 @@ export const deleteSequence = (id: string) => deleteJson<void>(`${base}/${id}`);
 export const validateSequenceFlow = (sequenceId: string, input: SequenceFlowUpsertRequest) =>
   postJson<{ valid: boolean; errors: string[] }>(`${base}/${sequenceId}/validate`, input);
 
-export const executeSequence = (sequenceId: string) => postJson<unknown>(`${base}/${sequenceId}/execute`, {});
+export const executeSequence = (sequenceId: string, sessionId?: string) =>
+  postJson<unknown>(`${base}/${sequenceId}/execute`, sessionId ? { sessionId } : {});
 
 export const isSequenceConflictError = (error: unknown): error is SequenceConflictError => {
   return error instanceof ApiError

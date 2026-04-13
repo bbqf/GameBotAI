@@ -171,6 +171,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["GAMEBOT_HTTP_LOG_LEVEL_MINIMUM"] = "Warning",
       ["GAMEBOT_BIND_HOST"] = installerBindHost,
       ["GAMEBOT_PORT"] = installerPort,
+      ["GAMEBOT_LOOP_MAX_ITERATIONS"] = 1000,
 
       // ASP.NET Core configuration env keys and their documented defaults/effective values
       ["Service__Storage__Root"] = _storageRoot,

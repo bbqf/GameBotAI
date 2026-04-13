@@ -11,17 +11,22 @@ import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { navigateToUnified } from '../lib/navigation';
 import { validatePerStepConditions } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toLinearSteps } from '../lib/sequenceMapping';
-import type { SequenceLinearStep } from '../types/sequenceFlow';
+import { LoopBlock } from '../components/sequences/LoopBlock';
+import type { LoopStepEntry, BreakStepEntry, StepEntry } from '../types/stepEntry';
+import type { SequenceLinearStep, LoopConfigDto } from '../types/sequenceFlow';
 
 type SequenceStep = {
   id: string;
   stepId: string;
+  stepType: 'Action' | 'Loop' | 'Break';
   commandId: string;
   conditionType: 'none' | 'imageVisible' | 'commandOutcome';
+  conditionNegate: boolean;
   imageId: string;
   minSimilarity: string;
   outcomeStepRef: string;
   expectedState: 'success' | 'failed' | 'skipped';
+  loopEntry?: LoopStepEntry;
 };
 
 type SequenceFormValue = {
@@ -36,8 +41,10 @@ const emptyForm: SequenceFormValue = { name: '', steps: [] };
 const createDefaultStep = (commandId: string, stepId: string): SequenceStep => ({
   id: makeId(),
   stepId,
+  stepType: 'Action',
   commandId,
   conditionType: 'none',
+  conditionNegate: false,
   imageId: '',
   minSimilarity: '',
   outcomeStepRef: '',
@@ -60,8 +67,83 @@ const nextGeneratedStepId = (steps: SequenceStep[]): string => {
   return `step-${highest + 1}`;
 };
 
+const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
+  return body.map<StepEntry>((child) => {
+    if (child.stepType === 'Break') {
+      return {
+        type: 'Break',
+        id: makeId(),
+        stepId: child.stepId,
+        breakCondition: child.breakCondition ?? undefined
+      } satisfies BreakStepEntry;
+    }
+    const cmdId = typeof child.action?.parameters?.commandId === 'string'
+      ? child.action.parameters.commandId
+      : child.stepId;
+    return {
+      type: 'Action',
+      id: makeId(),
+      stepId: child.stepId,
+      commandId: cmdId,
+      conditionType: child.condition?.type === 'imageVisible' ? 'imageVisible'
+        : child.condition?.type === 'commandOutcome' ? 'commandOutcome' : 'none',
+      conditionNegate: child.condition?.negate ?? false,
+      imageId: child.condition?.type === 'imageVisible' ? child.condition.imageId : '',
+      minSimilarity: child.condition?.type === 'imageVisible' && child.condition.minSimilarity != null ? String(child.condition.minSimilarity) : '',
+      outcomeStepRef: child.condition?.type === 'commandOutcome' ? child.condition.stepRef : '',
+      expectedState: child.condition?.type === 'commandOutcome' ? child.condition.expectedState : 'success'
+    };
+  });
+};
+
+const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
+  const loop = step.loop!;
+  const base: Pick<LoopStepEntry, 'type' | 'id' | 'stepId'> = { type: 'Loop', id: makeId(), stepId: step.stepId };
+  const body = linearBodyToStepEntries(step.body ?? []);
+  if (loop.loopType === 'count') {
+    return { ...base, loopType: 'count', count: loop.count, maxIterations: loop.maxIterations ?? undefined, body };
+  }
+  if (loop.loopType === 'while') {
+    return { ...base, loopType: 'while', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, body };
+  }
+  // repeatUntil
+  return { ...base, loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, body };
+};
+
 const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] => {
-  return steps.map((step, index) => {
+  return steps.map((step) => {
+    if (step.stepType === 'Loop' && step.loop) {
+      const loopEntry = loopDtoToEntry(step);
+      return {
+        id: makeId(),
+        stepId: step.stepId,
+        stepType: 'Loop' as const,
+        commandId: '',
+        conditionType: 'none' as const,
+        conditionNegate: false,
+        imageId: '',
+        minSimilarity: '',
+        outcomeStepRef: '',
+        expectedState: 'success' as const,
+        loopEntry
+      };
+    }
+
+    if (step.stepType === 'Break') {
+      return {
+        id: makeId(),
+        stepId: step.stepId,
+        stepType: 'Break' as const,
+        commandId: '',
+        conditionType: 'none' as const,
+        conditionNegate: false,
+        imageId: '',
+        minSimilarity: '',
+        outcomeStepRef: '',
+        expectedState: 'success' as const
+      };
+    }
+
     const commandId = typeof step.action?.parameters?.commandId === 'string'
       ? step.action.parameters.commandId
       : step.stepId;
@@ -70,8 +152,10 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
       return {
         id: makeId(),
         stepId: step.stepId,
+        stepType: 'Action' as const,
         commandId,
         conditionType: 'imageVisible',
+        conditionNegate: step.condition.negate ?? false,
         imageId: step.condition.imageId,
         minSimilarity: step.condition.minSimilarity == null ? '' : String(step.condition.minSimilarity),
         outcomeStepRef: '',
@@ -83,8 +167,10 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
       return {
         id: makeId(),
         stepId: step.stepId,
+        stepType: 'Action' as const,
         commandId,
         conditionType: 'commandOutcome',
+        conditionNegate: step.condition.negate ?? false,
         imageId: '',
         minSimilarity: '',
         outcomeStepRef: step.condition.stepRef,
@@ -99,31 +185,92 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
   });
 };
 
+const buildConditionPayload = (step: SequenceStep) => {
+  if (step.conditionType === 'imageVisible') {
+    return {
+      type: 'imageVisible' as const,
+      imageId: step.imageId.trim(),
+      minSimilarity: step.minSimilarity.trim() === '' ? null : Number(step.minSimilarity),
+      negate: step.conditionNegate || undefined
+    };
+  }
+  if (step.conditionType === 'commandOutcome') {
+    return {
+      type: 'commandOutcome' as const,
+      stepRef: step.outcomeStepRef.trim(),
+      expectedState: step.expectedState,
+      negate: step.conditionNegate || undefined
+    };
+  }
+  return null;
+};
+
+const buildLoopConfigPayload = (loop: LoopStepEntry): LoopConfigDto | null => {
+  if (loop.loopType === 'count') {
+    return { loopType: 'count', count: loop.count ?? 1, maxIterations: loop.maxIterations ?? null };
+  }
+  if (loop.loopType === 'while' && loop.condition) {
+    return { loopType: 'while', condition: loop.condition, maxIterations: loop.maxIterations ?? null };
+  }
+  if (loop.loopType === 'repeatUntil' && loop.condition) {
+    return { loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? null };
+  }
+  return null;
+};
+
+const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
+  if (entry.type === 'Break') {
+    const br = entry as BreakStepEntry;
+    return {
+      stepId: br.stepId.trim(),
+      stepType: 'Break',
+      breakCondition: br.breakCondition ?? null
+    };
+  }
+  // Action body step
+  const a = entry as { stepId: string; commandId: string; conditionType: string; conditionNegate: boolean; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
+  const cond = a.conditionType === 'imageVisible'
+    ? { type: 'imageVisible' as const, imageId: a.imageId.trim(), minSimilarity: a.minSimilarity.trim() === '' ? null : Number(a.minSimilarity), negate: a.conditionNegate || undefined }
+    : a.conditionType === 'commandOutcome'
+      ? { type: 'commandOutcome' as const, stepRef: a.outcomeStepRef.trim(), expectedState: a.expectedState, negate: a.conditionNegate || undefined }
+      : null;
+  return {
+    stepId: entry.stepId.trim(),
+    stepType: 'Action',
+    action: { type: 'command', parameters: { commandId: a.commandId } },
+    condition: cond
+  };
+};
+
 const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
   return steps.map((step) => {
-    const condition = step.conditionType === 'imageVisible'
-      ? {
-        type: 'imageVisible' as const,
-        imageId: step.imageId.trim(),
-        minSimilarity: step.minSimilarity.trim() === '' ? null : Number(step.minSimilarity)
-      }
-      : step.conditionType === 'commandOutcome'
-        ? {
-          type: 'commandOutcome' as const,
-          stepRef: step.outcomeStepRef.trim(),
-          expectedState: step.expectedState
-        }
-        : null;
+    if (step.stepType === 'Loop' && step.loopEntry) {
+      return {
+        stepId: step.stepId.trim(),
+        stepType: 'Loop' as const,
+        loop: buildLoopConfigPayload(step.loopEntry),
+        body: step.loopEntry.body.map(bodyEntryToPayloadStep)
+      };
+    }
+
+    if (step.stepType === 'Break') {
+      return {
+        stepId: step.stepId.trim(),
+        stepType: 'Break' as const,
+        breakCondition: null // top-level breaks are unconditional
+      };
+    }
 
     return {
       stepId: step.stepId.trim(),
+      stepType: 'Action' as const,
       action: {
         type: 'command',
         parameters: {
           commandId: step.commandId
         }
       },
-      condition
+      condition: buildConditionPayload(step)
     };
   });
 };
@@ -255,6 +402,27 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         </select>
       </div>
 
+      {step.conditionType !== 'none' && (
+        <div className="sequence-step-condition-field sequence-step-condition-field--negate">
+          <label>
+            <input
+              type="checkbox"
+              data-testid={`step-condition-negate-${step.id}`}
+              checked={step.conditionNegate}
+              onChange={(e) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, conditionNegate: e.target.checked } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            />
+            NOT
+          </label>
+        </div>
+      )}
+
       {step.conditionType === 'imageVisible' && (
         <>
           <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
@@ -277,13 +445,39 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             <label htmlFor={`step-min-similarity-${step.id}`}>Min Similarity</label>
             <input
               id={`step-min-similarity-${step.id}`}
+              inputMode="decimal"
+              placeholder="0–1 (default: 0.85)"
               value={step.minSimilarity}
               onChange={(event) => {
-                setForm((prev) => ({
-                  ...prev,
-                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: event.target.value } : candidate)
-                }));
-                setDirty(true);
+                const raw = event.target.value;
+                if (raw === '') {
+                  setForm((prev) => ({
+                    ...prev,
+                    steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: '' } : candidate)
+                  }));
+                  setDirty(true);
+                  return;
+                }
+                // Allow any partial decimal that could become a valid 0-1 number
+                if (/^[01]?\.\d*$|^\.\d*$/.test(raw)) {
+                  const parsed = Number(raw);
+                  if (isNaN(parsed) || parsed <= 1) {
+                    setForm((prev) => ({
+                      ...prev,
+                      steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: raw } : candidate)
+                    }));
+                    setDirty(true);
+                  }
+                  return;
+                }
+                const num = Number(raw);
+                if (!isNaN(num) && num >= 0 && num <= 1) {
+                  setForm((prev) => ({
+                    ...prev,
+                    steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, minSimilarity: raw } : candidate)
+                  }));
+                  setDirty(true);
+                }
               }}
               disabled={submitting || loading}
             />
@@ -340,13 +534,68 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     </div>
   );
 
+  const createLoopStep = (loopType: 'count' | 'while' | 'repeatUntil'): SequenceStep => {
+    const id = makeId();
+    const stepId = nextGeneratedStepId(form.steps);
+    const loopEntry: LoopStepEntry = {
+      type: 'Loop',
+      id,
+      stepId,
+      loopType,
+      count: loopType === 'count' ? 3 : undefined,
+      condition: loopType !== 'count' ? { type: 'imageVisible', imageId: '', minSimilarity: null } : undefined,
+      body: [],
+    };
+    return {
+      id,
+      stepId,
+      stepType: 'Loop',
+      commandId: '',
+      conditionType: 'none',
+      conditionNegate: false,
+      imageId: '',
+      minSimilarity: '',
+      outcomeStepRef: '',
+      expectedState: 'success',
+      loopEntry,
+    };
+  };
+
   const stepItems = useMemo<ReorderableListItem[]>(() => {
-    return form.steps.map((s, idx) => ({
-      id: s.id,
-      label: commandLookup.get(s.commandId) ?? s.commandId,
-      details: renderStepConditionEditor(s, idx)
-    }));
-  }, [form.steps, commandLookup, submitting, loading]);
+    return form.steps.map((s, idx) => {
+      if (s.stepType === 'Loop' && s.loopEntry) {
+        return {
+          id: s.id,
+          label: `Loop (${s.loopEntry.loopType})`,
+          details: (
+            <LoopBlock
+              loop={s.loopEntry}
+              onChange={(updated) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((step) =>
+                    step.id === s.id ? { ...step, loopEntry: updated } : step
+                  ),
+                }));
+                setDirty(true);
+              }}
+              onRemove={() => {
+                setForm((prev) => ({ ...prev, steps: prev.steps.filter((step) => step.id !== s.id) }));
+                setDirty(true);
+              }}
+              commandOptions={commandOptions}
+              disabled={submitting || loading}
+            />
+          ),
+        };
+      }
+      return {
+        id: s.id,
+        label: commandLookup.get(s.commandId) ?? s.commandId,
+        details: renderStepConditionEditor(s, idx),
+      };
+    });
+  }, [form.steps, commandOptions, commandLookup, submitting, loading]);
 
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
@@ -520,11 +769,17 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 setDirty(true);
               }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
             </div>
+            <div className="field" data-testid="add-loop-buttons">
+              <span>Add loop:</span>{' '}
+              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}
+              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>{' '}
+              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
+            </div>
             <ReorderableList
               items={stepItems}
               onChange={(next) => {
                 const mapped = next.map((item, idx) => form.steps.find((s) => s.id === item.id) ?? form.steps[idx]);
-                setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => !!s?.commandId) });
+                setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => !!s?.commandId || s?.stepType === 'Loop') });
                 setDirty(true);
               }}
               onDelete={(item) => {
@@ -635,11 +890,17 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   setDirty(true);
                 }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
               </div>
+              <div className="field" data-testid="edit-add-loop-buttons">
+                <span>Add loop:</span>{' '}
+                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}
+                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>{' '}
+                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
+              </div>
               <ReorderableList
                 items={stepItems}
                 onChange={(next) => {
                   const mapped = next.map((item, idx) => form.steps.find((s) => s.id === item.id) ?? form.steps[idx]);
-                  setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => !!s?.commandId) });
+                  setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => !!s?.commandId || s?.stepType === 'Loop') });
                   setDirty(true);
                 }}
                 onDelete={(item) => {

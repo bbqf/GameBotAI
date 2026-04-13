@@ -61,7 +61,8 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
         var ncc = Ncc(regionGray, tplGray, x, y);
         if (ncc > best) best = ncc;
       }
-    return Math.Max(0, Math.Min(1, (best + 1) / 2.0));
+    // Clamp to [0,1] without rescaling – raw NCC matches OpenCV CCoeffNormed range
+    return Math.Max(0, Math.Min(1, best));
   }
 
   

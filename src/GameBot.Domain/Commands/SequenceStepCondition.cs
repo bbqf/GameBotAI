@@ -7,6 +7,7 @@ namespace GameBot.Domain.Commands;
 [JsonDerivedType(typeof(CommandOutcomeStepCondition), typeDiscriminator: "commandOutcome")]
 public abstract class SequenceStepCondition {
   public abstract string Type { get; }
+  public bool Negate { get; set; }
 }
 
 public sealed class ImageVisibleStepCondition : SequenceStepCondition {
