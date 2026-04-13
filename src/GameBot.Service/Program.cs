@@ -174,8 +174,15 @@ if (OperatingSystem.IsWindows()) {
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
   var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
   if (useAdb) {
-    // ADB-backed dynamic screen source via sessions
-    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource, GameBot.Emulator.Session.AdbScreenSource>();
+    // ADB-backed dynamic screen source via sessions, wrapped with a short-TTL cache
+    // to prevent duplicate ADB screencap calls within the same loop iteration
+    // (e.g. PrimitiveTap detection + break-condition check both needing a screenshot).
+    builder.Services.AddSingleton<GameBot.Emulator.Session.AdbScreenSource>();
+    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(sp => {
+      var inner = sp.GetRequiredService<GameBot.Emulator.Session.AdbScreenSource>();
+      var ttlMs = int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_SCREENSHOT_CACHE_TTL_MS"), out var t) && t >= 0 ? t : 500;
+      return new GameBot.Domain.Triggers.Evaluators.CachedScreenSource(inner, ttlMs);
+    });
   }
   else {
     // Test/stub mode: optional fixed bitmap via env variable
