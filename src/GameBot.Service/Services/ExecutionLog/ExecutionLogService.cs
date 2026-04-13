@@ -143,8 +143,11 @@ internal sealed class ExecutionLogService : IExecutionLogService {
   public async Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) {
     var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     var now = DateTimeOffset.UtcNow;
-    var sanitizedDetails = TrimDetails(ExecutionLogSanitizer.SanitizeDetails(details?.ToList() ?? new List<ExecutionDetailItem>()));
+    var sanitizedDetails = ExecutionLogSanitizer.SanitizeDetails(details?.ToList() ?? new List<ExecutionDetailItem>());
+    // Compute step outcomes before trimming so all loop iterations are captured,
+    // including "Break triggered" entries that would otherwise be truncated.
     var stepOutcomes = BuildSequenceStepOutcomes(sequenceId, sequenceName, context, sanitizedDetails);
+    var trimmedDetails = TrimDetails(sanitizedDetails);
 
     var entry = new ExecutionLogEntry {
       TimestampUtc = now,
@@ -154,7 +157,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       Navigation = ExecutionNavigationBuilder.Build("sequence", sequenceId, context),
       Hierarchy = ExecutionHierarchyBuilder.Build(context),
       Summary = TrimSummary(summary),
-      Details = sanitizedDetails,
+      Details = trimmedDetails,
       StepOutcomes = stepOutcomes,
       RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
     };
