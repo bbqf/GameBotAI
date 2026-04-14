@@ -70,7 +70,10 @@ builder.Services.AddSwaggerDocs();
 builder.Services.AddSwaggerGen(options => {
   options.DocumentFilter<ConditionalFlowSchemaDocumentFilter>();
 });
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(o =>
+{
+    o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 // CORS for local web UI development (default: allow http://localhost:5173)
 var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
                   ?? Environment.GetEnvironmentVariable("GAMEBOT_CORS_ORIGINS")
