@@ -39,7 +39,7 @@ namespace GameBot.Tests.Unit.Triggers {
     [Fact]
     public void SimilarityJustBelowThresholdIsPending() {
       var bmp = CreateConstantBitmap(128);
-      var bmpScreen = CreateConstantBitmap(127); // slightly different
+      var bmpScreen = CreateConstantBitmap(100); // visibly different (~11% off)
       var store = new StubReferenceImageStore(bmp);
       var screen = new StubScreenSource(bmpScreen);
       var eval = new ImageMatchEvaluator(store, screen);

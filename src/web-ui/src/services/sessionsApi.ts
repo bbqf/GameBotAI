@@ -19,6 +19,7 @@ export type RunningSessionDto = {
   startedAtUtc: string;
   lastHeartbeatUtc: string;
   status: 'Running' | 'Stopping' | 'running' | 'stopping';
+  captureRateFps?: number | null;
 };
 
 export type StartSessionRequest = {

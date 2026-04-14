@@ -95,7 +95,8 @@ public sealed class SessionsController : ControllerBase
         EmulatorId = session.EmulatorId,
         StartedAtUtc = session.StartedAtUtc,
         LastHeartbeatUtc = session.LastHeartbeatUtc,
-        Status = session.Status
+        Status = session.Status,
+        CaptureRateFps = session.CaptureRateFps
     };
 }
 #pragma warning restore CA1515

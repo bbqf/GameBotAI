@@ -70,7 +70,10 @@ builder.Services.AddSwaggerDocs();
 builder.Services.AddSwaggerGen(options => {
   options.DocumentFilter<ConditionalFlowSchemaDocumentFilter>();
 });
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(o =>
+{
+    o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 // CORS for local web UI development (default: allow http://localhost:5173)
 var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
                   ?? Environment.GetEnvironmentVariable("GAMEBOT_CORS_ORIGINS")
@@ -97,7 +100,13 @@ builder.Services.Configure<GameBot.Service.Models.SessionCreationOptions>(option
 });
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
 builder.Services.AddSingleton<ISessionContextCache, SessionContextCache>();
-builder.Services.AddSingleton<ISessionService, SessionService>();
+// SessionService: optionally inject BackgroundScreenCaptureService when ADB capture is enabled
+builder.Services.AddSingleton<ISessionService>(sp => {
+  var sessions = sp.GetRequiredService<ISessionManager>();
+  var cache = sp.GetRequiredService<ISessionContextCache>();
+  var captureService = sp.GetService<GameBot.Emulator.Session.BackgroundScreenCaptureService>();
+  return new SessionService(sessions, cache, captureService);
+});
 builder.Services.AddTransient<ErrorHandlingMiddleware>();
 builder.Services.AddTransient<CorrelationIdMiddleware>();
 builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();
@@ -174,15 +183,23 @@ if (OperatingSystem.IsWindows()) {
   var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
   var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
   if (useAdb) {
-    // ADB-backed dynamic screen source via sessions, wrapped with a short-TTL cache
-    // to prevent duplicate ADB screencap calls within the same loop iteration
-    // (e.g. PrimitiveTap detection + break-condition check both needing a screenshot).
-    builder.Services.AddSingleton<GameBot.Emulator.Session.AdbScreenSource>();
-    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(sp => {
-      var inner = sp.GetRequiredService<GameBot.Emulator.Session.AdbScreenSource>();
-      var ttlMs = int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_SCREENSHOT_CACHE_TTL_MS"), out var t) && t >= 0 ? t : 500;
-      return new GameBot.Domain.Triggers.Evaluators.CachedScreenSource(inner, ttlMs);
+    // Background capture service: per-session ADB capture loops with configurable interval
+    var captureIntervalMs = int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS"), out var ci) && ci > 0 ? ci : 500;
+    builder.Services.AddSingleton<GameBot.Emulator.Session.BackgroundScreenCaptureService>(sp => {
+      var adbLogger = sp.GetRequiredService<ILogger<GameBot.Emulator.Adb.AdbClient>>();
+      Func<string, GameBot.Emulator.Session.IAdbScreenCaptureProvider> factory = serial =>
+        new GameBot.Emulator.Session.AdbScreenCaptureProvider(serial, adbLogger);
+      return new GameBot.Emulator.Session.BackgroundScreenCaptureService(
+        factory, captureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>());
     });
+    // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain)
+    builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(sp => {
+      var captureService = sp.GetRequiredService<GameBot.Emulator.Session.BackgroundScreenCaptureService>();
+      var sessions = sp.GetRequiredService<ISessionManager>();
+      return new GameBot.Emulator.Session.BackgroundCaptureScreenSource(captureService, sessions);
+    });
+    // Keep AdbScreenSource registered for any legacy/direct consumers
+    builder.Services.AddSingleton<GameBot.Emulator.Session.AdbScreenSource>();
   }
   else {
     // Test/stub mode: optional fixed bitmap via env variable
