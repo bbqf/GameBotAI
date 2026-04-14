@@ -22,6 +22,18 @@ public sealed class ConfigUpdateTests {
     return (tmp, Path.Combine(cfgDir, "config.json"));
   }
 
+  // Ensure GAMEBOT_TESSERACT_LANG is not set as env var during tests
+  // (CI sets it, causing File-seeded values to become Environment-sourced)
+  private static string? ClearTesseractEnv() {
+    var prev = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_LANG");
+    Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_LANG", null);
+    return prev;
+  }
+
+  private static void RestoreTesseractEnv(string? prev) {
+    Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_LANG", prev);
+  }
+
   private static async Task SeedConfig(string cfgFile, Dictionary<string, object?> parameters) {
     var wrapper = new Dictionary<string, object?> { ["parameters"] = parameters };
     var json = JsonSerializer.Serialize(wrapper, s_jsonOptions);
@@ -32,6 +44,7 @@ public sealed class ConfigUpdateTests {
   public async Task UpdateParametersMergesValues() {
     var (tmp, cfgFile) = CreateTempDir();
     var prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    var prevTess = ClearTesseractEnv();
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     try {
       await SeedConfig(cfgFile, new Dictionary<string, object?> { ["GAMEBOT_TESSERACT_LANG"] = "eng" }).ConfigureAwait(false);
@@ -42,6 +55,7 @@ public sealed class ConfigUpdateTests {
       snap.Parameters["GAMEBOT_TESSERACT_LANG"].Source.Should().Be("File");
     }
     finally {
+      RestoreTesseractEnv(prevTess);
       Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", prevUseAdb);
       try { Directory.Delete(tmp, recursive: true); } catch { }
     }
@@ -51,6 +65,7 @@ public sealed class ConfigUpdateTests {
   public async Task UpdateParametersPromotesDefaultToFile() {
     var (tmp, _) = CreateTempDir();
     var prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    var prevTess = ClearTesseractEnv();
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     try {
       using var svc = new ConfigSnapshotService(tmp);
@@ -61,6 +76,7 @@ public sealed class ConfigUpdateTests {
       snap.Parameters["GAMEBOT_TESSERACT_LANG"].Value.Should().Be("fra");
     }
     finally {
+      RestoreTesseractEnv(prevTess);
       Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", prevUseAdb);
       try { Directory.Delete(tmp, recursive: true); } catch { }
     }
