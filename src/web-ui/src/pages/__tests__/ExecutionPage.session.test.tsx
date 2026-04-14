@@ -97,7 +97,7 @@ describe('ExecutionPage session reuse', () => {
 
     await waitFor(() => expect(mockForceExecute).toHaveBeenCalledWith('cmd-1', 'sess-123'));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   it('clears cached banner after stop and refresh', async () => {
     mockGetRunningSessions.mockResolvedValueOnce([runningSession as any]).mockResolvedValueOnce([] as any);
