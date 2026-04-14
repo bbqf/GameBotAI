@@ -176,4 +176,95 @@ public sealed class ConfigEndpointTests : IDisposable {
     savedValueEl.GetString().Should().Be("deu");
     Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_LANG", prevLang);
   }
+
+  [Fact]
+  public async Task PutParametersUpdatesValueAndReturnsSnapshot() {
+    var prevLang = Environment.GetEnvironmentVariable("GAMEBOT_TESSERACT_LANG");
+    Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_LANG", null);
+    try {
+      using var app = new WebApplicationFactory<Program>();
+      using var client = CreateAuthedClient(app);
+      // Bootstrap
+      await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
+
+      var body = new { updates = new Dictionary<string, string?> { ["GAMEBOT_TESSERACT_LANG"] = "jpn" } };
+      var resp = await client.PutAsJsonAsync(new Uri("/api/config/parameters", UriKind.Relative), body).ConfigureAwait(true);
+      resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+      using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
+      var parameters = doc!.RootElement.GetProperty("parameters");
+      parameters.TryGetProperty("GAMEBOT_TESSERACT_LANG", out var lang).Should().BeTrue();
+      lang.GetProperty("value").GetString().Should().Be("jpn");
+      lang.GetProperty("source").GetString().Should().Be("File");
+    }
+    finally {
+      Environment.SetEnvironmentVariable("GAMEBOT_TESSERACT_LANG", prevLang);
+    }
+  }
+
+  [Fact]
+  public async Task PutParametersRejectsEnvironmentSourcedKey() {
+    var prevKey = "GAMEBOT_PUT_TEST_ENV";
+    var prevVal = Environment.GetEnvironmentVariable(prevKey);
+    Environment.SetEnvironmentVariable(prevKey, "testval");
+    try {
+      using var app = new WebApplicationFactory<Program>();
+      using var client = CreateAuthedClient(app);
+      await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
+
+      var body = new { updates = new Dictionary<string, string?> { [prevKey] = "newval" } };
+      var resp = await client.PutAsJsonAsync(new Uri("/api/config/parameters", UriKind.Relative), body).ConfigureAwait(true);
+      resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+      var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(true);
+      text.Should().Contain("invalid_request");
+      text.Should().Contain(prevKey);
+    }
+    finally {
+      Environment.SetEnvironmentVariable(prevKey, prevVal);
+    }
+  }
+
+  [Fact]
+  public async Task PutParametersRejectsEmptyUpdates() {
+    using var app = new WebApplicationFactory<Program>();
+    using var client = CreateAuthedClient(app);
+    var body = new { updates = new Dictionary<string, string?>() };
+    var resp = await client.PutAsJsonAsync(new Uri("/api/config/parameters", UriKind.Relative), body).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(true);
+    text.Should().Contain("invalid_payload");
+  }
+
+  [Fact]
+  public async Task PutParametersReorderReordersAndReturnsSnapshot() {
+    using var app = new WebApplicationFactory<Program>();
+    using var client = CreateAuthedClient(app);
+    // Bootstrap
+    var getResp = await client.GetAsync(new Uri("/api/config", UriKind.Relative)).ConfigureAwait(true);
+    getResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    using var getDoc = await getResp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
+    var origKeys = getDoc!.RootElement.GetProperty("parameters").EnumerateObject().Select(p => p.Name).ToList();
+    origKeys.Count.Should().BeGreaterThan(1);
+
+    // Move the last key to first position
+    var lastKey = origKeys[origKeys.Count - 1];
+    var reordered = new[] { lastKey }.Concat(origKeys.Take(origKeys.Count - 1)).ToArray();
+    var body = new { orderedKeys = reordered };
+    var resp = await client.PutAsJsonAsync(new Uri("/api/config/parameters/reorder", UriKind.Relative), body).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+    using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>().ConfigureAwait(true);
+    var newKeys = doc!.RootElement.GetProperty("parameters").EnumerateObject().Select(p => p.Name).ToList();
+    // The explicitly placed first key should be at index 0
+    newKeys.First().Should().Be(lastKey);
+  }
+
+  [Fact]
+  public async Task PutParametersReorderRejectsEmptyKeys() {
+    using var app = new WebApplicationFactory<Program>();
+    using var client = CreateAuthedClient(app);
+    var body = new { orderedKeys = Array.Empty<string>() };
+    var resp = await client.PutAsJsonAsync(new Uri("/api/config/parameters/reorder", UriKind.Relative), body).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(true);
+    text.Should().Contain("invalid_payload");
+  }
 }

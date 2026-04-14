@@ -7,6 +7,8 @@ namespace GameBot.Service.Services;
 internal interface IConfigSnapshotService {
   ConfigurationSnapshot? Current { get; }
   Task<ConfigurationSnapshot> RefreshAsync(CancellationToken ct = default);
+  Task<ConfigurationSnapshot> UpdateParametersAsync(Dictionary<string, string?> updates, CancellationToken ct = default);
+  Task<ConfigurationSnapshot> ReorderParametersAsync(string[] orderedKeys, CancellationToken ct = default);
 }
 
 internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposable {
@@ -51,6 +53,19 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
         }
       }
 
+      // Reorder merged dictionary to respect saved config key order (for drag-and-drop persistence)
+      if (baseline.Count > 0) {
+        var ordered = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in baseline.Keys) {
+          if (merged.TryGetValue(key, out var val))
+            ordered[key] = val;
+        }
+        foreach (var kvp in merged) {
+          ordered.TryAdd(kvp.Key, kvp.Value);
+        }
+        merged = ordered;
+      }
+
       // Apply masking and special rules
       var parameters = new Dictionary<string, ConfigurationParameter>(StringComparer.OrdinalIgnoreCase);
       foreach (var kvp in merged) {
@@ -87,6 +102,74 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
     finally {
       _gate.Release();
     }
+  }
+
+  public async Task<ConfigurationSnapshot> UpdateParametersAsync(Dictionary<string, string?> updates, CancellationToken ct = default) {
+    await _gate.WaitAsync(ct).ConfigureAwait(false);
+    try {
+      var envInfo = LoadEnvironmentFiltered();
+      foreach (var key in updates.Keys) {
+        if (envInfo.env.ContainsKey(key))
+          throw new InvalidOperationException($"Cannot update Environment-sourced parameter '{key}'.");
+      }
+
+      var saved = await LoadSavedConfigAsync(ct).ConfigureAwait(false);
+      foreach (var kvp in updates) {
+        saved[kvp.Key] = kvp.Value;
+      }
+      await PersistSavedParametersAsync(saved, ct).ConfigureAwait(false);
+    }
+    finally {
+      _gate.Release();
+    }
+
+    return await RefreshAsync(ct).ConfigureAwait(false);
+  }
+
+  public async Task<ConfigurationSnapshot> ReorderParametersAsync(string[] orderedKeys, CancellationToken ct = default) {
+    await _gate.WaitAsync(ct).ConfigureAwait(false);
+    try {
+      var saved = await LoadSavedConfigAsync(ct).ConfigureAwait(false);
+      var defaults = BuildDefaultRelevantKeys();
+      var envInfo = LoadEnvironmentFiltered();
+      var allKeys = MergeWithPrecedence(defaults, new Dictionary<string, object?>(), saved, envInfo.env);
+
+      var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+      var reordered = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+      // First: add keys in the requested order (dedup, skip unknown)
+      foreach (var key in orderedKeys) {
+        if (seen.Add(key) && allKeys.ContainsKey(key)) {
+          reordered[key] = saved.TryGetValue(key, out var v) ? v : null;
+        }
+      }
+
+      // Then: append any remaining keys in their previous order
+      foreach (var kvp in allKeys) {
+        if (seen.Add(kvp.Key)) {
+          reordered[kvp.Key] = saved.TryGetValue(kvp.Key, out var v) ? v : null;
+        }
+      }
+
+      await PersistSavedParametersAsync(reordered, ct).ConfigureAwait(false);
+    }
+    finally {
+      _gate.Release();
+    }
+
+    return await RefreshAsync(ct).ConfigureAwait(false);
+  }
+
+  private async Task PersistSavedParametersAsync(Dictionary<string, object?> parameters, CancellationToken ct) {
+    Directory.CreateDirectory(_configDir);
+    var tmp = _configFile + ".tmp";
+    var wrapper = new Dictionary<string, object?> { ["parameters"] = parameters };
+    var json = JsonSerializer.Serialize(wrapper, s_jsonOptions);
+    await File.WriteAllTextAsync(tmp, json, ct).ConfigureAwait(false);
+    if (File.Exists(_configFile)) {
+      File.Delete(_configFile);
+    }
+    File.Move(tmp, _configFile, true);
   }
 
   private async Task<Dictionary<string, object?>> LoadSavedConfigAsync(CancellationToken ct) {

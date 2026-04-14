@@ -11,6 +11,9 @@ internal static class ApiRoutes
     internal const string ActionTypes = Base + "/action-types";
     internal const string Config = Base + "/config";
     internal const string ConfigLogging = Config + "/logging";
+    internal const string ConfigParameters = Config + "/parameters";
+    internal const string ConfigParametersReorder = ConfigParameters + "/reorder";
+    internal const string ConfigFiles = Config + "/files";
     internal const string Triggers = Base + "/triggers";
     internal const string Images = Base + "/images";
     internal const string ImageCrop = Images + "/crop";

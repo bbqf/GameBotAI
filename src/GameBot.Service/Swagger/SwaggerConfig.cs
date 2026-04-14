@@ -334,6 +334,16 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, LoggingPolicyResetRequest(), context, typeof(LoggingPolicyResetRequestSchema));
       SetResponseExample(operation, "200", LoggingPolicyResponse(), context, typeof(LoggingPolicySchema));
     }
+    else if (IsMethod(method, HttpMethods.Put) && IsPath(path, ApiRoutes.ConfigParameters)) {
+      operation.Summary ??= "Batch-update configuration parameter values";
+      SetRequestExample(operation, ConfigUpdateRequestExample(), context, typeof(GameBot.Service.Models.ConfigUpdateRequest));
+      SetResponseExample(operation, "200", ConfigurationSnapshotResponse(), context, typeof(ConfigurationSnapshotSchema));
+    }
+    else if (IsMethod(method, HttpMethods.Put) && path.Contains(ApiRoutes.ConfigParametersReorder, StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Reorder configuration parameters";
+      SetRequestExample(operation, ConfigReorderRequestExample(), context, typeof(GameBot.Service.Models.ConfigReorderRequest));
+      SetResponseExample(operation, "200", ConfigurationSnapshotResponse(), context, typeof(ConfigurationSnapshotSchema));
+    }
   }
 
   private static void ApplyTriggerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
@@ -882,6 +892,21 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["parameters"] = new OpenApiObject {
       ["GAMEBOT_DATA_DIR"] = new OpenApiObject { ["name"] = new OpenApiString("GAMEBOT_DATA_DIR"), ["source"] = new OpenApiString("Default"), ["value"] = new OpenApiString("C:/data"), ["isSecret"] = new OpenApiBoolean(false) },
       ["Service__Auth__Token"] = new OpenApiObject { ["name"] = new OpenApiString("Service__Auth__Token"), ["source"] = new OpenApiString("File"), ["value"] = new OpenApiString("***"), ["isSecret"] = new OpenApiBoolean(true) }
+    }
+  };
+
+  private static OpenApiObject ConfigUpdateRequestExample() => new OpenApiObject {
+    ["updates"] = new OpenApiObject {
+      ["GAMEBOT_TESSERACT_LANG"] = new OpenApiString("deu"),
+      ["Service__Sessions__IdleTimeoutSeconds"] = new OpenApiString("3600")
+    }
+  };
+
+  private static OpenApiObject ConfigReorderRequestExample() => new OpenApiObject {
+    ["orderedKeys"] = new OpenApiArray {
+      new OpenApiString("Service__Auth__Token"),
+      new OpenApiString("GAMEBOT_DATA_DIR"),
+      new OpenApiString("GAMEBOT_TESSERACT_LANG")
     }
   };
 

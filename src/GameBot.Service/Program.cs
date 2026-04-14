@@ -383,6 +383,7 @@ app.MapMetricsEndpoints();
 // Config endpoints (protected if token set)
 app.MapConfigEndpoints();
 app.MapConfigLoggingEndpoints();
+app.MapConfigFilesEndpoints(storageRoot);
 app.MapCoverageEndpoints();
 app.MapExecutionLogEndpoints();
 

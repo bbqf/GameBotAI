@@ -21,6 +21,23 @@ internal sealed class ConfigurationSnapshot {
   public required Dictionary<string, ConfigurationParameter> Parameters { get; init; } = new();
 }
 
+internal sealed class ConfigUpdateRequest {
+  public required Dictionary<string, string?> Updates { get; init; }
+}
+
+internal sealed class ConfigReorderRequest {
+  public required string[] OrderedKeys { get; init; }
+}
+
+internal sealed class ConfigFileUpdateRequest {
+  public Dictionary<string, string?>? Updates { get; init; }
+}
+
+internal sealed class ConfigFileSnapshot {
+  public required string FileName { get; init; }
+  public required Dictionary<string, ConfigurationParameter> Parameters { get; init; } = new();
+}
+
 internal static class ConfigurationMasking {
   private static readonly string[] SecretMarkers = new[] { "TOKEN", "SECRET", "PASSWORD", "KEY" };
 

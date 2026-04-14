@@ -17,8 +17,8 @@
 
 **Purpose**: Add new DTOs and route constants needed by multiple user stories
 
-- [ ] T001 Add ConfigUpdateRequest and ConfigReorderRequest DTO records to src/GameBot.Service/Models/Config.cs
-- [ ] T002 [P] Add ConfigParameters and ConfigParametersReorder route constants to src/GameBot.Service/ApiRoutes.cs
+- [x] T001 Add ConfigUpdateRequest and ConfigReorderRequest DTO records to src/GameBot.Service/Models/Config.cs
+- [x] T002 [P] Add ConfigParameters and ConfigParametersReorder route constants to src/GameBot.Service/ApiRoutes.cs
 
 ---
 
@@ -28,11 +28,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Implement UpdateParametersAsync method on ConfigSnapshotService that loads saved config, validates no Environment-sourced keys, merges updates, calls RefreshAsync, and returns the new snapshot in src/GameBot.Service/Services/ConfigSnapshotService.cs
-- [ ] T004 Implement ReorderParametersAsync method on ConfigSnapshotService that rebuilds the parameters dictionary in the requested key order (appending missing keys at end), persists, refreshes, and returns the new snapshot in src/GameBot.Service/Services/ConfigSnapshotService.cs
-- [ ] T005 Add PUT /api/config/parameters endpoint that deserializes ConfigUpdateRequest, calls UpdateParametersAsync, returns snapshot or 400 error in src/GameBot.Service/Endpoints/ConfigEndpoints.cs
-- [ ] T006 Add PUT /api/config/parameters/reorder endpoint that deserializes ConfigReorderRequest, calls ReorderParametersAsync, returns snapshot or 400 error in src/GameBot.Service/Endpoints/ConfigEndpoints.cs
-- [ ] T007 [P] Create frontend config API service with getConfigSnapshot, updateParameters, and reorderParameters functions in src/web-ui/src/services/config.ts
+- [x] T003 Implement UpdateParametersAsync method on ConfigSnapshotService that loads saved config, validates no Environment-sourced keys, merges updates, calls RefreshAsync, and returns the new snapshot in src/GameBot.Service/Services/ConfigSnapshotService.cs
+- [x] T004 Implement ReorderParametersAsync method on ConfigSnapshotService that rebuilds the parameters dictionary in the requested key order (appending missing keys at end), persists, refreshes, and returns the new snapshot in src/GameBot.Service/Services/ConfigSnapshotService.cs
+- [x] T005 Add PUT /api/config/parameters endpoint that deserializes ConfigUpdateRequest, calls UpdateParametersAsync, returns snapshot or 400 error in src/GameBot.Service/Endpoints/ConfigEndpoints.cs
+- [x] T006 Add PUT /api/config/parameters/reorder endpoint that deserializes ConfigReorderRequest, calls ReorderParametersAsync, returns snapshot or 400 error in src/GameBot.Service/Endpoints/ConfigEndpoints.cs
+- [x] T007 [P] Create frontend config API service with getConfigSnapshot, updateParameters, and reorderParameters functions in src/web-ui/src/services/config.ts
 
 **Checkpoint**: Backend API complete — GET returns snapshot, PUT updates values, PUT reorders keys. Frontend service ready for UI integration.
 
@@ -46,9 +46,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 [P] [US1] Create ConfigParameterRow component that renders parameter name, value (masked for secrets), and source badge (Default/File/Environment) in src/web-ui/src/components/ConfigParameterRow.tsx
-- [ ] T009 [US1] Create ConfigParameterList component that accepts a parameters array and renders a scrollable list of ConfigParameterRow items in src/web-ui/src/components/ConfigParameterList.tsx
-- [ ] T010 [US1] Rewrite Configuration page to fetch config snapshot via config service on mount, pass parameters to ConfigParameterList, and show loading/error states in src/web-ui/src/pages/Configuration.tsx
+- [x] T008 [P] [US1] Create ConfigParameterRow component that renders parameter name, value (masked for secrets), and source badge (Default/File/Environment) in src/web-ui/src/components/ConfigParameterRow.tsx
+- [x] T009 [US1] Create ConfigParameterList component that accepts a parameters array and renders a scrollable list of ConfigParameterRow items in src/web-ui/src/components/ConfigParameterList.tsx
+- [x] T010 [US1] Rewrite Configuration page to fetch config snapshot via config service on mount, pass parameters to ConfigParameterList, and show loading/error states in src/web-ui/src/pages/Configuration.tsx
 
 **Checkpoint**: Configuration tab displays all backend parameters with names, values, source badges. Secrets masked. Environment parameters visually distinct.
 
@@ -62,10 +62,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Add inline text input for value editing to ConfigParameterRow; disable input for Environment-sourced parameters; show masked placeholder for secrets; emit onChange callback in src/web-ui/src/components/ConfigParameterRow.tsx
-- [ ] T012 [US2] Add dirty-state tracking (original vs current values map), visual row highlight for modified parameters, and Apply All button to ConfigParameterList in src/web-ui/src/components/ConfigParameterList.tsx
-- [ ] T013 [US2] Wire Apply All button to call updateParameters from config service, refresh parameter list on success, show inline error message on failure, and preserve unsaved edits on error in src/web-ui/src/components/ConfigParameterList.tsx
-- [ ] T014 [US2] Add beforeunload listener and in-app navigate-away confirmation prompt when dirty edits exist in src/web-ui/src/pages/Configuration.tsx
+- [x] T011 [US2] Add inline text input for value editing to ConfigParameterRow; disable input for Environment-sourced parameters; show masked placeholder for secrets; emit onChange callback in src/web-ui/src/components/ConfigParameterRow.tsx
+- [x] T012 [US2] Add dirty-state tracking (original vs current values map), visual row highlight for modified parameters, and Apply All button to ConfigParameterList in src/web-ui/src/components/ConfigParameterList.tsx
+- [x] T013 [US2] Wire Apply All button to call updateParameters from config service, refresh parameter list on success, show inline error message on failure, and preserve unsaved edits on error in src/web-ui/src/components/ConfigParameterList.tsx
+- [x] T014 [US2] Add beforeunload listener and in-app navigate-away confirmation prompt when dirty edits exist in src/web-ui/src/pages/Configuration.tsx
 
 **Checkpoint**: Full edit-apply cycle works. Dirty highlighting, Apply All, error handling, and navigate-away prompt all functional.
 
@@ -79,8 +79,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T015 [P] [US3] Create generic CollapsibleSection component using HTML5 details/summary elements with consistent styling in src/web-ui/src/components/CollapsibleSection.tsx
-- [ ] T016 [US3] Wrap existing TokenGate inside CollapsibleSection with title "Backend Connection" and no open attribute (collapsed by default) in src/web-ui/src/pages/Configuration.tsx
+- [x] T015 [P] [US3] Create generic CollapsibleSection component using HTML5 details/summary elements with consistent styling in src/web-ui/src/components/CollapsibleSection.tsx
+- [x] T016 [US3] Wrap existing TokenGate inside CollapsibleSection with title "Backend Connection" and no open attribute (collapsed by default) in src/web-ui/src/pages/Configuration.tsx
 
 **Checkpoint**: Backend Connection section is collapsed by default. Expanding reveals API Base URL and Bearer Token. Parameters visible below.
 
@@ -94,7 +94,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] Add filter text input above the parameter list in ConfigParameterList; implement case-insensitive substring matching on parameter name and value; show "No matching parameters" empty-state message when no rows match in src/web-ui/src/components/ConfigParameterList.tsx
+- [x] T017 [US4] Add filter text input above the parameter list in ConfigParameterList; implement case-insensitive substring matching on parameter name and value; show "No matching parameters" empty-state message when no rows match in src/web-ui/src/components/ConfigParameterList.tsx
 
 **Checkpoint**: Filter narrows parameter list incrementally. Empty-state message displayed for zero matches. Clearing filter restores full list.
 
@@ -108,8 +108,8 @@
 
 ### Implementation for User Story 5
 
-- [ ] T018 [US5] Add HTML5 draggable attribute, drag handle, and dragstart/dragover/dragend event handlers to ConfigParameterRow in src/web-ui/src/components/ConfigParameterRow.tsx
-- [ ] T019 [US5] Handle drop event in ConfigParameterList to compute new order (mapping filtered-view positions back to the full parameter list), optimistically re-render, call reorderParameters from config service, and rollback to previous order on API failure in src/web-ui/src/components/ConfigParameterList.tsx
+- [x] T018 [US5] Add HTML5 draggable attribute, drag handle, and dragstart/dragover/dragend event handlers to ConfigParameterRow in src/web-ui/src/components/ConfigParameterRow.tsx
+- [x] T019 [US5] Handle drop event in ConfigParameterList to compute new order (mapping filtered-view positions back to the full parameter list), optimistically re-render, call reorderParameters from config service, and rollback to previous order on API failure in src/web-ui/src/components/ConfigParameterList.tsx
 
 **Checkpoint**: Drag-and-drop reorders parameters. Order persists across page reloads. Failed reorder rolls back with error message.
 
@@ -119,12 +119,12 @@
 
 **Purpose**: Tests, error states, Swagger examples, and end-to-end validation
 
-- [ ] T020 [P] Add xUnit tests for UpdateParametersAsync (env-sourced rejection, value merge, Default→File promotion) and ReorderParametersAsync (key ordering, missing key append, duplicate dedup) in tests/unit/ConfigUpdateTests.cs (NOTE: write these immediately after Phase 2 to satisfy constitution §II — tests before committing implementation)
-- [ ] T021 [P] Add contract tests for PUT /api/config/parameters (200 success, 400 env-sourced, 400 empty) and PUT /api/config/parameters/reorder (200 success, 400 empty) in tests/contract/ConfigEndpointTests.cs
-- [ ] T022 [P] Add or update Jest + RTL tests for Configuration page: parameter list rendering, dirty-state highlight, Apply All flow, filter matching, collapsible section state in src/web-ui/src/__tests__/configuration.spec.tsx
-- [ ] T023 Add error-state display with Retry button when backend is unreachable on initial config fetch in src/web-ui/src/pages/Configuration.tsx
-- [ ] T024 [P] Add Swagger request/response examples for PUT /api/config/parameters and PUT /api/config/parameters/reorder in src/GameBot.Service/Swagger/SwaggerConfig.cs
-- [ ] T025 Run quickstart.md validation to verify full end-to-end flow (build, test, smoke test)
+- [x] T020 [P] Add xUnit tests for UpdateParametersAsync (env-sourced rejection, value merge, Default→File promotion) and ReorderParametersAsync (key ordering, missing key append, duplicate dedup) in tests/unit/ConfigUpdateTests.cs (NOTE: write these immediately after Phase 2 to satisfy constitution §II — tests before committing implementation)
+- [x] T021 [P] Add contract tests for PUT /api/config/parameters (200 success, 400 env-sourced, 400 empty) and PUT /api/config/parameters/reorder (200 success, 400 empty) in tests/contract/ConfigEndpointTests.cs
+- [x] T022 [P] Add or update Jest + RTL tests for Configuration page: parameter list rendering, dirty-state highlight, Apply All flow, filter matching, collapsible section state in src/web-ui/src/__tests__/configuration.spec.tsx
+- [x] T023 Add error-state display with Retry button when backend is unreachable on initial config fetch in src/web-ui/src/pages/Configuration.tsx
+- [x] T024 [P] Add Swagger request/response examples for PUT /api/config/parameters and PUT /api/config/parameters/reorder in src/GameBot.Service/Swagger/SwaggerConfig.cs
+- [x] T025 Run quickstart.md validation to verify full end-to-end flow (build, test, smoke test)
 
 **Checkpoint**: All tests pass. Error states handled. Swagger examples added. Quickstart verified.
 
