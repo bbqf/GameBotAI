@@ -95,8 +95,10 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     }
 
     var config = new TemplateMatcherConfig(Threshold: 0.0, MaxResults: 1, Overlap: 1.0);
+#pragma warning disable CA2025 // Dispose is not premature — GetResult() blocks synchronously
     var result = _matcher.MatchAllAsync(regionMat, tplMat, config, CancellationToken.None)
         .ConfigureAwait(false).GetAwaiter().GetResult();
+#pragma warning restore CA2025
 
     if (result.Matches.Count == 0) return 0d;
     return Math.Max(0, Math.Min(1, result.Matches[0].Confidence));
