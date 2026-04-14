@@ -15,6 +15,18 @@ All notable changes to this project will be documented in this file.
   - Automatic lifecycle management: capture loop starts with session, stops when session ends or is evicted.
   - Rolling FPS calculation using a circular buffer of the last 10 capture durations.
 
+### Changed
+- Image match evaluation now uses OpenCV `Cv2.MatchTemplate` (CCoeffNormed) via `ITemplateMatcher` instead of brute-force pure-C# NCC. Reduces per-evaluation time from ~5 seconds to ~50 ms for full-screen regions.
+- MVC controllers now serialize enums as strings (via `JsonStringEnumConverter`) for consistency with minimal API endpoints.
+
+### Fixed
+- Execution tab session status no longer shows "Unknown" due to integer enum serialization mismatch.
+- Capture rate display moved to its own labeled line; only shown when data is available.
+
+### Security
+- Upgraded `jest-environment-jsdom` from 29.7.0 to 30.3.0 to resolve `@tootallnate/once` vulnerability (GHSA-vpq2-c234-7xj6).
+- Upgraded `System.Drawing.Common` from 9.0.0 to 10.0.3 across all projects.
+
 - Command Loop Steps (033-command-loops)
   - Count-based loops (`count`): execute body steps exactly N times.
   - While loops (`while`): re-evaluate condition before each iteration; skip body if false on entry.
