@@ -334,6 +334,28 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, LoggingPolicyResetRequest(), context, typeof(LoggingPolicyResetRequestSchema));
       SetResponseExample(operation, "200", LoggingPolicyResponse(), context, typeof(LoggingPolicySchema));
     }
+    else if (IsMethod(method, HttpMethods.Put) && IsPath(path, ApiRoutes.ConfigParameters)) {
+      operation.Summary ??= "Batch-update configuration parameter values";
+      SetRequestExample(operation, ConfigUpdateRequestExample(), context, typeof(GameBot.Service.Models.ConfigUpdateRequest));
+      SetResponseExample(operation, "200", ConfigurationSnapshotResponse(), context, typeof(ConfigurationSnapshotSchema));
+    }
+    else if (IsMethod(method, HttpMethods.Put) && path.Contains(ApiRoutes.ConfigParametersReorder, StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Reorder configuration parameters";
+      SetRequestExample(operation, ConfigReorderRequestExample(), context, typeof(GameBot.Service.Models.ConfigReorderRequest));
+      SetResponseExample(operation, "200", ConfigurationSnapshotResponse(), context, typeof(ConfigurationSnapshotSchema));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && path.Contains(ApiRoutes.ConfigFiles + "/{", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Get a config file as flattened parameters";
+      SetResponseExample(operation, "200", ConfigFileSnapshotResponse(), context, typeof(ConfigFileSnapshotSchema));
+    }
+    else if (IsMethod(method, HttpMethods.Put) && path.Contains(ApiRoutes.ConfigFiles + "/{", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Update a config file via flattened parameters";
+      SetRequestExample(operation, ConfigFileUpdateRequestExample(), context, typeof(GameBot.Service.Models.ConfigFileUpdateRequest));
+      SetResponseExample(operation, "200", ConfigFileSnapshotResponse(), context, typeof(ConfigFileSnapshotSchema));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ConfigFiles)) {
+      operation.Summary ??= "List available config files";
+    }
   }
 
   private static void ApplyTriggerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
@@ -519,10 +541,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       ["major"] = new OpenApiInteger(1),
       ["minor"] = new OpenApiInteger(2)
     },
-    ["releaseLineMarker"] = new OpenApiObject {
-      ["releaseLineId"] = new OpenApiString("main"),
-      ["sequence"] = new OpenApiInteger(4)
-    },
     ["ciBuildCounter"] = new OpenApiObject {
       ["lastBuild"] = new OpenApiInteger(18)
     }
@@ -540,7 +558,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["authoritative"] = new OpenApiBoolean(true),
     ["notes"] = new OpenApiArray
     {
-      new OpenApiString("minor:auto-transition"),
+      new OpenApiString("minor:override"),
       new OpenApiString("build:ci-authoritative")
     }
   };
@@ -885,6 +903,40 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
   };
 
+  private static OpenApiObject ConfigUpdateRequestExample() => new OpenApiObject {
+    ["updates"] = new OpenApiObject {
+      ["GAMEBOT_TESSERACT_LANG"] = new OpenApiString("deu"),
+      ["Service__Sessions__IdleTimeoutSeconds"] = new OpenApiString("3600")
+    }
+  };
+
+  private static OpenApiObject ConfigReorderRequestExample() => new OpenApiObject {
+    ["orderedKeys"] = new OpenApiArray {
+      new OpenApiString("Service__Auth__Token"),
+      new OpenApiString("GAMEBOT_DATA_DIR"),
+      new OpenApiString("GAMEBOT_TESSERACT_LANG")
+    }
+  };
+
+  private static OpenApiObject ConfigFileUpdateRequestExample() => new OpenApiObject {
+    ["updates"] = new OpenApiObject {
+      ["enabled"] = new OpenApiString("true"),
+      ["retentionDays"] = new OpenApiString("30")
+    }
+  };
+
+  private static OpenApiObject ConfigFileSnapshotResponse() => new OpenApiObject {
+    ["fileName"] = new OpenApiString("execution-log-policy.json"),
+    ["parameters"] = new OpenApiObject {
+      ["enabled"] = new OpenApiObject {
+        ["name"] = new OpenApiString("enabled"),
+        ["source"] = new OpenApiString("File"),
+        ["value"] = new OpenApiBoolean(true),
+        ["isSecret"] = new OpenApiBoolean(false)
+      }
+    }
+  };
+
   private static OpenApiObject LoggingPolicyResponse() => new OpenApiObject {
     ["updatedAtUtc"] = new OpenApiString("2025-12-28T12:00:00Z"),
     ["components"] = new OpenApiArray
@@ -1211,6 +1263,11 @@ internal sealed class ConfigParameterSchema {
   public string? Source { get; set; }
   public string? Value { get; set; }
   public bool IsSecret { get; set; }
+}
+
+internal sealed class ConfigFileSnapshotSchema {
+  public string? FileName { get; set; }
+  public IDictionary<string, ConfigParameterSchema>? Parameters { get; set; }
 }
 
 internal sealed class LoggingPolicySchema {

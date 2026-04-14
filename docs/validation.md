@@ -2,7 +2,6 @@
 
 ## Installer versioning inputs
 - Checked-in override values: `installer/versioning/version.override.json`
-- Release-line transition marker: `installer/versioning/release-line.marker.json`
 - CI authoritative build counter: `installer/versioning/ci-build-counter.json`
 
 ## SC-001 – Command creation usability (Authoring UI)

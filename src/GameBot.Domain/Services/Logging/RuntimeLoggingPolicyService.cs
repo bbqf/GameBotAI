@@ -32,6 +32,7 @@ public interface IRuntimeLoggingPolicyService
     Task<LoggingPolicySnapshot> GetSnapshotAsync(CancellationToken ct = default);
     Task<LoggingComponentSetting> SetComponentAsync(string componentName, LogLevel? level, bool? enabled, string actor, string? notes, CancellationToken ct = default);
     Task<LoggingPolicySnapshot> ResetAsync(string actor, string? reason, CancellationToken ct = default);
+    Task<LoggingPolicySnapshot> ReloadFromDiskAsync(CancellationToken ct = default);
 }
 
 public sealed partial class RuntimeLoggingPolicyService : IRuntimeLoggingPolicyService, IDisposable
@@ -164,6 +165,24 @@ public sealed partial class RuntimeLoggingPolicyService : IRuntimeLoggingPolicyS
             _applier.ApplyAll(components);
             EmitAudit(null, null, actor, "reset", reason, now);
             return updatedSnapshot.DeepClone();
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
+    public async Task<LoggingPolicySnapshot> ReloadFromDiskAsync(CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            _snapshot = null;
+            var loaded = await _repository.LoadAsync(ct).ConfigureAwait(false);
+            var ensured = EnsureCatalogEntries(loaded);
+            _snapshot = ensured;
+            _applier.ApplyAll(ensured.Components);
+            return ensured.DeepClone();
         }
         finally
         {

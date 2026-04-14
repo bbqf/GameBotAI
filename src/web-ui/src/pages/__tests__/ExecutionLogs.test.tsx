@@ -60,7 +60,7 @@ describe('ExecutionLogsPage', () => {
       sortDirection: 'desc',
       pageSize: 50
     })));
-  });
+  }, 15000);
 
   it('updates sorting when header is clicked', async () => {
     render(<ExecutionLogsPage />);

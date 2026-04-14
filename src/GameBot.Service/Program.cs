@@ -383,6 +383,7 @@ app.MapMetricsEndpoints();
 // Config endpoints (protected if token set)
 app.MapConfigEndpoints();
 app.MapConfigLoggingEndpoints();
+app.MapConfigFilesEndpoints(storageRoot);
 app.MapCoverageEndpoints();
 app.MapExecutionLogEndpoints();
 
@@ -393,14 +394,12 @@ app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequest
 
   var versioningDirectory = TryFindVersioningDirectory();
   VersionOverride? fileOverride = null;
-  ReleaseLineMarker? fileMarker = null;
   CiBuildCounter? fileCounter = null;
   var notes = new List<string>();
 
   if (!string.IsNullOrWhiteSpace(versioningDirectory)) {
     try {
       fileOverride = loader.LoadOverrideFromDirectory(versioningDirectory);
-      fileMarker = loader.LoadReleaseLineMarkerFromDirectory(versioningDirectory);
       fileCounter = loader.LoadCiBuildCounterFromDirectory(versioningDirectory);
       notes.Add("source:versioning-files");
     }
@@ -423,14 +422,6 @@ app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequest
     notes.Add("source:override");
   }
 
-  var requestMarker = request.ReleaseLineMarker;
-  var previousSequence = fileMarker?.Sequence;
-  var requestedSequence = requestMarker?.Sequence ?? request.ReleaseLineSequence ?? fileMarker?.Sequence;
-  var transitionDetected = VersionResolutionService.HasReleaseLineTransition(previousSequence, requestedSequence);
-  if (transitionDetected) {
-    notes.Add("source:release-line-transition");
-  }
-
   var requestCounter = request.CiBuildCounter?.LastBuild ?? request.LastCiBuild;
   var effectiveLastBuild = requestCounter ?? fileCounter?.LastBuild ?? 0;
   if (requestCounter.HasValue) {
@@ -443,9 +434,6 @@ app.MapPost("/versioning/resolve", (GameBot.Service.Models.VersionResolveRequest
   var resolutionInput = new VersionResolutionInput {
     BaselineVersion = new SemanticVersion(1, 0, 0, Math.Max(0, effectiveLastBuild)),
     Override = effectiveOverride,
-    ReleaseLineTransitionDetected = transitionDetected,
-    PreviousReleaseLineSequence = previousSequence,
-    CurrentReleaseLineSequence = requestedSequence,
     CiBuildCounter = new CiBuildCounter {
       LastBuild = Math.Max(0, effectiveLastBuild),
       UpdatedAtUtc = DateTimeOffset.UtcNow,
