@@ -15,6 +15,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-03
 - File-backed JSON sequence repository under `data/` (`FileSequenceRepository`); global config under `data/config/config.json` (033-command-loops)
 - C# 13 / .NET 9 (backend); TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, SharpAdbClient/ADB integration (via existing `AdbClient`), System.Drawing (Bitmap), existing `ISessionManager`, `IScreenSource`, `CachedScreenSource` infrastructure (034-background-screenshot-service)
 - In-memory only (no persistence); session-scoped cached frames held in `ConcurrentDictionary` (034-background-screenshot-service)
+- C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing `ConfigSnapshotService` + `IConfigApplier`, React 18 + Vite 7, HTML5 Drag and Drop API (no external DnD library) (035-ui-config-editor)
+- File-backed JSON under `data/config/config.json` (existing); parameter order persisted as key order in the JSON `parameters` object (035-ui-config-editor)
 
 - Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing `GameBot.Domain` sequence/command services, existing image detection pipeline, existing execution-log services/repositories, React 18 + Vite 5 UI stack (030-sequence-conditional-logic)
 
@@ -35,9 +37,9 @@ npm test; npm run lint
 Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18: Follow standard conventions
 
 ## Recent Changes
+- 035-ui-config-editor: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing `ConfigSnapshotService` + `IConfigApplier`, React 18 + Vite 7, HTML5 Drag and Drop API (no external DnD library)
 - 034-background-screenshot-service: Added C# 13 / .NET 9 (backend); TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, SharpAdbClient/ADB integration (via existing `AdbClient`), System.Drawing (Bitmap), existing `ISessionManager`, `IScreenSource`, `CachedScreenSource` infrastructure
 - 033-command-loops: Added C# 13 / .NET 9 (backend); TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, `System.Text.Json` (polymorphic serialization), existing `SequenceRunner` + `SequenceStepCondition` infrastructure, React 18 + Vite 5
-- 033-command-loops: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 
 
 <!-- MANUAL ADDITIONS START -->
