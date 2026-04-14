@@ -1,6 +1,6 @@
-# GameBot Versioning Guide (Planned)
+# GameBot Versioning Guide
 
-This document describes the planned versioning behavior for installer builds and upgrades.
+This document describes the versioning behavior for installer builds and upgrades.
 
 ## Version format
 
@@ -24,31 +24,25 @@ Examples:
 
 ## Developer view
 
-### Source-of-truth files (planned)
+### Source-of-truth files
 
-The plan uses three checked-in versioning files:
+Two checked-in versioning files control the version:
 
 - `installer/versioning/version.override.json`
-  - Optional manual overrides for `Major`, `Minor`, `Patch`.
-- `installer/versioning/release-line.marker.json`
-  - Dedicated marker file that signals an intentional new release line.
+  - Manual overrides for `Major`, `Minor`, `Patch`.
 - `installer/versioning/ci-build-counter.json`
   - Authoritative persisted counter for `Build` (CI updates this).
 
 ### Component rules
 
 - **Major**
-  - Set explicitly by maintainers.
-  - Can be overridden via `version.override.json`.
+  - Set explicitly by maintainers via `version.override.json`.
 
 - **Minor**
-  - Auto-increments only when `release-line.marker.json` is created/updated.
-  - Does **not** increment from branch naming or branch creation alone.
-  - Can be overridden via `version.override.json`.
+  - Set explicitly by maintainers via `version.override.json`.
 
 - **Patch**
-  - Resets to `0` when Minor auto-increments.
-  - Can be overridden via `version.override.json`.
+  - Set explicitly by maintainers via `version.override.json`.
 
 - **Build**
   - CI is the only authoritative writer for the persisted build counter.
@@ -56,11 +50,11 @@ The plan uses three checked-in versioning files:
   - Local builds do not persist counter updates.
   - Local builds derive `Build = persistedCiBuild + 1` for local artifacts only.
 
-### Precedence (planned)
+### Precedence
 
 For `Major`, `Minor`, `Patch`:
 1. Valid checked-in manual override (`version.override.json`)
-2. Automatic policy (marker-driven minor increment, patch reset, etc.)
+2. Baseline defaults (1.0.0)
 
 For `Build`:
 - CI path: read persisted counter, increment by 1, persist.
@@ -70,7 +64,6 @@ For `Build`:
 
 - Missing/malformed versioning files fail fast with actionable errors.
 - Invalid numeric values (negative/non-numeric) are rejected.
-- Release marker is the single authoritative source for automatic release-line transitions.
 
 ### Publishing rule
 
@@ -110,17 +103,17 @@ Attempted downgrade is blocked with a clear message and remediation guidance.
 
 ## Practical examples
 
-### Example A: New release line
+### Example A: Minor version bump
 
-1. Update `release-line.marker.json` intentionally.
+1. Update `minor` value in `version.override.json`.
 2. CI build runs.
-3. Minor increments, Patch resets to `0`, Build increments by `+1`.
+3. Minor reflects the new override value, Build increments by `+1`.
 
-### Example B: Normal CI build on same release line
+### Example B: Normal CI build
 
-1. No release marker change.
+1. No override changes.
 2. CI build runs.
-3. Major/Minor/Patch unchanged (unless override), Build increments by `+1`.
+3. Major/Minor/Patch unchanged, Build increments by `+1`.
 
 ### Example C: Local developer build
 

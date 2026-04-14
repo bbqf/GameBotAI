@@ -541,10 +541,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       ["major"] = new OpenApiInteger(1),
       ["minor"] = new OpenApiInteger(2)
     },
-    ["releaseLineMarker"] = new OpenApiObject {
-      ["releaseLineId"] = new OpenApiString("main"),
-      ["sequence"] = new OpenApiInteger(4)
-    },
     ["ciBuildCounter"] = new OpenApiObject {
       ["lastBuild"] = new OpenApiInteger(18)
     }
@@ -562,7 +558,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["authoritative"] = new OpenApiBoolean(true),
     ["notes"] = new OpenApiArray
     {
-      new OpenApiString("minor:auto-transition"),
+      new OpenApiString("minor:override"),
       new OpenApiString("build:ci-authoritative")
     }
   };

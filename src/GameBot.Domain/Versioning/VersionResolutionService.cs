@@ -13,9 +13,6 @@ public sealed record class VersionResolutionInput
 {
     public required SemanticVersion BaselineVersion { get; init; }
     public VersionOverride? Override { get; init; }
-    public bool ReleaseLineTransitionDetected { get; init; }
-    public int? PreviousReleaseLineSequence { get; init; }
-    public int? CurrentReleaseLineSequence { get; init; }
     public required CiBuildCounter CiBuildCounter { get; init; }
     public required BuildContext Context { get; init; }
 }
@@ -33,16 +30,6 @@ public sealed record class VersionResolutionResult
 /// </summary>
 public sealed class VersionResolutionService
 {
-    public static bool HasReleaseLineTransition(int? previousSequence, int? currentSequence)
-    {
-        if (!previousSequence.HasValue || !currentSequence.HasValue)
-        {
-            return false;
-        }
-
-        return currentSequence.Value > previousSequence.Value;
-    }
-
     public static VersionResolutionResult Resolve(VersionResolutionInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -50,8 +37,6 @@ public sealed class VersionResolutionService
         var notes = new List<string>();
         var baseline = input.BaselineVersion;
         var versionOverride = input.Override;
-        var releaseLineTransitionDetected = input.ReleaseLineTransitionDetected ||
-            HasReleaseLineTransition(input.PreviousReleaseLineSequence, input.CurrentReleaseLineSequence);
 
         var major = versionOverride?.Major ?? baseline.Major;
 
@@ -60,11 +45,6 @@ public sealed class VersionResolutionService
         {
             minor = manualMinor;
             notes.Add("minor:override");
-        }
-        else if (releaseLineTransitionDetected)
-        {
-            minor = baseline.Minor + 1;
-            notes.Add("minor:auto-transition");
         }
         else
         {
@@ -77,11 +57,6 @@ public sealed class VersionResolutionService
         {
             patch = manualPatch;
             notes.Add("patch:override");
-        }
-        else if (releaseLineTransitionDetected && versionOverride?.Minor is null)
-        {
-            patch = 0;
-            notes.Add("patch:auto-reset");
         }
         else
         {

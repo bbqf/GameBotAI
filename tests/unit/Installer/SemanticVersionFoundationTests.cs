@@ -47,7 +47,6 @@ public sealed class SemanticVersionFoundationTests
     {
       BaselineVersion = new SemanticVersion(1, 2, 3, 10),
       Override = new VersionOverride(),
-      ReleaseLineTransitionDetected = false,
       CiBuildCounter = new CiBuildCounter { LastBuild = 10, UpdatedAtUtc = DateTimeOffset.UtcNow, UpdatedBy = "ci" },
       Context = BuildContext.Ci
     });
@@ -64,7 +63,6 @@ public sealed class SemanticVersionFoundationTests
     {
       BaselineVersion = new SemanticVersion(1, 2, 3, 20),
       Override = new VersionOverride(),
-      ReleaseLineTransitionDetected = false,
       CiBuildCounter = new CiBuildCounter { LastBuild = 20, UpdatedAtUtc = DateTimeOffset.UtcNow, UpdatedBy = "ci" },
       Context = BuildContext.Local
     });
@@ -75,17 +73,16 @@ public sealed class SemanticVersionFoundationTests
   }
 
   [Fact]
-  public void VersionResolutionServiceAutoMinorTransitionResetsPatchWithoutOverride()
+  public void VersionResolutionServiceUsesBaselineMinorWhenNoOverride()
   {
     var result = VersionResolutionService.Resolve(new VersionResolutionInput
     {
       BaselineVersion = new SemanticVersion(2, 5, 7, 30),
       Override = new VersionOverride { Major = 2 },
-      ReleaseLineTransitionDetected = true,
       CiBuildCounter = new CiBuildCounter { LastBuild = 30, UpdatedAtUtc = DateTimeOffset.UtcNow, UpdatedBy = "ci" },
       Context = BuildContext.Ci
     });
 
-    result.Version.Should().Be(new SemanticVersion(2, 6, 0, 31));
+    result.Version.Should().Be(new SemanticVersion(2, 5, 7, 31));
   }
 }

@@ -4,15 +4,12 @@ internal sealed class VersionResolveRequestModel
 {
   public required string BuildContext { get; init; }
   public VersionOverrideModel? Override { get; init; }
-  public ReleaseLineMarkerModel? ReleaseLineMarker { get; init; }
   public CiBuildCounterModel? CiBuildCounter { get; init; }
 
   // Backward-compatible flat fields
   public int? Major { get; init; }
   public int? Minor { get; init; }
   public int? Patch { get; init; }
-  public string? ReleaseLineId { get; init; }
-  public int? ReleaseLineSequence { get; init; }
   public int? LastCiBuild { get; init; }
 }
 
@@ -21,12 +18,6 @@ internal sealed class VersionOverrideModel
   public int? Major { get; init; }
   public int? Minor { get; init; }
   public int? Patch { get; init; }
-}
-
-internal sealed class ReleaseLineMarkerModel
-{
-  public string? ReleaseLineId { get; init; }
-  public int? Sequence { get; init; }
 }
 
 internal sealed class CiBuildCounterModel

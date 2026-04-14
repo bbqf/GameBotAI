@@ -29,7 +29,6 @@ function Get-InstallerVersioningPaths {
   return [PSCustomObject]@{
     Root = $versioningRoot
     Override = Join-Path $versioningRoot "version.override.json"
-    ReleaseLineMarker = Join-Path $versioningRoot "release-line.marker.json"
     CiBuildCounter = Join-Path $versioningRoot "ci-build-counter.json"
   }
 }
@@ -42,13 +41,11 @@ function Get-InstallerVersioningState {
 
   $paths = Get-InstallerVersioningPaths -RepoRoot $RepoRoot
   $override = Get-Content -Path $paths.Override -Raw | ConvertFrom-Json
-  $marker = Get-Content -Path $paths.ReleaseLineMarker -Raw | ConvertFrom-Json
   $counter = Get-Content -Path $paths.CiBuildCounter -Raw | ConvertFrom-Json
 
   return [PSCustomObject]@{
     Paths = $paths
     Override = $override
-    ReleaseLineMarker = $marker
     CiBuildCounter = $counter
   }
 }
@@ -88,10 +85,6 @@ function Resolve-InstallerVersion {
     [Parameter(Mandatory = $false)]
     [int]$BaselinePatch = 0,
     [Parameter(Mandatory = $false)]
-    [int]$PreviousReleaseLineSequence,
-    [Parameter(Mandatory = $false)]
-    [int]$CurrentReleaseLineSequence
-    ,[Parameter(Mandatory = $false)]
     [int]$BuildNumberOverride
   )
 
@@ -101,16 +94,8 @@ function Resolve-InstallerVersion {
 
   $major = if ($null -ne $override.major) { [int]$override.major } else { $BaselineMajor }
 
-  $releaseTransitionDetected = $false
-  if ($PSBoundParameters.ContainsKey('PreviousReleaseLineSequence') -and $PSBoundParameters.ContainsKey('CurrentReleaseLineSequence')) {
-    $releaseTransitionDetected = $CurrentReleaseLineSequence -gt $PreviousReleaseLineSequence
-  }
-
   if ($null -ne $override.minor) {
     $minor = [int]$override.minor
-  }
-  elseif ($releaseTransitionDetected) {
-    $minor = $BaselineMinor + 1
   }
   else {
     $minor = $BaselineMinor
@@ -118,9 +103,6 @@ function Resolve-InstallerVersion {
 
   if ($null -ne $override.patch) {
     $patch = [int]$override.patch
-  }
-  elseif ($releaseTransitionDetected -and $null -eq $override.minor) {
-    $patch = 0
   }
   else {
     $patch = $BaselinePatch
@@ -152,7 +134,6 @@ function Resolve-InstallerVersion {
     PersistedCounterWrite = $persisted
     Source = $BuildContext
     LastBuild = $nextBuild
-    ReleaseTransitionDetected = $releaseTransitionDetected
   }
 }
 
