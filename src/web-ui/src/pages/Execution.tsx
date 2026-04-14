@@ -17,6 +17,12 @@ const getAdbSerial = (action?: ActionDto): string => {
   return typeof raw === 'string' ? raw : '';
 };
 
+export function formatCaptureRate(fps?: number | null): string {
+  if (fps == null || fps <= 0) return '—';
+  if (fps >= 1) return `${fps.toFixed(1)} FPS`;
+  return `${(1 / fps).toFixed(1)} s/frame`;
+}
+
 export const ExecutionPage: React.FC = () => {
   const { data: gamesData, error: gamesError } = useGames();
   const [actions, setActions] = useState<ActionDto[]>([]);
@@ -377,6 +383,7 @@ export const ExecutionPage: React.FC = () => {
                 <div className="running-session-status">
                   <span className="run-label">Status:</span>
                   <StatusChip status={s.status} />
+                  <span className="capture-rate">{formatCaptureRate(s.captureRateFps)}</span>
                 </div>
                 <button type="button" onClick={() => handleStopSession(s.sessionId)} disabled={running || executing}>Stop</button>
               </li>

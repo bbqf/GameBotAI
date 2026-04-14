@@ -40,6 +40,7 @@ public sealed class RunningSessionDto {
   public DateTime StartedAtUtc { get; init; }
   public DateTime LastHeartbeatUtc { get; init; }
   public RunningSessionStatus Status { get; init; }
+  public double? CaptureRateFps { get; init; }
 }
 
 public sealed class StartSessionRequest {

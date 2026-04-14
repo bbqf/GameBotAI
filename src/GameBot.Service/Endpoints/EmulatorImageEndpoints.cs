@@ -2,13 +2,13 @@ using GameBot.Emulator.Session;
 using GameBot.Service.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.IO;
 using System.Linq;
 using GameBot.Domain.Images;
-
 namespace GameBot.Service.Endpoints;
 
 [SupportedOSPlatform("windows")]
@@ -18,27 +18,48 @@ internal static class EmulatorImageEndpoints
 
     public static IEndpointRouteBuilder MapEmulatorImageEndpoints(this IEndpointRouteBuilder app)
     {
-        // Capture emulator screenshot
-        app.MapGet(ApiRoutes.EmulatorScreenshot, async (HttpContext ctx, ISessionManager sessions, CaptureSessionStore captures, ILogger<EmulatorImageLoggingTag> logger, CancellationToken ct) =>
+        // Capture emulator screenshot (served from background capture service cache)
+        app.MapGet(ApiRoutes.EmulatorScreenshot, async (HttpContext ctx, ISessionManager sessions, CaptureSessionStore captures, ILogger<EmulatorImageLoggingTag> logger, string? sessionId = null) =>
         {
-            var session = PickSession(sessions);
+            var captureService = ctx.RequestServices.GetService<BackgroundScreenCaptureService>();
+            // Resolve session: use explicit sessionId or find first running session
+            GameBot.Domain.Sessions.EmulatorSession? session;
+            if (!string.IsNullOrWhiteSpace(sessionId))
+            {
+                session = sessions.GetSession(sessionId);
+            }
+            else
+            {
+                session = PickSession(sessions);
+            }
+
             if (session is null)
             {
                 return Results.Json(new { error = "emulator_unavailable", hint = "No running emulator session found. Start the emulator and retry." }, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
 
-            try
+            // Try background capture cache first
+            var frame = captureService?.GetCachedFrame(session.Id);
+            if (frame is not null)
             {
-                var png = await sessions.GetSnapshotAsync(session.Id, ct).ConfigureAwait(false);
-                var capture = captures.Add(png);
+                var capture = captures.Add(frame.PngBytes);
                 ctx.Response.Headers["X-Capture-Id"] = capture.Id;
                 EmulatorImageLog.CaptureSucceeded(logger, capture.Id, capture.Width, capture.Height);
-                return Results.File(png, "image/png");
+                return Results.File(frame.PngBytes, "image/png");
             }
-            catch (Exception ex)
+
+            // Fallback: direct ADB capture (before background loop starts, or when service unavailable)
+            try
             {
-                EmulatorImageLog.CaptureFailed(logger, ex);
-                return Results.Json(new { error = "emulator_unavailable", hint = "Emulator not ready. Ensure it is running and retry capture." }, statusCode: StatusCodes.Status503ServiceUnavailable);
+                var pngBytes = await sessions.GetSnapshotAsync(session.Id).ConfigureAwait(false);
+                var capture = captures.Add(pngBytes);
+                ctx.Response.Headers["X-Capture-Id"] = capture.Id;
+                EmulatorImageLog.CaptureSucceeded(logger, capture.Id, capture.Width, capture.Height);
+                return Results.File(pngBytes, "image/png");
+            }
+            catch
+            {
+                return Results.Json(new { error = "emulator_unavailable", hint = "No cached screenshot available and direct capture failed." }, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         }).WithName("GetEmulatorScreenshot").WithTags("Emulators");
 

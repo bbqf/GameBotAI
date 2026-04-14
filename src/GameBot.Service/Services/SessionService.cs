@@ -20,13 +20,15 @@ public sealed class SessionService : ISessionService
 {
   private readonly ISessionManager _sessions;
   private readonly ISessionContextCache _cache;
+  private readonly BackgroundScreenCaptureService? _captureService;
   private readonly ConcurrentDictionary<string, RunningSession> _running = new(StringComparer.OrdinalIgnoreCase);
   private readonly object _gate = new();
 
-  public SessionService(ISessionManager sessions, ISessionContextCache cache)
+  public SessionService(ISessionManager sessions, ISessionContextCache cache, BackgroundScreenCaptureService? captureService = null)
   {
     _sessions = sessions;
     _cache = cache;
+    _captureService = captureService;
   }
 
   public IReadOnlyCollection<RunningSession> GetRunningSessions()
@@ -53,6 +55,7 @@ public sealed class SessionService : ISessionService
       if (_running.TryGetValue(key, out var existing))
       {
         // Best-effort stop; remove from running list even if stop fails per spec
+        _captureService?.StopCapture(existing.SessionId);
         _sessions.StopSession(existing.SessionId);
         _running.TryRemove(key, out _);
         _cache.ClearSession(existing.GameId, existing.EmulatorId);
@@ -67,6 +70,13 @@ public sealed class SessionService : ISessionService
       var running = ToRunning(session, normalizedEmulatorId);
       _running[key] = running;
       _cache.SetSessionId(normalizedGameId, normalizedEmulatorId, session.Id);
+
+      // Start background capture loop if device serial is available
+      if (_captureService is not null && !string.IsNullOrWhiteSpace(session.DeviceSerial))
+      {
+        _captureService.StartCapture(session.Id, session.DeviceSerial);
+      }
+
       return running;
     }
   }
@@ -79,6 +89,7 @@ public sealed class SessionService : ISessionService
     {
       SyncFromSessionManager();
       var pair = _running.FirstOrDefault(kvp => string.Equals(kvp.Value.SessionId, sessionId, StringComparison.OrdinalIgnoreCase));
+      _captureService?.StopCapture(sessionId);
       var stopped = _sessions.StopSession(sessionId);
       if (!string.IsNullOrWhiteSpace(pair.Key))
       {
@@ -105,6 +116,7 @@ public sealed class SessionService : ISessionService
         _running.TryRemove(kvp.Key, out var removed);
         if (removed is not null)
         {
+          _captureService?.StopCapture(removed.SessionId);
           _cache.ClearSession(removed.GameId, removed.EmulatorId);
         }
         continue;
@@ -116,6 +128,7 @@ public sealed class SessionService : ISessionService
         _running.TryRemove(kvp.Key, out var removed);
         if (removed is not null)
         {
+          _captureService?.StopCapture(removed.SessionId);
           _cache.ClearSession(removed.GameId, removed.EmulatorId);
         }
         continue;
@@ -128,7 +141,8 @@ public sealed class SessionService : ISessionService
         EmulatorId = kvp.Value.EmulatorId,
         StartedAtUtc = kvp.Value.StartedAtUtc,
         LastHeartbeatUtc = sess.LastActivity.UtcDateTime,
-        Status = sess.Status == SessionStatus.Running ? RunningSessionStatus.Running : RunningSessionStatus.Stopping
+        Status = sess.Status == SessionStatus.Running ? RunningSessionStatus.Running : RunningSessionStatus.Stopping,
+        CaptureRateFps = _captureService?.GetCaptureMetrics(kvp.Value.SessionId)?.CaptureRateFps
       };
       _running[kvp.Key] = updated;
     }
@@ -151,14 +165,15 @@ public sealed class SessionService : ISessionService
 
   private static string Key(string gameId, string emulatorId) => $"{gameId.Trim()}|{emulatorId.Trim()}";
 
-  private static RunningSession ToRunning(EmulatorSession session, string emulatorId) => new()
+  private RunningSession ToRunning(EmulatorSession session, string emulatorId) => new()
   {
     SessionId = session.Id,
     GameId = session.GameId,
     EmulatorId = emulatorId,
     StartedAtUtc = session.StartTime.UtcDateTime,
     LastHeartbeatUtc = session.LastActivity.UtcDateTime,
-    Status = RunningSessionStatus.Running
+    Status = RunningSessionStatus.Running,
+    CaptureRateFps = _captureService?.GetCaptureMetrics(session.Id)?.CaptureRateFps
   };
 }
 #pragma warning restore CA1515

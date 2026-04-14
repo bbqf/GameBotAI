@@ -8,6 +8,7 @@ public sealed class RunningSession
     public DateTime StartedAtUtc { get; init; }
     public DateTime LastHeartbeatUtc { get; init; }
     public RunningSessionStatus Status { get; init; } = RunningSessionStatus.Running;
+    public double? CaptureRateFps { get; init; }
 }
 
 public enum RunningSessionStatus

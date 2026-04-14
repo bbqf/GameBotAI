@@ -15,9 +15,9 @@
 
 **Purpose**: Shared domain models and configuration that all user stories depend on
 
-- [ ] T001 [P] Create CachedFrame immutable record in src/GameBot.Domain/Sessions/CachedFrame.cs with PngBytes (byte[]), Bitmap (System.Drawing.Bitmap), Timestamp (DateTimeOffset), Width (int), Height (int) properties
-- [ ] T002 [P] Create CaptureMetrics record in src/GameBot.Domain/Sessions/CaptureMetrics.cs with CaptureRateFps (double?), FrameCount (long), LastCaptureUtc (DateTimeOffset?) properties
-- [ ] T003 Add GAMEBOT_CAPTURE_INTERVAL_MS configuration reading to src/GameBot.Service/Program.cs — parse env var with default 500, clamp minimum to 50ms, store in a named options or static config accessible by the capture service
+- [X] T001 [P] Create CachedFrame immutable record in src/GameBot.Domain/Sessions/CachedFrame.cs with PngBytes (byte[]), Bitmap (System.Drawing.Bitmap), Timestamp (DateTimeOffset), Width (int), Height (int) properties
+- [X] T002 [P] Create CaptureMetrics record in src/GameBot.Domain/Sessions/CaptureMetrics.cs with CaptureRateFps (double?), FrameCount (long), LastCaptureUtc (DateTimeOffset?) properties
+- [X] T003 Add GAMEBOT_CAPTURE_INTERVAL_MS configuration reading to src/GameBot.Service/Program.cs — parse env var with default 500, clamp minimum to 50ms, store in a named options or static config accessible by the capture service
 
 ---
 
@@ -27,10 +27,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create BackgroundScreenCaptureService class in src/GameBot.Emulator/Session/BackgroundScreenCaptureService.cs — singleton service with ConcurrentDictionary<string, SessionCaptureLoop> keyed by session ID; public methods: StartCapture(sessionId, deviceSerial), StopCapture(sessionId), GetCachedFrame(sessionId), GetCaptureMetrics(sessionId), StopAll(); implements IDisposable to cancel all loops on shutdown
-- [ ] T005 Implement SessionCaptureLoop as a private/internal nested class or separate internal class within BackgroundScreenCaptureService — runs Task.Run(LongRunning) loop: capture via AdbScreenSource (injected internally, not DI-resolved for consumers) → store both PNG bytes and decoded Bitmap in CachedFrame so consumers choose their preferred format → atomic swap via Volatile.Write → compute rolling FPS (circular buffer of last 10 capture durations) → delay remainder of interval → repeat; handles CancellationToken for graceful stop; logs capture failures and continues; disposes old Bitmap after swap
-- [ ] T006 Write unit tests for BackgroundScreenCaptureService in tests/unit/BackgroundScreenCaptureServiceTests.cs — test StartCapture creates a loop and begins capturing (use a fake/stub ADB provider); test StopCapture cancels the loop and disposes resources; test GetCachedFrame returns null before first capture then returns frame after capture completes; test GetCaptureMetrics returns correct rolling FPS; test concurrent reads do not block; test StopAll disposes all loops; test duplicate StartCapture for same sessionId stops old loop first; include a timing assertion that GetCachedFrame completes in under 5ms (SC-001 validation)
-- [ ] T007 Write unit tests for CaptureMetrics rolling FPS calculation in tests/unit/CaptureMetricsTests.cs — test FPS computation with various capture durations; test rolling window evicts old samples correctly; test zero captures returns null/0; test single capture returns correct rate
+- [X] T004 Create BackgroundScreenCaptureService class in src/GameBot.Emulator/Session/BackgroundScreenCaptureService.cs — singleton service with ConcurrentDictionary<string, SessionCaptureLoop> keyed by session ID; public methods: StartCapture(sessionId, deviceSerial), StopCapture(sessionId), GetCachedFrame(sessionId), GetCaptureMetrics(sessionId), StopAll(); implements IDisposable to cancel all loops on shutdown
+- [X] T005 Implement SessionCaptureLoop as a private/internal nested class or separate internal class within BackgroundScreenCaptureService — runs Task.Run(LongRunning) loop: capture via AdbScreenSource (injected internally, not DI-resolved for consumers) → store both PNG bytes and decoded Bitmap in CachedFrame so consumers choose their preferred format → atomic swap via Volatile.Write → compute rolling FPS (circular buffer of last 10 capture durations) → delay remainder of interval → repeat; handles CancellationToken for graceful stop; logs capture failures and continues; disposes old Bitmap after swap
+- [X] T006 Write unit tests for BackgroundScreenCaptureService in tests/unit/BackgroundScreenCaptureServiceTests.cs — test StartCapture creates a loop and begins capturing (use a fake/stub ADB provider); test StopCapture cancels the loop and disposes resources; test GetCachedFrame returns null before first capture then returns frame after capture completes; test GetCaptureMetrics returns correct rolling FPS; test concurrent reads do not block; test StopAll disposes all loops; test duplicate StartCapture for same sessionId stops old loop first; include a timing assertion that GetCachedFrame completes in under 5ms (SC-001 validation)
+- [X] T007 Write unit tests for CaptureMetrics rolling FPS calculation in tests/unit/CaptureMetricsTests.cs — test FPS computation with various capture durations; test rolling window evicts old samples correctly; test zero captures returns null/0; test single capture returns correct rate
 
 **Checkpoint**: Background capture service is independently testable with fake ADB provider. Build and all tests must pass.
 
@@ -44,14 +44,14 @@
 
 ### Implementation
 
-- [ ] T008 Create BackgroundCaptureScreenSource class implementing IScreenSource in src/GameBot.Emulator/Session/BackgroundCaptureScreenSource.cs — constructor takes BackgroundScreenCaptureService + ISessionManager; GetLatestScreenshot() finds the first running session, calls GetCachedFrame(sessionId), returns a clone of the cached Bitmap (or null if no frame/session); Windows-only platform attribute
-- [ ] T009 Modify SessionService.StartSession() in src/GameBot.Service/Services/SessionService.cs — after successful session creation, call BackgroundScreenCaptureService.StartCapture(sessionId, deviceSerial) to start the capture loop for the new session
-- [ ] T010 Modify SessionService.StopSession() in src/GameBot.Service/Services/SessionService.cs — before or after stopping the session, call BackgroundScreenCaptureService.StopCapture(sessionId) to stop the capture loop and release resources
-- [ ] T011 Modify SessionService.SyncFromSessionManager() in src/GameBot.Service/Services/SessionService.cs — in the removal step where sessions are evicted, also call BackgroundScreenCaptureService.StopCapture(sessionId) for each removed session to clean up orphaned capture loops
-- [ ] T012 Register BackgroundScreenCaptureService as singleton in src/GameBot.Service/Program.cs — register before IScreenSource; inject ILogger<BackgroundScreenCaptureService> and the capture interval config; inject into SessionService constructor
-- [ ] T013 Update IScreenSource DI registration in src/GameBot.Service/Program.cs — when ADB is enabled, replace the AdbScreenSource → CachedScreenSource chain with BackgroundCaptureScreenSource that reads from BackgroundScreenCaptureService; keep AdbScreenSource registered separately (non-DI or named) for internal use by the capture loop only
-- [ ] T014 Write unit tests for BackgroundCaptureScreenSource in tests/unit/BackgroundCaptureScreenSourceTests.cs — test returns cached Bitmap clone when frame available; test returns null when no frame; test returns null when no running session; test does not call ADB directly
-- [ ] T015 Write unit tests for SessionService lifecycle integration in tests/unit/SessionService/SessionServiceCaptureLifecycleTests.cs — test StartSession calls StartCapture; test StopSession calls StopCapture; test SyncFromSessionManager cleanup calls StopCapture for evicted sessions; use mocked BackgroundScreenCaptureService
+- [X] T008 Create BackgroundCaptureScreenSource class implementing IScreenSource in src/GameBot.Emulator/Session/BackgroundCaptureScreenSource.cs — constructor takes BackgroundScreenCaptureService + ISessionManager; GetLatestScreenshot() finds the first running session, calls GetCachedFrame(sessionId), returns a clone of the cached Bitmap (or null if no frame/session); Windows-only platform attribute
+- [X] T009 Modify SessionService.StartSession() in src/GameBot.Service/Services/SessionService.cs — after successful session creation, call BackgroundScreenCaptureService.StartCapture(sessionId, deviceSerial) to start the capture loop for the new session
+- [X] T010 Modify SessionService.StopSession() in src/GameBot.Service/Services/SessionService.cs — before or after stopping the session, call BackgroundScreenCaptureService.StopCapture(sessionId) to stop the capture loop and release resources
+- [X] T011 Modify SessionService.SyncFromSessionManager() in src/GameBot.Service/Services/SessionService.cs — in the removal step where sessions are evicted, also call BackgroundScreenCaptureService.StopCapture(sessionId) for each removed session to clean up orphaned capture loops
+- [X] T012 Register BackgroundScreenCaptureService as singleton in src/GameBot.Service/Program.cs — register before IScreenSource; inject ILogger<BackgroundScreenCaptureService> and the capture interval config; inject into SessionService constructor
+- [X] T013 Update IScreenSource DI registration in src/GameBot.Service/Program.cs — when ADB is enabled, replace the AdbScreenSource → CachedScreenSource chain with BackgroundCaptureScreenSource that reads from BackgroundScreenCaptureService; keep AdbScreenSource registered separately (non-DI or named) for internal use by the capture loop only
+- [X] T014 Write unit tests for BackgroundCaptureScreenSource in tests/unit/BackgroundCaptureScreenSourceTests.cs — test returns cached Bitmap clone when frame available; test returns null when no frame; test returns null when no running session; test does not call ADB directly
+- [X] T015 Write unit tests for SessionService lifecycle integration in tests/unit/SessionService/SessionServiceCaptureLifecycleTests.cs — test StartSession calls StartCapture; test StopSession calls StopCapture; test SyncFromSessionManager cleanup calls StopCapture for evicted sessions; use mocked BackgroundScreenCaptureService
 
 **Checkpoint**: MVP complete — background capture loop runs per-session, IScreenSource consumers get instant cached frames, lifecycle is automatic. Build and all tests must pass.
 
@@ -65,9 +65,9 @@
 
 ### Implementation
 
-- [ ] T016 [US3] Modify EmulatorImageEndpoints GET /emulator/screenshot in src/GameBot.Service/Endpoints/EmulatorImageEndpoints.cs — add optional string? sessionId query parameter; read cached PNG bytes from BackgroundScreenCaptureService.GetCachedFrame(sessionId) instead of calling ISessionManager.GetSnapshotAsync(); if sessionId is omitted, resolve from first running session; if no cached frame available, return 503 with existing error format; still store in CaptureSessionStore for crop operations
-- [ ] T017 [US3] Verify AdbScreenSource is no longer in the consumer DI chain — confirm that IScreenSource resolves to BackgroundCaptureScreenSource (from T013); ensure AdbScreenSource is only used internally by the capture loop; optionally add an integration test in tests/integration/ that resolves IScreenSource from DI and asserts it is BackgroundCaptureScreenSource type
-- [ ] T018 [US3] Write integration test for rerouted screenshot endpoint in tests/integration/EmulatorImageEndpointsCaptureTests.cs — start a test server with background capture service (stub ADB), request GET /emulator/screenshot, verify PNG response, verify the response came from the cached frame not from a direct ADB call
+- [X] T016 [US3] Modify EmulatorImageEndpoints GET /emulator/screenshot in src/GameBot.Service/Endpoints/EmulatorImageEndpoints.cs — add optional string? sessionId query parameter; read cached PNG bytes from BackgroundScreenCaptureService.GetCachedFrame(sessionId) instead of calling ISessionManager.GetSnapshotAsync(); if sessionId is omitted, resolve from first running session; if no cached frame available, return 503 with existing error format; still store in CaptureSessionStore for crop operations
+- [X] T017 [US3] Verify AdbScreenSource is no longer in the consumer DI chain — confirm that IScreenSource resolves to BackgroundCaptureScreenSource (from T013); ensure AdbScreenSource is only used internally by the capture loop; optionally add an integration test in tests/integration/ that resolves IScreenSource from DI and asserts it is BackgroundCaptureScreenSource type
+- [X] T018 [US3] Write integration test for rerouted screenshot endpoint in tests/integration/EmulatorImageEndpointsCaptureTests.cs — start a test server with background capture service (stub ADB), request GET /emulator/screenshot, verify PNG response, verify the response came from the cached frame not from a direct ADB call
 
 **Checkpoint**: All ADB screenshot consumers are rerouted. Build and all tests must pass.
 
@@ -81,19 +81,19 @@
 
 ### Backend
 
-- [ ] T019 [P] [US4] Add CaptureRateFps property (double?) to RunningSessionDto in src/GameBot.Service/Models/Sessions.cs
-- [ ] T020 [P] [US4] Add CaptureRateFps property (double?) to RunningSession domain model in src/GameBot.Domain/Sessions/RunningSession.cs
-- [ ] T021 [US4] Modify SessionService to populate CaptureRateFps in src/GameBot.Service/Services/SessionService.cs — in ToRunning() and SyncFromSessionManager() update step, call BackgroundScreenCaptureService.GetCaptureMetrics(sessionId) and set CaptureRateFps on the RunningSession/DTO
+- [X] T019 [P] [US4] Add CaptureRateFps property (double?) to RunningSessionDto in src/GameBot.Service/Models/Sessions.cs
+- [X] T020 [P] [US4] Add CaptureRateFps property (double?) to RunningSession domain model in src/GameBot.Domain/Sessions/RunningSession.cs
+- [X] T021 [US4] Modify SessionService to populate CaptureRateFps in src/GameBot.Service/Services/SessionService.cs — in ToRunning() and SyncFromSessionManager() update step, call BackgroundScreenCaptureService.GetCaptureMetrics(sessionId) and set CaptureRateFps on the RunningSession/DTO
 
 ### Frontend
 
-- [ ] T022 [P] [US4] Add captureRateFps field to RunningSessionDto type in src/web-ui/src/services/sessionsApi.ts — add optional `captureRateFps?: number | null` property
-- [ ] T023 [US4] Display capture rate metric in running session rows in src/web-ui/src/pages/Execution.tsx — in the runningSessions.map() list, add a span showing formatted capture rate: if captureRateFps >= 1, show "{fps.toFixed(1)} FPS"; if captureRateFps > 0 && < 1, show "{(1/fps).toFixed(1)} s/frame"; if null/undefined/0, show "—"
+- [X] T022 [P] [US4] Add captureRateFps field to RunningSessionDto type in src/web-ui/src/services/sessionsApi.ts — add optional `captureRateFps?: number | null` property
+- [X] T023 [US4] Display capture rate metric in running session rows in src/web-ui/src/pages/Execution.tsx — in the runningSessions.map() list, add a span showing formatted capture rate: if captureRateFps >= 1, show "{fps.toFixed(1)} FPS"; if captureRateFps > 0 && < 1, show "{(1/fps).toFixed(1)} s/frame"; if null/undefined/0, show "—"
 
 ### Tests
 
-- [ ] T024 [P] [US4] Write unit test for capture rate formatting logic in src/web-ui/src/__tests__/captureRate.spec.ts — test FPS formatting (>=1 shows FPS), s/frame formatting (<1), null/zero shows dash
-- [ ] T025 [US4] Write contract test verifying RunningSessionDto includes captureRateFps in tests/contract/ — verify GET /api/sessions/running response schema includes the new nullable field
+- [X] T024 [P] [US4] Write unit test for capture rate formatting logic in src/web-ui/src/__tests__/captureRate.spec.ts — test FPS formatting (>=1 shows FPS), s/frame formatting (<1), null/zero shows dash
+- [X] T025 [US4] Write contract test verifying RunningSessionDto includes captureRateFps in tests/contract/ — verify GET /api/sessions/running response schema includes the new nullable field
 
 **Checkpoint**: Capture rate metric visible in UI. Build, backend tests, and frontend tests must pass.
 
@@ -103,10 +103,10 @@
 
 **Purpose**: Final validation, cleanup, and documentation
 
-- [ ] T026 [P] Run full build and test suite (`dotnet build -c Debug && dotnet test -c Debug`) — verify zero warnings, all tests pass, no regressions from the 454 existing tests
-- [ ] T027 [P] Run web-ui tests (`npx jest --coverage` in src/web-ui) — verify frontend tests pass including new capture rate tests
-- [ ] T028 Run quickstart.md validation in specs/034-background-screenshot-service/quickstart.md — manually verify the end-to-end flow: start service, start session, check FPS in UI, verify screenshot endpoint returns cached frame
-- [ ] T029 [P] Add CHANGELOG.md entry for the background screenshot service feature — document user-visible change: capture rate metric in Execution tab
+- [X] T026 [P] Run full build and test suite (`dotnet build -c Debug && dotnet test -c Debug`) — verify zero warnings, all tests pass, no regressions from the 454 existing tests
+- [X] T027 [P] Run web-ui tests (`npx jest --coverage` in src/web-ui) — verify frontend tests pass including new capture rate tests
+- [X] T028 Run quickstart.md validation in specs/034-background-screenshot-service/quickstart.md — manually verify the end-to-end flow: start service, start session, check FPS in UI, verify screenshot endpoint returns cached frame
+- [X] T029 [P] Add CHANGELOG.md entry for the background screenshot service feature — document user-visible change: capture rate metric in Execution tab
 
 ---
 

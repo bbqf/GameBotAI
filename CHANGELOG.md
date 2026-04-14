@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Background Screenshot Service (034-background-screenshot-service)
+  - Per-session background capture loop runs on a dedicated thread, taking ADB screenshots at a configurable interval (`GAMEBOT_CAPTURE_INTERVAL_MS`, default 500ms, min 50ms).
+  - Cached frames available instantly via `BackgroundScreenCaptureService.GetCachedFrame()` — dual-format cache (PNG bytes + Bitmap) so consumers choose their preferred format.
+  - All `IScreenSource` consumers now read from the background cache instead of making direct ADB calls.
+  - Screenshot endpoint (`GET /api/emulator/screenshot`) serves cached frames with fallback to direct ADB capture during startup.
+  - Optional `sessionId` query parameter on screenshot endpoint for explicit session targeting.
+  - Capture rate metric (FPS) displayed in the Execution tab for each running session.
+  - Automatic lifecycle management: capture loop starts with session, stops when session ends or is evicted.
+  - Rolling FPS calculation using a circular buffer of the last 10 capture durations.
+
 - Command Loop Steps (033-command-loops)
   - Count-based loops (`count`): execute body steps exactly N times.
   - While loops (`while`): re-evaluate condition before each iteration; skip body if false on entry.

@@ -69,6 +69,34 @@ public sealed class SessionsContractsTests : IDisposable
         stopResp.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task RunningSessionsResponseIncludesCaptureRateFps()
+    {
+        var fakeSessions = new FakeSessionManager();
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var app = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISessionManager>();
+                services.AddSingleton<ISessionManager>(_ => fakeSessions);
+            });
+        });
+
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+        // Start a session to populate running list
+        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new { gameId = "game-1", emulatorId = "emu-1" }).ConfigureAwait(true);
+        startResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var runningResp = await client.GetAsync(new Uri("/api/sessions/running", UriKind.Relative)).ConfigureAwait(true);
+        runningResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await runningResp.Content.ReadAsStringAsync().ConfigureAwait(true);
+        // Schema should include captureRateFps field (nullable)
+        body.Should().Contain("captureRateFps");
+    }
+
     private sealed class FakeSessionManager : ISessionManager
     {
         private readonly List<EmulatorSession> _sessions = new();
