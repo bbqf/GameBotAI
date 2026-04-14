@@ -383,8 +383,12 @@ export const ExecutionPage: React.FC = () => {
                 <div className="running-session-status">
                   <span className="run-label">Status:</span>
                   <StatusChip status={s.status} />
-                  <span className="capture-rate">{formatCaptureRate(s.captureRateFps)}</span>
                 </div>
+                {s.captureRateFps != null && s.captureRateFps > 0 && (
+                  <div className="running-session-capture-rate">
+                    <span className="run-label">Screen capture:</span> {formatCaptureRate(s.captureRateFps)}
+                  </div>
+                )}
                 <button type="button" onClick={() => handleStopSession(s.sessionId)} disabled={running || executing}>Stop</button>
               </li>
             ))}
