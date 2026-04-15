@@ -197,4 +197,71 @@ public sealed class PrimitiveTapExecutionIntegrationTests : IDisposable {
     outcomes[0].GetProperty("status").GetString().Should().Be("skipped_invalid_config");
     outcomes[0].GetProperty("reason").GetString().Should().Be("template_not_found");
   }
+
+  [Fact]
+  public async Task ForceExecutePrimitiveTapWithRetryCountZeroSucceedsOnFirstDetection() {
+    // Set retry count to 0 — only the initial detection check, no retries.
+    // The 1x1 template matches itself, so detection should succeed on the initial check.
+    var prevRetryCount = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT");
+    var prevCaptureInterval = Environment.GetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS");
+    try {
+      Environment.SetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT", "0");
+      Environment.SetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS", "50");
+
+      using var app = new WebApplicationFactory<Program>();
+      var client = app.CreateClient();
+      client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+      var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "retry_img", data = OneByOnePngBase64 });
+      uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
+
+      var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "RetryZeroGame", description = "desc" });
+      gameResp.EnsureSuccessStatusCode();
+      var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+      var gameId = game!["id"]!.ToString();
+
+      var commandReq = new {
+        name = "RetryZeroCmd",
+        triggerId = (string?)null,
+        steps = new[] {
+          new {
+            type = "PrimitiveTap",
+            order = 0,
+            primitiveTap = new {
+              detectionTarget = new {
+                referenceImageId = "retry_img",
+                confidence = 0.99,
+                offsetX = 0,
+                offsetY = 0,
+                selectionStrategy = "HighestConfidence"
+              }
+            }
+          }
+        }
+      };
+
+      var commandResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), commandReq);
+      commandResp.EnsureSuccessStatusCode();
+      var command = await commandResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+      var commandId = command!["id"]!.ToString();
+
+      var sessionResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId });
+      sessionResp.EnsureSuccessStatusCode();
+      var session = await sessionResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+      var sessionId = session!["id"]!.ToString();
+
+      var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null);
+      execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+      using var doc = await System.Text.Json.JsonDocument.ParseAsync(await execResp.Content.ReadAsStreamAsync());
+      doc.RootElement.GetProperty("accepted").GetInt32().Should().Be(1);
+      var outcomes = doc.RootElement.GetProperty("stepOutcomes");
+      outcomes.GetArrayLength().Should().Be(1);
+      outcomes[0].GetProperty("status").GetString().Should().Be("executed");
+    }
+    finally {
+      Environment.SetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT", prevRetryCount);
+      Environment.SetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS", prevCaptureInterval);
+    }
+  }
 }

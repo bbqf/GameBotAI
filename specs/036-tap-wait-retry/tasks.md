@@ -19,7 +19,7 @@
 
 **Purpose**: No new projects or directories needed. This phase verifies the build is green before changes begin.
 
-- [ ] T001 Verify build and all 489 tests pass (`dotnet build -c Debug && dotnet test -c Debug`)
+- [X] T001 Verify build and all 489 tests pass (`dotnet build -c Debug && dotnet test -c Debug`)
 
 ---
 
@@ -33,13 +33,13 @@
 
 ### Tests for Configuration
 
-- [ ] T002 [P] [US3] Add unit tests for AppConfig default values and validation in `tests/unit/Config/AppConfigValidationTests.cs` — test default CaptureIntervalMs=500, TapRetryCount=3, TapRetryProgression=1.0; test negative TapRetryCount falls back to 3; test zero/negative TapRetryProgression falls back to 1.0; test CaptureIntervalMs clamped to ≥50
+- [X] T002 [P] [US3] Add unit tests for AppConfig default values and validation in `tests/unit/Config/AppConfigValidationTests.cs` — test default CaptureIntervalMs=500, TapRetryCount=3, TapRetryProgression=1.0; test negative TapRetryCount falls back to 3; test zero/negative TapRetryProgression falls back to 1.0; test CaptureIntervalMs clamped to ≥50
 
 ### Implementation for Configuration
 
-- [ ] T003 [US3] Add CaptureIntervalMs, TapRetryCount, TapRetryProgression properties to `src/GameBot.Domain/Config/AppConfig.cs` with defaults (500, 3, 1.0) and XML doc comments per data-model.md
-- [ ] T004 [US3] Wire new AppConfig properties from env vars in `src/GameBot.Service/Program.cs` — parse GAMEBOT_CAPTURE_INTERVAL_MS (reuse existing local var), GAMEBOT_TAP_RETRY_COUNT, GAMEBOT_TAP_RETRY_PROGRESSION with validation and fallback per R-003; also feed captureIntervalMs from the same parsed value to BackgroundScreenCaptureService registration
-- [ ] T005 [US3] Verify build passes and T002 tests are green
+- [X] T003 [US3] Add CaptureIntervalMs, TapRetryCount, TapRetryProgression properties to `src/GameBot.Domain/Config/AppConfig.cs` with defaults (500, 3, 1.0) and XML doc comments per data-model.md
+- [X] T004 [US3] Wire new AppConfig properties from env vars in `src/GameBot.Service/Program.cs` — parse GAMEBOT_CAPTURE_INTERVAL_MS (reuse existing local var), GAMEBOT_TAP_RETRY_COUNT, GAMEBOT_TAP_RETRY_PROGRESSION with validation and fallback per R-003; also feed captureIntervalMs from the same parsed value to BackgroundScreenCaptureService registration
+- [X] T005 [US3] Verify build passes and T002 tests are green
 
 **Checkpoint**: AppConfig now carries all three retry config values. Retry loop implementation can begin.
 
@@ -53,20 +53,20 @@
 
 ### Tests for User Story 1
 
-- [ ] T006 [P] [US1] Add unit test: image found on first attempt (after initial wait) — tap executes with status "executed" and null reason, in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
-- [ ] T007 [P] [US1] Add unit test: image found on 3rd attempt — tap executes with status "executed" and reason "detected_after_2_retries", in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
-- [ ] T008 [P] [US1] Add unit test: image never found, COUNT=3 — step fails with status "skipped_detection_failed" and reason "detection_failed_after_3_retries", in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
-- [ ] T009 [P] [US1] Add unit test: cancellation during wait — step reports status "cancelled" and reason "cancelled_during_retry_N", in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
-- [ ] T010 [P] [US1] Add unit test: COUNT=0 — single detection check, no retries; if not found, fails immediately with reason "detection_failed_after_0_retries", in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
-- [ ] T011 [P] [US1] Add integration test: end-to-end retry with mock screenshot source returning image on 2nd call, in `tests/integration/Commands/PrimitiveTapExecutionIntegrationTests.cs`
-- [ ] T023 [P] [FR-012] Add regression test: primitive tap step without a detection target is unaffected by retry logic — still skips with existing behaviour, in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T006 [P] [US1] Add unit test: image found on first attempt (after initial wait) — tap executes with status "executed" and null reason, in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T007 [P] [US1] Add unit test: image found on 3rd attempt — tap executes with status "executed" and reason "detected_after_2_retries", in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T008 [P] [US1] Add unit test: image never found, COUNT=3 — step fails with status "skipped_detection_failed" and reason "detection_failed_after_3_retries", in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T009 [P] [US1] Add unit test: cancellation during wait — step reports status "cancelled" and reason "cancelled_during_retry_N", in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T010 [P] [US1] Add unit test: COUNT=0 — single detection check, no retries; if not found, fails immediately with reason "detection_failed_after_0_retries", in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T011 [P] [US1] Add integration test: end-to-end retry with mock screenshot source returning image on 2nd call, in `tests/integration/Commands/PrimitiveTapExecutionIntegrationTests.cs`
+- [X] T023 [P] [FR-012] Add regression test: primitive tap step without a detection target is unaffected by retry logic — still skips with existing behaviour, in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Add source-generated `[LoggerMessage]` methods to the Log static class in `src/GameBot.Service/Services/CommandExecutor.cs` — TapRetryWaiting (Debug), TapRetryDetected (Info), TapRetryNotDetected (Debug), TapRetryExhausted (Warning), TapRetryCancelled (Info) per R-006
-- [ ] T013 [US1] Inject AppConfig into CommandExecutor constructor in `src/GameBot.Service/Services/CommandExecutor.cs` — add `_appConfig` field, receive via DI, read CaptureIntervalMs/TapRetryCount/TapRetryProgression
-- [ ] T014 [US1] Implement retry loop in PrimitiveTap handling block of `src/GameBot.Service/Services/CommandExecutor.cs` — move template lookup before loop (R-005); perform initial wait + detection check, then wrap retry cycles in `for` loop with `Task.Delay(currentWaitMs, ct)` followed by `currentWaitMs *= progression` (progression applied after each retry wait, not after initial check); handle OperationCanceledException for immediate cancellation (FR-013); encode retry metadata in Reason field per R-004
-- [ ] T015 [US1] Verify build passes and all tests (T006–T011 plus existing 489) are green
+- [X] T012 [US1] Add source-generated `[LoggerMessage]` methods to the Log static class in `src/GameBot.Service/Services/CommandExecutor.cs` — TapRetryWaiting (Debug), TapRetryDetected (Info), TapRetryNotDetected (Debug), TapRetryExhausted (Warning), TapRetryCancelled (Info) per R-006
+- [X] T013 [US1] Inject AppConfig into CommandExecutor constructor in `src/GameBot.Service/Services/CommandExecutor.cs` — add `_appConfig` field, receive via DI, read CaptureIntervalMs/TapRetryCount/TapRetryProgression
+- [X] T014 [US1] Implement retry loop in PrimitiveTap handling block of `src/GameBot.Service/Services/CommandExecutor.cs` — move template lookup before loop (R-005); perform initial wait + detection check, then wrap retry cycles in `for` loop with `Task.Delay(currentWaitMs, ct)` followed by `currentWaitMs *= progression` (progression applied after each retry wait, not after initial check); handle OperationCanceledException for immediate cancellation (FR-013); encode retry metadata in Reason field per R-004
+- [X] T015 [US1] Verify build passes and all tests (T006–T011 plus existing 489) are green
 
 **Checkpoint**: Primitive tap steps now wait and retry. US1 acceptance scenarios 1, 2, 3 are satisfied. Cancellation works.
 
@@ -82,9 +82,9 @@
 
 ### Tests for User Story 2
 
-- [ ] T016 [P] [US2] Add unit test: PROGRESSION=2, WAIT_TIME=500, COUNT=3 — verify retry wait times are 500, 1000, 2000 ms (excluding the initial check wait), in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
-- [ ] T017 [P] [US2] Add unit test: PROGRESSION=1 (default) — verify all wait intervals are equal (500ms each), in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
-- [ ] T018 [P] [US2] Add unit test: invalid PROGRESSION (0 or negative) falls back to 1.0 — verify constant wait intervals, in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T016 [P] [US2] Add unit test: PROGRESSION=2, WAIT_TIME=500, COUNT=3 — verify retry wait times are 500, 1000, 2000 ms (excluding the initial check wait), in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T017 [P] [US2] Add unit test: PROGRESSION=1 (default) — verify all wait intervals are equal (500ms each), in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
+- [X] T018 [P] [US2] Add unit test: invalid PROGRESSION (0 or negative) falls back to 1.0 — verify constant wait intervals, in `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs`
 
 **Checkpoint**: Progression logic is verified. US2 acceptance scenarios 1 and 2 are satisfied.
 
@@ -94,10 +94,10 @@
 
 **Purpose**: Documentation, changelog, and final validation.
 
-- [ ] T019 [P] Add CHANGELOG.md entry documenting tap wait-and-retry feature, new configuration parameters, and their defaults
-- [ ] T020 [P] Add a class-level XML doc comment on `AppConfig` in `src/GameBot.Domain/Config/AppConfig.cs` describing the retry algorithm interaction (WAIT_TIME × PROGRESSION^N formula, state machine overview) — supplements the individual property doc comments added in T003
-- [ ] T021 Run full regression: `dotnet build -c Debug && dotnet test -c Debug` — all tests pass, 0 warnings, 0 errors
-- [ ] T022 Validate quickstart.md scenarios manually: default config works out of the box; overriding env vars changes retry behaviour
+- [X] T019 [P] Add CHANGELOG.md entry documenting tap wait-and-retry feature, new configuration parameters, and their defaults
+- [X] T020 [P] Add a class-level XML doc comment on `AppConfig` in `src/GameBot.Domain/Config/AppConfig.cs` describing the retry algorithm interaction (WAIT_TIME × PROGRESSION^N formula, state machine overview) — supplements the individual property doc comments added in T003
+- [X] T021 Run full regression: `dotnet build -c Debug && dotnet test -c Debug` — all tests pass, 0 warnings, 0 errors
+- [X] T022 Validate quickstart.md scenarios manually: default config works out of the box; overriding env vars changes retry behaviour
 
 ---
 
