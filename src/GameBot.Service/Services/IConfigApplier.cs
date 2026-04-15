@@ -1,3 +1,4 @@
+using GameBot.Domain.Config;
 using GameBot.Service.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -10,9 +11,16 @@ internal interface IConfigApplier {
 
 internal sealed class ConfigApplier : IConfigApplier {
   private readonly IOptionsMonitorCache<GameBot.Service.Hosted.TriggerWorkerOptions> _triggerOptionsCache;
+  private readonly AppConfig _appConfig;
+  private readonly GameBot.Emulator.Session.BackgroundScreenCaptureService? _captureService;
 
-  public ConfigApplier(IOptionsMonitorCache<GameBot.Service.Hosted.TriggerWorkerOptions> triggerOptionsCache) {
+  public ConfigApplier(
+      IOptionsMonitorCache<GameBot.Service.Hosted.TriggerWorkerOptions> triggerOptionsCache,
+      AppConfig appConfig,
+      GameBot.Emulator.Session.BackgroundScreenCaptureService? captureService = null) {
     _triggerOptionsCache = triggerOptionsCache;
+    _appConfig = appConfig;
+    _captureService = captureService;
   }
 
   private static LogLevel ParseLogLevel(string? v, LogLevel @default) {
@@ -39,6 +47,17 @@ internal sealed class ConfigApplier : IConfigApplier {
     // Apply debug options
     DynamicDebugOptions.DumpImages = GetBool(snapshot, "GAMEBOT_DEBUG_DUMP_IMAGES", false);
 
+    // Apply AppConfig runtime-mutable properties
+    _appConfig.LoopMaxIterations = Math.Max(1, GetInt(snapshot, "GAMEBOT_LOOP_MAX_ITERATIONS", 1000));
+    _appConfig.CaptureIntervalMs = Math.Max(50, GetInt(snapshot, "GAMEBOT_CAPTURE_INTERVAL_MS", 500));
+    _appConfig.TapRetryCount = Math.Max(0, GetInt(snapshot, "GAMEBOT_TAP_RETRY_COUNT", 3));
+    _appConfig.TapRetryProgression = GetDouble(snapshot, "GAMEBOT_TAP_RETRY_PROGRESSION", 1.0) is var prog && prog > 0 ? prog : 1.0;
+    _appConfig.AdbRetries = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRIES", 2));
+    _appConfig.AdbRetryDelayMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRY_DELAY_MS", 100));
+
+    // Propagate capture interval to active background capture loops
+    _captureService?.UpdateCaptureInterval(_appConfig.CaptureIntervalMs);
+
     // Apply Trigger worker options (OptionsMonitor will observe cache changes)
     var opts = new GameBot.Service.Hosted.TriggerWorkerOptions();
     opts.IntervalSeconds = GetInt(snapshot, "Service__Triggers__Worker__IntervalSeconds", 2);
@@ -52,6 +71,11 @@ internal sealed class ConfigApplier : IConfigApplier {
 
   private static int GetInt(ConfigurationSnapshot snap, string key, int @default) {
     return snap.Parameters.TryGetValue(key, out var p) && p.Value is not null && int.TryParse(p.Value.ToString(), out var v)
+        ? v : @default;
+  }
+  private static double GetDouble(ConfigurationSnapshot snap, string key, double @default) {
+    return snap.Parameters.TryGetValue(key, out var p) && p.Value is not null &&
+        double.TryParse(p.Value.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
         ? v : @default;
   }
   private static bool GetBool(ConfigurationSnapshot snap, string key, bool @default) {

@@ -17,6 +17,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-03
 - In-memory only (no persistence); session-scoped cached frames held in `ConcurrentDictionary` (034-background-screenshot-service)
 - C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing `ConfigSnapshotService` + `IConfigApplier`, React 18 + Vite 7, HTML5 Drag and Drop API (no external DnD library) (035-ui-config-editor)
 - File-backed JSON under `data/config/config.json` (existing); parameter order persisted as key order in the JSON `parameters` object (035-ui-config-editor)
+- C# 13 / .NET 9 + ASP.NET Core Minimal API, OpenCvSharp (TemplateMatcher), SharpAdbClient/ADB integration, Microsoft.Extensions.Logging, existing `GameBot.Domain` and `GameBot.Emulator` libraries (036-tap-wait-retry)
+- Existing file-backed JSON repositories under `data/` (no new stores); configuration via `AppConfig` singleton (036-tap-wait-retry)
 
 - Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing `GameBot.Domain` sequence/command services, existing image detection pipeline, existing execution-log services/repositories, React 18 + Vite 5 UI stack (030-sequence-conditional-logic)
 
@@ -37,9 +39,9 @@ npm test; npm run lint
 Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18: Follow standard conventions
 
 ## Recent Changes
+- 036-tap-wait-retry: Added C# 13 / .NET 9 + ASP.NET Core Minimal API, OpenCvSharp (TemplateMatcher), SharpAdbClient/ADB integration, Microsoft.Extensions.Logging, existing `GameBot.Domain` and `GameBot.Emulator` libraries
 - 035-ui-config-editor: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing `ConfigSnapshotService` + `IConfigApplier`, React 18 + Vite 7, HTML5 Drag and Drop API (no external DnD library)
 - 034-background-screenshot-service: Added C# 13 / .NET 9 (backend); TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, SharpAdbClient/ADB integration (via existing `AdbClient`), System.Drawing (Bitmap), existing `ISessionManager`, `IScreenSource`, `CachedScreenSource` infrastructure
-- 033-command-loops: Added C# 13 / .NET 9 (backend); TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, `System.Text.Json` (polymorphic serialization), existing `SequenceRunner` + `SequenceStepCondition` infrastructure, React 18 + Vite 5
 
 
 <!-- MANUAL ADDITIONS START -->

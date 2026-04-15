@@ -255,6 +255,9 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["GAMEBOT_BIND_HOST"] = installerBindHost,
       ["GAMEBOT_PORT"] = installerPort,
       ["GAMEBOT_LOOP_MAX_ITERATIONS"] = 1000,
+      ["GAMEBOT_CAPTURE_INTERVAL_MS"] = 500,
+      ["GAMEBOT_TAP_RETRY_COUNT"] = 3,
+      ["GAMEBOT_TAP_RETRY_PROGRESSION"] = 1.0,
 
       // ASP.NET Core configuration env keys and their documented defaults/effective values
       ["Service__Storage__Root"] = _storageRoot,

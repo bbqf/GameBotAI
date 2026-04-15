@@ -1,5 +1,6 @@
 using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Config;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Services;
 using GameBot.Domain.Triggers;
@@ -23,8 +24,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly GameBot.Domain.Vision.ITemplateMatcher? _matcher;
   private readonly ISessionContextCache _sessionCache;
   private readonly IExecutionLogService? _executionLogService;
+  private readonly AppConfig _appConfig;
 
-  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null) {
+  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null) {
     _commands = commands;
     _actions = actions;
     _sessions = sessions;
@@ -35,6 +37,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _screen = screen;
     _matcher = matcher;
     _sessionCache = sessionCache;
+    _appConfig = appConfig;
     _executionLogService = executionLogService;
   }
 
@@ -50,6 +53,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _screen = null;
     _matcher = null;
     _sessionCache = sessionCache;
+    _appConfig = new AppConfig();
     _executionLogService = executionLogService;
   }
 
@@ -213,6 +217,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
           continue;
         }
 
+        var cancelCycleTracker = 0;
         try {
           var screenSrc = _screen;
           var images = _images;
@@ -223,69 +228,53 @@ internal sealed class CommandExecutor : ICommandExecutor {
             continue;
           }
 
-          var screenshotBmp = screenSrc.GetLatestScreenshot();
-          if (screenshotBmp is null) {
-            Log.DetectionSkip(_logger, "screenshot_unavailable");
-            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "screenshot_unavailable", null, null));
-            continue;
-          }
-
+          // Template lookup before loop — template doesn't change between retries (R-005)
           if (!images.TryGet(primitiveDetection.ReferenceImageId, out var templateBmp) || templateBmp is null) {
             Log.DetectionSkip(_logger, "template_not_found");
             stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "template_not_found", null, null));
             continue;
           }
 
-          using var template = new System.Drawing.Bitmap(templateBmp);
-          using var screenMs = new System.IO.MemoryStream();
-          using var templateMs = new System.IO.MemoryStream();
-          screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
-          template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
-          using var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
-          using var templateMat = OpenCvSharp.Mat.FromImageData(templateMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+          var baseWaitMs = _appConfig.CaptureIntervalMs;
+          var retryCount = _appConfig.TapRetryCount;
+          var progression = _appConfig.TapRetryProgression;
+          var currentWaitMs = (double)baseWaitMs;
+          var detected = false;
 
-          var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
-          var primitiveAction = new GameBot.Domain.Actions.InputAction {
-            Type = "tap",
-            Args = new Dictionary<string, object> { ["x"] = 0, ["y"] = 0 }
-          };
+          // Initial wait + detection check (FR-001)
+          Log.TapRetryWaiting(_logger, step.Order, baseWaitMs, 0);
+          await Task.Delay(baseWaitMs, ct).ConfigureAwait(false);
 
-          var ok = adapter.TryApplyDetectionCoordinates(
-            primitiveAction,
-            primitiveDetection,
-            screenMat,
-            templateMat,
-            primitiveDetection.Confidence,
-            out var err,
-            DetectionSelectionStrategy.HighestConfidence);
+          detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, stepOutcomes, ref totalAccepted, 0, ct);
 
-          if (!ok || err is not null) {
-            Log.DetectionSkip(_logger, err ?? "primitive_tap_detection_failed");
-            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", err ?? "primitive_tap_detection_failed", null, null));
-            continue;
+          if (!detected) {
+            Log.TapRetryNotDetected(_logger, step.Order, 0);
+
+            // Retry loop (FR-002, FR-003)
+            for (int retry = 0; retry < retryCount; retry++) {
+              cancelCycleTracker = retry + 1;
+              var waitMs = (int)currentWaitMs;
+              Log.TapRetryWaiting(_logger, step.Order, waitMs, cancelCycleTracker);
+              await Task.Delay(waitMs, ct).ConfigureAwait(false);
+              currentWaitMs *= progression; // progression applied after each retry wait
+
+              detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, stepOutcomes, ref totalAccepted, cancelCycleTracker, ct);
+              if (detected) {
+                Log.TapRetryDetected(_logger, step.Order, cancelCycleTracker);
+                break;
+              }
+              Log.TapRetryNotDetected(_logger, step.Order, cancelCycleTracker);
+            }
+
+            if (!detected) {
+              Log.TapRetryExhausted(_logger, step.Order, retryCount);
+              stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", $"detection_failed_after_{retryCount}_retries", null, null));
+            }
           }
-
-          if (!primitiveAction.Args.TryGetValue("x", out var xVal) || !primitiveAction.Args.TryGetValue("y", out var yVal)) {
-            Log.DetectionSkip(_logger, "primitive_tap_coordinates_missing");
-            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_coordinates_missing", null, null));
-            continue;
-          }
-
-          var x = Convert.ToInt32(xVal, CultureInfo.InvariantCulture);
-          var y = Convert.ToInt32(yVal, CultureInfo.InvariantCulture);
-          if (x < 0 || y < 0 || x >= screenshotBmp.Width || y >= screenshotBmp.Height) {
-            Log.DetectionSkip(_logger, "primitive_tap_invalid_target");
-            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_target", "primitive_tap_invalid_target", new PrimitiveTapResolvedPoint(x, y), null));
-            continue;
-          }
-
-          var sessionInput = new GameBot.Emulator.Session.InputAction("tap", new Dictionary<string, object>(primitiveAction.Args), null, null);
-          var accepted = await _sessions.SendInputsAsync(sessionId, new[] { sessionInput }, ct).ConfigureAwait(false);
-          totalAccepted += accepted;
-          var detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
-            ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
-            : (double?)null;
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", null, new PrimitiveTapResolvedPoint(x, y), detectionConfidence));
+        }
+        catch (OperationCanceledException) {
+          Log.TapRetryCancelled(_logger, step.Order, cancelCycleTracker);
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "cancelled", $"cancelled_during_retry_{cancelCycleTracker}", null, null));
         }
         catch (Exception ex) {
           Log.DetectionError(_logger, ex);
@@ -299,6 +288,72 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     visited.Remove(commandId);
     return totalAccepted;
+  }
+
+  /// <summary>
+  /// Attempts a single screenshot-fetch → template-match → coordinate-resolve → tap cycle.
+  /// Returns true if detection succeeded and the tap was sent; false otherwise.
+  /// On success, appends the outcome to <paramref name="stepOutcomes"/> and increments <paramref name="totalAccepted"/>.
+  /// </summary>
+  private bool TryDetectAndTap(
+    GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
+    System.Drawing.Bitmap templateBmp,
+    DetectionTarget primitiveDetection,
+    GameBot.Domain.Vision.ITemplateMatcher matcher,
+    CommandStep step,
+    string sessionId,
+    List<PrimitiveTapStepOutcome> stepOutcomes,
+    ref int totalAccepted,
+    int retryAttempt,
+    CancellationToken ct)
+  {
+    var screenshotBmp = screenSrc.GetLatestScreenshot();
+    if (screenshotBmp is null) return false;
+
+    using var template = new System.Drawing.Bitmap(templateBmp);
+    using var screenMs = new System.IO.MemoryStream();
+    using var templateMs = new System.IO.MemoryStream();
+    screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
+    template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
+    using var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+    using var templateMat = OpenCvSharp.Mat.FromImageData(templateMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+
+    var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
+    var primitiveAction = new GameBot.Domain.Actions.InputAction {
+      Type = "tap",
+      Args = new Dictionary<string, object> { ["x"] = 0, ["y"] = 0 }
+    };
+
+    var ok = adapter.TryApplyDetectionCoordinates(
+      primitiveAction,
+      primitiveDetection,
+      screenMat,
+      templateMat,
+      primitiveDetection.Confidence,
+      out var err,
+      DetectionSelectionStrategy.HighestConfidence);
+
+    if (!ok || err is not null) return false;
+
+    if (!primitiveAction.Args.TryGetValue("x", out var xVal) || !primitiveAction.Args.TryGetValue("y", out var yVal))
+      return false;
+
+    var x = Convert.ToInt32(xVal, CultureInfo.InvariantCulture);
+    var y = Convert.ToInt32(yVal, CultureInfo.InvariantCulture);
+    if (x < 0 || y < 0 || x >= screenshotBmp.Width || y >= screenshotBmp.Height)
+      return false;
+
+    var sessionInput = new GameBot.Emulator.Session.InputAction("tap", new Dictionary<string, object>(primitiveAction.Args), null, null);
+    var accepted = _sessions.SendInputsAsync(sessionId, new[] { sessionInput }, ct).GetAwaiter().GetResult();
+    totalAccepted += accepted;
+
+    var detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
+      ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
+      : (double?)null;
+
+    var reason = retryAttempt > 0 ? $"detected_after_{retryAttempt}_retries" : null;
+    stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", reason, new PrimitiveTapResolvedPoint(x, y), detectionConfidence));
+    return true;
   }
 
   private async Task<string> ResolveSessionIdAsync(string? sessionId, string commandId, CancellationToken ct) {
@@ -358,4 +413,19 @@ internal static partial class Log {
 
   [LoggerMessage(EventId = 6008, Level = LogLevel.Warning, Message = "No connect-to-game context found for command {CommandId} to resolve session.")]
   public static partial void SessionContextMissing(ILogger logger, string CommandId);
+
+  [LoggerMessage(EventId = 6009, Level = LogLevel.Debug, Message = "PrimitiveTap step {StepOrder}: waiting {WaitMs}ms before retry cycle {Cycle}.")]
+  public static partial void TapRetryWaiting(ILogger logger, int StepOrder, int WaitMs, int Cycle);
+
+  [LoggerMessage(EventId = 6010, Level = LogLevel.Information, Message = "PrimitiveTap step {StepOrder}: target detected on cycle {Cycle}.")]
+  public static partial void TapRetryDetected(ILogger logger, int StepOrder, int Cycle);
+
+  [LoggerMessage(EventId = 6011, Level = LogLevel.Debug, Message = "PrimitiveTap step {StepOrder}: target not detected on cycle {Cycle}.")]
+  public static partial void TapRetryNotDetected(ILogger logger, int StepOrder, int Cycle);
+
+  [LoggerMessage(EventId = 6012, Level = LogLevel.Warning, Message = "PrimitiveTap step {StepOrder}: target not detected after {TotalCycles} retry cycles.")]
+  public static partial void TapRetryExhausted(ILogger logger, int StepOrder, int TotalCycles);
+
+  [LoggerMessage(EventId = 6013, Level = LogLevel.Information, Message = "PrimitiveTap step {StepOrder}: cancelled during retry cycle {Cycle}.")]
+  public static partial void TapRetryCancelled(ILogger logger, int StepOrder, int Cycle);
 }

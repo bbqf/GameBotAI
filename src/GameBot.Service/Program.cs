@@ -141,7 +141,31 @@ builder.Services.AddSingleton(_ =>
 {
     var loopMaxEnv = Environment.GetEnvironmentVariable("GAMEBOT_LOOP_MAX_ITERATIONS");
     var loopMax = int.TryParse(loopMaxEnv, out var parsed) && parsed > 0 ? parsed : 1000;
-    return new GameBot.Domain.Config.AppConfig { LoopMaxIterations = loopMax };
+
+    var captureIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS");
+    var captureInterval = int.TryParse(captureIntervalEnv, out var ciParsed) && ciParsed > 0 ? Math.Max(ciParsed, 50) : 500;
+
+    var retryCountEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT");
+    var retryCount = int.TryParse(retryCountEnv, out var rcParsed) && rcParsed >= 0 ? rcParsed : 3;
+
+    var retryProgressionEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_PROGRESSION");
+    var retryProgression = double.TryParse(retryProgressionEnv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rpParsed) && rpParsed > 0 ? rpParsed : 1.0;
+
+    var adbRetriesEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES");
+    var adbRetries = int.TryParse(adbRetriesEnv, out var arParsed) && arParsed >= 0 ? arParsed : 2;
+
+    var adbRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS");
+    var adbRetryDelay = int.TryParse(adbRetryDelayEnv, out var ardParsed) && ardParsed >= 0 ? ardParsed : 100;
+
+    return new GameBot.Domain.Config.AppConfig
+    {
+        LoopMaxIterations = loopMax,
+        CaptureIntervalMs = captureInterval,
+        TapRetryCount = retryCount,
+        TapRetryProgression = retryProgression,
+        AdbRetries = adbRetries,
+        AdbRetryDelayMs = adbRetryDelay,
+    };
 });
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
@@ -158,7 +182,11 @@ builder.Services.AddSingleton(sp => {
 });
 builder.Services.AddSingleton<IRuntimeLoggingPolicyService>(sp => sp.GetRequiredService<RuntimeLoggingPolicyService>());
 // Config snapshot service (for /config endpoints and persisted snapshot generation)
-builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier, GameBot.Service.Services.ConfigApplier>();
+builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier>(sp =>
+    new GameBot.Service.Services.ConfigApplier(
+        sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitorCache<GameBot.Service.Hosted.TriggerWorkerOptions>>(),
+        sp.GetRequiredService<GameBot.Domain.Config.AppConfig>(),
+        sp.GetService<GameBot.Emulator.Session.BackgroundScreenCaptureService>()));
 builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
 builder.Services.AddSingleton<TriggerEvaluationService>();
 builder.Services.AddSingleton<ITriggerEvaluationCoordinator, TriggerEvaluationCoordinator>();
@@ -184,13 +212,13 @@ if (OperatingSystem.IsWindows()) {
   var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
   if (useAdb) {
     // Background capture service: per-session ADB capture loops with configurable interval
-    var captureIntervalMs = int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS"), out var ci) && ci > 0 ? ci : 500;
     builder.Services.AddSingleton<GameBot.Emulator.Session.BackgroundScreenCaptureService>(sp => {
+      var appConfig = sp.GetRequiredService<GameBot.Domain.Config.AppConfig>();
       var adbLogger = sp.GetRequiredService<ILogger<GameBot.Emulator.Adb.AdbClient>>();
       Func<string, GameBot.Emulator.Session.IAdbScreenCaptureProvider> factory = serial =>
         new GameBot.Emulator.Session.AdbScreenCaptureProvider(serial, adbLogger);
       return new GameBot.Emulator.Session.BackgroundScreenCaptureService(
-        factory, captureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>());
+        factory, appConfig.CaptureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>());
     });
     // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain)
     builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(sp => {

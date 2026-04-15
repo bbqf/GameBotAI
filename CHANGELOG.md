@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Tap Wait-and-Retry Before Execution (036-tap-wait-retry)
+  - Primitive tap steps now wait for the target image to appear before tapping, retrying up to a configurable number of times.
+  - New environment variables for configuration:
+    - `GAMEBOT_TAP_RETRY_COUNT` — maximum retry cycles (default 3; 0 = single check, no retries).
+    - `GAMEBOT_TAP_RETRY_PROGRESSION` — multiplier applied to the wait time after each retry (default 1.0 = constant; >1 = exponential backoff).
+    - `GAMEBOT_CAPTURE_INTERVAL_MS` — now also used as the base wait time between retry cycles (default 500ms, min 50ms).
+  - Retry metadata encoded in `PrimitiveTapStepOutcome.Reason` field (e.g., `detected_after_2_retries`, `detection_failed_after_3_retries`, `cancelled_during_retry_N`).
+  - Immediate cancellation support: cancelling during any wait period stops the retry loop within 1ms.
+  - Source-generated `[LoggerMessage]` log entries for retry cycle tracing (EventIds 6009–6013).
+
 - Background Screenshot Service (034-background-screenshot-service)
   - Per-session background capture loop runs on a dedicated thread, taking ADB screenshots at a configurable interval (`GAMEBOT_CAPTURE_INTERVAL_MS`, default 500ms, min 50ms).
   - Cached frames available instantly via `BackgroundScreenCaptureService.GetCachedFrame()` — dual-format cache (PNG bytes + Bitmap) so consumers choose their preferred format.
