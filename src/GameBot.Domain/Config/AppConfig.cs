@@ -16,7 +16,7 @@ public sealed class AppConfig
     /// Applied when no per-loop <see cref="Commands.LoopConfig.MaxIterations"/> override is
     /// set on the step.  Must be greater than zero.
     /// </summary>
-    public int LoopMaxIterations { get; init; } = 1000;
+    public int LoopMaxIterations { get; set; } = 1000;
 
     /// <summary>
     /// Base wait time in milliseconds between retry cycles and the initial detection check.
@@ -24,14 +24,14 @@ public sealed class AppConfig
     /// Maps to <c>GAMEBOT_CAPTURE_INTERVAL_MS</c> environment variable.
     /// Clamped to a minimum of 50 ms at startup.
     /// </summary>
-    public int CaptureIntervalMs { get; init; } = 500;
+    public int CaptureIntervalMs { get; set; } = 500;
 
     /// <summary>
     /// Maximum number of retry cycles for primitive tap image detection.
     /// <c>0</c> = single detection check with no retries; negative values fall back to default 3.
     /// Maps to <c>GAMEBOT_TAP_RETRY_COUNT</c> environment variable.
     /// </summary>
-    public int TapRetryCount { get; init; } = 3;
+    public int TapRetryCount { get; set; } = 3;
 
     /// <summary>
     /// Multiplier applied to the wait time after each unsuccessful retry cycle.
@@ -39,5 +39,17 @@ public sealed class AppConfig
     /// Must be positive (&gt; 0); invalid values fall back to default 1.0.
     /// Maps to <c>GAMEBOT_TAP_RETRY_PROGRESSION</c> environment variable.
     /// </summary>
-    public double TapRetryProgression { get; init; } = 1.0;
+    public double TapRetryProgression { get; set; } = 1.0;
+
+    /// <summary>
+    /// Maximum number of ADB retries per operation.
+    /// Maps to <c>GAMEBOT_ADB_RETRIES</c> environment variable. Default 2.
+    /// </summary>
+    public int AdbRetries { get; set; } = 2;
+
+    /// <summary>
+    /// Delay in milliseconds between ADB retry attempts.
+    /// Maps to <c>GAMEBOT_ADB_RETRY_DELAY_MS</c> environment variable. Default 100.
+    /// </summary>
+    public int AdbRetryDelayMs { get; set; } = 100;
 }

@@ -20,23 +20,21 @@ public sealed class SessionManager : ISessionManager {
   private readonly ILogger<AdbClient> _adbLogger;
   private readonly SessionOptions _options;
   private readonly bool _useAdb;
-  private readonly int _adbRetries;
-  private readonly int _adbRetryDelayMs;
+  private readonly GameBot.Domain.Config.AppConfig _appConfig;
   private TimeSpan IdleTimeout => TimeSpan.FromSeconds(Math.Max(1, _options.IdleTimeoutSeconds));
   private static readonly char[] LineSplit = new[] { '\r', '\n' };
 
-  public SessionManager(IOptions<SessionOptions> options, ILogger<SessionManager> logger, ILogger<AdbClient> adbLogger) {
+  public SessionManager(IOptions<SessionOptions> options, ILogger<SessionManager> logger, ILogger<AdbClient> adbLogger, GameBot.Domain.Config.AppConfig? appConfig = null) {
     ArgumentNullException.ThrowIfNull(options);
     ArgumentNullException.ThrowIfNull(logger);
     ArgumentNullException.ThrowIfNull(adbLogger);
     _options = options.Value;
     _logger = logger;
     _adbLogger = adbLogger;
+    _appConfig = appConfig ?? new GameBot.Domain.Config.AppConfig();
     // Always attempt ADB on Windows by default; allow disabling (tests/CI) with GAMEBOT_USE_ADB=false
     var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
     _useAdb = OperatingSystem.IsWindows() && !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
-    _adbRetries = Math.Max(0, int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES"), out var r) ? r : 2);
-    _adbRetryDelayMs = Math.Max(0, int.TryParse(Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS"), out var d) ? d : 100);
     Log.SessionManagerStarted(_logger, _options.MaxConcurrentSessions, _options.IdleTimeoutSeconds);
   }
 
@@ -127,9 +125,9 @@ public sealed class SessionManager : ISessionManager {
               for (var attempt = 0; ; attempt++) {
                 var (code, _, _) = await adb.TapAsync(x, y, ct).ConfigureAwait(false);
                 if (code == 0) { ok = true; break; }
-                if (attempt >= _adbRetries || ct.IsCancellationRequested) break;
+                if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) break;
                 Log.AdbRetry(_logger, id, "tap", attempt + 1);
-                if (_adbRetryDelayMs > 0) await Task.Delay(_adbRetryDelayMs, ct).ConfigureAwait(false);
+                if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
               }
             }
             else {
@@ -149,9 +147,9 @@ public sealed class SessionManager : ISessionManager {
               for (var attempt = 0; ; attempt++) {
                 var (code, _, _) = await adb.SwipeAsync(x1, y1, x2, y2, duration, ct).ConfigureAwait(false);
                 if (code == 0) { ok = true; break; }
-                if (attempt >= _adbRetries || ct.IsCancellationRequested) break;
+                if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) break;
                 Log.AdbRetry(_logger, id, "swipe", attempt + 1);
-                if (_adbRetryDelayMs > 0) await Task.Delay(_adbRetryDelayMs, ct).ConfigureAwait(false);
+                if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
               }
             }
             else {
@@ -178,9 +176,9 @@ public sealed class SessionManager : ISessionManager {
               for (var attempt = 0; ; attempt++) {
                 var (code, _, _) = await adb.KeyEventAsync(keyCode, ct).ConfigureAwait(false);
                 if (code == 0) { ok = true; break; }
-                if (attempt >= _adbRetries || ct.IsCancellationRequested) break;
+                if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) break;
                 Log.AdbRetry(_logger, id, "key", attempt + 1);
-                if (_adbRetryDelayMs > 0) await Task.Delay(_adbRetryDelayMs, ct).ConfigureAwait(false);
+                if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
               }
             }
             else {
@@ -239,10 +237,10 @@ public sealed class SessionManager : ISessionManager {
             png = await adb.GetScreenshotPngAsync(ct).ConfigureAwait(false);
             break;
           }
-          catch (InvalidOperationException) when (attempt < _adbRetries && !ct.IsCancellationRequested) {
+          catch (InvalidOperationException) when (attempt < _appConfig.AdbRetries && !ct.IsCancellationRequested) {
             attempt++;
             Log.AdbRetry(_logger, id, "screencap", attempt);
-            if (_adbRetryDelayMs > 0) await Task.Delay(_adbRetryDelayMs, ct).ConfigureAwait(false);
+            if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
             continue;
           }
         }

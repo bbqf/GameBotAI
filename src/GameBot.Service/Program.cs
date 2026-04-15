@@ -151,12 +151,20 @@ builder.Services.AddSingleton(_ =>
     var retryProgressionEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_PROGRESSION");
     var retryProgression = double.TryParse(retryProgressionEnv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rpParsed) && rpParsed > 0 ? rpParsed : 1.0;
 
+    var adbRetriesEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES");
+    var adbRetries = int.TryParse(adbRetriesEnv, out var arParsed) && arParsed >= 0 ? arParsed : 2;
+
+    var adbRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS");
+    var adbRetryDelay = int.TryParse(adbRetryDelayEnv, out var ardParsed) && ardParsed >= 0 ? ardParsed : 100;
+
     return new GameBot.Domain.Config.AppConfig
     {
         LoopMaxIterations = loopMax,
         CaptureIntervalMs = captureInterval,
         TapRetryCount = retryCount,
         TapRetryProgression = retryProgression,
+        AdbRetries = adbRetries,
+        AdbRetryDelayMs = adbRetryDelay,
     };
 });
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
@@ -174,7 +182,11 @@ builder.Services.AddSingleton(sp => {
 });
 builder.Services.AddSingleton<IRuntimeLoggingPolicyService>(sp => sp.GetRequiredService<RuntimeLoggingPolicyService>());
 // Config snapshot service (for /config endpoints and persisted snapshot generation)
-builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier, GameBot.Service.Services.ConfigApplier>();
+builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier>(sp =>
+    new GameBot.Service.Services.ConfigApplier(
+        sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitorCache<GameBot.Service.Hosted.TriggerWorkerOptions>>(),
+        sp.GetRequiredService<GameBot.Domain.Config.AppConfig>(),
+        sp.GetService<GameBot.Emulator.Session.BackgroundScreenCaptureService>()));
 builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
 builder.Services.AddSingleton<TriggerEvaluationService>();
 builder.Services.AddSingleton<ITriggerEvaluationCoordinator, TriggerEvaluationCoordinator>();

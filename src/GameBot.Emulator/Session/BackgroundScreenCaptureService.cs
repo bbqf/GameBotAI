@@ -21,7 +21,7 @@ public sealed class BackgroundScreenCaptureService : IDisposable
 {
     private readonly ConcurrentDictionary<string, SessionCaptureLoop> _loops = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<string, IAdbScreenCaptureProvider> _captureProviderFactory;
-    private readonly int _captureIntervalMs;
+    private volatile int _captureIntervalMs;
     private readonly ILogger<BackgroundScreenCaptureService> _logger;
     private bool _disposed;
 
@@ -87,6 +87,17 @@ public sealed class BackgroundScreenCaptureService : IDisposable
         return _loops.TryGetValue(sessionId, out var loop) ? loop.GetMetrics() : null;
     }
 
+    /// <summary>Updates the capture interval for all active and future capture loops.</summary>
+    public void UpdateCaptureInterval(int intervalMs)
+    {
+        var clamped = Math.Max(50, intervalMs);
+        _captureIntervalMs = clamped;
+        foreach (var loop in _loops.Values)
+        {
+            loop.UpdateInterval(clamped);
+        }
+    }
+
     /// <summary>Stops all capture loops and releases resources.</summary>
     public void StopAll()
     {
@@ -139,7 +150,7 @@ internal sealed class SessionCaptureLoop : IDisposable
     private readonly string _sessionId;
     private readonly string _deviceSerial;
     private readonly IAdbScreenCaptureProvider _provider;
-    private readonly int _intervalMs;
+    private volatile int _intervalMs;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cts = new();
 
@@ -195,6 +206,9 @@ internal sealed class SessionCaptureLoop : IDisposable
         Stop();
         _cts.Dispose();
     }
+
+    /// <summary>Updates the capture interval for this loop. Takes effect on the next iteration.</summary>
+    public void UpdateInterval(int intervalMs) => _intervalMs = Math.Max(50, intervalMs);
 
     public CaptureMetrics GetMetrics()
     {
