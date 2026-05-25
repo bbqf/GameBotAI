@@ -100,6 +100,7 @@ namespace GameBot.Domain.Services
                 {
                     var delayMs = SampleInterStepDelay(delayRange);
                     await Task.Delay(delayMs, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(delayMs);
                 }
             }
 
@@ -245,6 +246,7 @@ namespace GameBot.Domain.Services
                 {
                     var delayMs = SampleInterStepDelay(delayRange);
                     await Task.Delay(delayMs, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(delayMs);
                 }
                 firstCommandExecuted = true;
 
@@ -1817,6 +1819,16 @@ namespace GameBot.Domain.Services
             });
         }
 
+        public void SetInterStepDelayForLatestStep(int delayMs)
+        {
+            if (_steps.Count == 0)
+            {
+                return;
+            }
+
+            _steps[^1].InterStepDelayMs = delayMs;
+        }
+
         public void AddLoopStep(
             string stepId,
             string status,
@@ -1865,6 +1877,7 @@ namespace GameBot.Domain.Services
         public int DurationMs { get; set; }
         public string? Error { get; set; }
         public int AppliedDelayMs { get; set; }
+        public int? InterStepDelayMs { get; set; }
         public string? ConditionType { get; set; }
         public string? ConditionResult { get; set; }
         public string? ActionOutcome { get; set; }
