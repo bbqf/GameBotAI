@@ -57,7 +57,8 @@ public sealed class ConditionalExecutionPerformanceIntegrationTests {
   private static CommandSequence BuildConditionalPerformanceSequence(int commandSteps, int conditionalSteps) {
     var sequence = new CommandSequence {
       Id = "perf-conditional-sequence",
-      Name = "Performance Conditional Sequence"
+      Name = "Performance Conditional Sequence",
+      InterStepDelayRangeMs = new DelayRangeMs { Min = 0, Max = 0 }
     };
 
     var flowSteps = new List<FlowStep>();
