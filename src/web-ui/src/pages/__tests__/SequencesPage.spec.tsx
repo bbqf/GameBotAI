@@ -54,6 +54,7 @@ describe('SequencesPage', () => {
     await waitFor(() => expect(createSequenceMock).toHaveBeenCalledWith({
       name: 'Seq A',
       version: 1,
+      interStepDelayRangeMs: null,
       steps: [
         {
           stepId: 'step-2',
@@ -108,6 +109,7 @@ describe('SequencesPage', () => {
     await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('s1', {
       name: 'Sequence 1',
       version: 1,
+      interStepDelayRangeMs: null,
       steps: [
         {
           stepId: 'step-2',
