@@ -60,7 +60,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -89,7 +88,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -119,7 +117,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -149,7 +146,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -179,7 +175,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -212,7 +207,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -243,7 +237,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -276,7 +269,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -311,7 +303,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -349,7 +340,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
 
     var executor = new CommandExecutor(
       new CommandRepoStub(command),
-      new ActionRepoStub(),
       new SessionManagerStub(),
       new TriggerRepoStub(),
       new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
@@ -375,14 +365,6 @@ public sealed class CommandExecutorPrimitiveTapTests {
     public Task<Command?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult<Command?>(id == _command.Id ? _command : null);
     public Task<IReadOnlyList<Command>> ListAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Command>>(new[] { _command });
     public Task<Command?> UpdateAsync(Command command, CancellationToken ct = default) => Task.FromResult<Command?>(command);
-  }
-
-  private sealed class ActionRepoStub : GameBot.Domain.Actions.IActionRepository {
-    public Task<GameBot.Domain.Actions.Action> AddAsync(GameBot.Domain.Actions.Action action, CancellationToken ct = default) => Task.FromResult(action);
-    public Task<GameBot.Domain.Actions.Action?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult<GameBot.Domain.Actions.Action?>(null);
-    public Task<IReadOnlyList<GameBot.Domain.Actions.Action>> ListAsync(string? gameId = null, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<GameBot.Domain.Actions.Action>>(Array.Empty<GameBot.Domain.Actions.Action>());
-    public Task<GameBot.Domain.Actions.Action?> UpdateAsync(GameBot.Domain.Actions.Action action, CancellationToken ct = default) => Task.FromResult<GameBot.Domain.Actions.Action?>(action);
-    public Task<bool> DeleteAsync(string id, CancellationToken ct = default) => Task.FromResult(false);
   }
 
   private sealed class TriggerRepoStub : ITriggerRepository {

@@ -30,9 +30,10 @@ public sealed class SequenceConditionalStepsContractTests {
         new {
           stepId = "start",
           label = "Start",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 50, y = 50 }
+            schemaVersion = "v1",
+            payload = new { x = 50, y = 50 }
           },
           condition = new {
             type = "commandOutcome",
@@ -43,9 +44,10 @@ public sealed class SequenceConditionalStepsContractTests {
         new {
           stepId = "next",
           label = "Next",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 120, y = 840 }
+            schemaVersion = "v1",
+            payload = new { x = 120, y = 840 }
           }
         }
       }
@@ -71,17 +73,19 @@ public sealed class SequenceConditionalStepsContractTests {
         new {
           stepId = "start",
           label = "Start",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 100, y = 200 }
+            schemaVersion = "v1",
+            payload = new { x = 100, y = 200 }
           }
         },
         new {
           stepId = "next",
           label = "Next",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 300, y = 400 }
+            schemaVersion = "v1",
+            payload = new { x = 300, y = 400 }
           },
           condition = new {
             type = "commandOutcome",
@@ -121,9 +125,10 @@ public sealed class SequenceConditionalStepsContractTests {
         new {
           stepId = "start",
           label = "Condition",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 80, y = 80 }
+            schemaVersion = "v1",
+            payload = new { x = 80, y = 80 }
           },
           condition = new {
             type = "imageVisible",

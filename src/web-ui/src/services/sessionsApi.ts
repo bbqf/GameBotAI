@@ -24,7 +24,7 @@ export type RunningSessionDto = {
 
 export type StartSessionRequest = {
   gameId: string;
-  emulatorId: string;
+  adbSerial: string;
   options?: Record<string, unknown>;
 };
 
@@ -119,7 +119,16 @@ export const startSession = async (payload: StartSessionRequest, timeoutMs = 300
     const res = await fetch(buildApiUrl('/api/sessions/start'), {
       method: 'POST',
       headers: buildAuthHeaders(true),
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        primitiveAction: {
+          type: 'connect-to-game',
+          payload: {
+            gameId: payload.gameId,
+            adbSerial: payload.adbSerial,
+            ...(payload.options ? { options: payload.options } : {})
+          }
+        }
+      }),
       signal: controller.signal
     });
 
@@ -127,7 +136,14 @@ export const startSession = async (payload: StartSessionRequest, timeoutMs = 300
     if (res.ok && data) return data;
 
     if (controller.signal.aborted || res.status === 504) throw new ApiError(504, 'Session creation timed out', undefined, data);
-    if (res.status === 400) throw new ApiError(400, 'Validation error', undefined, data);
+    if (res.status === 400) {
+      const problemErrors = data && typeof data === 'object' ? (data as any).errors : undefined;
+      const firstValidationMessage = problemErrors && typeof problemErrors === 'object'
+        ? Object.values(problemErrors).flat().find((m) => typeof m === 'string')
+        : undefined;
+      const message = (data as any)?.error?.message || (data as any)?.message || (data as any)?.detail || firstValidationMessage || 'Validation error';
+      throw new ApiError(400, message, undefined, data);
+    }
     if (res.status === 404) throw new ApiError(404, (data as any)?.error?.message || 'Session could not start', undefined, data);
     if (res.status === 429) throw new ApiError(429, 'Session capacity exceeded', undefined, data);
 

@@ -7,7 +7,7 @@ type NavProps = {
   onChange: (tab: AuthoringTab) => void;
 };
 
-const tabs: AuthoringTab[] = ['Actions', 'Commands', 'Games', 'Sequences', 'Images'];
+const tabs: AuthoringTab[] = ['Commands', 'Games', 'Sequences', 'Images'];
 
 export const Nav: React.FC<NavProps> = ({ active, onChange }) => {
   return (

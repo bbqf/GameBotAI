@@ -32,3 +32,8 @@
 2. Legacy references block startup/readiness until migrated.
 3. Commands/sequences persist primitive selections inline by value with typed discriminator payload.
 4. Connect-to-game execution flow remains functionally equivalent with required parameter entry.
+
+## 7. Final implementation checkpoint (2026-05-25)
+1. Backend regression validated with `dotnet test -c Debug` (512 passed, 0 failed).
+2. Frontend regression validated with `npx jest --coverage` (55 suites, 199 tests).
+3. Startup cutover validation confirmed active; legacy `data/actions` records block integration host startup until cleared.

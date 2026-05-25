@@ -26,18 +26,12 @@ public sealed class EmptyStateExecuteSequenceIntegrationTests {
         new {
           stepId = "start",
           label = "Start",
-          action = new {
-            type = "tap",
-            parameters = new { x = 20, y = 20 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 20, y = 20  } }
         },
         new {
           stepId = "then",
           label = "Then",
-          action = new {
-            type = "tap",
-            parameters = new { x = 50, y = 90 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 50, y = 90  } },
           condition = new {
             type = "commandOutcome",
             stepRef = "start",
@@ -47,10 +41,7 @@ public sealed class EmptyStateExecuteSequenceIntegrationTests {
         new {
           stepId = "end",
           label = "End",
-          action = new {
-            type = "tap",
-            parameters = new { x = 10, y = 10 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 10, y = 10  } }
         }
       }
     };

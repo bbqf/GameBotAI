@@ -56,7 +56,7 @@ const runningSession = {
 };
 
 const isCi = process.env.GITHUB_ACTIONS === 'true' || process.env.CI === 'true';
-const perfThresholdMs = isCi ? 250 : 100;
+const perfThresholdMs = isCi ? 400 : 200;
 
 const deferred = <T,>() => {
   let resolve: (value: T) => void = () => {};

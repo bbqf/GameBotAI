@@ -12,7 +12,7 @@ public sealed class PrimitiveTapConfig {
 
 public sealed class CommandStep {
   public required CommandStepType Type { get; init; }
-  public required string TargetId { get; init; }
+  public string TargetId { get; init; } = string.Empty;
   public PrimitiveTapConfig? PrimitiveTap { get; init; }
   public int Order { get; init; }
 }

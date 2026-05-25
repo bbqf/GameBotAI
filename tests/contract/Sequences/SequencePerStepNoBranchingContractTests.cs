@@ -29,9 +29,10 @@ public sealed class SequencePerStepNoBranchingContractTests {
       steps = new object[] {
         new {
           stepId = "start",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 100, y = 100 }
+            schemaVersion = "v1",
+            payload = new { x = 100, y = 100 }
           }
         }
       },
@@ -65,9 +66,10 @@ public sealed class SequencePerStepNoBranchingContractTests {
       steps = new object[] {
         new {
           stepId = "step-1",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 120, y = 840 }
+            schemaVersion = "v1",
+            payload = new { x = 120, y = 840 }
           }
         }
       }

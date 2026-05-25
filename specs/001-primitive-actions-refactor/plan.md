@@ -89,3 +89,14 @@ data/
 > **Fill ONLY if Constitution Check has violations that must be justified**
 
 No constitution violations or waivers identified at planning time.
+
+## Implementation Checkpoints
+
+- 2026-05-25: Hard cutover completed for Action repository removal from runtime and unit-test construction paths.
+- 2026-05-25: Command execution and session-resolution paths validated against primitive-only contracts.
+- 2026-05-25: Local legacy artifacts under data/actions cleared to satisfy startup cutover validation during integration tests.
+
+## Verification Results
+
+- Backend full suite: `dotnet test -c Debug` -> PASS (512 passed, 0 failed).
+- Frontend suite: `npx jest --coverage` in `src/web-ui` -> PASS (55 suites, 199 tests).

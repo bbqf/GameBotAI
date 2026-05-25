@@ -24,6 +24,14 @@ internal sealed class ErrorHandlingMiddleware : IMiddleware {
         error = new { code = "request_timeout", message = "The request was canceled.", hint = (string?)null }
       })).ConfigureAwait(false);
     }
+    catch (InvalidOperationException ex) when (ex.Message.StartsWith("Cutover validation failed", StringComparison.OrdinalIgnoreCase)) {
+      Log.CutoverBlocked(_logger, ex);
+      context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+      context.Response.ContentType = "application/json";
+      await context.Response.WriteAsync(JsonSerializer.Serialize(new {
+        error = new { code = "cutover_blocked", message = "Legacy Action references remain.", hint = ex.Message }
+      })).ConfigureAwait(false);
+    }
 #pragma warning disable CA1031 // Intentional catch-all to produce a uniform error envelope
     catch (Exception ex) {
       Log.Unhandled(_logger, ex);
@@ -42,5 +50,10 @@ internal static class Log {
       LoggerMessage.Define<string>(LogLevel.Error, new EventId(100, nameof(Unhandled)),
           "Unhandled exception: {Message}");
 
+  private static readonly Action<ILogger, string, Exception?> _cutoverBlocked =
+      LoggerMessage.Define<string>(LogLevel.Critical, new EventId(101, nameof(CutoverBlocked)),
+          "Cutover validation blocked request handling: {Message}");
+
   public static void Unhandled(ILogger l, Exception ex) => _unhandled(l, ex.Message, ex);
+  public static void CutoverBlocked(ILogger l, Exception ex) => _cutoverBlocked(l, ex.Message, ex);
 }

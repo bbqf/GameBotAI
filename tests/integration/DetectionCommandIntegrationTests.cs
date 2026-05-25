@@ -54,23 +54,26 @@ public sealed class DetectionCommandIntegrationTests : IDisposable {
     var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
     var gameId = game!["id"]!.ToString();
 
-    // Create action with a single tap; initial x/y will be overridden by adapter
-    var actionReq = new {
-      Name = "TapByDetect",
-      GameId = gameId,
-      Steps = new[] { new { Type = "tap", Args = new Dictionary<string, object>{{"x", 1}, {"y", 1}}, DelayMs = (int?)null, DurationMs = (int?)null } }
-    };
-    var aResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq);
-    aResp.EnsureSuccessStatusCode();
-    var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-    var actionId = act!["id"]!.ToString();
-
-    // Create command with detection referencing the persisted image
+    // Create command with inline primitive tap detection referencing the persisted image
     var cmdReq = new {
       Name = "DetectAndTap",
       TriggerId = (string?)null,
       detection = new { referenceImageId = "home_button", confidence = 0.99, offsetX = 0, offsetY = 0 },
-      Steps = new[] { new { Type = "Action", TargetId = actionId, Order = 1 } }
+      Steps = new[] {
+        new {
+          Type = "PrimitiveTap",
+          Order = 1,
+          PrimitiveTap = new {
+            DetectionTarget = new {
+              ReferenceImageId = "home_button",
+              Confidence = 0.99,
+              OffsetX = 0,
+              OffsetY = 0,
+              SelectionStrategy = "HighestConfidence"
+            }
+          }
+        }
+      }
     };
     var cResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), cmdReq);
     cResp.EnsureSuccessStatusCode();
@@ -100,27 +103,31 @@ public sealed class DetectionCommandIntegrationTests : IDisposable {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    // Create game and action referenced by the command
+    // Create game and command with inline primitive tap step
     var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "DetectPersistGame", description = "desc" });
     gameResp.EnsureSuccessStatusCode();
     var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
     var gameId = game!["id"]!.ToString();
 
-    var actionReq = new {
-      Name = "TapPersist",
-      GameId = gameId,
-      Steps = new[] { new { Type = "tap", Args = new Dictionary<string, object>{{"x", 5}, {"y", 6}}, DelayMs = (int?)null, DurationMs = (int?)null } }
-    };
-    var actionResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq);
-    actionResp.EnsureSuccessStatusCode();
-    var action = await actionResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-    var actionId = action!["id"]!.ToString();
-
     var createReq = new {
       Name = "DetectPersistCmd",
       TriggerId = (string?)null,
       detection = new { referenceImageId = "template_a", confidence = 0.77, offsetX = 3, offsetY = -2, selectionStrategy = "FirstMatch" },
-      Steps = new[] { new { Type = "Action", TargetId = actionId, Order = 0 } }
+      Steps = new[] {
+        new {
+          Type = "PrimitiveTap",
+          Order = 0,
+          PrimitiveTap = new {
+            DetectionTarget = new {
+              ReferenceImageId = "template_a",
+              Confidence = 0.77,
+              OffsetX = 3,
+              OffsetY = -2,
+              SelectionStrategy = "FirstMatch"
+            }
+          }
+        }
+      }
     };
     var createResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), createReq);
     createResp.EnsureSuccessStatusCode();
@@ -140,7 +147,21 @@ public sealed class DetectionCommandIntegrationTests : IDisposable {
 
     var patchReq = new {
       detection = new { referenceImageId = "template_b", confidence = 0.88, offsetX = 10, offsetY = 20, selectionStrategy = "HighestConfidence" },
-      Steps = new[] { new { Type = "Action", TargetId = actionId, Order = 0 } }
+      Steps = new[] {
+        new {
+          Type = "PrimitiveTap",
+          Order = 0,
+          PrimitiveTap = new {
+            DetectionTarget = new {
+              ReferenceImageId = "template_b",
+              Confidence = 0.88,
+              OffsetX = 10,
+              OffsetY = 20,
+              SelectionStrategy = "HighestConfidence"
+            }
+          }
+        }
+      }
     };
     var patchResp = await client.PatchAsJsonAsync(new Uri($"/api/commands/{commandId}", UriKind.Relative), patchReq);
     patchResp.EnsureSuccessStatusCode();

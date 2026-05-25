@@ -44,9 +44,13 @@ public sealed class RunningSessionDto {
 }
 
 public sealed class StartSessionRequest {
-  public required string GameId { get; init; }
-  public required string EmulatorId { get; init; }
-  public Dictionary<string, object>? Options { get; init; }
+  public required PrimitiveActionRequest PrimitiveAction { get; init; }
+}
+
+public sealed class PrimitiveActionRequest {
+  public required string Type { get; init; }
+  public string? SchemaVersion { get; init; }
+  public Dictionary<string, object> Payload { get; init; } = new();
 }
 
 public sealed class StartSessionResponse {

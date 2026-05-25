@@ -43,16 +43,6 @@ describe('TriggersPage', () => {
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Trigger A' } });
     fireEvent.change(screen.getByLabelText('Criteria (JSON)'), { target: { value: '{}' } });
 
-    fireEvent.change(screen.getByLabelText('Add action'), { target: { value: 'a1' } });
-    fireEvent.click(screen.getByText('Add to actions'));
-
-    fireEvent.change(screen.getByLabelText('Add action'), { target: { value: 'a2' } });
-    fireEvent.click(screen.getByText('Add to actions'));
-
-    const actionsSection = screen.getByText('Actions').closest('section')!;
-    const actionMoveUp = within(actionsSection).getAllByLabelText('Move up');
-    fireEvent.click(actionMoveUp[1]);
-
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'c1' } });
     fireEvent.click(screen.getByText('Add to commands'));
 
@@ -72,7 +62,7 @@ describe('TriggersPage', () => {
     await waitFor(() => expect(createTriggerMock).toHaveBeenCalledWith({
       name: 'Trigger A',
       criteria: {},
-      actions: ['a2', 'a1'],
+      actions: undefined,
       commands: ['c2', 'c1'],
       sequence: 's1',
     }));
@@ -91,19 +81,12 @@ describe('TriggersPage', () => {
     await screen.findByText('Edit Trigger');
     fireEvent.change(screen.getByLabelText('Criteria (JSON)'), { target: { value: '{"type":"updated"}' } });
 
-    fireEvent.change(screen.getByLabelText('Add action'), { target: { value: 'a2' } });
-    fireEvent.click(screen.getByText('Add to actions'));
-
-    const actionsSection = screen.getByText('Actions').closest('section')!;
-    const actionMoveDown = within(actionsSection).getAllByLabelText('Move down');
-    fireEvent.click(actionMoveDown[0]);
-
     fireEvent.click(screen.getAllByText('Save')[0]);
 
     await waitFor(() => expect(updateTriggerMock).toHaveBeenCalledWith('t1', {
       name: 'Trigger 1',
       criteria: { type: 'updated' },
-      actions: ['a2', 'a1'],
+      actions: ['a1'],
       commands: ['c1'],
       sequence: undefined,
     }));

@@ -1,35 +1,34 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { ExecutionPage } from '../../../pages/Execution';
-import { listActions } from '../../../services/actionsApi';
 import { listCommands } from '../../../services/commands';
 import { useGames } from '../../../services/useGames';
+import { useAdbDevices } from '../../../services/useAdbDevices';
 import { getRunningSessions, startSession, stopSession } from '../../../services/sessionsApi';
 
-jest.mock('../../../services/actionsApi', () => ({ listActions: jest.fn() }));
 jest.mock('../../../services/commands', () => ({ listCommands: jest.fn() }));
 jest.mock('../../../services/useGames', () => ({ useGames: jest.fn() }));
+jest.mock('../../../services/useAdbDevices', () => ({ useAdbDevices: jest.fn() }));
 jest.mock('../../../services/sessionsApi', () => ({
   getRunningSessions: jest.fn(),
   startSession: jest.fn(),
   stopSession: jest.fn()
 }));
 
-type ActionsMock = typeof listActions;
 type CommandsMock = typeof listCommands;
 type GamesHook = typeof useGames;
+type AdbDevicesHook = typeof useAdbDevices;
 type GetRunningMock = typeof getRunningSessions;
 type StartSessionMock = typeof startSession;
 type StopSessionMock = typeof stopSession;
 
-const mockListActions = listActions as jest.MockedFunction<ActionsMock>;
 const mockListCommands = listCommands as jest.MockedFunction<CommandsMock>;
 const mockUseGames = useGames as jest.MockedFunction<GamesHook>;
+const mockUseAdbDevices = useAdbDevices as jest.MockedFunction<AdbDevicesHook>;
 const mockGetRunning = getRunningSessions as jest.MockedFunction<GetRunningMock>;
 const mockStartSession = startSession as jest.MockedFunction<StartSessionMock>;
 const mockStopSession = stopSession as jest.MockedFunction<StopSessionMock>;
 
-const connectAction = { id: 'a1', name: 'Connect', gameId: 'g1', type: 'connect-to-game', attributes: { adbSerial: 'emu-1' } } as any;
 const runningOne = { sessionId: 's-1', gameId: 'g1', emulatorId: 'emu-1', startedAtUtc: new Date().toISOString(), lastHeartbeatUtc: new Date().toISOString(), status: 'Running' as const };
 const runningTwo = { sessionId: 's-2', gameId: 'g1', emulatorId: 'emu-1', startedAtUtc: new Date().toISOString(), lastHeartbeatUtc: new Date().toISOString(), status: 'Running' as const };
 
@@ -37,7 +36,12 @@ describe('Running sessions list', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseGames.mockReturnValue({ loading: false, data: [{ id: 'g1', name: 'Game One' }], error: undefined });
-    mockListActions.mockResolvedValue([connectAction]);
+    mockUseAdbDevices.mockReturnValue({
+      devices: [{ serial: 'emu-1', state: 'device' }],
+      loading: false,
+      error: undefined,
+      refresh: jest.fn()
+    } as any);
     mockListCommands.mockResolvedValue([] as any);
     mockGetRunning.mockResolvedValue([runningOne] as any);
     mockStartSession.mockResolvedValue({ sessionId: runningTwo.sessionId, runningSessions: [runningTwo] } as any);

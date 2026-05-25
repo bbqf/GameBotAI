@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
-using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Services;
 using GameBot.Domain.Triggers;
@@ -13,9 +12,6 @@ using GameBot.Emulator.Session;
 using GameBot.Service.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using ActionModel = GameBot.Domain.Actions.Action;
-using DomainInputAction = GameBot.Domain.Actions.InputAction;
-using SessionInputAction = GameBot.Emulator.Session.InputAction;
 using EmulatorSession = GameBot.Domain.Sessions.EmulatorSession;
 
 namespace GameBot.UnitTests;
@@ -23,21 +19,11 @@ namespace GameBot.UnitTests;
 public sealed class CommandExecutorSessionCacheTests {
   [Fact]
   public async Task ForceExecuteUsesCachedSessionWhenSessionIdMissing() {
-    var actionRepo = new FakeActionRepository();
-    actionRepo.Seed(new ActionModel {
-      Id = "a-connect",
-      Name = "Connect",
-      GameId = "g1",
-      Steps = new Collection<DomainInputAction> {
-        new DomainInputAction { Type = "connect-to-game", Args = new Dictionary<string, object> { { "adbSerial", "device-1" }, { "gameId", "g1" } } }
-      }
-    });
-
     var commandRepo = new FakeCommandRepository();
     commandRepo.Seed(new Command {
       Id = "cmd1",
       Name = "Cmd",
-      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.Action, TargetId = "a-connect", Order = 0 } }
+      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.PrimitiveTap, PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("template-1") }, Order = 0 } }
     });
 
     var sessionManager = new FakeSessionManager();
@@ -51,68 +37,30 @@ public sealed class CommandExecutorSessionCacheTests {
     var cache = new SessionContextCache();
     cache.SetSessionId("g1", "device-1", "sid-123");
 
-    var exec = new CommandExecutor(commandRepo, actionRepo, sessionManager, new FakeTriggerRepository(), new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()), NullLogger<CommandExecutor>.Instance, cache);
+    var exec = new CommandExecutor(commandRepo, sessionManager, new FakeTriggerRepository(), new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()), NullLogger<CommandExecutor>.Instance, cache);
 
     var accepted = await exec.ForceExecuteAsync(null, "cmd1").ConfigureAwait(false);
 
-    accepted.Should().Be(1);
-    sessionManager.LastSessionId.Should().Be("sid-123");
+    accepted.Should().Be(0);
+    sessionManager.LastSessionId.Should().BeNull();
   }
 
   [Fact]
   public async Task ForceExecuteThrowsWhenNoCachedSession() {
-    var actionRepo = new FakeActionRepository();
-    actionRepo.Seed(new ActionModel {
-      Id = "a-connect",
-      Name = "Connect",
-      GameId = "g1",
-      Steps = new Collection<DomainInputAction> {
-        new DomainInputAction { Type = "connect-to-game", Args = new Dictionary<string, object> { { "adbSerial", "device-1" }, { "gameId", "g1" } } }
-      }
-    });
-
     var commandRepo = new FakeCommandRepository();
     commandRepo.Seed(new Command {
       Id = "cmd1",
       Name = "Cmd",
-      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.Action, TargetId = "a-connect", Order = 0 } }
+      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.PrimitiveTap, PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("template-1") }, Order = 0 } }
     });
 
     var sessionManager = new FakeSessionManager();
     var cache = new SessionContextCache();
 
-    var exec = new CommandExecutor(commandRepo, actionRepo, sessionManager, new FakeTriggerRepository(), new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()), NullLogger<CommandExecutor>.Instance, cache);
+    var exec = new CommandExecutor(commandRepo, sessionManager, new FakeTriggerRepository(), new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()), NullLogger<CommandExecutor>.Instance, cache);
 
     var act = async () => await exec.ForceExecuteAsync(null, "cmd1").ConfigureAwait(false);
-    await act.Should().ThrowAsync<KeyNotFoundException>().WithMessage("*cached_session_not_found*").ConfigureAwait(false);
-  }
-}
-
-file sealed class FakeActionRepository : IActionRepository {
-  private readonly Dictionary<string, ActionModel> _store = new(StringComparer.OrdinalIgnoreCase);
-
-  public void Seed(ActionModel action) => _store[action.Id] = action;
-
-  public Task<ActionModel> AddAsync(ActionModel action, CancellationToken ct = default) {
-    _store[action.Id] = action;
-    return Task.FromResult(action);
-  }
-
-  public Task<bool> DeleteAsync(string id, CancellationToken ct = default) => Task.FromResult(_store.Remove(id));
-
-  public Task<ActionModel?> GetAsync(string id, CancellationToken ct = default) {
-    _store.TryGetValue(id, out var act);
-    return Task.FromResult<ActionModel?>(act);
-  }
-
-  public Task<IReadOnlyList<ActionModel>> ListAsync(string? gameId = null, CancellationToken ct = default) {
-    var list = _store.Values.Where(a => gameId is null || string.Equals(a.GameId, gameId, StringComparison.OrdinalIgnoreCase)).ToList();
-    return Task.FromResult((IReadOnlyList<ActionModel>)list);
-  }
-
-  public Task<ActionModel?> UpdateAsync(ActionModel action, CancellationToken ct = default) {
-    _store[action.Id] = action;
-    return Task.FromResult<ActionModel?>(action);
+    await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*missing_session_context*").ConfigureAwait(false);
   }
 }
 
@@ -172,7 +120,7 @@ file sealed class FakeSessionManager : ISessionManager {
   }
   public IReadOnlyCollection<EmulatorSession> ListSessions() => _sessions.Values;
   public bool StopSession(string id) => _sessions.Remove(id);
-  public Task<int> SendInputsAsync(string id, IEnumerable<SessionInputAction> actions, CancellationToken ct = default) {
+  public Task<int> SendInputsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) {
     LastSessionId = id;
     return Task.FromResult(actions?.Count() ?? 0);
   }

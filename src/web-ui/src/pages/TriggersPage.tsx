@@ -3,7 +3,6 @@ import { List, ListItem } from '../components/List';
 import { listTriggers, TriggerDto, createTrigger, TriggerCreate, getTrigger, updateTrigger, deleteTrigger } from '../services/triggers';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
-import { listActions, ActionDto } from '../services/actions';
 import { listCommands, CommandDto } from '../services/commands';
 import { listSequences, SequenceDto } from '../services/sequences';
 import { FormError, tryParseJson } from '../components/Form';
@@ -72,10 +71,10 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
         setItems(mapped);
       })
       .catch(() => setItems([]));
-    Promise.all([listActions(), listCommands(), listSequences()])
-      .then(([acts, cmds, seqs]: [ActionDto[], CommandDto[], SequenceDto[]]) => {
+    Promise.all([listCommands(), listSequences()])
+      .then(([cmds, seqs]: [CommandDto[], SequenceDto[]]) => {
         if (!mounted) return;
-        setActionOptions(acts.map((a) => ({ value: a.id, label: a.name, description: a.description })));
+        setActionOptions([]);
         setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
         setSequenceOptions(seqs.map((s) => ({ value: s.id, label: s.name })));
       })

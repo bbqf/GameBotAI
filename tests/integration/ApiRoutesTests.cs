@@ -18,29 +18,16 @@ public class ApiRoutesTests
     }
 
     [Fact]
-    public async Task CanonicalActionsRouteSucceeds()
+    public async Task RemovedActionsRoutesReturnNotFound()
     {
         using var app = new WebApplicationFactory<Program>();
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-        var resp = await client.GetAsync(new Uri("/api/actions", UriKind.Relative)).ConfigureAwait(true);
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
+        var canonicalResp = await client.GetAsync(new Uri("/api/actions", UriKind.Relative)).ConfigureAwait(true);
+        canonicalResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-    [Fact]
-    public async Task LegacyActionsRouteReturnsGuidance()
-    {
-        using var app = new WebApplicationFactory<Program>();
-        var client = app.CreateClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-
-        var resp = await client.GetAsync(new Uri("/actions", UriKind.Relative)).ConfigureAwait(true);
-        resp.StatusCode.Should().Be(HttpStatusCode.Gone);
-
-        var payload = await resp.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(true);
-        payload.TryGetProperty("error", out var error).Should().BeTrue();
-        error.GetProperty("code").GetString().Should().Be("legacy_route");
-        error.GetProperty("hint").GetString().Should().Be("/api/actions");
+        var legacyResp = await client.GetAsync(new Uri("/actions", UriKind.Relative)).ConfigureAwait(true);
+        legacyResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

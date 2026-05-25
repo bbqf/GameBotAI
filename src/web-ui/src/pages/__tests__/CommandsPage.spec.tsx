@@ -42,14 +42,12 @@ describe('CommandsPage', () => {
     expect(await screen.findByText('Name is required')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Test Cmd' } });
-    fireEvent.change(screen.getByLabelText('Add action'), { target: { value: 'a1' } });
-    fireEvent.click(screen.getByText('Add action step'));
 
     createCommandMock.mockResolvedValue({} as any);
 
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', steps: [{ type: 'Action', targetId: 'a1', order: 0 }], detection: undefined }));
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({ name: 'Test Cmd', steps: [], detection: undefined }));
   });
 
   it('loads and saves an existing command', async () => {

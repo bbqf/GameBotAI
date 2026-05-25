@@ -33,71 +33,37 @@ public class GamesActionsTests {
   }
 
   [Fact]
-  public async Task CanExecuteActionAgainstSession() {
+  public async Task ActionAuthoringRoutesAreRemoved() {
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    // Create a game
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), new { name = "A1" }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+    var listResp = await client.GetAsync(new Uri("/api/actions", UriKind.Relative)).ConfigureAwait(true);
+    listResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
+  }
+
+  [Fact]
+  public async Task LegacyExecuteActionSessionRouteIsRemoved() {
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
     var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "Game B", description = "desc" }).ConfigureAwait(true);
     gameResp.StatusCode.Should().Be(HttpStatusCode.Created);
     var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
     var gameId = game!["id"]!.ToString();
 
-    // Create an action with two steps
-    var actionReq = new {
-      name = "A-Exec",
-      gameId,
-      steps = new[]
-        {
-                new { type = "tap", args = new Dictionary<string, object>{{"x", 10}, {"y", 10}}, delayMs = (int?)null, durationMs = (int?)null },
-                new { type = "swipe", args = new Dictionary<string, object>{{"x1", 0}, {"y1", 0}, {"x2", 100}, {"y2", 100}}, delayMs = (int?)null, durationMs = (int?)null }
-            }
-    };
-    var aResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq).ConfigureAwait(true);
-    aResp.EnsureSuccessStatusCode();
-    var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var actionId = act!["id"]!.ToString();
+    var sessionResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
+    sessionResp.EnsureSuccessStatusCode();
+    var session = await sessionResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
+    var sessionId = session!["id"]!.ToString();
 
-    // Create a session
-      var sResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId }).ConfigureAwait(true);
-    sResp.EnsureSuccessStatusCode();
-    var s = await sResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var sessionId = s!["id"]!.ToString();
-
-    // Execute the action
-      var execResp = await client.PostAsync(new Uri($"/api/sessions/{sessionId}/execute-action?actionId={actionId}", UriKind.Relative), content: null).ConfigureAwait(true);
-    execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
-    var execBody = await execResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var accepted = ((System.Text.Json.JsonElement)execBody!["accepted"]).GetInt32();
-    accepted.Should().Be(2);
-  }
-
-  [Fact]
-  public async Task CanCreateAndFilterActionsByGame() {
-    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
-    using var app = new WebApplicationFactory<Program>();
-    var client = app.CreateClient();
-    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-
-    // Create a game
-    var g = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "Game B", description = "desc" }).ConfigureAwait(true);
-    var gBody = await g.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-    var gameId = gBody!["id"].ToString();
-
-    // Create two actions, one for this game, one for another
-    var actionReq = new { name = "A1", gameId, steps = new object[] { new { type = "tap", args = new { x = 1, y = 2 } } } };
-    var a1 = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq).ConfigureAwait(true);
-    a1.StatusCode.Should().Be(HttpStatusCode.Created);
-
-    var a2 = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), new { name = "A2", gameId = "other-game", steps = Array.Empty<object>() }).ConfigureAwait(true);
-    a2.StatusCode.Should().Be(HttpStatusCode.Created);
-
-    // Filter
-    var list = await client.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri($"/api/actions?gameId={gameId}", UriKind.Relative)).ConfigureAwait(true);
-    list!.Should().NotBeNull();
-    list!.Count.Should().Be(1);
-    list[0]["name"].ToString().Should().Be("A1");
+    var executeResp = await client.PostAsync(new Uri($"/api/sessions/{sessionId}/execute-action?actionId=legacy", UriKind.Relative), content: null).ConfigureAwait(true);
+    executeResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
   }
 }

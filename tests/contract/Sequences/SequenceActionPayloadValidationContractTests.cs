@@ -28,9 +28,10 @@ public sealed class SequenceActionPayloadValidationContractTests {
         new {
           stepId = "action",
           label = "Action",
-          action = new {
+          primitiveAction = new {
             type = "unsupported",
-            parameters = new { foo = 1 }
+            schemaVersion = "v1",
+            payload = new { foo = 1 }
           }
         }
       }
@@ -55,9 +56,10 @@ public sealed class SequenceActionPayloadValidationContractTests {
         new {
           stepId = "action",
           label = "Action",
-          action = new {
+          primitiveAction = new {
             type = string.Empty,
-            parameters = new { x = 1 }
+            schemaVersion = "v1",
+            payload = new { x = 1 }
           }
         }
       }

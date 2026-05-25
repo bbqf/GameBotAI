@@ -3,7 +3,6 @@ import { setRememberToken, setToken, token$ } from './lib/token';
 import { setBaseUrl } from './lib/config';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Nav, AuthoringTab } from './components/Nav';
-import { ActionsListPage } from './pages/actions/ActionsListPage';
 import { CommandsPage } from './pages/CommandsPage';
 import { GamesPage } from './pages/GamesPage';
 import { SequencesPage } from './pages/SequencesPage';
@@ -21,7 +20,6 @@ const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolea
   if (segments.length === 0) return undefined;
   const [head, second, third] = segments;
   const tabMap: Record<string, AuthoringTab> = {
-    actions: 'Actions',
     commands: 'Commands',
     games: 'Games',
     sequences: 'Sequences',
@@ -56,7 +54,7 @@ export const App: React.FC = () => {
     const creationTarget = searchParams.get('create')?.toLowerCase();
     const initialId = searchParams.get('id') ?? undefined;
     const legacy = legacyPathToTab(window.location.pathname);
-    const initialTab = requestedTab ?? legacy?.tab ?? 'Actions';
+    const initialTab = requestedTab ?? legacy?.tab ?? 'Commands';
     const initialCreate = creationTarget ?? (legacy?.create ? legacy.tab.toLowerCase() : undefined);
     const derivedId = initialId ?? legacy?.id;
     return {
@@ -100,7 +98,6 @@ export const App: React.FC = () => {
       <h1>Authoring</h1>
       <Nav active={tab} onChange={setTab} />
       <ErrorBoundary>
-        {tab === 'Actions' && <ActionsListPage initialMode={creationTarget === 'actions' ? 'create' : 'list'} initialEditId={requestedTab === 'Actions' ? initialId : undefined} />}
         {tab === 'Commands' && <CommandsPage initialCreate={creationTarget === 'commands'} initialEditId={requestedTab === 'Commands' ? initialId : undefined} />}
         {tab === 'Games' && <GamesPage initialCreate={creationTarget === 'games'} initialEditId={requestedTab === 'Games' ? initialId : undefined} />}
         {tab === 'Sequences' && <SequencesPage initialCreate={creationTarget === 'sequences'} initialEditId={requestedTab === 'Sequences' ? initialId : undefined} />}

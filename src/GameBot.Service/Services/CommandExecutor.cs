@@ -1,4 +1,3 @@
-using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Config;
 using GameBot.Domain.Logging;
@@ -14,7 +13,6 @@ namespace GameBot.Service.Services;
 
 internal sealed class CommandExecutor : ICommandExecutor {
   private readonly ICommandRepository _commands;
-  private readonly IActionRepository _actions;
   private readonly ISessionManager _sessions;
   private readonly ITriggerRepository _triggers; // No change here, just context
   private readonly TriggerEvaluationService _triggerEval;
@@ -26,9 +24,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly IExecutionLogService? _executionLogService;
   private readonly AppConfig _appConfig;
 
-  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null) {
     _commands = commands;
-    _actions = actions;
     _sessions = sessions;
     _triggers = triggers; // No change here, just context
     _triggerEval = triggerEval;
@@ -42,9 +39,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
   }
 
   // Fallback constructor for environments without detection services registered (non-Windows or tests)
-  public CommandExecutor(ICommandRepository commands, IActionRepository actions, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null) {
     _commands = commands;
-    _actions = actions;
     _sessions = sessions;
     _triggers = triggers;
     _triggerEval = triggerEval;
@@ -153,57 +149,10 @@ internal sealed class CommandExecutor : ICommandExecutor {
     var totalAccepted = 0;
     foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
       if (step.Type == CommandStepType.Action) {
-        var act = await _actions.GetAsync(step.TargetId, ct).ConfigureAwait(false);
-        if (act is null) throw new KeyNotFoundException("Action not found");
-        if (act.Steps.Count == 0) continue;
-        var inputs = act.Steps.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)).ToList();
-        // If the command includes a detection target, attempt to resolve coordinates for tap actions
-        if (cmd.Detection is not null && OperatingSystem.IsWindows()) {
-          try {
-#nullable disable
-            var detection = cmd.Detection!;
-            var screenSrc = _screen;
-            var images = _images;
-            var matcher = _matcher;
-            if (screenSrc is null || images is null || matcher is null) { Log.DetectionSkip(_logger, "services_unavailable"); }
-            var screenshotBmp = screenSrc?.GetLatestScreenshot();
-            if (screenshotBmp is null) { /* no screenshot; skip */ }
-            else if (images.TryGet(detection.ReferenceImageId, out var templateBmp)) {
-              var tbmp = templateBmp!;
-              using var template = new System.Drawing.Bitmap(tbmp);
-              using var screenMs = new System.IO.MemoryStream();
-              using var templateMs = new System.IO.MemoryStream();
-              screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
-              template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
-              var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
-              var templateMat = OpenCvSharp.Mat.FromImageData(templateMs.ToArray(), OpenCvSharp.ImreadModes.Color);
-              if (matcher is null) { Log.DetectionSkip(_logger, "matcher_unavailable"); }
-              else {
-                var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
-                foreach (var inp in inputs) {
-                  var ok = adapter.TryApplyDetectionCoordinates(
-                    new GameBot.Domain.Actions.InputAction { Type = inp.Type, Args = inp.Args, DelayMs = inp.DelayMs, DurationMs = inp.DurationMs },
-                    detection,
-                    screenMat,
-                    templateMat,
-                    detection.Confidence,
-                    out var err);
-                  if (!ok && err is not null) { Log.DetectionSkip(_logger, err); }
-                }
-              }
-              screenMat.Dispose();
-              templateMat.Dispose();
-#nullable restore
-            }
-          }
-          catch (Exception ex) {
-            Log.DetectionError(_logger, ex);
-          }
-        }
-        var accepted = await _sessions.SendInputsAsync(sessionId, inputs, ct).ConfigureAwait(false);
-        totalAccepted += accepted;
+        throw new InvalidOperationException("legacy_action_step_not_supported");
       }
-      else if (step.Type == CommandStepType.PrimitiveTap) {
+
+      if (step.Type == CommandStepType.PrimitiveTap) {
         var primitiveDetection = step.PrimitiveTap?.DetectionTarget;
         if (primitiveDetection is null) {
           Log.DetectionSkip(_logger, "primitive_tap_missing_detection");
@@ -228,7 +177,6 @@ internal sealed class CommandExecutor : ICommandExecutor {
             continue;
           }
 
-          // Template lookup before loop — template doesn't change between retries (R-005)
           if (!images.TryGet(primitiveDetection.ReferenceImageId, out var templateBmp) || templateBmp is null) {
             Log.DetectionSkip(_logger, "template_not_found");
             stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "template_not_found", null, null));
@@ -241,7 +189,6 @@ internal sealed class CommandExecutor : ICommandExecutor {
           var currentWaitMs = (double)baseWaitMs;
           var detected = false;
 
-          // Initial wait + detection check (FR-001)
           Log.TapRetryWaiting(_logger, step.Order, baseWaitMs, 0);
           await Task.Delay(baseWaitMs, ct).ConfigureAwait(false);
 
@@ -250,19 +197,19 @@ internal sealed class CommandExecutor : ICommandExecutor {
           if (!detected) {
             Log.TapRetryNotDetected(_logger, step.Order, 0);
 
-            // Retry loop (FR-002, FR-003)
             for (int retry = 0; retry < retryCount; retry++) {
               cancelCycleTracker = retry + 1;
               var waitMs = (int)currentWaitMs;
               Log.TapRetryWaiting(_logger, step.Order, waitMs, cancelCycleTracker);
               await Task.Delay(waitMs, ct).ConfigureAwait(false);
-              currentWaitMs *= progression; // progression applied after each retry wait
+              currentWaitMs *= progression;
 
               detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, stepOutcomes, ref totalAccepted, cancelCycleTracker, ct);
               if (detected) {
                 Log.TapRetryDetected(_logger, step.Order, cancelCycleTracker);
                 break;
               }
+
               Log.TapRetryNotDetected(_logger, step.Order, cancelCycleTracker);
             }
 
@@ -280,10 +227,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
           Log.DetectionError(_logger, ex);
           stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", "primitive_tap_exception", null, null));
         }
+
+        continue;
       }
-      else {
-        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, ct).ConfigureAwait(false);
-      }
+
+      totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, ct).ConfigureAwait(false);
     }
 
     visited.Remove(commandId);
@@ -362,26 +310,18 @@ internal sealed class CommandExecutor : ICommandExecutor {
       return sessionId;
     }
 
-    var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false) ?? throw new KeyNotFoundException("Command not found");
-    // Find first connect-to-game action referenced by this command
-    foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
-      if (step.Type != CommandStepType.Action) continue;
-      var act = await _actions.GetAsync(step.TargetId, ct).ConfigureAwait(false);
-      if (act is null) continue;
-      foreach (var input in act.Steps) {
-        if (ConnectToGameArgs.TryFrom(input, act.GameId, out var args)) {
-          var cached = _sessionCache.GetSessionId(args.GameId, args.AdbSerial);
-          if (string.IsNullOrWhiteSpace(cached)) {
-            Log.SessionCacheMiss(_logger, commandId, args.GameId, args.AdbSerial);
-            throw new KeyNotFoundException("cached_session_not_found");
-          }
-          Log.SessionCacheHit(_logger, commandId, args.GameId, args.AdbSerial, cached!);
-          return cached!;
-        }
-      }
+    var runningSessions = _sessions.ListSessions().Where(session => session.Status == GameBot.Domain.Sessions.SessionStatus.Running).ToList();
+    if (runningSessions.Count == 1) {
+      var resolved = runningSessions[0].Id;
+      Log.SessionProvided(_logger, commandId, resolved);
+      return resolved;
     }
 
-    Log.SessionContextMissing(_logger, commandId);
+    var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false) ?? throw new KeyNotFoundException("Command not found");
+    if (cmd.Steps.Count > 0) {
+      Log.SessionContextMissing(_logger, commandId);
+    }
+
     throw new InvalidOperationException("missing_session_context");
   }
 }

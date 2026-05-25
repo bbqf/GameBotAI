@@ -11,7 +11,7 @@
 
 **Purpose**: Prepare shared scaffolding and test baselines for the refactor.
 
-- [ ] T001 Create refactor tracking notes in specs/001-primitive-actions-refactor/plan.md and specs/001-primitive-actions-refactor/quickstart.md with final implementation checkpoints
+- [X] T001 Create refactor tracking notes in specs/001-primitive-actions-refactor/plan.md and specs/001-primitive-actions-refactor/quickstart.md with final implementation checkpoints
 - [ ] T002 [P] Add temporary migration fixture data and removal fixtures for legacy Action references in tests/TestAssets/legacy-action-migration/
 - [ ] T003 [P] Add baseline API contract snapshot for affected routes in tests/contract/ApiContractSnapshots/
 - [ ] T004 [P] Add frontend primitive-action test fixtures in src/web-ui/src/test/fixtures/primitiveActions.ts
@@ -24,14 +24,14 @@
 
 **CRITICAL**: No user story work starts before this phase is complete.
 
-- [ ] T005 Define discriminated primitive action contracts in src/GameBot.Domain/Actions/PrimitiveActionBase.cs and src/GameBot.Domain/Actions/PrimitiveActionVariants.cs
-- [ ] T006 [P] Add shared primitive selection value object for inline persistence in src/GameBot.Domain/Actions/PrimitiveActionSelection.cs
-- [ ] T007 Implement discriminator/payload schema validator in src/GameBot.Domain/Actions/PrimitiveActionValidationService.cs
-- [ ] T008 [P] Add startup cutover validation model in src/GameBot.Service/StartupValidation/CutoverValidationReport.cs
-- [ ] T009 Implement legacy Action reference scanner for data stores in src/GameBot.Service/StartupValidation/LegacyActionReferenceScanner.cs
-- [ ] T010 Wire fail-fast startup/readiness gating in src/GameBot.Service/Program.cs and src/GameBot.Service/Middleware/ErrorHandlingMiddleware.cs
-- [ ] T011 Remove Action repository registration and Action endpoint mapping in src/GameBot.Service/Program.cs
-- [ ] T012 Update shared OpenAPI route grouping for removed Action CRUD surface in src/GameBot.Service/Swagger/SwaggerConfig.cs
+- [X] T005 Define discriminated primitive action contracts in src/GameBot.Domain/Actions/PrimitiveActionBase.cs and src/GameBot.Domain/Actions/PrimitiveActionVariants.cs
+- [X] T006 [P] Add shared primitive selection value object for inline persistence in src/GameBot.Domain/Actions/PrimitiveActionSelection.cs
+- [X] T007 Implement discriminator/payload schema validator in src/GameBot.Domain/Actions/PrimitiveActionValidationService.cs
+- [X] T008 [P] Add startup cutover validation model in src/GameBot.Service/StartupValidation/CutoverValidationReport.cs
+- [X] T009 Implement legacy Action reference scanner for data stores in src/GameBot.Service/StartupValidation/LegacyActionReferenceScanner.cs
+- [X] T010 Wire fail-fast startup/readiness gating in src/GameBot.Service/Program.cs and src/GameBot.Service/Middleware/ErrorHandlingMiddleware.cs
+- [X] T011 Remove Action repository registration and Action endpoint mapping in src/GameBot.Service/Program.cs
+- [X] T012 Update shared OpenAPI route grouping for removed Action CRUD surface in src/GameBot.Service/Swagger/SwaggerConfig.cs
 
 **Checkpoint**: Foundation complete; user stories can proceed.
 
@@ -45,7 +45,7 @@
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Add domain tests for primitive selection validation in tests/unit/Domain/PrimitiveActionValidationServiceTests.cs
+- [X] T013 [P] [US1] Add domain tests for primitive selection validation in tests/unit/Domain/PrimitiveActionValidationServiceTests.cs
 - [ ] T014 [P] [US1] Add contract tests for command and sequence inline primitive payloads in tests/contract/PrimitiveActionContractsTests.cs
 - [ ] T015 [P] [US1] Add integration tests for command/sequence create-read-update with inline primitives in tests/integration/PrimitiveAuthoringFlowTests.cs
 - [ ] T016 [P] [US1] Add web UI tests for command and sequence authoring primitive selectors in src/web-ui/src/pages/__tests__/CommandsAndSequencesPrimitiveAuthoring.spec.tsx
@@ -54,10 +54,10 @@
 
 - [ ] T017 [US1] Replace sequence action contract mapping with primitive selection mapping in src/GameBot.Service/Models/SequenceStepContracts.cs and src/GameBot.Service/Program.cs
 - [ ] T018 [US1] Replace command step Action-ID mapping with inline primitive selection mapping in src/GameBot.Service/Models/Commands.cs and src/GameBot.Service/Endpoints/CommandsEndpoints.cs
-- [ ] T019 [US1] Remove Action endpoint implementation in src/GameBot.Service/Endpoints/ActionsEndpoints.cs and remove related route constants in src/GameBot.Service/ApiRoutes.cs
-- [ ] T020 [US1] Remove Action repository domain interface and file repository implementation in src/GameBot.Domain/Actions/IActionRepository.cs and src/GameBot.Domain/Actions/FileActionRepository.cs
+- [X] T019 [US1] Remove Action endpoint implementation in src/GameBot.Service/Endpoints/ActionsEndpoints.cs and remove related route constants in src/GameBot.Service/ApiRoutes.cs
+- [X] T020 [US1] Remove Action repository domain interface and file repository implementation in src/GameBot.Domain/Actions/IActionRepository.cs and src/GameBot.Domain/Actions/FileActionRepository.cs
 - [ ] T021 [US1] Update sequence validation for inline primitive payload semantics in src/GameBot.Domain/Services/SequenceStepValidationService.cs and src/GameBot.Domain/Services/ActionPayloadValidationService.cs
-- [ ] T022 [US1] Refactor command execution to consume inline primitive selections instead of Action lookup in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T022 [US1] Refactor command execution to consume inline primitive selections instead of Action lookup in src/GameBot.Service/Services/CommandExecutor.cs
 - [ ] T023 [US1] Replace web UI action services with primitive-catalog plus inline payload services in src/web-ui/src/services/actionsApi.ts and src/web-ui/src/services/commands.ts
 - [ ] T024 [US1] Remove action authoring pages/components and rewire navigation to primitive-based authoring in src/web-ui/src/pages/actions/ActionsListPage.tsx and src/web-ui/src/components/actions/ActionForm.tsx
 - [ ] T025 [US1] Update sequence editor mapping/validation utilities for the shared primitive selection model in src/web-ui/src/lib/sequenceMapping.ts and src/web-ui/src/lib/validation.ts
@@ -80,9 +80,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Add connect primitive request contract and validation path in src/GameBot.Service/Models/Sessions.cs and src/GameBot.Service/Endpoints/SessionsEndpoints.cs
-- [ ] T030 [US2] Refactor command executor session resolution away from Action repository to primitive selection sources in src/GameBot.Service/Services/CommandExecutor.cs
-- [ ] T031 [US2] Update connect-to-game typed payload mapping helpers in src/GameBot.Domain/Actions/ConnectToGameArgs.cs and src/GameBot.Domain/Actions/PrimitiveActionVariants.cs
+- [X] T029 [US2] Add connect primitive request contract and validation path in src/GameBot.Service/Models/Sessions.cs and src/GameBot.Service/Endpoints/SessionsEndpoints.cs
+- [X] T030 [US2] Refactor command executor session resolution away from Action repository to primitive selection sources in src/GameBot.Service/Services/CommandExecutor.cs
+- [X] T031 [US2] Update connect-to-game typed payload mapping helpers in src/GameBot.Domain/Actions/ConnectToGameArgs.cs and src/GameBot.Domain/Actions/PrimitiveActionVariants.cs
 - [ ] T032 [US2] Update execution page to select connect primitive and require parameters in src/web-ui/src/pages/Execution.tsx
 - [ ] T033 [US2] Update execution client APIs for connect primitive payload submission in src/web-ui/src/services/sessions.ts and src/web-ui/src/types/actions.ts
 
@@ -107,7 +107,7 @@
 - [ ] T037 [US3] Implement deterministic migration command/tooling for Action references in scripts/migrate-actions-to-primitives.ps1 and src/GameBot.Service/Migration/LegacyActionMigrationService.cs
 - [ ] T038 [US3] Implement startup diagnostics emission for blocking references in src/GameBot.Service/StartupValidation/LegacyActionReferenceScanner.cs and src/GameBot.Service/StartupValidation/CutoverValidationReport.cs
 - [ ] T039 [US3] Add readiness failure integration in service startup path in src/GameBot.Service/Program.cs
-- [ ] T040 [US3] Remove obsolete Action sample data and fixtures after migration in data/commands/ and data/actions/
+- [X] T040 [US3] Remove obsolete Action sample data and fixtures after migration in data/commands/ and data/actions/
 - [ ] T041 [US3] Update execution-log projection compatibility for primitive outcomes in src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs
 
 **Checkpoint**: User Story 3 is independently functional and testable.
@@ -122,7 +122,7 @@
 - [ ] T043 [P] Regenerate and verify OpenAPI spec consistency in specs/openapi.json and src/GameBot.Service/Swagger/SwaggerConfig.cs
 - [ ] T044 Run end-to-end verification from quickstart in specs/001-primitive-actions-refactor/quickstart.md
 - [ ] T045 Run explicit startup cutover and execution latency benchmarks from specs/001-primitive-actions-refactor/quickstart.md and record results in specs/001-primitive-actions-refactor/plan.md
-- [ ] T046 Run full backend and frontend test suites and record results in specs/001-primitive-actions-refactor/plan.md
+- [X] T046 Run full backend and frontend test suites and record results in specs/001-primitive-actions-refactor/plan.md
 - [ ] T047 Perform cleanup of dead Action references across codebase in src/ and tests/
 
 ---

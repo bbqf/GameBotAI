@@ -29,18 +29,12 @@ public sealed class ConditionalAuthoringRoundTripIntegrationTests {
         new {
           stepId = "start",
           label = "Start",
-          action = new {
-            type = "tap",
-            parameters = new { x = 100, y = 200 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 100, y = 200  } }
         },
         new {
           stepId = "decision",
           label = "Decision",
-          action = new {
-            type = "tap",
-            parameters = new { x = 180, y = 260 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 180, y = 260  } },
           condition = new {
             type = "commandOutcome",
             stepRef = "start",
@@ -50,18 +44,12 @@ public sealed class ConditionalAuthoringRoundTripIntegrationTests {
         new {
           stepId = "then-step",
           label = "Then",
-          action = new {
-            type = "tap",
-            parameters = new { x = 280, y = 360 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 280, y = 360  } }
         },
         new {
           stepId = "else-step",
           label = "Else",
-          action = new {
-            type = "tap",
-            parameters = new { x = 380, y = 460 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 380, y = 460  } }
         }
       }
     };

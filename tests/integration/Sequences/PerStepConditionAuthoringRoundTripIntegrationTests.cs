@@ -26,18 +26,12 @@ public sealed class PerStepConditionAuthoringRoundTripIntegrationTests {
         new {
           stepId = "go-home",
           label = "Go Home",
-          action = new {
-            type = "tap",
-            parameters = new { x = 120, y = 840 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 120, y = 840  } }
         },
         new {
           stepId = "go-back",
           label = "Go Back",
-          action = new {
-            type = "tap",
-            parameters = new { x = 64, y = 64 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 64, y = 64  } },
           condition = new {
             type = "commandOutcome",
             stepRef = "go-home",
@@ -65,18 +59,12 @@ public sealed class PerStepConditionAuthoringRoundTripIntegrationTests {
         new {
           stepId = "go-home",
           label = "Go Home",
-          action = new {
-            type = "tap",
-            parameters = new { x = 120, y = 840 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 120, y = 840  } }
         },
         new {
           stepId = "go-back",
           label = "Go Back",
-          action = new {
-            type = "tap",
-            parameters = new { x = 64, y = 64 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 64, y = 64  } },
           condition = new {
             type = "commandOutcome",
             stepRef = "go-home",

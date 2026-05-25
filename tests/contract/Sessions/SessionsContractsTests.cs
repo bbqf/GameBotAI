@@ -5,6 +5,8 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using GameBot.Domain.Sessions;
+using GameBot.Domain.Actions;
+using EmulatorInputAction = GameBot.Emulator.Session.InputAction;
 using GameBot.Emulator.Session;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,7 +60,16 @@ public sealed class SessionsContractsTests : IDisposable
         var runningResp = await client.GetAsync(new Uri("/api/sessions/running", UriKind.Relative)).ConfigureAwait(true);
         runningResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new { gameId = "game-1", emulatorId = "emu-1" }).ConfigureAwait(true);
+        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
+            primitiveAction = new {
+                type = PrimitiveActionTypes.ConnectToGame,
+                schemaVersion = "v1",
+                payload = new {
+                    gameId = "game-1",
+                    adbSerial = "emu-1"
+                }
+            }
+        }).ConfigureAwait(true);
         startResp.StatusCode.Should().Be(HttpStatusCode.OK);
         var startPayload = await startResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         startPayload.Should().NotBeNull();
@@ -87,7 +98,16 @@ public sealed class SessionsContractsTests : IDisposable
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
         // Start a session to populate running list
-        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new { gameId = "game-1", emulatorId = "emu-1" }).ConfigureAwait(true);
+        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
+            primitiveAction = new {
+                type = PrimitiveActionTypes.ConnectToGame,
+                schemaVersion = "v1",
+                payload = new {
+                    gameId = "game-1",
+                    adbSerial = "emu-1"
+                }
+            }
+        }).ConfigureAwait(true);
         startResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var runningResp = await client.GetAsync(new Uri("/api/sessions/running", UriKind.Relative)).ConfigureAwait(true);
@@ -130,7 +150,7 @@ public sealed class SessionsContractsTests : IDisposable
             return true;
         }
 
-        public Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<int> SendInputsAsync(string id, IEnumerable<EmulatorInputAction> actions, CancellationToken ct = default) => Task.FromResult(0);
         public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
     }
 }

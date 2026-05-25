@@ -48,17 +48,12 @@ public sealed class OpenApiBackwardCompatTests {
   }
 
   [Fact]
-  public async Task LegacyActionsRouteReturnsGuidance() {
+  public async Task LegacyActionsRouteReturnsNotFound() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     var resp = await client.GetAsync(new Uri("/actions", UriKind.Relative));
-    resp.StatusCode.Should().Be(HttpStatusCode.Gone);
-
-    var payload = await resp.Content.ReadFromJsonAsync<JsonElement>();
-    payload.TryGetProperty("error", out var error).Should().BeTrue();
-    error.GetProperty("code").GetString().Should().Be("legacy_route");
-    error.GetProperty("hint").GetString().Should().Be("/api/actions");
+    resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
   }
 }

@@ -43,16 +43,13 @@ describe('CommandsPage detection persistence', () => {
     fireEvent.change(screen.getByLabelText('Offset X'), { target: { value: '5' } });
     fireEvent.change(screen.getByLabelText('Offset Y'), { target: { value: '-3' } });
 
-    fireEvent.change(screen.getByLabelText('Add action'), { target: { value: 'a1' } });
-    fireEvent.click(screen.getByText('Add action step'));
-
     createCommandMock.mockResolvedValue({} as any);
 
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({
       name: 'Detect Command',
-      steps: [{ type: 'Action', targetId: 'a1', order: 0 }],
+      steps: [],
       detection: { referenceImageId: 'template_a', confidence: 0.77, offsetX: 5, offsetY: -3 },
     }));
   });

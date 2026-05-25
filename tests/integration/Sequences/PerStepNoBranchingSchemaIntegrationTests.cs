@@ -25,17 +25,11 @@ public sealed class PerStepNoBranchingSchemaIntegrationTests {
       steps = new object[] {
         new {
           stepId = "step-1",
-          action = new {
-            type = "tap",
-            parameters = new { x = 100, y = 100 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 100, y = 100  } }
         },
         new {
           stepId = "step-2",
-          action = new {
-            type = "tap",
-            parameters = new { x = 200, y = 200 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 200, y = 200  } },
           condition = new {
             type = "commandOutcome",
             stepRef = "step-1",
