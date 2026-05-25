@@ -21,6 +21,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-03
 - Existing file-backed JSON repositories under `data/` (no new stores); configuration via `AppConfig` singleton (036-tap-wait-retry)
 - C# 13 / .NET 9 (backend service/domain), TypeScript ES2020 / React 18 (authoring consumer) + ASP.NET Core Minimal API, existing `GameBot.Domain` command/sequence models and `SequenceRunner`, existing file-backed repositories, Swagger/OpenAPI generation in `GameBot.Service` (001-sequence-random-delay)
 - Existing file-backed JSON under `data/commands/sequences` (001-sequence-random-delay)
+- Backend C# 13 / .NET 9; Frontend TypeScript ES2020 / React 18 (Vite 5) + ASP.NET Core Minimal API, GameBot.Domain repositories/services, System.Text.Json, existing OpenCvSharp/ADB/session services, React + existing web-ui toolchain (001-primitive-actions-refactor)
+- File-backed JSON under `data/` (notably `data/commands`, `data/commands/sequences`, `data/config`); Action storage removed from authored model (001-primitive-actions-refactor)
 
 - Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing `GameBot.Domain` sequence/command services, existing image detection pipeline, existing execution-log services/repositories, React 18 + Vite 5 UI stack (030-sequence-conditional-logic)
 
@@ -41,9 +43,9 @@ npm test; npm run lint
 Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18: Follow standard conventions
 
 ## Recent Changes
+- 001-primitive-actions-refactor: Added Backend C# 13 / .NET 9; Frontend TypeScript ES2020 / React 18 (Vite 5) + ASP.NET Core Minimal API, GameBot.Domain repositories/services, System.Text.Json, existing OpenCvSharp/ADB/session services, React + existing web-ui toolchain
 - 001-sequence-random-delay: Added C# 13 / .NET 9 (backend service/domain), TypeScript ES2020 / React 18 (authoring consumer) + ASP.NET Core Minimal API, existing `GameBot.Domain` command/sequence models and `SequenceRunner`, existing file-backed repositories, Swagger/OpenAPI generation in `GameBot.Service`
 - 036-tap-wait-retry: Added C# 13 / .NET 9 + ASP.NET Core Minimal API, OpenCvSharp (TemplateMatcher), SharpAdbClient/ADB integration, Microsoft.Extensions.Logging, existing `GameBot.Domain` and `GameBot.Emulator` libraries
-- 035-ui-config-editor: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (frontend) + ASP.NET Core Minimal API, existing `ConfigSnapshotService` + `IConfigApplier`, React 18 + Vite 7, HTML5 Drag and Drop API (no external DnD library)
 
 
 <!-- MANUAL ADDITIONS START -->
