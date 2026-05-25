@@ -7,8 +7,8 @@
 
 **Purpose**: Confirm implementation baseline and synchronize feature docs used by implementation tasks.
 
-- [ ] T001 Capture baseline verification steps and expected commands in specs/001-sequence-random-delay/quickstart.md
-- [ ] T002 Confirm feature contract baseline and endpoint scope in specs/001-sequence-random-delay/contracts/sequence-random-delay.openapi.yaml
+- [X] T001 Capture baseline verification steps and expected commands in specs/001-sequence-random-delay/quickstart.md
+- [X] T002 Confirm feature contract baseline and endpoint scope in specs/001-sequence-random-delay/contracts/sequence-random-delay.openapi.yaml
 
 ---
 
@@ -18,10 +18,10 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 Add sequence-level inter-step delay range model fields and JSON serialization support in src/GameBot.Domain/Commands/CommandSequence.cs
-- [ ] T004 Add sequence-level delay range DTO contracts for create/update payloads in src/GameBot.Service/Models/SequenceStepContracts.cs
-- [ ] T005 Implement shared mapping between API contracts and domain sequence delay configuration in src/GameBot.Service/Program.cs
-- [ ] T006 Persist and hydrate sequence-level inter-step delay configuration in src/GameBot.Domain/Commands/FileSequenceRepository.cs
+- [X] T003 Add sequence-level inter-step delay range model fields and JSON serialization support in src/GameBot.Domain/Commands/CommandSequence.cs
+- [X] T004 Add sequence-level delay range DTO contracts for create/update payloads in src/GameBot.Service/Models/SequenceStepContracts.cs
+- [X] T005 Implement shared mapping between API contracts and domain sequence delay configuration in src/GameBot.Service/Program.cs
+- [X] T006 Persist and hydrate sequence-level inter-step delay configuration in src/GameBot.Domain/Commands/FileSequenceRepository.cs
 
 **Checkpoint**: Domain model, contract model, API mapping, and repository persistence are ready.
 
@@ -33,11 +33,11 @@
 
 **Independent Test**: Execute a multi-step sequence without custom range and verify each inter-step delay is sampled within 100..300 ms, with no trailing delay after final step.
 
-- [ ] T007 [P] [US1] Add default inter-step delay constants and range resolver helpers in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T008 [US1] Implement uniform inclusive inter-step delay sampling helper (min <= sampled <= max) in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T009 [US1] Apply inter-step delay transitions in linear sequence execution path in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T010 [US1] Apply inter-step delay transitions in flow-graph execution path in src/GameBot.Domain/Services/SequenceRunner.cs
-- [ ] T011 [US1] Prevent post-terminal/post-failure trailing delay and preserve existing per-step delay behavior in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T007 [P] [US1] Add default inter-step delay constants and range resolver helpers in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T008 [US1] Implement uniform inclusive inter-step delay sampling helper (min <= sampled <= max) in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T009 [US1] Apply inter-step delay transitions in linear sequence execution path in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T010 [US1] Apply inter-step delay transitions in flow-graph execution path in src/GameBot.Domain/Services/SequenceRunner.cs
+- [X] T011 [US1] Prevent post-terminal/post-failure trailing delay and preserve existing per-step delay behavior in src/GameBot.Domain/Services/SequenceRunner.cs
 
 **Checkpoint**: User Story 1 is independently functional and testable.
 
@@ -49,7 +49,7 @@
 
 **Independent Test**: Configure custom range for one sequence, execute it and a default sequence, and verify each uses its own range.
 
-- [ ] T012 [US2] Extend create/put/patch/get/list endpoint payload mapping to include interStepDelayRangeMs in src/GameBot.Service/Program.cs
+- [X] T012 [US2] Extend create/put/patch/get/list endpoint payload mapping to include interStepDelayRangeMs in src/GameBot.Service/Program.cs
 - [ ] T013 [P] [US2] Add sequence-level delay range types to frontend sequence contracts in src/web-ui/src/types/sequenceFlow.ts
 - [ ] T014 [P] [US2] Extend sequence API request/response DTOs for interStepDelayRangeMs in src/web-ui/src/services/sequences.ts
 - [ ] T015 [US2] Add per-sequence delay range form fields and binding/state persistence in src/web-ui/src/pages/SequencesPage.tsx
@@ -65,10 +65,10 @@
 
 **Independent Test**: Attempt invalid saves (negative, non-integer, min > max) and verify request rejection with actionable error messages.
 
-- [ ] T017 [US3] Enforce backend validation rules for interStepDelayRangeMs (integer-only, min >= 0, min <= max) in src/GameBot.Service/Program.cs
-- [ ] T018 [US3] Add repository-level validation guard for persisted interStepDelayRangeMs on create/update in src/GameBot.Domain/Commands/FileSequenceRepository.cs
+- [X] T017 [US3] Enforce backend validation rules for interStepDelayRangeMs (integer-only, min >= 0, min <= max) in src/GameBot.Service/Program.cs
+- [X] T018 [US3] Add repository-level validation guard for persisted interStepDelayRangeMs on create/update in src/GameBot.Domain/Commands/FileSequenceRepository.cs
 - [ ] T019 [US3] Add authoring UI validation and actionable error messaging for invalid delay inputs in src/web-ui/src/pages/SequencesPage.tsx
-- [ ] T020 [US3] Align validation error contract examples and schema constraints in specs/001-sequence-random-delay/contracts/sequence-random-delay.openapi.yaml
+- [X] T020 [US3] Align validation error contract examples and schema constraints in specs/001-sequence-random-delay/contracts/sequence-random-delay.openapi.yaml
 
 **Checkpoint**: User Story 3 is independently functional and testable.
 
@@ -78,9 +78,9 @@
 
 **Purpose**: Final consistency and verification across all stories.
 
-- [ ] T021 [P] Update feature verification walkthrough with default/custom/invalid scenarios in specs/001-sequence-random-delay/quickstart.md
-- [ ] T022 Run full quality gate commands and capture outcomes in specs/001-sequence-random-delay/quickstart.md
-- [ ] T023 Run scripts/analyze-test-results.ps1 and record TESTERROR summary evidence in specs/001-sequence-random-delay/quickstart.md
+- [X] T021 [P] Update feature verification walkthrough with default/custom/invalid scenarios in specs/001-sequence-random-delay/quickstart.md
+- [X] T022 Run full quality gate commands and capture outcomes in specs/001-sequence-random-delay/quickstart.md
+- [X] T023 Run scripts/analyze-test-results.ps1 and record TESTERROR summary evidence in specs/001-sequence-random-delay/quickstart.md
 
 ---
 

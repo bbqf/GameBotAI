@@ -152,6 +152,15 @@ components:
             $ref: '#/components/schemas/SequenceStep'
         interStepDelayRangeMs:
           $ref: '#/components/schemas/InterStepDelayRangeMs'
+      example:
+        name: My Sequence
+        version: 1
+        steps:
+          - stepId: step-1
+            label: Tap Screen
+        interStepDelayRangeMs:
+          min: 100
+          max: 300
 
     SequencePatchRequest:
       type: object
@@ -185,6 +194,16 @@ components:
           description: Optional persisted range; runtime defaults to 100..300ms when absent.
           allOf:
             - $ref: '#/components/schemas/InterStepDelayRangeMs'
+      example:
+        id: seq-123
+        name: My Sequence
+        version: 1
+        steps:
+          - stepId: step-1
+            label: Tap Screen
+        interStepDelayRangeMs:
+          min: 150
+          max: 250
 
     SequenceSummary:
       type: object

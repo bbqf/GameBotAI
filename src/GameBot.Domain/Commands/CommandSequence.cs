@@ -23,6 +23,7 @@ namespace GameBot.Domain.Commands
         public IReadOnlyList<SequenceStep> Steps => _steps.AsReadOnly();
         public DateTimeOffset? CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }
+        public DelayRangeMs? InterStepDelayRangeMs { get; set; }
 
         // Optional blocks (heterogeneous array: Step|Block), persisted as "blocks"
         [JsonIgnore]
