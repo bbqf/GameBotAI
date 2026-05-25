@@ -300,6 +300,9 @@ export const ExecutionLogsPage: React.FC = () => {
                 {detail.stepOutcomes.map((step, index) => (
                   <li key={`${step.stepName}-${index}`}>
                     <strong>{step.stepName}</strong>: {step.status} — {step.message}
+                    <div className="form-hint">
+                      Applied delay: {typeof step.appliedDelayMs === 'number' ? `${step.appliedDelayMs} ms` : 'n/a'}
+                    </div>
                     {step.deepLink && (
                       <div className="actions" style={{ marginTop: '0.25rem' }}>
                         <button type="button" onClick={() => openStepDeepLink(step)}>

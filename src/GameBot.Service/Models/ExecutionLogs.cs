@@ -41,6 +41,7 @@ internal sealed class ExecutionStepOutcomeDto
   public required string Outcome { get; init; }
   public string? ReasonCode { get; init; }
   public string? ReasonText { get; init; }
+  public int? AppliedDelayMs { get; init; }
 }
 
 internal sealed class ExecutionDetailItemDto
@@ -106,6 +107,7 @@ internal sealed class StepOutcomeDetailDto
   public required string StepName { get; init; }
   public required string Status { get; init; }
   public required string Message { get; init; }
+  public int? AppliedDelayMs { get; init; }
   public AuthoringDeepLinkDto? DeepLink { get; init; }
   public ConditionEvaluationTraceDto? ConditionTrace { get; init; }
   public DateTimeOffset? StartedAtUtc { get; init; }

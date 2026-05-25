@@ -10,7 +10,7 @@ import { ReorderableList, ReorderableListItem } from '../components/ReorderableL
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { navigateToUnified } from '../lib/navigation';
 import { validatePerStepConditions } from '../lib/validation';
-import { isLinearStepArray, toCommandStepIds, toLinearSteps } from '../lib/sequenceMapping';
+import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
 import type { LoopStepEntry, BreakStepEntry, StepEntry } from '../types/stepEntry';
 import type { SequenceLinearStep, LoopConfigDto } from '../types/sequenceFlow';
@@ -32,11 +32,20 @@ type SequenceStep = {
 type SequenceFormValue = {
   name: string;
   steps: SequenceStep[];
+  useCustomDelayRange: boolean;
+  delayMin: string;
+  delayMax: string;
 };
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
-const emptyForm: SequenceFormValue = { name: '', steps: [] };
+const emptyForm: SequenceFormValue = {
+  name: '',
+  steps: [],
+  useCustomDelayRange: false,
+  delayMin: '',
+  delayMax: ''
+};
 
 const createDefaultStep = (commandId: string, stepId: string): SequenceStep => ({
   id: makeId(),
@@ -354,10 +363,17 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     const commandIds = toCommandStepIds(s.steps);
     const linearSteps = toLinearSteps(s.steps);
     const hasPerStep = isLinearStepArray(s.steps) && linearSteps.length > 0;
+    const delayRange = toInterStepDelayRange(s.interStepDelayRangeMs);
     setEditingId(id);
     setCreating(false);
     setPendingStepId(undefined);
-    setForm({ name: s.name, steps: hasPerStep ? toStepEntriesFromLinear(linearSteps) : toStepEntries(commandIds) });
+    setForm({
+      name: s.name,
+      steps: hasPerStep ? toStepEntriesFromLinear(linearSteps) : toStepEntries(commandIds),
+      useCustomDelayRange: delayRange !== null,
+      delayMin: delayRange ? String(delayRange.min) : '',
+      delayMax: delayRange ? String(delayRange.max) : ''
+    });
     setLoadedVersion(s.version ?? 1);
     setDirty(false);
   };
@@ -600,6 +616,39 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
+
+    if (v.useCustomDelayRange) {
+      if (!v.delayMin.trim()) {
+        next.delayMin = 'Minimum delay is required when custom range is enabled';
+      }
+      if (!v.delayMax.trim()) {
+        next.delayMax = 'Maximum delay is required when custom range is enabled';
+      }
+
+      const isInteger = (value: string) => /^-?\d+$/.test(value.trim());
+      if (v.delayMin.trim() && !isInteger(v.delayMin)) {
+        next.delayMin = 'Minimum delay must be an integer (milliseconds)';
+      }
+      if (v.delayMax.trim() && !isInteger(v.delayMax)) {
+        next.delayMax = 'Maximum delay must be an integer (milliseconds)';
+      }
+
+      if (!next.delayMin && !next.delayMax) {
+        const min = Number(v.delayMin);
+        const max = Number(v.delayMax);
+        if (min < 0) {
+          next.delayMin = 'Minimum delay must be greater than or equal to 0';
+        }
+        if (max < 0) {
+          next.delayMax = 'Maximum delay must be greater than or equal to 0';
+        }
+        if (min > max) {
+          next.delayMin = 'Minimum delay must be less than or equal to maximum delay';
+          next.delayMax = 'Maximum delay must be greater than or equal to minimum delay';
+        }
+      }
+    }
+
     return Object.keys(next).length ? next : undefined;
   };
 
@@ -700,7 +749,10 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             const linearPayload = {
               name: form.name.trim(),
               version: 1,
-              steps: toLinearPayloadSteps(form.steps)
+              steps: toLinearPayloadSteps(form.steps),
+              interStepDelayRangeMs: form.useCustomDelayRange
+                ? { min: Number(form.delayMin), max: Number(form.delayMax) }
+                : null
             };
 
             if (linearPayload) {
@@ -717,7 +769,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 {
                   name: linearPayload.name,
                   version: linearPayload.version,
-                  steps: linearPayload.steps
+                  steps: linearPayload.steps,
+                  interStepDelayRangeMs: linearPayload.interStepDelayRangeMs
                 }
               );
               setCreating(false);
@@ -746,6 +799,66 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               />
               {errors?.name && <div id="sequence-name-error" className="field-error" role="alert">{errors.name}</div>}
             </div>
+            <div className="field">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.useCustomDelayRange}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setForm((prev) => ({
+                      ...prev,
+                      useCustomDelayRange: enabled,
+                      delayMin: enabled ? prev.delayMin : '',
+                      delayMax: enabled ? prev.delayMax : ''
+                    }));
+                    setErrors(undefined);
+                    setDirty(true);
+                  }}
+                  disabled={submitting || loading}
+                />
+                Use custom inter-step delay range
+              </label>
+              <div className="form-hint">Default runtime range is 100-300 ms when custom range is disabled.</div>
+            </div>
+            {form.useCustomDelayRange && (
+              <>
+                <div className="field">
+                  <label htmlFor="sequence-delay-min">Minimum Delay (ms) *</label>
+                  <input
+                    id="sequence-delay-min"
+                    inputMode="numeric"
+                    value={form.delayMin}
+                    onChange={(event) => {
+                      setErrors(undefined);
+                      setForm((prev) => ({ ...prev, delayMin: event.target.value }));
+                      setDirty(true);
+                    }}
+                    aria-invalid={Boolean(errors?.delayMin)}
+                    aria-describedby={errors?.delayMin ? 'sequence-delay-min-error' : undefined}
+                    disabled={submitting || loading}
+                  />
+                  {errors?.delayMin && <div id="sequence-delay-min-error" className="field-error" role="alert">{errors.delayMin}</div>}
+                </div>
+                <div className="field">
+                  <label htmlFor="sequence-delay-max">Maximum Delay (ms) *</label>
+                  <input
+                    id="sequence-delay-max"
+                    inputMode="numeric"
+                    value={form.delayMax}
+                    onChange={(event) => {
+                      setErrors(undefined);
+                      setForm((prev) => ({ ...prev, delayMax: event.target.value }));
+                      setDirty(true);
+                    }}
+                    aria-invalid={Boolean(errors?.delayMax)}
+                    aria-describedby={errors?.delayMax ? 'sequence-delay-max-error' : undefined}
+                    disabled={submitting || loading}
+                  />
+                  {errors?.delayMax && <div id="sequence-delay-max-error" className="field-error" role="alert">{errors.delayMax}</div>}
+                </div>
+              </>
+            )}
           </FormSection>
 
           <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-steps">
@@ -816,7 +929,10 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               const linearPayload = {
                 name: form.name.trim(),
                 version: loadedVersion,
-                steps: toLinearPayloadSteps(form.steps)
+                steps: toLinearPayloadSteps(form.steps),
+                interStepDelayRangeMs: form.useCustomDelayRange
+                  ? { min: Number(form.delayMin), max: Number(form.delayMax) }
+                  : null
               };
 
               if (linearPayload) {
@@ -834,7 +950,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   {
                     name: linearPayload.name,
                     version: linearPayload.version,
-                    steps: linearPayload.steps
+                    steps: linearPayload.steps,
+                    interStepDelayRangeMs: linearPayload.interStepDelayRangeMs
                   }
                 );
                 await reloadSequences();
@@ -867,6 +984,66 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 />
                 {errors?.name && <div id="sequence-edit-name-error" className="field-error" role="alert">{errors.name}</div>}
               </div>
+              <div className="field">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={form.useCustomDelayRange}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      setForm((prev) => ({
+                        ...prev,
+                        useCustomDelayRange: enabled,
+                        delayMin: enabled ? prev.delayMin : '',
+                        delayMax: enabled ? prev.delayMax : ''
+                      }));
+                      setErrors(undefined);
+                      setDirty(true);
+                    }}
+                    disabled={submitting || loading}
+                  />
+                  Use custom inter-step delay range
+                </label>
+                <div className="form-hint">Default runtime range is 100-300 ms when custom range is disabled.</div>
+              </div>
+              {form.useCustomDelayRange && (
+                <>
+                  <div className="field">
+                    <label htmlFor="sequence-edit-delay-min">Minimum Delay (ms) *</label>
+                    <input
+                      id="sequence-edit-delay-min"
+                      inputMode="numeric"
+                      value={form.delayMin}
+                      onChange={(event) => {
+                        setErrors(undefined);
+                        setForm((prev) => ({ ...prev, delayMin: event.target.value }));
+                        setDirty(true);
+                      }}
+                      aria-invalid={Boolean(errors?.delayMin)}
+                      aria-describedby={errors?.delayMin ? 'sequence-edit-delay-min-error' : undefined}
+                      disabled={submitting || loading}
+                    />
+                    {errors?.delayMin && <div id="sequence-edit-delay-min-error" className="field-error" role="alert">{errors.delayMin}</div>}
+                  </div>
+                  <div className="field">
+                    <label htmlFor="sequence-edit-delay-max">Maximum Delay (ms) *</label>
+                    <input
+                      id="sequence-edit-delay-max"
+                      inputMode="numeric"
+                      value={form.delayMax}
+                      onChange={(event) => {
+                        setErrors(undefined);
+                        setForm((prev) => ({ ...prev, delayMax: event.target.value }));
+                        setDirty(true);
+                      }}
+                      aria-invalid={Boolean(errors?.delayMax)}
+                      aria-describedby={errors?.delayMax ? 'sequence-edit-delay-max-error' : undefined}
+                      disabled={submitting || loading}
+                    />
+                    {errors?.delayMax && <div id="sequence-edit-delay-max-error" className="field-error" role="alert">{errors.delayMax}</div>}
+                  </div>
+                </>
+              )}
             </FormSection>
 
             <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-edit-steps">

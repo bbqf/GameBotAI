@@ -47,6 +47,7 @@ export type ExecutionLogStepOutcomeDto = {
   stepName: string;
   status: string;
   message: string;
+  appliedDelayMs?: number;
   deepLink?: ExecutionLogStepDeepLinkDto;
   conditionTrace?: ExecutionLogConditionTraceDto;
   startedAtUtc?: string;

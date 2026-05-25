@@ -1,0 +1,285 @@
+openapi: 3.0.3
+info:
+  title: Sequence Random Delay API
+  version: 1.0.0
+  description: Sequence authoring and execution contracts for sequence-level randomized inter-step delays.
+servers:
+  - url: http://localhost:5081
+paths:
+  /api/sequences:
+    post:
+      summary: Create sequence
+      operationId: createSequence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '201':
+          description: Sequence created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sequence'
+        '400':
+          description: Validation error.
+    get:
+      summary: List sequences
+      operationId: listSequences
+      responses:
+        '200':
+          description: Sequence summaries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SequenceSummary'
+
+  /api/sequences/{sequenceId}:
+    get:
+      summary: Get sequence
+      operationId: getSequence
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sequence detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sequence'
+        '404':
+          description: Sequence not found.
+    put:
+      summary: Replace sequence
+      operationId: replaceSequence
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '200':
+          description: Sequence updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sequence'
+        '400':
+          description: Validation error.
+        '404':
+          description: Sequence not found.
+    patch:
+      summary: Partially update sequence
+      operationId: patchSequence
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequencePatchRequest'
+      responses:
+        '200':
+          description: Sequence updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sequence'
+        '400':
+          description: Validation error.
+        '404':
+          description: Sequence not found.
+
+  /api/sequences/{sequenceId}/execute:
+    post:
+      summary: Execute sequence
+      operationId: executeSequence
+      parameters:
+        - name: sequenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceExecuteRequest'
+      responses:
+        '200':
+          description: Execution result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceExecutionResult'
+        '404':
+          description: Sequence not found.
+
+components:
+  schemas:
+    SequenceUpsertRequest:
+      type: object
+      required: [name, version, steps]
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+        interStepDelayRangeMs:
+          $ref: '#/components/schemas/InterStepDelayRangeMs'
+      example:
+        name: My Sequence
+        version: 1
+        steps:
+          - stepId: step-1
+            label: Tap Screen
+        interStepDelayRangeMs:
+          min: 100
+          max: 300
+
+    SequencePatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+        interStepDelayRangeMs:
+          $ref: '#/components/schemas/InterStepDelayRangeMs'
+
+    Sequence:
+      type: object
+      required: [id, name, version, steps]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+        interStepDelayRangeMs:
+          description: Optional persisted range; runtime defaults to 100..300ms when absent.
+          allOf:
+            - $ref: '#/components/schemas/InterStepDelayRangeMs'
+      example:
+        id: seq-123
+        name: My Sequence
+        version: 1
+        steps:
+          - stepId: step-1
+            label: Tap Screen
+        interStepDelayRangeMs:
+          min: 150
+          max: 250
+
+    SequenceSummary:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        interStepDelayRangeMs:
+          $ref: '#/components/schemas/InterStepDelayRangeMs'
+
+    InterStepDelayRangeMs:
+      type: object
+      required: [min, max]
+      properties:
+        min:
+          type: integer
+          minimum: 0
+          description: Inclusive lower bound in milliseconds.
+        max:
+          type: integer
+          description: Inclusive upper bound in milliseconds; no explicit maximum limit.
+      description: Uniform random sampling uses inclusive boundaries (min <= sampled <= max).
+
+    SequenceStep:
+      type: object
+      required: [stepId]
+      properties:
+        stepId:
+          type: string
+        label:
+          type: string
+        stepType:
+          type: string
+        action:
+          type: object
+          additionalProperties: true
+
+    SequenceExecuteRequest:
+      type: object
+      properties:
+        sessionId:
+          type: string
+
+    SequenceExecutionResult:
+      type: object
+      required: [sequenceId, status, startedAt, endedAt, steps]
+      properties:
+        sequenceId:
+          type: string
+        status:
+          type: string
+          enum: [Succeeded, Failed]
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepResult'
+
+    StepResult:
+      type: object
+      required: [commandId, status, appliedDelayMs]
+      properties:
+        commandId:
+          type: string
+        status:
+          type: string
+        appliedDelayMs:
+          type: integer
+          description: Effective step-associated delay metadata from execution result.
+        message:
+          type: string
+          nullable: true

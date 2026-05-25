@@ -52,7 +52,8 @@ public sealed class ConditionalStepPerformanceIntegrationTests {
   private static CommandSequence BuildProfileSequence(int totalSteps, int conditionalSteps) {
     var sequence = new CommandSequence {
       Id = "nfr003-conditional-profile",
-      Name = "NFR003 Conditional Profile"
+      Name = "NFR003 Conditional Profile",
+      InterStepDelayRangeMs = new DelayRangeMs { Min = 0, Max = 0 }
     };
 
     var commandSteps = totalSteps - conditionalSteps;

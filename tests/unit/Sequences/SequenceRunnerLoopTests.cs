@@ -122,6 +122,31 @@ public sealed class SequenceRunnerLoopTests
         executed.Should().Equal("cmd-1", "cmd-2", "cmd-3");
     }
 
+    [Fact]
+    public async Task CountLoopBodyAppliesAndRecordsInterStepDelayBetweenBodySteps()
+    {
+        var loopStep = new SequenceStep
+        {
+            Order = 0,
+            StepId = "loop",
+            StepType = SequenceStepType.Loop,
+            Loop = new CountLoopConfig { Count = 1 },
+            Body = new List<SequenceStep>
+            {
+                ActionBodyStep(0, "inner-1", "cmd-1"),
+                ActionBodyStep(1, "inner-2", "cmd-2")
+            }
+        };
+
+        var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+        var result = await runner.ExecuteAsync("s", _ => Task.CompletedTask);
+
+        result.Status.Should().Be("Succeeded");
+        var firstBodyStep = result.Steps.First(step => step.CommandId == "cmd-1");
+        firstBodyStep.InterStepDelayMs.Should().NotBeNull();
+        firstBodyStep.InterStepDelayMs!.Value.Should().BeGreaterOrEqualTo(100).And.BeLessOrEqualTo(300);
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // T018: While loop
     // ──────────────────────────────────────────────────────────────────────────

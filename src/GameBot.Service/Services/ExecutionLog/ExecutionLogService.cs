@@ -20,7 +20,8 @@ internal sealed record ExecutionLogStepProjection(
   string Status,
   string Message,
   ExecutionLogStepDeepLinkProjection DeepLink,
-  ConditionEvaluationTrace? ConditionTrace);
+  ConditionEvaluationTrace? ConditionTrace,
+  int? AppliedDelayMs);
 
 internal sealed record ExecutionLogStepDeepLinkProjection(
   string SequenceId,
@@ -232,7 +233,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         step.Outcome,
         step.ReasonText ?? step.ReasonCode ?? "Step completed.",
         BuildDeepLink(entry, step),
-        step.ConditionTrace))
+        step.ConditionTrace,
+        step.AppliedDelayMs))
       .ToArray();
 
     return new ExecutionLogDetailProjection(
@@ -266,6 +268,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       var resolvedSequenceLabel = TryGetString(attributes, "sequenceLabel") ?? context.SequenceLabel ?? sequenceName;
       var resolvedStepId = TryGetString(attributes, "stepId") ?? context.StepId;
       var resolvedStepLabel = TryGetString(attributes, "stepLabel") ?? context.StepLabel;
+      var appliedDelayMs = TryGetInt(attributes, "appliedDelayMs");
       var conditionTrace = TryGetConditionTrace(attributes, "conditionTrace")
                            ?? BuildConditionTraceFromAttributes(attributes);
 
@@ -279,7 +282,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         resolvedStepId,
         resolvedSequenceLabel,
         resolvedStepLabel,
-        conditionTrace));
+        conditionTrace,
+        appliedDelayMs));
     }
 
     return results;

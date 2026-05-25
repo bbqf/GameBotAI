@@ -1,6 +1,7 @@
 import type { SequenceDto } from '../services/sequences';
 import type {
   FlowStep,
+  InterStepDelayRangeMs,
   SequenceLinearStep
 } from '../types/sequenceFlow';
 
@@ -39,4 +40,21 @@ export const isLinearStepArray = (steps: SequenceDto['steps']): steps is Sequenc
 
 export const toLinearSteps = (steps: SequenceDto['steps']): SequenceLinearStep[] => {
   return isLinearStepArray(steps) ? steps : [];
+};
+
+export const toInterStepDelayRange = (
+  value: SequenceDto['interStepDelayRangeMs']
+): InterStepDelayRangeMs | null => {
+  if (!value) {
+    return null;
+  }
+
+  if (!Number.isFinite(value.min) || !Number.isFinite(value.max)) {
+    return null;
+  }
+
+  return {
+    min: value.min,
+    max: value.max
+  };
 };

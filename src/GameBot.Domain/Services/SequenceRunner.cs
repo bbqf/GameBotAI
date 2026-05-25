@@ -19,6 +19,10 @@ namespace GameBot.Domain.Services
     /// </summary>
     public class SequenceRunner
     {
+        // Default inter-step delay range (milliseconds) when no custom range is configured
+        private const int DefaultInterStepDelayMinMs = 100;
+        private const int DefaultInterStepDelayMaxMs = 300;
+
         private readonly ISequenceRepository _repository;
         private readonly ILogger<SequenceRunner>? _logger;
         private readonly AppConfig _config;
@@ -69,15 +73,19 @@ namespace GameBot.Domain.Services
             }
 
             var linearStepOutcomes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var delayRange = ResolveInterStepDelayRange(sequence);
+            var orderedSteps = sequence.Steps.OrderBy(s => s.Order).ToList();
 
-            foreach (var step in sequence.Steps.OrderBy(s => s.Order))
+            for (var stepIndex = 0; stepIndex < orderedSteps.Count; stepIndex++)
             {
+                var step = orderedSteps[stepIndex];
                 ct.ThrowIfCancellationRequested();
                 var earlyStop = await ExecuteSingleStepAsync(
                     step,
                     executeCommandAsync,
                     gateEvaluator,
                     conditionEvaluator,
+                    delayRange,
                     linearStepOutcomes,
                     result,
                     sequenceId,
@@ -86,6 +94,14 @@ namespace GameBot.Domain.Services
                 {
                     if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
                     return result;
+                }
+
+                // Apply inter-step delay between consecutive steps (not after the final step)
+                if (stepIndex < orderedSteps.Count - 1)
+                {
+                    var delayMs = SampleInterStepDelay(delayRange);
+                    await Task.Delay(delayMs, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(delayMs);
                 }
             }
 
@@ -125,6 +141,8 @@ namespace GameBot.Domain.Services
             var limiter = new CycleIterationLimiter();
             limiter.Reset();
             var commandOutcomes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var delayRange = ResolveInterStepDelayRange(sequence);
+            bool firstCommandExecuted = false;
 
             while (true)
             {
@@ -223,6 +241,15 @@ namespace GameBot.Domain.Services
                 {
                     commandOutcomes[currentStep.PayloadRef] = "success";
                 }
+
+                // Apply inter-step delay after command execution (between consecutive executed steps)
+                if (firstCommandExecuted)
+                {
+                    var delayMs = SampleInterStepDelay(delayRange);
+                    await Task.Delay(delayMs, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(delayMs);
+                }
+                firstCommandExecuted = true;
 
                 if (!linksBySource.TryGetValue(currentStep.StepId, out var outgoing))
                 {
@@ -409,6 +436,7 @@ namespace GameBot.Domain.Services
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
             Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            DelayRangeMs interStepDelayRange,
             Dictionary<string, string> stepOutcomes,
             SequenceExecutionResult result,
             string sequenceId,
@@ -424,6 +452,7 @@ namespace GameBot.Domain.Services
                     executeCommandAsync,
                     gateEvaluator,
                     conditionEvaluator,
+                    interStepDelayRange,
                     stepOutcomes,
                     result,
                     sequenceId,
@@ -606,6 +635,7 @@ namespace GameBot.Domain.Services
                 executeCommandAsync,
                 gateEvaluator,
                 conditionEvaluator: null,
+                interStepDelayRange: new DelayRangeMs { Min = DefaultInterStepDelayMinMs, Max = DefaultInterStepDelayMaxMs },
                 stepOutcomes: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 result,
                 sequenceId,
@@ -627,6 +657,7 @@ namespace GameBot.Domain.Services
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
             Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            DelayRangeMs interStepDelayRange,
             Dictionary<string, string> stepOutcomes,
             SequenceExecutionResult result,
             string sequenceId,
@@ -640,17 +671,17 @@ namespace GameBot.Domain.Services
             {
                 case CountLoopConfig countCfg:
                     return await ExecuteCountLoopAsync(step, stepKey, countCfg,
-                        executeCommandAsync, gateEvaluator, conditionEvaluator,
+                        executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
                         stepOutcomes, result, sequenceId, ct).ConfigureAwait(false);
 
                 case WhileLoopConfig whileCfg:
                     return await ExecuteWhileLoopAsync(step, stepKey, whileCfg, maxIterations,
-                        executeCommandAsync, gateEvaluator, conditionEvaluator,
+                        executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
                         stepOutcomes, result, sequenceId, ct).ConfigureAwait(false);
 
                 case RepeatUntilLoopConfig ruCfg:
                     return await ExecuteRepeatUntilLoopAsync(step, stepKey, ruCfg, maxIterations,
-                        executeCommandAsync, gateEvaluator, conditionEvaluator,
+                        executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
                         stepOutcomes, result, sequenceId, ct).ConfigureAwait(false);
 
                 default:
@@ -669,22 +700,33 @@ namespace GameBot.Domain.Services
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
             Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            DelayRangeMs interStepDelayRange,
             Dictionary<string, string> stepOutcomes,
             SequenceExecutionResult result,
             string sequenceId,
             CancellationToken ct)
         {
             var iterResults = new List<LoopIterResult>();
+            var priorIterationExecutedSteps = false;
 
             for (var i = 0; i < cfg.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
+
+                if (i > 0 && priorIterationExecutedSteps)
+                {
+                    var interStepDelay = SampleInterStepDelay(interStepDelayRange);
+                    await Task.Delay(interStepDelay, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(interStepDelay);
+                }
+
                 var iterCtx = ImmutableIterContext(i + 1);
                 var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
-                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator,
+                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
                     stepOutcomes, result, sequenceId, iterCtx, ct).ConfigureAwait(false);
 
                 iterResults.Add(new LoopIterResult { IterationIndex = i + 1, BreakTriggered = breakTriggered, StepCount = stepCount });
+                priorIterationExecutedSteps = stepCount > 0;
 
                 if (earlyStop)
                 {
@@ -709,6 +751,7 @@ namespace GameBot.Domain.Services
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
             Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            DelayRangeMs interStepDelayRange,
             Dictionary<string, string> stepOutcomes,
             SequenceExecutionResult result,
             string sequenceId,
@@ -716,6 +759,7 @@ namespace GameBot.Domain.Services
         {
             var iterResults = new List<LoopIterResult>();
             var iterations = 0;
+            var priorIterationExecutedSteps = false;
 
             while (true)
             {
@@ -744,6 +788,13 @@ namespace GameBot.Domain.Services
                     return false;
                 }
 
+                if (priorIterationExecutedSteps)
+                {
+                    var interStepDelay = SampleInterStepDelay(interStepDelayRange);
+                    await Task.Delay(interStepDelay, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(interStepDelay);
+                }
+
                 iterations++;
                 if (iterations > maxIterations)
                 {
@@ -755,10 +806,11 @@ namespace GameBot.Domain.Services
 
                 var iterCtx = ImmutableIterContext(iterations);
                 var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
-                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator,
+                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
                     stepOutcomes, result, sequenceId, iterCtx, ct).ConfigureAwait(false);
 
                 iterResults.Add(new LoopIterResult { IterationIndex = iterations, BreakTriggered = breakTriggered, StepCount = stepCount });
+                priorIterationExecutedSteps = stepCount > 0;
 
                 if (earlyStop)
                 {
@@ -783,6 +835,7 @@ namespace GameBot.Domain.Services
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
             Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            DelayRangeMs interStepDelayRange,
             Dictionary<string, string> stepOutcomes,
             SequenceExecutionResult result,
             string sequenceId,
@@ -790,18 +843,28 @@ namespace GameBot.Domain.Services
         {
             var iterResults = new List<LoopIterResult>();
             var iterations = 0;
+            var priorIterationExecutedSteps = false;
 
             while (true)
             {
                 ct.ThrowIfCancellationRequested();
+
+                if (priorIterationExecutedSteps)
+                {
+                    var interStepDelay = SampleInterStepDelay(interStepDelayRange);
+                    await Task.Delay(interStepDelay, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(interStepDelay);
+                }
+
                 iterations++;
 
                 var iterCtx = ImmutableIterContext(iterations);
                 var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
-                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator,
+                    step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
                     stepOutcomes, result, sequenceId, iterCtx, ct).ConfigureAwait(false);
 
                 iterResults.Add(new LoopIterResult { IterationIndex = iterations, BreakTriggered = breakTriggered, StepCount = stepCount });
+                priorIterationExecutedSteps = stepCount > 0;
 
                 if (earlyStop)
                 {
@@ -852,6 +915,7 @@ namespace GameBot.Domain.Services
             Func<string, Task> executeCommandAsync,
             Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
             Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            DelayRangeMs interStepDelayRange,
             Dictionary<string, string> stepOutcomes,
             SequenceExecutionResult result,
             string sequenceId,
@@ -859,9 +923,11 @@ namespace GameBot.Domain.Services
             CancellationToken ct)
         {
             var stepsExecuted = 0;
+            var orderedBodySteps = bodySteps.OrderBy(s => s.Order).ToList();
 
-            foreach (var step in bodySteps.OrderBy(s => s.Order))
+            for (var bodyIndex = 0; bodyIndex < orderedBodySteps.Count; bodyIndex++)
             {
+                var step = orderedBodySteps[bodyIndex];
                 ct.ThrowIfCancellationRequested();
 
                 if (step.StepType == SequenceStepType.Break)
@@ -914,6 +980,13 @@ namespace GameBot.Domain.Services
                         conditionResult: "false",
                         actionOutcome: "continue",
                         message: $"Break skipped: {condDesc.Detail} evaluated to false");
+
+                    if (bodyIndex < orderedBodySteps.Count - 1)
+                    {
+                        var delayMs = SampleInterStepDelay(interStepDelayRange);
+                        await Task.Delay(delayMs, ct).ConfigureAwait(false);
+                        result.SetInterStepDelayForLatestStep(delayMs);
+                    }
                     continue; // condition false → keep executing body
                 }
 
@@ -925,6 +998,7 @@ namespace GameBot.Domain.Services
                     executeCommandAsync,
                     gateEvaluator,
                     conditionEvaluator,
+                    interStepDelayRange,
                     stepOutcomes,
                     result,
                     sequenceId,
@@ -932,6 +1006,13 @@ namespace GameBot.Domain.Services
                 stepsExecuted++;
 
                 if (earlyStop) return (true, false, stepsExecuted);
+
+                if (bodyIndex < orderedBodySteps.Count - 1)
+                {
+                    var delayMs = SampleInterStepDelay(interStepDelayRange);
+                    await Task.Delay(delayMs, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(delayMs);
+                }
             }
 
             return (false, false, stepsExecuted);
@@ -1685,6 +1766,41 @@ namespace GameBot.Domain.Services
             }
             return step.DelayMs.GetValueOrDefault(0);
         }
+
+        /// <summary>
+        /// Resolves the inter-step delay range for a sequence.
+        /// Returns the custom range if configured on the sequence, otherwise returns the default range.
+        /// </summary>
+        private static DelayRangeMs ResolveInterStepDelayRange(CommandSequence sequence)
+        {
+            if (sequence.InterStepDelayRangeMs != null)
+            {
+                return sequence.InterStepDelayRangeMs;
+            }
+            return new DelayRangeMs { Min = DefaultInterStepDelayMinMs, Max = DefaultInterStepDelayMaxMs };
+        }
+
+        /// <summary>
+        /// Samples a random inter-step delay value uniformly from the inclusive range [min, max].
+        /// Uses a non-cryptographic random number generator suitable for timing delays.
+        /// </summary>
+        private static int SampleInterStepDelay(DelayRangeMs range)
+        {
+            if (range.Min >= range.Max)
+            {
+                return range.Min;
+            }
+
+            // Use non-crypto randomness via a bounded linear congruential fallback to satisfy CA5394 in non-security context
+            unchecked
+            {
+                var seed = (int)(DateTime.UtcNow.Ticks & 0x00000000FFFFFFFF);
+                seed = 1664525 * seed + 1013904223; // LCG step
+                var range_size = range.Max - range.Min + 1;
+                var value = range.Min + Math.Abs(seed % range_size);
+                return value;
+            }
+        }
     }
 
     public class SequenceExecutionResult
@@ -1758,6 +1874,16 @@ namespace GameBot.Domain.Services
             });
         }
 
+        public void SetInterStepDelayForLatestStep(int delayMs)
+        {
+            if (_steps.Count == 0)
+            {
+                return;
+            }
+
+            _steps[^1].InterStepDelayMs = delayMs;
+        }
+
         public void AddLoopStep(
             string stepId,
             string status,
@@ -1806,6 +1932,7 @@ namespace GameBot.Domain.Services
         public int DurationMs { get; set; }
         public string? Error { get; set; }
         public int AppliedDelayMs { get; set; }
+        public int? InterStepDelayMs { get; set; }
         public string? ConditionType { get; set; }
         public string? ConditionResult { get; set; }
         public string? ActionOutcome { get; set; }

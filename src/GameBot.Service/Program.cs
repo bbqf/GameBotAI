@@ -593,6 +593,7 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, Sequenc
 
     perStepSequence.SetFlowGraph(null);
     perStepSequence.SetSteps(linearSteps);
+    perStepSequence.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
     var createdPerStep = await repo.CreateAsync(perStepSequence).ConfigureAwait(false);
     return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), ToSequenceResponse(createdPerStep));
   }
@@ -672,6 +673,7 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
 
     existing.SetFlowGraph(null);
     existing.SetSteps(linearSteps);
+    existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
   }
   else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
     return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
@@ -687,6 +689,10 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
       }
     }
     existing.SetSteps(steps);
+  }
+  if (root.TryGetProperty("interStepDelayRangeMs", out var delayrProp) && delayrProp.ValueKind == System.Text.Json.JsonValueKind.Object) {
+    var delayContract = JsonSerializer.Deserialize<DelayRangeMsContract>(delayrProp.GetRawText(), perStepRequestJsonOptions);
+    existing.InterStepDelayRangeMs = MapDelayRangeMs(delayContract);
   }
   existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
@@ -731,6 +737,7 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
 
     existing.SetFlowGraph(null);
     existing.SetSteps(linearSteps);
+    existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
   }
   else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
     return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
@@ -746,6 +753,10 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
       }
     }
     existing.SetSteps(steps);
+  }
+  if (root.TryGetProperty("interStepDelayRangeMs", out var delayProp) && delayProp.ValueKind == System.Text.Json.JsonValueKind.Object) {
+    var delayContract = JsonSerializer.Deserialize<DelayRangeMsContract>(delayProp.GetRawText(), perStepRequestJsonOptions);
+    existing.InterStepDelayRangeMs = MapDelayRangeMs(delayContract);
   }
   existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
@@ -890,6 +901,9 @@ sequences.MapPost("{sequenceId}/execute", async (
             ["stepType"] = "loop",
             ["status"] = step.Status,
             ["actionOutcome"] = step.Status.ToLowerInvariant(),
+            ["appliedDelayMs"] = step.InterStepDelayMs ?? step.AppliedDelayMs,
+            ["stepDelayMs"] = step.AppliedDelayMs,
+            ["interStepDelayMs"] = step.InterStepDelayMs,
             ["iterations"] = iterCount,
             ["message"] = step.Message,
             ["sequenceId"] = sequenceId,
@@ -915,6 +929,9 @@ sequences.MapPost("{sequenceId}/execute", async (
           ["stepType"] = "command",
           ["status"] = step.Status,
           ["actionOutcome"] = actionOutcome,
+          ["appliedDelayMs"] = step.InterStepDelayMs ?? step.AppliedDelayMs,
+          ["stepDelayMs"] = step.AppliedDelayMs,
+          ["interStepDelayMs"] = step.InterStepDelayMs,
           ["conditionType"] = step.ConditionType,
           ["conditionResult"] = step.ConditionResult,
           ["message"] = step.Message,
@@ -1057,7 +1074,10 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
       version = sequence.Version,
       entryStepId = sequence.EntryStepId,
       steps = flowSteps,
-      links = flowLinks
+      links = flowLinks,
+      interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null 
+        ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
+        : null
     };
   }
 
@@ -1066,7 +1086,10 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
       id = sequence.Id,
       name = sequence.Name,
       version = sequence.Version,
-      steps = sequence.Steps.Select(MapStepToDto).ToArray()
+      steps = sequence.Steps.Select(MapStepToDto).ToArray(),
+      interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null 
+        ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
+        : null
     };
   }
 
@@ -1074,7 +1097,10 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
     id = sequence.Id,
     name = sequence.Name,
     version = sequence.Version,
-    steps = sequence.Steps.Select(step => step.CommandId).ToArray()
+    steps = sequence.Steps.Select(step => step.CommandId).ToArray(),
+    interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null 
+      ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
+      : null
   };
 }
 
@@ -1251,6 +1277,15 @@ static List<string> ValidateSequence(GameBot.Domain.Commands.CommandSequence seq
   if (seq.Blocks is { Count: > 0 }) {
     foreach (var b in seq.Blocks) {
       ValidateBlock(b, errs, isTopLevel: true);
+    }
+  }
+  // Validate inter-step delay range if present
+  if (seq.InterStepDelayRangeMs is not null) {
+    if (seq.InterStepDelayRangeMs.Min < 0) {
+      errs.Add("InterStepDelayRangeMs.Min must be >= 0.");
+    }
+    if (seq.InterStepDelayRangeMs.Min > seq.InterStepDelayRangeMs.Max) {
+      errs.Add("InterStepDelayRangeMs.Min must be <= Max.");
     }
   }
   return errs;
@@ -1612,6 +1647,11 @@ static async Task<IReadOnlyList<string>> ValidatePerStepImageReferencesAsync(
   return errors;
 }
 
+static DelayRangeMs? MapDelayRangeMs(DelayRangeMsContract? contract) {
+  if (contract is null) return null;
+  return new DelayRangeMs { Min = contract.Min, Max = contract.Max };
+}
+
 internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
   public void Apply(Microsoft.OpenApi.Models.OpenApiDocument swaggerDoc, DocumentFilterContext context) {
     _ = swaggerDoc;
@@ -1625,7 +1665,9 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     context.SchemaGenerator.GenerateSchema(typeof(SequencesConditionEvaluationTraceDto), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(SequencesAuthoringDeepLinkDto), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(SequenceUpsertContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(SequencePatchContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(SequenceStepContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(DelayRangeMsContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(SequenceActionContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(SequenceStepConditionContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(ImageVisibleConditionContract), context.SchemaRepository);

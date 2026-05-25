@@ -38,7 +38,8 @@ public sealed record ExecutionStepOutcome(
   string? StepId = null,
   string? SequenceLabel = null,
   string? StepLabel = null,
-  ConditionEvaluationTrace? ConditionTrace = null)
+  ConditionEvaluationTrace? ConditionTrace = null,
+  int? AppliedDelayMs = null)
 {
   /// <summary>
   /// Per-iteration outcomes recorded for loop steps.  <c>null</c> for non-loop steps.

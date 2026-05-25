@@ -112,8 +112,14 @@ export type SequenceLinearStep = {
   breakCondition?: SequenceStepCondition | null;
 };
 
+export type InterStepDelayRangeMs = {
+  min: number;
+  max: number;
+};
+
 export type SequenceLinearUpsertRequest = {
   name: string;
   version: number;
   steps: SequenceLinearStep[];
+  interStepDelayRangeMs?: InterStepDelayRangeMs | null;
 };

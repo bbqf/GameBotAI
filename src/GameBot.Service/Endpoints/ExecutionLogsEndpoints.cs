@@ -139,7 +139,8 @@ internal static class ExecutionLogsEndpoints
         StepType = s.StepType,
         Outcome = s.Outcome,
         ReasonCode = s.ReasonCode,
-        ReasonText = s.ReasonText
+        ReasonText = s.ReasonText,
+        AppliedDelayMs = s.AppliedDelayMs
       }).ToArray()
     };
 
@@ -175,6 +176,7 @@ internal static class ExecutionLogsEndpoints
         StepName = step.StepName,
         Status = step.Status,
         Message = step.Message,
+        AppliedDelayMs = step.AppliedDelayMs,
         DeepLink = new AuthoringDeepLinkDto {
           SequenceId = step.DeepLink.SequenceId,
           StepId = step.DeepLink.StepId,

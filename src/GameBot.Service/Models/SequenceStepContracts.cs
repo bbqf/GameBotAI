@@ -8,10 +8,23 @@ internal sealed record SequenceExecuteRequest {
   public string? SessionId { get; init; }
 }
 
+internal sealed record DelayRangeMsContract {
+  public int Min { get; init; }
+  public int Max { get; init; }
+}
+
 internal sealed record SequenceUpsertContract {
   public required string Name { get; init; }
   public int Version { get; init; }
   public required IReadOnlyList<SequenceStepContract> Steps { get; init; }
+  public DelayRangeMsContract? InterStepDelayRangeMs { get; init; }
+}
+
+internal sealed record SequencePatchContract {
+  public string? Name { get; init; }
+  public int? Version { get; init; }
+  public IReadOnlyList<SequenceStepContract>? Steps { get; init; }
+  public DelayRangeMsContract? InterStepDelayRangeMs { get; init; }
 }
 
 internal sealed record SequenceStepContract {

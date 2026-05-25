@@ -73,6 +73,7 @@ namespace GameBot.Domain.Commands
         {
             ArgumentNullException.ThrowIfNull(sequence);
             ValidateActionPayloads(sequence);
+            ValidateInterStepDelayRange(sequence);
             Directory.CreateDirectory(_root);
             if (string.IsNullOrWhiteSpace(sequence.Id))
             {
@@ -91,6 +92,7 @@ namespace GameBot.Domain.Commands
         {
             ArgumentNullException.ThrowIfNull(sequence);
             ValidateActionPayloads(sequence);
+            ValidateInterStepDelayRange(sequence);
             Directory.CreateDirectory(_root);
             if (string.IsNullOrWhiteSpace(sequence.Id))
             {
@@ -190,6 +192,24 @@ namespace GameBot.Domain.Commands
                 {
                     throw new InvalidOperationException($"Action step '{step.StepId}' references unsupported action type '{actionType}'.");
                 }
+            }
+        }
+
+        private static void ValidateInterStepDelayRange(CommandSequence sequence)
+        {
+            if (sequence.InterStepDelayRangeMs is null)
+            {
+                return;
+            }
+
+            if (sequence.InterStepDelayRangeMs.Min < 0)
+            {
+                throw new InvalidOperationException("InterStepDelayRangeMs.Min must be >= 0.");
+            }
+
+            if (sequence.InterStepDelayRangeMs.Min > sequence.InterStepDelayRangeMs.Max)
+            {
+                throw new InvalidOperationException("InterStepDelayRangeMs.Min must be <= Max.");
             }
         }
     }

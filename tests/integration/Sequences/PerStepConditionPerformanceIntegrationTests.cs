@@ -50,7 +50,8 @@ public sealed class PerStepConditionPerformanceIntegrationTests {
   private static CommandSequence BuildMixedPerStepSequence(int totalSteps) {
     var sequence = new CommandSequence {
       Id = "perf-per-step-mixed",
-      Name = "Per-Step Mixed Performance"
+      Name = "Per-Step Mixed Performance",
+      InterStepDelayRangeMs = new DelayRangeMs { Min = 0, Max = 0 }
     };
 
     var steps = new List<SequenceStep>(totalSteps);

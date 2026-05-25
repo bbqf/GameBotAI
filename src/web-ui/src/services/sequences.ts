@@ -2,6 +2,7 @@ import { ApiError, deleteJson, getJson, patchJson, postJson, putJson } from '../
 import type {
   BranchLink,
   FlowStep,
+  InterStepDelayRangeMs,
   SequenceFlowUpsertRequest,
   SequenceLinearStep,
   SequenceLinearUpsertRequest,
@@ -15,6 +16,7 @@ export type SequenceDto = {
   entryStepId?: string;
   steps: string[] | FlowStep[] | SequenceLinearStep[];
   links?: BranchLink[];
+  interStepDelayRangeMs?: InterStepDelayRangeMs | null;
 };
 
 export type SequenceCreate = {
@@ -23,6 +25,7 @@ export type SequenceCreate = {
   version?: number;
   entryStepId?: string;
   links?: BranchLink[];
+  interStepDelayRangeMs?: InterStepDelayRangeMs | null;
 };
 
 export type SequenceLinearCreate = SequenceLinearUpsertRequest;
