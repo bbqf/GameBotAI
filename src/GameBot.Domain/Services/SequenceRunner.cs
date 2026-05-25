@@ -885,9 +885,16 @@ namespace GameBot.Domain.Services
             CancellationToken ct)
         {
             var stepsExecuted = 0;
-
-            foreach (var step in bodySteps.OrderBy(s => s.Order))
+            var orderedBodySteps = bodySteps.OrderBy(s => s.Order).ToList();
+            var loopDelayRange = new DelayRangeMs
             {
+                Min = DefaultInterStepDelayMinMs,
+                Max = DefaultInterStepDelayMaxMs
+            };
+
+            for (var bodyIndex = 0; bodyIndex < orderedBodySteps.Count; bodyIndex++)
+            {
+                var step = orderedBodySteps[bodyIndex];
                 ct.ThrowIfCancellationRequested();
 
                 if (step.StepType == SequenceStepType.Break)
@@ -940,6 +947,13 @@ namespace GameBot.Domain.Services
                         conditionResult: "false",
                         actionOutcome: "continue",
                         message: $"Break skipped: {condDesc.Detail} evaluated to false");
+
+                    if (bodyIndex < orderedBodySteps.Count - 1)
+                    {
+                        var delayMs = SampleInterStepDelay(loopDelayRange);
+                        await Task.Delay(delayMs, ct).ConfigureAwait(false);
+                        result.SetInterStepDelayForLatestStep(delayMs);
+                    }
                     continue; // condition false → keep executing body
                 }
 
@@ -958,6 +972,13 @@ namespace GameBot.Domain.Services
                 stepsExecuted++;
 
                 if (earlyStop) return (true, false, stepsExecuted);
+
+                if (bodyIndex < orderedBodySteps.Count - 1)
+                {
+                    var delayMs = SampleInterStepDelay(loopDelayRange);
+                    await Task.Delay(delayMs, ct).ConfigureAwait(false);
+                    result.SetInterStepDelayForLatestStep(delayMs);
+                }
             }
 
             return (false, false, stepsExecuted);
