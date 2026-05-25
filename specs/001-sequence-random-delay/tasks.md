@@ -50,10 +50,10 @@
 **Independent Test**: Configure custom range for one sequence, execute it and a default sequence, and verify each uses its own range.
 
 - [X] T012 [US2] Extend create/put/patch/get/list endpoint payload mapping to include interStepDelayRangeMs in src/GameBot.Service/Program.cs
-- [ ] T013 [P] [US2] Add sequence-level delay range types to frontend sequence contracts in src/web-ui/src/types/sequenceFlow.ts
-- [ ] T014 [P] [US2] Extend sequence API request/response DTOs for interStepDelayRangeMs in src/web-ui/src/services/sequences.ts
-- [ ] T015 [US2] Add per-sequence delay range form fields and binding/state persistence in src/web-ui/src/pages/SequencesPage.tsx
-- [ ] T016 [US2] Ensure list/detail hydration preserves configured interStepDelayRangeMs in src/web-ui/src/lib/sequenceMapping.ts
+- [X] T013 [P] [US2] Add sequence-level delay range types to frontend sequence contracts in src/web-ui/src/types/sequenceFlow.ts
+- [X] T014 [P] [US2] Extend sequence API request/response DTOs for interStepDelayRangeMs in src/web-ui/src/services/sequences.ts
+- [X] T015 [US2] Add per-sequence delay range form fields and binding/state persistence in src/web-ui/src/pages/SequencesPage.tsx
+- [X] T016 [US2] Ensure list/detail hydration preserves configured interStepDelayRangeMs in src/web-ui/src/lib/sequenceMapping.ts
 
 **Checkpoint**: User Story 2 is independently functional and testable.
 
@@ -67,7 +67,7 @@
 
 - [X] T017 [US3] Enforce backend validation rules for interStepDelayRangeMs (integer-only, min >= 0, min <= max) in src/GameBot.Service/Program.cs
 - [X] T018 [US3] Add repository-level validation guard for persisted interStepDelayRangeMs on create/update in src/GameBot.Domain/Commands/FileSequenceRepository.cs
-- [ ] T019 [US3] Add authoring UI validation and actionable error messaging for invalid delay inputs in src/web-ui/src/pages/SequencesPage.tsx
+- [X] T019 [US3] Add authoring UI validation and actionable error messaging for invalid delay inputs in src/web-ui/src/pages/SequencesPage.tsx
 - [X] T020 [US3] Align validation error contract examples and schema constraints in specs/001-sequence-random-delay/contracts/sequence-random-delay.openapi.yaml
 
 **Checkpoint**: User Story 3 is independently functional and testable.
