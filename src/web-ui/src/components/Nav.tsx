@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type AuthoringTab = 'Actions' | 'Commands' | 'Games' | 'Sequences' | 'Images';
+export type AuthoringTab = 'Commands' | 'Games' | 'Sequences' | 'Images';
 
 type NavProps = {
   active: AuthoringTab;

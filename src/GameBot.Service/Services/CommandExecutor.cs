@@ -70,7 +70,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
     if (_executionLogService is not null) {
       var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false);
       var cmdName = cmd?.Name ?? commandId;
-      var status = stepOutcomes.Any(o => !string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase)) ? "failure" : "success";
+      var hasStepFailures = stepOutcomes.Any(o => !string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase));
+      var status = accepted > 0 && !hasStepFailures ? "success" : "failure";
       await _executionLogService.LogCommandExecutionAsync(
         commandId,
         cmdName,
@@ -145,13 +146,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false);
     if (cmd is null) throw new KeyNotFoundException("Command not found");
+    if (cmd.Steps.Count == 0)
+      throw new InvalidOperationException("command_has_no_steps");
 
     var totalAccepted = 0;
     foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
-      if (step.Type == CommandStepType.Action) {
-        throw new InvalidOperationException("legacy_action_step_not_supported");
-      }
-
       if (step.Type == CommandStepType.PrimitiveTap) {
         var primitiveDetection = step.PrimitiveTap?.DetectionTarget;
         if (primitiveDetection is null) {

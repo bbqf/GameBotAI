@@ -96,6 +96,22 @@ describe('ExecutionPage session reuse', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   }, 15000);
 
+  it('shows an execution error when no tap was executed', async () => {
+    mockForceExecute.mockResolvedValue({
+      accepted: 0,
+      stepOutcomes: [{ stepOrder: 0, status: 'skipped_detection_failed', reason: 'detection_failed_after_3_retries' }]
+    } as any);
+
+    render(<ExecutionPage />);
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Command' })).toHaveValue('cmd-1'));
+    await screen.findByText(/Cached session: sess-123/i, {}, { timeout: 3000 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Execute command' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Command did not execute any tap: detection failed after 3 retries');
+  });
+
   it('clears cached banner after stop and refresh', async () => {
     mockGetRunningSessions.mockResolvedValueOnce([runningSession as any]).mockResolvedValueOnce([] as any);
 

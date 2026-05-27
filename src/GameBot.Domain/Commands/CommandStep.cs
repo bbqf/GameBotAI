@@ -1,7 +1,6 @@
 namespace GameBot.Domain.Commands;
 
 public enum CommandStepType {
-  Action,
   Command,
   PrimitiveTap
 }

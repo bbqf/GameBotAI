@@ -6,7 +6,7 @@ import './CommandForm.css';
 
 export type StepEntry = {
   id: string;
-  type: 'Action' | 'Command' | 'PrimitiveTap';
+  type: 'Command' | 'PrimitiveTap';
   targetId?: string;
   primitiveTap?: {
     detectionTarget: DetectionTargetForm;
@@ -30,7 +30,6 @@ const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID 
 
 export type CommandFormProps = {
   value: CommandFormValue;
-  actionOptions: SearchableOption[];
   commandOptions: SearchableOption[];
   submitting?: boolean;
   loading?: boolean;
@@ -38,11 +37,9 @@ export type CommandFormProps = {
   onChange: (next: CommandFormValue) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
-  onCreateNewAction?: () => void;
 };
 
-const toStepItems = (steps: StepEntry[], actionOpts: SearchableOption[], commandOpts: SearchableOption[]): ReorderableListItem[] => {
-  const actionMap = new Map(actionOpts.map((o) => [o.value, o] as const));
+const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): ReorderableListItem[] => {
   const commandMap = new Map(commandOpts.map((o) => [o.value, o] as const));
   return steps.map((step) => {
     if (step.type === 'PrimitiveTap') {
@@ -57,11 +54,10 @@ const toStepItems = (steps: StepEntry[], actionOpts: SearchableOption[], command
     }
 
     const targetId = step.targetId ?? '';
-    const match = step.type === 'Action' ? actionMap.get(targetId) : commandMap.get(targetId);
-    const prefix = step.type === 'Action' ? 'Action' : 'Command';
+    const match = commandMap.get(targetId);
     return {
       id: step.id,
-      label: `${prefix}: ${match?.label ?? targetId}`,
+      label: `Command: ${match?.label ?? targetId}`,
       description: match?.description,
     };
   });
@@ -69,7 +65,6 @@ const toStepItems = (steps: StepEntry[], actionOpts: SearchableOption[], command
 
 export const CommandForm: React.FC<CommandFormProps> = ({
   value,
-  actionOptions,
   commandOptions,
   submitting,
   loading,
@@ -77,16 +72,14 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   onChange,
   onSubmit,
   onCancel,
-  onCreateNewAction,
 }) => {
-  const [pendingActionId, setPendingActionId] = useState<string | undefined>(undefined);
   const [pendingCommandId, setPendingCommandId] = useState<string | undefined>(undefined);
   const [pendingPrimitiveReferenceImageId, setPendingPrimitiveReferenceImageId] = useState('');
   const [pendingPrimitiveConfidence, setPendingPrimitiveConfidence] = useState('');
   const [pendingPrimitiveOffsetX, setPendingPrimitiveOffsetX] = useState('0');
   const [pendingPrimitiveOffsetY, setPendingPrimitiveOffsetY] = useState('0');
 
-  const stepItems = useMemo(() => toStepItems(value.steps, actionOptions, commandOptions), [value.steps, actionOptions, commandOptions]);
+  const stepItems = useMemo(() => toStepItems(value.steps, commandOptions), [value.steps, commandOptions]);
 
   const addStep = (step: Omit<StepEntry, 'id'>) => {
     const next = [...value.steps, { ...step, id: makeId() }];
@@ -127,31 +120,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         </div>
       </FormSection>
 
-      <FormSection title="Actions" description="Choose actions and set their order." id="command-actions">
-        <SearchableDropdown
-          id="command-actions-dropdown"
-          label="Add action"
-          options={actionOptions}
-          value={pendingActionId}
-          onChange={setPendingActionId}
-          onCreateNew={onCreateNewAction}
-          disabled={submitting || loading}
-          placeholder="Select an action"
-          createLabel="Create new action"
-        />
-        <div className="field">
-          <button
-            type="button"
-            onClick={() => {
-              if (!pendingActionId) return;
-              addStep({ type: 'Action', targetId: pendingActionId });
-              setPendingActionId(undefined);
-            }}
-            disabled={submitting || loading || !pendingActionId}
-          >
-            Add action step
-          </button>
-        </div>
+      <FormSection title="Steps" description="Choose command or primitive tap steps and set their order." id="command-steps">
 
         <SearchableDropdown
           id="command-commands-dropdown"
@@ -253,7 +222,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           onChange={updateStepOrder}
           onDelete={(item) => removeStep(item.id)}
           disabled={submitting || loading}
-          emptyMessage="No steps yet. Add actions or commands."
+          emptyMessage="No steps yet. Add command or primitive tap steps."
         />
         <div className="form-hint">Steps run top-to-bottom; reorder to change execution order before saving.</div>
         {errors?.steps && <div className="field-error" role="alert">{errors.steps}</div>}

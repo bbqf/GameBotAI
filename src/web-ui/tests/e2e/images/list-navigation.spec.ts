@@ -13,7 +13,6 @@ const stubApiRoutes = async (page: import('@playwright/test').Page) => {
     }
 
     const listBodies: Record<string, unknown> = {
-      '/api/actions': [],
       '/api/commands': [],
       '/api/sequences': [],
       '/api/games': [],

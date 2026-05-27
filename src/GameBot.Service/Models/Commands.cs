@@ -38,7 +38,6 @@ internal sealed class CommandResponse {
 }
 
 internal enum CommandStepTypeDto {
-  Action,
   Command,
   PrimitiveTap
 }

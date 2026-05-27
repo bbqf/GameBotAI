@@ -7,7 +7,6 @@ internal static class ApiRoutes
     internal const string Sequences = Base + "/sequences";
     internal const string Sessions = Base + "/sessions";
     internal const string Games = Base + "/games";
-    internal const string ActionTypes = Base + "/action-types";
     internal const string Config = Base + "/config";
     internal const string ConfigLogging = Config + "/logging";
     internal const string ConfigParameters = Config + "/parameters";

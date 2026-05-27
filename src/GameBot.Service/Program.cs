@@ -14,7 +14,6 @@ using GameBot.Service.Hosted;
 using GameBot.Service.Logging;
 using GameBot.Service.Services.Ocr;
 using GameBot.Service.Services;
-using GameBot.Service.StartupValidation;
 using Microsoft.Extensions.Logging;
 using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
@@ -131,8 +130,6 @@ builder.Services.AddSingleton<VersionResolutionService>();
 builder.Services.AddSingleton<ISequenceFlowValidator, SequenceFlowValidator>();
 builder.Services.AddSingleton<SequenceStepValidationService>();
 builder.Services.AddSingleton<ActionPayloadValidationService>();
-builder.Services.AddSingleton<ILegacyActionReferenceScanner>(sp => new LegacyActionReferenceScanner(storageRoot, sp.GetRequiredService<ILogger<LegacyActionReferenceScanner>>()));
-builder.Services.AddHostedService<CutoverValidationStartupInitializer>();
 builder.Services.AddSingleton<CycleIterationLimiter>();
 builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
 builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
@@ -391,7 +388,6 @@ app.MapSessionEndpoints();
 
 // Games endpoints (protected if token set)
 app.MapGameEndpoints();
-app.MapActionTypeEndpoints(storageRoot);
 // Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
 // Triggers endpoints (re-added after refactor to support direct CRUD)

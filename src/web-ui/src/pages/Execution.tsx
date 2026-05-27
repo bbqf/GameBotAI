@@ -235,6 +235,19 @@ export const ExecutionPage: React.FC = () => {
     try {
       const result = await forceExecuteCommand(selectedCommandId, resolvedSessionId);
       const accepted = typeof result?.accepted === 'number' ? result.accepted : undefined;
+      const stepOutcomes = Array.isArray(result?.stepOutcomes) ? result.stepOutcomes : [];
+      const executedSteps = stepOutcomes.filter((o) => `${o.status ?? ''}`.toLowerCase() === 'executed').length;
+
+      if ((accepted ?? 0) <= 0 && stepOutcomes.length > 0 && executedSteps === 0) {
+        const firstReason = stepOutcomes.find((o) => o.reason)?.reason;
+        const normalizedReason = firstReason ? firstReason.replace(/_/g, ' ') : undefined;
+        setCommandMessage(undefined);
+        setCommandError(normalizedReason
+          ? `Command did not execute any tap: ${normalizedReason}`
+          : 'Command did not execute any tap.');
+        return;
+      }
+
       setCommandMessage(accepted !== undefined ? `Command accepted: ${accepted}` : 'Command submitted');
     } catch (err: any) {
       if (err instanceof ApiError) {

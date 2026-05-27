@@ -61,10 +61,6 @@ internal static class SwaggerConfig {
 
     var path = "/" + relativePath.TrimStart('/');
 
-    if (path.StartsWith(ApiRoutes.ActionTypes, StringComparison.OrdinalIgnoreCase)) {
-      return CommandsTags;
-    }
-
     if (path.StartsWith(ApiRoutes.Commands, StringComparison.OrdinalIgnoreCase)) {
       return CommandsTags;
     }
@@ -131,7 +127,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     var method = context.ApiDescription.HttpMethod ?? string.Empty;
 
     // Apply by path so examples appear even if tags are missing or reordered
-    ApplyActionTypesExamples(operation, path, method, context);
     ApplyCommandExamples(operation, path, method, context);
     ApplySequenceExamples(operation, path, method, context);
     ApplySessionExamples(operation, path, method, context);
@@ -158,13 +153,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       operation.Summary ??= "Resolve semantic installer version from source inputs";
       SetRequestExample(operation, VersionResolveRequest(), context);
       SetResponseExample(operation, "200", VersionResolveResponse(), context);
-    }
-  }
-
-  private static void ApplyActionTypesExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
-    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ActionTypes)) {
-      operation.Summary ??= "List available action types";
-      SetResponseExample(operation, "200", ActionTypesResponse(), context, typeof(ActionTypeCatalogDto));
     }
   }
 
@@ -981,8 +969,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       ["referenceImageId"] = new OpenApiString("start-screen"),
       ["region"] = new OpenApiObject { ["x"] = new OpenApiDouble(0.1), ["y"] = new OpenApiDouble(0.1), ["width"] = new OpenApiDouble(0.5), ["height"] = new OpenApiDouble(0.5) },
       ["similarityThreshold"] = new OpenApiDouble(0.9)
-    },
-    ["actions"] = new OpenApiArray { new OpenApiString("action-abc") }
+    }
   };
 
   private static OpenApiObject TriggerCreateResponse() => new OpenApiObject {
@@ -994,7 +981,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       ["region"] = new OpenApiObject { ["x"] = new OpenApiDouble(0.1), ["y"] = new OpenApiDouble(0.1), ["width"] = new OpenApiDouble(0.5), ["height"] = new OpenApiDouble(0.5) },
       ["similarityThreshold"] = new OpenApiDouble(0.9)
     },
-    ["actions"] = new OpenApiArray { new OpenApiString("action-abc") },
     ["commands"] = new OpenApiArray(),
     ["sequence"] = new OpenApiString("sequence-xyz")
   };
@@ -1077,7 +1063,22 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
 
   private static OpenApiObject CommandCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Warmup"),
-    ["actions"] = new OpenApiArray { new OpenApiString("action-abc"), new OpenApiString("action-def") }
+    ["steps"] = new OpenApiArray
+    {
+      new OpenApiObject
+      {
+        ["type"] = new OpenApiString("PrimitiveTap"),
+        ["order"] = new OpenApiInteger(0),
+        ["primitiveTap"] = new OpenApiObject
+        {
+          ["detectionTarget"] = new OpenApiObject
+          {
+            ["referenceImageId"] = new OpenApiString("start-screen"),
+            ["confidence"] = new OpenApiDouble(0.9)
+          }
+        }
+      }
+    }
   };
 
   private static OpenApiObject CommandUpdateRequest() => new OpenApiObject {
@@ -1085,8 +1086,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["triggerId"] = new OpenApiString("trigger-1"),
     ["steps"] = new OpenApiArray
     {
-      new OpenApiObject { ["type"] = new OpenApiString("Action"), ["targetId"] = new OpenApiString("action-abc"), ["order"] = new OpenApiInteger(0) },
-      new OpenApiObject { ["type"] = new OpenApiString("Command"), ["targetId"] = new OpenApiString("cmd-next"), ["order"] = new OpenApiInteger(1) }
+      new OpenApiObject { ["type"] = new OpenApiString("Command"), ["targetId"] = new OpenApiString("cmd-next"), ["order"] = new OpenApiInteger(0) }
     }
   };
 
@@ -1096,7 +1096,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["triggerId"] = new OpenApiString("trigger-1"),
     ["steps"] = new OpenApiArray
     {
-      new OpenApiObject { ["type"] = new OpenApiString("Action"), ["targetId"] = new OpenApiString("action-abc"), ["order"] = new OpenApiInteger(0) }
+      new OpenApiObject { ["type"] = new OpenApiString("Command"), ["targetId"] = new OpenApiString("cmd-next"), ["order"] = new OpenApiInteger(0) }
     }
   };
 
@@ -1302,7 +1302,6 @@ internal sealed class LoggingPolicyResetRequestSchema {
 internal sealed class TriggerAuthoringSchema {
   public string? Name { get; set; }
   public TriggerCriteriaSchema? Criteria { get; set; }
-  public ICollection<string>? Actions { get; set; }
   public ICollection<string>? Commands { get; set; }
   public string? Sequence { get; set; }
 }
@@ -1325,7 +1324,6 @@ internal sealed class TriggerResponseSchema {
   public required string Id { get; set; }
   public string? Name { get; set; }
   public TriggerCriteriaSchema? Criteria { get; set; }
-  public ICollection<string>? Actions { get; set; }
   public ICollection<string>? Commands { get; set; }
   public string? Sequence { get; set; }
 }
@@ -1339,7 +1337,6 @@ internal sealed class TriggerTestResponseSchema {
 internal sealed class CommandCreateSchema {
   public required string Name { get; set; }
   public string? TriggerId { get; set; }
-  public ICollection<string>? Actions { get; set; }
   public ICollection<GameBot.Service.Models.CommandStepDto>? Steps { get; set; }
 }
 

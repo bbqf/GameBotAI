@@ -7,7 +7,6 @@ const stubApiRoutes = async (page: import('@playwright/test').Page) => {
     const url = new URL(route.request().url());
     const path = url.pathname.toLowerCase();
     const listBodies: Record<string, unknown> = {
-      '/api/actions': [],
       '/api/commands': [],
       '/api/sequences': [],
       '/api/games': [],

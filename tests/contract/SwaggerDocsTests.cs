@@ -44,7 +44,7 @@ public sealed class SwaggerDocsTests : IDisposable
     var paths = root.GetProperty("paths");
 
     var allTags = CollectTags(paths);
-    var expectedTags = new[] { "Actions", "Commands", "Games", "Sequences", "Sessions", "Configuration", "Triggers", "Images" };
+    var expectedTags = new[] { "Commands", "Games", "Sequences", "Sessions", "Configuration", "Triggers", "Images" };
     allTags.Should().Contain(expectedTags);
 
     foreach (var path in paths.EnumerateObject())

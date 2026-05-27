@@ -32,9 +32,6 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
           : undefined
       }));
   }
-  if (dto.actions && dto.actions.length > 0) {
-    return dto.actions.map((a) => ({ id: makeId(), type: 'Action' as const, targetId: a }));
-  }
   return [];
 };
 
@@ -104,7 +101,6 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const [games, setGames] = useState<GameDto[]>([]);
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<CommandFormValue>(emptyForm);
-  const [actionOptions, setActionOptions] = useState<SearchableOption[]>([]);
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
@@ -131,14 +127,12 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
         if (!mounted) return;
         setCommands(cmds);
         setGames(gameList);
-        setActionOptions([]);
         setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
         setTableError(undefined);
       } catch (err: any) {
         if (!mounted) return;
         setCommands([]);
         setGames([]);
-        setActionOptions([]);
         setCommandOptions([]);
         setTableError(err?.message ?? 'Failed to load commands');
       } finally {
@@ -178,7 +172,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
 
   const commandRows: CommandRow[] = useMemo(() => {
     return commands.map((c) => {
-      const stepCount = c.steps?.length ?? c.actions?.length ?? 0;
+      const stepCount = c.steps?.length ?? 0;
       return { id: c.id, name: c.name, stepCount };
     });
   }, [commands]);
@@ -210,6 +204,9 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const validate = (v: CommandFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
+    if (v.steps.length === 0) {
+      next.steps = 'Add at least one step before saving (for example, a Primitive tap step).';
+    }
     for (const step of v.steps) {
       if (step.type === 'PrimitiveTap') {
         if (!step.primitiveTap?.detectionTarget.referenceImageId?.trim()) {
@@ -217,7 +214,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           break;
         }
       } else if (!step.targetId?.trim()) {
-        next.steps = 'Action and command steps require a target';
+        next.steps = 'Command steps require a target';
         break;
       }
     }
@@ -290,12 +287,10 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
       {creating && (
         <CommandForm
           value={form}
-          actionOptions={actionOptions}
           commandOptions={commandOptions}
           errors={errors}
           submitting={submitting}
           loading={loadingCommands}
-          onCreateNewAction={undefined}
           onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
           onCancel={() => { if (!confirmNavigate()) return; setCreating(false); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
           onSubmit={async () => {
@@ -335,12 +330,10 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           <h3>Edit Command</h3>
           <CommandForm
             value={form}
-            actionOptions={actionOptions}
             commandOptions={filteredCommandOptions}
             errors={errors}
             submitting={submitting}
             loading={loadingCommands}
-            onCreateNewAction={undefined}
             onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
             onCancel={() => { if (!confirmNavigate()) return; setEditingId(undefined); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
             onSubmit={async () => {

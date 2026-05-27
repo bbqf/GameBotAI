@@ -2,12 +2,10 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { TriggersPage } from '../TriggersPage';
 import { listTriggers, createTrigger, getTrigger, updateTrigger } from '../../services/triggers';
-import { listActions } from '../../services/actions';
 import { listCommands } from '../../services/commands';
 import { listSequences } from '../../services/sequences';
 
 jest.mock('../../services/triggers');
-jest.mock('../../services/actions');
 jest.mock('../../services/commands');
 jest.mock('../../services/sequences');
 
@@ -15,7 +13,6 @@ const listTriggersMock = listTriggers as jest.MockedFunction<typeof listTriggers
 const createTriggerMock = createTrigger as jest.MockedFunction<typeof createTrigger>;
 const getTriggerMock = getTrigger as jest.MockedFunction<typeof getTrigger>;
 const updateTriggerMock = updateTrigger as jest.MockedFunction<typeof updateTrigger>;
-const listActionsMock = listActions as jest.MockedFunction<typeof listActions>;
 const listCommandsMock = listCommands as jest.MockedFunction<typeof listCommands>;
 const listSequencesMock = listSequences as jest.MockedFunction<typeof listSequences>;
 
@@ -23,10 +20,6 @@ describe('TriggersPage', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     listTriggersMock.mockResolvedValue([] as any);
-    listActionsMock.mockResolvedValue([
-      { id: 'a1', name: 'Action One' },
-      { id: 'a2', name: 'Action Two' },
-    ] as any);
     listCommandsMock.mockResolvedValue([
       { id: 'c1', name: 'Command One' },
       { id: 'c2', name: 'Command Two' },
@@ -34,7 +27,7 @@ describe('TriggersPage', () => {
     listSequencesMock.mockResolvedValue([{ id: 's1', name: 'Sequence One' }] as any);
   });
 
-  it('creates a trigger with ordered actions and commands', async () => {
+  it('creates a trigger with ordered commands', async () => {
     render(<TriggersPage />);
 
     await waitFor(() => expect(listTriggersMock).toHaveBeenCalled());
@@ -62,15 +55,14 @@ describe('TriggersPage', () => {
     await waitFor(() => expect(createTriggerMock).toHaveBeenCalledWith({
       name: 'Trigger A',
       criteria: {},
-      actions: undefined,
       commands: ['c2', 'c1'],
       sequence: 's1',
     }));
   });
 
   it('loads and updates an existing trigger', async () => {
-    listTriggersMock.mockResolvedValue([{ id: 't1', name: 'Trigger 1', actions: ['a1'], commands: ['c1'] }] as any);
-    getTriggerMock.mockResolvedValue({ id: 't1', name: 'Trigger 1', criteria: { type: 'simple' }, actions: ['a1'], commands: ['c1'] } as any);
+    listTriggersMock.mockResolvedValue([{ id: 't1', name: 'Trigger 1', commands: ['c1'] }] as any);
+    getTriggerMock.mockResolvedValue({ id: 't1', name: 'Trigger 1', criteria: { type: 'simple' }, commands: ['c1'] } as any);
     updateTriggerMock.mockResolvedValue({} as any);
 
     render(<TriggersPage />);
@@ -86,7 +78,6 @@ describe('TriggersPage', () => {
     await waitFor(() => expect(updateTriggerMock).toHaveBeenCalledWith('t1', {
       name: 'Trigger 1',
       criteria: { type: 'updated' },
-      actions: ['a1'],
       commands: ['c1'],
       sequence: undefined,
     }));

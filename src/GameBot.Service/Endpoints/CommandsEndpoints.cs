@@ -23,13 +23,11 @@ internal static class CommandsEndpoints {
   };
 
   private static CommandStepType MapStepTypeFromDto(CommandStepTypeDto dto) => dto switch {
-    CommandStepTypeDto.Action => CommandStepType.Action,
     CommandStepTypeDto.Command => CommandStepType.Command,
     _ => CommandStepType.PrimitiveTap
   };
 
   private static CommandStepTypeDto MapStepTypeToDto(CommandStepType type) => type switch {
-    CommandStepType.Action => CommandStepTypeDto.Action,
     CommandStepType.Command => CommandStepTypeDto.Command,
     _ => CommandStepTypeDto.PrimitiveTap
   };
@@ -55,7 +53,7 @@ internal static class CommandsEndpoints {
     }
 
     if (string.IsNullOrWhiteSpace(step.TargetId)) {
-      return "targetId is required for Action/Command steps";
+      return "targetId is required for Command steps";
     }
     return null;
   }
@@ -128,25 +126,6 @@ internal static class CommandsEndpoints {
     app.MapPost(ApiRoutes.Commands, async (HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
-      // Authoring shape only when explicit actions[] array is provided
-      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String && root.TryGetProperty("actions", out var actionsProp) && actionsProp.ValueKind == JsonValueKind.Array) {
-        var name = nameProp.GetString()!.Trim();
-        if (string.IsNullOrWhiteSpace(name))
-          return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
-        // Authoring shape: actions[] -> steps of type Action
-        Collection<CommandStep> steps = new();
-        int order = 0;
-        foreach (var el in actionsProp.EnumerateArray()) {
-          if (el.ValueKind == JsonValueKind.String) {
-            steps.Add(new CommandStep { Type = CommandStepType.Action, TargetId = el.GetString()!, Order = order++ });
-          }
-        }
-        var detection = ToDomainDetection(TryReadDetection(root));
-        var created = await repo.AddAsync(new Command { Id = string.Empty, Name = name, TriggerId = null, Steps = steps, Detection = detection }, ct).ConfigureAwait(false);
-        return Results.Created($"{ApiRoutes.Commands}/{created.Id}", new { id = created.Id, name = created.Name, actions = steps.Select(s => s.TargetId).ToArray(), detection = ToResponseDetection(created.Detection) });
-      }
-
-      // Domain shape fallback
       var req = root.Deserialize<CreateCommandRequest>(WebJsonOptions);
       if (req is null || string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
@@ -288,6 +267,9 @@ internal static class CommandsEndpoints {
       catch (InvalidOperationException ex) when (string.Equals(ex.Message, "command_cycle_detected", StringComparison.OrdinalIgnoreCase)) {
         return Results.BadRequest(new { error = new { code = "cycle_detected", message = "Cycle detected in command graph.", hint = (string?)null } });
       }
+      catch (InvalidOperationException ex) when (string.Equals(ex.Message, "command_has_no_steps", StringComparison.OrdinalIgnoreCase)) {
+        return Results.BadRequest(new { error = new { code = "invalid_command", message = "Command has no executable steps.", hint = "Edit the command and add at least one step (for example, PrimitiveTap)." } });
+      }
     })
     .WithName("ForceExecuteCommand")
     .WithTags("Commands");
@@ -317,6 +299,9 @@ internal static class CommandsEndpoints {
       }
       catch (InvalidOperationException ex) when (string.Equals(ex.Message, "command_cycle_detected", StringComparison.OrdinalIgnoreCase)) {
         return Results.BadRequest(new { error = new { code = "cycle_detected", message = "Cycle detected in command graph.", hint = (string?)null } });
+      }
+      catch (InvalidOperationException ex) when (string.Equals(ex.Message, "command_has_no_steps", StringComparison.OrdinalIgnoreCase)) {
+        return Results.BadRequest(new { error = new { code = "invalid_command", message = "Command has no executable steps.", hint = "Edit the command and add at least one step (for example, PrimitiveTap)." } });
       }
     })
     .WithName("EvaluateAndExecuteCommand")
