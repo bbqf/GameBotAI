@@ -152,7 +152,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
     var totalAccepted = 0;
     foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
       if (step.Type == CommandStepType.PrimitiveTap) {
-        var primitiveDetection = step.PrimitiveTap?.DetectionTarget;
+        // Backward-compatible fallback: older commands may keep detection at command level.
+        var primitiveDetection = step.PrimitiveTap?.DetectionTarget ?? cmd.Detection;
         if (primitiveDetection is null) {
           Log.DetectionSkip(_logger, "primitive_tap_missing_detection");
           stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_missing_detection", null, null));

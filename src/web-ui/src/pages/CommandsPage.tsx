@@ -20,13 +20,15 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
         id: makeId(),
         type: s.type,
         targetId: s.targetId,
-        primitiveTap: s.primitiveTap
+        primitiveTap: (s.primitiveTap ?? (s.type === 'PrimitiveTap' && dto.detection
+          ? { detectionTarget: dto.detection }
+          : undefined))
           ? {
             detectionTarget: {
-              referenceImageId: s.primitiveTap.detectionTarget.referenceImageId,
-              confidence: s.primitiveTap.detectionTarget.confidence !== undefined ? String(s.primitiveTap.detectionTarget.confidence) : undefined,
-              offsetX: s.primitiveTap.detectionTarget.offsetX !== undefined ? String(s.primitiveTap.detectionTarget.offsetX) : undefined,
-              offsetY: s.primitiveTap.detectionTarget.offsetY !== undefined ? String(s.primitiveTap.detectionTarget.offsetY) : undefined,
+              referenceImageId: (s.primitiveTap?.detectionTarget ?? dto.detection!).referenceImageId,
+              confidence: (s.primitiveTap?.detectionTarget ?? dto.detection!).confidence !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).confidence) : undefined,
+              offsetX: (s.primitiveTap?.detectionTarget ?? dto.detection!).offsetX !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).offsetX) : undefined,
+              offsetY: (s.primitiveTap?.detectionTarget ?? dto.detection!).offsetY !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).offsetY) : undefined,
             }
           }
           : undefined

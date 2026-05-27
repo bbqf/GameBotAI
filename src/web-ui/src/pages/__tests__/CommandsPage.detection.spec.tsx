@@ -104,4 +104,26 @@ describe('CommandsPage detection persistence', () => {
     expect(await screen.findByText('Primitive tap steps require a detection target reference image ID')).toBeInTheDocument();
     expect(updateCommandMock).not.toHaveBeenCalled();
   });
+
+  it('uses command-level detection as fallback when primitive tap payload is missing', async () => {
+    listCommandsMock.mockResolvedValue([{
+      id: 'c3',
+      name: 'FallbackPrimitive',
+      detection: { referenceImageId: 'tpl-fallback', confidence: 0.8, offsetX: 2, offsetY: -1 },
+      steps: [{ type: 'PrimitiveTap', order: 0, primitiveTap: undefined }]
+    } as any]);
+    getCommandMock.mockResolvedValue({
+      id: 'c3',
+      name: 'FallbackPrimitive',
+      detection: { referenceImageId: 'tpl-fallback', confidence: 0.8, offsetX: 2, offsetY: -1 },
+      steps: [{ type: 'PrimitiveTap', order: 0, primitiveTap: undefined }]
+    } as any);
+
+    render(<CommandsPage />);
+    await screen.findByText('FallbackPrimitive');
+    fireEvent.click(screen.getByText('FallbackPrimitive'));
+
+    await screen.findByText('Edit Command');
+    expect(screen.getByText('Primitive tap: tpl-fallback')).toBeInTheDocument();
+  });
 });
