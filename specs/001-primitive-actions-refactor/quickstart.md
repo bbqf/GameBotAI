@@ -1,39 +1,42 @@
 # Quickstart: Primitive Actions Data Model Refactor
 
-## 1. Run migration preview and report
-1. Prepare a copy of persisted data under data/.
-2. Execute migration tooling in dry-run mode to emit mapping and blocking diagnostics.
-3. Confirm there are zero unresolved legacy Action references.
+## 1. Start service in primitive-only mode
+1. Ensure `GAMEBOT_AUTH_TOKEN` is set.
+2. Start service from repository root:
+   - `dotnet run -c Debug --project src/GameBot.Service`
+3. Confirm swagger is reachable at `/swagger/v1/swagger.json`.
 
-## 2. Run cutover validation gate
-1. Start service in validation mode.
-2. Verify startup/readiness succeeds only when no blocking legacy references remain.
-3. Verify deterministic diagnostics are emitted when intentionally reintroducing a legacy reference.
+## 2. Verify backend API behavior
+1. Confirm removed routes are absent from OpenAPI (`/api/actions`, `/api/action-types`).
+2. Confirm command and sequence contracts expose inline `primitiveAction` payloads.
+3. Confirm session start requires connect primitive payload (`primitiveAction.type=connect-to-game`).
 
-## 3. Verify backend API behavior
-1. Confirm Action CRUD routes are not available for authored flows.
-2. Confirm primitive-action-oriented contracts are available (catalog + inline payload models in command/sequence APIs).
-3. Create/update command and sequence payloads using inline discriminated primitive selections.
+## 3. Verify authoring flows
+1. Create/update command with inline `PrimitiveTap` step.
+2. Create/update sequence with inline primitive step payloads.
+3. Reload saved entities and verify primitive payloads persist by value.
 
 ## 4. Verify frontend authoring and execution behavior
-1. In web UI, ensure users select primitive actions directly where Action selection existed before.
-2. Confirm command and sequence authoring persists inline primitive selections.
-3. In execution tab, select connect-to-game primitive and verify required parameters are displayed and validated.
+1. In web UI, create command and sequence using primitive selectors.
+2. In execution tab, start a session and verify selected game/device are submitted.
+3. Confirm command execution can reuse a running session without manual session id.
 
 ## 5. Regression checks
 1. Run build and tests:
    - dotnet build -c Debug
    - dotnet test -c Debug
 2. Run web UI tests relevant to actions/commands/sequences/execution.
-3. Validate no >2% p95 execution regression in unchanged command/sequence scenarios.
+3. Validate OpenAPI snapshot refresh in `specs/openapi.json`.
 
 ## 6. Acceptance checklist
-1. No authored Action entity remains in backend/frontend/test flows.
-2. Legacy references block startup/readiness until migrated.
-3. Commands/sequences persist primitive selections inline by value with typed discriminator payload.
-4. Connect-to-game execution flow remains functionally equivalent with required parameter entry.
+1. No authored Action CRUD surface remains in backend/frontend flows.
+2. Commands/sequences persist primitive selections inline by value with typed discriminator payload.
+3. Connect-to-game execution flow remains functionally equivalent with required parameter entry.
+4. Full backend/frontend suites pass after refactor.
 
-## 7. Final implementation checkpoint (2026-05-25)
-1. Backend regression validated with `dotnet test -c Debug` (512 passed, 0 failed).
-2. Frontend regression validated with `npx jest --coverage` (55 suites, 199 tests).
-3. Startup cutover validation confirmed active; legacy `data/actions` records block integration host startup until cleared.
+## 7. Final implementation checkpoint (2026-05-27)
+1. Added primitive contract/integration/UI coverage for inline primitive authoring and connect-session start/reuse.
+2. OpenAPI snapshot refreshed from live swagger into `specs/openapi.json`.
+3. Full backend and frontend regressions re-run after final cleanup:
+   - `dotnet test -c Debug`: PASS (517 passed, 0 failed)
+   - `npx jest --coverage --json --outputFile jest-results.json --runInBand --silent`: PASS (52 suites, 188 tests)

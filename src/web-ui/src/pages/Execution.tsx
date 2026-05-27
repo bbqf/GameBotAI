@@ -35,7 +35,6 @@ export const ExecutionPage: React.FC = () => {
   const [commandError, setCommandError] = useState<string | undefined>(undefined);
   const [manualSessionId, setManualSessionId] = useState('');
   const [executing, setExecuting] = useState(false);
-  const [commandCacheMeta, setCommandCacheMeta] = useState<{ gameId: string; adbSerial: string; actionName?: string } | undefined>(undefined);
   const [sequences, setSequences] = useState<SequenceDto[]>([]);
   const [loadingSequences, setLoadingSequences] = useState(true);
   const [selectedSequenceId, setSelectedSequenceId] = useState<string | undefined>(undefined);
@@ -141,34 +140,14 @@ export const ExecutionPage: React.FC = () => {
     }
   }, [sequences, selectedSequenceId]);
 
-  const findCommandCacheMeta = (commandId?: string) => {
-    if (!commandId) return undefined;
-    const cmd = commands.find((c) => c.id === commandId);
-    if (!cmd || !cmd.steps || cmd.steps.length === 0) return undefined;
-    const firstActionStep = [...cmd.steps].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).find((s) => s.type === 'Action');
-    if (!firstActionStep) return undefined;
-    // Legacy action-step metadata is no longer available after action cutover.
-    return undefined;
-  };
-
-  useEffect(() => {
-    const meta = findCommandCacheMeta(selectedCommandId);
-    setCommandCacheMeta(meta);
-  }, [selectedCommandId, commands]);
-
   const selectedRunningSession = useMemo(() => {
     if (!selectedGameId || !selectedAdbSerial) return undefined;
     return runningSessions.find((s) => s.gameId === selectedGameId && s.emulatorId === selectedAdbSerial);
   }, [selectedGameId, selectedAdbSerial, runningSessions]);
 
-  const commandRunningSession = useMemo(() => {
-    if (!commandCacheMeta) return undefined;
-    return runningSessions.find((s) => s.gameId === commandCacheMeta.gameId && s.emulatorId === commandCacheMeta.adbSerial);
-  }, [commandCacheMeta, runningSessions]);
+  const cachedSession = selectedRunningSession ?? runningSessions[0];
 
-  const cachedSession = commandRunningSession ?? selectedRunningSession ?? runningSessions[0];
-
-  const primaryRunDetails = commandRunningSession ?? selectedRunningSession ?? runningSessions[0];
+  const primaryRunDetails = selectedRunningSession ?? runningSessions[0];
 
   const handleRun = async () => {
     const adbSerial = selectedAdbSerial;
@@ -213,17 +192,8 @@ export const ExecutionPage: React.FC = () => {
     setCommandError(undefined);
 
     let resolvedSessionId = manualSessionId.trim();
-    const meta = findCommandCacheMeta(selectedCommandId);
     if (!resolvedSessionId) {
-      if (meta) {
-        const runningSession = runningSessions.find((s) => s.gameId === meta.gameId && s.emulatorId === meta.adbSerial && `${s.status}`.toLowerCase() === 'running');
-        if (!runningSession) {
-          setExecuting(false);
-          setCommandError(`No running session found for ${meta.gameId}/${meta.adbSerial}. Start a session first or enter a sessionId.`);
-          return;
-        }
-        resolvedSessionId = runningSession.sessionId;
-      } else if (cachedSession) {
+      if (cachedSession) {
         resolvedSessionId = cachedSession.sessionId;
       } else {
         setExecuting(false);
@@ -410,7 +380,7 @@ export const ExecutionPage: React.FC = () => {
 
       <section aria-label="Execute command">
         <h2>Execute a command</h2>
-        <p>Reuse the cached sessionId from a connect-to-game action when left blank.</p>
+        <p>Reuse a running session when sessionId is left blank.</p>
 
         <div className="field">
           <label htmlFor="command-select">Command</label>
@@ -429,15 +399,6 @@ export const ExecutionPage: React.FC = () => {
           {!loadingCommands && commands.length === 0 && <div className="form-hint">No commands available.</div>}
           {commandsError && <div className="form-error" role="alert">{commandsError}</div>}
         </div>
-
-        {commandCacheMeta && (
-          <div className="action-details">
-            <div>Connect action: {commandCacheMeta.actionName ?? 'connect-to-game'}</div>
-            <div>Game: {gameLookup.get(commandCacheMeta.gameId) ?? commandCacheMeta.gameId}</div>
-            <div>ADB Serial: {commandCacheMeta.adbSerial}</div>
-            <div>Running session: {commandRunningSession?.sessionId ?? 'none'}</div>
-          </div>
-        )}
 
         <div className="field">
           <label htmlFor="command-session">SessionId (optional)</label>

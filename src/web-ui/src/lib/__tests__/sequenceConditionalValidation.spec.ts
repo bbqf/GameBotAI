@@ -63,6 +63,6 @@ describe('sequence conditional validation', () => {
 
     const errors = validateConditionalFlow(flow);
 
-    expect(errors.some((error) => /requires an action payload reference/i.test(error))).toBe(true);
+    expect(errors.some((error) => /requires a primitive\/action payload reference/i.test(error))).toBe(true);
   });
 });

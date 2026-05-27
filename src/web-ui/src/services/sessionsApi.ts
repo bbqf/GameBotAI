@@ -1,4 +1,5 @@
 import { ApiError, ApiValidationError, buildApiUrl, buildAuthHeaders } from '../lib/api';
+import type { PrimitiveActionRequest, ConnectPrimitivePayload } from '../types/actions';
 
 export type SessionCreateRequest = {
   gameId: string;
@@ -32,6 +33,18 @@ export type StartSessionResponse = {
   sessionId: string;
   runningSessions: RunningSessionDto[];
 };
+
+const toConnectPrimitiveRequest = (payload: ConnectPrimitivePayload): { primitiveAction: PrimitiveActionRequest } => ({
+  primitiveAction: {
+    type: 'connect-to-game',
+    schemaVersion: 'v1',
+    payload: {
+      gameId: payload.gameId,
+      adbSerial: payload.adbSerial,
+      ...(payload.options ? { options: payload.options } : {})
+    }
+  }
+});
 
 export type StopSessionResponse = {
   stopped: boolean;
@@ -119,16 +132,7 @@ export const startSession = async (payload: StartSessionRequest, timeoutMs = 300
     const res = await fetch(buildApiUrl('/api/sessions/start'), {
       method: 'POST',
       headers: buildAuthHeaders(true),
-      body: JSON.stringify({
-        primitiveAction: {
-          type: 'connect-to-game',
-          payload: {
-            gameId: payload.gameId,
-            adbSerial: payload.adbSerial,
-            ...(payload.options ? { options: payload.options } : {})
-          }
-        }
-      }),
+      body: JSON.stringify(toConnectPrimitiveRequest(payload)),
       signal: controller.signal
     });
 

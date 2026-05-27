@@ -21,7 +21,17 @@ export const toCommandStepIds = (steps: SequenceDto['steps']): string[] => {
 
   if (isLinearStepArray(steps)) {
     return steps
-      .map((step) => step.action?.parameters?.commandId)
+      .map((step) => {
+        const commandIdFromAction = step.action?.parameters?.commandId;
+        if (typeof commandIdFromAction === 'string' && commandIdFromAction.length > 0) {
+          return commandIdFromAction;
+        }
+        const primitiveAction = (step as unknown as { primitiveAction?: { type?: string; payload?: Record<string, unknown> } }).primitiveAction;
+        if (primitiveAction?.type === 'command' && typeof primitiveAction.payload?.commandId === 'string') {
+          return primitiveAction.payload.commandId;
+        }
+        return undefined;
+      })
       .filter((value): value is string => typeof value === 'string' && value.length > 0);
   }
 

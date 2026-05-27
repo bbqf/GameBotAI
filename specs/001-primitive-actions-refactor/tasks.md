@@ -13,8 +13,8 @@
 
 - [X] T001 Create refactor tracking notes in specs/001-primitive-actions-refactor/plan.md and specs/001-primitive-actions-refactor/quickstart.md with final implementation checkpoints
 - [X] T002 [P] [DROPPED] Migration fixture data for legacy Action references is out of scope (no migration path)
-- [ ] T003 [P] Add baseline API contract snapshot for affected routes in tests/contract/ApiContractSnapshots/
-- [ ] T004 [P] Add frontend primitive-action test fixtures in src/web-ui/src/test/fixtures/primitiveActions.ts
+- [X] T003 [P] Add baseline API contract snapshot for affected routes in tests/contract/ApiContractSnapshots/
+- [X] T004 [P] Add frontend primitive-action test fixtures in src/web-ui/src/test/fixtures/primitiveActions.ts
 
 ---
 
@@ -46,9 +46,9 @@
 ### Tests for User Story 1
 
 - [X] T013 [P] [US1] Add domain tests for primitive selection validation in tests/unit/Domain/PrimitiveActionValidationServiceTests.cs
-- [ ] T014 [P] [US1] Add contract tests for command and sequence inline primitive payloads in tests/contract/PrimitiveActionContractsTests.cs
-- [ ] T015 [P] [US1] Add integration tests for command/sequence create-read-update with inline primitives in tests/integration/PrimitiveAuthoringFlowTests.cs
-- [ ] T016 [P] [US1] Add web UI tests for command and sequence authoring primitive selectors in src/web-ui/src/pages/__tests__/CommandsAndSequencesPrimitiveAuthoring.spec.tsx
+- [X] T014 [P] [US1] Add contract tests for command and sequence inline primitive payloads in tests/contract/PrimitiveActionContractsTests.cs
+- [X] T015 [P] [US1] Add integration tests for command/sequence create-read-update with inline primitives in tests/integration/PrimitiveAuthoringFlowTests.cs
+- [X] T016 [P] [US1] Add web UI tests for command and sequence authoring primitive selectors in src/web-ui/src/pages/__tests__/CommandsAndSequencesPrimitiveAuthoring.spec.tsx
 
 ### Implementation for User Story 1
 
@@ -56,11 +56,11 @@
 - [X] T018 [US1] Replace command step Action-ID mapping with inline primitive selection mapping in src/GameBot.Service/Models/Commands.cs and src/GameBot.Service/Endpoints/CommandsEndpoints.cs
 - [X] T019 [US1] Remove Action endpoint implementation in src/GameBot.Service/Endpoints/ActionsEndpoints.cs and remove related route constants in src/GameBot.Service/ApiRoutes.cs
 - [X] T020 [US1] Remove Action repository domain interface and file repository implementation in src/GameBot.Domain/Actions/IActionRepository.cs and src/GameBot.Domain/Actions/FileActionRepository.cs
-- [ ] T021 [US1] Update sequence validation for inline primitive payload semantics in src/GameBot.Domain/Services/SequenceStepValidationService.cs and src/GameBot.Domain/Services/ActionPayloadValidationService.cs
+- [X] T021 [US1] Update sequence validation for inline primitive payload semantics in src/GameBot.Domain/Services/SequenceStepValidationService.cs and src/GameBot.Domain/Services/ActionPayloadValidationService.cs
 - [X] T022 [US1] Refactor command execution to consume inline primitive selections instead of Action lookup in src/GameBot.Service/Services/CommandExecutor.cs
 - [X] T023 [US1] Replace web UI action services with primitive-catalog plus inline payload services in src/web-ui/src/services/actionsApi.ts and src/web-ui/src/services/commands.ts
 - [X] T024 [US1] Remove action authoring pages/components and rewire navigation to primitive-based authoring in src/web-ui/src/pages/actions/ActionsListPage.tsx and src/web-ui/src/components/actions/ActionForm.tsx
-- [ ] T025 [US1] Update sequence editor mapping/validation utilities for the shared primitive selection model in src/web-ui/src/lib/sequenceMapping.ts and src/web-ui/src/lib/validation.ts
+- [X] T025 [US1] Update sequence editor mapping/validation utilities for the shared primitive selection model in src/web-ui/src/lib/sequenceMapping.ts and src/web-ui/src/lib/validation.ts
 
 **Checkpoint**: User Story 1 is independently functional and testable.
 
@@ -74,9 +74,9 @@
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Add integration tests for connect primitive parameter validation and session start in tests/integration/ConnectPrimitiveSessionStartTests.cs
-- [ ] T027 [P] [US2] Add integration tests for cached session reuse from connect primitive context in tests/integration/ConnectPrimitiveSessionReuseTests.cs
-- [ ] T028 [P] [US2] Add web UI tests for execution connect primitive parameter UX in src/web-ui/src/pages/__tests__/ExecutionConnectPrimitive.spec.tsx
+- [X] T026 [P] [US2] Add integration tests for connect primitive parameter validation and session start in tests/integration/ConnectPrimitiveSessionStartTests.cs
+- [X] T027 [P] [US2] Add integration tests for cached session reuse from connect primitive context in tests/integration/ConnectPrimitiveSessionReuseTests.cs
+- [X] T028 [P] [US2] Add web UI tests for execution connect primitive parameter UX in src/web-ui/src/pages/__tests__/ExecutionConnectPrimitive.spec.tsx
 
 ### Implementation for User Story 2
 
@@ -84,7 +84,7 @@
 - [X] T030 [US2] Refactor command executor session resolution away from Action repository to primitive selection sources in src/GameBot.Service/Services/CommandExecutor.cs
 - [X] T031 [US2] Update connect-to-game typed payload mapping helpers in src/GameBot.Domain/Actions/ConnectToGameArgs.cs and src/GameBot.Domain/Actions/PrimitiveActionVariants.cs
 - [X] T032 [US2] Update execution page to select connect primitive and require parameters in src/web-ui/src/pages/Execution.tsx
-- [ ] T033 [US2] Update execution client APIs for connect primitive payload submission in src/web-ui/src/services/sessions.ts and src/web-ui/src/types/actions.ts
+- [X] T033 [US2] Update execution client APIs for connect primitive payload submission in src/web-ui/src/services/sessionsApi.ts and src/web-ui/src/types/actions.ts
 
 **Checkpoint**: User Story 2 is independently functional and testable.
 
@@ -118,12 +118,12 @@
 
 **Purpose**: Cross-story completion, documentation, and full verification.
 
-- [ ] T042 [P] Update public docs for removed Action model and primitive authoring in docs/validation.md and README.md
-- [ ] T043 [P] Regenerate and verify OpenAPI spec consistency in specs/openapi.json and src/GameBot.Service/Swagger/SwaggerConfig.cs
-- [ ] T044 Run end-to-end verification from quickstart in specs/001-primitive-actions-refactor/quickstart.md
+- [X] T042 [P] Update public docs for removed Action model and primitive authoring in docs/validation.md and README.md
+- [X] T043 [P] Regenerate and verify OpenAPI spec consistency in specs/openapi.json and src/GameBot.Service/Swagger/SwaggerConfig.cs
+- [X] T044 Run end-to-end verification from quickstart in specs/001-primitive-actions-refactor/quickstart.md
 - [X] T045 [DROPPED] Startup cutover benchmark path removed; keep only execution latency benchmarks in later perf work
 - [X] T046 Run full backend and frontend test suites and record results in specs/001-primitive-actions-refactor/plan.md
-- [ ] T047 Perform cleanup of dead Action references across codebase in src/ and tests/
+- [X] T047 Perform cleanup of dead Action references across codebase in src/ and tests/
 
 ---
 

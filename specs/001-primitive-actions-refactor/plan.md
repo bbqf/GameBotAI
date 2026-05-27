@@ -7,7 +7,7 @@
 
 ## Summary
 
-Refactor GameBot to remove Action as an authored backend/frontend/test entity and replace usage with inline-by-value primitive action selections modeled as discriminated typed variants. The implementation performs a hard cutover: Action compatibility paths are removed, persisted legacy references are migrated pre-rollout, and service startup/readiness fails fast when legacy references remain. Sequence and command flows continue to support existing behavior, including connect-to-game session reuse, with connect parameters surfaced only where required in execution UX.
+Refactor GameBot to remove Action as an authored backend/frontend/test entity and replace usage with inline-by-value primitive action selections modeled as discriminated typed variants. The implementation performs a hard cutover: Action compatibility paths are removed without migration tooling in this scope. Sequence and command flows continue to support existing behavior, including connect-to-game session reuse, with connect parameters surfaced only where required in execution UX.
 
 ## Technical Context
 
@@ -94,9 +94,9 @@ No constitution violations or waivers identified at planning time.
 
 - 2026-05-25: Hard cutover completed for Action repository removal from runtime and unit-test construction paths.
 - 2026-05-25: Command execution and session-resolution paths validated against primitive-only contracts.
-- 2026-05-25: Local legacy artifacts under data/actions cleared to satisfy startup cutover validation during integration tests.
+- 2026-05-27: Added explicit primitive-action contract/integration/UI tests and refreshed OpenAPI snapshot at `specs/openapi.json`.
 
 ## Verification Results
 
-- Backend full suite: `dotnet test -c Debug` -> PASS (512 passed, 0 failed).
-- Frontend suite: `npx jest --coverage` in `src/web-ui` -> PASS (55 suites, 199 tests).
+- Backend full suite: `dotnet test -c Debug` -> PASS (517 passed, 0 failed).
+- Frontend suite: `npx jest --coverage --json --outputFile jest-results.json --runInBand --silent` in `src/web-ui` -> PASS (52 suites, 188 tests).

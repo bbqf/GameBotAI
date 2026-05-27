@@ -75,7 +75,7 @@ export const validateConditionalFlow = (flow: Pick<SequenceFlowUpsertRequest, 'e
   for (const step of flow.steps) {
     if (step.stepType === 'action' || step.stepType === 'command') {
       if (!step.payloadRef || !step.payloadRef.trim()) {
-        errors.push(`Step "${step.stepId}" requires an action payload reference.`);
+        errors.push(`Step "${step.stepId}" requires a primitive/action payload reference.`);
       }
     }
 

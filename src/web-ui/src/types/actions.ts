@@ -67,3 +67,15 @@ export type ValidationResult = {
   status: 'valid' | 'invalid';
   messages?: ValidationMessage[];
 };
+
+export type ConnectPrimitivePayload = {
+  gameId: string;
+  adbSerial: string;
+  options?: Record<string, unknown>;
+};
+
+export type PrimitiveActionRequest = {
+  type: 'connect-to-game' | string;
+  schemaVersion?: string;
+  payload: Record<string, unknown>;
+};

@@ -1,4 +1,5 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Actions;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -11,6 +12,7 @@ public sealed class SequenceStepValidationService {
     "failed",
     "skipped"
   };
+  private static readonly HashSet<string> AllowedPrimitiveActionTypes = new(PrimitiveActionTypes.All, StringComparer.OrdinalIgnoreCase);
 
   // Matches {{word}} placeholders used for template substitution.
   private static readonly Regex TemplatePlaceholder =
@@ -125,6 +127,10 @@ public sealed class SequenceStepValidationService {
 
     // FR-002a: {{iteration}} placeholders in action parameters are only permitted inside loops.
     if (!insideLoop && step.Action is not null) {
+      if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
+        errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type.");
+      }
+
       foreach (var paramValue in step.Action.Parameters.Values) {
         if (paramValue is string s && TemplatePlaceholder.IsMatch(s)) {
           errors.Add($"Step '{stepLabel}' contains template placeholder(s) in action parameters which are only valid inside a loop body.");

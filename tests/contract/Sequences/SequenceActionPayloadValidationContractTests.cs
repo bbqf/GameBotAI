@@ -38,9 +38,9 @@ public sealed class SequenceActionPayloadValidationContractTests {
     };
 
     var response = await client.PostAsJsonAsync("/api/sequences", payload).ConfigureAwait(false);
-    response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-    content.Should().MatchRegex("(?i)unsupported action type");
+    content.Should().MatchRegex("(?i)unsupported.*primitive action type");
   }
 
   [Fact]
