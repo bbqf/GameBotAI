@@ -28,18 +28,12 @@ public sealed class DeterministicSequenceOutcomeIntegrationTests {
         new {
           stepId = "start",
           label = "Start",
-          action = new {
-            type = "tap",
-            parameters = new { x = 100, y = 200 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 100, y = 200  } }
         },
         new {
           stepId = "then",
           label = "Then",
-          action = new {
-            type = "tap",
-            parameters = new { x = 12, y = 34 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 12, y = 34  } },
           condition = new {
             type = "commandOutcome",
             stepRef = "start",
@@ -49,10 +43,7 @@ public sealed class DeterministicSequenceOutcomeIntegrationTests {
         new {
           stepId = "end",
           label = "End",
-          action = new {
-            type = "tap",
-            parameters = new { x = 10, y = 10 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 10, y = 10  } }
         }
       }
     };

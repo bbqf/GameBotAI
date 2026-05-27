@@ -1,7 +1,6 @@
 import { AuthoringTab } from '../components/Nav';
 
 const tabMap: Record<string, AuthoringTab> = {
-  actions: 'Actions',
   commands: 'Commands',
   games: 'Games',
   sequences: 'Sequences',

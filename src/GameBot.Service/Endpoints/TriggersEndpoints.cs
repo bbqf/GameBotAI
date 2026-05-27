@@ -17,7 +17,7 @@ internal static class TriggersEndpoints {
     app.MapPost(ApiRoutes.Triggers, async (HttpRequest http, ITriggerRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
-      // Authoring shape: { name, criteria: { type, ... }, actions?:[], commands?:[], sequence?:string }
+      // Authoring shape: { name, criteria: { type, ... }, commands?:[], sequence?:string }
       if (root.TryGetProperty("criteria", out var criteria) && criteria.ValueKind == JsonValueKind.Object) {
         var typeLower = criteria.TryGetProperty("type", out var tEl) && tEl.ValueKind == JsonValueKind.String ? tEl.GetString()!.Trim().ToLowerInvariant() : "delay";
         var (triggerType, parameters) = ParseCriteriaToDomain(typeLower, criteria);
@@ -30,10 +30,9 @@ internal static class TriggersEndpoints {
         };
         await repo.UpsertAsync(trig, ct).ConfigureAwait(false);
         var name = root.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String ? nEl.GetString()! : typeLower;
-        var actions = root.TryGetProperty("actions", out var aEl) && aEl.ValueKind == JsonValueKind.Array ? aEl.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).ToArray() : Array.Empty<string>();
         var commands = root.TryGetProperty("commands", out var cEl) && cEl.ValueKind == JsonValueKind.Array ? cEl.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).ToArray() : Array.Empty<string>();
         var sequence = root.TryGetProperty("sequence", out var sEl) && sEl.ValueKind == JsonValueKind.String ? sEl.GetString() : null;
-        return Results.Created($"{ApiRoutes.Triggers}/{trig.Id}", new { id = trig.Id, name, criteria = criteria, actions, commands, sequence });
+        return Results.Created($"{ApiRoutes.Triggers}/{trig.Id}", new { id = trig.Id, name, criteria = criteria, commands, sequence });
       }
 
       // Domain shape fallback

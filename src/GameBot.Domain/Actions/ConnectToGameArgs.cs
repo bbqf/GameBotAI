@@ -14,6 +14,16 @@ public sealed class ConnectToGameArgs {
     ["gameId"] = GameId
   };
 
+  public static bool TryFrom(PrimitiveConnectToGameAction action, [NotNullWhen(true)] out ConnectToGameArgs? args) {
+    args = null;
+    if (action is null) return false;
+    if (!string.Equals(action.Type, PrimitiveActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)) return false;
+    if (string.IsNullOrWhiteSpace(action.GameId) || string.IsNullOrWhiteSpace(action.AdbSerial)) return false;
+
+    args = new ConnectToGameArgs { GameId = action.GameId, AdbSerial = action.AdbSerial };
+    return true;
+  }
+
   public static bool TryFrom(InputAction action, string? actionGameId, [NotNullWhen(true)] out ConnectToGameArgs? args) {
     args = null;
     if (action is null) return false;

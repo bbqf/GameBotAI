@@ -8,6 +8,7 @@ using GameBot.Service.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading;
 using Xunit;
+using GameBot.Domain.Actions;
 
 namespace GameBot.UnitTests.Sessions;
 
@@ -57,12 +58,43 @@ public sealed class SessionsControllerTests {
     var service = new FakeSessionService { ThrowOnStart = new InvalidOperationException("capacity_exceeded") };
     var controller = new SessionsController(service);
 
-    var result = controller.StartSession(new StartSessionRequest { GameId = "g1", EmulatorId = "emu-1" });
+    var result = controller.StartSession(new StartSessionRequest {
+      PrimitiveAction = new PrimitiveActionRequest {
+        Type = PrimitiveActionTypes.ConnectToGame,
+        SchemaVersion = "v1",
+        Payload = new Dictionary<string, object> {
+          ["gameId"] = "g1",
+          ["adbSerial"] = "emu-1"
+        }
+      }
+    });
 
     var tooMany = Assert.IsType<ObjectResult>(result.Result);
     tooMany.StatusCode.Should().Be(429);
     var error = GetError(tooMany.Value);
     error.code.Should().Be("capacity_exceeded");
+  }
+
+  [Fact]
+  public void StartSessionUsesPrimitiveActionPayload() {
+    var service = new FakeSessionService();
+    var controller = new SessionsController(service);
+
+    var result = controller.StartSession(new StartSessionRequest {
+      PrimitiveAction = new PrimitiveActionRequest {
+        Type = PrimitiveActionTypes.ConnectToGame,
+        SchemaVersion = "v1",
+        Payload = new Dictionary<string, object> {
+          ["gameId"] = "game-42",
+          ["adbSerial"] = "emu-42"
+        }
+      }
+    });
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    service.Running.Should().ContainSingle();
+    service.Running!.Should().ContainSingle(session => session.GameId == "game-42" && session.EmulatorId == "emu-42");
+    ok.Value.Should().NotBeNull();
   }
 
   private static (string code, string? message) GetError(object? value) {

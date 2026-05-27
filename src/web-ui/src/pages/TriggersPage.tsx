@@ -3,7 +3,6 @@ import { List, ListItem } from '../components/List';
 import { listTriggers, TriggerDto, createTrigger, TriggerCreate, getTrigger, updateTrigger, deleteTrigger } from '../services/triggers';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
-import { listActions, ActionDto } from '../services/actions';
 import { listCommands, CommandDto } from '../services/commands';
 import { listSequences, SequenceDto } from '../services/sequences';
 import { FormError, tryParseJson } from '../components/Form';
@@ -16,12 +15,11 @@ import { navigateToUnified } from '../lib/navigation';
 type TriggerFormValue = {
   name: string;
   criteriaText: string;
-  actions: string[];
   commands: string[];
   sequence?: string;
 };
 
-const emptyForm: TriggerFormValue = { name: '', criteriaText: '', actions: [], commands: [], sequence: undefined };
+const emptyForm: TriggerFormValue = { name: '', criteriaText: '', commands: [], sequence: undefined };
 
 const toListItems = (ids: string[], options: SearchableOption[]): ReorderableListItem[] => {
   const lookup = new Map(options.map((o) => [o.value, o]));
@@ -40,10 +38,8 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
   const [items, setItems] = useState<ListItem[]>([]);
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<TriggerFormValue>(emptyForm);
-  const [actionOptions, setActionOptions] = useState<SearchableOption[]>([]);
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
   const [sequenceOptions, setSequenceOptions] = useState<SearchableOption[]>([]);
-  const [pendingActionId, setPendingActionId] = useState<string | undefined>(undefined);
   const [pendingCommandId, setPendingCommandId] = useState<string | undefined>(undefined);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
@@ -64,7 +60,6 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
           id: t.id,
           name: t.name,
           details: {
-            actions: t.actions?.length ?? 0,
             commands: t.commands?.length ?? 0,
             sequence: t.sequence ? 1 : 0
           }
@@ -72,16 +67,14 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
         setItems(mapped);
       })
       .catch(() => setItems([]));
-    Promise.all([listActions(), listCommands(), listSequences()])
-      .then(([acts, cmds, seqs]: [ActionDto[], CommandDto[], SequenceDto[]]) => {
+    Promise.all([listCommands(), listSequences()])
+      .then(([cmds, seqs]: [CommandDto[], SequenceDto[]]) => {
         if (!mounted) return;
-        setActionOptions(acts.map((a) => ({ value: a.id, label: a.name, description: a.description })));
         setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
         setSequenceOptions(seqs.map((s) => ({ value: s.id, label: s.name })));
       })
       .catch(() => {
         if (!mounted) return;
-        setActionOptions([]);
         setCommandOptions([]);
         setSequenceOptions([]);
       })
@@ -95,7 +88,6 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
 
-  const actionItems = useMemo(() => toListItems(form.actions, actionOptions), [form.actions, actionOptions]);
   const commandItems = useMemo(() => toListItems(form.commands, commandOptions), [form.commands, commandOptions]);
 
   const reloadTriggers = async () => {
@@ -103,7 +95,7 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
     const mapped: ListItem[] = data.map((t) => ({
       id: t.id,
       name: t.name,
-      details: { actions: t.actions?.length ?? 0, commands: t.commands?.length ?? 0, sequence: t.sequence ? 1 : 0 }
+      details: { commands: t.commands?.length ?? 0, sequence: t.sequence ? 1 : 0 }
     }));
     setItems(mapped);
   };
@@ -119,11 +111,9 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
         setForm({
           name: t.name,
           criteriaText: t.criteria ? JSON.stringify(t.criteria, null, 2) : '',
-          actions: t.actions ?? [],
           commands: t.commands ?? [],
           sequence: t.sequence ?? undefined,
         });
-        setPendingActionId(undefined);
         setPendingCommandId(undefined);
         setDirty(false);
       } catch (err: any) {
@@ -135,7 +125,6 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
 
   const resetForm = () => {
     setForm(emptyForm);
-    setPendingActionId(undefined);
     setPendingCommandId(undefined);
     setErrors(undefined);
     setDirty(false);
@@ -158,7 +147,6 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
       payload: {
         name: v.name.trim(),
         criteria: parsed.value,
-        actions: v.actions.length ? v.actions : undefined,
         commands: v.commands.length ? v.commands : undefined,
         sequence: v.sequence || undefined,
       }
@@ -226,36 +214,6 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
           {errors?.criteria && <div id={`${mode}-trigger-criteria-error`} className="field-error" role="alert">{errors.criteria}</div>}
           <div className="form-hint">Provide valid JSON for trigger conditions; malformed JSON will block save.</div>
         </div>
-      </FormSection>
-
-      <FormSection title="Actions" description="Select actions and arrange their order." id={`${mode}-trigger-actions`}>
-        <SearchableDropdown
-          id={`${mode}-trigger-action-dropdown`}
-          label="Add action"
-          options={actionOptions}
-          value={pendingActionId}
-          onChange={(val) => { setPendingActionId(val); setErrors(undefined); }}
-          disabled={submitting || loading}
-          placeholder="Select an action"
-          onCreateNew={() => navigateToUnified('Actions', { create: true, newTab: true })}
-          createLabel="Create new action"
-        />
-        <div className="field">
-          <button type="button" onClick={() => {
-            if (!pendingActionId || form.actions.includes(pendingActionId)) return;
-            setForm({ ...form, actions: [...form.actions, pendingActionId] });
-            setPendingActionId(undefined);
-            setDirty(true);
-          }} disabled={submitting || loading || !pendingActionId}>Add to actions</button>
-        </div>
-        <ReorderableList
-          items={actionItems}
-          onChange={(next) => { setForm({ ...form, actions: next.map((i) => i.id) }); setDirty(true); }}
-          onDelete={(item) => { setForm({ ...form, actions: form.actions.filter((a) => a !== item.id) }); setDirty(true); }}
-          disabled={submitting || loading}
-          emptyMessage="No actions selected yet."
-        />
-        <div className="form-hint">Actions execute in listed order; reorder to change sequence.</div>
       </FormSection>
 
       <FormSection title="Commands" description="Select commands to run and set their order." id={`${mode}-trigger-commands`}>
@@ -355,11 +313,9 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
             setForm({
               name: t.name,
               criteriaText: t.criteria ? JSON.stringify(t.criteria, null, 2) : '',
-              actions: t.actions ?? [],
               commands: t.commands ?? [],
               sequence: t.sequence ?? undefined,
             });
-            setPendingActionId(undefined);
             setPendingCommandId(undefined);
             setDirty(false);
           } catch (err: any) {

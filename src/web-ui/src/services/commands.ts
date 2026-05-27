@@ -5,7 +5,6 @@ export type CommandDto = {
   name: string;
   triggerId?: string;
   steps?: CommandStepDto[];
-  actions?: string[]; // legacy authoring shape
   detection?: DetectionTargetDto;
 };
 
@@ -13,14 +12,13 @@ export type CommandCreate = {
   name: string;
   triggerId?: string;
   steps?: CommandStepDto[];
-  actions?: string[]; // legacy authoring shape
   detection?: DetectionTargetDto;
 };
 
 export type CommandUpdate = CommandCreate;
 
 export type CommandStepDto = {
-  type: 'Action' | 'Command' | 'PrimitiveTap';
+  type: 'Command' | 'PrimitiveTap';
   targetId?: string;
   order: number;
   primitiveTap?: PrimitiveTapConfigDto;

@@ -31,16 +31,11 @@ internal sealed record SequenceStepContract {
   public required string StepId { get; init; }
   public string? Label { get; init; }
   public string? StepType { get; init; }
-  public SequenceActionContract? Action { get; init; }
+  public PrimitiveActionRequest? PrimitiveAction { get; init; }
   public SequenceStepConditionContract? Condition { get; init; }
   public LoopConfigContract? Loop { get; init; }
   public IReadOnlyList<SequenceStepContract>? Body { get; init; }
   public SequenceStepConditionContract? BreakCondition { get; init; }
-}
-
-internal sealed record SequenceActionContract {
-  public required string Type { get; init; }
-  public Dictionary<string, JsonElement> Parameters { get; init; } = new(StringComparer.Ordinal);
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]

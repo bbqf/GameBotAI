@@ -35,18 +35,12 @@ public sealed class EmptyStateCreateSequenceIntegrationTests {
         new {
           stepId = "start",
           label = "Start",
-          action = new {
-            type = "tap",
-            parameters = new { x = 120, y = 840 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 120, y = 840  } }
         },
         new {
           stepId = "decision",
           label = "Decision",
-          action = new {
-            type = "tap",
-            parameters = new { x = 200, y = 880 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 200, y = 880  } },
           condition = new {
             type = "commandOutcome",
             stepRef = "start",
@@ -56,18 +50,12 @@ public sealed class EmptyStateCreateSequenceIntegrationTests {
         new {
           stepId = "action-then",
           label = "Then",
-          action = new {
-            type = "tap",
-            parameters = new { x = 100, y = 200 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 100, y = 200  } }
         },
         new {
           stepId = "end",
           label = "End",
-          action = new {
-            type = "tap",
-            parameters = new { x = 20, y = 20 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 20, y = 20  } }
         }
       }
     };

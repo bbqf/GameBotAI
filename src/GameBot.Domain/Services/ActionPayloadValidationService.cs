@@ -4,13 +4,7 @@ using GameBot.Domain.Commands;
 namespace GameBot.Domain.Services;
 
 public sealed class ActionPayloadValidationService {
-  private readonly HashSet<string> _supportedActionTypes = new(StringComparer.OrdinalIgnoreCase) {
-    ActionTypes.Command,
-    ActionTypes.Tap,
-    ActionTypes.Swipe,
-    ActionTypes.Key,
-    ActionTypes.ConnectToGame
-  };
+  private readonly HashSet<string> _supportedActionTypes = new(PrimitiveActionTypes.All, StringComparer.OrdinalIgnoreCase);
 
   public IReadOnlyCollection<string> SupportedActionTypes => _supportedActionTypes;
 
@@ -34,7 +28,7 @@ public sealed class ActionPayloadValidationService {
 
         var candidateType = step.PayloadRef[..separatorIndex].Trim();
         if (!_supportedActionTypes.Contains(candidateType)) {
-          errors.Add($"Action step '{step.StepId}' references unsupported action type '{candidateType}'.");
+          errors.Add($"Action step '{step.StepId}' references unsupported primitive action type '{candidateType}'.");
         }
       }
     }

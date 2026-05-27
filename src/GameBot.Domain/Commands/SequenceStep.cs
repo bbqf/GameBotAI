@@ -16,6 +16,7 @@ namespace GameBot.Domain.Commands
     public sealed class SequenceActionPayload
     {
         public string Type { get; set; } = string.Empty;
+        public string? SchemaVersion { get; set; }
         [System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Populate)]
         public Dictionary<string, object?> Parameters { get; } = new();
     }

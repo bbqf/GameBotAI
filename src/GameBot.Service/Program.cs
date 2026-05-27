@@ -119,8 +119,6 @@ Directory.CreateDirectory(storageRoot);
 
 builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
 builder.Services.AddSingleton<ITriggerRepository>(_ => new FileTriggerRepository(storageRoot));
-// New repositories for Actions and Commands (001-action-command-refactor)
-builder.Services.AddSingleton<IActionRepository>(_ => new FileActionRepository(storageRoot));
 builder.Services.AddSingleton<ICommandRepository>(_ => new FileCommandRepository(storageRoot));
 builder.Services.AddSingleton<ISequenceRepository>(_ => new FileSequenceRepository(storageRoot));
 builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
@@ -390,8 +388,6 @@ app.MapSessionEndpoints();
 
 // Games endpoints (protected if token set)
 app.MapGameEndpoints();
-app.MapActionTypeEndpoints(storageRoot);
-app.MapActionEndpoints();
 // Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
 // Triggers endpoints (re-added after refactor to support direct CRUD)
@@ -978,7 +974,6 @@ sequences.MapPost("{sequenceId}/execute", async (
   }).WithName("ExecuteSequence").WithTags("Sequences");
 
 // Legacy guard rails: respond with guidance instead of serving old roots
-MapLegacyGuard("/actions", ApiRoutes.Actions);
 MapLegacyGuard("/commands", ApiRoutes.Commands);
 MapLegacyGuard("/triggers", ApiRoutes.Triggers);
 MapLegacyGuard("/games", ApiRoutes.Games);
@@ -1155,11 +1150,14 @@ static object MapStepToDto(SequenceStep step) {
     stepId = step.StepId,
     label = step.Label,
     stepType,
-    action = step.Action is null
+    primitiveAction = step.Action is null
       ? null
       : new {
-        type = step.Action.Type,
-        parameters = step.Action.Parameters
+        primitiveAction = new {
+          type = step.Action.Type,
+          schemaVersion = step.Action.SchemaVersion,
+          payload = step.Action.Parameters
+        }
       },
     condition = MapPerStepConditionToDto(step.Condition),
     loop = MapLoopConfigToDto(step.Loop),
@@ -1205,7 +1203,7 @@ bool IsPerStepRequestCandidate(System.Text.Json.JsonElement root) {
 
   var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
   return firstStep.ValueKind == JsonValueKind.Object
-    && (firstStep.TryGetProperty("action", out _) || firstStep.TryGetProperty("stepType", out _));
+    && (firstStep.TryGetProperty("primitiveAction", out _) || firstStep.TryGetProperty("stepType", out _));
 }
 
 bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsertContract? request, out string? error) {
@@ -1242,8 +1240,8 @@ bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsert
     var stepTypeValue = hasStepType ? stepTypeProp.GetString()?.Trim().ToLowerInvariant() : null;
     var isLoopOrBreak = stepTypeValue is "loop" or "break";
 
-    if (!isLoopOrBreak && (!stepElement.TryGetProperty("action", out var actionProp) || actionProp.ValueKind != JsonValueKind.Object)) {
-      error = "each action step must include action object.";
+    if (!isLoopOrBreak && (!stepElement.TryGetProperty("primitiveAction", out var primitiveActionProp) || primitiveActionProp.ValueKind != JsonValueKind.Object)) {
+      error = "each action step must include primitiveAction object.";
       return false;
     }
   }
@@ -1441,20 +1439,20 @@ static List<SequenceStep> MapToLinearSteps(SequenceUpsertContract request) {
         Label = step.Label,
         CommandId = step.StepId,
         StepType = SequenceStepType.Action,
-        Action = step.Action is not null ? new SequenceActionPayload { Type = step.Action.Type } : null,
+        Action = step.PrimitiveAction is not null ? new SequenceActionPayload { Type = step.PrimitiveAction.Type, SchemaVersion = step.PrimitiveAction.SchemaVersion } : null,
         Condition = MapPerStepCondition(step.Condition)
       };
 
-      if (step.Action is not null) {
-        foreach (var parameter in step.Action.Parameters) {
+      if (step.PrimitiveAction is not null) {
+        foreach (var parameter in step.PrimitiveAction.Payload) {
           mapped.Action!.Parameters[parameter.Key] = parameter.Value;
         }
 
-        if (string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
-            && step.Action.Parameters.TryGetValue("commandId", out var commandId)
-            && commandId.ValueKind == JsonValueKind.String
-            && !string.IsNullOrWhiteSpace(commandId.GetString())) {
-          mapped.CommandId = commandId.GetString()!;
+        if (string.Equals(step.PrimitiveAction.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+            && step.PrimitiveAction.Payload.TryGetValue("commandId", out var commandId)
+            && commandId is not null
+            && !string.IsNullOrWhiteSpace(commandId.ToString())) {
+          mapped.CommandId = commandId.ToString()!;
         }
       }
 
@@ -1507,18 +1505,18 @@ static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContra
         Label = child.Label,
         CommandId = child.StepId,
         StepType = SequenceStepType.Action,
-        Action = child.Action is not null ? new SequenceActionPayload { Type = child.Action.Type } : null,
+        Action = child.PrimitiveAction is not null ? new SequenceActionPayload { Type = child.PrimitiveAction.Type, SchemaVersion = child.PrimitiveAction.SchemaVersion } : null,
         Condition = MapPerStepCondition(child.Condition)
       };
-      if (child.Action is not null) {
-        foreach (var parameter in child.Action.Parameters) {
+      if (child.PrimitiveAction is not null) {
+        foreach (var parameter in child.PrimitiveAction.Payload) {
           mapped.Action!.Parameters[parameter.Key] = parameter.Value;
         }
-        if (string.Equals(child.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
-            && child.Action.Parameters.TryGetValue("commandId", out var cid)
-            && cid.ValueKind == JsonValueKind.String
-            && !string.IsNullOrWhiteSpace(cid.GetString())) {
-          mapped.CommandId = cid.GetString()!;
+        if (string.Equals(child.PrimitiveAction.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+            && child.PrimitiveAction.Payload.TryGetValue("commandId", out var cid)
+            && cid is not null
+            && !string.IsNullOrWhiteSpace(cid.ToString())) {
+          mapped.CommandId = cid.ToString()!;
         }
       }
       result.Add(mapped);
@@ -1668,7 +1666,7 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     context.SchemaGenerator.GenerateSchema(typeof(SequencePatchContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(SequenceStepContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(DelayRangeMsContract), context.SchemaRepository);
-    context.SchemaGenerator.GenerateSchema(typeof(SequenceActionContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(PrimitiveActionRequest), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(SequenceStepConditionContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(ImageVisibleConditionContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(CommandOutcomeConditionContract), context.SchemaRepository);
@@ -1682,7 +1680,7 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     AliasSchema(context, nameof(SequencesAuthoringDeepLinkDto), "AuthoringDeepLink");
     AliasSchema(context, nameof(SequenceUpsertContract), "SequenceUpsertRequest");
     AliasSchema(context, nameof(SequenceStepContract), "SequenceStep");
-    AliasSchema(context, nameof(SequenceActionContract), "SequenceAction");
+    AliasSchema(context, nameof(PrimitiveActionRequest), "PrimitiveAction");
     AliasSchema(context, nameof(SequenceStepConditionContract), "SequenceStepCondition");
     AliasSchema(context, nameof(ImageVisibleConditionContract), "ImageVisibleCondition");
     AliasSchema(context, nameof(CommandOutcomeConditionContract), "CommandOutcomeCondition");

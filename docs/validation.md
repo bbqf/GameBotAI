@@ -1,5 +1,17 @@
 # Validation Log
 
+## Primitive Actions Cutover Validation (2026-05-27)
+
+- Action authoring/API surfaces removed from active flows; command and sequence APIs now use inline `primitiveAction` payloads.
+- Added contract and integration coverage for inline primitive create/read/update flows:
+	- `tests/contract/PrimitiveActionContractsTests.cs`
+	- `tests/integration/PrimitiveAuthoringFlowTests.cs`
+	- `tests/integration/ConnectPrimitiveSessionStartTests.cs`
+	- `tests/integration/ConnectPrimitiveSessionReuseTests.cs`
+- Added UI coverage for primitive authoring/execution paths:
+	- `src/web-ui/src/pages/__tests__/CommandsAndSequencesPrimitiveAuthoring.spec.tsx`
+	- `src/web-ui/src/pages/__tests__/ExecutionConnectPrimitive.spec.tsx`
+
 ## Installer versioning inputs
 - Checked-in override values: `installer/versioning/version.override.json`
 - CI authoritative build counter: `installer/versioning/ci-build-counter.json`

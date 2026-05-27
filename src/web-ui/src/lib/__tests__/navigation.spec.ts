@@ -7,7 +7,7 @@ describe('navigation helpers', () => {
 
   it('normalizes tab values', () => {
     expect(normalizeTab(null)).toBeUndefined();
-    expect(normalizeTab('ACTIONS')).toBe('Actions');
+    expect(normalizeTab('ACTIONS')).toBeUndefined();
     expect(normalizeTab('unknown')).toBeUndefined();
   });
 

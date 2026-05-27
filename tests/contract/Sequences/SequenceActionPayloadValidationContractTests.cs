@@ -28,18 +28,19 @@ public sealed class SequenceActionPayloadValidationContractTests {
         new {
           stepId = "action",
           label = "Action",
-          action = new {
+          primitiveAction = new {
             type = "unsupported",
-            parameters = new { foo = 1 }
+            schemaVersion = "v1",
+            payload = new { foo = 1 }
           }
         }
       }
     };
 
     var response = await client.PostAsJsonAsync("/api/sequences", payload).ConfigureAwait(false);
-    response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-    content.Should().MatchRegex("(?i)unsupported action type");
+    content.Should().MatchRegex("(?i)unsupported.*primitive action type");
   }
 
   [Fact]
@@ -55,9 +56,10 @@ public sealed class SequenceActionPayloadValidationContractTests {
         new {
           stepId = "action",
           label = "Action",
-          action = new {
+          primitiveAction = new {
             type = string.Empty,
-            parameters = new { x = 1 }
+            schemaVersion = "v1",
+            payload = new { x = 1 }
           }
         }
       }

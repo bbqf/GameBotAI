@@ -97,28 +97,35 @@ Example create:
 
 ### Domain Concepts (Post-Refactor)
 
-Profiles have been removed. Three first-class concepts now drive automation:
+Profiles and standalone authored actions have been removed. Three first-class concepts now drive automation:
 
-#### Actions
-Atomic, file-backed executable units (e.g., a tap sequence or composite of low-level input actions).
-- Create: `POST /api/actions` → body includes a name and action definition (input steps).
-- Execute against a session: `POST /api/sessions/{id}/execute-action?actionId={actionId}` → `{ accepted }`.
+#### Primitive Actions (Inline)
+Commands and sequences now persist primitive actions inline by value instead of referencing an Action entity.
 
-Built-in action types (served by `/api/action-types` and executed by `SessionManager`):
-- `tap`: required `x`, `y` (0–5000); optional `mode` (`fast`/`slow`).
-- `swipe`: required `x1`, `y1`, `x2`, `y2` (0–5000); optional `durationMs` (0–5000).
-- `key`: required `key` (symbolic name such as HOME, BACK, ESCAPE, ENTER, A–Z); optional `keyCode` (numeric Android key code).
+Supported primitive types:
+- `tap`
+- `swipe`
+- `key`
+- `command`
+- `connect-to-game`
 
-Example action definition (simplified):
+Inline primitive shape:
 ```json
 {
-  "name": "OpenMenu",
-  "steps": [
-    { "type": "tap", "args": { "x": 50, "y": 50 }, "delayMs": 100 },
-    { "type": "key", "args": { "key": "ESCAPE" } }
-  ]
+  "primitiveAction": {
+    "type": "tap",
+    "schemaVersion": "v1",
+    "payload": {
+      "x": 50,
+      "y": 50
+    }
+  }
 }
 ```
+
+Notes:
+- Action CRUD and action-type catalog routes are intentionally removed.
+- Session start uses `POST /api/sessions/start` with a `connect-to-game` primitive payload.
 
 #### Triggers
 Standalone evaluators that determine readiness (Satisfied vs NotSatisfied) based on screen/image/text/schedule/delay.

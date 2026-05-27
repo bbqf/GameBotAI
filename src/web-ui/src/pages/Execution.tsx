@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { listActions, ActionDto } from '../services/actionsApi';
 import { useGames } from '../services/useGames';
+import { useAdbDevices } from '../services/useAdbDevices';
 import { getRunningSessions, startSession, stopSession, RunningSessionDto } from '../services/sessionsApi';
 import { listCommands, forceExecuteCommand, CommandDto } from '../services/commands';
 import { listSequences, executeSequence, SequenceDto } from '../services/sequences';
@@ -11,12 +11,6 @@ import { RunDetails } from '../features/execution/RunDetails';
 export const EXECUTION_AREA_PATH = '/execution';
 export const EXECUTION_LOGS_AREA_PATH = '/execution-logs';
 
-const getAdbSerial = (action?: ActionDto): string => {
-  if (!action) return '';
-  const raw = action.attributes?.adbSerial;
-  return typeof raw === 'string' ? raw : '';
-};
-
 export function formatCaptureRate(fps?: number | null): string {
   if (fps == null || fps <= 0) return '—';
   if (fps >= 1) return `${fps.toFixed(1)} FPS`;
@@ -25,11 +19,11 @@ export function formatCaptureRate(fps?: number | null): string {
 
 export const ExecutionPage: React.FC = () => {
   const { data: gamesData, error: gamesError } = useGames();
-  const [actions, setActions] = useState<ActionDto[]>([]);
+  const { devices, loading: loadingDevices, error: devicesError } = useAdbDevices(true);
   const [commands, setCommands] = useState<CommandDto[]>([]);
-  const [loadingActions, setLoadingActions] = useState(true);
   const [loadingCommands, setLoadingCommands] = useState(true);
-  const [selectedActionId, setSelectedActionId] = useState<string | undefined>(undefined);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [selectedAdbSerial, setSelectedAdbSerial] = useState<string>('');
   const [selectedCommandId, setSelectedCommandId] = useState<string | undefined>(undefined);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | undefined>(undefined);
@@ -41,7 +35,6 @@ export const ExecutionPage: React.FC = () => {
   const [commandError, setCommandError] = useState<string | undefined>(undefined);
   const [manualSessionId, setManualSessionId] = useState('');
   const [executing, setExecuting] = useState(false);
-  const [commandCacheMeta, setCommandCacheMeta] = useState<{ gameId: string; adbSerial: string; actionName?: string } | undefined>(undefined);
   const [sequences, setSequences] = useState<SequenceDto[]>([]);
   const [loadingSequences, setLoadingSequences] = useState(true);
   const [selectedSequenceId, setSelectedSequenceId] = useState<string | undefined>(undefined);
@@ -55,8 +48,10 @@ export const ExecutionPage: React.FC = () => {
     return map;
   }, [gamesData]);
 
-  const connectActions = useMemo(() => actions.filter((a) => a.type === 'connect-to-game'), [actions]);
-  const selectedAction = connectActions.find((a) => a.id === selectedActionId);
+  const selectedDevice = useMemo(
+    () => devices.find((d) => d.serial === selectedAdbSerial),
+    [devices, selectedAdbSerial]
+  );
 
   const refreshRunningSessions = useCallback(async () => {
     setRunningSessionsLoading(true);
@@ -74,27 +69,6 @@ export const ExecutionPage: React.FC = () => {
     } finally {
       setRunningSessionsLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    const load = async () => {
-      setLoadingActions(true);
-      setError(undefined);
-      try {
-        const data = await listActions({ type: 'connect-to-game' });
-        const safe = Array.isArray(data) ? data : [];
-        setActions(safe.filter((a) => a.type === 'connect-to-game'));
-        if (!Array.isArray(data)) {
-          setError('Unexpected response while loading actions');
-        }
-      } catch (err: any) {
-        setActions([]);
-        setError(err?.message ?? 'Failed to load actions');
-      } finally {
-        setLoadingActions(false);
-      }
-    };
-    void load();
   }, []);
 
   useEffect(() => {
@@ -143,10 +117,16 @@ export const ExecutionPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!selectedActionId && connectActions.length > 0) {
-      setSelectedActionId(connectActions[0].id);
+    if (!selectedGameId && (gamesData?.length ?? 0) > 0) {
+      setSelectedGameId(gamesData![0].id);
     }
-  }, [connectActions, selectedActionId]);
+  }, [gamesData, selectedGameId]);
+
+  useEffect(() => {
+    if (!selectedAdbSerial && devices.length > 0) {
+      setSelectedAdbSerial(devices[0].serial);
+    }
+  }, [devices, selectedAdbSerial]);
 
   useEffect(() => {
     if (!selectedCommandId && commands.length > 0) {
@@ -160,46 +140,20 @@ export const ExecutionPage: React.FC = () => {
     }
   }, [sequences, selectedSequenceId]);
 
-  const findCommandCacheMeta = (commandId?: string) => {
-    if (!commandId) return undefined;
-    const cmd = commands.find((c) => c.id === commandId);
-    if (!cmd || !cmd.steps || cmd.steps.length === 0) return undefined;
-    const firstActionStep = [...cmd.steps].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).find((s) => s.type === 'Action');
-    if (!firstActionStep) return undefined;
-    const action = connectActions.find((a) => a.id === firstActionStep.targetId);
-    if (!action || action.type !== 'connect-to-game') return undefined;
-    const adbSerial = getAdbSerial(action);
-    const gameId = typeof action.gameId === 'string' && action.gameId ? action.gameId : (typeof action.attributes?.gameId === 'string' ? action.attributes.gameId : '');
-    return { gameId, adbSerial, actionName: action.name };
-  };
-
-  useEffect(() => {
-    const meta = findCommandCacheMeta(selectedCommandId);
-    setCommandCacheMeta(meta);
-  }, [selectedCommandId, commands, connectActions]);
-
   const selectedRunningSession = useMemo(() => {
-    if (!selectedAction) return undefined;
-    const adbSerial = getAdbSerial(selectedAction);
-    if (!adbSerial) return undefined;
-    return runningSessions.find((s) => s.gameId === selectedAction.gameId && s.emulatorId === adbSerial);
-  }, [selectedAction, runningSessions]);
+    if (!selectedGameId || !selectedAdbSerial) return undefined;
+    return runningSessions.find((s) => s.gameId === selectedGameId && s.emulatorId === selectedAdbSerial);
+  }, [selectedGameId, selectedAdbSerial, runningSessions]);
 
-  const commandRunningSession = useMemo(() => {
-    if (!commandCacheMeta) return undefined;
-    return runningSessions.find((s) => s.gameId === commandCacheMeta.gameId && s.emulatorId === commandCacheMeta.adbSerial);
-  }, [commandCacheMeta, runningSessions]);
+  const cachedSession = selectedRunningSession ?? runningSessions[0];
 
-  const cachedSession = commandRunningSession ?? selectedRunningSession ?? runningSessions[0];
-
-  const primaryRunDetails = commandRunningSession ?? selectedRunningSession ?? runningSessions[0];
+  const primaryRunDetails = selectedRunningSession ?? runningSessions[0];
 
   const handleRun = async () => {
-    if (!selectedAction) return;
-    const adbSerial = getAdbSerial(selectedAction);
-    const gameId = selectedAction.gameId;
+    const adbSerial = selectedAdbSerial;
+    const gameId = selectedGameId;
     if (!gameId || !adbSerial) {
-      setError('Selected action is missing required game or adbSerial.');
+      setError('Select both game and adb serial before starting a session.');
       return;
     }
 
@@ -208,7 +162,7 @@ export const ExecutionPage: React.FC = () => {
     setError(undefined);
 
     try {
-      const response = await startSession({ gameId, emulatorId: adbSerial });
+      const response = await startSession({ gameId, adbSerial });
       const runningList = Array.isArray(response.runningSessions) ? response.runningSessions : [];
       if (!Array.isArray(response.runningSessions)) {
         setError('Unexpected response while starting session');
@@ -238,17 +192,8 @@ export const ExecutionPage: React.FC = () => {
     setCommandError(undefined);
 
     let resolvedSessionId = manualSessionId.trim();
-    const meta = findCommandCacheMeta(selectedCommandId);
     if (!resolvedSessionId) {
-      if (meta) {
-        const runningSession = runningSessions.find((s) => s.gameId === meta.gameId && s.emulatorId === meta.adbSerial && `${s.status}`.toLowerCase() === 'running');
-        if (!runningSession) {
-          setExecuting(false);
-          setCommandError(`No running session found for ${meta.gameId}/${meta.adbSerial}. Start a session first or enter a sessionId.`);
-          return;
-        }
-        resolvedSessionId = runningSession.sessionId;
-      } else if (cachedSession) {
+      if (cachedSession) {
         resolvedSessionId = cachedSession.sessionId;
       } else {
         setExecuting(false);
@@ -260,6 +205,19 @@ export const ExecutionPage: React.FC = () => {
     try {
       const result = await forceExecuteCommand(selectedCommandId, resolvedSessionId);
       const accepted = typeof result?.accepted === 'number' ? result.accepted : undefined;
+      const stepOutcomes = Array.isArray(result?.stepOutcomes) ? result.stepOutcomes : [];
+      const executedSteps = stepOutcomes.filter((o) => `${o.status ?? ''}`.toLowerCase() === 'executed').length;
+
+      if ((accepted ?? 0) <= 0 && stepOutcomes.length > 0 && executedSteps === 0) {
+        const firstReason = stepOutcomes.find((o) => o.reason)?.reason;
+        const normalizedReason = firstReason ? firstReason.replace(/_/g, ' ') : undefined;
+        setCommandMessage(undefined);
+        setCommandError(normalizedReason
+          ? `Command did not execute any tap: ${normalizedReason}`
+          : 'Command did not execute any tap.');
+        return;
+      }
+
       setCommandMessage(accepted !== undefined ? `Command accepted: ${accepted}` : 'Command submitted');
     } catch (err: any) {
       if (err instanceof ApiError) {
@@ -317,6 +275,7 @@ export const ExecutionPage: React.FC = () => {
     <div className="execution-view">
       <h1>Execution</h1>
       {gamesError && <div className="form-error" role="alert">{gamesError}</div>}
+      {devicesError && <div className="form-error" role="alert">{devicesError}</div>}
       {error && <div className="form-error" role="alert">{error}</div>}
       {message && <div className="form-hint" role="status">{message}</div>}
       {commandError && <div className="form-error" role="alert">{commandError}</div>}
@@ -337,35 +296,49 @@ export const ExecutionPage: React.FC = () => {
 
       <section aria-label="Connect to game">
         <h2>Start a session</h2>
-        <p>Select a connect-to-game action and start a session. The returned sessionId will be cached on the service for reuse.</p>
+        <p>Select game and adb serial, then start a session. The returned sessionId will be cached on the service for reuse.</p>
 
         <div className="field">
-          <label htmlFor="connect-action-select">Connect action</label>
+          <label htmlFor="connect-game-select">Game</label>
           <select
-            id="connect-action-select"
-            aria-label="Connect action"
-            value={selectedActionId ?? ''}
-            onChange={(e) => setSelectedActionId(e.target.value)}
-            disabled={loadingActions || running || connectActions.length === 0}
+            id="connect-game-select"
+            aria-label="Game"
+            value={selectedGameId}
+            onChange={(e) => setSelectedGameId(e.target.value)}
+            disabled={running || (gamesData?.length ?? 0) === 0}
           >
-            {connectActions.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
+            {(gamesData ?? []).map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
             ))}
           </select>
-          {loadingActions && <div className="form-hint">Loading connect actions...</div>}
-          {!loadingActions && connectActions.length === 0 && <div className="form-hint">No connect-to-game actions available.</div>}
+          {(gamesData?.length ?? 0) === 0 && <div className="form-hint">No games available.</div>}
         </div>
 
-        {selectedAction && (
-          <div className="action-details">
-            <div>Game: {gameLookup.get(selectedAction.gameId) ?? selectedAction.gameId}</div>
-            <div>ADB Serial: {getAdbSerial(selectedAction) || '—'}</div>
-            <div>Running session: {selectedRunningSession?.sessionId ?? 'none'}</div>
-          </div>
-        )}
+        <div className="field">
+          <label htmlFor="connect-adb-select">ADB serial</label>
+          <select
+            id="connect-adb-select"
+            aria-label="ADB serial"
+            value={selectedAdbSerial}
+            onChange={(e) => setSelectedAdbSerial(e.target.value)}
+            disabled={running || loadingDevices || devices.length === 0}
+          >
+            {devices.map((d) => (
+              <option key={d.serial} value={d.serial}>{d.serial}{d.state ? ` (${d.state})` : ''}</option>
+            ))}
+          </select>
+          {loadingDevices && <div className="form-hint">Loading adb devices...</div>}
+          {!loadingDevices && devices.length === 0 && <div className="form-hint">No adb devices detected.</div>}
+        </div>
+
+        <div className="action-details">
+          <div>Game: {(gameLookup.get(selectedGameId) ?? selectedGameId) || '—'}</div>
+          <div>ADB Serial: {(selectedDevice?.serial ?? selectedAdbSerial) || '—'}</div>
+          <div>Running session: {selectedRunningSession?.sessionId ?? 'none'}</div>
+        </div>
 
         <div className="form-actions">
-          <button type="button" onClick={handleRun} disabled={running || loadingActions || !selectedAction}>Start session</button>
+          <button type="button" onClick={handleRun} disabled={running || !selectedGameId || !selectedAdbSerial}>Start session</button>
         </div>
       </section>
 
@@ -407,7 +380,7 @@ export const ExecutionPage: React.FC = () => {
 
       <section aria-label="Execute command">
         <h2>Execute a command</h2>
-        <p>Reuse the cached sessionId from a connect-to-game action when left blank.</p>
+        <p>Reuse a running session when sessionId is left blank.</p>
 
         <div className="field">
           <label htmlFor="command-select">Command</label>
@@ -426,15 +399,6 @@ export const ExecutionPage: React.FC = () => {
           {!loadingCommands && commands.length === 0 && <div className="form-hint">No commands available.</div>}
           {commandsError && <div className="form-error" role="alert">{commandsError}</div>}
         </div>
-
-        {commandCacheMeta && (
-          <div className="action-details">
-            <div>Connect action: {commandCacheMeta.actionName ?? 'connect-to-game'}</div>
-            <div>Game: {gameLookup.get(commandCacheMeta.gameId) ?? commandCacheMeta.gameId}</div>
-            <div>ADB Serial: {commandCacheMeta.adbSerial}</div>
-            <div>Running session: {commandRunningSession?.sessionId ?? 'none'}</div>
-          </div>
-        )}
 
         <div className="field">
           <label htmlFor="command-session">SessionId (optional)</label>

@@ -2,13 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CommandForm, CommandFormValue, DetectionTargetForm, StepEntry } from '../components/commands/CommandForm';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
-import { navigateToUnified } from '../lib/navigation';
 import { ApiError } from '../lib/api';
 import { SearchableOption } from '../components/SearchableDropdown';
 import { listCommands, getCommand, createCommand, updateCommand, deleteCommand, CommandDto, CommandStepDto } from '../services/commands';
 import { listGames, GameDto } from '../services/games';
-import { listActions as listLegacyActions, ActionDto as LegacyActionDto } from '../services/actions';
-import { listActions as listDomainActions } from '../services/actionsApi';
 import './CommandsPage.css';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -23,20 +20,19 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
         id: makeId(),
         type: s.type,
         targetId: s.targetId,
-        primitiveTap: s.primitiveTap
+        primitiveTap: (s.primitiveTap ?? (s.type === 'PrimitiveTap' && dto.detection
+          ? { detectionTarget: dto.detection }
+          : undefined))
           ? {
             detectionTarget: {
-              referenceImageId: s.primitiveTap.detectionTarget.referenceImageId,
-              confidence: s.primitiveTap.detectionTarget.confidence !== undefined ? String(s.primitiveTap.detectionTarget.confidence) : undefined,
-              offsetX: s.primitiveTap.detectionTarget.offsetX !== undefined ? String(s.primitiveTap.detectionTarget.offsetX) : undefined,
-              offsetY: s.primitiveTap.detectionTarget.offsetY !== undefined ? String(s.primitiveTap.detectionTarget.offsetY) : undefined,
+              referenceImageId: (s.primitiveTap?.detectionTarget ?? dto.detection!).referenceImageId,
+              confidence: (s.primitiveTap?.detectionTarget ?? dto.detection!).confidence !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).confidence) : undefined,
+              offsetX: (s.primitiveTap?.detectionTarget ?? dto.detection!).offsetX !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).offsetX) : undefined,
+              offsetY: (s.primitiveTap?.detectionTarget ?? dto.detection!).offsetY !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).offsetY) : undefined,
             }
           }
           : undefined
       }));
-  }
-  if (dto.actions && dto.actions.length > 0) {
-    return dto.actions.map((a) => ({ id: makeId(), type: 'Action' as const, targetId: a }));
   }
   return [];
 };
@@ -100,16 +96,13 @@ type CommandRow = {
   id: string;
   name: string;
   stepCount: number;
-  gameId?: string;
 };
 
 export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initialEditId }) => {
   const [commands, setCommands] = useState<CommandDto[]>([]);
   const [games, setGames] = useState<GameDto[]>([]);
-  const [actionGameMap, setActionGameMap] = useState<Map<string, string>>(new Map());
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<CommandFormValue>(emptyForm);
-  const [actionOptions, setActionOptions] = useState<SearchableOption[]>([]);
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
@@ -129,26 +122,20 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     setLoadingCommands(true);
     const load = async () => {
       try {
-        const [cmds, legacyActions, domainActions, gameList] = await Promise.all([
+        const [cmds, gameList] = await Promise.all([
           listCommands(),
-          listLegacyActions(),
-          listDomainActions(),
           listGames()
         ]);
         if (!mounted) return;
         setCommands(cmds);
         setGames(gameList);
-        setActionOptions(legacyActions.map((a: LegacyActionDto) => ({ value: a.id, label: a.name, description: a.description })));
         setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
-        setActionGameMap(new Map(domainActions.map((a) => [a.id, a.gameId ?? ''])));
         setTableError(undefined);
       } catch (err: any) {
         if (!mounted) return;
         setCommands([]);
         setGames([]);
-        setActionOptions([]);
         setCommandOptions([]);
-        setActionGameMap(new Map());
         setTableError(err?.message ?? 'Failed to load commands');
       } finally {
         if (mounted) setLoadingCommands(false);
@@ -187,20 +174,17 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
 
   const commandRows: CommandRow[] = useMemo(() => {
     return commands.map((c) => {
-      const stepCount = c.steps?.length ?? c.actions?.length ?? 0;
-      const actionStep = c.steps?.find((s) => s.type === 'Action');
-      const gameId = actionStep?.targetId ? actionGameMap.get(actionStep.targetId) : undefined;
-      return { id: c.id, name: c.name, stepCount, gameId };
+      const stepCount = c.steps?.length ?? 0;
+      return { id: c.id, name: c.name, stepCount };
     });
-  }, [commands, actionGameMap]);
+  }, [commands]);
 
   const displayedCommands = useMemo(() => {
     const nameQuery = filterName.trim().toLowerCase();
     return [...commandRows]
-      .filter((c) => !filterGame || c.gameId === filterGame)
       .filter((c) => !nameQuery || c.name.toLowerCase().includes(nameQuery))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [commandRows, filterGame, filterName]);
+  }, [commandRows, filterName]);
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
 
@@ -222,6 +206,9 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const validate = (v: CommandFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
+    if (v.steps.length === 0) {
+      next.steps = 'Add at least one step before saving (for example, a Primitive tap step).';
+    }
     for (const step of v.steps) {
       if (step.type === 'PrimitiveTap') {
         if (!step.primitiveTap?.detectionTarget.referenceImageId?.trim()) {
@@ -229,7 +216,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           break;
         }
       } else if (!step.targetId?.trim()) {
-        next.steps = 'Action and command steps require a target';
+        next.steps = 'Command steps require a target';
         break;
       }
     }
@@ -254,7 +241,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           <tr>
             <th>
               <div>Game</div>
-              <select value={filterGame} onChange={(e) => setFilterGame(e.target.value)} disabled={tableLoading}>
+              <select value={filterGame} onChange={(e) => setFilterGame(e.target.value)} disabled>
                 <option value="">All games</option>
                 {games.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
@@ -282,7 +269,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           )}
           {!tableLoading && displayedCommands.length > 0 && displayedCommands.map((c) => (
             <tr key={c.id} className="commands-row">
-              <td>{gameLookup.get(c.gameId ?? '') ?? (c.gameId || '—')}</td>
+              <td>—</td>
               <td className="command-name-cell">
                 <button
                   type="button"
@@ -302,12 +289,10 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
       {creating && (
         <CommandForm
           value={form}
-          actionOptions={actionOptions}
           commandOptions={commandOptions}
           errors={errors}
           submitting={submitting}
           loading={loadingCommands}
-          onCreateNewAction={() => navigateToUnified('Actions', { create: true, newTab: true })}
           onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
           onCancel={() => { if (!confirmNavigate()) return; setCreating(false); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
           onSubmit={async () => {
@@ -347,12 +332,10 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           <h3>Edit Command</h3>
           <CommandForm
             value={form}
-            actionOptions={actionOptions}
             commandOptions={filteredCommandOptions}
             errors={errors}
             submitting={submitting}
             loading={loadingCommands}
-            onCreateNewAction={() => navigateToUnified('Actions', { create: true, newTab: true })}
             onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
             onCancel={() => { if (!confirmNavigate()) return; setEditingId(undefined); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
             onSubmit={async () => {

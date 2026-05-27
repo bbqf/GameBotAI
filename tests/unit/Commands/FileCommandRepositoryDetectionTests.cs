@@ -22,7 +22,7 @@ public sealed class FileCommandRepositoryDetectionTests : IDisposable {
       Id = string.Empty,
       Name = "DetectCmd",
       Steps = new Collection<CommandStep> {
-        new CommandStep { Type = CommandStepType.Action, TargetId = "a1", Order = 0 }
+        new CommandStep { Type = CommandStepType.Command, TargetId = "cmd-a1", Order = 0 }
       },
       Detection = new DetectionTarget("template_a", 0.91, offsetX: 5, offsetY: -3, selectionStrategy: DetectionSelectionStrategy.FirstMatch)
     };
@@ -47,7 +47,7 @@ public sealed class FileCommandRepositoryDetectionTests : IDisposable {
       Id = string.Empty,
       Name = "DetectCmd",
       Steps = new Collection<CommandStep> {
-        new CommandStep { Type = CommandStepType.Action, TargetId = "a1", Order = 0 }
+        new CommandStep { Type = CommandStepType.Command, TargetId = "cmd-a1", Order = 0 }
       },
       Detection = new DetectionTarget("template_a", 0.9)
     };

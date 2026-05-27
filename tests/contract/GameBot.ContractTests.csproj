@@ -22,4 +22,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameBot.Service\GameBot.Service.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="ApiContractSnapshots\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

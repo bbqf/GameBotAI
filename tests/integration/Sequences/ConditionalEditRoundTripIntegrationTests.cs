@@ -34,18 +34,12 @@ public sealed class ConditionalEditRoundTripIntegrationTests {
         new {
           stepId = "step-1",
           label = "Step One",
-          action = new {
-            type = "tap",
-            parameters = new { x = 120, y = 840 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 120, y = 840  } }
         },
         new {
           stepId = "step-2",
           label = "Step Two",
-          action = new {
-            type = "tap",
-            parameters = new { x = 220, y = 940 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 220, y = 940  } },
           condition = new {
             type = "imageVisible",
             imageId = "image-a",
@@ -68,18 +62,12 @@ public sealed class ConditionalEditRoundTripIntegrationTests {
         new {
           stepId = "step-1",
           label = "Step One",
-          action = new {
-            type = "tap",
-            parameters = new { x = 120, y = 840 }
-          }
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 120, y = 840  } }
         },
         new {
           stepId = "step-2",
           label = "Step Two",
-          action = new {
-            type = "tap",
-            parameters = new { x = 220, y = 940 }
-          },
+          primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 220, y = 940  } },
           condition = new {
             type = "imageVisible",
             imageId = "image-b",

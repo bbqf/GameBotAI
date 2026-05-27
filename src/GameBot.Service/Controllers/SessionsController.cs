@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using GameBot.Service.Services;
 using Microsoft.AspNetCore.Http;
 using System.Linq;
+using GameBot.Domain.Actions;
 
 namespace GameBot.Service.Controllers;
 
@@ -38,14 +39,29 @@ public sealed class SessionsController : ControllerBase
         {
             return BadRequest(new { error = new { code = "invalid_request", message = "request body is required.", hint = (string?)null } });
         }
-        if (string.IsNullOrWhiteSpace(request.GameId) || string.IsNullOrWhiteSpace(request.EmulatorId))
+        if (request.PrimitiveAction is null)
         {
-            return BadRequest(new { error = new { code = "invalid_request", message = "gameId and emulatorId are required.", hint = (string?)null } });
+            return BadRequest(new { error = new { code = "invalid_request", message = "primitiveAction is required.", hint = (string?)null } });
+        }
+
+        if (!string.Equals(request.PrimitiveAction.Type, PrimitiveActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { error = new { code = "invalid_request", message = "primitiveAction.type must be connect-to-game.", hint = (string?)null } });
+        }
+
+        var primitivePayload = request.PrimitiveAction.Payload;
+        primitivePayload.TryGetValue("gameId", out var gameIdValue);
+        primitivePayload.TryGetValue("adbSerial", out var adbSerialValue);
+        var gameId = gameIdValue?.ToString();
+        var emulatorId = adbSerialValue?.ToString();
+        if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(emulatorId))
+        {
+            return BadRequest(new { error = new { code = "invalid_request", message = "primitiveAction.payload.gameId and primitiveAction.payload.adbSerial are required.", hint = (string?)null } });
         }
 
         try
         {
-            var started = _sessions.StartSession(request.GameId, request.EmulatorId);
+            var started = _sessions.StartSession(gameId!, emulatorId!);
             var running = _sessions.GetRunningSessions();
             return Ok(new StartSessionResponse
             {

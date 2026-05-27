@@ -1,95 +1,67 @@
 {
-  "openapi": "3.0.4",
+  "openapi": "3.0.1",
   "info": {
-    "title": "GameBot.Service",
-    "version": "1.0"
+    "title": "GameBot API",
+    "description": "Canonical GameBot endpoints under /api",
+    "version": "v1"
   },
   "paths": {
-    "/actions": {
-      "post": {
-        "tags": [
-          "Actions"
-        ],
-        "operationId": "CreateAction",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateActionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "Actions"
-        ],
-        "operationId": "ListActions",
-        "parameters": [
-          {
-            "name": "gameId",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/actions/{id}": {
-      "get": {
-        "tags": [
-          "Actions"
-        ],
-        "operationId": "GetAction",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/commands": {
+    "/api/commands": {
       "post": {
         "tags": [
           "Commands"
         ],
+        "summary": "Create a command",
         "operationId": "CreateCommand",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateCommandRequest"
+                "$ref": "#/components/schemas/CommandCreateSchema"
+              },
+              "example": {
+                "name": "Warmup",
+                "steps": [
+                  {
+                    "type": "PrimitiveTap",
+                    "order": 0,
+                    "primitiveTap": {
+                      "detectionTarget": {
+                        "referenceImageId": "start-screen",
+                        "confidence": 0.9
+                      }
+                    }
+                  }
+                ]
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                },
+                "example": {
+                  "id": "command-123",
+                  "name": "Warmup",
+                  "triggerId": "trigger-1",
+                  "steps": [
+                    {
+                      "type": "Command",
+                      "targetId": "cmd-next",
+                      "order": 0
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       },
@@ -97,19 +69,45 @@
         "tags": [
           "Commands"
         ],
+        "summary": "List commands",
         "operationId": "ListCommands",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommandResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "command-123",
+                    "name": "Warmup",
+                    "triggerId": "trigger-1",
+                    "steps": [
+                      {
+                        "type": "Command",
+                        "targetId": "cmd-next",
+                        "order": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
           }
         }
       }
     },
-    "/commands/{id}": {
+    "/api/commands/{id}": {
       "get": {
         "tags": [
           "Commands"
         ],
+        "summary": "Get a command",
         "operationId": "GetCommand",
         "parameters": [
           {
@@ -123,7 +121,26 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                },
+                "example": {
+                  "id": "command-123",
+                  "name": "Warmup",
+                  "triggerId": "trigger-1",
+                  "steps": [
+                    {
+                      "type": "Command",
+                      "targetId": "cmd-next",
+                      "order": 0
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       },
@@ -131,6 +148,7 @@
         "tags": [
           "Commands"
         ],
+        "summary": "Update a command",
         "operationId": "UpdateCommand",
         "parameters": [
           {
@@ -147,6 +165,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateCommandRequest"
+              },
+              "example": {
+                "name": "Warmup v2",
+                "triggerId": "trigger-1",
+                "steps": [
+                  {
+                    "type": "Command",
+                    "targetId": "cmd-next",
+                    "order": 0
+                  }
+                ]
               }
             }
           },
@@ -154,7 +183,26 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                },
+                "example": {
+                  "id": "command-123",
+                  "name": "Warmup",
+                  "triggerId": "trigger-1",
+                  "steps": [
+                    {
+                      "type": "Command",
+                      "targetId": "cmd-next",
+                      "order": 0
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       },
@@ -180,11 +228,12 @@
         }
       }
     },
-    "/commands/{id}/force-execute": {
+    "/api/commands/{id}/force-execute": {
       "post": {
         "tags": [
           "Commands"
         ],
+        "summary": "Force execute a command",
         "operationId": "ForceExecuteCommand",
         "parameters": [
           {
@@ -198,7 +247,6 @@
           {
             "name": "sessionId",
             "in": "query",
-            "required": false,
             "schema": {
               "type": "string"
             }
@@ -207,15 +255,29 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionAcceptedSchema"
+                },
+                "example": {
+                  "accepted": 1
+                }
+              }
+            }
           }
         }
       }
     },
-    "/commands/{id}/evaluate-and-execute": {
+    "/api/commands/{id}/evaluate-and-execute": {
       "post": {
         "tags": [
           "Commands"
         ],
+        "summary": "Evaluate trigger then execute",
         "operationId": "EvaluateAndExecuteCommand",
         "parameters": [
           {
@@ -229,7 +291,507 @@
           {
             "name": "sessionId",
             "in": "query",
-            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandEvaluateResponseSchema"
+                },
+                "example": {
+                  "accepted": true,
+                  "triggerStatus": "Satisfied",
+                  "message": "Trigger satisfied; executed"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/files": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "List available config files",
+        "operationId": "ListConfigFiles",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/config/files/{name}": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Get a config file as flattened parameters",
+        "operationId": "GetConfigFile",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigFileSnapshotSchema"
+                },
+                "example": {
+                  "fileName": "execution-log-policy.json",
+                  "parameters": {
+                    "enabled": {
+                      "name": "enabled",
+                      "source": "File",
+                      "value": true,
+                      "isSecret": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Update a config file via flattened parameters",
+        "operationId": "UpdateConfigFile",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigFileUpdateRequest"
+              },
+              "example": {
+                "updates": {
+                  "enabled": "true",
+                  "retentionDays": "30"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigFileSnapshotSchema"
+                },
+                "example": {
+                  "fileName": "execution-log-policy.json",
+                  "parameters": {
+                    "enabled": {
+                      "name": "enabled",
+                      "source": "File",
+                      "value": true,
+                      "isSecret": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Get configuration snapshot",
+        "operationId": "GetConfiguration",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationSnapshotSchema"
+                },
+                "example": {
+                  "generatedAtUtc": "2025-12-28T12:00:00Z",
+                  "serviceVersion": "1.0.0",
+                  "refreshCount": 1,
+                  "parameters": {
+                    "GAMEBOT_DATA_DIR": {
+                      "name": "GAMEBOT_DATA_DIR",
+                      "source": "Default",
+                      "value": "C:/data",
+                      "isSecret": false
+                    },
+                    "Service__Auth__Token": {
+                      "name": "Service__Auth__Token",
+                      "source": "File",
+                      "value": "***",
+                      "isSecret": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/refresh": {
+      "post": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Refresh configuration snapshot",
+        "operationId": "RefreshConfiguration",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationSnapshotSchema"
+                },
+                "example": {
+                  "generatedAtUtc": "2025-12-28T12:00:00Z",
+                  "serviceVersion": "1.0.0",
+                  "refreshCount": 1,
+                  "parameters": {
+                    "GAMEBOT_DATA_DIR": {
+                      "name": "GAMEBOT_DATA_DIR",
+                      "source": "Default",
+                      "value": "C:/data",
+                      "isSecret": false
+                    },
+                    "Service__Auth__Token": {
+                      "name": "Service__Auth__Token",
+                      "source": "File",
+                      "value": "***",
+                      "isSecret": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/parameters": {
+      "put": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Batch-update configuration parameter values",
+        "operationId": "UpdateConfigParameters",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpdateRequest"
+              },
+              "example": {
+                "updates": {
+                  "GAMEBOT_TESSERACT_LANG": "deu",
+                  "Service__Sessions__IdleTimeoutSeconds": "3600"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationSnapshotSchema"
+                },
+                "example": {
+                  "generatedAtUtc": "2025-12-28T12:00:00Z",
+                  "serviceVersion": "1.0.0",
+                  "refreshCount": 1,
+                  "parameters": {
+                    "GAMEBOT_DATA_DIR": {
+                      "name": "GAMEBOT_DATA_DIR",
+                      "source": "Default",
+                      "value": "C:/data",
+                      "isSecret": false
+                    },
+                    "Service__Auth__Token": {
+                      "name": "Service__Auth__Token",
+                      "source": "File",
+                      "value": "***",
+                      "isSecret": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/parameters/reorder": {
+      "put": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Reorder configuration parameters",
+        "operationId": "ReorderConfigParameters",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigReorderRequest"
+              },
+              "example": {
+                "orderedKeys": [
+                  "Service__Auth__Token",
+                  "GAMEBOT_DATA_DIR",
+                  "GAMEBOT_TESSERACT_LANG"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationSnapshotSchema"
+                },
+                "example": {
+                  "generatedAtUtc": "2025-12-28T12:00:00Z",
+                  "serviceVersion": "1.0.0",
+                  "refreshCount": 1,
+                  "parameters": {
+                    "GAMEBOT_DATA_DIR": {
+                      "name": "GAMEBOT_DATA_DIR",
+                      "source": "Default",
+                      "value": "C:/data",
+                      "isSecret": false
+                    },
+                    "Service__Auth__Token": {
+                      "name": "Service__Auth__Token",
+                      "source": "File",
+                      "value": "***",
+                      "isSecret": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/logging": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Get runtime logging policy",
+        "operationId": "GetLoggingPolicy",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingPolicySchema"
+                },
+                "example": {
+                  "updatedAtUtc": "2025-12-28T12:00:00Z",
+                  "components": [
+                    {
+                      "name": "GameBot.Service",
+                      "level": "Warning",
+                      "enabled": true,
+                      "notes": "default policy"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/logging/components/{componentName}": {
+      "put": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Update logging component policy",
+        "operationId": "UpdateLoggingComponent",
+        "parameters": [
+          {
+            "name": "componentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoggingComponentPatchDto"
+              },
+              "example": {
+                "level": "Information",
+                "enabled": true,
+                "notes": "Temporary override for debugging"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingPolicySchema"
+                },
+                "example": {
+                  "updatedAtUtc": "2025-12-28T12:00:00Z",
+                  "components": [
+                    {
+                      "name": "GameBot.Service",
+                      "level": "Warning",
+                      "enabled": true,
+                      "notes": "default policy"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/logging/reset": {
+      "post": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Reset logging policy",
+        "operationId": "ResetLoggingPolicy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoggingPolicyResetRequestDto"
+              },
+              "example": {
+                "reason": "Revert to defaults"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingPolicySchema"
+                },
+                "example": {
+                  "updatedAtUtc": "2025-12-28T12:00:00Z",
+                  "components": [
+                    {
+                      "name": "GameBot.Service",
+                      "level": "Warning",
+                      "enabled": true,
+                      "notes": "default policy"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/adb/version": {
+      "get": {
+        "tags": [
+          "Emulators"
+        ],
+        "operationId": "AdbVersion",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/adb/devices": {
+      "get": {
+        "tags": [
+          "Emulators"
+        ],
+        "operationId": "AdbDevices",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/emulator/screenshot": {
+      "get": {
+        "tags": [
+          "Emulators"
+        ],
+        "operationId": "GetEmulatorScreenshot",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -242,12 +804,12 @@
         }
       }
     },
-    "/health": {
+    "/api/ocr/coverage": {
       "get": {
         "tags": [
-          "GameBot.Service"
+          "Emulators"
         ],
-        "operationId": "Health",
+        "operationId": "GetOcrCoverageSummary",
         "responses": {
           "200": {
             "description": "OK"
@@ -255,48 +817,499 @@
         }
       }
     },
-    "/": {
+    "/api/execution-logs": {
       "get": {
         "tags": [
-          "GameBot.Service"
+          "ExecutionLogs"
         ],
-        "operationId": "Root",
+        "summary": "List execution logs",
+        "operationId": "ListExecutionLogs",
+        "parameters": [
+          {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortDirection",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filterTimestamp",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filterObjectName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filterStatus",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromUtc",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toUtc",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "finalStatus",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "objectType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "objectId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
+          "401": {
+            "description": "Unauthorized"
+          },
           "200": {
-            "description": "OK"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionLogListResponseDto"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": "exe_0001",
+                      "timestampUtc": "2026-01-01T00:00:00Z",
+                      "executionType": "command",
+                      "finalStatus": "success",
+                      "objectRef": {
+                        "objectType": "command",
+                        "objectId": "cmd-farm",
+                        "displayNameSnapshot": "Farm Run",
+                        "versionSnapshot": "2026.01"
+                      },
+                      "navigation": {
+                        "directPath": "/api/commands/cmd-farm",
+                        "parentPath": "/api/sequences/seq-daily",
+                        "pathKind": "command"
+                      },
+                      "hierarchy": {
+                        "rootExecutionId": "exe_root_0001",
+                        "parentExecutionId": "exe_parent_0001",
+                        "depth": 1,
+                        "sequenceIndex": 2
+                      },
+                      "summary": "Command executed successfully",
+                      "details": [
+                        {
+                          "kind": "execution",
+                          "message": "Trigger matched and command dispatched.",
+                          "attributes": {
+                            "triggerMatched": true,
+                            "durationMs": 812
+                          },
+                          "sensitivity": "public"
+                        }
+                      ],
+                      "stepOutcomes": [
+                        {
+                          "stepOrder": 1,
+                          "stepType": "tap",
+                          "outcome": "executed",
+                          "reasonCode": "none",
+                          "reasonText": "Step executed normally"
+                        }
+                      ]
+                    }
+                  ],
+                  "nextCursor": "2026-01-01T00:00:00.0000000+00:00|exe_0001"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/sessions": {
-      "post": {
+    "/api/execution-logs/{id}": {
+      "get": {
         "tags": [
-          "GameBot.Service"
+          "ExecutionLogs"
         ],
-        "operationId": "CreateSession",
+        "summary": "Get an execution log entry",
+        "operationId": "GetExecutionLog",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionLogEntryDto"
+                },
+                "example": {
+                  "id": "exe_0001",
+                  "timestampUtc": "2026-01-01T00:00:00Z",
+                  "executionType": "command",
+                  "finalStatus": "success",
+                  "objectRef": {
+                    "objectType": "command",
+                    "objectId": "cmd-farm",
+                    "displayNameSnapshot": "Farm Run",
+                    "versionSnapshot": "2026.01"
+                  },
+                  "navigation": {
+                    "directPath": "/api/commands/cmd-farm",
+                    "parentPath": "/api/sequences/seq-daily",
+                    "pathKind": "command"
+                  },
+                  "hierarchy": {
+                    "rootExecutionId": "exe_root_0001",
+                    "parentExecutionId": "exe_parent_0001",
+                    "depth": 1,
+                    "sequenceIndex": 2
+                  },
+                  "summary": "Command executed successfully",
+                  "details": [
+                    {
+                      "kind": "execution",
+                      "message": "Trigger matched and command dispatched.",
+                      "attributes": {
+                        "triggerMatched": true,
+                        "durationMs": 812
+                      },
+                      "sensitivity": "public"
+                    }
+                  ],
+                  "stepOutcomes": [
+                    {
+                      "stepOrder": 1,
+                      "stepType": "tap",
+                      "outcome": "executed",
+                      "reasonCode": "none",
+                      "reasonText": "Step executed normally"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/execution-logs/retention": {
+      "get": {
+        "tags": [
+          "ExecutionLogs"
+        ],
+        "summary": "Get execution log retention policy",
+        "operationId": "GetExecutionLogRetentionPolicy",
+        "responses": {
+          "401": {
+            "description": "Unauthorized"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionLogRetentionPolicyDto"
+                },
+                "example": {
+                  "enabled": true,
+                  "retentionDays": 30,
+                  "cleanupIntervalMinutes": 60,
+                  "updatedAtUtc": "2026-01-01T00:00:00Z"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ExecutionLogs"
+        ],
+        "summary": "Update execution log retention policy",
+        "operationId": "UpdateExecutionLogRetentionPolicy",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateSessionRequest"
+                "$ref": "#/components/schemas/ExecutionLogRetentionPolicyPatchDto"
+              },
+              "example": {
+                "enabled": true,
+                "retentionDays": 30,
+                "cleanupIntervalMinutes": 60
               }
             }
           },
           "required": true
         },
         "responses": {
+          "401": {
+            "description": "Unauthorized"
+          },
           "200": {
-            "description": "OK"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionLogRetentionPolicyDto"
+                },
+                "example": {
+                  "enabled": true,
+                  "retentionDays": 30,
+                  "cleanupIntervalMinutes": 60,
+                  "updatedAtUtc": "2026-01-01T00:00:00Z"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/sessions/{id}": {
+    "/api/games": {
+      "post": {
+        "tags": [
+          "Games"
+        ],
+        "summary": "Create a game",
+        "operationId": "CreateGame",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameCreateSchema"
+              },
+              "example": {
+                "name": "Awesome Game",
+                "metadata": {
+                  "genre": "arcade",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameResponseSchema"
+                },
+                "example": {
+                  "id": "game-123",
+                  "name": "Awesome Game",
+                  "metadata": {
+                    "genre": "arcade",
+                    "version": "1.0.0"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "tags": [
-          "GameBot.Service"
+          "Games"
         ],
-        "operationId": "GetSession",
+        "summary": "List games",
+        "operationId": "ListGames",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GameResponseSchema"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "game-123",
+                    "name": "Awesome Game",
+                    "metadata": {
+                      "genre": "arcade",
+                      "version": "1.0.0"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/games/{id}": {
+      "get": {
+        "tags": [
+          "Games"
+        ],
+        "summary": "Get a game",
+        "operationId": "GetGame",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameResponseSchema"
+                },
+                "example": {
+                  "id": "game-123",
+                  "name": "Awesome Game",
+                  "metadata": {
+                    "genre": "arcade",
+                    "version": "1.0.0"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Games"
+        ],
+        "summary": "Update a game",
+        "operationId": "UpdateGame",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameCreateSchema"
+              },
+              "example": {
+                "name": "Awesome Game v2",
+                "description": "Updated description"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameResponseSchema"
+                },
+                "example": {
+                  "id": "game-123",
+                  "name": "Awesome Game",
+                  "metadata": {
+                    "genre": "arcade",
+                    "version": "1.0.0"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Games"
+        ],
+        "operationId": "DeleteGame",
         "parameters": [
           {
             "name": "id",
@@ -312,11 +1325,1077 @@
             "description": "OK"
           }
         }
+      }
+    },
+    "/api/images": {
+      "get": {
+        "tags": [
+          "Images"
+        ],
+        "summary": "List image references",
+        "operationId": "ListImageReferences",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImageReferenceListItemSchema"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "start-screen"
+                  },
+                  {
+                    "id": "pause-screen"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Images"
+        ],
+        "summary": "Upload an image reference",
+        "operationId": "UploadImageReference",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadImageRequest"
+              },
+              "example": {
+                "id": "start-screen",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAUA"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageUploadResponseSchema"
+                },
+                "example": {
+                  "id": "start-screen",
+                  "overwrite": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{id}": {
+      "get": {
+        "tags": [
+          "Images"
+        ],
+        "summary": "Get an image reference",
+        "operationId": "GetImageReference",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageReferenceSchema"
+                },
+                "example": {
+                  "id": "start-screen"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Images"
+        ],
+        "summary": "Overwrite an image reference",
+        "operationId": "OverwriteImageReference",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverwriteImageRequest"
+              },
+              "example": {
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAUA"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/OverwriteImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageOverwriteResponseSchema"
+                },
+                "example": {
+                  "id": "start-screen",
+                  "contentType": "image/png",
+                  "sizeBytes": 12345,
+                  "updatedAtUtc": "2025-01-01T00:00:00Z"
+                }
+              }
+            }
+          }
+        }
       },
       "delete": {
         "tags": [
-          "GameBot.Service"
+          "Images"
         ],
+        "operationId": "DeleteImageReference",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/images/{id}/metadata": {
+      "get": {
+        "tags": [
+          "Images"
+        ],
+        "summary": "Get an image reference",
+        "operationId": "GetImageMetadata",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageReferenceSchema"
+                },
+                "example": {
+                  "id": "start-screen"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/detect": {
+      "post": {
+        "tags": [
+          "Images"
+        ],
+        "summary": "Detect reference image matches",
+        "operationId": "DetectImageMatches",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectRequest"
+              },
+              "example": {
+                "referenceImageId": "start-screen",
+                "threshold": 0.85,
+                "maxResults": 3,
+                "overlap": 0.1
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectResponse"
+                },
+                "example": {
+                  "limitsHit": false,
+                  "matches": [
+                    {
+                      "confidence": 0.93,
+                      "bbox": {
+                        "x": 0.15,
+                        "y": 0.22,
+                        "width": 0.3,
+                        "height": 0.18
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/crop": {
+      "post": {
+        "tags": [
+          "Images"
+        ],
+        "summary": "Crop and save an emulator screenshot",
+        "operationId": "CropImage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CropRequest"
+              },
+              "example": {
+                "name": "battle-start",
+                "overwrite": false,
+                "sourceCaptureId": "cap_123",
+                "bounds": {
+                  "x": 120,
+                  "y": 200,
+                  "width": 64,
+                  "height": 64
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { },
+                "example": {
+                  "name": "battle-start",
+                  "fileName": "battle-start.png",
+                  "storagePath": "data/images/battle-start.png",
+                  "bounds": {
+                    "x": 120,
+                    "y": 200,
+                    "width": 64,
+                    "height": 64
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/installer/compare": {
+      "post": {
+        "tags": [
+          "Installer"
+        ],
+        "summary": "Compare installed and candidate installer versions",
+        "operationId": "CompareInstallerVersion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallCompareRequestModel"
+              },
+              "example": {
+                "installedVersion": {
+                  "major": 1,
+                  "minor": 0,
+                  "patch": 0,
+                  "build": 9
+                },
+                "candidateVersion": {
+                  "major": 1,
+                  "minor": 0,
+                  "patch": 0,
+                  "build": 10
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { },
+                "example": {
+                  "outcome": "upgrade",
+                  "reason": "Candidate version is higher than installed version.",
+                  "preserveProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/installer/same-build/decision": {
+      "post": {
+        "tags": [
+          "Installer"
+        ],
+        "summary": "Resolve same-build install decision",
+        "operationId": "ResolveSameBuildDecision",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SameBuildDecisionRequestModel"
+              },
+              "example": {
+                "mode": "interactive",
+                "interactiveChoice": "reinstall"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { },
+                "example": {
+                  "action": "reinstall",
+                  "mutatesState": true,
+                  "statusCode": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metrics/triggers": {
+      "get": {
+        "tags": [
+          "Metrics"
+        ],
+        "operationId": "GetTriggerEvaluationMetrics",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/metrics/domain": {
+      "get": {
+        "tags": [
+          "Metrics"
+        ],
+        "operationId": "GetDomainObjectCounts",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/metrics/process": {
+      "get": {
+        "tags": [
+          "Metrics"
+        ],
+        "operationId": "GetProcessMetrics",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/sequences": {
+      "post": {
+        "tags": [
+          "Sequences"
+        ],
+        "summary": "Create a sequence",
+        "operationId": "CreateSequence",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { },
+              "example": {
+                "name": "Morning routine",
+                "steps": [
+                  {
+                    "stepId": "command-warmup",
+                    "primitiveAction": {
+                      "type": "command",
+                      "schemaVersion": "v1",
+                      "payload": {
+                        "commandId": "command-warmup"
+                      }
+                    }
+                  },
+                  {
+                    "stepId": "command-start",
+                    "primitiveAction": {
+                      "type": "command",
+                      "schemaVersion": "v1",
+                      "payload": {
+                        "commandId": "command-start"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SequenceResponseSchema"
+                },
+                "example": {
+                  "id": "sequence-xyz",
+                  "name": "Morning routine",
+                  "steps": [
+                    {
+                      "stepId": "command-warmup",
+                      "primitiveAction": {
+                        "type": "command",
+                        "schemaVersion": "v1",
+                        "payload": {
+                          "commandId": "command-warmup"
+                        }
+                      }
+                    },
+                    {
+                      "stepId": "command-start",
+                      "primitiveAction": {
+                        "type": "command",
+                        "schemaVersion": "v1",
+                        "payload": {
+                          "commandId": "command-start"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Sequences"
+        ],
+        "summary": "List sequences",
+        "operationId": "ListSequences",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SequenceResponseSchema"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "sequence-xyz",
+                    "name": "Morning routine",
+                    "steps": [
+                      {
+                        "stepId": "command-warmup",
+                        "primitiveAction": {
+                          "type": "command",
+                          "schemaVersion": "v1",
+                          "payload": {
+                            "commandId": "command-warmup"
+                          }
+                        }
+                      },
+                      {
+                        "stepId": "command-start",
+                        "primitiveAction": {
+                          "type": "command",
+                          "schemaVersion": "v1",
+                          "payload": {
+                            "commandId": "command-start"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sequences/{sequenceId}": {
+      "get": {
+        "tags": [
+          "Sequences"
+        ],
+        "summary": "Get a sequence",
+        "operationId": "GetSequence",
+        "parameters": [
+          {
+            "name": "sequenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SequenceResponseSchema"
+                },
+                "example": {
+                  "id": "sequence-xyz",
+                  "name": "Morning routine",
+                  "steps": [
+                    {
+                      "stepId": "command-warmup",
+                      "primitiveAction": {
+                        "type": "command",
+                        "schemaVersion": "v1",
+                        "payload": {
+                          "commandId": "command-warmup"
+                        }
+                      }
+                    },
+                    {
+                      "stepId": "command-start",
+                      "primitiveAction": {
+                        "type": "command",
+                        "schemaVersion": "v1",
+                        "payload": {
+                          "commandId": "command-start"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Sequences"
+        ],
+        "summary": "Update a sequence",
+        "operationId": "UpdateSequence",
+        "parameters": [
+          {
+            "name": "sequenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SequenceRequestSchema"
+              },
+              "example": {
+                "name": "Morning routine",
+                "steps": [
+                  {
+                    "stepId": "command-warmup",
+                    "primitiveAction": {
+                      "type": "command",
+                      "schemaVersion": "v1",
+                      "payload": {
+                        "commandId": "command-warmup"
+                      }
+                    }
+                  },
+                  {
+                    "stepId": "command-start",
+                    "primitiveAction": {
+                      "type": "command",
+                      "schemaVersion": "v1",
+                      "payload": {
+                        "commandId": "command-start"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SequenceResponseSchema"
+                },
+                "example": {
+                  "id": "sequence-xyz",
+                  "name": "Morning routine",
+                  "steps": [
+                    {
+                      "stepId": "command-warmup",
+                      "primitiveAction": {
+                        "type": "command",
+                        "schemaVersion": "v1",
+                        "payload": {
+                          "commandId": "command-warmup"
+                        }
+                      }
+                    },
+                    {
+                      "stepId": "command-start",
+                      "primitiveAction": {
+                        "type": "command",
+                        "schemaVersion": "v1",
+                        "payload": {
+                          "commandId": "command-start"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Sequences"
+        ],
+        "summary": "Patch a sequence",
+        "operationId": "PatchSequence",
+        "parameters": [
+          {
+            "name": "sequenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SequenceRequestSchema"
+              },
+              "example": {
+                "name": "Morning routine",
+                "steps": [
+                  {
+                    "stepId": "command-warmup",
+                    "primitiveAction": {
+                      "type": "command",
+                      "schemaVersion": "v1",
+                      "payload": {
+                        "commandId": "command-warmup"
+                      }
+                    }
+                  },
+                  {
+                    "stepId": "command-start",
+                    "primitiveAction": {
+                      "type": "command",
+                      "schemaVersion": "v1",
+                      "payload": {
+                        "commandId": "command-start"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SequenceResponseSchema"
+                },
+                "example": {
+                  "id": "sequence-xyz",
+                  "name": "Morning routine",
+                  "steps": [
+                    {
+                      "stepId": "command-warmup",
+                      "primitiveAction": {
+                        "type": "command",
+                        "schemaVersion": "v1",
+                        "payload": {
+                          "commandId": "command-warmup"
+                        }
+                      }
+                    },
+                    {
+                      "stepId": "command-start",
+                      "primitiveAction": {
+                        "type": "command",
+                        "schemaVersion": "v1",
+                        "payload": {
+                          "commandId": "command-start"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sequences"
+        ],
+        "operationId": "DeleteSequence",
+        "parameters": [
+          {
+            "name": "sequenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/sequences/{sequenceId}/validate": {
+      "post": {
+        "tags": [
+          "Sequences"
+        ],
+        "summary": "Validate a sequence flow",
+        "operationId": "ValidateSequence",
+        "parameters": [
+          {
+            "name": "sequenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SequenceFlowUpsertRequestDto"
+              },
+              "example": {
+                "name": "Collect reward if found",
+                "version": 3,
+                "entryStepId": "start",
+                "steps": [
+                  {
+                    "stepId": "start",
+                    "label": "Run detector",
+                    "stepType": "command",
+                    "payloadRef": "cmd-001"
+                  },
+                  {
+                    "stepId": "decision",
+                    "label": "Check result",
+                    "stepType": "condition",
+                    "condition": {
+                      "nodeType": "operand",
+                      "operand": {
+                        "operandType": "command-outcome",
+                        "targetRef": "cmd-001",
+                        "expectedState": "success"
+                      }
+                    }
+                  }
+                ],
+                "links": [
+                  {
+                    "linkId": "l1",
+                    "sourceStepId": "start",
+                    "targetStepId": "decision",
+                    "branchType": "next"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SequenceValidateResponseSchema"
+                },
+                "example": {
+                  "valid": true,
+                  "errors": [ ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SequenceValidateResponseSchema"
+                },
+                "example": {
+                  "valid": false,
+                  "errors": [
+                    "Condition step 'decision' must have exactly one True and one False branch."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sequences/{sequenceId}/execute": {
+      "post": {
+        "tags": [
+          "Sequences",
+          "Sequences"
+        ],
+        "summary": "Execute a sequence",
+        "operationId": "ExecuteSequence",
+        "parameters": [
+          {
+            "name": "sequenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SequenceExecutionResult"
+                },
+                "example": {
+                  "sequenceId": "sequence-xyz",
+                  "status": "Succeeded",
+                  "startedAt": "2025-12-28T12:00:00Z",
+                  "endedAt": "2025-12-28T12:00:02Z",
+                  "steps": [
+                    {
+                      "order": 0,
+                      "commandId": "command-start",
+                      "status": "Succeeded",
+                      "attempts": 1,
+                      "durationMs": 120,
+                      "appliedDelayMs": 0
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "post": {
+        "tags": [
+          "Sessions",
+          "Sessions"
+        ],
+        "summary": "Create a session",
+        "operationId": "CreateSession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              },
+              "example": {
+                "gameId": "game-123",
+                "adbSerial": "emulator-5554"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponse"
+                },
+                "example": {
+                  "id": "session-123",
+                  "status": "PENDING",
+                  "gameId": "game-123"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}": {
+      "get": {
+        "tags": [
+          "Sessions",
+          "Sessions"
+        ],
+        "summary": "Get a session",
+        "operationId": "GetSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetailSchema"
+                },
+                "example": {
+                  "id": "session-123",
+                  "status": "RUNNING",
+                  "uptime": 42,
+                  "health": "HEALTHY",
+                  "gameId": "game-123"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sessions",
+          "Sessions"
+        ],
+        "summary": "Stop a session",
         "operationId": "StopSession",
         "parameters": [
           {
@@ -331,15 +2410,30 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStopSchema"
+                },
+                "example": {
+                  "stopped": true
+                }
+              }
+            }
           }
         }
       }
     },
-    "/sessions/{id}/device": {
+    "/api/sessions/{id}/device": {
       "get": {
         "tags": [
-          "GameBot.Service"
+          "Sessions",
+          "Sessions"
         ],
+        "summary": "Get session device",
         "operationId": "GetSessionDevice",
         "parameters": [
           {
@@ -353,16 +2447,30 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeviceSchema"
+                },
+                "example": {
+                  "id": "session-123",
+                  "deviceSerial": "emulator-5554",
+                  "mode": "ADB"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/sessions/{id}/inputs": {
+    "/api/sessions/{id}/inputs": {
       "post": {
         "tags": [
-          "GameBot.Service"
+          "Sessions",
+          "Sessions"
         ],
+        "summary": "Send inputs to a session",
         "operationId": "SendInputs",
         "parameters": [
           {
@@ -379,6 +2487,19 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/InputActionsRequest"
+              },
+              "example": {
+                "actions": [
+                  {
+                    "type": "tap",
+                    "args": {
+                      "x": 50,
+                      "y": 75
+                    },
+                    "delayMs": 0,
+                    "durationMs": 0
+                  }
+                ]
               }
             }
           },
@@ -387,15 +2508,30 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionAcceptedSchema"
+                },
+                "example": {
+                  "accepted": 1
+                }
+              }
+            }
           }
         }
       }
     },
-    "/sessions/{id}/health": {
+    "/api/sessions/{id}/health": {
       "get": {
         "tags": [
-          "GameBot.Service"
+          "Sessions",
+          "Sessions"
         ],
+        "summary": "Get session health",
         "operationId": "GetSessionHealth",
         "parameters": [
           {
@@ -409,16 +2545,35 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionHealthSchema"
+                },
+                "example": {
+                  "id": "session-123",
+                  "mode": "ADB",
+                  "deviceSerial": "emulator-5554",
+                  "adb": {
+                    "ok": true,
+                    "stdout": "device",
+                    "stderr": ""
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "/sessions/{id}/snapshot": {
+    "/api/sessions/{id}/snapshot": {
       "get": {
         "tags": [
-          "GameBot.Service"
+          "Sessions",
+          "Sessions"
         ],
+        "summary": "Fetch a session snapshot",
         "operationId": "GetSnapshot",
         "parameters": [
           {
@@ -437,209 +2592,41 @@
         }
       }
     },
-    "/sessions/{id}/execute-action": {
-      "post": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "ExecuteAction",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "actionId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/games": {
-      "post": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "CreateGame",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateGameRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
+    "/api/sessions/running": {
       "get": {
         "tags": [
-          "GameBot.Service"
+          "Sessions"
         ],
-        "operationId": "ListGames",
+        "summary": "List running sessions",
         "responses": {
           "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/games/{id}": {
-      "get": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "GetGame",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/adb/version": {
-      "get": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "AdbVersion",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/adb/devices": {
-      "get": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "AdbDevices",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/images": {
-      "post": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "UploadImageReference",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UploadImageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/images/{id}": {
-      "get": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "GetImageReference",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/images/detect": {
-      "post": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "DetectImageMatches",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DetectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Detection results",
+            "description": "OK",
             "content": {
-              "application/json": {
+              "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/DetectResponse"
+                  "$ref": "#/components/schemas/RunningSessionsResponse"
                 }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
+              },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RunningSessionsResponse"
+                },
+                "example": {
+                  "sessions": [
+                    {
+                      "sessionId": "session-abc",
+                      "gameId": "game-123",
+                      "emulatorId": "emulator-5554",
+                      "startedAtUtc": "2026-01-28T10:00:00Z",
+                      "lastHeartbeatUtc": "2026-01-28T10:02:00Z",
+                      "status": "running"
+                    }
+                  ]
                 }
-              }
-            }
-          },
-          "404": {
-            "description": "Reference image not found",
-            "content": {
-              "application/json": {
+              },
+              "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RunningSessionsResponse"
                 }
               }
             }
@@ -647,64 +2634,191 @@
         }
       }
     },
-    "/metrics/triggers": {
-      "get": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "GetTriggerEvaluationMetrics",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/config": {
-      "get": {
-        "tags": [
-          "GameBot.Service"
-        ],
-        "operationId": "GetConfiguration",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/config/refresh": {
+    "/api/sessions/start": {
       "post": {
         "tags": [
-          "GameBot.Service"
+          "Sessions"
         ],
-        "operationId": "RefreshConfiguration",
+        "summary": "Start a session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSessionRequest"
+              },
+              "example": {
+                "primitiveAction": {
+                  "type": "connect-to-game",
+                  "schemaVersion": "v1",
+                  "payload": {
+                    "gameId": "game-123",
+                    "adbSerial": "emulator-5554"
+                  }
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSessionRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartSessionResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartSessionResponse"
+                },
+                "example": {
+                  "sessionId": "session-abc",
+                  "runningSessions": [
+                    {
+                      "sessionId": "session-abc",
+                      "gameId": "game-123",
+                      "emulatorId": "emulator-5554",
+                      "startedAtUtc": "2026-01-28T10:00:00Z",
+                      "lastHeartbeatUtc": "2026-01-28T10:02:00Z",
+                      "status": "running"
+                    },
+                    {
+                      "sessionId": "session-def",
+                      "gameId": "game-456",
+                      "emulatorId": "emulator-9999",
+                      "startedAtUtc": "2026-01-28T09:58:00Z",
+                      "lastHeartbeatUtc": "2026-01-28T10:01:30Z",
+                      "status": "running"
+                    }
+                  ]
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartSessionResponse"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/triggers": {
+    "/api/sessions/stop": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Stop a session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopSessionRequest"
+              },
+              "example": {
+                "sessionId": "session-abc"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopSessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopSessionResponse"
+                },
+                "example": {
+                  "stopped": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/triggers": {
       "post": {
         "tags": [
           "Triggers"
         ],
+        "summary": "Create a trigger",
         "operationId": "CreateTrigger",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TriggerCreateDto"
+                "$ref": "#/components/schemas/TriggerAuthoringSchema"
+              },
+              "example": {
+                "name": "Start screen ready",
+                "criteria": {
+                  "type": "image-match",
+                  "referenceImageId": "start-screen",
+                  "region": {
+                    "x": 0.1,
+                    "y": 0.1,
+                    "width": 0.5,
+                    "height": 0.5
+                  },
+                  "similarityThreshold": 0.9
+                }
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerResponseSchema"
+                },
+                "example": {
+                  "id": "trigger-123",
+                  "name": "Start screen ready",
+                  "criteria": {
+                    "type": "image-match",
+                    "referenceImageId": "start-screen",
+                    "region": {
+                      "x": 0.1,
+                      "y": 0.1,
+                      "width": 0.5,
+                      "height": 0.5
+                    },
+                    "similarityThreshold": 0.9
+                  },
+                  "commands": [ ],
+                  "sequence": "sequence-xyz"
+                }
+              }
+            }
           }
         }
       },
@@ -712,19 +2826,50 @@
         "tags": [
           "Triggers"
         ],
+        "summary": "List triggers",
         "operationId": "ListTriggers",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TriggerResponseSchema"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "trigger-123",
+                    "name": "Start screen ready",
+                    "criteria": {
+                      "type": "image-match",
+                      "referenceImageId": "start-screen",
+                      "region": {
+                        "x": 0.1,
+                        "y": 0.1,
+                        "width": 0.5,
+                        "height": 0.5
+                      },
+                      "similarityThreshold": 0.9
+                    },
+                    "commands": [ ],
+                    "sequence": "sequence-xyz"
+                  }
+                ]
+              }
+            }
           }
         }
       }
     },
-    "/triggers/{id}": {
+    "/api/triggers/{id}": {
       "get": {
         "tags": [
           "Triggers"
         ],
+        "summary": "Get a trigger",
         "operationId": "GetTrigger",
         "parameters": [
           {
@@ -738,7 +2883,100 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerResponseSchema"
+                },
+                "example": {
+                  "id": "trigger-123",
+                  "name": "Start screen ready",
+                  "criteria": {
+                    "type": "image-match",
+                    "referenceImageId": "start-screen",
+                    "region": {
+                      "x": 0.1,
+                      "y": 0.1,
+                      "width": 0.5,
+                      "height": 0.5
+                    },
+                    "similarityThreshold": 0.9
+                  },
+                  "commands": [ ],
+                  "sequence": "sequence-xyz"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Triggers"
+        ],
+        "summary": "Update a trigger",
+        "operationId": "UpdateTrigger",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerAuthoringSchema"
+              },
+              "example": {
+                "name": "Start screen ready",
+                "criteria": {
+                  "type": "image-match",
+                  "referenceImageId": "start-screen",
+                  "region": {
+                    "x": 0.1,
+                    "y": 0.1,
+                    "width": 0.5,
+                    "height": 0.5
+                  },
+                  "similarityThreshold": 0.9
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerResponseSchema"
+                },
+                "example": {
+                  "id": "trigger-123",
+                  "name": "Start screen ready",
+                  "criteria": {
+                    "type": "image-match",
+                    "referenceImageId": "start-screen",
+                    "region": {
+                      "x": 0.1,
+                      "y": 0.1,
+                      "width": 0.5,
+                      "height": 0.5
+                    },
+                    "similarityThreshold": 0.9
+                  },
+                  "commands": [ ],
+                  "sequence": "sequence-xyz"
+                }
+              }
+            }
           }
         }
       },
@@ -764,11 +3002,12 @@
         }
       }
     },
-    "/triggers/{id}/test": {
+    "/api/triggers/{id}/test": {
       "post": {
         "tags": [
           "Triggers"
         ],
+        "summary": "Evaluate a trigger",
         "operationId": "TestTrigger",
         "parameters": [
           {
@@ -782,7 +3021,73 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerTestResponseSchema"
+                },
+                "example": {
+                  "status": "Satisfied",
+                  "evaluatedAt": "2025-12-28T12:00:00Z",
+                  "reason": "Image match exceeded threshold"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/versioning/resolve": {
+      "post": {
+        "tags": [
+          "Versioning"
+        ],
+        "summary": "Resolve semantic installer version from source inputs",
+        "operationId": "ResolveVersion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionResolveRequestModel"
+              },
+              "example": {
+                "buildContext": "ci",
+                "override": {
+                  "major": 1,
+                  "minor": 2
+                },
+                "ciBuildCounter": {
+                  "lastBuild": 18
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { },
+                "example": {
+                  "version": {
+                    "major": 1,
+                    "minor": 2,
+                    "patch": 0,
+                    "build": 19
+                  },
+                  "source": "ci",
+                  "persisted": true,
+                  "authoritative": true,
+                  "notes": [
+                    "minor:override",
+                    "build:ci-authoritative"
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -790,86 +3095,104 @@
   },
   "components": {
     "schemas": {
-      "CommandStepDto": {
-        "required": [
-          "targetId",
-          "type"
-        ],
+      "AuthoringDeepLinkDto": {
         "type": "object",
         "properties": {
-          "type": {
-            "$ref": "#/components/schemas/CommandStepTypeDto"
-          },
-          "targetId": {
+          "sequenceId": {
             "type": "string",
             "nullable": true
           },
-          "order": {
+          "stepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sequenceLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "stepLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "resolutionStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "fallbackRoute": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BlockResult": {
+        "type": "object",
+        "properties": {
+          "blockType": {
+            "type": "string",
+            "nullable": true
+          },
+          "iterations": {
             "type": "integer",
             "format": "int32"
-          }
-        },
-        "additionalProperties": false
-      },
-      "DetectionSelectionStrategyDto": {
-        "type": "string",
-        "enum": [
-          "HighestConfidence",
-          "FirstMatch"
-        ]
-      },
-      "DetectionTargetDto": {
-        "type": "object",
-        "properties": {
-          "referenceImageId": { "type": "string" },
-          "confidence": { "type": "number", "format": "double" },
-          "offsetX": { "type": "integer", "format": "int32" },
-          "offsetY": { "type": "integer", "format": "int32" },
-          "selectionStrategy": { "$ref": "#/components/schemas/DetectionSelectionStrategyDto" }
-        },
-        "required": [ "referenceImageId" ]
-      },
-      "CommandStepTypeDto": {
-        "enum": [
-          0,
-          1
-        ],
-        "type": "integer",
-        "format": "int32"
-      },
-      "CreateActionRequest": {
-        "required": [
-          "gameId",
-          "name"
-        ],
-        "type": "object",
-        "properties": {
-          "name": {
+          },
+          "evaluations": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "branchTaken": {
             "type": "string",
             "nullable": true
           },
-          "gameId": {
+          "durationMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "appliedDelayMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
             "type": "string",
-            "nullable": true
-          },
-          "steps": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/InputActionDto"
-            },
-            "nullable": true
-          },
-          "checkpoints": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
             "nullable": true
           }
         },
         "additionalProperties": false
       },
-      "CreateCommandRequest": {
+      "BranchLinkDto": {
+        "type": "object",
+        "properties": {
+          "linkId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceStepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetStepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchType": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CiBuildCounterModel": {
+        "type": "object",
+        "properties": {
+          "lastBuild": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommandCreateSchema": {
         "required": [
           "name"
         ],
@@ -889,23 +3212,399 @@
               "$ref": "#/components/schemas/CommandStepDto"
             },
             "nullable": true
-          },
-          "detection": { "$ref": "#/components/schemas/DetectionTargetDto" }
+          }
         },
         "additionalProperties": false
       },
-      "CreateGameRequest": {
+      "CommandEvaluateResponseSchema": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "triggerStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommandOutcomeCondition": {
         "required": [
+          "expectedState",
+          "stepRef"
+        ],
+        "type": "object",
+        "properties": {
+          "negate": {
+            "type": "boolean"
+          },
+          "stepRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "expectedState": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommandOutcomeConditionContract": {
+        "required": [
+          "expectedState",
+          "stepRef"
+        ],
+        "type": "object",
+        "properties": {
+          "negate": {
+            "type": "boolean"
+          },
+          "stepRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "expectedState": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommandResponse": {
+        "required": [
+          "id",
           "name"
         ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "triggerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommandStepDto"
+            },
+            "nullable": true
+          },
+          "detection": {
+            "$ref": "#/components/schemas/DetectionTargetDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommandStepDto": {
+        "required": [
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/CommandStepTypeDto"
+          },
+          "targetId": {
+            "type": "string",
+            "nullable": true
+          },
+          "primitiveTap": {
+            "$ref": "#/components/schemas/PrimitiveTapConfigDto"
+          },
+          "order": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommandStepTypeDto": {
+        "enum": [
+          "Command",
+          "PrimitiveTap"
+        ],
+        "type": "string"
+      },
+      "ConditionEvaluationTrace": {
+        "type": "object",
+        "properties": {
+          "finalResult": {
+            "type": "boolean"
+          },
+          "selectedBranch": {
+            "type": "string",
+            "nullable": true
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "operandResults": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": { }
+            },
+            "nullable": true
+          },
+          "operatorSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": { }
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConditionEvaluationTraceDto": {
+        "type": "object",
+        "properties": {
+          "finalResult": {
+            "type": "boolean"
+          },
+          "selectedBranch": {
+            "type": "string",
+            "nullable": true
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "operandResults": {
+            "type": "array",
+            "items": { },
+            "nullable": true
+          },
+          "operatorSteps": {
+            "type": "array",
+            "items": { },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConditionExpression": {
+        "type": "object",
+        "properties": {
+          "nodeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConditionExpressionDto"
+            },
+            "nullable": true
+          },
+          "operand": {
+            "$ref": "#/components/schemas/ConditionOperandDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConditionExpressionDto": {
+        "type": "object",
+        "properties": {
+          "nodeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConditionExpressionDto"
+            },
+            "nullable": true
+          },
+          "operand": {
+            "$ref": "#/components/schemas/ConditionOperandDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConditionOperand": {
+        "type": "object",
+        "properties": {
+          "operandType": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "expectedState": {
+            "type": "string",
+            "nullable": true
+          },
+          "threshold": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConditionOperandDto": {
+        "type": "object",
+        "properties": {
+          "operandType": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "expectedState": {
+            "type": "string",
+            "nullable": true
+          },
+          "threshold": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConditionStepTraceResult": {
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "stepLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "trace": {
+            "$ref": "#/components/schemas/ConditionEvaluationTrace"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfigFileSnapshotSchema": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ConfigParameterSchema"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfigFileUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "updates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfigParameterSchema": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
             "nullable": true
           },
-          "description": {
+          "source": {
             "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "isSecret": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfigReorderRequest": {
+        "required": [
+          "orderedKeys"
+        ],
+        "type": "object",
+        "properties": {
+          "orderedKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfigUpdateRequest": {
+        "required": [
+          "updates"
+        ],
+        "type": "object",
+        "properties": {
+          "updates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfigurationSnapshotSchema": {
+        "type": "object",
+        "properties": {
+          "generatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serviceVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "refreshCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ConfigParameterSchema"
+            },
             "nullable": true
           }
         },
@@ -924,6 +3623,613 @@
           },
           "adbSerial": {
             "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateSessionResponse": {
+        "required": [
+          "gameId",
+          "id",
+          "sessionId",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "gameId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CropRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "bounds": {
+            "$ref": "#/components/schemas/CropRequestBounds"
+          },
+          "sourceCaptureId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CropRequestBounds": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "y": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DelayRangeMsContract": {
+        "type": "object",
+        "properties": {
+          "min": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "max": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectRequest": {
+        "type": "object",
+        "properties": {
+          "referenceImageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "threshold": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "maxResults": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "overlap": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectResponse": {
+        "type": "object",
+        "properties": {
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchResult"
+            },
+            "nullable": true
+          },
+          "limitsHit": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectionSelectionStrategyDto": {
+        "enum": [
+          "HighestConfidence",
+          "FirstMatch"
+        ],
+        "type": "string"
+      },
+      "DetectionTargetDto": {
+        "required": [
+          "referenceImageId"
+        ],
+        "type": "object",
+        "properties": {
+          "referenceImageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "offsetX": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "offsetY": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "selectionStrategy": {
+            "$ref": "#/components/schemas/DetectionSelectionStrategyDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionDetailItemDto": {
+        "required": [
+          "kind",
+          "message",
+          "sensitivity"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "attributes": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "nullable": true
+          },
+          "sensitivity": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionHierarchyContextDto": {
+        "required": [
+          "rootExecutionId"
+        ],
+        "type": "object",
+        "properties": {
+          "rootExecutionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentExecutionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "depth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sequenceIndex": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionLogEntryDto": {
+        "required": [
+          "details",
+          "executionType",
+          "finalStatus",
+          "hierarchy",
+          "id",
+          "navigation",
+          "objectRef",
+          "stepOutcomes",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "executionType": {
+            "type": "string",
+            "nullable": true
+          },
+          "finalStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "objectRef": {
+            "$ref": "#/components/schemas/ExecutionObjectReferenceDto"
+          },
+          "navigation": {
+            "$ref": "#/components/schemas/ExecutionNavigationContextDto"
+          },
+          "hierarchy": {
+            "$ref": "#/components/schemas/ExecutionHierarchyContextDto"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionDetailItemDto"
+            },
+            "nullable": true
+          },
+          "stepOutcomes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionStepOutcomeDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionLogListResponseDto": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionLogEntryDto"
+            },
+            "nullable": true
+          },
+          "nextPageToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionLogRetentionPolicyDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cleanupIntervalMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionLogRetentionPolicyPatchDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cleanupIntervalMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionNavigationContextDto": {
+        "required": [
+          "directPath",
+          "pathKind"
+        ],
+        "type": "object",
+        "properties": {
+          "directPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "pathKind": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionObjectReferenceDto": {
+        "required": [
+          "displayNameSnapshot",
+          "objectId",
+          "objectType"
+        ],
+        "type": "object",
+        "properties": {
+          "objectType": {
+            "type": "string",
+            "nullable": true
+          },
+          "objectId": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayNameSnapshot": {
+            "type": "string",
+            "nullable": true
+          },
+          "versionSnapshot": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionStepOutcomeDto": {
+        "required": [
+          "outcome",
+          "stepType"
+        ],
+        "type": "object",
+        "properties": {
+          "stepOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stepType": {
+            "type": "string",
+            "nullable": true
+          },
+          "outcome": {
+            "type": "string",
+            "nullable": true
+          },
+          "reasonCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "reasonText": {
+            "type": "string",
+            "nullable": true
+          },
+          "appliedDelayMs": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FlowStepDto": {
+        "required": [
+          "stepId",
+          "stepType"
+        ],
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "stepType": {
+            "type": "string",
+            "nullable": true
+          },
+          "payloadRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "iterationLimit": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "condition": {
+            "$ref": "#/components/schemas/ConditionExpressionDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GameCreateSchema": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GameResponseSchema": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImageOverwriteResponseSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "contentType": {
+            "type": "string",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImageReferenceListItemSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImageReferenceSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "fallback": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImageUploadResponseSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "overwrite": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImageVisibleCondition": {
+        "required": [
+          "imageId"
+        ],
+        "type": "object",
+        "properties": {
+          "negate": {
+            "type": "boolean"
+          },
+          "imageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "minSimilarity": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ImageVisibleConditionContract": {
+        "required": [
+          "imageId"
+        ],
+        "type": "object",
+        "properties": {
+          "negate": {
+            "type": "boolean"
+          },
+          "imageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "minSimilarity": {
+            "type": "number",
+            "format": "double",
             "nullable": true
           }
         },
@@ -973,27 +4279,1170 @@
         },
         "additionalProperties": false
       },
-      "TriggerCreateDto": {
+      "InstallCompareRequestModel": {
         "required": [
-          "params",
+          "candidateVersion",
+          "installedVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "installedVersion": {
+            "$ref": "#/components/schemas/SemanticVersionModel"
+          },
+          "candidateVersion": {
+            "$ref": "#/components/schemas/SemanticVersionModel"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LogLevel": {
+        "enum": [
+          "Trace",
+          "Debug",
+          "Information",
+          "Warning",
+          "Error",
+          "Critical",
+          "None"
+        ],
+        "type": "string"
+      },
+      "LoggingComponentPatchDto": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "$ref": "#/components/schemas/LogLevel"
+          },
+          "enabled": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoggingComponentSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoggingPolicyResetRequestDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoggingPolicySchema": {
+        "type": "object",
+        "properties": {
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoggingComponentSchema"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoopConfigContract": {
+        "type": "object",
+        "properties": {
+          "maxIterations": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoopIterResult": {
+        "type": "object",
+        "properties": {
+          "iterationIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "breakTriggered": {
+            "type": "boolean"
+          },
+          "stepCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MatchResult": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "nullable": true
+          },
+          "score": {
+            "type": "number",
+            "format": "double"
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double"
+          },
+          "bbox": {
+            "$ref": "#/components/schemas/NormalizedRect"
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          },
+          "height": {
+            "type": "number",
+            "format": "double"
+          },
+          "overlap": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NormalizedRect": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          },
+          "height": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OverwriteImageRequest": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string",
+            "nullable": true
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PrimitiveAction": {
+        "required": [
           "type"
         ],
         "type": "object",
         "properties": {
           "type": {
-            "minLength": 1,
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
-          "enabled": {
-            "type": "boolean"
+          "schemaVersion": {
+            "type": "string",
+            "nullable": true
           },
-          "cooldownSeconds": {
-            "maximum": 2147483647,
-            "minimum": 0,
+          "payload": {
+            "type": "object",
+            "additionalProperties": { },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PrimitiveActionRequest": {
+        "required": [
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "schemaVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": { },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PrimitiveTapConfigDto": {
+        "required": [
+          "detectionTarget"
+        ],
+        "type": "object",
+        "properties": {
+          "detectionTarget": {
+            "$ref": "#/components/schemas/DetectionTargetDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegionSchema": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          },
+          "height": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunningSessionDto": {
+        "required": [
+          "emulatorId",
+          "gameId",
+          "sessionId"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "gameId": {
+            "type": "string",
+            "nullable": true
+          },
+          "emulatorId": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastHeartbeatUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunningSessionStatus"
+          },
+          "captureRateFps": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunningSessionStatus": {
+        "enum": [
+          "Running",
+          "Stopping"
+        ],
+        "type": "string"
+      },
+      "RunningSessionsResponse": {
+        "required": [
+          "sessions"
+        ],
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunningSessionDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SameBuildDecisionRequestModel": {
+        "required": [
+          "mode"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "nullable": true
+          },
+          "interactiveChoice": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SemanticVersionModel": {
+        "required": [
+          "build",
+          "major",
+          "minor",
+          "patch"
+        ],
+        "type": "object",
+        "properties": {
+          "major": {
             "type": "integer",
             "format": "int32"
           },
-          "params": { }
+          "minor": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "patch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "build": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceExecutionResult": {
+        "type": "object",
+        "properties": {
+          "sequenceId": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepResult"
+            },
+            "nullable": true,
+            "readOnly": true
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockResult"
+            },
+            "nullable": true,
+            "readOnly": true
+          },
+          "conditionTraces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConditionStepTraceResult"
+            },
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceFlow": {
+        "type": "object",
+        "properties": {
+          "sequenceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "entryStepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowStepDto"
+            },
+            "nullable": true
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchLinkDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceFlowDto": {
+        "type": "object",
+        "properties": {
+          "sequenceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "entryStepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowStepDto"
+            },
+            "nullable": true
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchLinkDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceFlowUpsertRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "entryStepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowStepDto"
+            },
+            "nullable": true
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchLinkDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceFlowUpsertRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "entryStepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowStepDto"
+            },
+            "nullable": true
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchLinkDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequencePatchContract": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SequenceStepContract"
+            },
+            "nullable": true
+          },
+          "interStepDelayRangeMs": {
+            "$ref": "#/components/schemas/DelayRangeMsContract"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceRequestSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceResponseSchema": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceSaveConflict": {
+        "type": "object",
+        "properties": {
+          "sequenceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceSaveConflictDto": {
+        "type": "object",
+        "properties": {
+          "sequenceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceStep": {
+        "required": [
+          "stepId"
+        ],
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "stepType": {
+            "type": "string",
+            "nullable": true
+          },
+          "primitiveAction": {
+            "$ref": "#/components/schemas/PrimitiveActionRequest"
+          },
+          "condition": {
+            "$ref": "#/components/schemas/SequenceStepConditionContract"
+          },
+          "loop": {
+            "$ref": "#/components/schemas/LoopConfigContract"
+          },
+          "body": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SequenceStepContract"
+            },
+            "nullable": true
+          },
+          "breakCondition": {
+            "$ref": "#/components/schemas/SequenceStepConditionContract"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceStepCondition": {
+        "type": "object",
+        "properties": {
+          "negate": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceStepConditionContract": {
+        "type": "object",
+        "properties": {
+          "negate": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceStepContract": {
+        "required": [
+          "stepId"
+        ],
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "stepType": {
+            "type": "string",
+            "nullable": true
+          },
+          "primitiveAction": {
+            "$ref": "#/components/schemas/PrimitiveActionRequest"
+          },
+          "condition": {
+            "$ref": "#/components/schemas/SequenceStepConditionContract"
+          },
+          "loop": {
+            "$ref": "#/components/schemas/LoopConfigContract"
+          },
+          "body": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SequenceStepContract"
+            },
+            "nullable": true
+          },
+          "breakCondition": {
+            "$ref": "#/components/schemas/SequenceStepConditionContract"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceUpsertContract": {
+        "required": [
+          "name",
+          "steps"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SequenceStepContract"
+            },
+            "nullable": true
+          },
+          "interStepDelayRangeMs": {
+            "$ref": "#/components/schemas/DelayRangeMsContract"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceUpsertRequest": {
+        "required": [
+          "name",
+          "steps"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SequenceStepContract"
+            },
+            "nullable": true
+          },
+          "interStepDelayRangeMs": {
+            "$ref": "#/components/schemas/DelayRangeMsContract"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SequenceValidateResponseSchema": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionAcceptedSchema": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionDetailSchema": {
+        "required": [
+          "id",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "uptime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "health": {
+            "type": "string",
+            "nullable": true
+          },
+          "gameId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionDeviceSchema": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "deviceSerial": {
+            "type": "string",
+            "nullable": true
+          },
+          "mode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionHealthAdbSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "stdout": {
+            "type": "string",
+            "nullable": true
+          },
+          "stderr": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionHealthSchema": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "mode": {
+            "type": "string",
+            "nullable": true
+          },
+          "deviceSerial": {
+            "type": "string",
+            "nullable": true
+          },
+          "adb": {
+            "$ref": "#/components/schemas/SessionHealthAdbSchema"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionStopSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StartSessionRequest": {
+        "required": [
+          "primitiveAction"
+        ],
+        "type": "object",
+        "properties": {
+          "primitiveAction": {
+            "$ref": "#/components/schemas/PrimitiveActionRequest"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StartSessionResponse": {
+        "required": [
+          "runningSessions",
+          "sessionId"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "runningSessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunningSessionDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StepResult": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "commandId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "attempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "appliedDelayMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "interStepDelayMs": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "conditionType": {
+            "type": "string",
+            "nullable": true
+          },
+          "conditionResult": {
+            "type": "string",
+            "nullable": true
+          },
+          "actionOutcome": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "loopIterations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoopIterResult"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StopSessionRequest": {
+        "required": [
+          "sessionId"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StopSessionResponse": {
+        "type": "object",
+        "properties": {
+          "stopped": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TriggerAuthoringSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "criteria": {
+            "$ref": "#/components/schemas/TriggerCriteriaSchema"
+          },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "sequence": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TriggerCriteriaSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "referenceImageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "region": {
+            "$ref": "#/components/schemas/RegionSchema"
+          },
+          "similarityThreshold": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TriggerResponseSchema": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "criteria": {
+            "$ref": "#/components/schemas/TriggerCriteriaSchema"
+          },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "sequence": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TriggerTestResponseSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
         },
         "additionalProperties": false
       },
@@ -1015,13 +5464,14 @@
             },
             "nullable": true
           },
-          "detection": { "$ref": "#/components/schemas/DetectionTargetDto" }
+          "detection": {
+            "$ref": "#/components/schemas/DetectionTargetDto"
+          }
         },
         "additionalProperties": false
       },
       "UploadImageRequest": {
         "required": [
-          "data",
           "id"
         ],
         "type": "object",
@@ -1029,302 +5479,79 @@
           "id": {
             "minLength": 1,
             "type": "string"
-              "/api/sequences": {
-                "post": {
-                  "summary": "Create sequence",
-                  "operationId": "CreateSequence",
-                  "requestBody": {
-                    "required": true,
-                    "content": {
-                      "application/json": {
-                        "schema": { "$ref": "#/components/schemas/SequenceDto" }
-                      }
-                    }
-                  },
-                  "responses": {
-                    "201": {
-                      "description": "Created",
-                      "content": {
-                        "application/json": {
-                          "schema": { "$ref": "#/components/schemas/SequenceDto" }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "/api/sequences/{id}": {
-                "get": {
-                  "summary": "Get sequence",
-                  "operationId": "GetSequence",
-                  "parameters": [
-                    { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
-                  ],
-                  "responses": {
-                    "200": {
-                      "description": "OK",
-                      "content": {
-                        "application/json": {
-                          "schema": { "$ref": "#/components/schemas/SequenceDto" }
-                        }
-                      }
-                    },
-                    "404": { "description": "Not Found" }
-                  }
-                },
-                "put": {
-                  "summary": "Update sequence",
-                  "operationId": "UpdateSequence",
-                  "parameters": [
-                    { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
-                  ],
-                  "requestBody": {
-                    "required": true,
-                    "content": {
-                      "application/json": {
-                        "schema": { "$ref": "#/components/schemas/SequenceDto" }
-                      }
-                    }
-                  },
-                  "responses": {
-                    "200": {
-                      "description": "OK",
-                      "content": {
-                        "application/json": {
-                          "schema": { "$ref": "#/components/schemas/SequenceDto" }
-                        }
-                      }
-                    },
-                    "404": { "description": "Not Found" }
-                  }
-                },
-                "delete": {
-                  "summary": "Delete sequence",
-                  "operationId": "DeleteSequence",
-                  "parameters": [
-                    { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
-                  ],
-                  "responses": {
-                    "204": { "description": "No Content" },
-                    "404": { "description": "Not Found" }
-                  }
-                }
-              },
-              "/api/sequences/{id}/execute": {
-                "post": {
-                  "summary": "Execute sequence",
-                  "operationId": "ExecuteSequence",
-                  "parameters": [
-                    { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
-                  ],
-                  "responses": {
-                    "200": {
-                      "description": "Execution result",
-                      "content": {
-                        "application/json": {
-                          "schema": { "$ref": "#/components/schemas/ExecuteResultDto" }
-                        }
-                      }
-                    },
-                    "404": { "description": "Not Found" }
-                  }
-                }
-              }
           },
           "data": {
-            "minLength": 1,
-                "SequenceDto": {
-                  "type": "object",
-                  "required": ["name", "steps"],
-                  "properties": {
-                    "id": { "type": "string" },
-                    "name": { "type": "string" },
-                    "steps": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/StepDto" }
-                    },
-                    "createdAt": { "type": "string", "format": "date-time" },
-                    "updatedAt": { "type": "string", "format": "date-time" }
-                  }
-                },
-                "StepDto": {
-                  "type": "object",
-                  "required": ["order", "commandId"],
-                  "properties": {
-                    "order": { "type": "integer", "minimum": 1 },
-                    "commandId": { "type": "string" },
-                    "delayMs": { "type": "integer", "minimum": 0 },
-                    "delayRangeMs": {
-                      "type": "object",
-                      "properties": {
-                        "min": { "type": "integer", "minimum": 0 },
-                        "max": { "type": "integer", "minimum": 0 }
-                      }
-                    },
-                    "timeoutMs": { "type": "integer", "minimum": 0 },
-                    "retry": {
-                      "type": "object",
-                      "properties": {
-                        "maxAttempts": { "type": "integer", "minimum": 1 },
-                        "backoffMs": { "type": "integer", "minimum": 0 }
-                      }
-                    }
-                  }
-                },
-                "ExecuteResultDto": {
-                  "type": "object",
-                  "required": ["sequenceId", "status", "startedAt", "endedAt", "steps"],
-                  "properties": {
-                    "sequenceId": { "type": "string" },
-                    "status": { "type": "string", "enum": ["Succeeded", "Failed", "Canceled", "PartialSuccess"] },
-                    "startedAt": { "type": "string", "format": "date-time" },
-                    "endedAt": { "type": "string", "format": "date-time" },
-                    "steps": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "order": { "type": "integer" },
-                          "commandId": { "type": "string" },
-                          "status": { "type": "string", "enum": ["Succeeded", "Failed", "Skipped"] },
-                          "attempts": { "type": "integer", "minimum": 1 },
-                          "durationMs": { "type": "integer", "minimum": 0 },
-                          "error": { "type": "string" }
-                        }
-                      }
-                    }
-                  }
-                }
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "nullable": true
           }
         },
         "additionalProperties": false
       },
-      "DetectRequest": {
+      "VersionOverrideModel": {
         "type": "object",
-        "required": [
-          "referenceImageId"
-        ],
         "properties": {
-          "referenceImageId": {
-            "type": "string",
-            "description": "Identifier of a previously stored reference image"
-          },
-          "threshold": {
-            "type": "number",
-            "format": "float",
-            "minimum": 0,
-            "maximum": 1,
-            "default": 0.8
-          },
-          "maxResults": {
+          "major": {
             "type": "integer",
-            "minimum": 1,
-            "maximum": 100,
-            "default": 10
+            "format": "int32",
+            "nullable": true
           },
-          "overlap": {
-            "type": "number",
-            "format": "float",
-            "minimum": 0,
-            "maximum": 1,
-            "default": 0.3
-          }
-        }
-      },
-      "DetectResponse": {
-        "type": "object",
-        "properties": {
-          "matches": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MatchResult"
-            }
+          "minor": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           },
-          "limitsHit": {
-            "type": "boolean",
-            "description": "True if limited by maxResults or timeout"
+          "patch": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
-        }
+        },
+        "additionalProperties": false
       },
-      "MatchResult": {
-        "type": "object",
-        "properties": {
-          "bbox": {
-            "$ref": "#/components/schemas/NormalizedRect"
-          },
-          "confidence": {
-            "type": "number",
-            "format": "float",
-            "minimum": 0,
-            "maximum": 1
-          }
-        }
-      },
-      "NormalizedRect": {
-        "type": "object",
+      "VersionResolveRequestModel": {
         "required": [
-          "x",
-          "y",
-          "width",
-          "height"
+          "buildContext"
         ],
-        "properties": {
-          "x": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "y": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "width": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "height": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          }
-        }
-      },
-      "Error": {
         "type": "object",
-        "required": [
-          "code",
-          "message"
-        ],
         "properties": {
-          "code": {
+          "buildContext": {
             "type": "string",
-            "enum": [
-              "invalid_request",
-              "not_found"
-            ]
+            "nullable": true
           },
-          "message": {
-            "type": "string"
+          "override": {
+            "$ref": "#/components/schemas/VersionOverrideModel"
+          },
+          "ciBuildCounter": {
+            "$ref": "#/components/schemas/CiBuildCounterModel"
+          },
+          "major": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "minor": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "patch": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "lastCiBuild": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
-  },
-  "tags": [
-    {
-      "name": "Actions"
-    },
-    {
-      "name": "Commands"
-    },
-    {
-      "name": "GameBot.Service"
-    },
-    {
-      "name": "Triggers"
-    }
-  ]
+  }
 }

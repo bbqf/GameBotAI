@@ -4,7 +4,6 @@ export type TriggerDto = {
   id: string;
   name: string;
   criteria?: Record<string, unknown>;
-  actions?: string[];
   commands?: string[];
   sequence?: string;
 };
@@ -12,7 +11,6 @@ export type TriggerDto = {
 export type TriggerCreate = {
   name: string;
   criteria?: Record<string, unknown>;
-  actions?: string[];
   commands?: string[];
   sequence?: string;
 };

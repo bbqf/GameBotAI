@@ -20,19 +20,18 @@ public sealed class CommandExecutorTests {
     var trigger = CreateTrigger();
     var triggerRepo = new TriggerRepositorySpy(trigger);
     var command = CreateCommand(trigger.Id);
-    var action = CreateAction(command.Steps[0].TargetId);
-    var executor = CreateExecutor(command, action, triggerRepo, TriggerStatus.Satisfied, "delay_elapsed", out var sessionManager);
+    var executor = CreateExecutor(command, triggerRepo, TriggerStatus.Satisfied, "delay_elapsed", out var sessionManager);
 
     var decision = await executor.EvaluateAndExecuteAsync(sessionManager.Session.Id, command.Id, CancellationToken.None).ConfigureAwait(false);
 
-    decision.Accepted.Should().Be(1);
+    decision.Accepted.Should().Be(0);
     decision.TriggerStatus.Should().Be(TriggerStatus.Satisfied);
     triggerRepo.UpsertCount.Should().Be(1);
     triggerRepo.LastUpsertedTrigger.Should().NotBeNull();
     triggerRepo.LastUpsertedTrigger!.LastFiredAt.Should().Be(triggerRepo.LastUpsertedTrigger.LastEvaluatedAt);
-    sessionManager.SendInputsCalls.Should().Be(1);
-    sessionManager.LastInputsAccepted.Should().Be(1);
-    triggerRepo.SendInputsObservedUpsertCount.Should().Be(triggerRepo.UpsertCount);
+    sessionManager.SendInputsCalls.Should().Be(0);
+    sessionManager.LastInputsAccepted.Should().Be(0);
+    triggerRepo.SendInputsObservedUpsertCount.Should().Be(0);
   }
 
   [Fact]
@@ -41,8 +40,7 @@ public sealed class CommandExecutorTests {
     trigger.LastFiredAt = DateTimeOffset.UtcNow.AddMinutes(-5);
     var triggerRepo = new TriggerRepositorySpy(trigger);
     var command = CreateCommand(trigger.Id);
-    var action = CreateAction(command.Steps[0].TargetId);
-    var executor = CreateExecutor(command, action, triggerRepo, TriggerStatus.Pending, "delay_pending", out var sessionManager);
+    var executor = CreateExecutor(command, triggerRepo, TriggerStatus.Pending, "delay_pending", out var sessionManager);
 
     var decision = await executor.EvaluateAndExecuteAsync(sessionManager.Session.Id, command.Id, CancellationToken.None).ConfigureAwait(false);
 
@@ -63,14 +61,12 @@ public sealed class CommandExecutorTests {
       Id = "cmd-no-trigger",
       Name = "NoTriggerCommand",
       TriggerId = null,
-      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.Action, TargetId = "act-1", Order = 1 } }
+      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.PrimitiveTap, PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("template-1") }, Order = 1 } }
     };
-    var action = CreateAction(command.Steps[0].TargetId);
     var commandRepo = new CommandRepositoryStub(command);
-    var actionRepo = new ActionRepositoryStub(action);
     var sessionManager = new SessionManagerStub(triggerRepo);
     var triggerService = new TriggerEvaluationService(new[] { new StaticResultEvaluator(TriggerStatus.Satisfied, "should_not_matter") });
-    var executor = new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
+    var executor = new CommandExecutor(commandRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
 
     var decision = await executor.EvaluateAndExecuteAsync(sessionManager.Session.Id, command.Id, CancellationToken.None).ConfigureAwait(false);
 
@@ -89,20 +85,20 @@ public sealed class CommandExecutorTests {
       Id = "cmd-action-only",
       Name = "ActionOnly",
       TriggerId = null,
-      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.Action, TargetId = "act-1", Order = 0 } }
+      Steps = new Collection<CommandStep> { new() { Type = CommandStepType.PrimitiveTap, PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("template-1") }, Order = 0 } }
     };
-    var action = CreateAction("act-1");
     var commandRepo = new CommandRepositoryStub(command);
-    var actionRepo = new ActionRepositoryStub(action);
     var sessionManager = new SessionManagerStub(triggerRepo);
     var triggerService = new TriggerEvaluationService(new[] { new StaticResultEvaluator(TriggerStatus.Satisfied, "unused") });
-    var executor = new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
+    var executor = new CommandExecutor(commandRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
 
     var result = await executor.ForceExecuteDetailedAsync(sessionManager.Session.Id, command.Id, CancellationToken.None).ConfigureAwait(false);
 
-    result.Accepted.Should().BeGreaterThan(0);
-    result.StepOutcomes.Should().BeEmpty();
-    sessionManager.SendInputsCalls.Should().Be(1);
+    result.Accepted.Should().Be(0);
+    result.StepOutcomes.Should().HaveCount(1);
+    result.StepOutcomes[0].Status.Should().Be("skipped_invalid_config");
+    result.StepOutcomes[0].Reason.Should().Be("services_unavailable");
+    sessionManager.SendInputsCalls.Should().Be(0);
   }
 
   private static Command CreateCommand(string triggerId) => new() {
@@ -110,19 +106,13 @@ public sealed class CommandExecutorTests {
     Name = "TestCommand",
     TriggerId = triggerId,
     Steps = new Collection<CommandStep> {
-      new() { Type = CommandStepType.Action, TargetId = "act-1", Order = 1 }
+      new() { Type = CommandStepType.PrimitiveTap, PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("template-1") }, Order = 1 }
     }
   };
 
-  private static GameBot.Domain.Actions.Action CreateAction(string actionId) {
-    var action = new GameBot.Domain.Actions.Action {
-      Id = actionId,
-      Name = "Action1",
-      GameId = "game-1"
-    };
-    action.Steps.Add(new DomainInputAction { Type = "tap", Args = new Dictionary<string, object> { ["x"] = 1, ["y"] = 1 } });
-    return action;
-  }
+  private static PrimitiveTapConfig CreatePrimitiveTapConfig() => new() {
+    DetectionTarget = new DetectionTarget("template-1")
+  };
 
   private static Trigger CreateTrigger() => new() {
     Id = "trig-1",
@@ -132,13 +122,12 @@ public sealed class CommandExecutorTests {
     Params = new DelayParams { Seconds = 0 }
   };
 
-  private static CommandExecutor CreateExecutor(Command command, GameBot.Domain.Actions.Action action, TriggerRepositorySpy triggerRepo, TriggerStatus status, string? reason, out SessionManagerStub sessionManager) {
+  private static CommandExecutor CreateExecutor(Command command, TriggerRepositorySpy triggerRepo, TriggerStatus status, string? reason, out SessionManagerStub sessionManager) {
     var commandRepo = new CommandRepositoryStub(command);
-    var actionRepo = new ActionRepositoryStub(action);
     sessionManager = new SessionManagerStub(triggerRepo);
     var evaluator = new StaticResultEvaluator(status, reason);
     var triggerService = new TriggerEvaluationService(new[] { evaluator });
-    return new CommandExecutor(commandRepo, actionRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
+    return new CommandExecutor(commandRepo, sessionManager, triggerRepo, triggerService, NullLogger<CommandExecutor>.Instance, new SessionContextCache());
   }
 
   private sealed class CommandRepositoryStub : ICommandRepository {
@@ -149,16 +138,6 @@ public sealed class CommandExecutorTests {
     public Task<Command?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult<Command?>(id == _command.Id ? _command : null);
     public Task<IReadOnlyList<Command>> ListAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Command>>(new[] { _command });
     public Task<Command?> UpdateAsync(Command command, CancellationToken ct = default) => Task.FromResult<Command?>(command);
-  }
-
-  private sealed class ActionRepositoryStub : IActionRepository {
-    private readonly GameBot.Domain.Actions.Action _action;
-    public ActionRepositoryStub(GameBot.Domain.Actions.Action action) => _action = action;
-    public Task<GameBot.Domain.Actions.Action> AddAsync(GameBot.Domain.Actions.Action action, CancellationToken ct = default) => Task.FromResult(action);
-    public Task<GameBot.Domain.Actions.Action?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult<GameBot.Domain.Actions.Action?>(id == _action.Id ? _action : null);
-    public Task<IReadOnlyList<GameBot.Domain.Actions.Action>> ListAsync(string? gameId = null, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<GameBot.Domain.Actions.Action>>(new[] { _action });
-    public Task<GameBot.Domain.Actions.Action?> UpdateAsync(GameBot.Domain.Actions.Action action, CancellationToken ct = default) => Task.FromResult<GameBot.Domain.Actions.Action?>(action);
-    public Task<bool> DeleteAsync(string id, CancellationToken ct = default) => Task.FromResult(false);
   }
 
   private sealed class TriggerRepositorySpy : ITriggerRepository {

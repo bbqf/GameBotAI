@@ -29,17 +29,19 @@ public sealed class SequencePerStepConditionsContractTests {
         new {
           stepId = "go-home",
           label = "Go Home",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 120, y = 840 }
+            schemaVersion = "v1",
+            payload = new { x = 120, y = 840 }
           }
         },
         new {
           stepId = "open-menu",
           label = "Open Menu",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 520, y = 900 }
+            schemaVersion = "v1",
+            payload = new { x = 520, y = 900 }
           },
           condition = new {
             type = "commandOutcome",
@@ -71,17 +73,19 @@ public sealed class SequencePerStepConditionsContractTests {
         new {
           stepId = "go-home",
           label = "Go Home",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 120, y = 840 }
+            schemaVersion = "v1",
+            payload = new { x = 120, y = 840 }
           }
         },
         new {
           stepId = "open-menu",
           label = "Open Menu",
-          action = new {
+          primitiveAction = new {
             type = "tap",
-            parameters = new { x = 520, y = 900 }
+            schemaVersion = "v1",
+            payload = new { x = 520, y = 900 }
           },
           condition = new {
             type = "commandOutcome",

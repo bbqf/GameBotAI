@@ -14,7 +14,6 @@ using GameBot.Service.Endpoints;
 namespace GameBot.Service.Swagger;
 
 internal static class SwaggerConfig {
-  private static readonly string[] ActionsTags = ["Actions"];
   private static readonly string[] CommandsTags = ["Commands"];
   private static readonly string[] GamesTags = ["Games"];
   private static readonly string[] SequencesTags = ["Sequences"];
@@ -61,11 +60,6 @@ internal static class SwaggerConfig {
     }
 
     var path = "/" + relativePath.TrimStart('/');
-
-    if (path.StartsWith(ApiRoutes.Actions, StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWith(ApiRoutes.ActionTypes, StringComparison.OrdinalIgnoreCase)) {
-      return ActionsTags;
-    }
 
     if (path.StartsWith(ApiRoutes.Commands, StringComparison.OrdinalIgnoreCase)) {
       return CommandsTags;
@@ -133,8 +127,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     var method = context.ApiDescription.HttpMethod ?? string.Empty;
 
     // Apply by path so examples appear even if tags are missing or reordered
-    ApplyActionTypesExamples(operation, path, method, context);
-    ApplyActionExamples(operation, path, method, context);
     ApplyCommandExamples(operation, path, method, context);
     ApplySequenceExamples(operation, path, method, context);
     ApplySessionExamples(operation, path, method, context);
@@ -161,38 +153,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       operation.Summary ??= "Resolve semantic installer version from source inputs";
       SetRequestExample(operation, VersionResolveRequest(), context);
       SetResponseExample(operation, "200", VersionResolveResponse(), context);
-    }
-  }
-
-  private static void ApplyActionExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
-    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Actions)) {
-      operation.Summary ??= "Create an action";
-      SetRequestExample(operation, ActionCreateRequest(), context, typeof(GameBot.Service.Models.CreateActionRequest));
-      SetResponseExample(operation, "201", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
-    }
-    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Actions)) {
-      operation.Summary ??= "List actions";
-      SetResponseExample(operation, "200", ActionListResponse(), context, typeof(IEnumerable<GameBot.Service.Models.ActionResponse>));
-    }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Actions + "/", StringComparison.OrdinalIgnoreCase)) {
-      operation.Summary ??= "Get an action";
-      SetResponseExample(operation, "200", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
-    }
-    else if ((IsMethod(method, HttpMethods.Patch) || IsMethod(method, HttpMethods.Put)) && path.StartsWith(ApiRoutes.Actions + "/", StringComparison.OrdinalIgnoreCase)) {
-      operation.Summary ??= "Update an action";
-      SetRequestExample(operation, ActionUpdateRequest(), context, typeof(ActionUpdateSchema));
-      SetResponseExample(operation, "200", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
-    }
-    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/duplicate", StringComparison.OrdinalIgnoreCase)) {
-      operation.Summary ??= "Duplicate an action";
-      SetResponseExample(operation, "201", ActionCreateResponse(), context, typeof(GameBot.Service.Models.ActionResponse));
-    }
-  }
-
-  private static void ApplyActionTypesExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
-    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ActionTypes)) {
-      operation.Summary ??= "List available action types";
-      SetResponseExample(operation, "200", ActionTypesResponse(), context, typeof(ActionTypeCatalogDto));
     }
   }
 
@@ -684,8 +644,26 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["name"] = new OpenApiString("Morning routine"),
     ["steps"] = new OpenApiArray
     {
-      new OpenApiString("command-warmup"),
-      new OpenApiString("command-start")
+      new OpenApiObject {
+        ["stepId"] = new OpenApiString("command-warmup"),
+        ["primitiveAction"] = new OpenApiObject {
+          ["type"] = new OpenApiString("command"),
+          ["schemaVersion"] = new OpenApiString("v1"),
+          ["payload"] = new OpenApiObject {
+            ["commandId"] = new OpenApiString("command-warmup")
+          }
+        }
+      },
+      new OpenApiObject {
+        ["stepId"] = new OpenApiString("command-start"),
+        ["primitiveAction"] = new OpenApiObject {
+          ["type"] = new OpenApiString("command"),
+          ["schemaVersion"] = new OpenApiString("v1"),
+          ["payload"] = new OpenApiObject {
+            ["commandId"] = new OpenApiString("command-start")
+          }
+        }
+      }
     }
   };
 
@@ -761,8 +739,26 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["name"] = new OpenApiString("Morning routine"),
     ["steps"] = new OpenApiArray
     {
-      new OpenApiString("command-warmup"),
-      new OpenApiString("command-start")
+      new OpenApiObject {
+        ["stepId"] = new OpenApiString("command-warmup"),
+        ["primitiveAction"] = new OpenApiObject {
+          ["type"] = new OpenApiString("command"),
+          ["schemaVersion"] = new OpenApiString("v1"),
+          ["payload"] = new OpenApiObject {
+            ["commandId"] = new OpenApiString("command-warmup")
+          }
+        }
+      },
+      new OpenApiObject {
+        ["stepId"] = new OpenApiString("command-start"),
+        ["primitiveAction"] = new OpenApiObject {
+          ["type"] = new OpenApiString("command"),
+          ["schemaVersion"] = new OpenApiString("v1"),
+          ["payload"] = new OpenApiObject {
+            ["commandId"] = new OpenApiString("command-start")
+          }
+        }
+      }
     }
   };
 
@@ -830,9 +826,14 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   };
 
   private static OpenApiObject SessionStartRequest() => new OpenApiObject {
-    ["gameId"] = new OpenApiString("game-123"),
-    ["emulatorId"] = new OpenApiString("emulator-5554"),
-    ["options"] = new OpenApiObject { ["idleTimeoutSeconds"] = new OpenApiInteger(30) }
+    ["primitiveAction"] = new OpenApiObject {
+      ["type"] = new OpenApiString("connect-to-game"),
+      ["schemaVersion"] = new OpenApiString("v1"),
+      ["payload"] = new OpenApiObject {
+        ["gameId"] = new OpenApiString("game-123"),
+        ["adbSerial"] = new OpenApiString("emulator-5554")
+      }
+    }
   };
 
   private static OpenApiObject RunningSessionExample() => new OpenApiObject {
@@ -968,8 +969,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       ["referenceImageId"] = new OpenApiString("start-screen"),
       ["region"] = new OpenApiObject { ["x"] = new OpenApiDouble(0.1), ["y"] = new OpenApiDouble(0.1), ["width"] = new OpenApiDouble(0.5), ["height"] = new OpenApiDouble(0.5) },
       ["similarityThreshold"] = new OpenApiDouble(0.9)
-    },
-    ["actions"] = new OpenApiArray { new OpenApiString("action-abc") }
+    }
   };
 
   private static OpenApiObject TriggerCreateResponse() => new OpenApiObject {
@@ -981,7 +981,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       ["region"] = new OpenApiObject { ["x"] = new OpenApiDouble(0.1), ["y"] = new OpenApiDouble(0.1), ["width"] = new OpenApiDouble(0.5), ["height"] = new OpenApiDouble(0.5) },
       ["similarityThreshold"] = new OpenApiDouble(0.9)
     },
-    ["actions"] = new OpenApiArray { new OpenApiString("action-abc") },
     ["commands"] = new OpenApiArray(),
     ["sequence"] = new OpenApiString("sequence-xyz")
   };
@@ -1064,7 +1063,22 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
 
   private static OpenApiObject CommandCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Warmup"),
-    ["actions"] = new OpenApiArray { new OpenApiString("action-abc"), new OpenApiString("action-def") }
+    ["steps"] = new OpenApiArray
+    {
+      new OpenApiObject
+      {
+        ["type"] = new OpenApiString("PrimitiveTap"),
+        ["order"] = new OpenApiInteger(0),
+        ["primitiveTap"] = new OpenApiObject
+        {
+          ["detectionTarget"] = new OpenApiObject
+          {
+            ["referenceImageId"] = new OpenApiString("start-screen"),
+            ["confidence"] = new OpenApiDouble(0.9)
+          }
+        }
+      }
+    }
   };
 
   private static OpenApiObject CommandUpdateRequest() => new OpenApiObject {
@@ -1072,8 +1086,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["triggerId"] = new OpenApiString("trigger-1"),
     ["steps"] = new OpenApiArray
     {
-      new OpenApiObject { ["type"] = new OpenApiString("Action"), ["targetId"] = new OpenApiString("action-abc"), ["order"] = new OpenApiInteger(0) },
-      new OpenApiObject { ["type"] = new OpenApiString("Command"), ["targetId"] = new OpenApiString("cmd-next"), ["order"] = new OpenApiInteger(1) }
+      new OpenApiObject { ["type"] = new OpenApiString("Command"), ["targetId"] = new OpenApiString("cmd-next"), ["order"] = new OpenApiInteger(0) }
     }
   };
 
@@ -1083,7 +1096,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["triggerId"] = new OpenApiString("trigger-1"),
     ["steps"] = new OpenApiArray
     {
-      new OpenApiObject { ["type"] = new OpenApiString("Action"), ["targetId"] = new OpenApiString("action-abc"), ["order"] = new OpenApiInteger(0) }
+      new OpenApiObject { ["type"] = new OpenApiString("Command"), ["targetId"] = new OpenApiString("cmd-next"), ["order"] = new OpenApiInteger(0) }
     }
   };
 
@@ -1289,7 +1302,6 @@ internal sealed class LoggingPolicyResetRequestSchema {
 internal sealed class TriggerAuthoringSchema {
   public string? Name { get; set; }
   public TriggerCriteriaSchema? Criteria { get; set; }
-  public ICollection<string>? Actions { get; set; }
   public ICollection<string>? Commands { get; set; }
   public string? Sequence { get; set; }
 }
@@ -1312,7 +1324,6 @@ internal sealed class TriggerResponseSchema {
   public required string Id { get; set; }
   public string? Name { get; set; }
   public TriggerCriteriaSchema? Criteria { get; set; }
-  public ICollection<string>? Actions { get; set; }
   public ICollection<string>? Commands { get; set; }
   public string? Sequence { get; set; }
 }
@@ -1326,7 +1337,6 @@ internal sealed class TriggerTestResponseSchema {
 internal sealed class CommandCreateSchema {
   public required string Name { get; set; }
   public string? TriggerId { get; set; }
-  public ICollection<string>? Actions { get; set; }
   public ICollection<GameBot.Service.Models.CommandStepDto>? Steps { get; set; }
 }
 

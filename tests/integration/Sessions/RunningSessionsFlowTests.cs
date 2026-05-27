@@ -60,13 +60,31 @@ public sealed class RunningSessionsFlowTests : IDisposable
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-        var firstStart = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new { gameId = "game-1", emulatorId = "emu-1" }).ConfigureAwait(true);
+        var firstStart = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
+            primitiveAction = new {
+                type = "connect-to-game",
+                schemaVersion = "v1",
+                payload = new {
+                    gameId = "game-1",
+                    adbSerial = "emu-1"
+                }
+            }
+        }).ConfigureAwait(true);
         firstStart.StatusCode.Should().Be(HttpStatusCode.OK);
         var firstPayload = await firstStart.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var firstId = firstPayload!["sessionId"]!.ToString();
         fakeSessions.FailStopFor(firstId!);
 
-        var secondStart = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new { gameId = "game-1", emulatorId = "emu-1" }).ConfigureAwait(true);
+        var secondStart = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
+            primitiveAction = new {
+                type = "connect-to-game",
+                schemaVersion = "v1",
+                payload = new {
+                    gameId = "game-1",
+                    adbSerial = "emu-1"
+                }
+            }
+        }).ConfigureAwait(true);
         secondStart.StatusCode.Should().Be(HttpStatusCode.OK);
         var secondPayload = await secondStart.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var secondId = secondPayload!["sessionId"]!.ToString();
@@ -99,7 +117,16 @@ public sealed class RunningSessionsFlowTests : IDisposable
         var client = app.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new { gameId = "game-2", emulatorId = "emu-2" }).ConfigureAwait(true);
+        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
+            primitiveAction = new {
+                type = "connect-to-game",
+                schemaVersion = "v1",
+                payload = new {
+                    gameId = "game-2",
+                    adbSerial = "emu-2"
+                }
+            }
+        }).ConfigureAwait(true);
         var startPayload = await startResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
         var sessionId = startPayload!["sessionId"]!.ToString();
         fakeSessions.FailStopFor(sessionId!);

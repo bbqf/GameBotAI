@@ -53,23 +53,26 @@ public sealed class DetectionStrategyIntegrationTests : IDisposable {
         var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var gameId = game![(string)"id"]!.ToString();
 
-        // Create action with single tap
-        var actionReq = new {
-            name = "TapByDetectFirst",
-            gameId,
-            steps = new[] { new { type = "tap", args = new Dictionary<string, object>{{"x", 1}, {"y", 1}}, delayMs = (int?)null, durationMs = (int?)null } }
-        };
-        var aResp = await client.PostAsJsonAsync(new Uri("/api/actions", UriKind.Relative), actionReq);
-        aResp.EnsureSuccessStatusCode();
-        var act = await aResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-        var actionId = act![(string)"id"]!.ToString();
-
-        // Create command with detection using FirstMatch
+        // Create command with inline primitive tap and FirstMatch detection
         var cmdReq = new {
             name = "DetectAndTapFirstMatch",
             triggerId = (string?)null,
             detection = new { referenceImageId = "home_button", confidence = 0.80, offsetX = 0, offsetY = 0, selectionStrategy = "FirstMatch" },
-            steps = new[] { new { type = "Action", targetId = actionId, order = 1 } }
+            steps = new[] {
+                new {
+                    type = "PrimitiveTap",
+                    order = 1,
+                    primitiveTap = new {
+                        detectionTarget = new {
+                            referenceImageId = "home_button",
+                            confidence = 0.80,
+                            offsetX = 0,
+                            offsetY = 0,
+                            selectionStrategy = "FirstMatch"
+                        }
+                    }
+                }
+            }
         };
         var cResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), cmdReq);
         cResp.EnsureSuccessStatusCode();

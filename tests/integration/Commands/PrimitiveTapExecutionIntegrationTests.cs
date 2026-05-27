@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
@@ -14,6 +15,7 @@ public sealed class PrimitiveTapExecutionIntegrationTests : IDisposable {
   private readonly string? _prevDataDir;
 
   private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
+  private static readonly JsonSerializerOptions TestJsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
   public PrimitiveTapExecutionIntegrationTests() {
     _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
@@ -263,5 +265,63 @@ public sealed class PrimitiveTapExecutionIntegrationTests : IDisposable {
       Environment.SetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT", prevRetryCount);
       Environment.SetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS", prevCaptureInterval);
     }
+  }
+
+  [Fact]
+  public async Task ForceExecutePrimitiveTapFallsBackToCommandLevelDetection() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "legacy_fallback_img", data = OneByOnePngBase64 });
+    uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
+
+    var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = "LegacyFallbackGame", description = "desc" });
+    gameResp.EnsureSuccessStatusCode();
+    var game = await gameResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+    var gameId = game!["id"]!.ToString();
+
+    var commandId = "legacy-fallback-command";
+    var dataDir = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")!;
+    var commandsDir = Path.Combine(dataDir, "commands");
+    Directory.CreateDirectory(commandsDir);
+    var commandPath = Path.Combine(commandsDir, commandId + ".json");
+
+    var legacyShape = new {
+      id = commandId,
+      name = "LegacyFallbackCommand",
+      triggerId = (string?)null,
+      steps = new[] {
+        new {
+          type = 1,
+          targetId = string.Empty,
+          primitiveTap = (object?)null,
+          order = 0
+        }
+      },
+      detection = new {
+        referenceImageId = "legacy_fallback_img",
+        confidence = 0.99,
+        offsetX = 0,
+        offsetY = 0,
+        selectionStrategy = 0
+      }
+    };
+
+    await File.WriteAllTextAsync(commandPath, JsonSerializer.Serialize(legacyShape, TestJsonOptions));
+
+    var sessionResp = await client.PostAsJsonAsync(new Uri("/api/sessions", UriKind.Relative), new { gameId });
+    sessionResp.EnsureSuccessStatusCode();
+    var session = await sessionResp.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+    var sessionId = session!["id"]!.ToString();
+
+    var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null);
+    execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+    using var doc = await JsonDocument.ParseAsync(await execResp.Content.ReadAsStreamAsync());
+    doc.RootElement.GetProperty("accepted").GetInt32().Should().Be(1);
+    var outcomes = doc.RootElement.GetProperty("stepOutcomes");
+    outcomes.GetArrayLength().Should().Be(1);
+    outcomes[0].GetProperty("status").GetString().Should().Be("executed");
   }
 }

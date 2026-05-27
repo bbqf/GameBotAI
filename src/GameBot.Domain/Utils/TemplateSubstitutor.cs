@@ -41,7 +41,7 @@ public static class TemplateSubstitutor
         IReadOnlyDictionary<string, string> context)
     {
         ArgumentNullException.ThrowIfNull(payload);
-        var result = new SequenceActionPayload { Type = payload.Type };
+        var result = new SequenceActionPayload { Type = payload.Type, SchemaVersion = payload.SchemaVersion };
         foreach (var (key, value) in payload.Parameters)
         {
             result.Parameters[key] = value is string str ? Substitute(str, context) : value;

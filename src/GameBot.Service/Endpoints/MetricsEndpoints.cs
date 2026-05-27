@@ -1,5 +1,4 @@
 using GameBot.Service.Hosted;
-using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Triggers;
 using GameBot.Service;
@@ -28,12 +27,12 @@ internal static class MetricsEndpoints {
     .WithName("GetTriggerEvaluationMetrics")
     ;
 
-    group.MapGet("/domain", async (IActionRepository actions, ICommandRepository commands, ITriggerRepository triggers, CancellationToken ct) => {
-      var actionList = await actions.ListAsync(null, ct).ConfigureAwait(false);
+    group.MapGet("/domain", async (ICommandRepository commands, ITriggerRepository triggers, CancellationToken ct) => {
       var commandList = await commands.ListAsync(ct).ConfigureAwait(false);
       var triggerList = await triggers.ListAsync(ct).ConfigureAwait(false);
+      var primitiveActions = commandList.Sum(command => command.Steps.Count(step => step.Type == GameBot.Domain.Commands.CommandStepType.PrimitiveTap));
       return Results.Ok(new {
-        actions = actionList.Count,
+        primitiveActions,
         commands = commandList.Count,
         triggers = triggerList.Count
       });
