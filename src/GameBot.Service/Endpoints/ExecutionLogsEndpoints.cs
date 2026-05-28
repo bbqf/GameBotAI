@@ -174,9 +174,20 @@ internal static class ExecutionLogsEndpoints
         StepId = step.StepId,
         StepLabel = step.StepLabel,
         StepName = step.StepName,
+        StepType = step.StepType,
         Status = step.Status,
         Message = step.Message,
         AppliedDelayMs = step.AppliedDelayMs,
+        DetailAttributes = step.DetailAttributes is null
+          ? null
+          : new ExecutionLogWaitForImageDetailAttributesDto {
+            TimeoutMs = step.DetailAttributes.TimeoutMs,
+            EffectiveTimeoutMs = step.DetailAttributes.EffectiveTimeoutMs,
+            ReferenceImageId = step.DetailAttributes.ReferenceImageId,
+            Confidence = step.DetailAttributes.Confidence,
+            ExitCondition = step.DetailAttributes.ExitCondition,
+            ImageLoadStatus = step.DetailAttributes.ImageLoadStatus
+          },
         DeepLink = new AuthoringDeepLinkDto {
           SequenceId = step.DeepLink.SequenceId,
           StepId = step.DeepLink.StepId,

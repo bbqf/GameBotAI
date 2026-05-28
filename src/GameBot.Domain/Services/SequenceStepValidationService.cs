@@ -2,6 +2,7 @@ using GameBot.Domain.Commands;
 using GameBot.Domain.Actions;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace GameBot.Domain.Services;
 
@@ -125,12 +126,17 @@ public sealed class SequenceStepValidationService {
       List<string> errors,
       bool insideLoop) {
 
-    // FR-002a: {{iteration}} placeholders in action parameters are only permitted inside loops.
-    if (!insideLoop && step.Action is not null) {
+    if (step.Action is not null) {
       if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
         errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type.");
       }
+      else if (string.Equals(step.Action.Type, PrimitiveActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)) {
+        ValidateWaitForImagePayload(step.Action.Parameters, stepLabel, errors);
+      }
+    }
 
+    // FR-002a: {{iteration}} placeholders in action parameters are only permitted inside loops.
+    if (!insideLoop && step.Action is not null) {
       foreach (var paramValue in step.Action.Parameters.Values) {
         if (paramValue is string s && TemplatePlaceholder.IsMatch(s)) {
           errors.Add($"Step '{stepLabel}' contains template placeholder(s) in action parameters which are only valid inside a loop body.");
@@ -168,6 +174,58 @@ public sealed class SequenceStepValidationService {
         && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
     }
+  }
+
+  private static void ValidateWaitForImagePayload(
+      Dictionary<string, object?> parameters,
+      string stepLabel,
+      List<string> errors) {
+    if (parameters.TryGetValue("timeoutMs", out var timeoutValue)
+        && TryReadInt(timeoutValue, out var timeoutMs)
+        && timeoutMs < 0) {
+      errors.Add($"Step '{stepLabel}' waitForImage timeoutMs must be greater than or equal to zero.");
+    }
+
+    if (!parameters.TryGetValue("detectionTarget", out var detectionTargetValue)) {
+      return;
+    }
+
+    if (TryReadJsonObject(detectionTargetValue, out var detectionTarget)
+        && detectionTarget.TryGetProperty("referenceImageId", out var referenceImageId)
+        && referenceImageId.ValueKind == JsonValueKind.String
+        && string.IsNullOrWhiteSpace(referenceImageId.GetString())) {
+      errors.Add($"Step '{stepLabel}' waitForImage detectionTarget.referenceImageId must not be empty when detectionTarget is provided.");
+    }
+  }
+
+  private static bool TryReadInt(object? value, out int result) {
+    switch (value) {
+      case int intValue:
+        result = intValue;
+        return true;
+      case long longValue when longValue is >= int.MinValue and <= int.MaxValue:
+        result = (int)longValue;
+        return true;
+      case JsonElement element when element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var parsedInt):
+        result = parsedInt;
+        return true;
+      case string text when int.TryParse(text, out var parsedText):
+        result = parsedText;
+        return true;
+      default:
+        result = 0;
+        return false;
+    }
+  }
+
+  private static bool TryReadJsonObject(object? value, out JsonElement element) {
+    if (value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object) {
+      element = jsonElement;
+      return true;
+    }
+
+    element = default;
+    return false;
   }
 
   public IReadOnlyList<string> Validate(SequenceFlowGraph graph) {

@@ -95,8 +95,12 @@ describe('CommandsPage', () => {
     await screen.findByText('Edit Command');
 
     const stepsSection = screen.getByRole('heading', { name: 'Steps', level: 3 }).closest('section')!;
+    await waitFor(() => {
+      const moveUpButtons = stepsSection.querySelectorAll('button[aria-label="Move up"]');
+      expect(moveUpButtons.length).toBeGreaterThan(0);
+    });
     const moveUpButtons = stepsSection.querySelectorAll('button[aria-label="Move up"]');
-    fireEvent.click(moveUpButtons[1]);
+    fireEvent.click(moveUpButtons[moveUpButtons.length - 1]);
 
     fireEvent.click(screen.getAllByText('Save')[0]);
 
@@ -173,6 +177,72 @@ describe('CommandsPage', () => {
     await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({
       name: 'Composite Command',
       steps: [{ type: 'Command', targetId: 'existing-cmd', order: 0 }],
+      detection: undefined,
+    }));
+  });
+
+  it('creates a command with a wait for image step', async () => {
+    render(<CommandsPage />);
+    await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Wait Command' } });
+    fireEvent.change(screen.getByLabelText('Wait image ID'), { target: { value: 'home_button' } });
+    fireEvent.change(screen.getByLabelText('Wait confidence (0-1)'), { target: { value: '0.91' } });
+    fireEvent.change(screen.getByLabelText('Wait timeout (ms)'), { target: { value: '2500' } });
+    fireEvent.click(screen.getByText('Add wait for image step'));
+
+    createCommandMock.mockResolvedValue({} as any);
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({
+      name: 'Wait Command',
+      steps: [{
+        type: 'WaitForImage',
+        order: 0,
+        waitForImage: {
+          detectionTarget: {
+            referenceImageId: 'home_button',
+            confidence: 0.91,
+            offsetX: undefined,
+            offsetY: undefined,
+          },
+          timeoutMs: 2500,
+        }
+      }],
+      detection: undefined,
+    }));
+  });
+
+  it('loads and saves an existing wait for image step', async () => {
+    listCommandsMock.mockResolvedValue([{ id: 'c-wait', name: 'Wait Cmd', steps: [{ type: 'WaitForImage', order: 0, waitForImage: { detectionTarget: { referenceImageId: 'mail_icon', confidence: 0.82 }, timeoutMs: 1500 } }] } as any]);
+    getCommandMock.mockResolvedValue({ id: 'c-wait', name: 'Wait Cmd', steps: [{ type: 'WaitForImage', order: 0, waitForImage: { detectionTarget: { referenceImageId: 'mail_icon', confidence: 0.82 }, timeoutMs: 1500 } }] } as any);
+    updateCommandMock.mockResolvedValue({} as any);
+
+    render(<CommandsPage />);
+    await screen.findByText('Wait Cmd');
+    fireEvent.click(screen.getByText('Wait Cmd'));
+
+    await screen.findByText('Edit Command');
+    expect(screen.getByText('Wait for image: mail_icon')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByText('Save')[0]);
+
+    await waitFor(() => expect(updateCommandMock).toHaveBeenCalledWith('c-wait', {
+      name: 'Wait Cmd',
+      steps: [{
+        type: 'WaitForImage',
+        order: 0,
+        waitForImage: {
+          detectionTarget: {
+            referenceImageId: 'mail_icon',
+            confidence: 0.82,
+            offsetX: undefined,
+            offsetY: undefined,
+          },
+          timeoutMs: 1500,
+        }
+      }],
       detection: undefined,
     }));
   });

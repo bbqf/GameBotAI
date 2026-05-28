@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using GameBot.Domain.Commands;
 
 namespace GameBot.Domain.Commands
 {
@@ -32,6 +33,7 @@ namespace GameBot.Domain.Commands
         public string CommandId { get; set; } = string.Empty;
         public SequenceStepType StepType { get; set; } = SequenceStepType.Command;
         public SequenceActionPayload? Action { get; set; }
+        public WaitForImageConfig? WaitForImage { get; set; }
         public SequenceStepCondition? Condition { get; set; }
         public ImageVisibleCondition? ConditionExpression { get; set; }
         public int? DelayMs { get; set; }

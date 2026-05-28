@@ -52,4 +52,61 @@ public sealed class CommandExecutionLoggingIntegrationTests {
       Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", previousAuthToken);
     }
   }
+
+  [Fact]
+  public async Task CommandExecutionDetailIncludesWaitForImageAttributes() {
+    var previousAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
+    TestEnvironment.PrepareCleanDataDir();
+    try {
+      using var app = new WebApplicationFactory<Program>();
+      var client = app.CreateClient();
+      client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+      var logService = app.Services.GetRequiredService<IExecutionLogService>();
+
+      await logService.LogCommandExecutionAsync(
+        "cmd-wait-log",
+        "Wait Log Command",
+        "success",
+        new[] {
+          new PrimitiveTapStepOutcome(
+            1,
+            "completed_timeout",
+            "timeout_elapsed",
+            null,
+            null,
+            StepType: "waitForImage",
+            TimeoutMs: 1500,
+            EffectiveTimeoutMs: 1500,
+            ReferenceImageId: "mail_icon",
+            ImageLoadStatus: "loaded")
+        },
+        new ExecutionLogContext { Depth = 0 }).ConfigureAwait(false);
+
+      var listResp = await client.GetAsync(new Uri("/api/execution-logs?objectType=command&objectId=cmd-wait-log&pageSize=1", UriKind.Relative)).ConfigureAwait(false);
+      listResp.EnsureSuccessStatusCode();
+
+      using var listDoc = JsonDocument.Parse(await listResp.Content.ReadAsStringAsync().ConfigureAwait(false));
+      var id = listDoc.RootElement.GetProperty("items")[0].GetProperty("id").GetString();
+
+      var detailResp = await client.GetAsync(new Uri($"/api/execution-logs/{id}", UriKind.Relative)).ConfigureAwait(false);
+      detailResp.EnsureSuccessStatusCode();
+
+      using var detailDoc = JsonDocument.Parse(await detailResp.Content.ReadAsStringAsync().ConfigureAwait(false));
+      var step = detailDoc.RootElement.GetProperty("stepOutcomes")[0];
+
+      step.GetProperty("stepName").GetString().Should().Be("waitForImage");
+      step.GetProperty("status").GetString().Should().Be("completed_timeout");
+      step.GetProperty("message").GetString().Should().Be("timeout_elapsed");
+      var detailAttributes = step.GetProperty("detailAttributes");
+      detailAttributes.GetProperty("timeoutMs").GetInt32().Should().Be(1500);
+      detailAttributes.GetProperty("effectiveTimeoutMs").GetInt32().Should().Be(1500);
+      detailAttributes.GetProperty("referenceImageId").GetString().Should().Be("mail_icon");
+      detailAttributes.GetProperty("exitCondition").GetString().Should().Be("timeout_elapsed");
+      detailAttributes.GetProperty("imageLoadStatus").GetString().Should().Be("loaded");
+    }
+    finally {
+      Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", previousAuthToken);
+    }
+  }
 }

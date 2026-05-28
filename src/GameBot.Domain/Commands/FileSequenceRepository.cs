@@ -123,7 +123,8 @@ namespace GameBot.Domain.Commands
                 ActionTypes.Tap,
                 ActionTypes.Swipe,
                 ActionTypes.Key,
-                ActionTypes.ConnectToGame
+                ActionTypes.ConnectToGame,
+                ActionTypes.WaitForImage
             };
 
             foreach (var step in sequence.Steps)

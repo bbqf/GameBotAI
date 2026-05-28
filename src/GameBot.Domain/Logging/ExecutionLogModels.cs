@@ -28,6 +28,14 @@ public sealed record LoopIterationOutcome(
   /// <summary>Outcomes of the individual body steps run during this iteration.</summary>
   IReadOnlyList<string> StepOutcomes);
 
+public sealed record WaitForImageDetailAttributes(
+  int? TimeoutMs,
+  int? EffectiveTimeoutMs,
+  string? ReferenceImageId,
+  double? Confidence,
+  string? ExitCondition,
+  string? ImageLoadStatus);
+
 public sealed record ExecutionStepOutcome(
   int StepOrder,
   string StepType,
@@ -45,6 +53,11 @@ public sealed record ExecutionStepOutcome(
   /// Per-iteration outcomes recorded for loop steps.  <c>null</c> for non-loop steps.
   /// </summary>
   public IReadOnlyList<LoopIterationOutcome>? LoopIterations { get; init; }
+
+  /// <summary>
+  /// Structured wait-for-image details when the step represents a wait primitive.
+  /// </summary>
+  public WaitForImageDetailAttributes? DetailAttributes { get; init; }
 }
 
 public sealed record ExecutionDetailItem(

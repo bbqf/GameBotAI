@@ -45,7 +45,8 @@ public sealed class PrimitiveActionValidationServiceTests {
       PrimitiveActionTypes.Swipe,
       PrimitiveActionTypes.Key,
       PrimitiveActionTypes.Command,
-      PrimitiveActionTypes.ConnectToGame
+      PrimitiveActionTypes.ConnectToGame,
+      PrimitiveActionTypes.WaitForImage
     });
   }
 }

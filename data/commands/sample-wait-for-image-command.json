@@ -1,0 +1,20 @@
+{
+  "id": "00000000000000000000000000000003",
+  "name": "Sample Wait for Image Command",
+  "steps": [
+    {
+      "type": "WaitForImage",
+      "order": 0,
+      "waitForImage": {
+        "timeoutMs": 1500,
+        "detectionTarget": {
+          "referenceImageId": "home-banner",
+          "confidence": 0.88,
+          "offsetX": 0,
+          "offsetY": 0,
+          "selectionStrategy": "HighestConfidence"
+        }
+      }
+    }
+  ]
+}

@@ -9,6 +9,7 @@ using System.Text.Json;
 using GameBot.Domain.Commands.Blocks;
 using GameBot.Domain.Config;
 using GameBot.Domain.Logging;
+using GameBot.Domain.Actions;
 using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Services
@@ -588,6 +589,21 @@ namespace GameBot.Domain.Services
                 }
             }
 
+            if (IsWaitForImageStep(step))
+            {
+                var waitOutcome = await WaitForImageAsync(step.WaitForImage, conditionEvaluator, ct).ConfigureAwait(false);
+                result.AddStep(
+                    stepKey,
+                    appliedDelay,
+                    "Succeeded",
+                    conditionType: step.Condition is null ? null : step.Condition.Type,
+                    conditionResult: step.Condition is null ? null : "true",
+                    actionOutcome: waitOutcome.ExitCondition,
+                    waitForImageDetails: waitOutcome.Detail);
+                if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+                return false;
+            }
+
             if (_logger != null) LogCommandStart(_logger, step.CommandId, null);
             var cmdStart = DateTimeOffset.UtcNow;
             try
@@ -620,6 +636,113 @@ namespace GameBot.Domain.Services
             if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
             if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
             return false;
+        }
+
+        private static bool IsWaitForImageStep(SequenceStep step)
+        {
+            return step.WaitForImage is not null
+                || string.Equals(step.Action?.Type, ActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(step.Action?.Type, PrimitiveActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<WaitForImageStepOutcome> WaitForImageAsync(
+            WaitForImageConfig? waitConfig,
+            Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+            CancellationToken ct)
+        {
+            var effectiveConfig = waitConfig ?? new WaitForImageConfig();
+            var timeoutMs = Math.Max(0, effectiveConfig.TimeoutMs);
+            var detectionTarget = effectiveConfig.DetectionTarget;
+            var deadline = DateTimeOffset.UtcNow.AddMilliseconds(timeoutMs);
+            var detail = new WaitForImageStepResultDetails
+            {
+                TimeoutMs = timeoutMs,
+                EffectiveTimeoutMs = timeoutMs,
+                ReferenceImageId = detectionTarget?.ReferenceImageId,
+                Confidence = detectionTarget?.Confidence,
+                ImageLoadStatus = detectionTarget is null || string.IsNullOrWhiteSpace(detectionTarget.ReferenceImageId)
+                    ? null
+                    : "loaded"
+            };
+
+            if (detectionTarget is null || string.IsNullOrWhiteSpace(detectionTarget.ReferenceImageId))
+            {
+                await WaitUntilDeadlineAsync(deadline, ct).ConfigureAwait(false);
+                detail.ExitCondition = "timeout_elapsed";
+                return new WaitForImageStepOutcome("timeout_elapsed", detail);
+            }
+
+            if (conditionEvaluator is null)
+            {
+                await WaitUntilDeadlineAsync(deadline, ct).ConfigureAwait(false);
+                detail.ExitCondition = "image_unavailable";
+                detail.ImageLoadStatus = "unavailable";
+                return new WaitForImageStepOutcome("image_unavailable", detail);
+            }
+
+            var condition = new Condition
+            {
+                Source = "image",
+                TargetId = detectionTarget.ReferenceImageId,
+                Mode = "Present",
+                ConfidenceThreshold = detectionTarget.Confidence
+            };
+
+            try
+            {
+                if (await conditionEvaluator(condition, ct).ConfigureAwait(false))
+                {
+                    detail.ExitCondition = "image_detected";
+                    return new WaitForImageStepOutcome("image_detected", detail);
+                }
+            }
+            catch
+            {
+                await WaitUntilDeadlineAsync(deadline, ct).ConfigureAwait(false);
+                detail.ExitCondition = "image_unavailable";
+                detail.ImageLoadStatus = "unavailable";
+                return new WaitForImageStepOutcome("image_unavailable", detail);
+            }
+
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                var remaining = deadline - DateTimeOffset.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var pollMs = Math.Max(1, Math.Min(_config.CaptureIntervalMs, (int)Math.Ceiling(remaining.TotalMilliseconds)));
+                await Task.Delay(pollMs, ct).ConfigureAwait(false);
+
+                try
+                {
+                    if (await conditionEvaluator(condition, ct).ConfigureAwait(false))
+                    {
+                        detail.ExitCondition = "image_detected";
+                        return new WaitForImageStepOutcome("image_detected", detail);
+                    }
+                }
+                catch
+                {
+                    await WaitUntilDeadlineAsync(deadline, ct).ConfigureAwait(false);
+                    detail.ExitCondition = "image_unavailable";
+                    detail.ImageLoadStatus = "unavailable";
+                    return new WaitForImageStepOutcome("image_unavailable", detail);
+                }
+            }
+
+            detail.ExitCondition = "timeout_elapsed";
+            return new WaitForImageStepOutcome("timeout_elapsed", detail);
+        }
+
+        private static async Task WaitUntilDeadlineAsync(DateTimeOffset deadline, CancellationToken ct)
+        {
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            if (remaining > TimeSpan.Zero)
+            {
+                await Task.Delay(remaining, ct).ConfigureAwait(false);
+            }
         }
 
         private Task<bool> ExecuteSingleStepAsync(
@@ -1843,7 +1966,8 @@ namespace GameBot.Domain.Services
             string? conditionType = null,
             string? conditionResult = null,
             string? actionOutcome = null,
-            string? message = null)
+            string? message = null,
+            WaitForImageStepResultDetails? waitForImageDetails = null)
         {
             _steps.Add(new StepResult
             {
@@ -1855,7 +1979,8 @@ namespace GameBot.Domain.Services
                 ConditionType = conditionType,
                 ConditionResult = conditionResult,
                 ActionOutcome = actionOutcome,
-                Message = message
+                Message = message,
+                WaitForImageDetails = waitForImageDetails
             });
         }
 
@@ -1937,9 +2062,22 @@ namespace GameBot.Domain.Services
         public string? ConditionResult { get; set; }
         public string? ActionOutcome { get; set; }
         public string? Message { get; set; }
+        public WaitForImageStepResultDetails? WaitForImageDetails { get; set; }
         /// <summary>Per-iteration results for loop steps; null for non-loop steps.</summary>
         public IReadOnlyList<LoopIterResult>? LoopIterations { get; set; }
     }
+
+    public sealed class WaitForImageStepResultDetails
+    {
+        public int TimeoutMs { get; set; }
+        public int EffectiveTimeoutMs { get; set; }
+        public string? ReferenceImageId { get; set; }
+        public double? Confidence { get; set; }
+        public string? ExitCondition { get; set; }
+        public string? ImageLoadStatus { get; set; }
+    }
+
+    internal sealed record WaitForImageStepOutcome(string ExitCondition, WaitForImageStepResultDetails Detail);
 
     /// <summary>Result summary for a single loop iteration.</summary>
     public sealed class LoopIterResult

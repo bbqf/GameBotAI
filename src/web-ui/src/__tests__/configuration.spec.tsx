@@ -34,9 +34,15 @@ describe('Configuration area', () => {
     jest.restoreAllMocks();
   });
 
+  const openConfigurationArea = async (): Promise<void> => {
+    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Configuration' })).toBeInTheDocument());
+    await waitFor(() => expect(configService.getConfigFileParams).toHaveBeenCalledTimes(2));
+  };
+
   it('shows host/token controls in a collapsible section', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await openConfigurationArea();
     await waitFor(() => expect(screen.getByText('Backend Connection')).toBeInTheDocument());
     expect(screen.getByLabelText('API Base URL')).toBeInTheDocument();
     expect(screen.getByLabelText('Bearer Token')).toBeInTheDocument();
@@ -44,7 +50,7 @@ describe('Configuration area', () => {
 
   it('renders parameter list from config snapshot', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await openConfigurationArea();
     await waitFor(() => expect(screen.getByText('GAMEBOT_TESSERACT_LANG')).toBeInTheDocument());
     expect(screen.getByText('GAMEBOT_USE_ADB')).toBeInTheDocument();
     expect(screen.getByText('GAMEBOT_AUTH_TOKEN')).toBeInTheDocument();
@@ -52,7 +58,7 @@ describe('Configuration area', () => {
 
   it('shows source badges', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await openConfigurationArea();
     await waitFor(() => expect(screen.getByText('GAMEBOT_TESSERACT_LANG')).toBeInTheDocument());
     expect(screen.getByText('File')).toBeInTheDocument();
     expect(screen.getByText('Environment')).toBeInTheDocument();
@@ -61,7 +67,7 @@ describe('Configuration area', () => {
 
   it('shows filter input and filters parameters', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await openConfigurationArea();
     await waitFor(() => expect(screen.getByLabelText('Filter parameters')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('Filter parameters'), { target: { value: 'TESSERACT' } });
     expect(screen.getByText('GAMEBOT_TESSERACT_LANG')).toBeInTheDocument();
@@ -70,7 +76,7 @@ describe('Configuration area', () => {
 
   it('shows empty state when filter matches nothing', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await openConfigurationArea();
     await waitFor(() => expect(screen.getByLabelText('Filter parameters')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('Filter parameters'), { target: { value: 'zzzznonexistent' } });
     expect(screen.getByText('No matching parameters')).toBeInTheDocument();
@@ -78,14 +84,14 @@ describe('Configuration area', () => {
 
   it('shows Apply All button disabled when no edits', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await openConfigurationArea();
     await waitFor(() => expect(screen.getByText('Apply All')).toBeInTheDocument());
     expect(screen.getByText('Apply All')).toBeDisabled();
   });
 
   it('enables Apply All after editing a parameter', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await openConfigurationArea();
     await waitFor(() => expect(screen.getByLabelText('Value for GAMEBOT_TESSERACT_LANG')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('Value for GAMEBOT_TESSERACT_LANG'), { target: { value: 'deu' } });
     expect(screen.getByText('Apply All')).toBeEnabled();
@@ -94,7 +100,7 @@ describe('Configuration area', () => {
   it('shows error state with retry button on fetch failure', async () => {
     jest.spyOn(configService, 'getConfigSnapshot').mockRejectedValueOnce(new Error('Network error'));
     render(<App />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    await openConfigurationArea();
     await waitFor(() => expect(screen.getByText('Failed to load configuration')).toBeInTheDocument());
     // Main config section has its own retry
     const alerts = screen.getAllByRole('alert');

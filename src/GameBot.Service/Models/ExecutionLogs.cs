@@ -105,13 +105,25 @@ internal sealed class StepOutcomeDetailDto
   public string? StepId { get; init; }
   public string? StepLabel { get; init; }
   public required string StepName { get; init; }
+  public string? StepType { get; init; }
   public required string Status { get; init; }
   public required string Message { get; init; }
   public int? AppliedDelayMs { get; init; }
+  public ExecutionLogWaitForImageDetailAttributesDto? DetailAttributes { get; init; }
   public AuthoringDeepLinkDto? DeepLink { get; init; }
   public ConditionEvaluationTraceDto? ConditionTrace { get; init; }
   public DateTimeOffset? StartedAtUtc { get; init; }
   public DateTimeOffset? EndedAtUtc { get; init; }
+}
+
+internal sealed class ExecutionLogWaitForImageDetailAttributesDto
+{
+  public int? TimeoutMs { get; init; }
+  public int? EffectiveTimeoutMs { get; init; }
+  public string? ReferenceImageId { get; init; }
+  public double? Confidence { get; init; }
+  public string? ExitCondition { get; init; }
+  public string? ImageLoadStatus { get; init; }
 }
 
 internal sealed class AuthoringDeepLinkDto {

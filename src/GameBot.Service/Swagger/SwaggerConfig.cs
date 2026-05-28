@@ -177,11 +177,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Post) && path.Contains("/force-execute", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Force execute a command";
-      SetResponseExample(operation, "202", SessionInputsResponse(), context, typeof(SessionAcceptedSchema));
+      SetResponseExample(operation, "202", CommandForceExecuteResponse(), context, typeof(CommandExecuteResponseSchema));
     }
     else if (IsMethod(method, HttpMethods.Post) && path.Contains("/evaluate-and-execute", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Evaluate trigger then execute";
-      SetResponseExample(operation, "202", CommandEvaluateResponse(), context, typeof(CommandEvaluateResponseSchema));
+      SetResponseExample(operation, "202", CommandEvaluateResponse(), context, typeof(CommandExecuteResponseSchema));
     }
   }
 
@@ -641,26 +641,20 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   };
 
   private static OpenApiObject SequenceCreateRequest() => new OpenApiObject {
-    ["name"] = new OpenApiString("Morning routine"),
+    ["name"] = new OpenApiString("Wait for image sequence"),
     ["steps"] = new OpenApiArray
     {
       new OpenApiObject {
-        ["stepId"] = new OpenApiString("command-warmup"),
+        ["stepId"] = new OpenApiString("wait-home-banner"),
         ["primitiveAction"] = new OpenApiObject {
-          ["type"] = new OpenApiString("command"),
+          ["type"] = new OpenApiString("WaitForImage"),
           ["schemaVersion"] = new OpenApiString("v1"),
           ["payload"] = new OpenApiObject {
-            ["commandId"] = new OpenApiString("command-warmup")
-          }
-        }
-      },
-      new OpenApiObject {
-        ["stepId"] = new OpenApiString("command-start"),
-        ["primitiveAction"] = new OpenApiObject {
-          ["type"] = new OpenApiString("command"),
-          ["schemaVersion"] = new OpenApiString("v1"),
-          ["payload"] = new OpenApiObject {
-            ["commandId"] = new OpenApiString("command-start")
+            ["timeoutMs"] = new OpenApiInteger(1500),
+            ["detectionTarget"] = new OpenApiObject {
+              ["referenceImageId"] = new OpenApiString("home-banner"),
+              ["confidence"] = new OpenApiDouble(0.88)
+            }
           }
         }
       }
@@ -735,27 +729,21 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   };
 
   private static OpenApiObject SequenceCreateResponse() => new OpenApiObject {
-    ["id"] = new OpenApiString("sequence-xyz"),
-    ["name"] = new OpenApiString("Morning routine"),
+    ["id"] = new OpenApiString("sequence-wait-home"),
+    ["name"] = new OpenApiString("Wait for image sequence"),
     ["steps"] = new OpenApiArray
     {
       new OpenApiObject {
-        ["stepId"] = new OpenApiString("command-warmup"),
+        ["stepId"] = new OpenApiString("wait-home-banner"),
         ["primitiveAction"] = new OpenApiObject {
-          ["type"] = new OpenApiString("command"),
+          ["type"] = new OpenApiString("WaitForImage"),
           ["schemaVersion"] = new OpenApiString("v1"),
           ["payload"] = new OpenApiObject {
-            ["commandId"] = new OpenApiString("command-warmup")
-          }
-        }
-      },
-      new OpenApiObject {
-        ["stepId"] = new OpenApiString("command-start"),
-        ["primitiveAction"] = new OpenApiObject {
-          ["type"] = new OpenApiString("command"),
-          ["schemaVersion"] = new OpenApiString("v1"),
-          ["payload"] = new OpenApiObject {
-            ["commandId"] = new OpenApiString("command-start")
+            ["timeoutMs"] = new OpenApiInteger(1500),
+            ["detectionTarget"] = new OpenApiObject {
+              ["referenceImageId"] = new OpenApiString("home-banner"),
+              ["confidence"] = new OpenApiDouble(0.88)
+            }
           }
         }
       }
@@ -1062,20 +1050,21 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   };
 
   private static OpenApiObject CommandCreateRequest() => new OpenApiObject {
-    ["name"] = new OpenApiString("Warmup"),
+    ["name"] = new OpenApiString("Wait for home banner"),
     ["steps"] = new OpenApiArray
     {
       new OpenApiObject
       {
-        ["type"] = new OpenApiString("PrimitiveTap"),
+        ["type"] = new OpenApiString("WaitForImage"),
         ["order"] = new OpenApiInteger(0),
-        ["primitiveTap"] = new OpenApiObject
+        ["waitForImage"] = new OpenApiObject
         {
           ["detectionTarget"] = new OpenApiObject
           {
-            ["referenceImageId"] = new OpenApiString("start-screen"),
-            ["confidence"] = new OpenApiDouble(0.9)
-          }
+            ["referenceImageId"] = new OpenApiString("home-banner"),
+            ["confidence"] = new OpenApiDouble(0.88)
+          },
+          ["timeoutMs"] = new OpenApiInteger(1500)
         }
       }
     }
@@ -1091,21 +1080,61 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   };
 
   private static OpenApiObject CommandCreateResponse() => new OpenApiObject {
-    ["id"] = new OpenApiString("command-123"),
-    ["name"] = new OpenApiString("Warmup"),
-    ["triggerId"] = new OpenApiString("trigger-1"),
+    ["id"] = new OpenApiString("command-wait-home"),
+    ["name"] = new OpenApiString("Wait for home banner"),
+    ["triggerId"] = new OpenApiNull(),
     ["steps"] = new OpenApiArray
     {
-      new OpenApiObject { ["type"] = new OpenApiString("Command"), ["targetId"] = new OpenApiString("cmd-next"), ["order"] = new OpenApiInteger(0) }
+      new OpenApiObject {
+        ["type"] = new OpenApiString("WaitForImage"),
+        ["order"] = new OpenApiInteger(0),
+        ["waitForImage"] = new OpenApiObject {
+          ["timeoutMs"] = new OpenApiInteger(1500),
+          ["detectionTarget"] = new OpenApiObject {
+            ["referenceImageId"] = new OpenApiString("home-banner"),
+            ["confidence"] = new OpenApiDouble(0.88)
+          }
+        }
+      }
     }
   };
 
   private static OpenApiArray CommandListResponse() => new OpenApiArray { CommandCreateResponse() };
 
   private static OpenApiObject CommandEvaluateResponse() => new OpenApiObject {
-    ["accepted"] = new OpenApiBoolean(true),
+    ["accepted"] = new OpenApiInteger(1),
     ["triggerStatus"] = new OpenApiString("Satisfied"),
-    ["message"] = new OpenApiString("Trigger satisfied; executed")
+    ["message"] = new OpenApiString("Trigger satisfied; executed"),
+    ["stepOutcomes"] = CommandExecuteStepOutcomes()
+  };
+
+  private static OpenApiObject CommandForceExecuteResponse() => new OpenApiObject {
+    ["accepted"] = new OpenApiInteger(1),
+    ["stepOutcomes"] = CommandExecuteStepOutcomes()
+  };
+
+  private static OpenApiArray CommandExecuteStepOutcomes() => new OpenApiArray {
+    new OpenApiObject {
+      ["stepOrder"] = new OpenApiInteger(0),
+      ["stepType"] = new OpenApiString("waitForImage"),
+      ["status"] = new OpenApiString("executed"),
+      ["reason"] = new OpenApiString("image_detected"),
+      ["detectionConfidence"] = new OpenApiDouble(0.91),
+      ["timeoutMs"] = new OpenApiInteger(1500),
+      ["effectiveTimeoutMs"] = new OpenApiInteger(1500),
+      ["referenceImageId"] = new OpenApiString("home-banner"),
+      ["imageLoadStatus"] = new OpenApiString("loaded")
+    },
+    new OpenApiObject {
+      ["stepOrder"] = new OpenApiInteger(1),
+      ["stepType"] = new OpenApiString("primitiveTap"),
+      ["status"] = new OpenApiString("executed"),
+      ["resolvedPoint"] = new OpenApiObject {
+        ["x"] = new OpenApiInteger(0),
+        ["y"] = new OpenApiInteger(0)
+      },
+      ["detectionConfidence"] = new OpenApiDouble(0.99)
+    }
   };
 
   private static OpenApiObject SequenceExecuteResponse() => new OpenApiObject {
@@ -1341,9 +1370,16 @@ internal sealed class CommandCreateSchema {
 }
 
 internal sealed class CommandEvaluateResponseSchema {
-  public bool Accepted { get; set; }
+  public int Accepted { get; set; }
   public string? TriggerStatus { get; set; }
   public string? Message { get; set; }
+}
+
+internal sealed class CommandExecuteResponseSchema {
+  public int Accepted { get; set; }
+  public string? TriggerStatus { get; set; }
+  public string? Message { get; set; }
+  public ICollection<GameBot.Service.Models.StepExecutionOutcomeDto>? StepOutcomes { get; set; }
 }
 
 internal sealed class GameCreateSchema {

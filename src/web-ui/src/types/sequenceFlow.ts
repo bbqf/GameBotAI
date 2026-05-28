@@ -96,6 +96,12 @@ export type SequenceActionPayload = {
   parameters: Record<string, unknown>;
 };
 
+export type SequencePrimitiveActionPayload = {
+  type: string;
+  schemaVersion?: string;
+  payload: Record<string, unknown>;
+};
+
 export type LoopConfigDto =
   | { loopType: 'count'; count: number; maxIterations?: number | null }
   | { loopType: 'while'; condition: SequenceStepCondition; maxIterations?: number | null }
@@ -106,6 +112,7 @@ export type SequenceLinearStep = {
   label?: string;
   stepType?: 'Action' | 'Loop' | 'Break';
   action?: SequenceActionPayload | null;
+  primitiveAction?: SequencePrimitiveActionPayload | null;
   condition?: SequenceStepCondition | null;
   loop?: LoopConfigDto | null;
   body?: SequenceLinearStep[] | null;

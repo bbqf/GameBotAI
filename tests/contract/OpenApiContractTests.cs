@@ -55,6 +55,44 @@ public sealed class OpenApiContractTests : IDisposable {
   }
 
   [Fact]
+  public async Task SwaggerDocumentIncludesWaitForImageCommandAndSequenceContracts() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
+    resp.EnsureSuccessStatusCode();
+
+    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+    var root = doc.RootElement;
+    var rootText = root.ToString();
+
+    rootText.Should().Contain("WaitForImage");
+    rootText.Should().Contain("waitForImage");
+    rootText.Should().Contain("timeoutMs");
+    rootText.Should().Contain("/api/commands");
+    rootText.Should().Contain("/api/sequences");
+  }
+
+  [Fact]
+  public async Task SwaggerDocumentIncludesWaitForImageExecuteOutcomeContracts() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
+    resp.EnsureSuccessStatusCode();
+
+    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+    var rootText = doc.RootElement.ToString();
+
+    rootText.Should().Contain("force-execute");
+    rootText.Should().Contain("stepOutcomes");
+    rootText.Should().Contain("waitForImage");
+    rootText.Should().Contain("effectiveTimeoutMs");
+    rootText.Should().Contain("referenceImageId");
+    rootText.Should().Contain("imageLoadStatus");
+    rootText.Should().Contain("reason");
+    rootText.Should().Contain("status");
+  }
+
+  [Fact]
   public async Task SwaggerDocumentIncludesExecutionLogRetentionEndpoints() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
@@ -89,5 +127,21 @@ public sealed class OpenApiContractTests : IDisposable {
 
     paths.TryGetProperty("/api/execution-logs/{id}", out var detailPath).Should().BeTrue();
     detailPath.TryGetProperty("get", out _).Should().BeTrue();
+  }
+
+  [Fact]
+  public async Task SwaggerDocumentIncludesWaitForImageExecutionLogDetailAttributes() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
+    resp.EnsureSuccessStatusCode();
+
+    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+    var rootText = doc.RootElement.ToString();
+
+    rootText.Should().Contain("/api/execution-logs/{id}");
+    rootText.Should().Contain("waitForImageDetails");
+    rootText.Should().Contain("exitCondition");
+    rootText.Should().Contain("imageLoadStatus");
   }
 }

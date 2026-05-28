@@ -1,0 +1,513 @@
+openapi: 3.0.3
+info:
+  title: Wait for Image Contract Addendum
+  version: 1.0.0
+  description: >-
+    Additive contract fragment for the Wait for Image command step, sequence step, and execution-log detail extensions.
+paths:
+  /api/commands:
+    post:
+      summary: Create a command with WaitForImage steps
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandCreateRequest'
+      responses:
+        '200':
+          description: Command created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '400':
+          description: Validation error
+  /api/commands/{id}:
+    get:
+      summary: Get a command including WaitForImage steps
+      parameters:
+        - $ref: '#/components/parameters/CommandId'
+      responses:
+        '200':
+          description: Command found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+    patch:
+      summary: Update a command including WaitForImage steps
+      parameters:
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandUpdateRequest'
+      responses:
+        '200':
+          description: Command updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '400':
+          description: Validation error
+  /api/commands/{id}/force-execute:
+    post:
+      summary: Execute a command containing WaitForImage steps
+      parameters:
+        - $ref: '#/components/parameters/CommandId'
+      responses:
+        '200':
+          description: Execution accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandExecuteResponse'
+  /api/sequences:
+    post:
+      summary: Create a sequence with WaitForImage primitive steps
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '200':
+          description: Sequence created
+    patch:
+      summary: Update a sequence with WaitForImage primitive steps
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '200':
+          description: Sequence updated
+  /api/execution-logs/{executionId}:
+    get:
+      summary: Get execution-log detail including wait-step parameters and exit condition
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+      responses:
+        '200':
+          description: Execution-log detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogDetailResponse'
+
+components:
+  parameters:
+    CommandId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    ExecutionId:
+      name: executionId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    CommandCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        triggerId:
+          type: string
+          nullable: true
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommandStep'
+        detection:
+          $ref: '#/components/schemas/DetectionTarget'
+      example:
+        name: Wait for home banner
+        steps:
+          - type: WaitForImage
+            order: 0
+            waitForImage:
+              timeoutMs: 1500
+              detectionTarget:
+                referenceImageId: home-banner
+                confidence: 0.88
+                offsetX: 0
+                offsetY: 0
+                selectionStrategy: HighestConfidence
+
+    CommandUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/CommandCreateRequest'
+
+    CommandResponse:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        triggerId:
+          type: string
+          nullable: true
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommandStep'
+        detection:
+          $ref: '#/components/schemas/DetectionTarget'
+      example:
+        id: 00000000000000000000000000000003
+        name: Wait for home banner
+        steps:
+          - type: WaitForImage
+            order: 0
+            waitForImage:
+              timeoutMs: 1500
+              detectionTarget:
+                referenceImageId: home-banner
+                confidence: 0.88
+                offsetX: 0
+                offsetY: 0
+                selectionStrategy: HighestConfidence
+
+    CommandStep:
+      type: object
+      required:
+        - type
+        - order
+      properties:
+        type:
+          type: string
+          enum:
+            - Command
+            - PrimitiveTap
+            - WaitForImage
+        order:
+          type: integer
+          format: int32
+          minimum: 0
+        targetId:
+          type: string
+          nullable: true
+        primitiveTap:
+          $ref: '#/components/schemas/PrimitiveTapConfig'
+        waitForImage:
+          $ref: '#/components/schemas/WaitForImageConfig'
+      oneOf:
+        - required: [type, order, targetId]
+        - required: [type, order, primitiveTap]
+        - required: [type, order, waitForImage]
+
+    PrimitiveTapConfig:
+      type: object
+      required:
+        - detectionTarget
+      properties:
+        detectionTarget:
+          $ref: '#/components/schemas/DetectionTarget'
+
+    WaitForImageConfig:
+      type: object
+      properties:
+        timeoutMs:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 1000
+        detectionTarget:
+          $ref: '#/components/schemas/DetectionTarget'
+      description: Optional image wait configuration. When detectionTarget is absent, the step behaves as a pure timed wait.
+      example:
+        timeoutMs: 1500
+        detectionTarget:
+          referenceImageId: home-banner
+          confidence: 0.88
+          offsetX: 0
+          offsetY: 0
+          selectionStrategy: HighestConfidence
+
+    DetectionTarget:
+      type: object
+      required:
+        - referenceImageId
+      properties:
+        referenceImageId:
+          type: string
+        confidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          nullable: true
+          description: Uses the existing detection default when omitted.
+        offsetX:
+          type: integer
+          format: int32
+          nullable: true
+        offsetY:
+          type: integer
+          format: int32
+          nullable: true
+        selectionStrategy:
+          type: string
+          nullable: true
+
+    CommandExecuteResponse:
+      type: object
+      required:
+        - accepted
+      properties:
+        accepted:
+          type: integer
+          format: int32
+        triggerStatus:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        stepOutcomes:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepOutcome'
+
+    StepOutcome:
+      type: object
+      required:
+        - stepOrder
+        - status
+      properties:
+        stepOrder:
+          type: integer
+          format: int32
+        stepType:
+          type: string
+          enum:
+            - primitiveTap
+            - waitForImage
+          nullable: true
+        status:
+          type: string
+          enum:
+            - executed
+            - completed_timeout
+            - completed_image_unavailable
+            - skipped_invalid_config
+            - skipped_detection_failed
+        reason:
+          type: string
+          nullable: true
+        detectionConfidence:
+          type: number
+          format: double
+          nullable: true
+        resolvedPoint:
+          type: object
+          nullable: true
+          properties:
+            x:
+              type: integer
+              format: int32
+            y:
+              type: integer
+              format: int32
+      example:
+        stepOrder: 0
+        stepType: waitForImage
+        status: executed
+        reason: image_detected
+        detectionConfidence: 0.91
+
+    ExecutionLogDetailResponse:
+      type: object
+      required:
+        - executionId
+        - summary
+        - relatedObjects
+        - snapshot
+        - stepOutcomes
+      properties:
+        executionId:
+          type: string
+        summary:
+          type: string
+        relatedObjects:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        snapshot:
+          type: object
+          additionalProperties: true
+        stepOutcomes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionLogStepOutcome'
+
+    ExecutionLogStepOutcome:
+      type: object
+      required:
+        - stepName
+        - status
+        - message
+      properties:
+        sequenceId:
+          type: string
+          nullable: true
+        sequenceLabel:
+          type: string
+          nullable: true
+        stepId:
+          type: string
+          nullable: true
+        stepLabel:
+          type: string
+          nullable: true
+        stepName:
+          type: string
+        stepType:
+          type: string
+          enum:
+            - primitiveTap
+            - waitForImage
+          nullable: true
+        status:
+          type: string
+        message:
+          type: string
+        appliedDelayMs:
+          type: integer
+          format: int32
+          nullable: true
+        detailAttributes:
+          type: object
+          nullable: true
+          properties:
+            timeoutMs:
+              type: integer
+              format: int32
+            effectiveTimeoutMs:
+              type: integer
+              format: int32
+            referenceImageId:
+              type: string
+              nullable: true
+            confidence:
+              type: number
+              format: double
+              nullable: true
+            exitCondition:
+              type: string
+              enum:
+                - image_detected
+                - timeout_elapsed
+                - image_unavailable
+            imageLoadStatus:
+              type: string
+              nullable: true
+      example:
+        stepId: wait-home-banner
+        stepLabel: Wait for home banner
+        stepName: WaitForImage
+        stepType: waitForImage
+        status: executed
+        message: Wait completed after detecting the configured image.
+        appliedDelayMs: 640
+        detailAttributes:
+          timeoutMs: 1500
+          effectiveTimeoutMs: 1500
+          referenceImageId: home-banner
+          confidence: 0.88
+          exitCondition: image_detected
+          imageLoadStatus: loaded
+
+    SequenceUpsertRequest:
+      type: object
+      required:
+        - name
+        - steps
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+          format: int32
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+      example:
+        name: Wait for image sequence
+        version: 1
+        steps:
+          - stepId: wait-home-banner
+            label: Wait for home banner
+            primitiveAction:
+              type: WaitForImage
+              schemaVersion: v1
+              payload:
+                timeoutMs: 1500
+                detectionTarget:
+                  referenceImageId: home-banner
+                  confidence: 0.88
+                  offsetX: 0
+                  offsetY: 0
+                  selectionStrategy: HighestConfidence
+
+    SequenceStep:
+      type: object
+      required:
+        - stepId
+      properties:
+        stepId:
+          type: string
+        label:
+          type: string
+          nullable: true
+        stepType:
+          type: string
+          nullable: true
+        primitiveAction:
+          $ref: '#/components/schemas/PrimitiveActionRequest'
+
+    PrimitiveActionRequest:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - WaitForImage
+        schemaVersion:
+          type: string
+          nullable: true
+        payload:
+          $ref: '#/components/schemas/WaitForImageConfig'
+      example:
+        type: WaitForImage
+        schemaVersion: v1
+        payload:
+          timeoutMs: 1500
+          detectionTarget:
+            referenceImageId: home-banner
+            confidence: 0.88
+            offsetX: 0
+            offsetY: 0
+            selectionStrategy: HighestConfidence

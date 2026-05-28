@@ -6,10 +6,14 @@ import './CommandForm.css';
 
 export type StepEntry = {
   id: string;
-  type: 'Command' | 'PrimitiveTap';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage';
   targetId?: string;
   primitiveTap?: {
     detectionTarget: DetectionTargetForm;
+  };
+  waitForImage?: {
+    detectionTarget?: DetectionTargetForm;
+    timeoutMs?: string;
   };
 };
 
@@ -53,6 +57,17 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
       };
     }
 
+    if (step.type === 'WaitForImage') {
+      const imageId = step.waitForImage?.detectionTarget?.referenceImageId?.trim() || 'any image';
+      const timeoutMs = step.waitForImage?.timeoutMs?.trim() || '1000';
+      const confidence = step.waitForImage?.detectionTarget?.confidence?.trim();
+      return {
+        id: step.id,
+        label: `Wait for image: ${imageId}`,
+        description: confidence ? `Timeout ${timeoutMs} ms, confidence ${confidence}` : `Timeout ${timeoutMs} ms`,
+      };
+    }
+
     const targetId = step.targetId ?? '';
     const match = commandMap.get(targetId);
     return {
@@ -78,6 +93,9 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   const [pendingPrimitiveConfidence, setPendingPrimitiveConfidence] = useState('');
   const [pendingPrimitiveOffsetX, setPendingPrimitiveOffsetX] = useState('0');
   const [pendingPrimitiveOffsetY, setPendingPrimitiveOffsetY] = useState('0');
+  const [pendingWaitReferenceImageId, setPendingWaitReferenceImageId] = useState('');
+  const [pendingWaitConfidence, setPendingWaitConfidence] = useState('');
+  const [pendingWaitTimeoutMs, setPendingWaitTimeoutMs] = useState('1000');
 
   const stepItems = useMemo(() => toStepItems(value.steps, commandOptions), [value.steps, commandOptions]);
 
@@ -217,12 +235,80 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           </button>
         </div>
 
+        <div className="field grid-3">
+          <div>
+            <label htmlFor="command-wait-reference">Wait image ID</label>
+            <input
+              id="command-wait-reference"
+              value={pendingWaitReferenceImageId}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                setPendingWaitReferenceImageId(nextValue);
+                if (!nextValue.trim()) {
+                  setPendingWaitConfidence('');
+                }
+              }}
+              disabled={submitting || loading}
+            />
+          </div>
+          <div>
+            <label htmlFor="command-wait-confidence">Wait confidence (0-1)</label>
+            <input
+              id="command-wait-confidence"
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              value={pendingWaitConfidence}
+              onChange={(e) => setPendingWaitConfidence(e.target.value)}
+              disabled={submitting || loading || !pendingWaitReferenceImageId.trim()}
+            />
+          </div>
+          <div>
+            <label htmlFor="command-wait-timeout">Wait timeout (ms)</label>
+            <input
+              id="command-wait-timeout"
+              type="number"
+              min="0"
+              value={pendingWaitTimeoutMs}
+              onChange={(e) => setPendingWaitTimeoutMs(e.target.value)}
+              disabled={submitting || loading}
+            />
+          </div>
+        </div>
+        <div className="field">
+          <button
+            type="button"
+            onClick={() => {
+              const imageId = pendingWaitReferenceImageId.trim();
+              addStep({
+                type: 'WaitForImage',
+                waitForImage: {
+                  detectionTarget: imageId
+                    ? {
+                      referenceImageId: imageId,
+                      confidence: pendingWaitConfidence || undefined,
+                    }
+                    : undefined,
+                  timeoutMs: pendingWaitTimeoutMs || '1000',
+                }
+              });
+              setPendingWaitReferenceImageId('');
+              setPendingWaitConfidence('');
+              setPendingWaitTimeoutMs('1000');
+            }}
+            disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
+          >
+            Add wait for image step
+          </button>
+        </div>
+
         <ReorderableList
           items={stepItems}
           onChange={updateStepOrder}
           onDelete={(item) => removeStep(item.id)}
           disabled={submitting || loading}
-          emptyMessage="No steps yet. Add command or primitive tap steps."
+          emptyMessage="No steps yet. Add command, primitive tap, or wait-for-image steps."
         />
         <div className="form-hint">Steps run top-to-bottom; reorder to change execution order before saving.</div>
         {errors?.steps && <div className="field-error" role="alert">{errors.steps}</div>}

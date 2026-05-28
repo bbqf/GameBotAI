@@ -17,8 +17,10 @@ internal sealed record ExecutionLogStepProjection(
   string? StepId,
   string StepLabel,
   string StepName,
+  string StepType,
   string Status,
   string Message,
+  WaitForImageDetailAttributes? DetailAttributes,
   ExecutionLogStepDeepLinkProjection DeepLink,
   ConditionEvaluationTrace? ConditionTrace,
   int? AppliedDelayMs);
@@ -79,17 +81,33 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     var now = DateTimeOffset.UtcNow;
 
     var stepOutcomes = primitiveOutcomes
-      .Select(o => new ExecutionStepOutcome(
-        o.StepOrder,
-        "primitiveTap",
-        string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase) ? "executed" : "not_executed",
-        o.Status,
-        o.Reason))
+      .Select(o => {
+        var stepType = string.IsNullOrWhiteSpace(o.StepType) ? "primitiveTap" : o.StepType!;
+        var outcome = string.Equals(stepType, "waitForImage", StringComparison.OrdinalIgnoreCase)
+          ? o.Status
+          : (string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase) ? "executed" : "not_executed");
+
+        return new ExecutionStepOutcome(
+          o.StepOrder,
+          stepType,
+          outcome,
+          o.Status,
+          o.Reason) {
+          DetailAttributes = BuildWaitForImageDetailAttributes(o)
+        };
+      })
       .ToList();
 
     var details = new List<ExecutionDetailItem>();
     foreach (var outcome in primitiveOutcomes) {
-      if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) && outcome.ResolvedPoint is not null) {
+      if (string.Equals(outcome.StepType, "waitForImage", StringComparison.OrdinalIgnoreCase)) {
+        details.Add(new ExecutionDetailItem(
+          "step",
+          $"Wait for image step ended with {outcome.Reason ?? outcome.Status}.",
+          BuildWaitForImageDetailAttributeMap(outcome),
+          "normal"));
+      }
+      else if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) && outcome.ResolvedPoint is not null) {
         details.Add(new ExecutionDetailItem(
           "tap",
           $"Tap executed at ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}).",
@@ -230,8 +248,10 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         step.StepId,
         ResolveStepLabel(step),
         string.IsNullOrWhiteSpace(step.StepType) ? $"Step {step.StepOrder}" : step.StepType,
+        step.StepType,
         step.Outcome,
         step.ReasonText ?? step.ReasonCode ?? "Step completed.",
+        step.DetailAttributes,
         BuildDeepLink(entry, step),
         step.ConditionTrace,
         step.AppliedDelayMs))
@@ -271,6 +291,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       var appliedDelayMs = TryGetInt(attributes, "appliedDelayMs");
       var conditionTrace = TryGetConditionTrace(attributes, "conditionTrace")
                            ?? BuildConditionTraceFromAttributes(attributes);
+      var detailAttributes = BuildWaitForImageDetailAttributes(attributes, stepType, reasonCode);
 
       results.Add(new ExecutionStepOutcome(
         order,
@@ -283,7 +304,9 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         resolvedSequenceLabel,
         resolvedStepLabel,
         conditionTrace,
-        appliedDelayMs));
+        appliedDelayMs) {
+        DetailAttributes = detailAttributes
+      });
     }
 
     return results;
@@ -362,6 +385,21 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     };
   }
 
+  private static double? TryGetDouble(Dictionary<string, object?>? attributes, string key) {
+    if (attributes is null || !attributes.TryGetValue(key, out var value) || value is null) {
+      return null;
+    }
+
+    return value switch {
+      double doubleValue => doubleValue,
+      float floatValue => floatValue,
+      decimal decimalValue => (double)decimalValue,
+      JsonElement { ValueKind: JsonValueKind.Number } element when element.TryGetDouble(out var parsed) => parsed,
+      string text when double.TryParse(text, out var parsed) => parsed,
+      _ => null
+    };
+  }
+
   private static ConditionEvaluationTrace? TryGetConditionTrace(Dictionary<string, object?>? attributes, string key) {
     if (attributes is null || !attributes.TryGetValue(key, out var value) || value is null) {
       return null;
@@ -413,6 +451,53 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     }
 
     return null;
+  }
+
+  private static WaitForImageDetailAttributes? BuildWaitForImageDetailAttributes(PrimitiveTapStepOutcome outcome) {
+    if (!string.Equals(outcome.StepType, "waitForImage", StringComparison.OrdinalIgnoreCase)) {
+      return null;
+    }
+
+    return new WaitForImageDetailAttributes(
+      outcome.TimeoutMs,
+      outcome.EffectiveTimeoutMs,
+      outcome.ReferenceImageId,
+      outcome.ConfiguredConfidence,
+      outcome.Reason,
+      outcome.ImageLoadStatus);
+  }
+
+  private static WaitForImageDetailAttributes? BuildWaitForImageDetailAttributes(
+    Dictionary<string, object?>? attributes,
+    string? stepType,
+    string? reasonCode) {
+    if (!string.Equals(stepType, "waitForImage", StringComparison.OrdinalIgnoreCase)) {
+      return null;
+    }
+
+    return new WaitForImageDetailAttributes(
+      TryGetInt(attributes, "timeoutMs"),
+      TryGetInt(attributes, "effectiveTimeoutMs"),
+      TryGetString(attributes, "referenceImageId"),
+      TryGetDouble(attributes, "confidence"),
+      TryGetString(attributes, "exitCondition") ?? reasonCode,
+      TryGetString(attributes, "imageLoadStatus"));
+  }
+
+  private static Dictionary<string, object?> BuildWaitForImageDetailAttributeMap(PrimitiveTapStepOutcome outcome) {
+    return new Dictionary<string, object?> {
+      ["stepOrder"] = outcome.StepOrder,
+      ["stepType"] = outcome.StepType,
+      ["status"] = outcome.Status,
+      ["actionOutcome"] = outcome.Reason,
+      ["reasonCode"] = outcome.Reason,
+      ["timeoutMs"] = outcome.TimeoutMs,
+      ["effectiveTimeoutMs"] = outcome.EffectiveTimeoutMs,
+      ["referenceImageId"] = outcome.ReferenceImageId,
+      ["confidence"] = outcome.ConfiguredConfidence,
+      ["exitCondition"] = outcome.Reason,
+      ["imageLoadStatus"] = outcome.ImageLoadStatus
+    };
   }
 
   private static string TrimSummary(string summary) {

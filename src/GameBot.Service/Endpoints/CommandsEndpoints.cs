@@ -24,11 +24,13 @@ internal static class CommandsEndpoints {
 
   private static CommandStepType MapStepTypeFromDto(CommandStepTypeDto dto) => dto switch {
     CommandStepTypeDto.Command => CommandStepType.Command,
+    CommandStepTypeDto.WaitForImage => CommandStepType.WaitForImage,
     _ => CommandStepType.PrimitiveTap
   };
 
   private static CommandStepTypeDto MapStepTypeToDto(CommandStepType type) => type switch {
     CommandStepType.Command => CommandStepTypeDto.Command,
+    CommandStepType.WaitForImage => CommandStepTypeDto.WaitForImage,
     _ => CommandStepTypeDto.PrimitiveTap
   };
 
@@ -44,11 +46,49 @@ internal static class CommandsEndpoints {
     return new PrimitiveTapConfigDto { DetectionTarget = ToResponseDetection(cfg.DetectionTarget)! };
   }
 
+  private static WaitForImageConfig? ToDomainWaitForImage(WaitForImageConfigDto? dto) {
+    if (dto is null) return null;
+    var timeoutMs = dto.TimeoutMs ?? 1000;
+    if (timeoutMs < 0) {
+      timeoutMs = 1000;
+    }
+
+    return new WaitForImageConfig {
+      DetectionTarget = ToDomainDetection(dto.DetectionTarget),
+      TimeoutMs = timeoutMs
+    };
+  }
+
+  private static WaitForImageConfigDto? ToResponseWaitForImage(WaitForImageConfig? cfg) {
+    if (cfg is null) return null;
+    return new WaitForImageConfigDto {
+      DetectionTarget = ToResponseDetection(cfg.DetectionTarget),
+      TimeoutMs = cfg.TimeoutMs
+    };
+  }
+
   private static string? ValidateStep(CommandStepDto step) {
     if (step.Type == CommandStepTypeDto.PrimitiveTap) {
       if (step.PrimitiveTap is null || step.PrimitiveTap.DetectionTarget is null || string.IsNullOrWhiteSpace(step.PrimitiveTap.DetectionTarget.ReferenceImageId)) {
         return "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
       }
+      return null;
+    }
+
+    if (step.Type == CommandStepTypeDto.WaitForImage) {
+      if (step.WaitForImage is null) {
+        return "waitForImage is required for WaitForImage steps";
+      }
+
+      if (step.WaitForImage.TimeoutMs is < 0) {
+        return "waitForImage.timeoutMs must be greater than or equal to zero";
+      }
+
+      if (step.WaitForImage.DetectionTarget is not null
+          && string.IsNullOrWhiteSpace(step.WaitForImage.DetectionTarget.ReferenceImageId)) {
+        return "waitForImage.detectionTarget.referenceImageId must not be empty when detectionTarget is provided";
+      }
+
       return null;
     }
 
@@ -62,21 +102,28 @@ internal static class CommandsEndpoints {
     Type = MapStepTypeFromDto(s.Type),
     TargetId = s.TargetId ?? string.Empty,
     PrimitiveTap = s.Type == CommandStepTypeDto.PrimitiveTap ? ToDomainPrimitiveTap(s.PrimitiveTap) : null,
+    WaitForImage = s.Type == CommandStepTypeDto.WaitForImage ? ToDomainWaitForImage(s.WaitForImage) : null,
     Order = s.Order
   };
 
   private static CommandStepDto ToResponseStep(CommandStep s) => new() {
     Type = MapStepTypeToDto(s.Type),
-    TargetId = s.Type == CommandStepType.PrimitiveTap ? null : s.TargetId,
+    TargetId = s.Type == CommandStepType.Command ? s.TargetId : null,
     PrimitiveTap = s.Type == CommandStepType.PrimitiveTap ? ToResponsePrimitiveTap(s.PrimitiveTap) : null,
+    WaitForImage = s.Type == CommandStepType.WaitForImage ? ToResponseWaitForImage(s.WaitForImage) : null,
     Order = s.Order
   };
 
   private static StepExecutionOutcomeDto ToResponseOutcome(PrimitiveTapStepOutcome outcome) => new() {
     StepOrder = outcome.StepOrder,
     Status = outcome.Status,
+    StepType = outcome.StepType ?? "primitiveTap",
     Reason = outcome.Reason,
     DetectionConfidence = outcome.DetectionConfidence,
+    TimeoutMs = outcome.TimeoutMs,
+    EffectiveTimeoutMs = outcome.EffectiveTimeoutMs,
+    ReferenceImageId = outcome.ReferenceImageId,
+    ImageLoadStatus = outcome.ImageLoadStatus,
     ResolvedPoint = outcome.ResolvedPoint is null
       ? null
       : new ResolvedPointDto {

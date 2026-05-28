@@ -18,14 +18,20 @@ export type CommandCreate = {
 export type CommandUpdate = CommandCreate;
 
 export type CommandStepDto = {
-  type: 'Command' | 'PrimitiveTap';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage';
   targetId?: string;
   order: number;
   primitiveTap?: PrimitiveTapConfigDto;
+  waitForImage?: WaitForImageConfigDto;
 };
 
 export type PrimitiveTapConfigDto = {
   detectionTarget: DetectionTargetDto;
+};
+
+export type WaitForImageConfigDto = {
+  detectionTarget?: DetectionTargetDto;
+  timeoutMs?: number;
 };
 
 export type ResolvedPointDto = {
@@ -36,9 +42,14 @@ export type ResolvedPointDto = {
 export type StepOutcomeDto = {
   stepOrder: number;
   status: string;
+  stepType?: string;
   reason?: string;
   resolvedPoint?: ResolvedPointDto;
   detectionConfidence?: number;
+  timeoutMs?: number;
+  effectiveTimeoutMs?: number;
+  referenceImageId?: string;
+  imageLoadStatus?: string;
 };
 
 export type CommandExecuteResponse = {

@@ -51,17 +51,17 @@ describe('SequencesPage mixed conditional authoring', () => {
         steps: expect.arrayContaining([
           expect.objectContaining({
             stepId: 'step-1',
-            action: expect.objectContaining({
+            primitiveAction: expect.objectContaining({
               type: 'command',
-              parameters: expect.objectContaining({ commandId: 'cmd-a' })
+              payload: expect.objectContaining({ commandId: 'cmd-a' })
             }),
             condition: null
           }),
           expect.objectContaining({
             stepId: 'step-2',
-            action: expect.objectContaining({
+            primitiveAction: expect.objectContaining({
               type: 'command',
-              parameters: expect.objectContaining({ commandId: 'cmd-b' })
+              payload: expect.objectContaining({ commandId: 'cmd-b' })
             }),
             condition: expect.objectContaining({
               type: 'imageVisible',
@@ -71,9 +71,9 @@ describe('SequencesPage mixed conditional authoring', () => {
           }),
           expect.objectContaining({
             stepId: 'step-3',
-            action: expect.objectContaining({
+            primitiveAction: expect.objectContaining({
               type: 'command',
-              parameters: expect.objectContaining({ commandId: 'cmd-final' })
+              payload: expect.objectContaining({ commandId: 'cmd-final' })
             })
           })
         ])
