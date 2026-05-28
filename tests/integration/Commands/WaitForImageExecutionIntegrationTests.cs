@@ -48,9 +48,9 @@ public sealed class WaitForImageExecutionIntegrationTests : IDisposable {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    await UploadImageAsync(client, "wait-image");
-    await UploadImageAsync(client, "tap-image");
-    var sessionId = await CreateSessionAsync(client, "WaitDetectGame");
+    await UploadImageAsync(client, "wait-image").ConfigureAwait(false);
+    await UploadImageAsync(client, "tap-image").ConfigureAwait(false);
+    var sessionId = await CreateSessionAsync(client, "WaitDetectGame").ConfigureAwait(false);
     var commandId = await CreateWaitThenTapCommandAsync(client, new {
       timeoutMs = 40,
       detectionTarget = new {
@@ -60,12 +60,12 @@ public sealed class WaitForImageExecutionIntegrationTests : IDisposable {
         offsetY = 0,
         selectionStrategy = "HighestConfidence"
       }
-    });
+    }).ConfigureAwait(false);
 
-    var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null);
+    var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null).ConfigureAwait(false);
     execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-    using var doc = await JsonDocument.ParseAsync(await execResp.Content.ReadAsStreamAsync());
+    using var doc = await JsonDocument.ParseAsync(await execResp.Content.ReadAsStreamAsync().ConfigureAwait(false)).ConfigureAwait(false);
     doc.RootElement.GetProperty("accepted").GetInt32().Should().Be(1);
     var outcomes = doc.RootElement.GetProperty("stepOutcomes");
     outcomes.GetArrayLength().Should().Be(2);
@@ -87,16 +87,16 @@ public sealed class WaitForImageExecutionIntegrationTests : IDisposable {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    await UploadImageAsync(client, "tap-image");
-    var sessionId = await CreateSessionAsync(client, "WaitNoImageGame");
+    await UploadImageAsync(client, "tap-image").ConfigureAwait(false);
+    var sessionId = await CreateSessionAsync(client, "WaitNoImageGame").ConfigureAwait(false);
     var commandId = await CreateWaitThenTapCommandAsync(client, new {
       timeoutMs = 25
-    });
+    }).ConfigureAwait(false);
 
-    var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null);
+    var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null).ConfigureAwait(false);
     execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-    using var doc = await JsonDocument.ParseAsync(await execResp.Content.ReadAsStreamAsync());
+    using var doc = await JsonDocument.ParseAsync(await execResp.Content.ReadAsStreamAsync().ConfigureAwait(false)).ConfigureAwait(false);
     doc.RootElement.GetProperty("accepted").GetInt32().Should().Be(1);
     var outcomes = doc.RootElement.GetProperty("stepOutcomes");
     outcomes.GetArrayLength().Should().Be(2);
@@ -118,8 +118,8 @@ public sealed class WaitForImageExecutionIntegrationTests : IDisposable {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    await UploadImageAsync(client, "tap-image");
-    var sessionId = await CreateSessionAsync(client, "WaitMissingImageGame");
+    await UploadImageAsync(client, "tap-image").ConfigureAwait(false);
+    var sessionId = await CreateSessionAsync(client, "WaitMissingImageGame").ConfigureAwait(false);
     var commandId = await CreateWaitThenTapCommandAsync(client, new {
       timeoutMs = 25,
       detectionTarget = new {
@@ -129,12 +129,12 @@ public sealed class WaitForImageExecutionIntegrationTests : IDisposable {
         offsetY = 0,
         selectionStrategy = "HighestConfidence"
       }
-    });
+    }).ConfigureAwait(false);
 
-    var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null);
+    var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null).ConfigureAwait(false);
     execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-    using var doc = await JsonDocument.ParseAsync(await execResp.Content.ReadAsStreamAsync());
+    using var doc = await JsonDocument.ParseAsync(await execResp.Content.ReadAsStreamAsync().ConfigureAwait(false)).ConfigureAwait(false);
     doc.RootElement.GetProperty("accepted").GetInt32().Should().Be(1);
     var outcomes = doc.RootElement.GetProperty("stepOutcomes");
     outcomes.GetArrayLength().Should().Be(2);

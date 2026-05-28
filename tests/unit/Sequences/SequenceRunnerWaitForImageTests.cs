@@ -39,7 +39,7 @@ public sealed class SequenceRunnerWaitForImageTests {
         return Task.CompletedTask;
       },
       conditionEvaluator: (_, _) => Task.FromResult(++invocationCount >= 3),
-      ct: CancellationToken.None);
+      ct: CancellationToken.None).ConfigureAwait(false);
 
     result.Status.Should().Be("Succeeded");
     executed.Should().ContainSingle().Which.Should().Be("cmd-after-wait");
@@ -62,7 +62,7 @@ public sealed class SequenceRunnerWaitForImageTests {
         return Task.CompletedTask;
       },
       conditionEvaluator: (_, _) => Task.FromResult(false),
-      ct: CancellationToken.None);
+      ct: CancellationToken.None).ConfigureAwait(false);
     stopwatch.Stop();
 
     result.Status.Should().Be("Succeeded");
@@ -87,7 +87,7 @@ public sealed class SequenceRunnerWaitForImageTests {
         return Task.CompletedTask;
       },
       conditionEvaluator: (_, _) => throw new InvalidOperationException("image unavailable"),
-      ct: CancellationToken.None);
+      ct: CancellationToken.None).ConfigureAwait(false);
     stopwatch.Stop();
 
     result.Status.Should().Be("Succeeded");

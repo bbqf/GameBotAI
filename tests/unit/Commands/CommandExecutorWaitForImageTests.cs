@@ -59,7 +59,7 @@ public sealed class CommandExecutorWaitForImageTests {
       new SessionContextCache(),
       new AppConfig { CaptureIntervalMs = 10 });
 
-    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
 
     result.Accepted.Should().Be(0);
     result.StepOutcomes.Should().HaveCount(1);
@@ -80,7 +80,7 @@ public sealed class CommandExecutorWaitForImageTests {
       new SessionContextCache());
 
     var stopwatch = Stopwatch.StartNew();
-    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
     stopwatch.Stop();
 
     result.Accepted.Should().Be(0);
@@ -111,7 +111,7 @@ public sealed class CommandExecutorWaitForImageTests {
       new AppConfig { CaptureIntervalMs = 10 });
 
     var stopwatch = Stopwatch.StartNew();
-    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
     stopwatch.Stop();
 
     result.Accepted.Should().Be(0);

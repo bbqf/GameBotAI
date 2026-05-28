@@ -46,7 +46,7 @@ public sealed class OpenApiContractTests : IDisposable {
     var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
     resp.EnsureSuccessStatusCode();
 
-    using var doc = await System.Text.Json.JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync()).ConfigureAwait(true);
+    using var doc = await System.Text.Json.JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync().ConfigureAwait(false)).ConfigureAwait(true);
     var root = doc.RootElement;
 
     root.ToString().Should().Contain("PrimitiveTap");

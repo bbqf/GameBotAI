@@ -49,7 +49,7 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 
-    var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "wait-sequence-image", data = OneByOnePngBase64 });
+    var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "wait-sequence-image", data = OneByOnePngBase64 }).ConfigureAwait(false);
     uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
     var sequenceId = await CreateSequenceAsync(client, new {
@@ -58,7 +58,7 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
         referenceImageId = "wait-sequence-image",
         confidence = 0.99
       }
-    });
+    }).ConfigureAwait(false);
 
     var executeResponse = await client.PostAsJsonAsync($"/api/sequences/{sequenceId}/execute", new { }).ConfigureAwait(false);
     executeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -79,7 +79,7 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
 
     var sequenceId = await CreateSequenceAsync(client, new {
       timeoutMs = 25
-    });
+    }).ConfigureAwait(false);
 
     var executeResponse = await client.PostAsJsonAsync($"/api/sequences/{sequenceId}/execute", new { }).ConfigureAwait(false);
     executeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -103,7 +103,7 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
         referenceImageId = "missing-sequence-image",
         confidence = 0.99
       }
-    });
+    }).ConfigureAwait(false);
 
     var executeResponse = await client.PostAsJsonAsync($"/api/sequences/{sequenceId}/execute", new { }).ConfigureAwait(false);
     executeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
