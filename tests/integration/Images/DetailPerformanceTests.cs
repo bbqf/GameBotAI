@@ -7,12 +7,10 @@ using Xunit;
 namespace GameBot.IntegrationTests.Images;
 
 [Collection("ConfigIsolation")]
-public sealed class DetailPerformanceTests
-{
+public sealed class DetailPerformanceTests {
   private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
 
-  public DetailPerformanceTests()
-  {
+  public DetailPerformanceTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
@@ -20,8 +18,7 @@ public sealed class DetailPerformanceTests
   }
 
   [Fact]
-  public async Task GetImageCompletesWithinBudget()
-  {
+  public async Task GetImageCompletesWithinBudget() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");

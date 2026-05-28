@@ -8,15 +8,13 @@ using Xunit;
 
 namespace GameBot.ContractTests;
 
-public sealed class LoggingConfigContractTests : IDisposable
-{
+public sealed class LoggingConfigContractTests : IDisposable {
   private readonly string? _prevAuthToken;
   private readonly string? _prevUseAdb;
   private readonly string? _prevDynamicPort;
   private readonly string _dataRoot;
 
-  public LoggingConfigContractTests()
-  {
+  public LoggingConfigContractTests() {
     _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
     _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
     _prevDynamicPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
@@ -30,8 +28,7 @@ public sealed class LoggingConfigContractTests : IDisposable
     ResetConfigDirectory();
   }
 
-  public void Dispose()
-  {
+  public void Dispose() {
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevAuthToken);
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynamicPort);
@@ -41,8 +38,7 @@ public sealed class LoggingConfigContractTests : IDisposable
   }
 
   [Fact]
-  public async Task PutComponentReturnsUpdatedComponent()
-  {
+  public async Task PutComponentReturnsUpdatedComponent() {
     using var app = new WebApplicationFactory<Program>();
     using var client = CreateAuthedClient(app);
 
@@ -61,8 +57,7 @@ public sealed class LoggingConfigContractTests : IDisposable
   }
 
   [Fact]
-  public async Task GetLoggingPolicyReturnsSnapshot()
-  {
+  public async Task GetLoggingPolicyReturnsSnapshot() {
     using var app = new WebApplicationFactory<Program>();
     using var client = CreateAuthedClient(app);
 
@@ -75,32 +70,26 @@ public sealed class LoggingConfigContractTests : IDisposable
     snapshot.Components!.Any(c => c.Name == "GameBot.Service").Should().BeTrue();
   }
 
-  private static HttpClient CreateAuthedClient(WebApplicationFactory<Program> app)
-  {
+  private static HttpClient CreateAuthedClient(WebApplicationFactory<Program> app) {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
     return client;
   }
 
-  private void ResetConfigDirectory()
-  {
-    try
-    {
+  private void ResetConfigDirectory() {
+    try {
       var configDir = Path.Combine(_dataRoot, "config");
-      if (Directory.Exists(configDir))
-      {
+      if (Directory.Exists(configDir)) {
         Directory.Delete(configDir, recursive: true);
       }
       Directory.CreateDirectory(configDir);
     }
-    catch
-    {
+    catch {
       // ignore cleanup errors
     }
   }
 
-  private sealed class LoggingComponentPatchPayload
-  {
+  private sealed class LoggingComponentPatchPayload {
     [JsonPropertyName("level")]
     public string? Level { get; set; }
 
@@ -108,8 +97,7 @@ public sealed class LoggingConfigContractTests : IDisposable
     public string? Notes { get; set; }
   }
 
-  private sealed class LoggingComponentResponse
-  {
+  private sealed class LoggingComponentResponse {
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
@@ -123,8 +111,7 @@ public sealed class LoggingConfigContractTests : IDisposable
     public string Source { get; set; } = string.Empty;
   }
 
-  private sealed class LoggingPolicySnapshotResponse
-  {
+  private sealed class LoggingPolicySnapshotResponse {
     [JsonPropertyName("components")]
     public LoggingComponentResponse[]? Components { get; set; }
   }

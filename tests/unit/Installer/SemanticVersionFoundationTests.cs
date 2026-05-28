@@ -4,11 +4,9 @@ using Xunit;
 
 namespace GameBot.UnitTests.Installer;
 
-public sealed class SemanticVersionFoundationTests
-{
+public sealed class SemanticVersionFoundationTests {
   [Fact]
-  public void SemanticVersionTryParseParsesValidFourPartVersion()
-  {
+  public void SemanticVersionTryParseParsesValidFourPartVersion() {
     var ok = SemanticVersion.TryParse("1.2.3.4", out var version);
 
     ok.Should().BeTrue();
@@ -23,16 +21,14 @@ public sealed class SemanticVersionFoundationTests
   [InlineData("1.2.3")]
   [InlineData("1.2.3.-1")]
   [InlineData("a.b.c.d")]
-  public void SemanticVersionTryParseRejectsInvalidInputs(string raw)
-  {
+  public void SemanticVersionTryParseRejectsInvalidInputs(string raw) {
     var ok = SemanticVersion.TryParse(raw, out _);
 
     ok.Should().BeFalse();
   }
 
   [Fact]
-  public void SemanticVersionComparerUsesMajorMinorPatchBuildOrder()
-  {
+  public void SemanticVersionComparerUsesMajorMinorPatchBuildOrder() {
     var comparer = new SemanticVersionComparer();
 
     comparer.Compare(new SemanticVersion(1, 0, 0, 0), new SemanticVersion(1, 0, 0, 1)).Should().BeLessThan(0);
@@ -41,10 +37,8 @@ public sealed class SemanticVersionFoundationTests
   }
 
   [Fact]
-  public void VersionResolutionServiceCiBuildIncrementsAndPersists()
-  {
-    var result = VersionResolutionService.Resolve(new VersionResolutionInput
-    {
+  public void VersionResolutionServiceCiBuildIncrementsAndPersists() {
+    var result = VersionResolutionService.Resolve(new VersionResolutionInput {
       BaselineVersion = new SemanticVersion(1, 2, 3, 10),
       Override = new VersionOverride(),
       CiBuildCounter = new CiBuildCounter { LastBuild = 10, UpdatedAtUtc = DateTimeOffset.UtcNow, UpdatedBy = "ci" },
@@ -57,10 +51,8 @@ public sealed class SemanticVersionFoundationTests
   }
 
   [Fact]
-  public void VersionResolutionServiceLocalBuildDerivesWithoutPersisting()
-  {
-    var result = VersionResolutionService.Resolve(new VersionResolutionInput
-    {
+  public void VersionResolutionServiceLocalBuildDerivesWithoutPersisting() {
+    var result = VersionResolutionService.Resolve(new VersionResolutionInput {
       BaselineVersion = new SemanticVersion(1, 2, 3, 20),
       Override = new VersionOverride(),
       CiBuildCounter = new CiBuildCounter { LastBuild = 20, UpdatedAtUtc = DateTimeOffset.UtcNow, UpdatedBy = "ci" },
@@ -73,10 +65,8 @@ public sealed class SemanticVersionFoundationTests
   }
 
   [Fact]
-  public void VersionResolutionServiceUsesBaselineMinorWhenNoOverride()
-  {
-    var result = VersionResolutionService.Resolve(new VersionResolutionInput
-    {
+  public void VersionResolutionServiceUsesBaselineMinorWhenNoOverride() {
+    var result = VersionResolutionService.Resolve(new VersionResolutionInput {
       BaselineVersion = new SemanticVersion(2, 5, 7, 30),
       Override = new VersionOverride { Major = 2 },
       CiBuildCounter = new CiBuildCounter { LastBuild = 30, UpdatedAtUtc = DateTimeOffset.UtcNow, UpdatedBy = "ci" },

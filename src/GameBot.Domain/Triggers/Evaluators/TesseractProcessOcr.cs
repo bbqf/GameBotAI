@@ -176,7 +176,8 @@ public sealed class TesseractProcessOcr : ITextOcr {
         try {
           var _ = TesseractTsvParser.Parse(textOrTsv, out var agg, out var reason);
           if (agg > 0) return agg / 100.0;
-        } catch { /* fall back to heuristic below */ }
+        }
+        catch { /* fall back to heuristic below */ }
       }
     }
     // Fallback heuristic: alphanumeric ratio for plain text inputs

@@ -15,142 +15,129 @@ using Xunit;
 
 namespace GameBot.ContractTests.Sessions;
 
-public sealed class SessionsContractsTests : IDisposable
-{
-    private readonly string? _prevAuthToken;
-    private readonly string? _prevUseAdb;
-    private readonly string? _prevDynamicPort;
+public sealed class SessionsContractsTests : IDisposable {
+  private readonly string? _prevAuthToken;
+  private readonly string? _prevUseAdb;
+  private readonly string? _prevDynamicPort;
 
-    public SessionsContractsTests()
-    {
-        _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
-        _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
-        _prevDynamicPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
+  public SessionsContractsTests() {
+    _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+    _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    _prevDynamicPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
 
-        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
-        Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
-        Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
-    }
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
+    Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
+    Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
+  }
 
-    public void Dispose()
-    {
-        Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevAuthToken);
-        Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
-        Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynamicPort);
-        GC.SuppressFinalize(this);
-    }
+  public void Dispose() {
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevAuthToken);
+    Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
+    Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynamicPort);
+    GC.SuppressFinalize(this);
+  }
 
-    [Fact]
-    public async Task RunningStartStopEndpointsAreExposed()
-    {
-        var fakeSessions = new FakeSessionManager();
-        using var baseFactory = new WebApplicationFactory<Program>();
-        using var app = baseFactory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<ISessionManager>();
-                services.AddSingleton<ISessionManager>(_ => fakeSessions);
-            });
-        });
+  [Fact]
+  public async Task RunningStartStopEndpointsAreExposed() {
+    var fakeSessions = new FakeSessionManager();
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = baseFactory.WithWebHostBuilder(builder => {
+      builder.ConfigureServices(services => {
+        services.RemoveAll<ISessionManager>();
+        services.AddSingleton<ISessionManager>(_ => fakeSessions);
+      });
+    });
 
-        var client = app.CreateClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-        var runningResp = await client.GetAsync(new Uri("/api/sessions/running", UriKind.Relative)).ConfigureAwait(true);
-        runningResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var runningResp = await client.GetAsync(new Uri("/api/sessions/running", UriKind.Relative)).ConfigureAwait(true);
+    runningResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
-            primitiveAction = new {
-                type = PrimitiveActionTypes.ConnectToGame,
-                schemaVersion = "v1",
-                payload = new {
-                    gameId = "game-1",
-                    adbSerial = "emu-1"
-                }
-            }
-        }).ConfigureAwait(true);
-        startResp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var startPayload = await startResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
-        startPayload.Should().NotBeNull();
-        var sessionId = startPayload!["sessionId"]!.ToString();
-        sessionId.Should().NotBeNullOrWhiteSpace();
-
-        var stopResp = await client.PostAsJsonAsync(new Uri("/api/sessions/stop", UriKind.Relative), new { sessionId }).ConfigureAwait(true);
-        stopResp.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task RunningSessionsResponseIncludesCaptureRateFps()
-    {
-        var fakeSessions = new FakeSessionManager();
-        using var baseFactory = new WebApplicationFactory<Program>();
-        using var app = baseFactory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<ISessionManager>();
-                services.AddSingleton<ISessionManager>(_ => fakeSessions);
-            });
-        });
-
-        var client = app.CreateClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-
-        // Start a session to populate running list
-        var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
-            primitiveAction = new {
-                type = PrimitiveActionTypes.ConnectToGame,
-                schemaVersion = "v1",
-                payload = new {
-                    gameId = "game-1",
-                    adbSerial = "emu-1"
-                }
-            }
-        }).ConfigureAwait(true);
-        startResp.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var runningResp = await client.GetAsync(new Uri("/api/sessions/running", UriKind.Relative)).ConfigureAwait(true);
-        runningResp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await runningResp.Content.ReadAsStringAsync().ConfigureAwait(true);
-        // Schema should include captureRateFps field (nullable)
-        body.Should().Contain("captureRateFps");
-    }
-
-    private sealed class FakeSessionManager : ISessionManager
-    {
-        private readonly List<EmulatorSession> _sessions = new();
-
-        public int ActiveCount => _sessions.Count;
-        public bool CanCreateSession => true;
-
-        public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null)
-        {
-            var session = new EmulatorSession
-            {
-                Id = Guid.NewGuid().ToString("N"),
-                GameId = gameIdOrPath,
-                DeviceSerial = preferredDeviceSerial,
-                Status = SessionStatus.Running,
-                Health = SessionHealth.Ok,
-                StartTime = DateTimeOffset.UtcNow,
-                LastActivity = DateTimeOffset.UtcNow
-            };
-            _sessions.Add(session);
-            return session;
+    var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
+      primitiveAction = new {
+        type = PrimitiveActionTypes.ConnectToGame,
+        schemaVersion = "v1",
+        payload = new {
+          gameId = "game-1",
+          adbSerial = "emu-1"
         }
+      }
+    }).ConfigureAwait(true);
+    startResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var startPayload = await startResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(true);
+    startPayload.Should().NotBeNull();
+    var sessionId = startPayload!["sessionId"]!.ToString();
+    sessionId.Should().NotBeNullOrWhiteSpace();
 
-        public EmulatorSession? GetSession(string id) => _sessions.FirstOrDefault(s => s.Id == id);
-        public IReadOnlyCollection<EmulatorSession> ListSessions() => _sessions.ToList();
-        public bool StopSession(string id)
-        {
-            var session = _sessions.FirstOrDefault(s => s.Id == id);
-            if (session is null) return false;
-            _sessions.Remove(session);
-            return true;
+    var stopResp = await client.PostAsJsonAsync(new Uri("/api/sessions/stop", UriKind.Relative), new { sessionId }).ConfigureAwait(true);
+    stopResp.StatusCode.Should().Be(HttpStatusCode.OK);
+  }
+
+  [Fact]
+  public async Task RunningSessionsResponseIncludesCaptureRateFps() {
+    var fakeSessions = new FakeSessionManager();
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = baseFactory.WithWebHostBuilder(builder => {
+      builder.ConfigureServices(services => {
+        services.RemoveAll<ISessionManager>();
+        services.AddSingleton<ISessionManager>(_ => fakeSessions);
+      });
+    });
+
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    // Start a session to populate running list
+    var startResp = await client.PostAsJsonAsync(new Uri("/api/sessions/start", UriKind.Relative), new {
+      primitiveAction = new {
+        type = PrimitiveActionTypes.ConnectToGame,
+        schemaVersion = "v1",
+        payload = new {
+          gameId = "game-1",
+          adbSerial = "emu-1"
         }
+      }
+    }).ConfigureAwait(true);
+    startResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        public Task<int> SendInputsAsync(string id, IEnumerable<EmulatorInputAction> actions, CancellationToken ct = default) => Task.FromResult(0);
-        public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
+    var runningResp = await client.GetAsync(new Uri("/api/sessions/running", UriKind.Relative)).ConfigureAwait(true);
+    runningResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var body = await runningResp.Content.ReadAsStringAsync().ConfigureAwait(true);
+    // Schema should include captureRateFps field (nullable)
+    body.Should().Contain("captureRateFps");
+  }
+
+  private sealed class FakeSessionManager : ISessionManager {
+    private readonly List<EmulatorSession> _sessions = new();
+
+    public int ActiveCount => _sessions.Count;
+    public bool CanCreateSession => true;
+
+    public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) {
+      var session = new EmulatorSession {
+        Id = Guid.NewGuid().ToString("N"),
+        GameId = gameIdOrPath,
+        DeviceSerial = preferredDeviceSerial,
+        Status = SessionStatus.Running,
+        Health = SessionHealth.Ok,
+        StartTime = DateTimeOffset.UtcNow,
+        LastActivity = DateTimeOffset.UtcNow
+      };
+      _sessions.Add(session);
+      return session;
     }
+
+    public EmulatorSession? GetSession(string id) => _sessions.FirstOrDefault(s => s.Id == id);
+    public IReadOnlyCollection<EmulatorSession> ListSessions() => _sessions.ToList();
+    public bool StopSession(string id) {
+      var session = _sessions.FirstOrDefault(s => s.Id == id);
+      if (session is null) return false;
+      _sessions.Remove(session);
+      return true;
+    }
+
+    public Task<int> SendInputsAsync(string id, IEnumerable<EmulatorInputAction> actions, CancellationToken ct = default) => Task.FromResult(0);
+    public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
+  }
 }

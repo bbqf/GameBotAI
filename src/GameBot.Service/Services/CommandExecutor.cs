@@ -380,8 +380,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     DetectionTarget detectionTarget,
     GameBot.Domain.Vision.ITemplateMatcher matcher,
     out PrimitiveTapResolvedPoint? resolvedPoint,
-    out double? detectionConfidence)
-  {
+    out double? detectionConfidence) {
     resolvedPoint = null;
     detectionConfidence = null;
 
@@ -449,8 +448,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     List<PrimitiveTapStepOutcome> stepOutcomes,
     ref int totalAccepted,
     int retryAttempt,
-    CancellationToken ct)
-  {
+    CancellationToken ct) {
     var screenshotBmp = screenSrc.GetLatestScreenshot();
     if (screenshotBmp is null) return false;
 

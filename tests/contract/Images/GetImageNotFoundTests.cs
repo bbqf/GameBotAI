@@ -8,8 +8,7 @@ using Xunit;
 
 namespace GameBot.ContractTests.Images;
 
-public sealed class GetImageNotFoundTests : IDisposable
-{
+public sealed class GetImageNotFoundTests : IDisposable {
   private readonly string? _prevDynPort;
   private readonly string? _prevToken;
   private readonly string? _prevUseAdb;
@@ -17,8 +16,7 @@ public sealed class GetImageNotFoundTests : IDisposable
   private readonly string? _prevStorageRoot;
   private readonly string _dataDir;
 
-  public GetImageNotFoundTests()
-  {
+  public GetImageNotFoundTests() {
     _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
     _prevDynPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
     _prevToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
@@ -35,15 +33,13 @@ public sealed class GetImageNotFoundTests : IDisposable
     Environment.SetEnvironmentVariable("Service__Storage__Root", _dataDir);
   }
 
-  public void Dispose()
-  {
+  public void Dispose() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynPort);
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevToken);
     Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _prevDataDir);
     Environment.SetEnvironmentVariable("Service__Storage__Root", _prevStorageRoot);
-    try
-    {
+    try {
       if (Directory.Exists(_dataDir)) Directory.Delete(_dataDir, recursive: true);
     }
     catch { }
@@ -51,8 +47,7 @@ public sealed class GetImageNotFoundTests : IDisposable
   }
 
   [Fact]
-  public async Task MissingImageReturns404AndErrorBody()
-  {
+  public async Task MissingImageReturns404AndErrorBody() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");

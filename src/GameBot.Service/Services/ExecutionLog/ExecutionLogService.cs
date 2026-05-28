@@ -184,8 +184,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     await _repository.AddAsync(entry, ct).ConfigureAwait(false);
   }
 
-  public Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default)
-  {
+  public Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default) {
     var normalized = NormalizeQuery(query);
     return _repository.QueryAsync(normalized, ct);
   }
@@ -213,8 +212,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     return await _repository.DeleteExpiredAsync(DateTimeOffset.UtcNow, ct).ConfigureAwait(false);
   }
 
-  internal static ExecutionLogDetailProjection BuildDetailProjection(ExecutionLogEntry entry)
-  {
+  internal static ExecutionLogDetailProjection BuildDetailProjection(ExecutionLogEntry entry) {
     var summary = string.IsNullOrWhiteSpace(entry.Summary) ? "Execution completed." : entry.Summary;
 
     var relatedObjects = new List<ExecutionLogRelatedProjection>
@@ -227,8 +225,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         null)
     };
 
-    if (!string.IsNullOrWhiteSpace(entry.Navigation.ParentPath))
-    {
+    if (!string.IsNullOrWhiteSpace(entry.Navigation.ParentPath)) {
       relatedObjects.Add(new ExecutionLogRelatedProjection(
         "Parent execution",
         "execution",
@@ -512,13 +509,11 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     return trimmed;
   }
 
-  private static ExecutionLogQuery NormalizeQuery(ExecutionLogQuery? query)
-  {
+  private static ExecutionLogQuery NormalizeQuery(ExecutionLogQuery? query) {
     var source = query ?? new ExecutionLogQuery();
 
     var sortByRaw = source.SortBy?.Trim();
-    var normalizedSortBy = sortByRaw?.ToUpperInvariant() switch
-    {
+    var normalizedSortBy = sortByRaw?.ToUpperInvariant() switch {
       "TIMESTAMP" => "timestamp",
       "OBJECTNAME" => "objectName",
       "STATUS" => "status",
@@ -529,8 +524,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       ? "asc"
       : "desc";
 
-    return new ExecutionLogQuery
-    {
+    return new ExecutionLogQuery {
       SortBy = normalizedSortBy,
       SortDirection = normalizedDirection,
       FilterTimestamp = source.FilterTimestamp,

@@ -1,25 +1,24 @@
 namespace GameBot.Service;
 
-internal static class ApiRoutes
-{
-    internal const string Base = "/api";
-    internal const string Commands = Base + "/commands";
-    internal const string Sequences = Base + "/sequences";
-    internal const string Sessions = Base + "/sessions";
-    internal const string Games = Base + "/games";
-    internal const string Config = Base + "/config";
-    internal const string ConfigLogging = Config + "/logging";
-    internal const string ConfigParameters = Config + "/parameters";
-    internal const string ConfigParametersReorder = ConfigParameters + "/reorder";
-    internal const string ConfigFiles = Config + "/files";
-    internal const string Triggers = Base + "/triggers";
-    internal const string Images = Base + "/images";
-    internal const string ImageCrop = Images + "/crop";
-    internal const string Emulator = Base + "/emulator";
-    internal const string EmulatorScreenshot = Emulator + "/screenshot";
-    internal const string ImageDetect = Images + "/detect";
-    internal const string Metrics = Base + "/metrics";
-    internal const string ExecutionLogs = Base + "/execution-logs";
-    internal const string Adb = Base + "/adb";
-    internal const string Ocr = Base + "/ocr";
+internal static class ApiRoutes {
+  internal const string Base = "/api";
+  internal const string Commands = Base + "/commands";
+  internal const string Sequences = Base + "/sequences";
+  internal const string Sessions = Base + "/sessions";
+  internal const string Games = Base + "/games";
+  internal const string Config = Base + "/config";
+  internal const string ConfigLogging = Config + "/logging";
+  internal const string ConfigParameters = Config + "/parameters";
+  internal const string ConfigParametersReorder = ConfigParameters + "/reorder";
+  internal const string ConfigFiles = Config + "/files";
+  internal const string Triggers = Base + "/triggers";
+  internal const string Images = Base + "/images";
+  internal const string ImageCrop = Images + "/crop";
+  internal const string Emulator = Base + "/emulator";
+  internal const string EmulatorScreenshot = Emulator + "/screenshot";
+  internal const string ImageDetect = Images + "/detect";
+  internal const string Metrics = Base + "/metrics";
+  internal const string ExecutionLogs = Base + "/execution-logs";
+  internal const string Adb = Base + "/adb";
+  internal const string Ocr = Base + "/ocr";
 }

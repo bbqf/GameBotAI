@@ -3,11 +3,9 @@ using Xunit;
 
 namespace GameBot.IntegrationTests.Installer;
 
-public sealed class LocalBuildDerivationTests
-{
+public sealed class LocalBuildDerivationTests {
   [Fact]
-  public void LocalBuildDerivesVersionWithoutCounterPersistence()
-  {
+  public void LocalBuildDerivesVersionWithoutCounterPersistence() {
     var repoRoot = FindRepoRoot();
     var commonModulePath = Path.Combine(repoRoot, "scripts", "installer", "common.psm1");
     var buildScriptPath = Path.Combine(repoRoot, "scripts", "build-installer.ps1");
@@ -21,13 +19,10 @@ public sealed class LocalBuildDerivationTests
     buildScript.Should().Contain("Resolved installer version:");
   }
 
-  private static string FindRepoRoot()
-  {
+  private static string FindRepoRoot() {
     var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir is not null)
-    {
-      if (File.Exists(Path.Combine(dir.FullName, "GameBot.sln")))
-      {
+    while (dir is not null) {
+      if (File.Exists(Path.Combine(dir.FullName, "GameBot.sln"))) {
         return dir.FullName;
       }
 

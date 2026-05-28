@@ -83,7 +83,8 @@ public class ImageStorePersistenceTests : IDisposable {
         var waited2Ms = 0;
         while (!File.Exists(physical2) && waited2Ms < 1000) { await Task.Delay(100).ConfigureAwait(false); waited2Ms += 100; }
         File.Exists(physical2).Should().BeTrue($"Physical file should persist across restart at {physical2}");
-      } else {
+      }
+      else {
         existsResp2.StatusCode.Should().Be(HttpStatusCode.OK);
       }
     }

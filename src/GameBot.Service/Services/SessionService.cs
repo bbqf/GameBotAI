@@ -9,51 +9,43 @@ using GameBot.Emulator.Session;
 
 namespace GameBot.Service.Services;
 
-public interface ISessionService
-{
+public interface ISessionService {
   IReadOnlyCollection<RunningSession> GetRunningSessions();
   RunningSession StartSession(string gameId, string emulatorId, CancellationToken ct = default);
   bool StopSession(string sessionId);
 }
 
-public sealed class SessionService : ISessionService
-{
+public sealed class SessionService : ISessionService {
   private readonly ISessionManager _sessions;
   private readonly ISessionContextCache _cache;
   private readonly BackgroundScreenCaptureService? _captureService;
   private readonly ConcurrentDictionary<string, RunningSession> _running = new(StringComparer.OrdinalIgnoreCase);
   private readonly object _gate = new();
 
-  public SessionService(ISessionManager sessions, ISessionContextCache cache, BackgroundScreenCaptureService? captureService = null)
-  {
+  public SessionService(ISessionManager sessions, ISessionContextCache cache, BackgroundScreenCaptureService? captureService = null) {
     _sessions = sessions;
     _cache = cache;
     _captureService = captureService;
   }
 
-  public IReadOnlyCollection<RunningSession> GetRunningSessions()
-  {
-    lock (_gate)
-    {
+  public IReadOnlyCollection<RunningSession> GetRunningSessions() {
+    lock (_gate) {
       SyncFromSessionManager();
       return _running.Values.ToList();
     }
   }
 
-  public RunningSession StartSession(string gameId, string emulatorId, CancellationToken ct = default)
-  {
+  public RunningSession StartSession(string gameId, string emulatorId, CancellationToken ct = default) {
     ArgumentException.ThrowIfNullOrWhiteSpace(gameId);
     ArgumentException.ThrowIfNullOrWhiteSpace(emulatorId);
 
     var normalizedGameId = gameId.Trim();
     var normalizedEmulatorId = emulatorId.Trim();
 
-    lock (_gate)
-    {
+    lock (_gate) {
       SyncFromSessionManager();
       var key = Key(normalizedGameId, normalizedEmulatorId);
-      if (_running.TryGetValue(key, out var existing))
-      {
+      if (_running.TryGetValue(key, out var existing)) {
         // Best-effort stop; remove from running list even if stop fails per spec
         _captureService?.StopCapture(existing.SessionId);
         _sessions.StopSession(existing.SessionId);
@@ -61,8 +53,7 @@ public sealed class SessionService : ISessionService
         _cache.ClearSession(existing.GameId, existing.EmulatorId);
       }
 
-      if (!_sessions.CanCreateSession)
-      {
+      if (!_sessions.CanCreateSession) {
         throw new InvalidOperationException("capacity_exceeded");
       }
 
@@ -72,8 +63,7 @@ public sealed class SessionService : ISessionService
       _cache.SetSessionId(normalizedGameId, normalizedEmulatorId, session.Id);
 
       // Start background capture loop if device serial is available
-      if (_captureService is not null && !string.IsNullOrWhiteSpace(session.DeviceSerial))
-      {
+      if (_captureService is not null && !string.IsNullOrWhiteSpace(session.DeviceSerial)) {
         _captureService.StartCapture(session.Id, session.DeviceSerial);
       }
 
@@ -81,21 +71,17 @@ public sealed class SessionService : ISessionService
     }
   }
 
-  public bool StopSession(string sessionId)
-  {
+  public bool StopSession(string sessionId) {
     if (string.IsNullOrWhiteSpace(sessionId)) return false;
 
-    lock (_gate)
-    {
+    lock (_gate) {
       SyncFromSessionManager();
       var pair = _running.FirstOrDefault(kvp => string.Equals(kvp.Value.SessionId, sessionId, StringComparison.OrdinalIgnoreCase));
       _captureService?.StopCapture(sessionId);
       var stopped = _sessions.StopSession(sessionId);
-      if (!string.IsNullOrWhiteSpace(pair.Key))
-      {
+      if (!string.IsNullOrWhiteSpace(pair.Key)) {
         _running.TryRemove(pair.Key, out var removed);
-        if (removed is not null)
-        {
+        if (removed is not null) {
           _cache.ClearSession(removed.GameId, removed.EmulatorId);
         }
       }
@@ -103,19 +89,15 @@ public sealed class SessionService : ISessionService
     }
   }
 
-  private void SyncFromSessionManager()
-  {
+  private void SyncFromSessionManager() {
     var sessions = _sessions.ListSessions();
     var byId = sessions.ToDictionary(s => s.Id, StringComparer.OrdinalIgnoreCase);
 
     // Remove missing sessions
-    foreach (var kvp in _running.ToArray())
-    {
-      if (!byId.TryGetValue(kvp.Value.SessionId, out var sess))
-      {
+    foreach (var kvp in _running.ToArray()) {
+      if (!byId.TryGetValue(kvp.Value.SessionId, out var sess)) {
         _running.TryRemove(kvp.Key, out var removed);
-        if (removed is not null)
-        {
+        if (removed is not null) {
           _captureService?.StopCapture(removed.SessionId);
           _cache.ClearSession(removed.GameId, removed.EmulatorId);
         }
@@ -123,19 +105,16 @@ public sealed class SessionService : ISessionService
       }
 
       // Update heartbeat/status snapshot
-      if (sess.Status == SessionStatus.Stopped)
-      {
+      if (sess.Status == SessionStatus.Stopped) {
         _running.TryRemove(kvp.Key, out var removed);
-        if (removed is not null)
-        {
+        if (removed is not null) {
           _captureService?.StopCapture(removed.SessionId);
           _cache.ClearSession(removed.GameId, removed.EmulatorId);
         }
         continue;
       }
 
-      var updated = new RunningSession
-      {
+      var updated = new RunningSession {
         SessionId = kvp.Value.SessionId,
         GameId = kvp.Value.GameId,
         EmulatorId = kvp.Value.EmulatorId,
@@ -148,16 +127,14 @@ public sealed class SessionService : ISessionService
     }
 
     // Add any sessions created outside this service so the running list stays accurate
-    foreach (var sess in sessions)
-    {
+    foreach (var sess in sessions) {
       if (sess.Status != SessionStatus.Running) continue;
       if (_running.Values.Any(r => string.Equals(r.SessionId, sess.Id, StringComparison.OrdinalIgnoreCase))) continue;
       var emulatorId = (sess.DeviceSerial ?? string.Empty).Trim();
       var gameId = sess.GameId.Trim();
       var key = Key(gameId, emulatorId);
       _running[key] = ToRunning(sess, emulatorId);
-      if (!string.IsNullOrWhiteSpace(emulatorId))
-      {
+      if (!string.IsNullOrWhiteSpace(emulatorId)) {
         _cache.SetSessionId(gameId, emulatorId, sess.Id);
       }
     }
@@ -165,8 +142,7 @@ public sealed class SessionService : ISessionService
 
   private static string Key(string gameId, string emulatorId) => $"{gameId.Trim()}|{emulatorId.Trim()}";
 
-  private RunningSession ToRunning(EmulatorSession session, string emulatorId) => new()
-  {
+  private RunningSession ToRunning(EmulatorSession session, string emulatorId) => new() {
     SessionId = session.Id,
     GameId = session.GameId,
     EmulatorId = emulatorId,

@@ -9,12 +9,10 @@ using Xunit;
 namespace GameBot.IntegrationTests.Images;
 
 [Collection("ConfigIsolation")]
-public sealed class FormUploadTests
-{
+public sealed class FormUploadTests {
   private static readonly byte[] TinyPng = Convert.FromHexString("89504E470D0A1A0A");
 
-  public FormUploadTests()
-  {
+  public FormUploadTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
@@ -22,8 +20,7 @@ public sealed class FormUploadTests
   }
 
   [Fact]
-  public async Task PostMultipartUploadSucceeds()
-  {
+  public async Task PostMultipartUploadSucceeds() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");

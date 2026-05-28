@@ -3,11 +3,9 @@ using Xunit;
 
 namespace GameBot.IntegrationTests.Installer;
 
-public sealed class InstallerAuthoringScenarioTests
-{
+public sealed class InstallerAuthoringScenarioTests {
   [Fact]
-  public void FreshInstallFlowShowsVersionThenConfigurationPagesAndCreatesShortcuts()
-  {
+  public void FreshInstallFlowShowsVersionThenConfigurationPagesAndCreatesShortcuts() {
     var repoRoot = FindRepoRoot();
     var bundlePath = Path.Combine(repoRoot, "installer", "wix", "Bundle.wxs");
     var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
@@ -47,8 +45,7 @@ public sealed class InstallerAuthoringScenarioTests
   }
 
   [Fact]
-  public void UpgradeFlowSkipsConfigurationPagesAndPreservesExistingSettings()
-  {
+  public void UpgradeFlowSkipsConfigurationPagesAndPreservesExistingSettings() {
     var repoRoot = FindRepoRoot();
     var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
     var detectionPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "PortDetection.wxs");
@@ -68,8 +65,7 @@ public sealed class InstallerAuthoringScenarioTests
   }
 
   [Fact]
-  public void RemovalFlowAvoidsConfigurationPagesAndDoesNotStartBackgroundApp()
-  {
+  public void RemovalFlowAvoidsConfigurationPagesAndDoesNotStartBackgroundApp() {
     var repoRoot = FindRepoRoot();
     var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
 
@@ -81,8 +77,7 @@ public sealed class InstallerAuthoringScenarioTests
   }
 
   [Fact]
-  public void DowngradeFlowIsBlockedWithExplicitUserMessage()
-  {
+  public void DowngradeFlowIsBlockedWithExplicitUserMessage() {
     var repoRoot = FindRepoRoot();
     var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
     var bundlePath = Path.Combine(repoRoot, "installer", "wix", "Bundle.wxs");
@@ -95,13 +90,10 @@ public sealed class InstallerAuthoringScenarioTests
     bundle.Should().Contain("SuppressDowngradeFailure=\"no\"");
   }
 
-  private static string FindRepoRoot()
-  {
+  private static string FindRepoRoot() {
     var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir is not null)
-    {
-      if (File.Exists(Path.Combine(dir.FullName, "GameBot.sln")))
-      {
+    while (dir is not null) {
+      if (File.Exists(Path.Combine(dir.FullName, "GameBot.sln"))) {
         return dir.FullName;
       }
 
