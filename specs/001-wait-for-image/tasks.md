@@ -134,16 +134,16 @@
 
 **Purpose**: Complete final verification, documentation, release notes, and quality evidence.
 
-- [ ] T047 [P] Update final verification steps and examples in specs/001-wait-for-image/quickstart.md
-- [ ] T048 [P] Add a user-visible release note for `WaitForImage` in CHANGELOG.md
-- [ ] T049 Run backend build/test verification and failure analysis with scripts/analyze-test-results.ps1
-- [ ] T050 Run web UI test verification for command, sequence, and execution-log changes via src/web-ui/package.json
+- [x] T047 [P] Update final verification steps and examples in specs/001-wait-for-image/quickstart.md
+- [x] T048 [P] Add a user-visible release note for `WaitForImage` in CHANGELOG.md
+- [x] T049 Run backend build/test verification and failure analysis with scripts/analyze-test-results.ps1
+- [x] T050 Run web UI test verification for command, sequence, and execution-log changes via src/web-ui/package.json
 - [ ] T051 Run .NET format and analyzer verification for touched backend code via GameBot.sln
-- [ ] T052 Run repository security or secret scanning and record results in docs/validation.md
-- [ ] T053 [P] Record authoring/runtime/logging validation evidence in docs/validation.md
-- [ ] T054 [P] Record wait polling and execution-log latency evidence in docs/perf-checklist.md
-- [ ] T055 [P] Collect touched-area coverage evidence for wait-for-image changes in tools/coverage/
-- [ ] T058 [P] Add public API documentation comments for WaitForImageConfig and the new public DTOs/contracts touched by this feature
+- [x] T052 Run repository security or secret scanning and record results in docs/validation.md
+- [x] T053 [P] Record authoring/runtime/logging validation evidence in docs/validation.md
+- [x] T054 [P] Record wait polling and execution-log latency evidence in docs/perf-checklist.md
+- [x] T055 [P] Collect touched-area coverage evidence for wait-for-image changes in tools/coverage/
+- [x] T058 [P] Add public API documentation comments for WaitForImageConfig and the new public DTOs/contracts touched by this feature
 
 ---
 

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Wait For Image primitive action (001-wait-for-image)
+  - Added `WaitForImage` as an authorable step in both command and sequence flows.
+  - Added optional `detectionTarget` and `timeoutMs` payload support with default timeout normalization.
+  - Added command and sequence runtime behavior that treats `image_detected`, `timeout_elapsed`, and `image_unavailable` as terminal wait outcomes.
+  - Extended execution-log detail payloads and UI rendering to show wait parameters and terminal wait exit conditions.
+  - Added backend unit/integration/contract coverage and web-ui authoring/service/log rendering coverage for wait-step scenarios.
+
 - Tap Wait-and-Retry Before Execution (036-tap-wait-retry)
   - Primitive tap steps now wait for the target image to appear before tapping, retrying up to a configurable number of times.
   - New environment variables for configuration:
@@ -32,6 +39,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Execution tab session status no longer shows "Unknown" due to integer enum serialization mismatch.
 - Capture rate display moved to its own labeled line; only shown when data is available.
+- Web-ui test warning noise reduced by stabilizing async Configuration test flows and Jest interop settings.
 
 ### Security
 - Upgraded `jest-environment-jsdom` from 29.7.0 to 30.3.0 to resolve `@tootallnate/once` vulnerability (GHSA-vpq2-c234-7xj6).
