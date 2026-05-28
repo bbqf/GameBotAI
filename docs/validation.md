@@ -204,5 +204,6 @@
 	- `web-ui` prod dependency scan: `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities.
 	- Secret-signature scan (`git grep` over common key/token patterns) found no matches.
 - **Analyzer verification status**:
-	- `dotnet format GameBot.sln --verify-no-changes --severity warn` currently fails due a broad set of pre-existing repository analyzer/whitespace findings outside the `WaitForImage` touched files.
-	- This is tracked as an outstanding repository cleanup item and left outside this feature commit to avoid unrelated mass-format churn.
+	- Scoped verification passed for the `WaitForImage` backend slice with `dotnet format whitespace GameBot.sln --verify-no-changes --no-restore --include <wait-for-image source and test files>`.
+	- Scoped analyzer verification also passed with `dotnet format analyzers GameBot.sln --verify-no-changes --diagnostics CA1515 CA2007 --no-restore --include <wait-for-image source and test files>`.
+	- Full-solution `dotnet format GameBot.sln --verify-no-changes --severity warn` remains a broader repository cleanup concern and is not required to validate this feature slice.

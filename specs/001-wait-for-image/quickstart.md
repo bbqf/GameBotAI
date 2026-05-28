@@ -121,6 +121,37 @@ Set-Location c:\src\GameBot
 dotnet list GameBot.sln package --vulnerable --include-transitive
 Set-Location c:\src\GameBot\src\web-ui
 & 'C:/Program Files/nodejs/npm.cmd' audit --omit=dev --audit-level=high
+
+Set-Location c:\src\GameBot
+$files = @(
+  'src/GameBot.Domain/Commands/WaitForImageConfig.cs',
+  'src/GameBot.Domain/Commands/CommandStep.cs',
+  'src/GameBot.Domain/Commands/SequenceStep.cs',
+  'src/GameBot.Domain/Services/SequenceStepValidationService.cs',
+  'src/GameBot.Domain/Services/SequenceRunner.cs',
+  'src/GameBot.Domain/Logging/ExecutionLogModels.cs',
+  'src/GameBot.Service/Models/Commands.cs',
+  'src/GameBot.Service/Models/SequenceStepContracts.cs',
+  'src/GameBot.Service/Models/ExecutionLogs.cs',
+  'src/GameBot.Service/Endpoints/CommandsEndpoints.cs',
+  'src/GameBot.Service/Endpoints/ExecutionLogsEndpoints.cs',
+  'src/GameBot.Service/Program.cs',
+  'src/GameBot.Service/Services/CommandExecutor.cs',
+  'src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs',
+  'src/GameBot.Service/Swagger/SwaggerConfig.cs',
+  'tests/contract/OpenApiContractTests.cs',
+  'tests/integration/Commands/WaitForImageAuthoringIntegrationTests.cs',
+  'tests/integration/Commands/WaitForImageExecutionIntegrationTests.cs',
+  'tests/integration/ExecutionLogs/CommandExecutionLoggingIntegrationTests.cs',
+  'tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs',
+  'tests/integration/Sequences/WaitForImageSequenceAuthoringIntegrationTests.cs',
+  'tests/integration/Sequences/WaitForImageSequenceExecutionIntegrationTests.cs',
+  'tests/unit/Commands/CommandExecutorWaitForImageTests.cs',
+  'tests/unit/Domain/PrimitiveActionValidationServiceTests.cs',
+  'tests/unit/Sequences/SequenceRunnerWaitForImageTests.cs'
+)
+dotnet format whitespace GameBot.sln --verify-no-changes --no-restore --include $files
+dotnet format analyzers GameBot.sln --verify-no-changes --diagnostics CA1515 CA2007 --no-restore --include $files
 ```
 
 Observed results:
@@ -129,6 +160,7 @@ Observed results:
 - Web UI tests passed: `54/54` suites and `202/202` tests.
 - .NET vulnerability scan reported no vulnerable packages.
 - `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities.
+- Scoped `dotnet format whitespace` and `dotnet format analyzers` verification passed for the wait-for-image backend source and test files.
 
 Analyzer note:
-- `dotnet format GameBot.sln --verify-no-changes --severity warn` currently fails due pre-existing repository-wide whitespace/analyzer findings outside this feature scope.
+- Full-repository `dotnet format GameBot.sln --verify-no-changes --severity warn` remains broader than this feature and can report unrelated repository findings; feature completion is based on the passing scoped verification above.

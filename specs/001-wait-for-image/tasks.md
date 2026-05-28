@@ -138,7 +138,7 @@
 - [x] T048 [P] Add a user-visible release note for `WaitForImage` in CHANGELOG.md
 - [x] T049 Run backend build/test verification and failure analysis with scripts/analyze-test-results.ps1
 - [x] T050 Run web UI test verification for command, sequence, and execution-log changes via src/web-ui/package.json
-- [ ] T051 Run .NET format and analyzer verification for touched backend code via GameBot.sln
+- [x] T051 Run .NET format and analyzer verification for touched backend code via GameBot.sln
 - [x] T052 Run repository security or secret scanning and record results in docs/validation.md
 - [x] T053 [P] Record authoring/runtime/logging validation evidence in docs/validation.md
 - [x] T054 [P] Record wait polling and execution-log latency evidence in docs/perf-checklist.md
