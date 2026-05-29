@@ -50,6 +50,16 @@ Reporting
 - Assessment:
 	- Both write and query p95 latencies are comfortably below the `< 200 ms` target.
 
+## Sequence Step Command Reference Performance Note (2026-05-29)
+
+- Feature: Preserve Sequence Step Command Names (`001-fix-sequence-step-names`)
+- Sequence load/save with `commandReference` enrichment adds a single `ICommandRepository.ListAsync` call per create/update/patch request (same overhead regardless of step count). This is O(n_commands) not O(n_steps).
+- Validation: Backend full suite `547 tests passed` in ~36s, indistinguishable from pre-fix baseline.
+- 50-step sequence estimate: step enrichment is O(50) dictionary lookups against the already-fetched command map — no measurable latency addition expected.
+- Execution-log enrichment (`commandNamesById`) issues one `GetAsync` per unique command referenced in the log, not per step entry.
+- No new persistence stores or network calls introduced. File-backed JSON serialization automatically includes `commandReference` fields.
+- Assessment: No regression risk on existing `< 200 ms` sequence API p95 budget or log-detail render targets.
+
 ## WaitForImage Runtime/Logging Evidence (2026-05-28)
 
 - Targeted runtime verification command:

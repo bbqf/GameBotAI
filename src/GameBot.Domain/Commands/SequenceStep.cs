@@ -19,6 +19,11 @@ namespace GameBot.Domain.Commands {
     public Dictionary<string, object?> Parameters { get; } = new();
   }
 
+  public sealed class SequenceCommandReference {
+    public string CommandId { get; set; } = string.Empty;
+    public string? CommandName { get; set; }
+  }
+
   /// <summary>
   /// Minimal step model; detailed validation and behaviors added in US1/US2/US3 phases.
   /// </summary>
@@ -27,6 +32,7 @@ namespace GameBot.Domain.Commands {
     public string StepId { get; set; } = string.Empty;
     public string? Label { get; set; }
     public string CommandId { get; set; } = string.Empty;
+    public SequenceCommandReference? CommandReference { get; set; }
     public SequenceStepType StepType { get; set; } = SequenceStepType.Command;
     public SequenceActionPayload? Action { get; set; }
     public WaitForImageConfig? WaitForImage { get; set; }

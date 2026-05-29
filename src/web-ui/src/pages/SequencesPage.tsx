@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { listSequences, SequenceDto, createSequence, getSequence, updateSequence, deleteSequence, isSequenceConflictError } from '../services/sequences';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
@@ -13,7 +13,7 @@ import { validatePerStepConditions } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
 import type { LoopStepEntry, BreakStepEntry, StepEntry } from '../types/stepEntry';
-import type { SequenceLinearStep, LoopConfigDto, SequencePrimitiveActionPayload } from '../types/sequenceFlow';
+import type { SequenceLinearStep, LoopConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
 
 type SequenceStep = {
   id: string;
@@ -21,6 +21,7 @@ type SequenceStep = {
   stepType: 'Action' | 'Loop' | 'Break';
   actionType: 'command' | 'WaitForImage';
   commandId: string;
+  commandReference?: SequenceCommandReference;
   waitReferenceImageId: string;
   waitConfidence: string;
   waitTimeoutMs: string;
@@ -51,12 +52,13 @@ const emptyForm: SequenceFormValue = {
   delayMax: ''
 };
 
-const createDefaultStep = (commandId: string, stepId: string): SequenceStep => ({
+const createDefaultStep = (commandId: string, stepId: string, commandReference?: SequenceCommandReference): SequenceStep => ({
   id: makeId(),
   stepId,
   stepType: 'Action',
   actionType: 'command',
   commandId,
+  commandReference,
   waitReferenceImageId: '',
   waitConfidence: '',
   waitTimeoutMs: '1000',
@@ -74,6 +76,7 @@ const createDefaultWaitStep = (stepId: string): SequenceStep => ({
   stepType: 'Action',
   actionType: 'WaitForImage',
   commandId: '',
+  commandReference: undefined,
   waitReferenceImageId: '',
   waitConfidence: '',
   waitTimeoutMs: '1000',
@@ -86,6 +89,69 @@ const createDefaultWaitStep = (stepId: string): SequenceStep => ({
 });
 
 const toStepEntries = (ids?: string[]): SequenceStep[] => (ids ?? []).map((cmdId, index) => createDefaultStep(cmdId, `step-${index + 1}`));
+
+const getUnresolvedCommandLabel = (reference: SequenceCommandReference | undefined, commandId: string): string => {
+  const commandName = reference?.commandName?.trim();
+  return commandName ? `${commandName} (unresolved)` : `${commandId} (unresolved)`;
+};
+
+const getDisplayCommandLabel = (
+  commandId: string,
+  commandReference: SequenceCommandReference | undefined,
+  commandLookup: Map<string, string>
+): string => {
+  const liveLabel = commandLookup.get(commandId);
+  return liveLabel ?? getUnresolvedCommandLabel(commandReference, commandId);
+};
+
+const appendUnresolvedCommandOption = (
+  optionsByValue: Map<string, SearchableOption>,
+  commandId: string,
+  commandReference: SequenceCommandReference | undefined
+) => {
+  const normalizedId = commandId.trim();
+  if (!normalizedId || optionsByValue.has(normalizedId)) {
+    return;
+  }
+
+  optionsByValue.set(normalizedId, {
+    value: normalizedId,
+    label: getUnresolvedCommandLabel(commandReference, normalizedId)
+  });
+};
+
+const collectLoopBodyCommandOptions = (optionsByValue: Map<string, SearchableOption>, body: StepEntry[] | undefined) => {
+  if (!body) {
+    return;
+  }
+
+  for (const entry of body) {
+    if (entry.type === 'Action') {
+      appendUnresolvedCommandOption(optionsByValue, entry.commandId, entry.commandReference);
+      continue;
+    }
+
+    if (entry.type === 'Loop') {
+      collectLoopBodyCommandOptions(optionsByValue, entry.body);
+    }
+  }
+};
+
+const mergeCommandOptionsWithUnresolved = (liveOptions: SearchableOption[], steps: SequenceStep[]): SearchableOption[] => {
+  const optionsByValue = new Map(liveOptions.map((option) => [option.value, option]));
+  for (const step of steps) {
+    if (step.stepType === 'Action' && step.actionType === 'command') {
+      appendUnresolvedCommandOption(optionsByValue, step.commandId, step.commandReference);
+      continue;
+    }
+
+    if (step.stepType === 'Loop' && step.loopEntry) {
+      collectLoopBodyCommandOptions(optionsByValue, step.loopEntry.body);
+    }
+  }
+
+  return Array.from(optionsByValue.values());
+};
 
 const nextGeneratedStepId = (steps: SequenceStep[]): string => {
   const highest = steps.reduce((max, step) => {
@@ -132,14 +198,18 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
         breakCondition: child.breakCondition ?? undefined
       } satisfies BreakStepEntry;
     }
-    const cmdId = typeof child.action?.parameters?.commandId === 'string'
-      ? child.action.parameters.commandId
+    const primitiveAction = getPrimitiveAction(child);
+    const cmdId = typeof primitiveAction?.payload?.commandId === 'string'
+      ? primitiveAction.payload.commandId
+      : typeof child.action?.parameters?.commandId === 'string'
+        ? child.action.parameters.commandId
       : child.stepId;
     return {
       type: 'Action',
       id: makeId(),
       stepId: child.stepId,
       commandId: cmdId,
+      commandReference: child.commandReference ?? undefined,
       conditionType: child.condition?.type === 'imageVisible' ? 'imageVisible'
         : child.condition?.type === 'commandOutcome' ? 'commandOutcome' : 'none',
       conditionNegate: child.condition?.negate ?? false,
@@ -173,7 +243,9 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         id: makeId(),
         stepId: step.stepId,
         stepType: 'Loop' as const,
+        actionType: 'command' as const,
         commandId: '',
+        commandReference: undefined,
         conditionType: 'none' as const,
         conditionNegate: false,
         imageId: '',
@@ -255,7 +327,9 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         id: makeId(),
         stepId: step.stepId,
         stepType: 'Action' as const,
+        actionType: 'command' as const,
         commandId,
+        commandReference: step.commandReference ?? undefined,
         conditionType: 'imageVisible',
         conditionNegate: step.condition.negate ?? false,
         imageId: step.condition.imageId,
@@ -270,7 +344,9 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         id: makeId(),
         stepId: step.stepId,
         stepType: 'Action' as const,
+        actionType: 'command' as const,
         commandId,
+        commandReference: step.commandReference ?? undefined,
         conditionType: 'commandOutcome',
         conditionNegate: step.condition.negate ?? false,
         imageId: '',
@@ -281,10 +357,27 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
     }
 
     return {
-      ...createDefaultStep(commandId, step.stepId),
+      ...createDefaultStep(commandId, step.stepId, step.commandReference ?? undefined),
       stepId: step.stepId
     };
   });
+};
+
+const buildCommandReferencePayload = (commandId: string, commandReference: SequenceCommandReference | undefined) => {
+  if (!commandId.trim()) {
+    return undefined;
+  }
+
+  const commandName = commandReference?.commandName?.trim();
+  if (!commandName && commandReference?.isResolved !== false) {
+    return undefined;
+  }
+
+  return {
+    commandId: commandId.trim(),
+    commandName: commandName || undefined,
+    isResolved: commandReference?.isResolved ?? false
+  };
 };
 
 const buildConditionPayload = (step: SequenceStep) => {
@@ -330,7 +423,7 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
     };
   }
   // Action body step
-  const a = entry as { stepId: string; commandId: string; conditionType: string; conditionNegate: boolean; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
+  const a = entry as { stepId: string; commandId: string; commandReference?: SequenceCommandReference; conditionType: string; conditionNegate: boolean; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
   const cond = a.conditionType === 'imageVisible'
     ? { type: 'imageVisible' as const, imageId: a.imageId.trim(), minSimilarity: a.minSimilarity.trim() === '' ? null : Number(a.minSimilarity), negate: a.conditionNegate || undefined }
     : a.conditionType === 'commandOutcome'
@@ -340,6 +433,7 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
     stepId: entry.stepId.trim(),
     stepType: 'Action',
     primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: a.commandId } },
+    commandReference: buildCommandReferencePayload(a.commandId, a.commandReference),
     condition: cond
   };
 };
@@ -396,6 +490,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
           commandId: step.commandId
         }
       },
+      commandReference: buildCommandReferencePayload(step.commandId, step.commandReference),
       condition: buildConditionPayload(step)
     };
   });
@@ -455,6 +550,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
 
   const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
+  const editorCommandOptions = useMemo(() => mergeCommandOptionsWithUnresolved(commandOptions, form.steps), [commandOptions, form.steps]);
   const sequenceRows = useMemo(() => sequences.map((s) => ({ id: s.id, name: s.name, stepCount: s.steps?.length ?? 0 })), [sequences]);
 
   const displayedSequences = useMemo(() => {
@@ -509,7 +605,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     setDirty(false);
   };
 
-  const renderStepConditionEditor = (step: SequenceStep, index: number): React.ReactNode => (
+  const renderStepConditionEditor = useCallback((step: SequenceStep, index: number): React.ReactNode => (
     <div className="sequence-step-condition-editor">
       {step.stepType === 'Action' && step.actionType === 'WaitForImage' && (
         <>
@@ -728,7 +824,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         </>
       )}
     </div>
-  );
+  ), [form.steps, submitting, loading]);
 
   const createLoopStep = (loopType: 'count' | 'while' | 'repeatUntil'): SequenceStep => {
     const id = makeId();
@@ -783,7 +879,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 setForm((prev) => ({ ...prev, steps: prev.steps.filter((step) => step.id !== s.id) }));
                 setDirty(true);
               }}
-              commandOptions={commandOptions}
+              commandOptions={editorCommandOptions}
               disabled={submitting || loading}
             />
           ),
@@ -793,11 +889,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         id: s.id,
         label: s.actionType === 'WaitForImage'
           ? `Wait for image: ${s.waitReferenceImageId.trim() || 'any image'}`
-          : commandLookup.get(s.commandId) ?? s.commandId,
+          : getDisplayCommandLabel(s.commandId, s.commandReference, commandLookup),
         details: renderStepConditionEditor(s, idx),
       };
     });
-  }, [form.steps, commandOptions, commandLookup, submitting, loading]);
+  }, [form.steps, editorCommandOptions, commandLookup, submitting, loading, renderStepConditionEditor]);
 
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};

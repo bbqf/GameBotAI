@@ -107,7 +107,7 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({ loop, onChange, onRemove, 
                       disabled={disabled}
                       onChange={(e) => {
                         const updated = body.map((s, i) =>
-                          i === index ? { ...s, commandId: e.target.value } as StepEntry : s
+                          i === index ? { ...s, commandId: e.target.value, commandReference: undefined } as StepEntry : s
                         );
                         onChange({ ...loop, body: updated });
                       }}

@@ -102,4 +102,54 @@ public sealed class SequencePerStepConditionsContractTests {
     patched.GetProperty("name").GetString().Should().Be("per-step-contract-updated");
     patched.GetProperty("steps")[1].GetProperty("condition").GetProperty("type").GetString().Should().Be("commandOutcome");
   }
+
+  [Fact]
+  public async Task CreateAndGetSequencePreserveLoopBodyCommandReferences() {
+    using var app = CreateFactory();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var createPayload = new {
+      name = "loop-body-command-contract",
+      version = 1,
+      steps = new object[] {
+        new {
+          stepId = "loop-1",
+          label = "Repeat mailbox",
+          stepType = "Loop",
+          loop = new {
+            loopType = "count",
+            count = 2,
+            maxIterations = 2
+          },
+          body = new object[] {
+            new {
+              stepId = "body-step-1",
+              label = "Open mailbox",
+              stepType = "Action",
+              primitiveAction = new {
+                type = "command",
+                schemaVersion = "v1",
+                payload = new { commandId = "cmd-mail" }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var createResponse = await client.PostAsJsonAsync("/api/sequences", createPayload).ConfigureAwait(false);
+    createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+    var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var sequenceId = created.GetProperty("id").GetString();
+    sequenceId.Should().NotBeNullOrWhiteSpace();
+    created.GetProperty("steps")[0].GetProperty("body")[0].GetProperty("primitiveAction").GetProperty("payload").GetProperty("commandId").GetString().Should().Be("cmd-mail");
+
+    var getResponse = await client.GetAsync(new Uri($"/api/sequences/{sequenceId}", UriKind.Relative)).ConfigureAwait(false);
+    getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    var fetched = await getResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    fetched.GetProperty("steps")[0].GetProperty("body")[0].GetProperty("primitiveAction").GetProperty("payload").GetProperty("commandId").GetString().Should().Be("cmd-mail");
+    fetched.GetProperty("steps")[0].GetProperty("body")[0].GetProperty("stepId").GetString().Should().Be("body-step-1");
+  }
 }

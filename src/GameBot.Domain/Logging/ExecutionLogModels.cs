@@ -57,6 +57,11 @@ public sealed record ExecutionStepOutcome(
   /// Structured wait-for-image details when the step represents a wait primitive.
   /// </summary>
   public WaitForImageDetailAttributes? DetailAttributes { get; init; }
+
+  /// <summary>
+  /// Human-readable command name for command-backed sequence steps when available.
+  /// </summary>
+  public string? CommandName { get; init; }
 }
 
 public sealed record ExecutionDetailItem(

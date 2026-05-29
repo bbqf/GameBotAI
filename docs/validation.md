@@ -188,6 +188,31 @@
 	- Security gate records explicit SAST/dependency and secret-scan results.
 	- Lint/format and static-analysis gates run as explicit blocking checks.
 
+## Sequence Step Command Name Preservation Validation (2026-05-29)
+
+- **Feature**: Preserve Sequence Step Command Names (`001-fix-sequence-step-names`)
+- **Backend full-suite verification**:
+  - Command: `dotnet test -c Debug --logger trx`
+  - Result: `547 passed, 0 failed` (61 contract, 294 unit, 192 integration).
+- **Web UI verification**:
+  - Command: `npm run test -- --no-coverage` (from `src/web-ui`).
+  - Result: `55 suites passed`, `204 tests passed`, `0 failed`.
+- **Lint verification**:
+  - ESLint on touched frontend files: `0 errors, 0 warnings` (fixed pre-existing `react-hooks/exhaustive-deps` warning in `SequencesPage.tsx`).
+  - `dotnet build -c Debug`: `0 errors, 0 warnings`.
+- **Security verification**:
+  - Auth token read from config/environment — no hardcoded secrets in touched files.
+  - Frontend: no credential strings in touched service/page files.
+- **Coverage (touched-area)**:
+  - New contract test: `tests/contract/Sequences/SequencePerStepConditionsContractTests.cs`
+  - New integration tests: `tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs`, `tests/integration/Sequences/SequenceMissingCommandReferenceIntegrationTests.cs`, `tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs`
+  - New unit test: `tests/unit/ExecutionLogs/SequenceExecutionLogProjectionTests.cs`
+  - New web UI tests: `src/web-ui/src/pages/__tests__/SequencesPage.spec.tsx`, `src/web-ui/src/pages/__tests__/SequencesPage.unresolvedCommand.spec.tsx`
+- **User stories delivered**:
+  - US1: Sequences reopen with preserved per-step command selections and labels.
+  - US2: Execution-log detail entries include both step label and command name for command-backed steps.
+  - US3: Deleted/missing commands appear as unresolved with their last-saved name; valid steps remain intact on resave.
+
 ## WaitForImage Final Validation (2026-05-28)
 
 - **Backend full-suite verification**:
