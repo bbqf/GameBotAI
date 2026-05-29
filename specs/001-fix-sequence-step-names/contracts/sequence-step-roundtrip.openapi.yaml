@@ -1,0 +1,284 @@
+openapi: 3.0.3
+info:
+  title: Sequence Step Round-Trip Contract
+  version: 1.0.0
+  description: Contract fragment for sequence step persistence, authoring reload, and execution-log detail behavior.
+paths:
+  /api/sequences:
+    post:
+      summary: Create a sequence using per-step authoring payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '201':
+          description: Sequence created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+  /api/sequences/{sequenceId}:
+    get:
+      summary: Load a saved sequence for authoring.
+      parameters:
+        - in: path
+          name: sequenceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sequence returned with persisted per-step details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+    put:
+      summary: Replace a saved sequence with per-step authoring payload.
+      parameters:
+        - in: path
+          name: sequenceId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '200':
+          description: Sequence updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+        '409':
+          description: Optimistic concurrency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSaveConflict'
+    patch:
+      summary: Patch a saved sequence with per-step authoring payload.
+      parameters:
+        - in: path
+          name: sequenceId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceUpsertRequest'
+      responses:
+        '200':
+          description: Sequence patched.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+        '409':
+          description: Optimistic concurrency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSaveConflict'
+  /api/execution-logs/{executionId}:
+    get:
+      summary: Retrieve detailed execution log projection for a sequence run.
+      parameters:
+        - in: path
+          name: executionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Execution log detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogDetail'
+components:
+  schemas:
+    SequenceUpsertRequest:
+      type: object
+      required:
+        - name
+        - version
+        - steps
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        interStepDelayRangeMs:
+          type: object
+          nullable: true
+          properties:
+            min:
+              type: integer
+            max:
+              type: integer
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceLinearStep'
+    SequenceResponse:
+      type: object
+      required:
+        - id
+        - name
+        - version
+        - steps
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceLinearStep'
+    SequenceLinearStep:
+      type: object
+      required:
+        - stepId
+      properties:
+        stepId:
+          type: string
+        label:
+          type: string
+          nullable: true
+        stepType:
+          type: string
+          enum:
+            - Action
+            - Loop
+            - Break
+        primitiveAction:
+          $ref: '#/components/schemas/PrimitiveAction'
+        action:
+          $ref: '#/components/schemas/LegacyAction'
+        condition:
+          $ref: '#/components/schemas/SequenceCondition'
+        commandReference:
+          $ref: '#/components/schemas/CommandReferenceView'
+    PrimitiveAction:
+      type: object
+      required:
+        - type
+        - payload
+      properties:
+        type:
+          type: string
+        schemaVersion:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+    LegacyAction:
+      type: object
+      required:
+        - type
+        - parameters
+      properties:
+        type:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
+    SequenceCondition:
+      type: object
+      nullable: true
+      properties:
+        type:
+          type: string
+        negate:
+          type: boolean
+    CommandReferenceView:
+      type: object
+      nullable: true
+      properties:
+        commandId:
+          type: string
+        commandNameSnapshot:
+          type: string
+          nullable: true
+        resolutionStatus:
+          type: string
+          enum:
+            - resolved
+            - unresolved
+            - blank
+        unresolvedMessage:
+          type: string
+          nullable: true
+    SequenceSaveConflict:
+      type: object
+      required:
+        - sequenceId
+        - currentVersion
+        - message
+      properties:
+        sequenceId:
+          type: string
+        currentVersion:
+          type: integer
+        message:
+          type: string
+    ExecutionLogDetail:
+      type: object
+      required:
+        - executionId
+        - summary
+        - stepOutcomes
+      properties:
+        executionId:
+          type: string
+        summary:
+          type: string
+        stepOutcomes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionLogStepOutcome'
+    ExecutionLogStepOutcome:
+      type: object
+      required:
+        - stepName
+        - status
+        - message
+      properties:
+        sequenceId:
+          type: string
+          nullable: true
+        sequenceLabel:
+          type: string
+          nullable: true
+        stepId:
+          type: string
+          nullable: true
+        stepLabel:
+          type: string
+          nullable: true
+        stepName:
+          type: string
+          description: Human-readable authoring step label used by the UI detail surface.
+        commandName:
+          type: string
+          nullable: true
+          description: Present for command-backed sequence steps and used in operator-facing messages.
+        status:
+          type: string
+        message:
+          type: string
+          description: Command-backed step messages include both the step label and command name.
