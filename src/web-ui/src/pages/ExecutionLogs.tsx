@@ -312,7 +312,7 @@ export const ExecutionLogsPage: React.FC = () => {
               <ul>
                 {detail.stepOutcomes.map((step, index) => (
                   <li key={`${step.stepName}-${index}`}>
-                    <strong>{step.stepName}</strong>: {step.status} — {step.message}
+                    <strong>{step.stepName}</strong>{step.commandName ? ` (${step.commandName})` : ''}: {step.status} — {step.message}
                     <div className="form-hint">
                       Applied delay: {typeof step.appliedDelayMs === 'number' ? `${step.appliedDelayMs} ms` : 'n/a'}
                     </div>

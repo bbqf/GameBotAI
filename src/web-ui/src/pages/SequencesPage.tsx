@@ -132,8 +132,11 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
         breakCondition: child.breakCondition ?? undefined
       } satisfies BreakStepEntry;
     }
-    const cmdId = typeof child.action?.parameters?.commandId === 'string'
-      ? child.action.parameters.commandId
+    const primitiveAction = getPrimitiveAction(child);
+    const cmdId = typeof primitiveAction?.payload?.commandId === 'string'
+      ? primitiveAction.payload.commandId
+      : typeof child.action?.parameters?.commandId === 'string'
+        ? child.action.parameters.commandId
       : child.stepId;
     return {
       type: 'Action',

@@ -93,6 +93,7 @@ internal sealed class StepOutcomeDetailDto {
   public string? StepId { get; init; }
   public string? StepLabel { get; init; }
   public required string StepName { get; init; }
+  public string? CommandName { get; init; }
   public string? StepType { get; init; }
   public required string Status { get; init; }
   public required string Message { get; init; }

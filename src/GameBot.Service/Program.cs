@@ -795,6 +795,7 @@ sequences.MapPost("{sequenceId}/execute", async (
   IImageVisibleConditionAdapter imageVisibleConditionAdapter,
   GameBot.Domain.Images.IImageRepository imageRepository,
   GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
+  ICommandRepository commandRepository,
   ISequenceRepository sequenceRepository,
   GameBot.Service.Services.ICommandExecutor commandExecutor,
   string sequenceId,
@@ -869,12 +870,27 @@ sequences.MapPost("{sequenceId}/execute", async (
     var sequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
     var sequenceName = sequence?.Name ?? sequenceId;
     var status = string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
-    var sequenceStepsByRef = (sequence?.Steps ?? Array.Empty<GameBot.Domain.Commands.SequenceStep>())
+    var flattenedSequenceSteps = FlattenSequenceSteps(sequence?.Steps ?? Array.Empty<GameBot.Domain.Commands.SequenceStep>()).ToArray();
+    var sequenceStepsByRef = flattenedSequenceSteps
       .GroupBy(step => !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId! : step.CommandId, StringComparer.Ordinal)
+      .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+    var sequenceStepsByCommandId = flattenedSequenceSteps
+      .Where(step => !string.IsNullOrWhiteSpace(step.CommandId))
+      .GroupBy(step => step.CommandId, StringComparer.Ordinal)
       .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
     var flowStepsByCommandRef = (sequence?.FlowSteps ?? Array.Empty<GameBot.Domain.Commands.FlowStep>())
       .GroupBy(step => string.IsNullOrWhiteSpace(step.PayloadRef) ? step.StepId : step.PayloadRef!, StringComparer.Ordinal)
       .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+    var commandNamesById = new Dictionary<string, string>(StringComparer.Ordinal);
+    foreach (var commandId in res.Steps
+      .Where(step => step.LoopIterations is null && !string.IsNullOrWhiteSpace(step.CommandId))
+      .Select(step => step.CommandId)
+      .Distinct(StringComparer.Ordinal)) {
+      var command = await commandRepository.GetAsync(commandId, ct).ConfigureAwait(false);
+      if (command is not null && !string.IsNullOrWhiteSpace(command.Name)) {
+        commandNamesById[commandId] = command.Name;
+      }
+    }
 
     var commandSteps = res.Steps.Where(s => s.LoopIterations is null).ToList();
     var detailItems = new List<GameBot.Domain.Logging.ExecutionDetailItem> {
@@ -888,9 +904,9 @@ sequences.MapPost("{sequenceId}/execute", async (
     var stepOrder = 1;
     foreach (var step in res.Steps) {
       flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
-      sequenceStepsByRef.TryGetValue(step.CommandId, out var sequenceStep);
-      var stepId = flowStep?.StepId ?? step.CommandId;
-      var stepLabel = flowStep?.Label ?? sequenceStep?.Label ?? step.CommandId;
+      sequenceStepsByCommandId.TryGetValue(step.CommandId, out var sequenceStep);
+      var stepId = flowStep?.StepId ?? sequenceStep?.StepId ?? step.CommandId;
+      var stepLabel = flowStep?.Label ?? sequenceStep?.Label ?? sequenceStep?.StepId ?? step.CommandId;
 
       // Loop summary entries are not command executions — emit a loop-type detail instead.
       if (step.LoopIterations is not null) {
@@ -925,6 +941,7 @@ sequences.MapPost("{sequenceId}/execute", async (
       var isWaitForImageStep = waitDetails is not null
         || waitConfig is not null
         || string.Equals(sequenceStep?.Action?.Type, "WaitForImage", StringComparison.OrdinalIgnoreCase);
+      commandNamesById.TryGetValue(step.CommandId, out var commandName);
       var stepType = isWaitForImageStep ? "waitForImage" : "command";
       var imageLoadStatus = waitDetails?.ImageLoadStatus
         ?? (waitConfig?.DetectionTarget is null
@@ -932,9 +949,13 @@ sequences.MapPost("{sequenceId}/execute", async (
           : string.Equals(actionOutcome, "image_unavailable", StringComparison.OrdinalIgnoreCase)
             ? "unavailable"
             : "loaded");
-      var stepDisplayMessage = !string.IsNullOrWhiteSpace(step.Message)
-        ? $"Step '{stepLabel}' {actionOutcome}: {step.Message}"
-        : $"Step '{stepLabel}' {actionOutcome}.";
+      var stepDisplayMessage = isWaitForImageStep || string.IsNullOrWhiteSpace(commandName)
+        ? (!string.IsNullOrWhiteSpace(step.Message)
+          ? $"Step '{stepLabel}' {actionOutcome}: {step.Message}"
+          : $"Step '{stepLabel}' {actionOutcome}.")
+        : (!string.IsNullOrWhiteSpace(step.Message)
+          ? $"Step '{stepLabel}' ran command '{commandName}' with outcome '{actionOutcome}': {step.Message}"
+          : $"Step '{stepLabel}' ran command '{commandName}' with outcome '{actionOutcome}'.");
       detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
         "step",
         stepDisplayMessage,
@@ -959,7 +980,8 @@ sequences.MapPost("{sequenceId}/execute", async (
           ["sequenceId"] = sequenceId,
           ["sequenceLabel"] = sequenceName,
           ["stepId"] = stepId,
-          ["stepLabel"] = stepLabel
+          ["stepLabel"] = stepLabel,
+          ["commandName"] = isWaitForImageStep ? null : commandName
         },
         "normal"));
     }
@@ -1562,6 +1584,20 @@ static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContra
     }
   }
   return result;
+}
+
+static IEnumerable<GameBot.Domain.Commands.SequenceStep> FlattenSequenceSteps(IEnumerable<GameBot.Domain.Commands.SequenceStep> steps) {
+  foreach (var step in steps) {
+    yield return step;
+
+    if (step.Body.Count == 0) {
+      continue;
+    }
+
+    foreach (var child in FlattenSequenceSteps(step.Body)) {
+      yield return child;
+    }
+  }
 }
 
 static WaitForImageConfig? MapWaitForImageConfig(PrimitiveActionRequest? primitiveAction) {

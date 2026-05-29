@@ -219,4 +219,82 @@ describe('SequencesPage', () => {
       ]
     }));
   });
+
+  it('preserves loop body command selections when reloading saved primitive actions', async () => {
+    listSequencesMock.mockResolvedValue([{ id: 'seq-loop', name: 'Loop Sequence', steps: [] }] as any);
+    getSequenceMock.mockResolvedValue({
+      id: 'seq-loop',
+      name: 'Loop Sequence',
+      version: 3,
+      steps: [
+        {
+          stepId: 'loop-1',
+          stepType: 'Loop',
+          loop: {
+            loopType: 'count',
+            count: 2,
+            maxIterations: 2
+          },
+          body: [
+            {
+              stepId: 'body-step-1',
+              stepType: 'Action',
+              primitiveAction: {
+                type: 'command',
+                schemaVersion: 'v1',
+                payload: {
+                  commandId: 'c2'
+                }
+              },
+              condition: null
+            }
+          ]
+        }
+      ]
+    } as any);
+    updateSequenceMock.mockResolvedValue({} as any);
+
+    render(<SequencesPage />);
+
+    await screen.findByText('Loop Sequence');
+    fireEvent.click(screen.getByText('Loop Sequence'));
+
+    await screen.findByText('Edit Sequence');
+
+    const bodyCommandSelect = screen.getByTestId('loop-body-command-select') as HTMLSelectElement;
+    expect(bodyCommandSelect.value).toBe('c2');
+
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('seq-loop', {
+      name: 'Loop Sequence',
+      version: 3,
+      interStepDelayRangeMs: null,
+      steps: [
+        {
+          stepId: 'loop-1',
+          stepType: 'Loop',
+          loop: {
+            loopType: 'count',
+            count: 2,
+            maxIterations: 2
+          },
+          body: [
+            {
+              stepId: 'body-step-1',
+              stepType: 'Action',
+              primitiveAction: {
+                type: 'command',
+                schemaVersion: 'v1',
+                payload: {
+                  commandId: 'c2'
+                }
+              },
+              condition: null
+            }
+          ]
+        }
+      ]
+    }));
+  });
 });

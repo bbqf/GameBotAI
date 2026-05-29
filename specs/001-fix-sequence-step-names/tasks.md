@@ -18,7 +18,7 @@
 **Purpose**: Establish the baseline reproduction and validation flow before code changes
 
 - [ ] T001 Run the baseline validation and reproduction steps documented in `specs/001-fix-sequence-step-names/quickstart.md`
-- [ ] T002 [P] Reproduce the saved-step and execution-log regressions from `specs/001-fix-sequence-step-names/quickstart.md` against `src/web-ui/src/pages/SequencesPage.tsx` and `src/web-ui/src/pages/ExecutionLogs.tsx`
+- [X] T002 [P] Reproduce the saved-step and execution-log regressions from `specs/001-fix-sequence-step-names/quickstart.md` against `src/web-ui/src/pages/SequencesPage.tsx` and `src/web-ui/src/pages/ExecutionLogs.tsx`
 
 ---
 
@@ -47,16 +47,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T007 [P] [US1] Add a contract regression for per-step command round-tripping in `tests/contract/Sequences/SequencePerStepConditionsContractTests.cs`
-- [ ] T008 [P] [US1] Add an integration regression for saved step metadata round-tripping in `tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs`
-- [ ] T009 [P] [US1] Add a web UI regression for reopening saved sequences with preserved command selections in `src/web-ui/src/pages/__tests__/SequencesPage.spec.tsx`
-- [ ] T010 [P] [US1] Add an explicit unchanged-resave regression in `tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs` that saves, reloads, re-saves unchanged steps, and asserts no step is reassigned to a different command
+- [X] T007 [P] [US1] Add a contract regression for per-step command round-tripping in `tests/contract/Sequences/SequencePerStepConditionsContractTests.cs`
+- [X] T008 [P] [US1] Add an integration regression for saved step metadata round-tripping in `tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs`
+- [X] T009 [P] [US1] Add a web UI regression for reopening saved sequences with preserved command selections in `src/web-ui/src/pages/__tests__/SequencesPage.spec.tsx`
+- [X] T010 [P] [US1] Add an explicit unchanged-resave regression in `tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs` that saves, reloads, re-saves unchanged steps, and asserts no step is reassigned to a different command
 
 ### Implementation for User Story 1
 
 - [ ] T011 [US1] Preserve canonical per-step object payloads for sequence create/update/patch in `src/GameBot.Service/Program.cs`
 - [ ] T012 [US1] Populate saved `commandReference` response data for command-backed steps in `src/GameBot.Service/Program.cs`
-- [ ] T013 [US1] Restore saved command selections and step labels on editor load in `src/web-ui/src/pages/SequencesPage.tsx`
+- [X] T013 [US1] Restore saved command selections and step labels on editor load in `src/web-ui/src/pages/SequencesPage.tsx`
 
 **Checkpoint**: User Story 1 is functional when saved sequences reopen with the same step-to-command mappings the author selected
 
@@ -72,14 +72,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T014 [P] [US2] Add an execution-log integration regression for step label plus command name in `tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs`
-- [ ] T015 [P] [US2] Add an execution-log projection unit regression in `tests/unit/ExecutionLogs/SequenceExecutionLogProjectionTests.cs`
+- [X] T014 [P] [US2] Add an execution-log integration regression for step label plus command name in `tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs`
+- [X] T015 [P] [US2] Add an execution-log projection unit regression in `tests/unit/ExecutionLogs/SequenceExecutionLogProjectionTests.cs`
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Enrich sequence execution detail items with command names in `src/GameBot.Service/Program.cs`
-- [ ] T017 [US2] Project command-aware sequence step details through execution-log responses in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs` and `src/GameBot.Service/Models/ExecutionLogs.cs`
-- [ ] T018 [US2] Align execution-log client types and rendering with command-aware step messages in `src/web-ui/src/services/executionLogsApi.ts` and `src/web-ui/src/pages/ExecutionLogs.tsx`
+- [X] T016 [US2] Enrich sequence execution detail items with command names in `src/GameBot.Service/Program.cs`
+- [X] T017 [US2] Project command-aware sequence step details through execution-log responses in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs` and `src/GameBot.Service/Models/ExecutionLogs.cs`
+- [X] T018 [US2] Align execution-log client types and rendering with command-aware step messages in `src/web-ui/src/services/executionLogsApi.ts` and `src/web-ui/src/pages/ExecutionLogs.tsx`
 
 **Checkpoint**: User Story 2 is functional when sequence execution logs identify both the step and the executed command without relying on internal step ids alone
 

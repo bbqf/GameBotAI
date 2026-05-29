@@ -45,6 +45,7 @@ export type ExecutionLogStepOutcomeDto = {
   stepId?: string;
   stepLabel?: string;
   stepName: string;
+  commandName?: string;
   stepType?: string;
   status: string;
   message: string;

@@ -151,6 +151,7 @@ internal static class ExecutionLogsEndpoints {
         StepId = step.StepId,
         StepLabel = step.StepLabel,
         StepName = step.StepName,
+        CommandName = step.CommandName,
         StepType = step.StepType,
         Status = step.Status,
         Message = step.Message,

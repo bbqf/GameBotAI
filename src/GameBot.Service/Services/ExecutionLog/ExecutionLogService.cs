@@ -17,6 +17,7 @@ internal sealed record ExecutionLogStepProjection(
   string? StepId,
   string StepLabel,
   string StepName,
+  string? CommandName,
   string StepType,
   string Status,
   string Message,
@@ -238,13 +239,25 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       string.Equals(detail.Kind, "snapshot", StringComparison.OrdinalIgnoreCase) ||
       (detail.Attributes?.ContainsKey("imageUrl") ?? false));
 
-    var stepOutcomes = entry.StepOutcomes
+    var storedOrDerivedStepOutcomes = entry.StepOutcomes.Count > 0
+      ? entry.StepOutcomes
+      : BuildSequenceStepOutcomes(
+        entry.ObjectRef.ObjectId,
+        entry.ObjectRef.DisplayNameSnapshot,
+        new ExecutionLogContext {
+          SequenceId = entry.ObjectRef.ObjectId,
+          SequenceLabel = entry.ObjectRef.DisplayNameSnapshot
+        },
+        entry.Details);
+
+    var stepOutcomes = storedOrDerivedStepOutcomes
       .Select(step => new ExecutionLogStepProjection(
         ResolveSequenceId(entry, step),
         ResolveSequenceLabel(entry, step),
         step.StepId,
         ResolveStepLabel(step),
-        string.IsNullOrWhiteSpace(step.StepType) ? $"Step {step.StepOrder}" : step.StepType,
+        ResolveStepLabel(step),
+        step.CommandName,
         step.StepType,
         step.Outcome,
         step.ReasonText ?? step.ReasonCode ?? "Step completed.",
@@ -285,6 +298,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       var resolvedSequenceLabel = TryGetString(attributes, "sequenceLabel") ?? context.SequenceLabel ?? sequenceName;
       var resolvedStepId = TryGetString(attributes, "stepId") ?? context.StepId;
       var resolvedStepLabel = TryGetString(attributes, "stepLabel") ?? context.StepLabel;
+      var resolvedCommandName = TryGetString(attributes, "commandName");
       var appliedDelayMs = TryGetInt(attributes, "appliedDelayMs");
       var conditionTrace = TryGetConditionTrace(attributes, "conditionTrace")
                            ?? BuildConditionTraceFromAttributes(attributes);
@@ -302,6 +316,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         resolvedStepLabel,
         conditionTrace,
         appliedDelayMs) {
+        CommandName = resolvedCommandName,
         DetailAttributes = detailAttributes
       });
     }
