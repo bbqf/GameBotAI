@@ -17,7 +17,7 @@
 
 **Purpose**: Establish the baseline reproduction and validation flow before code changes
 
-- [ ] T001 Run the baseline validation and reproduction steps documented in `specs/001-fix-sequence-step-names/quickstart.md`
+- [X] T001 Run the baseline validation and reproduction steps documented in `specs/001-fix-sequence-step-names/quickstart.md`
 - [X] T002 [P] Reproduce the saved-step and execution-log regressions from `specs/001-fix-sequence-step-names/quickstart.md` against `src/web-ui/src/pages/SequencesPage.tsx` and `src/web-ui/src/pages/ExecutionLogs.tsx`
 
 ---
@@ -112,13 +112,13 @@
 
 **Purpose**: Final verification, cleanup, and documentation touches across stories
 
-- [ ] T024 [P] Update verification guidance and unresolved-command checks in `specs/001-fix-sequence-step-names/quickstart.md`
-- [ ] T025 Run `dotnet build -c Debug` and `dotnet test -c Debug --logger trx` using `specs/001-fix-sequence-step-names/quickstart.md`, then run `scripts/analyze-test-results.ps1` if failures occur
-- [ ] T026 Verify touched-area regression coverage across `tests/contract/Sequences/SequencePerStepConditionsContractTests.cs`, `tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs`, `tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs`, `tests/integration/Sequences/SequenceMissingCommandReferenceIntegrationTests.cs`, `src/web-ui/src/pages/__tests__/SequencesPage.spec.tsx`, and `src/web-ui/src/pages/__tests__/SequencesPage.unresolvedCommand.spec.tsx`
-- [ ] T027 [P] Run lint and static analysis for touched backend and frontend files including `src/GameBot.Service/Program.cs`, `src/GameBot.Domain/Commands/SequenceStep.cs`, `src/GameBot.Domain/Commands/FileSequenceRepository.cs`, `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs`, and `src/web-ui/src/pages/SequencesPage.tsx`
-- [ ] T028 [P] Run security and secret-scan verification for touched files including `src/GameBot.Service/Program.cs`, `src/GameBot.Domain/Commands/FileSequenceRepository.cs`, `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs`, and `src/web-ui/src/pages/SequencesPage.tsx`, then record the result in implementation notes or PR evidence
-- [ ] T029 [P] Validate sequence load/save and execution-log detail responsiveness for a 50-step sequence using `specs/001-fix-sequence-step-names/quickstart.md`, then record a perf note in `docs/perf-checklist.md`
-- [ ] T030 [P] Add a user-visible fix note to `CHANGELOG.md` and update affected validation guidance in `docs/validation.md`
+- [X] T024 [P] Update verification guidance and unresolved-command checks in `specs/001-fix-sequence-step-names/quickstart.md`
+- [X] T025 Run `dotnet build -c Debug` and `dotnet test -c Debug --logger trx` using `specs/001-fix-sequence-step-names/quickstart.md`, then run `scripts/analyze-test-results.ps1` if failures occur
+- [X] T026 Verify touched-area regression coverage across `tests/contract/Sequences/SequencePerStepConditionsContractTests.cs`, `tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs`, `tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs`, `tests/integration/Sequences/SequenceMissingCommandReferenceIntegrationTests.cs`, `src/web-ui/src/pages/__tests__/SequencesPage.spec.tsx`, and `src/web-ui/src/pages/__tests__/SequencesPage.unresolvedCommand.spec.tsx`
+- [X] T027 [P] Run lint and static analysis for touched backend and frontend files including `src/GameBot.Service/Program.cs`, `src/GameBot.Domain/Commands/SequenceStep.cs`, `src/GameBot.Domain/Commands/FileSequenceRepository.cs`, `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs`, and `src/web-ui/src/pages/SequencesPage.tsx`
+- [X] T028 [P] Run security and secret-scan verification for touched files including `src/GameBot.Service/Program.cs`, `src/GameBot.Domain/Commands/FileSequenceRepository.cs`, `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs`, and `src/web-ui/src/pages/SequencesPage.tsx`, then record the result in implementation notes or PR evidence
+- [X] T029 [P] Validate sequence load/save and execution-log detail responsiveness for a 50-step sequence using `specs/001-fix-sequence-step-names/quickstart.md`, then record a perf note in `docs/perf-checklist.md`
+- [X] T030 [P] Add a user-visible fix note to `CHANGELOG.md` and update affected validation guidance in `docs/validation.md`
 
 ---
 

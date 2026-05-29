@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { listSequences, SequenceDto, createSequence, getSequence, updateSequence, deleteSequence, isSequenceConflictError } from '../services/sequences';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
@@ -605,7 +605,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     setDirty(false);
   };
 
-  const renderStepConditionEditor = (step: SequenceStep, index: number): React.ReactNode => (
+  const renderStepConditionEditor = useCallback((step: SequenceStep, index: number): React.ReactNode => (
     <div className="sequence-step-condition-editor">
       {step.stepType === 'Action' && step.actionType === 'WaitForImage' && (
         <>
@@ -824,7 +824,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         </>
       )}
     </div>
-  );
+  ), [form.steps, submitting, loading]);
 
   const createLoopStep = (loopType: 'count' | 'while' | 'repeatUntil'): SequenceStep => {
     const id = makeId();
@@ -893,7 +893,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         details: renderStepConditionEditor(s, idx),
       };
     });
-  }, [form.steps, editorCommandOptions, commandLookup, submitting, loading]);
+  }, [form.steps, editorCommandOptions, commandLookup, submitting, loading, renderStepConditionEditor]);
 
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};

@@ -61,7 +61,22 @@ If tests fail, run:
 
 ## 6. Targeted regression areas
 
-- Contract tests for sequence create/get/update with per-step payloads
-- Integration tests for saved step metadata round-trips
-- Unit or integration tests for execution-log detail projection
-- Web UI tests for reopening saved sequences and rendering unresolved command states
+- Contract tests for sequence create/get/update with per-step payloads: `tests/contract/Sequences/SequencePerStepConditionsContractTests.cs`
+- Integration tests for saved step metadata round-trips: `tests/integration/Sequences/PerStepConditionAuthoringRoundTripIntegrationTests.cs`
+- Integration tests for deleted-command unresolved state: `tests/integration/Sequences/SequenceMissingCommandReferenceIntegrationTests.cs`
+- Integration and unit tests for execution-log detail projection: `tests/integration/ExecutionLogs/SequenceExecutionLoggingIntegrationTests.cs`, `tests/unit/ExecutionLogs/SequenceExecutionLogProjectionTests.cs`
+- Web UI tests for reopening saved sequences: `src/web-ui/src/pages/__tests__/SequencesPage.spec.tsx`
+- Web UI tests for unresolved command display: `src/web-ui/src/pages/__tests__/SequencesPage.unresolvedCommand.spec.tsx`
+
+## 7. Verifying unresolved command behavior (automated)
+
+Run the dedicated integration regression:
+
+```powershell
+dotnet test tests/integration/GameBot.IntegrationTests.csproj -c Debug --filter "SequenceMissingCommandReference"
+```
+
+Expected result: 1 test passes, confirming that:
+- A sequence saved with a command reference preserves the command name snapshot even after the command is deleted.
+- The GET response returns `commandReference.isResolved = false` with the original `commandName`.
+- A PATCH that round-trips the unresolved reference keeps the snapshot intact on reload.

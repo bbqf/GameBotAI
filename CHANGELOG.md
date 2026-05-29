@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Sequence step command names are now preserved across save/reopen cycles (`001-fix-sequence-step-names`)
+  - Reopening a saved sequence restores each step's selected command and user-visible label without reverting to "Select command".
+  - Execution-log detail entries now identify both the step label and the command name that ran, making logs operator-readable.
+  - When a referenced command is deleted after a sequence was saved, the affected step shows the last-saved command name as unresolved instead of appearing blank; other steps in the same sequence are unaffected.
+
 ### Added
 - Wait For Image primitive action (001-wait-for-image)
   - Added `WaitForImage` as an authorable step in both command and sequence flows.
