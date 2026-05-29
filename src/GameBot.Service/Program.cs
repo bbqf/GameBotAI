@@ -553,7 +553,7 @@ app.MapPost("/installer/same-build/decision", (GameBot.Service.Models.SameBuildD
 var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
 var legacyBranchingErrors = new[] { "entryStepId and links are no longer supported. Use per-step conditions on steps[].condition." };
 
-sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, CancellationToken ct) => {
+sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, CancellationToken ct) => {
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
   var root = doc.RootElement;
   if (HasLegacyBranchingFields(root)) {
@@ -574,6 +574,7 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, Sequenc
     };
 
     var linearSteps = MapToLinearSteps(perStepRequest);
+    await EnrichCommandReferencesAsync(linearSteps, commandRepository, existingSteps: null, ct).ConfigureAwait(false);
     var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
     if (perStepValidationErrors.Count > 0) {
       return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
@@ -588,7 +589,7 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, Sequenc
     perStepSequence.SetSteps(linearSteps);
     perStepSequence.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
     var createdPerStep = await repo.CreateAsync(perStepSequence).ConfigureAwait(false);
-    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), ToSequenceResponse(createdPerStep));
+    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), await ToSequenceResponseAsync(createdPerStep, commandRepository, ct).ConfigureAwait(false));
   }
 
   if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
@@ -610,7 +611,7 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, Sequenc
       seq.SetSteps(steps);
     }
     var created = await repo.CreateAsync(seq).ConfigureAwait(false);
-    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{created.Id}", UriKind.Relative), ToSequenceResponse(created));
+    return Results.Created(new Uri($"{ApiRoutes.Sequences}/{created.Id}", UriKind.Relative), await ToSequenceResponseAsync(created, commandRepository, ct).ConfigureAwait(false));
   }
   // Fallback to domain shape
   var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
@@ -623,13 +624,13 @@ sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, Sequenc
   return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
 }).Accepts<System.Text.Json.JsonElement>("application/json").WithName("CreateSequence");
 
-sequences.MapGet("{sequenceId}", async (ISequenceRepository repo, string sequenceId) => {
+sequences.MapGet("{sequenceId}", async (ISequenceRepository repo, ICommandRepository commandRepository, string sequenceId, CancellationToken ct) => {
   var found = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (found is null) return Results.NotFound();
-  return Results.Ok(ToSequenceResponse(found));
+  return Results.Ok(await ToSequenceResponseAsync(found, commandRepository, ct).ConfigureAwait(false));
 }).WithName("GetSequence");
 
-sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
+sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
   var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
@@ -659,6 +660,7 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
   if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
     existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
     var linearSteps = MapToLinearSteps(perStepRequest);
+    await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
     var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
     if (perStepValidationErrors.Count > 0) {
       return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
@@ -690,10 +692,10 @@ sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository re
   existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-  return Results.Ok(ToSequenceResponse(saved));
+  return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct).ConfigureAwait(false));
 }).WithName("UpdateSequence");
 
-sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
+sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
   var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
   if (existing is null) return Results.NotFound();
   using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
@@ -723,6 +725,7 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
   if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
     existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
     var linearSteps = MapToLinearSteps(perStepRequest);
+    await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
     var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
     if (perStepValidationErrors.Count > 0) {
       return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
@@ -754,7 +757,7 @@ sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository 
   existing.Version += 1;
   existing.UpdatedAt = DateTimeOffset.UtcNow;
   var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-  return Results.Ok(ToSequenceResponse(saved));
+  return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct).ConfigureAwait(false));
 }).WithName("PatchSequence");
 
 sequences.MapPost("{sequenceId}/validate", async (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator, ISequenceRepository repo, SequenceStepValidationService stepValidationService) => {
@@ -1105,7 +1108,12 @@ static string? TryFindVersioningDirectory() {
   return null;
 }
 
-static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequence) {
+static async Task<object> ToSequenceResponseAsync(GameBot.Domain.Commands.CommandSequence sequence, ICommandRepository commandRepository, CancellationToken ct) {
+  var commandLookup = await BuildCommandLookupAsync(commandRepository, ct).ConfigureAwait(false);
+  return ToSequenceResponse(sequence, commandLookup);
+}
+
+static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequence, IReadOnlyDictionary<string, string> commandLookup) {
   if (sequence.FlowSteps.Count > 0 || sequence.FlowLinks.Count > 0) {
     var flowSteps = sequence.FlowSteps.Select(step => new {
       stepId = step.StepId,
@@ -1141,7 +1149,7 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
       id = sequence.Id,
       name = sequence.Name,
       version = sequence.Version,
-      steps = sequence.Steps.Select(MapStepToDto).ToArray(),
+      steps = sequence.Steps.Select(step => MapStepToDto(step, commandLookup)).ToArray(),
       interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
         ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
         : null
@@ -1199,7 +1207,7 @@ static object? MapPerStepConditionToDto(SequenceStepCondition? condition) {
   };
 }
 
-static object MapStepToDto(SequenceStep step) {
+static object MapStepToDto(SequenceStep step, IReadOnlyDictionary<string, string> commandLookup) {
   var stepType = step.StepType switch {
     SequenceStepType.Loop => "Loop",
     SequenceStepType.Break => "Break",
@@ -1210,6 +1218,7 @@ static object MapStepToDto(SequenceStep step) {
     stepId = step.StepId,
     label = step.Label,
     stepType,
+    commandReference = MapCommandReferenceToDto(step, commandLookup),
     primitiveAction = step.Action is null
       ? null
       : new {
@@ -1219,8 +1228,30 @@ static object MapStepToDto(SequenceStep step) {
       },
     condition = MapPerStepConditionToDto(step.Condition),
     loop = MapLoopConfigToDto(step.Loop),
-    body = step.Body.Count > 0 ? step.Body.Select(MapStepToDto).ToArray() : null,
+    body = step.Body.Count > 0 ? step.Body.Select(child => MapStepToDto(child, commandLookup)).ToArray() : null,
     breakCondition = MapPerStepConditionToDto(step.BreakCondition)
+  };
+}
+
+static object? MapCommandReferenceToDto(SequenceStep step, IReadOnlyDictionary<string, string> commandLookup) {
+  if (!IsCommandBackedStep(step)) {
+    return null;
+  }
+
+  var commandId = step.CommandId?.Trim();
+  if (string.IsNullOrWhiteSpace(commandId)) {
+    return null;
+  }
+
+  commandLookup.TryGetValue(commandId, out var resolvedName);
+  var snapshotName = !string.IsNullOrWhiteSpace(step.CommandReference?.CommandName)
+    ? step.CommandReference!.CommandName!.Trim()
+    : resolvedName;
+
+  return new {
+    commandId,
+    commandName = snapshotName,
+    isResolved = resolvedName is not null
   };
 }
 
@@ -1496,6 +1527,7 @@ static List<SequenceStep> MapToLinearSteps(SequenceUpsertContract request) {
         StepId = step.StepId,
         Label = step.Label,
         CommandId = step.StepId,
+        CommandReference = MapCommandReference(step.CommandReference, step.StepId),
         StepType = SequenceStepType.Action,
         Action = step.PrimitiveAction is not null ? new SequenceActionPayload { Type = step.PrimitiveAction.Type, SchemaVersion = step.PrimitiveAction.SchemaVersion } : null,
         WaitForImage = MapWaitForImageConfig(step.PrimitiveAction),
@@ -1512,6 +1544,7 @@ static List<SequenceStep> MapToLinearSteps(SequenceUpsertContract request) {
             && commandId is not null
             && !string.IsNullOrWhiteSpace(commandId.ToString())) {
           mapped.CommandId = commandId.ToString()!;
+          mapped.CommandReference = MapCommandReference(step.CommandReference, mapped.CommandId);
         }
       }
 
@@ -1564,6 +1597,7 @@ static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContra
         StepId = child.StepId,
         Label = child.Label,
         CommandId = child.StepId,
+        CommandReference = MapCommandReference(child.CommandReference, child.StepId),
         StepType = SequenceStepType.Action,
         Action = child.PrimitiveAction is not null ? new SequenceActionPayload { Type = child.PrimitiveAction.Type, SchemaVersion = child.PrimitiveAction.SchemaVersion } : null,
         WaitForImage = MapWaitForImageConfig(child.PrimitiveAction),
@@ -1578,6 +1612,7 @@ static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContra
             && cid is not null
             && !string.IsNullOrWhiteSpace(cid.ToString())) {
           mapped.CommandId = cid.ToString()!;
+          mapped.CommandReference = MapCommandReference(child.CommandReference, mapped.CommandId);
         }
       }
       result.Add(mapped);
@@ -1596,6 +1631,81 @@ static IEnumerable<GameBot.Domain.Commands.SequenceStep> FlattenSequenceSteps(IE
 
     foreach (var child in FlattenSequenceSteps(step.Body)) {
       yield return child;
+    }
+  }
+}
+
+static SequenceCommandReference? MapCommandReference(SequenceCommandReferenceContract? contract, string commandId) {
+  var normalizedId = string.IsNullOrWhiteSpace(commandId) ? contract?.CommandId?.Trim() : commandId.Trim();
+  if (string.IsNullOrWhiteSpace(normalizedId)) {
+    return null;
+  }
+
+  var normalizedName = string.IsNullOrWhiteSpace(contract?.CommandName) ? null : contract!.CommandName!.Trim();
+  return new SequenceCommandReference {
+    CommandId = normalizedId,
+    CommandName = normalizedName
+  };
+}
+
+static bool IsCommandBackedStep(SequenceStep step) {
+  return step.StepType != SequenceStepType.Loop
+    && step.StepType != SequenceStepType.Break
+    && string.Equals(step.Action?.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+    && !string.IsNullOrWhiteSpace(step.CommandId);
+}
+
+static async Task<IReadOnlyDictionary<string, string>> BuildCommandLookupAsync(ICommandRepository commandRepository, CancellationToken ct) {
+  var commands = await commandRepository.ListAsync(ct).ConfigureAwait(false);
+  return commands
+    .Where(command => !string.IsNullOrWhiteSpace(command.Id))
+    .GroupBy(command => command.Id, StringComparer.OrdinalIgnoreCase)
+    .ToDictionary(group => group.Key, group => group.First().Name, StringComparer.OrdinalIgnoreCase);
+}
+
+static async Task EnrichCommandReferencesAsync(IReadOnlyList<SequenceStep> steps, ICommandRepository commandRepository, IReadOnlyList<SequenceStep>? existingSteps, CancellationToken ct) {
+  var commandLookup = await BuildCommandLookupAsync(commandRepository, ct).ConfigureAwait(false);
+  var existingLookup = FlattenSequenceSteps(existingSteps ?? Array.Empty<SequenceStep>())
+    .Where(step => IsCommandBackedStep(step))
+    .GroupBy(step => step.StepId, StringComparer.OrdinalIgnoreCase)
+    .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+  EnrichCommandReferences(steps, commandLookup, existingLookup);
+}
+
+static void EnrichCommandReferences(IReadOnlyList<SequenceStep> steps, IReadOnlyDictionary<string, string> commandLookup, IReadOnlyDictionary<string, SequenceStep> existingLookup) {
+  foreach (var step in steps) {
+    if (IsCommandBackedStep(step)) {
+      if (commandLookup.TryGetValue(step.CommandId, out var liveName)) {
+        step.CommandReference = new SequenceCommandReference {
+          CommandId = step.CommandId,
+          CommandName = liveName
+        };
+      }
+      else if (!string.IsNullOrWhiteSpace(step.CommandReference?.CommandName)) {
+        step.CommandReference = new SequenceCommandReference {
+          CommandId = step.CommandId,
+          CommandName = step.CommandReference.CommandName!.Trim()
+        };
+      }
+      else if (existingLookup.TryGetValue(step.StepId, out var existingStep)
+               && string.Equals(existingStep.CommandId, step.CommandId, StringComparison.OrdinalIgnoreCase)
+               && !string.IsNullOrWhiteSpace(existingStep.CommandReference?.CommandName)) {
+        step.CommandReference = new SequenceCommandReference {
+          CommandId = step.CommandId,
+          CommandName = existingStep.CommandReference.CommandName!.Trim()
+        };
+      }
+      else {
+        step.CommandReference = new SequenceCommandReference {
+          CommandId = step.CommandId,
+          CommandName = null
+        };
+      }
+    }
+
+    if (step.Body.Count > 0) {
+      EnrichCommandReferences(step.Body, commandLookup, existingLookup);
     }
   }
 }

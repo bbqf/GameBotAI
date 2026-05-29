@@ -1,4 +1,4 @@
-import type { SequenceStepCondition } from './sequenceFlow';
+import type { SequenceCommandReference, SequenceStepCondition } from './sequenceFlow';
 
 /** Discriminated union for all step types in the sequence form editor. */
 export type StepEntry =
@@ -11,6 +11,7 @@ export type ActionStepEntry = {
   id: string;
   stepId: string;
   commandId: string;
+  commandReference?: SequenceCommandReference;
   conditionType: 'none' | 'imageVisible' | 'commandOutcome';
   imageId: string;
   minSimilarity: string;

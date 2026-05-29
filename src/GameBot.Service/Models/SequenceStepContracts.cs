@@ -32,10 +32,17 @@ internal sealed record SequenceStepContract {
   public string? Label { get; init; }
   public string? StepType { get; init; }
   public PrimitiveActionRequest? PrimitiveAction { get; init; }
+  public SequenceCommandReferenceContract? CommandReference { get; init; }
   public SequenceStepConditionContract? Condition { get; init; }
   public LoopConfigContract? Loop { get; init; }
   public IReadOnlyList<SequenceStepContract>? Body { get; init; }
   public SequenceStepConditionContract? BreakCondition { get; init; }
+}
+
+internal sealed record SequenceCommandReferenceContract {
+  public required string CommandId { get; init; }
+  public string? CommandName { get; init; }
+  public bool? IsResolved { get; init; }
 }
 
 internal sealed record WaitForImagePayloadContract {

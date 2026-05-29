@@ -102,6 +102,12 @@ export type SequencePrimitiveActionPayload = {
   payload: Record<string, unknown>;
 };
 
+export type SequenceCommandReference = {
+  commandId: string;
+  commandName?: string | null;
+  isResolved?: boolean | null;
+};
+
 export type LoopConfigDto =
   | { loopType: 'count'; count: number; maxIterations?: number | null }
   | { loopType: 'while'; condition: SequenceStepCondition; maxIterations?: number | null }
@@ -113,6 +119,7 @@ export type SequenceLinearStep = {
   stepType?: 'Action' | 'Loop' | 'Break';
   action?: SequenceActionPayload | null;
   primitiveAction?: SequencePrimitiveActionPayload | null;
+  commandReference?: SequenceCommandReference | null;
   condition?: SequenceStepCondition | null;
   loop?: LoopConfigDto | null;
   body?: SequenceLinearStep[] | null;
