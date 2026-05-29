@@ -70,9 +70,8 @@ builder.Services.AddSwaggerDocs();
 builder.Services.AddSwaggerGen(options => {
   options.DocumentFilter<ConditionalFlowSchemaDocumentFilter>();
 });
-builder.Services.AddControllers().AddJsonOptions(o =>
-{
-    o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+builder.Services.AddControllers().AddJsonOptions(o => {
+  o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 // CORS for local web UI development (default: allow http://localhost:5173)
 var corsOrigins = (builder.Configuration["Service:Cors:Origins"]
@@ -135,35 +134,33 @@ builder.Services.AddSingleton<IConditionEvaluator, ConditionEvaluator>();
 builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
 builder.Services.AddSingleton<IImageDetectionConditionAdapter, ImageDetectionConditionAdapter>();
 builder.Services.AddSingleton<IImageVisibleConditionAdapter, ImageVisibleConditionAdapter>();
-builder.Services.AddSingleton(_ =>
-{
-    var loopMaxEnv = Environment.GetEnvironmentVariable("GAMEBOT_LOOP_MAX_ITERATIONS");
-    var loopMax = int.TryParse(loopMaxEnv, out var parsed) && parsed > 0 ? parsed : 1000;
+builder.Services.AddSingleton(_ => {
+  var loopMaxEnv = Environment.GetEnvironmentVariable("GAMEBOT_LOOP_MAX_ITERATIONS");
+  var loopMax = int.TryParse(loopMaxEnv, out var parsed) && parsed > 0 ? parsed : 1000;
 
-    var captureIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS");
-    var captureInterval = int.TryParse(captureIntervalEnv, out var ciParsed) && ciParsed > 0 ? Math.Max(ciParsed, 50) : 500;
+  var captureIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS");
+  var captureInterval = int.TryParse(captureIntervalEnv, out var ciParsed) && ciParsed > 0 ? Math.Max(ciParsed, 50) : 500;
 
-    var retryCountEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT");
-    var retryCount = int.TryParse(retryCountEnv, out var rcParsed) && rcParsed >= 0 ? rcParsed : 3;
+  var retryCountEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT");
+  var retryCount = int.TryParse(retryCountEnv, out var rcParsed) && rcParsed >= 0 ? rcParsed : 3;
 
-    var retryProgressionEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_PROGRESSION");
-    var retryProgression = double.TryParse(retryProgressionEnv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rpParsed) && rpParsed > 0 ? rpParsed : 1.0;
+  var retryProgressionEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_PROGRESSION");
+  var retryProgression = double.TryParse(retryProgressionEnv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rpParsed) && rpParsed > 0 ? rpParsed : 1.0;
 
-    var adbRetriesEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES");
-    var adbRetries = int.TryParse(adbRetriesEnv, out var arParsed) && arParsed >= 0 ? arParsed : 2;
+  var adbRetriesEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES");
+  var adbRetries = int.TryParse(adbRetriesEnv, out var arParsed) && arParsed >= 0 ? arParsed : 2;
 
-    var adbRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS");
-    var adbRetryDelay = int.TryParse(adbRetryDelayEnv, out var ardParsed) && ardParsed >= 0 ? ardParsed : 100;
+  var adbRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS");
+  var adbRetryDelay = int.TryParse(adbRetryDelayEnv, out var ardParsed) && ardParsed >= 0 ? ardParsed : 100;
 
-    return new GameBot.Domain.Config.AppConfig
-    {
-        LoopMaxIterations = loopMax,
-        CaptureIntervalMs = captureInterval,
-        TapRetryCount = retryCount,
-        TapRetryProgression = retryProgression,
-        AdbRetries = adbRetries,
-        AdbRetryDelayMs = adbRetryDelay,
-    };
+  return new GameBot.Domain.Config.AppConfig {
+    LoopMaxIterations = loopMax,
+    CaptureIntervalMs = captureInterval,
+    TapRetryCount = retryCount,
+    TapRetryProgression = retryProgression,
+    AdbRetries = adbRetries,
+    AdbRetryDelayMs = adbRetryDelay,
+  };
 });
 builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
 builder.Services.AddSingleton(loggingGate);
@@ -796,6 +793,7 @@ sequences.MapPost("{sequenceId}/execute", async (
   GameBot.Domain.Services.SequenceRunner runner,
   TriggerEvaluationService evalSvc,
   IImageVisibleConditionAdapter imageVisibleConditionAdapter,
+  GameBot.Domain.Images.IImageRepository imageRepository,
   GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
   ISequenceRepository sequenceRepository,
   GameBot.Service.Services.ICommandExecutor commandExecutor,
@@ -807,7 +805,8 @@ sequences.MapPost("{sequenceId}/execute", async (
     try {
       var body = await httpContext.Request.ReadFromJsonAsync<SequenceExecuteRequest>(ct).ConfigureAwait(false);
       sessionId = body?.SessionId;
-    } catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
+    }
+    catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
       // empty body, malformed JSON, or missing content-type — no sessionId override
     }
 
@@ -816,11 +815,14 @@ sequences.MapPost("{sequenceId}/execute", async (
       async commandId => {
         try {
           await commandExecutor.ForceExecuteAsync(sessionId, commandId, ct).ConfigureAwait(false);
-        } catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
+        }
+        catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
           throw new InvalidOperationException($"No cached session found for command '{commandId}'. Start a session first.");
-        } catch (InvalidOperationException ex) when (ex.Message == "missing_session_context") {
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "missing_session_context") {
           throw new InvalidOperationException($"No session available for command '{commandId}'. Start a session or pass a sessionId.");
-        } catch (KeyNotFoundException) {
+        }
+        catch (KeyNotFoundException) {
           // Command not found in repository — step uses a primitive action type (e.g. tap)
           // or references a non-existent command; treat as completed.
         }
@@ -838,7 +840,7 @@ sequences.MapPost("{sequenceId}/execute", async (
       conditionEvaluator: (cond, token) => {
         // Map Blocks.Condition to a transient Trigger and evaluate via TriggerEvaluationService
         if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)) {
-          return imageVisibleConditionAdapter.EvaluateAsync(cond, token).AsTask();
+          return EvaluateImageConditionAsync(cond, imageRepository, imageVisibleConditionAdapter, token);
         }
         if (string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase)) {
           var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
@@ -867,6 +869,9 @@ sequences.MapPost("{sequenceId}/execute", async (
     var sequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
     var sequenceName = sequence?.Name ?? sequenceId;
     var status = string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+    var sequenceStepsByRef = (sequence?.Steps ?? Array.Empty<GameBot.Domain.Commands.SequenceStep>())
+      .GroupBy(step => !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId! : step.CommandId, StringComparer.Ordinal)
+      .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
     var flowStepsByCommandRef = (sequence?.FlowSteps ?? Array.Empty<GameBot.Domain.Commands.FlowStep>())
       .GroupBy(step => string.IsNullOrWhiteSpace(step.PayloadRef) ? step.StepId : step.PayloadRef!, StringComparer.Ordinal)
       .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
@@ -883,8 +888,9 @@ sequences.MapPost("{sequenceId}/execute", async (
     var stepOrder = 1;
     foreach (var step in res.Steps) {
       flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
+      sequenceStepsByRef.TryGetValue(step.CommandId, out var sequenceStep);
       var stepId = flowStep?.StepId ?? step.CommandId;
-      var stepLabel = flowStep?.Label ?? step.CommandId;
+      var stepLabel = flowStep?.Label ?? sequenceStep?.Label ?? step.CommandId;
 
       // Loop summary entries are not command executions — emit a loop-type detail instead.
       if (step.LoopIterations is not null) {
@@ -914,6 +920,18 @@ sequences.MapPost("{sequenceId}/execute", async (
       var actionOutcome = string.IsNullOrWhiteSpace(step.ActionOutcome)
         ? (string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase) ? "skipped" : "executed")
         : step.ActionOutcome;
+      var waitDetails = step.WaitForImageDetails;
+      var waitConfig = sequenceStep?.WaitForImage;
+      var isWaitForImageStep = waitDetails is not null
+        || waitConfig is not null
+        || string.Equals(sequenceStep?.Action?.Type, "WaitForImage", StringComparison.OrdinalIgnoreCase);
+      var stepType = isWaitForImageStep ? "waitForImage" : "command";
+      var imageLoadStatus = waitDetails?.ImageLoadStatus
+        ?? (waitConfig?.DetectionTarget is null
+          ? null
+          : string.Equals(actionOutcome, "image_unavailable", StringComparison.OrdinalIgnoreCase)
+            ? "unavailable"
+            : "loaded");
       var stepDisplayMessage = !string.IsNullOrWhiteSpace(step.Message)
         ? $"Step '{stepLabel}' {actionOutcome}: {step.Message}"
         : $"Step '{stepLabel}' {actionOutcome}.";
@@ -922,15 +940,22 @@ sequences.MapPost("{sequenceId}/execute", async (
         stepDisplayMessage,
         new Dictionary<string, object?> {
           ["stepOrder"] = stepOrder++,
-          ["stepType"] = "command",
+          ["stepType"] = stepType,
           ["status"] = step.Status,
           ["actionOutcome"] = actionOutcome,
+          ["reasonCode"] = actionOutcome,
           ["appliedDelayMs"] = step.InterStepDelayMs ?? step.AppliedDelayMs,
           ["stepDelayMs"] = step.AppliedDelayMs,
           ["interStepDelayMs"] = step.InterStepDelayMs,
           ["conditionType"] = step.ConditionType,
           ["conditionResult"] = step.ConditionResult,
           ["message"] = step.Message,
+          ["timeoutMs"] = waitDetails?.TimeoutMs ?? waitConfig?.TimeoutMs,
+          ["effectiveTimeoutMs"] = waitDetails?.EffectiveTimeoutMs ?? waitConfig?.TimeoutMs,
+          ["referenceImageId"] = waitDetails?.ReferenceImageId ?? waitConfig?.DetectionTarget?.ReferenceImageId,
+          ["confidence"] = waitDetails?.Confidence ?? waitConfig?.DetectionTarget?.Confidence,
+          ["exitCondition"] = isWaitForImageStep ? (waitDetails?.ExitCondition ?? actionOutcome) : null,
+          ["imageLoadStatus"] = imageLoadStatus,
           ["sequenceId"] = sequenceId,
           ["sequenceLabel"] = sequenceName,
           ["stepId"] = stepId,
@@ -972,6 +997,19 @@ sequences.MapPost("{sequenceId}/execute", async (
       ct).ConfigureAwait(false);
     return Results.Ok(res);
   }).WithName("ExecuteSequence").WithTags("Sequences");
+
+static async Task<bool> EvaluateImageConditionAsync(
+  GameBot.Domain.Commands.Blocks.Condition cond,
+  GameBot.Domain.Images.IImageRepository imageRepository,
+  IImageVisibleConditionAdapter imageVisibleConditionAdapter,
+  CancellationToken token) {
+  if (!string.IsNullOrWhiteSpace(cond.TargetId)
+      && !await imageRepository.ExistsAsync(cond.TargetId, token).ConfigureAwait(false)) {
+    throw new InvalidOperationException("image_unavailable");
+  }
+
+  return await imageVisibleConditionAdapter.EvaluateAsync(cond, token).ConfigureAwait(false);
+}
 
 // Legacy guard rails: respond with guidance instead of serving old roots
 MapLegacyGuard("/commands", ApiRoutes.Commands);
@@ -1070,7 +1108,7 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
       entryStepId = sequence.EntryStepId,
       steps = flowSteps,
       links = flowLinks,
-      interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null 
+      interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
         ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
         : null
     };
@@ -1082,7 +1120,7 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
       name = sequence.Name,
       version = sequence.Version,
       steps = sequence.Steps.Select(MapStepToDto).ToArray(),
-      interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null 
+      interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
         ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
         : null
     };
@@ -1093,7 +1131,7 @@ static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequenc
     name = sequence.Name,
     version = sequence.Version,
     steps = sequence.Steps.Select(step => step.CommandId).ToArray(),
-    interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null 
+    interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
       ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
       : null
   };
@@ -1153,11 +1191,9 @@ static object MapStepToDto(SequenceStep step) {
     primitiveAction = step.Action is null
       ? null
       : new {
-        primitiveAction = new {
-          type = step.Action.Type,
-          schemaVersion = step.Action.SchemaVersion,
-          payload = step.Action.Parameters
-        }
+        type = step.Action.Type,
+        schemaVersion = step.Action.SchemaVersion,
+        payload = step.Action.Parameters
       },
     condition = MapPerStepConditionToDto(step.Condition),
     loop = MapLoopConfigToDto(step.Loop),
@@ -1440,6 +1476,7 @@ static List<SequenceStep> MapToLinearSteps(SequenceUpsertContract request) {
         CommandId = step.StepId,
         StepType = SequenceStepType.Action,
         Action = step.PrimitiveAction is not null ? new SequenceActionPayload { Type = step.PrimitiveAction.Type, SchemaVersion = step.PrimitiveAction.SchemaVersion } : null,
+        WaitForImage = MapWaitForImageConfig(step.PrimitiveAction),
         Condition = MapPerStepCondition(step.Condition)
       };
 
@@ -1498,7 +1535,8 @@ static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContra
         StepType = SequenceStepType.Break,
         BreakCondition = MapPerStepCondition(child.BreakCondition)
       });
-    } else {
+    }
+    else {
       var mapped = new SequenceStep {
         Order = i,
         StepId = child.StepId,
@@ -1506,6 +1544,7 @@ static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContra
         CommandId = child.StepId,
         StepType = SequenceStepType.Action,
         Action = child.PrimitiveAction is not null ? new SequenceActionPayload { Type = child.PrimitiveAction.Type, SchemaVersion = child.PrimitiveAction.SchemaVersion } : null,
+        WaitForImage = MapWaitForImageConfig(child.PrimitiveAction),
         Condition = MapPerStepCondition(child.Condition)
       };
       if (child.PrimitiveAction is not null) {
@@ -1523,6 +1562,84 @@ static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContra
     }
   }
   return result;
+}
+
+static WaitForImageConfig? MapWaitForImageConfig(PrimitiveActionRequest? primitiveAction) {
+  if (primitiveAction is null || !string.Equals(primitiveAction.Type, ActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)) {
+    return null;
+  }
+
+  var timeoutMs = 1000;
+  if (primitiveAction.Payload.TryGetValue("timeoutMs", out var timeoutValue)
+      && TryReadInt32(timeoutValue, out var parsedTimeout)) {
+    timeoutMs = parsedTimeout;
+  }
+
+  return new WaitForImageConfig {
+    TimeoutMs = timeoutMs,
+    DetectionTarget = MapWaitForImageDetectionTarget(primitiveAction.Payload)
+  };
+}
+
+static DetectionTarget? MapWaitForImageDetectionTarget(Dictionary<string, object> payload) {
+  if (!payload.TryGetValue("detectionTarget", out var detectionTargetValue)
+      || detectionTargetValue is not JsonElement detectionTargetElement
+      || detectionTargetElement.ValueKind != JsonValueKind.Object) {
+    return null;
+  }
+
+  if (!detectionTargetElement.TryGetProperty("referenceImageId", out var referenceImageIdElement)
+      || referenceImageIdElement.ValueKind != JsonValueKind.String) {
+    return null;
+  }
+
+  var referenceImageId = referenceImageIdElement.GetString();
+  if (string.IsNullOrWhiteSpace(referenceImageId)) {
+    return null;
+  }
+
+  var confidence = detectionTargetElement.TryGetProperty("confidence", out var confidenceElement)
+                   && confidenceElement.ValueKind == JsonValueKind.Number
+                   && confidenceElement.TryGetDouble(out var parsedConfidence)
+    ? parsedConfidence
+    : 0.8;
+  var offsetX = detectionTargetElement.TryGetProperty("offsetX", out var offsetXElement)
+                && offsetXElement.ValueKind == JsonValueKind.Number
+                && offsetXElement.TryGetInt32(out var parsedOffsetX)
+    ? parsedOffsetX
+    : 0;
+  var offsetY = detectionTargetElement.TryGetProperty("offsetY", out var offsetYElement)
+                && offsetYElement.ValueKind == JsonValueKind.Number
+                && offsetYElement.TryGetInt32(out var parsedOffsetY)
+    ? parsedOffsetY
+    : 0;
+  var selectionStrategy = detectionTargetElement.TryGetProperty("selectionStrategy", out var selectionStrategyElement)
+                          && selectionStrategyElement.ValueKind == JsonValueKind.String
+                          && string.Equals(selectionStrategyElement.GetString(), nameof(DetectionSelectionStrategy.FirstMatch), StringComparison.OrdinalIgnoreCase)
+    ? DetectionSelectionStrategy.FirstMatch
+    : DetectionSelectionStrategy.HighestConfidence;
+
+  return new DetectionTarget(referenceImageId, confidence, offsetX, offsetY, selectionStrategy);
+}
+
+static bool TryReadInt32(object? value, out int result) {
+  switch (value) {
+    case int intValue:
+      result = intValue;
+      return true;
+    case long longValue when longValue is >= int.MinValue and <= int.MaxValue:
+      result = (int)longValue;
+      return true;
+    case JsonElement element when element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var parsed):
+      result = parsed;
+      return true;
+    case string text when int.TryParse(text, out var parsedText):
+      result = parsedText;
+      return true;
+    default:
+      result = 0;
+      return false;
+  }
 }
 
 static SequenceStepCondition? MapPerStepCondition(SequenceStepConditionContract? condition) {

@@ -27,6 +27,19 @@ const formatRelativeTime = (timestampUtc: string): string => {
 const formatExactTime = (timestampUtc: string): string =>
   new Date(timestampUtc).toLocaleString();
 
+const formatExitCondition = (exitCondition?: string): string => {
+  switch (exitCondition) {
+    case 'image_detected':
+      return 'Image detected';
+    case 'timeout_elapsed':
+      return 'Timeout elapsed';
+    case 'image_unavailable':
+      return 'Image unavailable';
+    default:
+      return exitCondition ?? 'Unknown';
+  }
+};
+
 export const ExecutionLogsPage: React.FC = () => {
   const [items, setItems] = useState<ExecutionLogEntryDto[]>([]);
   const [detail, setDetail] = useState<ExecutionLogDetailDto | undefined>(undefined);
@@ -316,6 +329,22 @@ export const ExecutionLogsPage: React.FC = () => {
                     {step.conditionTrace && (
                       <div className="form-hint">
                         Condition trace: final result {step.conditionTrace.finalResult ? 'true' : 'false'} ({step.conditionTrace.selectedBranch} branch)
+                      </div>
+                    )}
+                    {step.detailAttributes && (
+                      <div className="form-hint">
+                        <div>
+                          Wait settings: timeout {typeof step.detailAttributes.timeoutMs === 'number' ? `${step.detailAttributes.timeoutMs} ms` : 'n/a'},
+                          effective timeout {typeof step.detailAttributes.effectiveTimeoutMs === 'number' ? `${step.detailAttributes.effectiveTimeoutMs} ms` : 'n/a'}.
+                        </div>
+                        <div>
+                          Image: {step.detailAttributes.referenceImageId ?? 'not configured'};
+                          confidence {typeof step.detailAttributes.confidence === 'number' ? step.detailAttributes.confidence.toFixed(2) : 'default'};
+                          load status {step.detailAttributes.imageLoadStatus ?? 'n/a'}.
+                        </div>
+                        <div>
+                          Exit condition: {formatExitCondition(step.detailAttributes.exitCondition)}.
+                        </div>
                       </div>
                     )}
                   </li>

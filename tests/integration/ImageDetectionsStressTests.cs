@@ -10,14 +10,14 @@ namespace GameBot.IntegrationTests;
 public sealed class ImageDetectionsStressTests {
   private static string Tile2x2Into16x16() {
     using var base2 = new System.Drawing.Bitmap(2, 2);
-    base2.SetPixel(0,0, System.Drawing.Color.Black);
-    base2.SetPixel(1,0, System.Drawing.Color.White);
-    base2.SetPixel(0,1, System.Drawing.Color.White);
-    base2.SetPixel(1,1, System.Drawing.Color.Black);
+    base2.SetPixel(0, 0, System.Drawing.Color.Black);
+    base2.SetPixel(1, 0, System.Drawing.Color.White);
+    base2.SetPixel(0, 1, System.Drawing.Color.White);
+    base2.SetPixel(1, 1, System.Drawing.Color.Black);
     using var big = new System.Drawing.Bitmap(16, 16);
     using (var g = System.Drawing.Graphics.FromImage(big)) {
-      for (int y=0; y<16; y+=2) {
-        for (int x=0; x<16; x+=2) {
+      for (int y = 0; y < 16; y += 2) {
+        for (int x = 0; x < 16; x += 2) {
           g.DrawImage(base2, x, y);
         }
       }
@@ -28,10 +28,10 @@ public sealed class ImageDetectionsStressTests {
   }
   private static string TwoByTwoPatternB64() {
     using var bmp = new System.Drawing.Bitmap(2, 2);
-    bmp.SetPixel(0,0, System.Drawing.Color.Black);
-    bmp.SetPixel(1,0, System.Drawing.Color.White);
-    bmp.SetPixel(0,1, System.Drawing.Color.White);
-    bmp.SetPixel(1,1, System.Drawing.Color.Black);
+    bmp.SetPixel(0, 0, System.Drawing.Color.Black);
+    bmp.SetPixel(1, 0, System.Drawing.Color.White);
+    bmp.SetPixel(0, 1, System.Drawing.Color.White);
+    bmp.SetPixel(1, 1, System.Drawing.Color.Black);
     using var ms = new System.IO.MemoryStream();
     bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
     return Convert.ToBase64String(ms.ToArray());

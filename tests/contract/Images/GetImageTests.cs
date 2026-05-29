@@ -10,8 +10,7 @@ using Xunit;
 
 namespace GameBot.ContractTests.Images;
 
-public sealed class GetImageTests : IDisposable
-{
+public sealed class GetImageTests : IDisposable {
   private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
 
   private readonly string? _prevDynPort;
@@ -21,8 +20,7 @@ public sealed class GetImageTests : IDisposable
   private readonly string? _prevStorageRoot;
   private readonly string _dataDir;
 
-  public GetImageTests()
-  {
+  public GetImageTests() {
     _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
     _prevDynPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
     _prevToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
@@ -39,16 +37,14 @@ public sealed class GetImageTests : IDisposable
     Environment.SetEnvironmentVariable("Service__Storage__Root", _dataDir);
   }
 
-  public void Dispose()
-  {
+  public void Dispose() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynPort);
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevToken);
     Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _prevDataDir);
     Environment.SetEnvironmentVariable("Service__Storage__Root", _prevStorageRoot);
 
-    try
-    {
+    try {
       if (Directory.Exists(_dataDir)) Directory.Delete(_dataDir, recursive: true);
     }
     catch { }
@@ -57,8 +53,7 @@ public sealed class GetImageTests : IDisposable
   }
 
   [Fact]
-  public async Task GetReturnsSavedImageWithContentType()
-  {
+  public async Task GetReturnsSavedImageWithContentType() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");

@@ -7,10 +7,8 @@ using Xunit;
 namespace GameBot.IntegrationTests;
 
 [Collection("ConfigIsolation")]
-public sealed class ImageEndpointsErrorTests
-{
-  public ImageEndpointsErrorTests()
-  {
+public sealed class ImageEndpointsErrorTests {
+  public ImageEndpointsErrorTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
@@ -18,8 +16,7 @@ public sealed class ImageEndpointsErrorTests
   }
 
   [Fact]
-  public async Task PostMissingFieldsReturnsInvalidRequest()
-  {
+  public async Task PostMissingFieldsReturnsInvalidRequest() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -30,8 +27,7 @@ public sealed class ImageEndpointsErrorTests
   }
 
   [Fact]
-  public async Task PostInvalidBase64ReturnsInvalidImage()
-  {
+  public async Task PostInvalidBase64ReturnsInvalidImage() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -40,8 +36,7 @@ public sealed class ImageEndpointsErrorTests
   }
 
   [Fact]
-  public async Task GetMissingReturnsNotFound()
-  {
+  public async Task GetMissingReturnsNotFound() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -50,8 +45,7 @@ public sealed class ImageEndpointsErrorTests
   }
 
   [Fact]
-  public async Task DeleteMissingReturnsNotFound()
-  {
+  public async Task DeleteMissingReturnsNotFound() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -60,8 +54,7 @@ public sealed class ImageEndpointsErrorTests
   }
 
   [Fact]
-  public async Task PostOverwriteSetsFlag()
-  {
+  public async Task PostOverwriteSetsFlag() {
     // 1x1 PNG white
     const string oneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
     using var app = new WebApplicationFactory<Program>();

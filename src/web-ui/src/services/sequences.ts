@@ -1,4 +1,5 @@
 import { ApiError, deleteJson, getJson, patchJson, postJson, putJson } from '../lib/api';
+import type { DetectionTargetDto } from './commands';
 import type {
   BranchLink,
   FlowStep,
@@ -8,6 +9,17 @@ import type {
   SequenceLinearUpsertRequest,
   SequenceSaveConflict
 } from '../types/sequenceFlow';
+
+export type WaitForImageSequencePayload = {
+  timeoutMs?: number;
+  detectionTarget?: DetectionTargetDto;
+};
+
+export type WaitForImagePrimitiveActionDto = {
+  type: 'WaitForImage';
+  schemaVersion?: string;
+  payload: WaitForImageSequencePayload;
+};
 
 export type SequenceDto = {
   id: string;
@@ -37,6 +49,19 @@ export type SequenceConflictError = ApiError & {
   payload: SequenceSaveConflict;
 };
 
+export type SequenceExecutionStepDto = {
+  commandId: string;
+  status: string;
+  actionOutcome?: string;
+  message?: string;
+};
+
+export type SequenceExecuteResponse = {
+  sequenceId: string;
+  status: string;
+  steps: SequenceExecutionStepDto[];
+};
+
 const base = '/api/sequences';
 
 export const listSequences = () => getJson<SequenceDto[]>(base);
@@ -50,7 +75,7 @@ export const validateSequenceFlow = (sequenceId: string, input: SequenceFlowUpse
   postJson<{ valid: boolean; errors: string[] }>(`${base}/${sequenceId}/validate`, input);
 
 export const executeSequence = (sequenceId: string, sessionId?: string) =>
-  postJson<unknown>(`${base}/${sequenceId}/execute`, sessionId ? { sessionId } : {});
+  postJson<SequenceExecuteResponse>(`${base}/${sequenceId}/execute`, sessionId ? { sessionId } : {});
 
 export const isSequenceConflictError = (error: unknown): error is SequenceConflictError => {
   return error instanceof ApiError

@@ -10,8 +10,7 @@ using Xunit;
 
 namespace GameBot.ContractTests.Images;
 
-public sealed class ListImagesTests : IDisposable
-{
+public sealed class ListImagesTests : IDisposable {
   private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
 
   private readonly string? _prevUseAdb;
@@ -22,8 +21,7 @@ public sealed class ListImagesTests : IDisposable
   private readonly string _dataDir;
   private static readonly string[] SeedIds = ["list-alpha", "list-beta"];
 
-  public ListImagesTests()
-  {
+  public ListImagesTests() {
     _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
     _prevDynPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
     _prevToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
@@ -40,20 +38,17 @@ public sealed class ListImagesTests : IDisposable
     Environment.SetEnvironmentVariable("Service__Storage__Root", _dataDir);
   }
 
-  public void Dispose()
-  {
+  public void Dispose() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynPort);
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevToken);
     Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _prevDataDir);
     Environment.SetEnvironmentVariable("Service__Storage__Root", _prevStorageRoot);
 
-    try
-    {
+    try {
       if (Directory.Exists(_dataDir)) Directory.Delete(_dataDir, recursive: true);
     }
-    catch
-    {
+    catch {
       // Best-effort cleanup only.
     }
 
@@ -61,14 +56,12 @@ public sealed class ListImagesTests : IDisposable
   }
 
   [Fact]
-  public async Task GetImagesReturnsIdsOnly()
-  {
+  public async Task GetImagesReturnsIdsOnly() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    foreach (var id in SeedIds)
-    {
+    foreach (var id in SeedIds) {
       var upload = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id, data = OneByOnePngBase64 });
       upload.StatusCode.Should().Be(HttpStatusCode.Created);
     }

@@ -39,17 +39,24 @@ internal sealed class CommandResponse {
 
 internal enum CommandStepTypeDto {
   Command,
-  PrimitiveTap
+  PrimitiveTap,
+  WaitForImage
 }
 
 internal sealed class PrimitiveTapConfigDto {
   public required DetectionTargetDto DetectionTarget { get; init; }
 }
 
+internal sealed class WaitForImageConfigDto {
+  public DetectionTargetDto? DetectionTarget { get; init; }
+  public int? TimeoutMs { get; init; }
+}
+
 internal sealed class CommandStepDto {
   public required CommandStepTypeDto Type { get; init; }
   public string? TargetId { get; init; }
   public PrimitiveTapConfigDto? PrimitiveTap { get; init; }
+  public WaitForImageConfigDto? WaitForImage { get; init; }
   public int Order { get; init; }
 }
 
@@ -61,9 +68,14 @@ internal sealed class ResolvedPointDto {
 internal sealed class StepExecutionOutcomeDto {
   public required int StepOrder { get; init; }
   public required string Status { get; init; }
+  public string? StepType { get; init; }
   public string? Reason { get; init; }
   public ResolvedPointDto? ResolvedPoint { get; init; }
   public double? DetectionConfidence { get; init; }
+  public int? TimeoutMs { get; init; }
+  public int? EffectiveTimeoutMs { get; init; }
+  public string? ReferenceImageId { get; init; }
+  public string? ImageLoadStatus { get; init; }
 }
 
 internal enum DetectionSelectionStrategyDto {

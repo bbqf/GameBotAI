@@ -187,3 +187,23 @@
 	- Coverage gate now supports touched-file threshold enforcement (`>=80%` line, `>=70%` branch) when changed `src/*.cs` files are present in the diff.
 	- Security gate records explicit SAST/dependency and secret-scan results.
 	- Lint/format and static-analysis gates run as explicit blocking checks.
+
+## WaitForImage Final Validation (2026-05-28)
+
+- **Backend full-suite verification**:
+	- Command: `dotnet test -c Debug --logger trx --results-directory TestResults`
+	- Result: `541 passed, 0 failed`.
+- **Failure analysis verification**:
+	- Command: `powershell -NoProfile -File scripts/analyze-test-results.ps1 -ResultsDir TestResults -LatestOnly`
+	- Result: `All tests passed across 1 TRX file(s)`.
+- **Web UI verification**:
+	- Command: `npm run test -- --coverage` (from `src/web-ui`).
+	- Result: `54 passed suites`, `202 passed tests`, `0 failed`.
+- **Security verification**:
+	- `.NET dependency vulnerability scan`: `dotnet list GameBot.sln package --vulnerable --include-transitive` reported no vulnerable packages.
+	- `web-ui` prod dependency scan: `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities.
+	- Secret-signature scan (`git grep` over common key/token patterns) found no matches.
+- **Analyzer verification status**:
+	- Scoped verification passed for the `WaitForImage` backend slice with `dotnet format whitespace GameBot.sln --verify-no-changes --no-restore --include <wait-for-image source and test files>`.
+	- Scoped analyzer verification also passed with `dotnet format analyzers GameBot.sln --verify-no-changes --diagnostics CA1515 CA2007 --no-restore --include <wait-for-image source and test files>`.
+	- Full-solution `dotnet format GameBot.sln --verify-no-changes --severity warn` remains a broader repository cleanup concern and is not required to validate this feature slice.

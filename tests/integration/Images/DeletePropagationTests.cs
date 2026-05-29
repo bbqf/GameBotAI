@@ -8,12 +8,10 @@ using Xunit;
 namespace GameBot.IntegrationTests.Images;
 
 [Collection("ConfigIsolation")]
-public sealed class DeletePropagationTests
-{
+public sealed class DeletePropagationTests {
   private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
 
-  public DeletePropagationTests()
-  {
+  public DeletePropagationTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
@@ -21,8 +19,7 @@ public sealed class DeletePropagationTests
   }
 
   [Fact]
-  public async Task DeleteRemovesFromListQuickly()
-  {
+  public async Task DeleteRemovesFromListQuickly() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -33,11 +30,9 @@ public sealed class DeletePropagationTests
     del.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
     var sw = Stopwatch.StartNew();
-    while (true)
-    {
+    while (true) {
       var list = await client.GetFromJsonAsync<ImageList>(new Uri("/api/images", UriKind.Relative));
-      if (list is not null && (list.Ids is null || !list.Ids.Contains("propagate-me", StringComparer.OrdinalIgnoreCase)))
-      {
+      if (list is not null && (list.Ids is null || !list.Ids.Contains("propagate-me", StringComparer.OrdinalIgnoreCase))) {
         break;
       }
       if (sw.Elapsed.TotalSeconds > 2) break;

@@ -72,7 +72,8 @@ public sealed class FileCommandRepositoryDetectionTests : IDisposable {
       if (Directory.Exists(_root)) {
         Directory.Delete(_root, recursive: true);
       }
-    } catch {
+    }
+    catch {
       // ignore cleanup failures
     }
   }

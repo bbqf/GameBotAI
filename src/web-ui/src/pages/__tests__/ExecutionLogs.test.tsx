@@ -127,6 +127,38 @@ describe('ExecutionLogsPage', () => {
     expect(screen.queryByText(/"stepOutcomes"/i)).not.toBeInTheDocument();
   });
 
+  it('renders wait-for-image parameters and exit condition in step details', async () => {
+    getExecutionLogDetailMock.mockResolvedValueOnce({
+      executionId: 'id-1',
+      summary: 'Wait step complete.',
+      relatedObjects: [],
+      snapshot: { isAvailable: false },
+      stepOutcomes: [
+        {
+          stepName: 'waitForImage',
+          stepType: 'waitForImage',
+          status: 'completed_timeout',
+          message: 'timeout_elapsed',
+          detailAttributes: {
+            timeoutMs: 1500,
+            effectiveTimeoutMs: 1500,
+            referenceImageId: 'mail_icon',
+            confidence: 0.92,
+            exitCondition: 'timeout_elapsed',
+            imageLoadStatus: 'loaded'
+          }
+        }
+      ]
+    });
+
+    render(<ExecutionLogsPage />);
+
+    expect(await screen.findByText('Wait step complete.')).toBeInTheDocument();
+    expect(screen.getByText(/Wait settings: timeout 1500 ms, effective timeout 1500 ms./)).toBeInTheDocument();
+    expect(screen.getByText(/Image: mail_icon; confidence 0.92; load status loaded./)).toBeInTheDocument();
+    expect(screen.getByText(/Exit condition: Timeout elapsed./)).toBeInTheDocument();
+  });
+
   it('defaults to exact local timestamp and switches to relative mode', async () => {
     listExecutionLogsMock.mockResolvedValueOnce({
       items: [

@@ -13,13 +13,17 @@ import { validatePerStepConditions } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
 import type { LoopStepEntry, BreakStepEntry, StepEntry } from '../types/stepEntry';
-import type { SequenceLinearStep, LoopConfigDto } from '../types/sequenceFlow';
+import type { SequenceLinearStep, LoopConfigDto, SequencePrimitiveActionPayload } from '../types/sequenceFlow';
 
 type SequenceStep = {
   id: string;
   stepId: string;
   stepType: 'Action' | 'Loop' | 'Break';
+  actionType: 'command' | 'WaitForImage';
   commandId: string;
+  waitReferenceImageId: string;
+  waitConfidence: string;
+  waitTimeoutMs: string;
   conditionType: 'none' | 'imageVisible' | 'commandOutcome';
   conditionNegate: boolean;
   imageId: string;
@@ -51,7 +55,28 @@ const createDefaultStep = (commandId: string, stepId: string): SequenceStep => (
   id: makeId(),
   stepId,
   stepType: 'Action',
+  actionType: 'command',
   commandId,
+  waitReferenceImageId: '',
+  waitConfidence: '',
+  waitTimeoutMs: '1000',
+  conditionType: 'none',
+  conditionNegate: false,
+  imageId: '',
+  minSimilarity: '',
+  outcomeStepRef: '',
+  expectedState: 'success'
+});
+
+const createDefaultWaitStep = (stepId: string): SequenceStep => ({
+  id: makeId(),
+  stepId,
+  stepType: 'Action',
+  actionType: 'WaitForImage',
+  commandId: '',
+  waitReferenceImageId: '',
+  waitConfidence: '',
+  waitTimeoutMs: '1000',
   conditionType: 'none',
   conditionNegate: false,
   imageId: '',
@@ -74,6 +99,27 @@ const nextGeneratedStepId = (steps: SequenceStep[]): string => {
   }, 0);
 
   return `step-${highest + 1}`;
+};
+
+const getPrimitiveAction = (step: SequenceLinearStep): SequencePrimitiveActionPayload | null => {
+  const nestedPrimitive = (step.primitiveAction as { primitiveAction?: SequencePrimitiveActionPayload } | null | undefined)?.primitiveAction;
+  if (nestedPrimitive && typeof nestedPrimitive.type === 'string') {
+    return nestedPrimitive;
+  }
+
+  if (step.primitiveAction && typeof step.primitiveAction.type === 'string') {
+    return step.primitiveAction;
+  }
+
+  if (step.action && typeof step.action.type === 'string') {
+    return {
+      type: step.action.type,
+      schemaVersion: 'v1',
+      payload: step.action.parameters
+    };
+  }
+
+  return null;
 };
 
 const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
@@ -143,7 +189,11 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         id: makeId(),
         stepId: step.stepId,
         stepType: 'Break' as const,
+        actionType: 'command' as const,
         commandId: '',
+        waitReferenceImageId: '',
+        waitConfidence: '',
+        waitTimeoutMs: '1000',
         conditionType: 'none' as const,
         conditionNegate: false,
         imageId: '',
@@ -153,9 +203,52 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
       };
     }
 
-    const commandId = typeof step.action?.parameters?.commandId === 'string'
-      ? step.action.parameters.commandId
-      : step.stepId;
+    const primitiveAction = getPrimitiveAction(step);
+    if (primitiveAction?.type === 'WaitForImage') {
+      const detectionTarget = primitiveAction.payload?.detectionTarget as Record<string, unknown> | undefined;
+      const confidence = typeof detectionTarget?.confidence === 'number' ? String(detectionTarget.confidence) : '';
+      const timeoutMs = typeof primitiveAction.payload?.timeoutMs === 'number' ? String(primitiveAction.payload.timeoutMs) : '1000';
+      const baseStep = createDefaultWaitStep(step.stepId);
+
+      if (step.condition?.type === 'imageVisible') {
+        return {
+          ...baseStep,
+          conditionType: 'imageVisible',
+          conditionNegate: step.condition.negate ?? false,
+          imageId: step.condition.imageId,
+          minSimilarity: step.condition.minSimilarity == null ? '' : String(step.condition.minSimilarity),
+          waitReferenceImageId: typeof detectionTarget?.referenceImageId === 'string' ? detectionTarget.referenceImageId : '',
+          waitConfidence: confidence,
+          waitTimeoutMs: timeoutMs,
+        };
+      }
+
+      if (step.condition?.type === 'commandOutcome') {
+        return {
+          ...baseStep,
+          conditionType: 'commandOutcome',
+          conditionNegate: step.condition.negate ?? false,
+          outcomeStepRef: step.condition.stepRef,
+          expectedState: step.condition.expectedState,
+          waitReferenceImageId: typeof detectionTarget?.referenceImageId === 'string' ? detectionTarget.referenceImageId : '',
+          waitConfidence: confidence,
+          waitTimeoutMs: timeoutMs,
+        };
+      }
+
+      return {
+        ...baseStep,
+        waitReferenceImageId: typeof detectionTarget?.referenceImageId === 'string' ? detectionTarget.referenceImageId : '',
+        waitConfidence: confidence,
+        waitTimeoutMs: timeoutMs,
+      };
+    }
+
+    const commandId = typeof primitiveAction?.payload?.commandId === 'string'
+      ? primitiveAction.payload.commandId
+      : typeof step.action?.parameters?.commandId === 'string'
+        ? step.action.parameters.commandId
+        : step.stepId;
 
     if (step.condition?.type === 'imageVisible') {
       return {
@@ -246,7 +339,7 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
   return {
     stepId: entry.stepId.trim(),
     stepType: 'Action',
-    action: { type: 'command', parameters: { commandId: a.commandId } },
+    primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: a.commandId } },
     condition: cond
   };
 };
@@ -270,12 +363,36 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
       };
     }
 
+    if (step.actionType === 'WaitForImage') {
+      const detectionTarget = step.waitReferenceImageId.trim()
+        ? {
+          referenceImageId: step.waitReferenceImageId.trim(),
+          confidence: step.waitConfidence.trim() === '' ? undefined : Number(step.waitConfidence),
+        }
+        : undefined;
+
+      return {
+        stepId: step.stepId.trim(),
+        stepType: 'Action' as const,
+        primitiveAction: {
+          type: 'WaitForImage',
+          schemaVersion: 'v1',
+          payload: {
+            timeoutMs: Number(step.waitTimeoutMs),
+            ...(detectionTarget ? { detectionTarget } : {})
+          }
+        },
+        condition: buildConditionPayload(step)
+      };
+    }
+
     return {
       stepId: step.stepId.trim(),
       stepType: 'Action' as const,
-      action: {
+      primitiveAction: {
         type: 'command',
-        parameters: {
+        schemaVersion: 'v1',
+        payload: {
           commandId: step.commandId
         }
       },
@@ -297,6 +414,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [form, setForm] = useState<SequenceFormValue>(emptyForm);
   const [pendingStepId, setPendingStepId] = useState<string | undefined>(undefined);
+  const [pendingWaitReferenceImageId, setPendingWaitReferenceImageId] = useState('');
+  const [pendingWaitConfidence, setPendingWaitConfidence] = useState('');
+  const [pendingWaitTimeoutMs, setPendingWaitTimeoutMs] = useState('1000');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
   const [deleteReferences, setDeleteReferences] = useState<Record<string, Array<{ id: string; name: string }>> | undefined>(undefined);
@@ -381,6 +501,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const resetForm = () => {
     setForm(emptyForm);
     setPendingStepId(undefined);
+    setPendingWaitReferenceImageId('');
+    setPendingWaitConfidence('');
+    setPendingWaitTimeoutMs('1000');
     setLoadedVersion(1);
     setErrors(undefined);
     setDirty(false);
@@ -388,6 +511,63 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
 
   const renderStepConditionEditor = (step: SequenceStep, index: number): React.ReactNode => (
     <div className="sequence-step-condition-editor">
+      {step.stepType === 'Action' && step.actionType === 'WaitForImage' && (
+        <>
+          <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
+            <label htmlFor={`step-wait-image-id-${step.id}`}>Wait image ID</label>
+            <input
+              id={`step-wait-image-id-${step.id}`}
+              value={step.waitReferenceImageId}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id
+                    ? { ...candidate, waitReferenceImageId: nextValue, waitConfidence: nextValue.trim() ? candidate.waitConfidence : '' }
+                    : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            />
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--min-similarity">
+            <label htmlFor={`step-wait-confidence-${step.id}`}>Wait confidence (0-1)</label>
+            <input
+              id={`step-wait-confidence-${step.id}`}
+              inputMode="decimal"
+              value={step.waitConfidence}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, waitConfidence: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading || !step.waitReferenceImageId.trim()}
+            />
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--expected-state">
+            <label htmlFor={`step-wait-timeout-${step.id}`}>Wait timeout (ms)</label>
+            <input
+              id={`step-wait-timeout-${step.id}`}
+              inputMode="numeric"
+              value={step.waitTimeoutMs}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, waitTimeoutMs: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            />
+          </div>
+        </>
+      )}
+
       <div className="sequence-step-condition-field sequence-step-condition-field--type">
         <label htmlFor={`step-condition-type-${step.id}`}>Condition Type</label>
         <select
@@ -566,7 +746,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       id,
       stepId,
       stepType: 'Loop',
+      actionType: 'command',
       commandId: '',
+      waitReferenceImageId: '',
+      waitConfidence: '',
+      waitTimeoutMs: '1000',
       conditionType: 'none',
       conditionNegate: false,
       imageId: '',
@@ -607,7 +791,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       }
       return {
         id: s.id,
-        label: commandLookup.get(s.commandId) ?? s.commandId,
+        label: s.actionType === 'WaitForImage'
+          ? `Wait for image: ${s.waitReferenceImageId.trim() || 'any image'}`
+          : commandLookup.get(s.commandId) ?? s.commandId,
         details: renderStepConditionEditor(s, idx),
       };
     });
@@ -616,6 +802,31 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
+
+    for (const step of v.steps) {
+      if (step.stepType !== 'Action') {
+        continue;
+      }
+
+      if (step.actionType === 'command' && !step.commandId.trim()) {
+        next.steps = 'Command steps require a command selection';
+        break;
+      }
+
+      if (step.actionType === 'WaitForImage') {
+        const timeout = step.waitTimeoutMs.trim();
+        if (!timeout) {
+          next.steps = 'Wait for image steps require a timeout in milliseconds';
+          break;
+        }
+
+        const parsedTimeout = Number(timeout);
+        if (!Number.isInteger(parsedTimeout) || parsedTimeout < 0) {
+          next.steps = 'Wait for image timeout must be a non-negative integer';
+          break;
+        }
+      }
+    }
 
     if (v.useCustomDelayRange) {
       if (!v.delayMin.trim()) {
@@ -882,6 +1093,62 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 setDirty(true);
               }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
             </div>
+            <div className="field grid-3">
+              <div>
+                <label htmlFor="sequence-wait-reference">Wait image ID</label>
+                <input
+                  id="sequence-wait-reference"
+                  value={pendingWaitReferenceImageId}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setPendingWaitReferenceImageId(nextValue);
+                    if (!nextValue.trim()) {
+                      setPendingWaitConfidence('');
+                    }
+                  }}
+                  disabled={submitting || loading}
+                />
+              </div>
+              <div>
+                <label htmlFor="sequence-wait-confidence">Wait confidence (0-1)</label>
+                <input
+                  id="sequence-wait-confidence"
+                  inputMode="decimal"
+                  value={pendingWaitConfidence}
+                  onChange={(event) => setPendingWaitConfidence(event.target.value)}
+                  disabled={submitting || loading || !pendingWaitReferenceImageId.trim()}
+                />
+              </div>
+              <div>
+                <label htmlFor="sequence-wait-timeout">Wait timeout (ms)</label>
+                <input
+                  id="sequence-wait-timeout"
+                  inputMode="numeric"
+                  value={pendingWaitTimeoutMs}
+                  onChange={(event) => setPendingWaitTimeoutMs(event.target.value)}
+                  disabled={submitting || loading}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <button
+                type="button"
+                onClick={() => {
+                  const nextStep = createDefaultWaitStep(nextGeneratedStepId(form.steps));
+                  nextStep.waitReferenceImageId = pendingWaitReferenceImageId.trim();
+                  nextStep.waitConfidence = pendingWaitReferenceImageId.trim() ? pendingWaitConfidence : '';
+                  nextStep.waitTimeoutMs = pendingWaitTimeoutMs || '1000';
+                  setForm((prev) => ({ ...prev, steps: [...prev.steps, nextStep] }));
+                  setPendingWaitReferenceImageId('');
+                  setPendingWaitConfidence('');
+                  setPendingWaitTimeoutMs('1000');
+                  setDirty(true);
+                }}
+                disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
+              >
+                Add wait step
+              </button>
+            </div>
             <div className="field" data-testid="add-loop-buttons">
               <span>Add loop:</span>{' '}
               <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}
@@ -892,7 +1159,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               items={stepItems}
               onChange={(next) => {
                 const mapped = next.map((item, idx) => form.steps.find((s) => s.id === item.id) ?? form.steps[idx]);
-                setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => !!s?.commandId || s?.stepType === 'Loop') });
+                setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => s?.stepType === 'Loop' || s?.stepType === 'Break' || (s?.stepType === 'Action' && (s.actionType === 'WaitForImage' || !!s.commandId))) });
                 setDirty(true);
               }}
               onDelete={(item) => {
@@ -900,7 +1167,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 setDirty(true);
               }}
               disabled={submitting || loading}
-              emptyMessage="No commands added yet."
+              emptyMessage="No steps added yet."
             />
             <div className="form-hint">Steps execute in listed order; drag buttons to reorder before saving.</div>
           </FormSection>
@@ -1067,6 +1334,62 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   setDirty(true);
                 }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
               </div>
+              <div className="field grid-3">
+                <div>
+                  <label htmlFor="sequence-edit-wait-reference">Wait image ID</label>
+                  <input
+                    id="sequence-edit-wait-reference"
+                    value={pendingWaitReferenceImageId}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setPendingWaitReferenceImageId(nextValue);
+                      if (!nextValue.trim()) {
+                        setPendingWaitConfidence('');
+                      }
+                    }}
+                    disabled={submitting || loading}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="sequence-edit-wait-confidence">Wait confidence (0-1)</label>
+                  <input
+                    id="sequence-edit-wait-confidence"
+                    inputMode="decimal"
+                    value={pendingWaitConfidence}
+                    onChange={(event) => setPendingWaitConfidence(event.target.value)}
+                    disabled={submitting || loading || !pendingWaitReferenceImageId.trim()}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="sequence-edit-wait-timeout">Wait timeout (ms)</label>
+                  <input
+                    id="sequence-edit-wait-timeout"
+                    inputMode="numeric"
+                    value={pendingWaitTimeoutMs}
+                    onChange={(event) => setPendingWaitTimeoutMs(event.target.value)}
+                    disabled={submitting || loading}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextStep = createDefaultWaitStep(nextGeneratedStepId(form.steps));
+                    nextStep.waitReferenceImageId = pendingWaitReferenceImageId.trim();
+                    nextStep.waitConfidence = pendingWaitReferenceImageId.trim() ? pendingWaitConfidence : '';
+                    nextStep.waitTimeoutMs = pendingWaitTimeoutMs || '1000';
+                    setForm((prev) => ({ ...prev, steps: [...prev.steps, nextStep] }));
+                    setPendingWaitReferenceImageId('');
+                    setPendingWaitConfidence('');
+                    setPendingWaitTimeoutMs('1000');
+                    setDirty(true);
+                  }}
+                  disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
+                >
+                  Add wait step
+                </button>
+              </div>
               <div className="field" data-testid="edit-add-loop-buttons">
                 <span>Add loop:</span>{' '}
                 <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}
@@ -1077,7 +1400,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 items={stepItems}
                 onChange={(next) => {
                   const mapped = next.map((item, idx) => form.steps.find((s) => s.id === item.id) ?? form.steps[idx]);
-                  setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => !!s?.commandId || s?.stepType === 'Loop') });
+                  setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => s?.stepType === 'Loop' || s?.stepType === 'Break' || (s?.stepType === 'Action' && (s.actionType === 'WaitForImage' || !!s.commandId))) });
                   setDirty(true);
                 }}
                 onDelete={(item) => {
@@ -1085,7 +1408,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   setDirty(true);
                 }}
                 disabled={submitting || loading}
-                emptyMessage="No commands added yet."
+                emptyMessage="No steps added yet."
               />
               <div className="form-hint">Use Move up/down to set the execution order before saving.</div>
             </FormSection>

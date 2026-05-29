@@ -59,13 +59,13 @@ describe('SequencesPage', () => {
         {
           stepId: 'step-2',
           stepType: 'Action',
-          action: { type: 'command', parameters: { commandId: 'c2' } },
+          primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c2' } },
           condition: null
         },
         {
           stepId: 'step-1',
           stepType: 'Action',
-          action: { type: 'command', parameters: { commandId: 'c1' } },
+          primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c1' } },
           condition: null
         }
       ]
@@ -114,11 +114,109 @@ describe('SequencesPage', () => {
         {
           stepId: 'step-2',
           stepType: 'Action',
-          action: { type: 'command', parameters: { commandId: 'c2' } },
+          primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c2' } },
           condition: null
         }
       ]
     }));
     await waitFor(() => expect(screen.queryByText('Edit Sequence')).not.toBeInTheDocument());
+  });
+
+  it('creates a sequence with a wait-for-image step', async () => {
+    render(<SequencesPage />);
+
+    await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Wait Seq' } });
+    fireEvent.change(screen.getByLabelText('Wait image ID'), { target: { value: 'mail_icon' } });
+    fireEvent.change(screen.getByLabelText('Wait confidence (0-1)'), { target: { value: '0.88' } });
+    fireEvent.change(screen.getByLabelText('Wait timeout (ms)'), { target: { value: '2400' } });
+    fireEvent.click(screen.getByText('Add wait step'));
+
+    createSequenceMock.mockResolvedValue({} as any);
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(createSequenceMock).toHaveBeenCalledWith({
+      name: 'Wait Seq',
+      version: 1,
+      interStepDelayRangeMs: null,
+      steps: [
+        {
+          stepId: 'step-1',
+          stepType: 'Action',
+          primitiveAction: {
+            type: 'WaitForImage',
+            schemaVersion: 'v1',
+            payload: {
+              detectionTarget: {
+                referenceImageId: 'mail_icon',
+                confidence: 0.88,
+              },
+              timeoutMs: 2400,
+            }
+          },
+          condition: null
+        }
+      ]
+    }));
+  });
+
+  it('loads and saves an existing wait-for-image step', async () => {
+    listSequencesMock.mockResolvedValue([{ id: 'seq-wait', name: 'Wait Sequence', steps: [] }] as any);
+    getSequenceMock.mockResolvedValue({
+      id: 'seq-wait',
+      name: 'Wait Sequence',
+      version: 4,
+      steps: [
+        {
+          stepId: 'step-1',
+          primitiveAction: {
+            type: 'WaitForImage',
+            schemaVersion: 'v1',
+            payload: {
+              detectionTarget: { referenceImageId: 'mail_icon', confidence: 0.91 },
+              timeoutMs: 1800
+            }
+          },
+          condition: null
+        }
+      ]
+    } as any);
+    updateSequenceMock.mockResolvedValue({} as any);
+
+    render(<SequencesPage />);
+
+    await screen.findByText('Wait Sequence');
+    fireEvent.click(screen.getByText('Wait Sequence'));
+
+    await screen.findByText('Edit Sequence');
+    expect(screen.getByText('Wait for image: mail_icon')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('seq-wait', {
+      name: 'Wait Sequence',
+      version: 4,
+      interStepDelayRangeMs: null,
+      steps: [
+        {
+          stepId: 'step-1',
+          stepType: 'Action',
+          primitiveAction: {
+            type: 'WaitForImage',
+            schemaVersion: 'v1',
+            payload: {
+              detectionTarget: {
+                referenceImageId: 'mail_icon',
+                confidence: 0.91,
+              },
+              timeoutMs: 1800,
+            }
+          },
+          condition: null
+        }
+      ]
+    }));
   });
 });

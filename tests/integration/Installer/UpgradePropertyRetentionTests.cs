@@ -3,11 +3,9 @@ using Xunit;
 
 namespace GameBot.IntegrationTests.Installer;
 
-public sealed class UpgradePropertyRetentionTests
-{
+public sealed class UpgradePropertyRetentionTests {
   [Fact]
-  public void InstallerFragmentsPersistAndReloadNetworkPropertiesAcrossUpgrade()
-  {
+  public void InstallerFragmentsPersistAndReloadNetworkPropertiesAcrossUpgrade() {
     var repoRoot = FindRepoRoot();
     var configTemplates = Path.Combine(repoRoot, "installer", "wix", "Fragments", "ConfigTemplates.wxs");
     var installerProperties = Path.Combine(repoRoot, "installer", "wix", "Fragments", "InstallerProperties.wxs");
@@ -23,13 +21,10 @@ public sealed class UpgradePropertyRetentionTests
     propertyContent.Should().Contain("SetProperty Id=\"PORT\" Value=\"[PERSISTED_PORT]\"");
   }
 
-  private static string FindRepoRoot()
-  {
+  private static string FindRepoRoot() {
     var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir is not null)
-    {
-      if (File.Exists(Path.Combine(dir.FullName, "GameBot.sln")))
-      {
+    while (dir is not null) {
+      if (File.Exists(Path.Combine(dir.FullName, "GameBot.sln"))) {
         return dir.FullName;
       }
 

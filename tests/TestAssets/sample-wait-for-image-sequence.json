@@ -1,0 +1,24 @@
+{
+  "name": "sample-wait-for-image-sequence",
+  "version": 1,
+  "steps": [
+    {
+      "stepId": "wait-home-banner",
+      "label": "Wait for home banner",
+      "primitiveAction": {
+        "type": "WaitForImage",
+        "schemaVersion": "v1",
+        "payload": {
+          "timeoutMs": 1500,
+          "detectionTarget": {
+            "referenceImageId": "home_button",
+            "confidence": 0.9,
+            "offsetX": 0,
+            "offsetY": 0,
+            "selectionStrategy": "HighestConfidence"
+          }
+        }
+      }
+    }
+  ]
+}

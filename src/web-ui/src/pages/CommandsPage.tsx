@@ -31,6 +31,19 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
               offsetY: (s.primitiveTap?.detectionTarget ?? dto.detection!).offsetY !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).offsetY) : undefined,
             }
           }
+          : undefined,
+        waitForImage: s.waitForImage
+          ? {
+            detectionTarget: s.waitForImage.detectionTarget
+              ? {
+                referenceImageId: s.waitForImage.detectionTarget.referenceImageId,
+                confidence: s.waitForImage.detectionTarget.confidence !== undefined ? String(s.waitForImage.detectionTarget.confidence) : undefined,
+                offsetX: s.waitForImage.detectionTarget.offsetX !== undefined ? String(s.waitForImage.detectionTarget.offsetX) : undefined,
+                offsetY: s.waitForImage.detectionTarget.offsetY !== undefined ? String(s.waitForImage.detectionTarget.offsetY) : undefined,
+              }
+              : undefined,
+            timeoutMs: s.waitForImage.timeoutMs !== undefined ? String(s.waitForImage.timeoutMs) : '1000',
+          }
           : undefined
       }));
   }
@@ -55,6 +68,34 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
             ? Number(s.primitiveTap.detectionTarget.offsetY)
             : undefined,
         }
+      }
+    };
+  }
+
+  if (s.type === 'WaitForImage') {
+    const detectionTarget = s.waitForImage?.detectionTarget?.referenceImageId?.trim()
+      ? {
+        referenceImageId: s.waitForImage.detectionTarget.referenceImageId.trim(),
+        confidence: s.waitForImage.detectionTarget.confidence !== undefined && s.waitForImage.detectionTarget.confidence !== ''
+          ? Number(s.waitForImage.detectionTarget.confidence)
+          : undefined,
+        offsetX: s.waitForImage.detectionTarget.offsetX !== undefined && s.waitForImage.detectionTarget.offsetX !== ''
+          ? Number(s.waitForImage.detectionTarget.offsetX)
+          : undefined,
+        offsetY: s.waitForImage.detectionTarget.offsetY !== undefined && s.waitForImage.detectionTarget.offsetY !== ''
+          ? Number(s.waitForImage.detectionTarget.offsetY)
+          : undefined,
+      }
+      : undefined;
+
+    return {
+      type: 'WaitForImage',
+      order: idx,
+      waitForImage: {
+        detectionTarget,
+        timeoutMs: s.waitForImage?.timeoutMs !== undefined && s.waitForImage.timeoutMs !== ''
+          ? Number(s.waitForImage.timeoutMs)
+          : undefined,
       }
     };
   }
@@ -213,6 +254,18 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
       if (step.type === 'PrimitiveTap') {
         if (!step.primitiveTap?.detectionTarget.referenceImageId?.trim()) {
           next.steps = 'Primitive tap steps require a detection target reference image ID';
+          break;
+        }
+      } else if (step.type === 'WaitForImage') {
+        const timeoutValue = step.waitForImage?.timeoutMs?.trim();
+        if (!timeoutValue) {
+          next.steps = 'Wait for image steps require a timeout in milliseconds';
+          break;
+        }
+
+        const timeoutMs = Number(timeoutValue);
+        if (!Number.isInteger(timeoutMs) || timeoutMs < 0) {
+          next.steps = 'Wait for image timeout must be a non-negative integer';
           break;
         }
       } else if (!step.targetId?.trim()) {

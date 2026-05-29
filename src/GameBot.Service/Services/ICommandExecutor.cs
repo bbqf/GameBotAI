@@ -20,7 +20,13 @@ internal sealed record PrimitiveTapStepOutcome(
   string Status,
   string? Reason,
   PrimitiveTapResolvedPoint? ResolvedPoint,
-  double? DetectionConfidence);
+  double? DetectionConfidence,
+  string? StepType = null,
+  int? TimeoutMs = null,
+  int? EffectiveTimeoutMs = null,
+  string? ReferenceImageId = null,
+  string? ImageLoadStatus = null,
+  double? ConfiguredConfidence = null);
 
 internal sealed record CommandForceExecutionResult(int Accepted, IReadOnlyList<PrimitiveTapStepOutcome> StepOutcomes);
 

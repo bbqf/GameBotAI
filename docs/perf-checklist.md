@@ -49,3 +49,16 @@ Reporting
 	- `tools/coverage/execution-log-perf-20260227.json`
 - Assessment:
 	- Both write and query p95 latencies are comfortably below the `< 200 ms` target.
+
+## WaitForImage Runtime/Logging Evidence (2026-05-28)
+
+- Targeted runtime verification command:
+	- `dotnet test tests/integration/GameBot.IntegrationTests.csproj -c Debug --filter "FullyQualifiedName~WaitForImageExecutionIntegrationTests|FullyQualifiedName~WaitForImageSequenceExecutionIntegrationTests"`
+- Result summary:
+	- `6/6` tests passed.
+	- Test run duration: ~`3.2s` (test phase), `4.9s` total build+test command time.
+- Interpretation:
+	- Wait polling and terminal outcome handling (`image_detected`, `timeout_elapsed`, `image_unavailable`) execute within low single-digit seconds across targeted integration scenarios.
+	- No timeout-handling regressions were observed in the command or sequence execution paths.
+- Logging-path note:
+	- Execution-log endpoint latency remains covered by existing measured baseline in this file (`p95=6.31 ms` for list query), and wait-step logging is additive on the existing persistence path.

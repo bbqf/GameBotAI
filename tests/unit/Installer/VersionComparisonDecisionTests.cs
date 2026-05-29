@@ -4,8 +4,7 @@ using Xunit;
 
 namespace GameBot.UnitTests.Installer;
 
-public sealed class VersionComparisonDecisionTests
-{
+public sealed class VersionComparisonDecisionTests {
   private static readonly SemanticVersionComparer Comparer = new();
 
   [Theory]
@@ -13,8 +12,7 @@ public sealed class VersionComparisonDecisionTests
   [InlineData("1.0.0.0", "1.0.0.0", "sameBuild")]
   [InlineData("1.0.0.0", "1.0.0.1", "downgrade")]
   [InlineData("2.0.0.0", "1.9.9.999", "upgrade")]
-  public void CompareMatrixProducesExpectedOutcome(string candidateRaw, string installedRaw, string expected)
-  {
+  public void CompareMatrixProducesExpectedOutcome(string candidateRaw, string installedRaw, string expected) {
     var candidate = SemanticVersion.Parse(candidateRaw);
     var installed = SemanticVersion.Parse(installedRaw);
 
@@ -23,16 +21,13 @@ public sealed class VersionComparisonDecisionTests
     result.Should().Be(expected);
   }
 
-  private static string ResolveOutcome(SemanticVersion candidate, SemanticVersion installed)
-  {
+  private static string ResolveOutcome(SemanticVersion candidate, SemanticVersion installed) {
     var compare = Comparer.Compare(candidate, installed);
-    if (compare < 0)
-    {
+    if (compare < 0) {
       return "downgrade";
     }
 
-    if (compare > 0)
-    {
+    if (compare > 0) {
       return "upgrade";
     }
 

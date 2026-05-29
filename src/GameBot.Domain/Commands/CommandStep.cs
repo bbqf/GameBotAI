@@ -2,7 +2,8 @@ namespace GameBot.Domain.Commands;
 
 public enum CommandStepType {
   Command,
-  PrimitiveTap
+  PrimitiveTap,
+  WaitForImage
 }
 
 public sealed class PrimitiveTapConfig {
@@ -13,5 +14,6 @@ public sealed class CommandStep {
   public required CommandStepType Type { get; init; }
   public string TargetId { get; init; } = string.Empty;
   public PrimitiveTapConfig? PrimitiveTap { get; init; }
+  public WaitForImageConfig? WaitForImage { get; init; }
   public int Order { get; init; }
 }

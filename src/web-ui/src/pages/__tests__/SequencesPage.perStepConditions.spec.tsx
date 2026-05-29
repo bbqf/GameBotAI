@@ -51,9 +51,9 @@ describe('SequencesPage per-step conditions', () => {
         steps: expect.arrayContaining([
           expect.objectContaining({
             stepId: 'step-1',
-            action: expect.objectContaining({
+            primitiveAction: expect.objectContaining({
               type: 'command',
-              parameters: expect.objectContaining({ commandId: 'cmd-home' })
+              payload: expect.objectContaining({ commandId: 'cmd-home' })
             })
           }),
           expect.objectContaining({

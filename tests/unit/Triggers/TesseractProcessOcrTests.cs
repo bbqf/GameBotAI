@@ -66,17 +66,17 @@ namespace GameBot.Tests.Unit.Triggers {
       Assert.NotNull(method);
       var args = method.Invoke(ocr, new object[] { "input.png", "output", "eng" }) as System.Collections.Generic.IReadOnlyList<string>;
       Assert.NotNull(args);
-        Assert.Collection(args!,
-          item => Assert.Equal("input.png", item),
-          item => Assert.Equal("output", item),
-          item => Assert.Equal("-l", item),
-          item => Assert.Equal("eng", item),
-          item => Assert.Equal("--psm", item),
-          item => Assert.Equal("4", item),
-          item => Assert.Equal("--oem", item),
-          item => Assert.Equal("1", item),
-          item => Assert.Equal("-c", item),
-          item => Assert.Equal("tessedit_create_tsv=1", item));
+      Assert.Collection(args!,
+        item => Assert.Equal("input.png", item),
+        item => Assert.Equal("output", item),
+        item => Assert.Equal("-l", item),
+        item => Assert.Equal("eng", item),
+        item => Assert.Equal("--psm", item),
+        item => Assert.Equal("4", item),
+        item => Assert.Equal("--oem", item),
+        item => Assert.Equal("1", item),
+        item => Assert.Equal("-c", item),
+        item => Assert.Equal("tessedit_create_tsv=1", item));
     }
 
     [Fact]

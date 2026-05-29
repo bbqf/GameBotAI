@@ -4,13 +4,10 @@ using Xunit;
 
 namespace GameBot.UnitTests.Installer;
 
-public sealed class VersionResolutionPolicyTests
-{
+public sealed class VersionResolutionPolicyTests {
   [Fact]
-  public void ResolveUsesOverrideMinorAndPatchWhenProvided()
-  {
-    var result = VersionResolutionService.Resolve(new VersionResolutionInput
-    {
+  public void ResolveUsesOverrideMinorAndPatchWhenProvided() {
+    var result = VersionResolutionService.Resolve(new VersionResolutionInput {
       BaselineVersion = new SemanticVersion(1, 5, 9, 100),
       Override = new VersionOverride { Minor = 7, Patch = 2 },
       CiBuildCounter = new CiBuildCounter { LastBuild = 100, UpdatedAtUtc = DateTimeOffset.UtcNow, UpdatedBy = "ci" },
@@ -23,10 +20,8 @@ public sealed class VersionResolutionPolicyTests
   }
 
   [Fact]
-  public void ResolveUsesBaselineMinorAndPatchWhenNoOverride()
-  {
-    var result = VersionResolutionService.Resolve(new VersionResolutionInput
-    {
+  public void ResolveUsesBaselineMinorAndPatchWhenNoOverride() {
+    var result = VersionResolutionService.Resolve(new VersionResolutionInput {
       BaselineVersion = new SemanticVersion(2, 3, 8, 45),
       Override = new VersionOverride(),
       CiBuildCounter = new CiBuildCounter { LastBuild = 45, UpdatedAtUtc = DateTimeOffset.UtcNow, UpdatedBy = "ci" },

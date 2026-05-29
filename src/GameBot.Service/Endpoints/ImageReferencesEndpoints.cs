@@ -27,8 +27,7 @@ internal static class ImageReferencesEndpoints {
     public IFormFile? File { get; set; }
   }
 
-  private static string SanitizeForLog(string? value)
-  {
+  private static string SanitizeForLog(string? value) {
     if (string.IsNullOrEmpty(value)) return string.Empty;
     return value.Replace("\r", string.Empty, StringComparison.Ordinal)
                 .Replace("\n", string.Empty, StringComparison.Ordinal);
@@ -46,16 +45,13 @@ internal static class ImageReferencesEndpoints {
 
     app.MapPost(ApiRoutes.Images, async (HttpRequest http, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       UploadImageRequest? req;
-      if (http.HasFormContentType)
-      {
-        req = new UploadImageRequest
-        {
+      if (http.HasFormContentType) {
+        req = new UploadImageRequest {
           Id = http.Form["id"],
           File = http.Form.Files.GetFile("file")
         };
       }
-      else
-      {
+      else {
         req = await http.ReadFromJsonAsync<UploadImageRequest>().ConfigureAwait(false);
       }
 
@@ -72,43 +68,36 @@ internal static class ImageReferencesEndpoints {
       string contentType;
       string? filename = null;
 
-      if (req.File is not null)
-      {
+      if (req.File is not null) {
         if (!ImageDetectionsValidation.ValidateContentLength(req.File.Length)) {
           return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
 
         using var ms = new MemoryStream();
-        using (var fileStream = req.File.OpenReadStream())
-        {
+        using (var fileStream = req.File.OpenReadStream()) {
           await fileStream.CopyToAsync(ms, http.HttpContext.RequestAborted).ConfigureAwait(false);
         }
         bytes = ms.ToArray();
 
-        if (!ImageDetectionsValidation.TryNormalizeContentType(req.File.ContentType, req.File.FileName, bytes, out contentType))
-        {
+        if (!ImageDetectionsValidation.TryNormalizeContentType(req.File.ContentType, req.File.FileName, bytes, out contentType)) {
           return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
         }
 
         filename = req.File.FileName;
       }
-      else
-      {
-        try
-        {
+      else {
+        try {
           var b64 = req.Data!;
           var comma = b64.IndexOf(',', StringComparison.Ordinal);
           if (comma >= 0) b64 = b64[(comma + 1)..];
           bytes = Convert.FromBase64String(b64);
         }
-        catch (FormatException ex)
-        {
+        catch (FormatException ex) {
           logger.LogUploadFailed(ex, SanitizeForLog(req.Id));
           return Results.BadRequest(new { error = new { code = "invalid_image", message = "Failed to parse image", hint = ex.Message } });
         }
 
-        if (bytes.Length == 0 || bytes.Length > ImageDetectionsValidation.MaxImageBytes)
-        {
+        if (bytes.Length == 0 || bytes.Length > ImageDetectionsValidation.MaxImageBytes) {
           return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
         contentType = "image/png";
@@ -158,15 +147,12 @@ internal static class ImageReferencesEndpoints {
 
     app.MapPut($"{ApiRoutes.Images}/{{id}}", async (string id, HttpRequest http, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) => {
       OverwriteImageRequest? req;
-      if (http.HasFormContentType)
-      {
-        req = new OverwriteImageRequest
-        {
+      if (http.HasFormContentType) {
+        req = new OverwriteImageRequest {
           File = http.Form.Files.GetFile("file")
         };
       }
-      else
-      {
+      else {
         req = await http.ReadFromJsonAsync<OverwriteImageRequest>().ConfigureAwait(false);
       }
 
@@ -184,43 +170,36 @@ internal static class ImageReferencesEndpoints {
       string contentType;
       string? filename = null;
 
-      if (req.File is not null)
-      {
+      if (req.File is not null) {
         if (!ImageDetectionsValidation.ValidateContentLength(req.File.Length)) {
           return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
 
         using var ms = new MemoryStream();
-        using (var fileStream = req.File.OpenReadStream())
-        {
+        using (var fileStream = req.File.OpenReadStream()) {
           await fileStream.CopyToAsync(ms, http.HttpContext.RequestAborted).ConfigureAwait(false);
         }
         bytes = ms.ToArray();
 
-        if (!ImageDetectionsValidation.TryNormalizeContentType(req.File.ContentType, req.File.FileName, bytes, out contentType))
-        {
+        if (!ImageDetectionsValidation.TryNormalizeContentType(req.File.ContentType, req.File.FileName, bytes, out contentType)) {
           return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
         }
 
         filename = req.File.FileName;
       }
-      else
-      {
-        try
-        {
+      else {
+        try {
           var b64 = req.Data!;
           var comma = b64.IndexOf(',', StringComparison.Ordinal);
           if (comma >= 0) b64 = b64[(comma + 1)..];
           bytes = Convert.FromBase64String(b64);
         }
-        catch (FormatException ex)
-        {
+        catch (FormatException ex) {
           logger.LogUploadFailed(ex, SanitizeForLog(id));
           return Results.BadRequest(new { error = new { code = "invalid_image", message = "Failed to parse image", hint = ex.Message } });
         }
 
-        if (bytes.Length == 0 || bytes.Length > ImageDetectionsValidation.MaxImageBytes)
-        {
+        if (bytes.Length == 0 || bytes.Length > ImageDetectionsValidation.MaxImageBytes) {
           return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
         contentType = "image/png";

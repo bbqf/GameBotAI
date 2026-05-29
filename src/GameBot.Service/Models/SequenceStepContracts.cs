@@ -38,6 +38,11 @@ internal sealed record SequenceStepContract {
   public SequenceStepConditionContract? BreakCondition { get; init; }
 }
 
+internal sealed record WaitForImagePayloadContract {
+  public DetectionTargetDto? DetectionTarget { get; init; }
+  public int? TimeoutMs { get; init; }
+}
+
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ImageVisibleConditionContract), typeDiscriminator: "imageVisible")]
 [JsonDerivedType(typeof(CommandOutcomeConditionContract), typeDiscriminator: "commandOutcome")]

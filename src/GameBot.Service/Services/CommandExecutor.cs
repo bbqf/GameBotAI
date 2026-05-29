@@ -151,6 +151,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     var totalAccepted = 0;
     foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
+      if (step.Type == CommandStepType.WaitForImage) {
+        stepOutcomes.Add(await ExecuteWaitForImageStepAsync(step, ct).ConfigureAwait(false));
+        continue;
+      }
+
       if (step.Type == CommandStepType.PrimitiveTap) {
         // Backward-compatible fallback: older commands may keep detection at command level.
         var primitiveDetection = step.PrimitiveTap?.DetectionTarget ?? cmd.Detection;
@@ -238,6 +243,196 @@ internal sealed class CommandExecutor : ICommandExecutor {
     return totalAccepted;
   }
 
+  private async Task<PrimitiveTapStepOutcome> ExecuteWaitForImageStepAsync(CommandStep step, CancellationToken ct) {
+    var waitConfig = step.WaitForImage ?? new WaitForImageConfig();
+    var timeoutMs = Math.Max(0, waitConfig.TimeoutMs);
+    var detectionTarget = waitConfig.DetectionTarget;
+    var deadline = DateTimeOffset.UtcNow.AddMilliseconds(timeoutMs);
+
+    if (detectionTarget is null || string.IsNullOrWhiteSpace(detectionTarget.ReferenceImageId)) {
+      await WaitForTimeoutAsync(deadline, ct).ConfigureAwait(false);
+      return new PrimitiveTapStepOutcome(
+        step.Order,
+        "completed_timeout",
+        "timeout_elapsed",
+        null,
+        null,
+        StepType: "waitForImage",
+        TimeoutMs: timeoutMs,
+        EffectiveTimeoutMs: timeoutMs);
+    }
+
+    if (!OperatingSystem.IsWindows()) {
+      await WaitForTimeoutAsync(deadline, ct).ConfigureAwait(false);
+      return new PrimitiveTapStepOutcome(
+        step.Order,
+        "completed_image_unavailable",
+        "image_unavailable",
+        null,
+        null,
+        StepType: "waitForImage",
+        TimeoutMs: timeoutMs,
+        EffectiveTimeoutMs: timeoutMs,
+        ReferenceImageId: detectionTarget.ReferenceImageId,
+        ImageLoadStatus: "unavailable",
+        ConfiguredConfidence: detectionTarget.Confidence);
+    }
+
+    var screenSrc = _screen;
+    var images = _images;
+    var matcher = _matcher;
+    if (screenSrc is null || images is null || matcher is null) {
+      await WaitForTimeoutAsync(deadline, ct).ConfigureAwait(false);
+      return new PrimitiveTapStepOutcome(
+        step.Order,
+        "completed_image_unavailable",
+        "image_unavailable",
+        null,
+        null,
+        StepType: "waitForImage",
+        TimeoutMs: timeoutMs,
+        EffectiveTimeoutMs: timeoutMs,
+        ReferenceImageId: detectionTarget.ReferenceImageId,
+        ImageLoadStatus: "unavailable",
+        ConfiguredConfidence: detectionTarget.Confidence);
+    }
+
+    if (!images.TryGet(detectionTarget.ReferenceImageId, out var templateBmp) || templateBmp is null) {
+      await WaitForTimeoutAsync(deadline, ct).ConfigureAwait(false);
+      return new PrimitiveTapStepOutcome(
+        step.Order,
+        "completed_image_unavailable",
+        "image_unavailable",
+        null,
+        null,
+        StepType: "waitForImage",
+        TimeoutMs: timeoutMs,
+        EffectiveTimeoutMs: timeoutMs,
+        ReferenceImageId: detectionTarget.ReferenceImageId,
+        ImageLoadStatus: "missing",
+        ConfiguredConfidence: detectionTarget.Confidence);
+    }
+
+    if (TryDetectImage(screenSrc, templateBmp, detectionTarget, matcher, out var resolvedPoint, out var detectionConfidence)) {
+      return new PrimitiveTapStepOutcome(
+        step.Order,
+        "executed",
+        "image_detected",
+        resolvedPoint,
+        detectionConfidence,
+        StepType: "waitForImage",
+        TimeoutMs: timeoutMs,
+        EffectiveTimeoutMs: timeoutMs,
+        ReferenceImageId: detectionTarget.ReferenceImageId,
+        ImageLoadStatus: "loaded",
+        ConfiguredConfidence: detectionTarget.Confidence);
+    }
+
+    while (DateTimeOffset.UtcNow < deadline) {
+      var remaining = deadline - DateTimeOffset.UtcNow;
+      if (remaining <= TimeSpan.Zero) {
+        break;
+      }
+
+      var pollMs = Math.Max(1, Math.Min(_appConfig.CaptureIntervalMs, (int)Math.Ceiling(remaining.TotalMilliseconds)));
+      await Task.Delay(pollMs, ct).ConfigureAwait(false);
+
+      if (TryDetectImage(screenSrc, templateBmp, detectionTarget, matcher, out resolvedPoint, out detectionConfidence)) {
+        return new PrimitiveTapStepOutcome(
+          step.Order,
+          "executed",
+          "image_detected",
+          resolvedPoint,
+          detectionConfidence,
+          StepType: "waitForImage",
+          TimeoutMs: timeoutMs,
+          EffectiveTimeoutMs: timeoutMs,
+          ReferenceImageId: detectionTarget.ReferenceImageId,
+          ImageLoadStatus: "loaded",
+          ConfiguredConfidence: detectionTarget.Confidence);
+      }
+    }
+
+    return new PrimitiveTapStepOutcome(
+      step.Order,
+      "completed_timeout",
+      "timeout_elapsed",
+      null,
+      null,
+      StepType: "waitForImage",
+      TimeoutMs: timeoutMs,
+      EffectiveTimeoutMs: timeoutMs,
+      ReferenceImageId: detectionTarget.ReferenceImageId,
+        ImageLoadStatus: "loaded",
+        ConfiguredConfidence: detectionTarget.Confidence);
+  }
+
+  private static async Task WaitForTimeoutAsync(DateTimeOffset deadline, CancellationToken ct) {
+    var remaining = deadline - DateTimeOffset.UtcNow;
+    if (remaining > TimeSpan.Zero) {
+      await Task.Delay(remaining, ct).ConfigureAwait(false);
+    }
+  }
+
+  private static bool TryDetectImage(
+    GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
+    System.Drawing.Bitmap templateBmp,
+    DetectionTarget detectionTarget,
+    GameBot.Domain.Vision.ITemplateMatcher matcher,
+    out PrimitiveTapResolvedPoint? resolvedPoint,
+    out double? detectionConfidence) {
+    resolvedPoint = null;
+    detectionConfidence = null;
+
+    var screenshotBmp = screenSrc.GetLatestScreenshot();
+    if (screenshotBmp is null) {
+      return false;
+    }
+
+    using var template = new System.Drawing.Bitmap(templateBmp);
+    using var screenMs = new System.IO.MemoryStream();
+    using var templateMs = new System.IO.MemoryStream();
+    screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
+    template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
+    using var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+    using var templateMat = OpenCvSharp.Mat.FromImageData(templateMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+
+    var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
+    var primitiveAction = new GameBot.Domain.Actions.InputAction {
+      Type = "tap",
+      Args = new Dictionary<string, object> { ["x"] = 0, ["y"] = 0 }
+    };
+
+    var ok = adapter.TryApplyDetectionCoordinates(
+      primitiveAction,
+      detectionTarget,
+      screenMat,
+      templateMat,
+      detectionTarget.Confidence,
+      out var err,
+      DetectionSelectionStrategy.HighestConfidence);
+
+    if (!ok || err is not null) {
+      return false;
+    }
+
+    if (!primitiveAction.Args.TryGetValue("x", out var xVal) || !primitiveAction.Args.TryGetValue("y", out var yVal)) {
+      return false;
+    }
+
+    var x = Convert.ToInt32(xVal, CultureInfo.InvariantCulture);
+    var y = Convert.ToInt32(yVal, CultureInfo.InvariantCulture);
+    if (x < 0 || y < 0 || x >= screenshotBmp.Width || y >= screenshotBmp.Height) {
+      return false;
+    }
+
+    detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
+      ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
+      : (double?)null;
+    resolvedPoint = new PrimitiveTapResolvedPoint(x, y);
+    return true;
+  }
+
   /// <summary>
   /// Attempts a single screenshot-fetch → template-match → coordinate-resolve → tap cycle.
   /// Returns true if detection succeeded and the tap was sent; false otherwise.
@@ -253,8 +448,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     List<PrimitiveTapStepOutcome> stepOutcomes,
     ref int totalAccepted,
     int retryAttempt,
-    CancellationToken ct)
-  {
+    CancellationToken ct) {
     var screenshotBmp = screenSrc.GetLatestScreenshot();
     if (screenshotBmp is null) return false;
 

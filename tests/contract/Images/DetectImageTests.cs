@@ -7,12 +7,10 @@ using Xunit;
 
 namespace GameBot.ContractTests.Images;
 
-public sealed class DetectImageTests
-{
+public sealed class DetectImageTests {
   private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
 
-  public DetectImageTests()
-  {
+  public DetectImageTests() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
@@ -20,8 +18,7 @@ public sealed class DetectImageTests
   }
 
   [Fact]
-  public async Task DetectUsesDefaultsAndReturnsMatchesShape()
-  {
+  public async Task DetectUsesDefaultsAndReturnsMatchesShape() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -41,16 +38,14 @@ public sealed class DetectImageTests
     (limitsHit.ValueKind == JsonValueKind.True || limitsHit.ValueKind == JsonValueKind.False).Should().BeTrue();
 
     matches.ValueKind.Should().Be(JsonValueKind.Array);
-    foreach (var m in matches.EnumerateArray())
-    {
+    foreach (var m in matches.EnumerateArray()) {
       m.TryGetProperty("templateId", out var templateId).Should().BeTrue();
       templateId.GetString().Should().Be("tpl");
 
       m.TryGetProperty("score", out var score).Should().BeTrue();
       score.GetDouble().Should().BeGreaterOrEqualTo(0).And.BeLessOrEqualTo(1);
 
-      foreach (var prop in new[] { "x", "y", "width", "height", "overlap" })
-      {
+      foreach (var prop in new[] { "x", "y", "width", "height", "overlap" }) {
         m.TryGetProperty(prop, out var val).Should().BeTrue();
         val.GetDouble().Should().BeGreaterOrEqualTo(0).And.BeLessOrEqualTo(1);
       }
@@ -58,8 +53,7 @@ public sealed class DetectImageTests
   }
 
   [Fact]
-  public async Task DetectAllowsParameterOverrides()
-  {
+  public async Task DetectAllowsParameterOverrides() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -73,8 +67,7 @@ public sealed class DetectImageTests
     var json = await resp.Content.ReadFromJsonAsync<DetectResponseShape>();
     json.Should().NotBeNull();
     json!.LimitsHit.Should().BeFalse();
-    json.Matches.Should().AllSatisfy(m =>
-    {
+    json.Matches.Should().AllSatisfy(m => {
       m.TemplateId.Should().Be("tpl");
       m.Overlap.Should().BeInRange(0, 1);
       m.Score.Should().BeInRange(0, 1);

@@ -37,8 +37,7 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     var sw = Stopwatch.StartNew();
     var similarity = ComputeSimilarity(p);
     sw.Stop();
-    if (_logger is not null && sw.ElapsedMilliseconds > 50)
-    {
+    if (_logger is not null && sw.ElapsedMilliseconds > 50) {
       ImageMatchLog.SlowMatch(_logger, p.ReferenceImageId, sw.ElapsedMilliseconds, null);
     }
     var status = similarity >= p.SimilarityThreshold ? TriggerStatus.Satisfied : TriggerStatus.Pending;
@@ -80,8 +79,7 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     // In these cases, fall back to direct mean-absolute-difference comparison.
     Cv2.MeanStdDev(grayTpl, out var tplMean, out var tplStdDev);
     bool tplIsConstant = tplStdDev.Val0 < 1.0;
-    if (tplIsConstant || (tpl.Width == rw && tpl.Height == rh))
-    {
+    if (tplIsConstant || (tpl.Width == rw && tpl.Height == rh)) {
       // For same-size or constant-template: compute mean absolute difference
       // If sizes differ, resize region to template size for comparison
       using var compareRegion = (tpl.Width == rw && tpl.Height == rh)
@@ -128,8 +126,7 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
   }
 }
 
-internal static partial class ImageMatchLog
-{
+internal static partial class ImageMatchLog {
   [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Slow image match for '{ReferenceImageId}': {ElapsedMs}ms")]
   public static partial void SlowMatch(ILogger logger, string referenceImageId, long elapsedMs, Exception? ex);
 }

@@ -7,12 +7,10 @@ using Xunit;
 
 namespace GameBot.ContractTests.Images;
 
-public sealed class DeleteImageTests
-{
+public sealed class DeleteImageTests {
   private const string OneByOnePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
 
-  public DeleteImageTests()
-  {
+  public DeleteImageTests() {
     var tmp = Path.Combine(Path.GetTempPath(), "GameBotContract", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(tmp);
     Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", tmp);
@@ -23,8 +21,7 @@ public sealed class DeleteImageTests
   }
 
   [Fact]
-  public async Task DeleteReferencedImageReturnsConflict()
-  {
+  public async Task DeleteReferencedImageReturnsConflict() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -34,12 +31,10 @@ public sealed class DeleteImageTests
 
     var dataDir = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR") ?? throw new InvalidOperationException();
     var triggers = new FileTriggerRepository(dataDir);
-    await triggers.UpsertAsync(new Trigger
-    {
+    await triggers.UpsertAsync(new Trigger {
       Id = "t1",
       Type = TriggerType.ImageMatch,
-      Params = new ImageMatchParams
-      {
+      Params = new ImageMatchParams {
         ReferenceImageId = "tpl",
         Region = new Region { X = 0, Y = 0, Width = 1, Height = 1 },
         SimilarityThreshold = 0.85
@@ -56,8 +51,7 @@ public sealed class DeleteImageTests
   }
 
   [Fact]
-  public async Task DeleteUnreferencedImageSucceeds()
-  {
+  public async Task DeleteUnreferencedImageSucceeds() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");

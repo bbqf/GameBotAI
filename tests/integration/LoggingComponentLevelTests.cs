@@ -14,15 +14,13 @@ namespace GameBot.IntegrationTests;
 #pragma warning disable CA1848
 
 [Collection("ConfigIsolation")]
-public sealed class LoggingComponentLevelTests : IDisposable
-{
+public sealed class LoggingComponentLevelTests : IDisposable {
   private readonly string? _prevUseAdb;
   private readonly string? _prevAuthToken;
   private readonly string? _prevDataDir;
   private readonly string? _prevDynamicPort;
 
-  public LoggingComponentLevelTests()
-  {
+  public LoggingComponentLevelTests() {
     _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
     _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
     _prevDataDir = Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR");
@@ -34,8 +32,7 @@ public sealed class LoggingComponentLevelTests : IDisposable
     TestEnvironment.PrepareCleanDataDir();
   }
 
-  public void Dispose()
-  {
+  public void Dispose() {
     Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevAuthToken);
     Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", _prevDataDir);
@@ -44,8 +41,7 @@ public sealed class LoggingComponentLevelTests : IDisposable
   }
 
   [Fact]
-  public async Task ComponentLevelChangesAffectRuntimeLogging()
-  {
+  public async Task ComponentLevelChangesAffectRuntimeLogging() {
     using var app = new WebApplicationFactory<Program>();
     using var client = CreateAuthedClient(app);
     using var scope = app.Server.Services.CreateScope();
@@ -70,8 +66,7 @@ public sealed class LoggingComponentLevelTests : IDisposable
     gate.ShouldLog(provider: null, category: "GameBot.Service", LogLevel.Debug).Should().BeTrue("runtime logging gate should allow Debug after override");
   }
 
-  private static HttpClient CreateAuthedClient(WebApplicationFactory<Program> app)
-  {
+  private static HttpClient CreateAuthedClient(WebApplicationFactory<Program> app) {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
     return client;

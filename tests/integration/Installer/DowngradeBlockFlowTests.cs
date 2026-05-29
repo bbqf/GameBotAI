@@ -3,11 +3,9 @@ using Xunit;
 
 namespace GameBot.IntegrationTests.Installer;
 
-public sealed class DowngradeBlockFlowTests
-{
+public sealed class DowngradeBlockFlowTests {
   [Fact]
-  public void ProductDefinitionAndServiceCompareEndpointContainDowngradeFlowSignals()
-  {
+  public void ProductDefinitionAndServiceCompareEndpointContainDowngradeFlowSignals() {
     var repoRoot = FindRepoRoot();
     var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
     var programPath = Path.Combine(repoRoot, "src", "GameBot.Service", "Program.cs");
@@ -21,13 +19,10 @@ public sealed class DowngradeBlockFlowTests
     program.Should().Contain("Outcome = \"downgrade\"");
   }
 
-  private static string FindRepoRoot()
-  {
+  private static string FindRepoRoot() {
     var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir is not null)
-    {
-      if (File.Exists(Path.Combine(dir.FullName, "GameBot.sln")))
-      {
+    while (dir is not null) {
+      if (File.Exists(Path.Combine(dir.FullName, "GameBot.sln"))) {
         return dir.FullName;
       }
 

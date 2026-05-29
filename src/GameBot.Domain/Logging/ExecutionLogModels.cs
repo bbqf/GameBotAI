@@ -28,6 +28,14 @@ public sealed record LoopIterationOutcome(
   /// <summary>Outcomes of the individual body steps run during this iteration.</summary>
   IReadOnlyList<string> StepOutcomes);
 
+public sealed record WaitForImageDetailAttributes(
+  int? TimeoutMs,
+  int? EffectiveTimeoutMs,
+  string? ReferenceImageId,
+  double? Confidence,
+  string? ExitCondition,
+  string? ImageLoadStatus);
+
 public sealed record ExecutionStepOutcome(
   int StepOrder,
   string StepType,
@@ -39,12 +47,16 @@ public sealed record ExecutionStepOutcome(
   string? SequenceLabel = null,
   string? StepLabel = null,
   ConditionEvaluationTrace? ConditionTrace = null,
-  int? AppliedDelayMs = null)
-{
+  int? AppliedDelayMs = null) {
   /// <summary>
   /// Per-iteration outcomes recorded for loop steps.  <c>null</c> for non-loop steps.
   /// </summary>
   public IReadOnlyList<LoopIterationOutcome>? LoopIterations { get; init; }
+
+  /// <summary>
+  /// Structured wait-for-image details when the step represents a wait primitive.
+  /// </summary>
+  public WaitForImageDetailAttributes? DetailAttributes { get; init; }
 }
 
 public sealed record ExecutionDetailItem(
@@ -53,8 +65,7 @@ public sealed record ExecutionDetailItem(
   Dictionary<string, object?>? Attributes,
   string Sensitivity);
 
-public sealed class ExecutionLogEntry
-{
+public sealed class ExecutionLogEntry {
   public string Id { get; init; } = Guid.NewGuid().ToString("N");
   public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
   public string ExecutionType { get; init; } = "command";
@@ -68,8 +79,7 @@ public sealed class ExecutionLogEntry
   public DateTimeOffset RetentionExpiresUtc { get; init; }
 }
 
-public sealed class ExecutionLogQuery
-{
+public sealed class ExecutionLogQuery {
   public string? SortBy { get; init; } = "timestamp";
   public string? SortDirection { get; init; } = "desc";
   public string? FilterTimestamp { get; init; }

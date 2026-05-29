@@ -8,13 +8,15 @@ public static class PrimitiveActionTypes {
   public const string Key = "key";
   public const string Command = "command";
   public const string ConnectToGame = "connect-to-game";
+  public const string WaitForImage = "WaitForImage";
 
   public static IReadOnlyCollection<string> All { get; } = new ReadOnlyCollection<string>(new[] {
     Tap,
     Swipe,
     Key,
     Command,
-    ConnectToGame
+    ConnectToGame,
+    WaitForImage
   });
 }
 

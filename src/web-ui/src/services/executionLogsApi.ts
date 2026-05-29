@@ -45,13 +45,24 @@ export type ExecutionLogStepOutcomeDto = {
   stepId?: string;
   stepLabel?: string;
   stepName: string;
+  stepType?: string;
   status: string;
   message: string;
   appliedDelayMs?: number;
+  detailAttributes?: ExecutionLogWaitForImageDetailAttributesDto;
   deepLink?: ExecutionLogStepDeepLinkDto;
   conditionTrace?: ExecutionLogConditionTraceDto;
   startedAtUtc?: string;
   endedAtUtc?: string;
+};
+
+export type ExecutionLogWaitForImageDetailAttributesDto = {
+  timeoutMs?: number;
+  effectiveTimeoutMs?: number;
+  referenceImageId?: string;
+  confidence?: number;
+  exitCondition?: 'image_detected' | 'timeout_elapsed' | 'image_unavailable';
+  imageLoadStatus?: string;
 };
 
 export type ExecutionLogStepDeepLinkDto = {

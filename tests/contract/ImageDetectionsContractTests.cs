@@ -68,7 +68,7 @@ public sealed class ImageDetectionsContractTests {
       bbox.TryGetProperty("y", out var y).Should().BeTrue();
       bbox.TryGetProperty("width", out var w).Should().BeTrue();
       bbox.TryGetProperty("height", out var h).Should().BeTrue();
-      foreach (var v in new[]{ x, y, w, h }) {
+      foreach (var v in new[] { x, y, w, h }) {
         v.ValueKind.Should().Be(JsonValueKind.Number);
         var dv = v.GetDouble();
         dv.Should().BeGreaterOrEqualTo(0).And.BeLessOrEqualTo(1);

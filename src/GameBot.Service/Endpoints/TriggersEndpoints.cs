@@ -119,11 +119,11 @@ internal static class TriggersEndpoints {
         var reg = elem.TryGetProperty("region", out var r) && r.ValueKind == JsonValueKind.Object ? r : default;
         var region = reg.ValueKind == JsonValueKind.Object
           ? new Region {
-              X = reg.TryGetProperty("x", out var imx) ? imx.GetDouble() : 0,
-              Y = reg.TryGetProperty("y", out var imy) ? imy.GetDouble() : 0,
-              Width = reg.TryGetProperty("width", out var imw) ? imw.GetDouble() : 0,
-              Height = reg.TryGetProperty("height", out var imh) ? imh.GetDouble() : 0
-            }
+            X = reg.TryGetProperty("x", out var imx) ? imx.GetDouble() : 0,
+            Y = reg.TryGetProperty("y", out var imy) ? imy.GetDouble() : 0,
+            Width = reg.TryGetProperty("width", out var imw) ? imw.GetDouble() : 0,
+            Height = reg.TryGetProperty("height", out var imh) ? imh.GetDouble() : 0
+          }
           : new Region { X = 0, Y = 0, Width = 0, Height = 0 };
         return (TriggerType.ImageMatch, new ImageMatchParams {
           ReferenceImageId = elem.TryGetProperty("referenceImageId", out var rid) ? rid.GetString() ?? string.Empty : string.Empty,
@@ -134,11 +134,11 @@ internal static class TriggersEndpoints {
         var treg = elem.TryGetProperty("region", out var rr) && rr.ValueKind == JsonValueKind.Object ? rr : default;
         var region2 = treg.ValueKind == JsonValueKind.Object
           ? new Region {
-              X = treg.TryGetProperty("x", out var tx) ? tx.GetDouble() : 0,
-              Y = treg.TryGetProperty("y", out var ty) ? ty.GetDouble() : 0,
-              Width = treg.TryGetProperty("width", out var tw) ? tw.GetDouble() : 0,
-              Height = treg.TryGetProperty("height", out var th) ? th.GetDouble() : 0
-            }
+            X = treg.TryGetProperty("x", out var tx) ? tx.GetDouble() : 0,
+            Y = treg.TryGetProperty("y", out var ty) ? ty.GetDouble() : 0,
+            Width = treg.TryGetProperty("width", out var tw) ? tw.GetDouble() : 0,
+            Height = treg.TryGetProperty("height", out var th) ? th.GetDouble() : 0
+          }
           : new Region { X = 0, Y = 0, Width = 0, Height = 0 };
         return (TriggerType.TextMatch, new TextMatchParams {
           Target = elem.TryGetProperty("target", out var tgt) ? tgt.GetString() ?? string.Empty : string.Empty,

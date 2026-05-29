@@ -9,4 +9,5 @@ public static class ActionTypes {
   public const string Swipe = "swipe";
   public const string Key = "key";
   public const string ConnectToGame = "connect-to-game";
+  public const string WaitForImage = "WaitForImage";
 }

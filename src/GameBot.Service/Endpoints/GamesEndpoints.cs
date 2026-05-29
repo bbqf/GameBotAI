@@ -21,7 +21,8 @@ internal static class GamesEndpoints {
         if (root.TryGetProperty("metadata", out var metaProp)) {
           // Store metadata as JSON string in Description to avoid changing domain storage
           description = metaProp.GetRawText();
-        } else if (root.TryGetProperty("description", out var descProp) && descProp.ValueKind == JsonValueKind.String) {
+        }
+        else if (root.TryGetProperty("description", out var descProp) && descProp.ValueKind == JsonValueKind.String) {
           description = descProp.GetString();
         }
         var created = await repo.AddAsync(new GameArtifact {
@@ -58,7 +59,8 @@ internal static class GamesEndpoints {
       foreach (var g in list) {
         if (IsJsonObject(g.Description)) {
           resp.Add(new { id = g.Id, name = g.Name, metadata = JsonSerializer.Deserialize<object>(g.Description!)! });
-        } else {
+        }
+        else {
           resp.Add(new { id = g.Id, name = g.Name });
         }
       }
@@ -84,7 +86,8 @@ internal static class GamesEndpoints {
       // Update description/metadata
       if (root.TryGetProperty("metadata", out var metaProp)) {
         existing.Description = metaProp.GetRawText();
-      } else if (root.TryGetProperty("description", out var descProp) && descProp.ValueKind == JsonValueKind.String) {
+      }
+      else if (root.TryGetProperty("description", out var descProp) && descProp.ValueKind == JsonValueKind.String) {
         existing.Description = descProp.GetString();
       }
 
@@ -114,6 +117,7 @@ internal static class GamesEndpoints {
     try {
       using var doc = JsonDocument.Parse(text);
       return doc.RootElement.ValueKind == JsonValueKind.Object;
-    } catch { return false; }
+    }
+    catch { return false; }
   }
 }
