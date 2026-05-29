@@ -28,10 +28,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Extend the shared sequence step model with command-name snapshot and unresolved-reference support in `src/GameBot.Domain/Commands/SequenceStep.cs`
-- [ ] T004 Persist and reload the new sequence-step command reference fields safely in `src/GameBot.Domain/Commands/FileSequenceRepository.cs`
-- [ ] T005 [P] Align frontend sequence DTOs with the command reference view contract in `src/web-ui/src/types/sequenceFlow.ts` and `src/web-ui/src/services/sequences.ts`
-- [ ] T006 [P] Centralize command reference extraction and fallback mapping in `src/web-ui/src/lib/sequenceMapping.ts`
+- [X] T003 Extend the shared sequence step model with command-name snapshot and unresolved-reference support in `src/GameBot.Domain/Commands/SequenceStep.cs`
+- [X] T004 Persist and reload the new sequence-step command reference fields safely in `src/GameBot.Domain/Commands/FileSequenceRepository.cs`
+- [X] T005 [P] Align frontend sequence DTOs with the command reference view contract in `src/web-ui/src/types/sequenceFlow.ts` and `src/web-ui/src/services/sequences.ts`
+- [X] T006 [P] Centralize command reference extraction and fallback mapping in `src/web-ui/src/lib/sequenceMapping.ts`
 
 **Checkpoint**: Shared sequence-step contract and mapping are ready for story-specific work
 
@@ -54,8 +54,8 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Preserve canonical per-step object payloads for sequence create/update/patch in `src/GameBot.Service/Program.cs`
-- [ ] T012 [US1] Populate saved `commandReference` response data for command-backed steps in `src/GameBot.Service/Program.cs`
+- [X] T011 [US1] Preserve canonical per-step object payloads for sequence create/update/patch in `src/GameBot.Service/Program.cs`
+- [X] T012 [US1] Populate saved `commandReference` response data for command-backed steps in `src/GameBot.Service/Program.cs`
 - [X] T013 [US1] Restore saved command selections and step labels on editor load in `src/web-ui/src/pages/SequencesPage.tsx`
 
 **Checkpoint**: User Story 1 is functional when saved sequences reopen with the same step-to-command mappings the author selected
@@ -95,14 +95,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T019 [P] [US3] Add an integration regression for deleted-command unresolved states in `tests/integration/Sequences/SequenceMissingCommandReferenceIntegrationTests.cs`
-- [ ] T020 [P] [US3] Add a web UI regression for unresolved saved command display in `src/web-ui/src/pages/__tests__/SequencesPage.unresolvedCommand.spec.tsx`
+- [X] T019 [P] [US3] Add an integration regression for deleted-command unresolved states in `tests/integration/Sequences/SequenceMissingCommandReferenceIntegrationTests.cs`
+- [X] T020 [P] [US3] Add a web UI regression for unresolved saved command display in `src/web-ui/src/pages/__tests__/SequencesPage.unresolvedCommand.spec.tsx`
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Return unresolved command-reference metadata when saved command ids no longer resolve in `src/GameBot.Service/Program.cs`
-- [ ] T022 [US3] Render unresolved saved commands with snapshot names in `src/web-ui/src/pages/SequencesPage.tsx` and `src/web-ui/src/components/SearchableDropdown.tsx`
-- [ ] T023 [US3] Preserve valid assignments and unresolved snapshots during sequence resaves in `src/GameBot.Domain/Commands/FileSequenceRepository.cs` and `src/GameBot.Service/Program.cs`
+- [X] T021 [US3] Return unresolved command-reference metadata when saved command ids no longer resolve in `src/GameBot.Service/Program.cs`
+- [X] T022 [US3] Render unresolved saved commands with snapshot names in `src/web-ui/src/pages/SequencesPage.tsx` and `src/web-ui/src/components/SearchableDropdown.tsx`
+- [X] T023 [US3] Preserve valid assignments and unresolved snapshots during sequence resaves in `src/GameBot.Domain/Commands/FileSequenceRepository.cs` and `src/GameBot.Service/Program.cs`
 
 **Checkpoint**: User Story 3 is functional when existing sequences remain editable and missing commands are shown as unresolved instead of silently cleared
 
