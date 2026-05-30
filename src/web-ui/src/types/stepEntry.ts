@@ -36,3 +36,9 @@ export type BreakStepEntry = {
   stepId: string;
   breakCondition?: SequenceStepCondition;
 };
+
+/** Metadata attached to each draggable step via useSortable data prop. */
+export type StepDragData = {
+  scopeId: string;
+  type: 'step';
+};
