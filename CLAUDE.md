@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/043-reorder-spec-folders/plan.md
+at specs/044-commands-drag-drop/plan.md
 <!-- SPECKIT END -->
