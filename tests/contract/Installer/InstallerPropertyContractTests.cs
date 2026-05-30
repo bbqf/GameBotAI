@@ -7,7 +7,7 @@ public class InstallerPropertyContractTests {
   [Fact]
   public void InstallerOpenApiContractDefinesCanonicalInstallRequestFields() {
     var repoRoot = FindRepoRoot();
-    var contractPath = Path.Combine(repoRoot, "specs", "025-standalone-windows-installer", "contracts", "installer.openapi.yaml");
+    var contractPath = Path.Combine(repoRoot, "specs", "026-standalone-windows-installer", "contracts", "installer.openapi.yaml");
 
     File.Exists(contractPath).Should().BeTrue();
     var content = File.ReadAllText(contractPath);
