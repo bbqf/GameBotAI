@@ -7,7 +7,7 @@ public sealed class InstallerVersionCompareContractTests {
   [Fact]
   public void VersioningContractIncludesInstallerCompareEndpointAndPreservePropertiesField() {
     var repoRoot = FindRepoRoot();
-    var contractPath = Path.Combine(repoRoot, "specs", "026-installer-semver-upgrade", "contracts", "versioning-installer.openapi.yaml");
+    var contractPath = Path.Combine(repoRoot, "specs", "027-installer-semver-upgrade", "contracts", "versioning-installer.openapi.yaml");
 
     var content = File.ReadAllText(contractPath);
     content.Should().Contain("/installer/compare:");

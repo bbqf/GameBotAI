@@ -92,12 +92,56 @@ function Get-FeatureDir {
     Join-Path $RepoRoot "specs/$Branch"
 }
 
+# Returns $true when .specify/feature.json pins an existing feature directory.
+function Test-FeatureJsonMatchesFeatureDir {
+    param([string]$RepoRoot, [string]$ActiveFeatureDir)
+    $featureJsonPath = Join-Path $RepoRoot '.specify/feature.json'
+    if (-not (Test-Path $featureJsonPath -PathType Leaf)) { return $false }
+    try {
+        $featureJson = Get-Content $featureJsonPath -Raw | ConvertFrom-Json
+        if (-not $featureJson -or -not $featureJson.feature_directory) { return $false }
+        $pinnedDir = Join-Path $RepoRoot $featureJson.feature_directory
+        return (Test-Path $pinnedDir -PathType Container)
+    } catch {
+        return $false
+    }
+}
+
+# Resolves a template by name through: overrides → core
+function Resolve-Template {
+    param([string]$TemplateName, [string]$RepoRoot)
+    $override = Join-Path $RepoRoot ".specify/templates/overrides/$TemplateName.md"
+    if (Test-Path $override -PathType Leaf) { return $override }
+    $core = Join-Path $RepoRoot ".specify/templates/$TemplateName.md"
+    if (Test-Path $core -PathType Leaf) { return $core }
+    return $null
+}
+
 function Get-FeaturePathsEnv {
     $repoRoot = Get-RepoRoot
     $currentBranch = Get-CurrentBranch
     $hasGit = Test-HasGit
-    $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch
-    
+
+    # Prefer the directory pinned in .specify/feature.json when it exists
+    $featureDir = $null
+    $featureJsonPath = Join-Path $repoRoot '.specify/feature.json'
+    if (Test-Path $featureJsonPath -PathType Leaf) {
+        try {
+            $featureJson = Get-Content $featureJsonPath -Raw | ConvertFrom-Json
+            if ($featureJson -and $featureJson.feature_directory) {
+                $candidate = Join-Path $repoRoot $featureJson.feature_directory
+                if (Test-Path $candidate -PathType Container) {
+                    $featureDir = $candidate
+                }
+            }
+        } catch { }
+    }
+
+    # Fall back to branch-based directory
+    if (-not $featureDir) {
+        $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch
+    }
+
     [PSCustomObject]@{
         REPO_ROOT     = $repoRoot
         CURRENT_BRANCH = $currentBranch

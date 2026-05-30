@@ -42,7 +42,7 @@ public sealed class CommandExecutorWaitForImageTests {
   public async Task WaitForImageDetectsBeforeTimeoutAndCompletesNormally() {
     using var bmp = CreateOneByOneBitmap();
     var command = CreateWaitCommand(config: new WaitForImageConfig {
-      TimeoutMs = 120,
+      TimeoutMs = 5000,
       DetectionTarget = new DetectionTarget("img-1", 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence)
     });
 

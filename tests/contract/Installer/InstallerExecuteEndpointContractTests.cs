@@ -7,7 +7,7 @@ public class InstallerExecuteEndpointContractTests {
   [Fact]
   public void InstallerContractIncludesExecuteEndpointAndExitCodeSet() {
     var repoRoot = FindRepoRoot();
-    var contractPath = Path.Combine(repoRoot, "specs", "025-standalone-windows-installer", "contracts", "installer.openapi.yaml");
+    var contractPath = Path.Combine(repoRoot, "specs", "026-standalone-windows-installer", "contracts", "installer.openapi.yaml");
 
     var content = File.ReadAllText(contractPath);
     content.Should().Contain("/installer/execute:");
