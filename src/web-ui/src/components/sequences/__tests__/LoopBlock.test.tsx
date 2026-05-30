@@ -6,6 +6,25 @@ import { LoopBlock } from '../LoopBlock';
 import type { LoopStepEntry } from '../../../types/stepEntry';
 import type { CommandOption } from '../LoopBlock';
 
+// LoopBlock now uses SortableContext and SortableStepItem (dnd-kit).
+// Mock dnd-kit to avoid needing a full DndContext in unit tests.
+jest.mock('@dnd-kit/sortable', () => ({
+  SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  verticalListSortingStrategy: {},
+  useSortable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: jest.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+  }),
+}));
+
+jest.mock('@dnd-kit/utilities', () => ({
+  CSS: { Translate: { toString: () => '' }, Transform: { toString: () => '' } },
+}));
+
 const testCommands: CommandOption[] = [
   { value: 'cmd-a', label: 'Command A' },
   { value: 'cmd-b', label: 'Command B' },
@@ -47,7 +66,7 @@ describe('LoopBlockHeader', () => {
         condition={{ type: 'imageVisible', imageId: 'done', minSimilarity: null }}
       />
     );
-    expect(screen.getByTestId('loop-type-badge')).toHaveTextContent('Repeat\u2011Until');
+    expect(screen.getByTestId('loop-type-badge')).toHaveTextContent('Repeat‑Until');
     expect(screen.queryByTestId('loop-iteration-hint')).not.toBeInTheDocument();
   });
 
@@ -269,24 +288,6 @@ describe('LoopBlock', () => {
     expect(updated.body[0].type).toBe('Break');
   });
 
-  it('reordering a body step fires onChange with updated order', () => {
-    const onChange = jest.fn();
-    const loop: LoopStepEntry = {
-      ...baseLoop,
-      body: [
-        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd-a', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
-        { type: 'Action', id: 'a2', stepId: 'a2', commandId: 'cmd-b', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
-      ],
-    };
-    render(<LoopBlock loop={loop} onChange={onChange} onRemove={() => {}} commandOptions={testCommands} />);
-    const moveDownButtons = screen.getAllByLabelText('Move down');
-    fireEvent.click(moveDownButtons[0]);
-    expect(onChange).toHaveBeenCalledTimes(1);
-    const updated = onChange.mock.calls[0][0] as LoopStepEntry;
-    expect(updated.body[0].id).toBe('a2');
-    expect(updated.body[1].id).toBe('a1');
-  });
-
   it('calls onRemove when Remove Loop clicked', () => {
     const onRemove = jest.fn();
     render(<LoopBlock loop={baseLoop} onChange={() => {}} onRemove={onRemove} />);
@@ -351,7 +352,6 @@ describe('LoopBlock', () => {
       ],
     };
     render(<LoopBlock loop={loop} onChange={onChange} onRemove={() => {}} />);
-    // Toggle "Always break" to clear the condition
     fireEvent.click(screen.getByTestId('always-break-toggle'));
     expect(onChange).toHaveBeenCalledTimes(1);
     const updated = onChange.mock.calls[0][0] as LoopStepEntry;
@@ -359,28 +359,27 @@ describe('LoopBlock', () => {
     expect((updated.body[0] as any).breakCondition).toBeUndefined();
   });
 
-  it('move up on first step is disabled', () => {
+  it('does not render move-up or move-down buttons (reordering is drag-and-drop only)', () => {
     const loop: LoopStepEntry = {
       ...baseLoop,
       body: [
         { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
+        { type: 'Action', id: 'a2', stepId: 'a2', commandId: 'cmd', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
       ],
     };
     render(<LoopBlock loop={loop} onChange={() => {}} onRemove={() => {}} />);
-    const moveUp = screen.getByLabelText('Move up');
-    expect(moveUp).toBeDisabled();
+    expect(screen.queryByLabelText('Move up')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Move down')).not.toBeInTheDocument();
   });
 
-  it('move down on last step is disabled', () => {
-    const loop: LoopStepEntry = {
-      ...baseLoop,
-      body: [
-        { type: 'Action', id: 'a1', stepId: 'a1', commandId: 'cmd', conditionType: 'none', imageId: '', minSimilarity: '', outcomeStepRef: '', expectedState: 'success' },
-      ],
-    };
-    render(<LoopBlock loop={loop} onChange={() => {}} onRemove={() => {}} />);
-    const moveDown = screen.getByLabelText('Move down');
-    expect(moveDown).toBeDisabled();
+  it('applies loop-block--drop-invalid class when isDropInvalid is true', () => {
+    render(<LoopBlock loop={baseLoop} onChange={() => {}} onRemove={() => {}} isDropInvalid />);
+    expect(screen.getByTestId('loop-body')).toHaveClass('loop-block--drop-invalid');
+  });
+
+  it('does not apply loop-block--drop-invalid class when isDropInvalid is false', () => {
+    render(<LoopBlock loop={baseLoop} onChange={() => {}} onRemove={() => {}} isDropInvalid={false} />);
+    expect(screen.getByTestId('loop-body')).not.toHaveClass('loop-block--drop-invalid');
   });
 
   it('removing a break step from body via its Remove button calls onChange without that step', () => {

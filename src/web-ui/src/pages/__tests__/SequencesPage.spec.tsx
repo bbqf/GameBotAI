@@ -31,7 +31,7 @@ describe('SequencesPage', () => {
     expect(screen.getByText(/No sequences yet\. Create your first sequence/i)).toBeInTheDocument();
   });
 
-  it('creates a sequence with ordered steps', async () => {
+  it('creates a sequence with multiple steps', async () => {
     render(<SequencesPage />);
 
     await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
@@ -45,9 +45,6 @@ describe('SequencesPage', () => {
     fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'c2' } });
     fireEvent.click(screen.getByText('Add to steps'));
 
-    const moveUpButtons = screen.getAllByLabelText('Move up');
-    fireEvent.click(moveUpButtons[1]);
-
     createSequenceMock.mockResolvedValue({} as any);
     fireEvent.click(screen.getByText('Save'));
 
@@ -57,15 +54,15 @@ describe('SequencesPage', () => {
       interStepDelayRangeMs: null,
       steps: [
         {
-          stepId: 'step-2',
-          stepType: 'Action',
-          primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c2' } },
-          condition: null
-        },
-        {
           stepId: 'step-1',
           stepType: 'Action',
           primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c1' } },
+          condition: null
+        },
+        {
+          stepId: 'step-2',
+          stepType: 'Action',
+          primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c2' } },
           condition: null
         }
       ]

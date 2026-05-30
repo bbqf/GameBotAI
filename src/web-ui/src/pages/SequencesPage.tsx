@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { CollisionDetection, DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
 import { listSequences, SequenceDto, createSequence, getSequence, updateSequence, deleteSequence, isSequenceConflictError } from '../services/sequences';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
@@ -6,7 +8,8 @@ import { listCommands, CommandDto } from '../services/commands';
 import { FormError } from '../components/Form';
 import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
-import { ReorderableList, ReorderableListItem } from '../components/ReorderableList';
+import type { ReorderableListItem } from '../components/ReorderableList';
+import { SortableSequenceStepList } from '../components/SortableSequenceStepList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { navigateToUnified } from '../lib/navigation';
 import { validatePerStepConditions } from '../lib/validation';
@@ -40,6 +43,25 @@ type SequenceFormValue = {
   useCustomDelayRange: boolean;
   delayMin: string;
   delayMax: string;
+};
+
+// Collision detection that uses the cursor position rather than the dragged item's
+// bounding box, and only considers droppables in the same scope as the active item.
+// This prevents body steps inside nested loops from being picked as collision targets
+// when dragging a top-level step, which was causing the drop indicator to not appear.
+const closestCenterToCursor: CollisionDetection = ({ active, droppableContainers, droppableRects, pointerCoordinates }) => {
+  if (!pointerCoordinates) return [];
+  const activeScope = active.data.current?.scopeId as string | undefined;
+  let minDist = Infinity;
+  let closestId: string | number | null = null;
+  for (const container of droppableContainers) {
+    if (activeScope && container.data.current?.scopeId !== activeScope) continue;
+    const rect = droppableRects.get(container.id);
+    if (!rect) continue;
+    const dist = Math.abs(pointerCoordinates.y - (rect.top + rect.height / 2));
+    if (dist < minDist) { minDist = dist; closestId = container.id; }
+  }
+  return closestId !== null ? [{ id: closestId }] : [];
 };
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -246,6 +268,9 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         actionType: 'command' as const,
         commandId: '',
         commandReference: undefined,
+        waitReferenceImageId: '',
+        waitConfidence: '',
+        waitTimeoutMs: '1000',
         conditionType: 'none' as const,
         conditionNegate: false,
         imageId: '',
@@ -330,12 +355,15 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         actionType: 'command' as const,
         commandId,
         commandReference: step.commandReference ?? undefined,
+        waitReferenceImageId: '',
+        waitConfidence: '',
+        waitTimeoutMs: '1000',
         conditionType: 'imageVisible',
         conditionNegate: step.condition.negate ?? false,
         imageId: step.condition.imageId,
         minSimilarity: step.condition.minSimilarity == null ? '' : String(step.condition.minSimilarity),
         outcomeStepRef: '',
-        expectedState: 'success'
+        expectedState: 'success' as const,
       };
     }
 
@@ -347,12 +375,15 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         actionType: 'command' as const,
         commandId,
         commandReference: step.commandReference ?? undefined,
+        waitReferenceImageId: '',
+        waitConfidence: '',
+        waitTimeoutMs: '1000',
         conditionType: 'commandOutcome',
         conditionNegate: step.condition.negate ?? false,
         imageId: '',
         minSimilarity: '',
         outcomeStepRef: step.condition.stepRef,
-        expectedState: step.condition.expectedState
+        expectedState: step.condition.expectedState,
       };
     }
 
@@ -423,7 +454,7 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
     };
   }
   // Action body step
-  const a = entry as { stepId: string; commandId: string; commandReference?: SequenceCommandReference; conditionType: string; conditionNegate: boolean; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
+  const a = entry as unknown as { stepId: string; commandId: string; commandReference?: SequenceCommandReference; conditionType: string; conditionNegate: boolean; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
   const cond = a.conditionType === 'imageVisible'
     ? { type: 'imageVisible' as const, imageId: a.imageId.trim(), minSimilarity: a.minSimilarity.trim() === '' ? null : Number(a.minSimilarity), negate: a.conditionNegate || undefined }
     : a.conditionType === 'commandOutcome'
@@ -518,6 +549,68 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [activeStepId, setActiveStepId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [isDragInvalid, setIsDragInvalid] = useState(false);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveStepId(event.active.id as string);
+    setOverId(null);
+    setIsDragInvalid(false);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const activeScope = event.active.data.current?.scopeId;
+    const overScope = event.over?.data.current?.scopeId;
+    setIsDragInvalid(!!activeScope && !!overScope && activeScope !== overScope);
+    setOverId(event.over?.id as string ?? null);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveStepId(null);
+    setOverId(null);
+    setIsDragInvalid(false);
+    if (!over || active.id === over.id) return;
+    const activeScope = active.data.current?.scopeId as string | undefined;
+    const overScope = over.data.current?.scopeId as string | undefined;
+    if (!activeScope || !overScope || activeScope !== overScope) return;
+
+    if (activeScope === 'root') {
+      setForm((prev) => {
+        const oldIndex = prev.steps.findIndex((s) => s.id === active.id);
+        const newIndex = prev.steps.findIndex((s) => s.id === over.id);
+        if (oldIndex === -1 || newIndex === -1) return prev;
+        return { ...prev, steps: arrayMove(prev.steps, oldIndex, newIndex) };
+      });
+      setDirty(true);
+    } else {
+      setForm((prev) => {
+        const loopStep = prev.steps.find((s) => s.stepType === 'Loop' && s.loopEntry?.id === activeScope);
+        if (!loopStep?.loopEntry) return prev;
+        const body = loopStep.loopEntry.body;
+        const oldIndex = body.findIndex((s) => s.id === active.id);
+        const newIndex = body.findIndex((s) => s.id === over.id);
+        if (oldIndex === -1 || newIndex === -1) return prev;
+        const newBody = arrayMove(body, oldIndex, newIndex);
+        return {
+          ...prev,
+          steps: prev.steps.map((s) =>
+            s.id === loopStep.id ? { ...s, loopEntry: { ...s.loopEntry!, body: newBody } } : s
+          ),
+        };
+      });
+      setDirty(true);
+    }
+  };
+
+  const handleDragCancel = () => {
+    setActiveStepId(null);
+    setOverId(null);
+    setIsDragInvalid(false);
+  };
   const [filterName, setFilterName] = useState('');
   const [tableMessage, setTableMessage] = useState<string | undefined>(undefined);
   const [tableError, setTableError] = useState<string | undefined>(undefined);
@@ -826,6 +919,30 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     </div>
   ), [form.steps, submitting, loading]);
 
+  const handleAddTopLevelStep = () => {
+    const id = makeId();
+    const stepId = nextGeneratedStepId(form.steps);
+    const newStep: SequenceStep = {
+      id,
+      stepId,
+      stepType: 'Action',
+      actionType: 'command',
+      commandId: '',
+      commandReference: undefined,
+      waitReferenceImageId: '',
+      waitConfidence: '',
+      waitTimeoutMs: '1000',
+      conditionType: 'none',
+      conditionNegate: false,
+      imageId: '',
+      minSimilarity: '',
+      outcomeStepRef: '',
+      expectedState: 'success',
+    };
+    setForm((prev) => ({ ...prev, steps: [...prev.steps, newStep] }));
+    setDirty(true);
+  };
+
   const createLoopStep = (loopType: 'count' | 'while' | 'repeatUntil'): SequenceStep => {
     const id = makeId();
     const stepId = nextGeneratedStepId(form.steps);
@@ -881,6 +998,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               }}
               commandOptions={editorCommandOptions}
               disabled={submitting || loading}
+              isDropInvalid={isDragInvalid}
+              activeBodyStepId={s.loopEntry.body.some(b => b.id === activeStepId) ? activeStepId : null}
+              overBodyStepId={s.loopEntry.body.some(b => b.id === overId) ? overId : null}
             />
           ),
         };
@@ -893,7 +1013,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         details: renderStepConditionEditor(s, idx),
       };
     });
-  }, [form.steps, editorCommandOptions, commandLookup, submitting, loading, renderStepConditionEditor]);
+  }, [form.steps, editorCommandOptions, commandLookup, submitting, loading, renderStepConditionEditor, isDragInvalid, activeStepId, overId]);
 
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
@@ -1251,21 +1371,37 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>{' '}
               <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
             </div>
-            <ReorderableList
-              items={stepItems}
-              onChange={(next) => {
-                const mapped = next.map((item, idx) => form.steps.find((s) => s.id === item.id) ?? form.steps[idx]);
-                setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => s?.stepType === 'Loop' || s?.stepType === 'Break' || (s?.stepType === 'Action' && (s.actionType === 'WaitForImage' || !!s.commandId))) });
-                setDirty(true);
-              }}
-              onDelete={(item) => {
-                setForm({ ...form, steps: form.steps.filter((s) => s.id !== item.id) });
-                setDirty(true);
-              }}
-              disabled={submitting || loading}
-              emptyMessage="No steps added yet."
-            />
-            <div className="form-hint">Steps execute in listed order; drag buttons to reorder before saving.</div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenterToCursor}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
+            >
+              <SortableSequenceStepList
+                items={stepItems}
+                activeId={activeStepId}
+                overId={overId}
+                onDelete={(item) => {
+                  setForm((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== item.id) }));
+                  setDirty(true);
+                }}
+                disabled={submitting || loading}
+                emptyMessage="No steps added yet."
+              />
+            </DndContext>
+            <div className="field">
+              <button
+                type="button"
+                data-testid="add-top-level-step"
+                onClick={handleAddTopLevelStep}
+                disabled={submitting || loading}
+              >
+                Add step
+              </button>
+            </div>
+            <div className="form-hint">Steps execute in listed order; drag to reorder within the same level.</div>
           </FormSection>
 
 
@@ -1492,21 +1628,37 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>{' '}
                 <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
               </div>
-              <ReorderableList
-                items={stepItems}
-                onChange={(next) => {
-                  const mapped = next.map((item, idx) => form.steps.find((s) => s.id === item.id) ?? form.steps[idx]);
-                  setForm({ ...form, steps: mapped.filter((s): s is SequenceStep => s?.stepType === 'Loop' || s?.stepType === 'Break' || (s?.stepType === 'Action' && (s.actionType === 'WaitForImage' || !!s.commandId))) });
-                  setDirty(true);
-                }}
-                onDelete={(item) => {
-                  setForm({ ...form, steps: form.steps.filter((s) => s.id !== item.id) });
-                  setDirty(true);
-                }}
-                disabled={submitting || loading}
-                emptyMessage="No steps added yet."
-              />
-              <div className="form-hint">Use Move up/down to set the execution order before saving.</div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenterToCursor}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
+              >
+                <SortableSequenceStepList
+                  items={stepItems}
+                  activeId={activeStepId}
+                  overId={overId}
+                  onDelete={(item) => {
+                    setForm((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.id !== item.id) }));
+                    setDirty(true);
+                  }}
+                  disabled={submitting || loading}
+                  emptyMessage="No steps added yet."
+                />
+              </DndContext>
+              <div className="field">
+                <button
+                  type="button"
+                  data-testid="add-top-level-step"
+                  onClick={handleAddTopLevelStep}
+                  disabled={submitting || loading}
+                >
+                  Add step
+                </button>
+              </div>
+              <div className="form-hint">Steps execute in listed order; drag to reorder within the same level.</div>
             </FormSection>
 
 
