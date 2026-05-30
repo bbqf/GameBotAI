@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
+import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
 import { FormActions, FormSection } from '../unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../SearchableDropdown';
-import { ReorderableList, ReorderableListItem } from '../ReorderableList';
+import type { ReorderableListItem } from '../ReorderableList';
+import { SortableSequenceStepList } from '../SortableSequenceStepList';
 import './CommandForm.css';
 
 export type StepEntry = {
@@ -96,6 +99,10 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   const [pendingWaitReferenceImageId, setPendingWaitReferenceImageId] = useState('');
   const [pendingWaitConfidence, setPendingWaitConfidence] = useState('');
   const [pendingWaitTimeoutMs, setPendingWaitTimeoutMs] = useState('1000');
+  const [activeStepId, setActiveStepId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const stepItems = useMemo(() => toStepItems(value.steps, commandOptions), [value.steps, commandOptions]);
 
@@ -108,10 +115,29 @@ export const CommandForm: React.FC<CommandFormProps> = ({
     onChange({ ...value, steps: value.steps.filter((s) => s.id !== itemId) });
   };
 
-  const updateStepOrder = (items: ReorderableListItem[]) => {
-    const idToStep = new Map(value.steps.map((s) => [s.id, s] as const));
-    const ordered = items.map((it) => idToStep.get(it.id)).filter(Boolean) as StepEntry[];
-    onChange({ ...value, steps: ordered });
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveStepId(event.active.id as string);
+    setOverId(null);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    setOverId(event.over?.id as string ?? null);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveStepId(null);
+    setOverId(null);
+    if (!over || active.id === over.id) return;
+    const oldIndex = value.steps.findIndex((s) => s.id === active.id);
+    const newIndex = value.steps.findIndex((s) => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    onChange({ ...value, steps: arrayMove(value.steps, oldIndex, newIndex) });
+  };
+
+  const handleDragCancel = () => {
+    setActiveStepId(null);
+    setOverId(null);
   };
 
   return (
@@ -303,13 +329,22 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           </button>
         </div>
 
-        <ReorderableList
-          items={stepItems}
-          onChange={updateStepOrder}
-          onDelete={(item) => removeStep(item.id)}
-          disabled={submitting || loading}
-          emptyMessage="No steps yet. Add command, primitive tap, or wait-for-image steps."
-        />
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <SortableSequenceStepList
+            items={stepItems}
+            onDelete={(item) => removeStep(item.id)}
+            disabled={submitting || loading}
+            emptyMessage="No steps yet. Add command, primitive tap, or wait-for-image steps."
+            activeId={activeStepId}
+            overId={overId}
+          />
+        </DndContext>
         <div className="form-hint">Steps run top-to-bottom; reorder to change execution order before saving.</div>
         {errors?.steps && <div className="field-error" role="alert">{errors.steps}</div>}
       </FormSection>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { CommandsPage } from '../CommandsPage';
 import { listCommands, createCommand, getCommand, updateCommand } from '../../services/commands';
 import { listGames } from '../../services/games';
@@ -9,15 +9,73 @@ jest.mock('../../services/games', () => ({
   listGames: jest.fn()
 }));
 
+jest.mock('@dnd-kit/core', () => {
+  const React = require('react');
+  return {
+    DndContext: jest.fn(({ children }: any) => React.createElement(React.Fragment, null, children)),
+    PointerSensor: class {},
+    useSensor: jest.fn(),
+    useSensors: jest.fn(() => []),
+  };
+});
+
+jest.mock('@dnd-kit/sortable', () => ({
+  SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  verticalListSortingStrategy: {},
+  useSortable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: jest.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+  }),
+  arrayMove: jest.fn((arr: unknown[], from: number, to: number) => {
+    const result = [...arr];
+    const [item] = result.splice(from, 1);
+    result.splice(to, 0, item);
+    return result;
+  }),
+}));
+
+jest.mock('@dnd-kit/utilities', () => ({
+  CSS: { Translate: { toString: () => '' }, Transform: { toString: () => '' } },
+}));
+
+import { DndContext, useSensors } from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
+
 const listCommandsMock = listCommands as jest.MockedFunction<typeof listCommands>;
 const createCommandMock = createCommand as jest.MockedFunction<typeof createCommand>;
 const getCommandMock = getCommand as jest.MockedFunction<typeof getCommand>;
 const updateCommandMock = updateCommand as jest.MockedFunction<typeof updateCommand>;
 const listGamesMock = listGames as jest.MockedFunction<typeof listGames>;
 
+const dndHandlers: {
+  onDragEnd?: (e: any) => void;
+  onDragStart?: (e: any) => void;
+  onDragOver?: (e: any) => void;
+  onDragCancel?: () => void;
+} = {};
+
 describe('CommandsPage', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    // Re-apply DndContext implementation after resetAllMocks clears it
+    (DndContext as jest.Mock).mockImplementation(({ children, onDragEnd, onDragStart, onDragOver, onDragCancel }: any) => {
+      dndHandlers.onDragEnd = onDragEnd;
+      dndHandlers.onDragStart = onDragStart;
+      dndHandlers.onDragOver = onDragOver;
+      dndHandlers.onDragCancel = onDragCancel;
+      return React.createElement(React.Fragment, null, children);
+    });
+    (useSensors as jest.Mock).mockReturnValue([]);
+    (arrayMove as jest.Mock).mockImplementation((arr: unknown[], from: number, to: number) => {
+      const result = [...arr];
+      const [item] = result.splice(from, 1);
+      result.splice(to, 0, item);
+      return result;
+    });
     listCommandsMock.mockResolvedValue([] as any);
     listGamesMock.mockResolvedValue([] as any);
   });
@@ -77,7 +135,7 @@ describe('CommandsPage', () => {
     }));
   });
 
-  it('reorders command steps and preserves order on save', async () => {
+  it('reorders command steps via drag and drop and preserves order on save', async () => {
     listCommandsMock.mockResolvedValue([{ id: 'c1', name: 'Cmd', steps: [
       { type: 'Command', targetId: 'nested1', order: 0 },
       { type: 'Command', targetId: 'nested2', order: 1 },
@@ -88,19 +146,25 @@ describe('CommandsPage', () => {
     ] } as any);
     updateCommandMock.mockResolvedValue({} as any);
 
+    // Use predictable step IDs so drag handlers can reference them
+    let idCount = 0;
+    const uuidSpy = jest.spyOn(global.crypto, 'randomUUID').mockImplementation(() => `step-${++idCount}` as any);
+
     render(<CommandsPage />);
     await screen.findByText('Cmd');
     fireEvent.click(screen.getByText('Cmd'));
 
     await screen.findByText('Edit Command');
-
+    // Confirm drag handles are present (no arrow buttons)
     const stepsSection = screen.getByRole('heading', { name: 'Steps', level: 3 }).closest('section')!;
     await waitFor(() => {
-      const moveUpButtons = stepsSection.querySelectorAll('button[aria-label="Move up"]');
-      expect(moveUpButtons.length).toBeGreaterThan(0);
+      expect(stepsSection.querySelectorAll('[aria-label="Drag to reorder"]').length).toBeGreaterThan(0);
     });
-    const moveUpButtons = stepsSection.querySelectorAll('button[aria-label="Move up"]');
-    fireEvent.click(moveUpButtons[moveUpButtons.length - 1]);
+
+    // step-1 = nested1, step-2 = nested2; drag step-2 onto step-1 to move nested2 to top
+    act(() => {
+      dndHandlers.onDragEnd?.({ active: { id: 'step-2' }, over: { id: 'step-1' } });
+    });
 
     fireEvent.click(screen.getAllByText('Save')[0]);
 
@@ -112,6 +176,8 @@ describe('CommandsPage', () => {
       ],
       detection: undefined,
     }));
+
+    uuidSpy.mockRestore();
   });
 
   it('renders long command names without clipping or losing the full title', async () => {

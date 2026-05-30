@@ -16,7 +16,7 @@
 
 **Purpose**: Verify the baseline before any changes.
 
-- [ ] T001 Run the existing test suite from `src/web-ui/` to confirm all tests pass before changes (`npm test` or `npx vitest run`)
+- [x] T001 Run the existing test suite from `src/web-ui/` to confirm all tests pass before changes (`npm test` or `npx vitest run`)
 
 ---
 
@@ -26,11 +26,11 @@
 
 **⚠️ CRITICAL**: US1 and US2 both depend on this phase.
 
-- [ ] T002 Search the project for all files importing from `ReorderableList` (grep `from.*ReorderableList` in `src/web-ui/src/`) to confirm `CommandForm.tsx` is the only consumer of the `ReorderableList` component before modifying its import; document any other usages found
-- [ ] T003 In `src/web-ui/src/components/commands/CommandForm.tsx`: remove the `ReorderableList` component from the import (keeping `import type { ReorderableListItem } from '../ReorderableList'`); add imports for `DndContext`, `DragEndEvent`, `DragOverEvent`, `DragStartEvent`, `PointerSensor`, `useSensor`, `useSensors` from `@dnd-kit/core`; add import for `arrayMove` from `@dnd-kit/sortable`; add import for `SortableSequenceStepList` from `../SortableSequenceStepList`
-- [ ] T004 In `src/web-ui/src/components/commands/CommandForm.tsx`: add `activeStepId` and `overId` state (`useState<string | null>(null)`); add `sensors` via `useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))`; add `handleDragStart`, `handleDragOver`, `handleDragEnd`, `handleDragCancel` handlers (see plan.md for exact handler bodies)
-- [ ] T005 In `src/web-ui/src/components/commands/CommandForm.tsx`: replace the `<ReorderableList>` JSX element with `<DndContext>` (sensors, onDragStart/Over/End/Cancel) wrapping `<SortableSequenceStepList>` (items, onDelete, disabled, emptyMessage, activeId, overId); remove the `updateStepOrder` function (now dead code)
-- [ ] T006 [US2] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: fix existing bug — remove `actionOptions={[]}` prop from both zoom test cases (prop does not exist on current `CommandFormProps`); confirm tests compile and pass before writing new tests
+- [x] T002 Search the project for all files importing from `ReorderableList` (grep `from.*ReorderableList` in `src/web-ui/src/`) to confirm `CommandForm.tsx` is the only consumer of the `ReorderableList` component before modifying its import; document any other usages found
+- [x] T003 In `src/web-ui/src/components/commands/CommandForm.tsx`: remove the `ReorderableList` component from the import (keeping `import type { ReorderableListItem } from '../ReorderableList'`); add imports for `DndContext`, `DragEndEvent`, `DragOverEvent`, `DragStartEvent`, `PointerSensor`, `useSensor`, `useSensors` from `@dnd-kit/core`; add import for `arrayMove` from `@dnd-kit/sortable`; add import for `SortableSequenceStepList` from `../SortableSequenceStepList`
+- [x] T004 In `src/web-ui/src/components/commands/CommandForm.tsx`: add `activeStepId` and `overId` state (`useState<string | null>(null)`); add `sensors` via `useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))`; add `handleDragStart`, `handleDragOver`, `handleDragEnd`, `handleDragCancel` handlers (see plan.md for exact handler bodies)
+- [x] T005 In `src/web-ui/src/components/commands/CommandForm.tsx`: replace the `<ReorderableList>` JSX element with `<DndContext>` (sensors, onDragStart/Over/End/Cancel) wrapping `<SortableSequenceStepList>` (items, onDelete, disabled, emptyMessage, activeId, overId); remove the `updateStepOrder` function (now dead code)
+- [x] T006 [US2] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: fix existing bug — remove `actionOptions={[]}` prop from both zoom test cases (prop does not exist on current `CommandFormProps`); confirm tests compile and pass before writing new tests
 
 **Checkpoint**: Build must succeed with zero TypeScript errors and all pre-existing tests must pass before proceeding.
 
@@ -42,12 +42,12 @@
 
 **Independent Test**: Open a command with 2+ steps in the editor. Grab the drag handle (⠿) on any step, drag it above or below another step, release. The step should appear in the new position. Save and reopen — order must be preserved.
 
-- [ ] T007 [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that renders `CommandForm` with two steps and verifies `onChange` is called with the steps in swapped order after `handleDragEnd` is invoked with matching active/over IDs (invoke the `onDragEnd` prop of `DndContext` via the rendered component's internal handler)
-- [ ] T008 [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that verifies no `onChange` call occurs when drag is cancelled (`handleDragCancel`) or when active.id equals over.id
-- [ ] T009 [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that verifies drag handles are inert (disabled) when `CommandForm` receives `submitting={true}`
-- [ ] T010 [P] [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that simulates `handleDragStart` and then asserts the `DropIndicator` element (or its containing node) is present in the DOM, confirming the drop indicator renders during an active drag
-- [ ] T011 [P] [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that renders `CommandForm` with exactly one step, fires `handleDragEnd` with active.id equal to over.id (or with no over), and asserts `onChange` is not called (single-step no-op edge case)
-- [ ] T012 [P] [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add regression test that renders `CommandForm` with two steps, clicks the Delete button on one step, and asserts `onChange` is called with the remaining step — confirming delete functionality is intact after the DnD swap
+- [x] T007 [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that renders `CommandForm` with two steps and verifies `onChange` is called with the steps in swapped order after `handleDragEnd` is invoked with matching active/over IDs (invoke the `onDragEnd` prop of `DndContext` via the rendered component's internal handler)
+- [x] T008 [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that verifies no `onChange` call occurs when drag is cancelled (`handleDragCancel`) or when active.id equals over.id
+- [x] T009 [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that verifies drag handles are inert (disabled) when `CommandForm` receives `submitting={true}`
+- [x] T010 [P] [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that simulates `handleDragStart` and then asserts the `DropIndicator` element (or its containing node) is present in the DOM, confirming the drop indicator renders during an active drag
+- [x] T011 [P] [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that renders `CommandForm` with exactly one step, fires `handleDragEnd` with active.id equal to over.id (or with no over), and asserts `onChange` is not called (single-step no-op edge case)
+- [x] T012 [P] [US1] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add regression test that renders `CommandForm` with two steps, clicks the Delete button on one step, and asserts `onChange` is called with the remaining step — confirming delete functionality is intact after the DnD swap
 
 **Checkpoint**: All T007–T012 tests must pass. At this point US1 is fully functional and testable.
 
@@ -59,7 +59,7 @@
 
 **Independent Test**: Render `CommandForm` with steps and confirm the ⠿ drag handle icon appears on each step row. Compare `SortableStepItem` render output between sequence and command contexts — same component, same markup.
 
-- [ ] T013 [P] [US2] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that renders `CommandForm` with at least one step and asserts the drag handle (`aria-label="Drag to reorder"` or text content `⠿`) appears once per step
+- [x] T013 [P] [US2] In `src/web-ui/src/features/authoring/__tests__/CommandForm.zoom.test.tsx`: add test that renders `CommandForm` with at least one step and asserts the drag handle (`aria-label="Drag to reorder"` or text content `⠿`) appears once per step
 
 **Checkpoint**: T013 passes confirming visual consistency. All existing zoom tests still pass.
 
@@ -69,7 +69,7 @@
 
 **Purpose**: Final validation and cleanup.
 
-- [ ] T014 Run full Vitest test suite from `src/web-ui/` and confirm zero failures and no coverage regressions
+- [x] T014 Run full Vitest test suite from `src/web-ui/` and confirm zero failures and no coverage regressions
 - [ ] T015 Manual UI smoke test: start dev server, open a command with 3+ steps, drag each step to a different position, save, reload and verify order persisted; also confirm arrow buttons no longer appear
 
 ---
