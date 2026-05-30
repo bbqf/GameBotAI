@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/037-loop-step-management/plan.md
+at specs/043-reorder-spec-folders/plan.md
 <!-- SPECKIT END -->
