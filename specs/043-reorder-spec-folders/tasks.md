@@ -16,9 +16,9 @@
 
 **Purpose**: Verify prerequisites and current state before any renames are performed.
 
-- [ ] T001 Confirm git working tree is clean on branch `038-reorder-spec-folders` (`git status` shows no uncommitted changes)
-- [ ] T002 Count spec directories in `specs/` excluding `openapi.json` and confirm total is 43 (42 pre-existing + `043-reorder-spec-folders`)
-- [ ] T003 Cross-check `specs/043-reorder-spec-folders/research.md` renaming map — all 42 pre-existing folders must appear exactly once in the "Current Folder" column
+- [x] T001 Confirm git working tree is clean on branch `038-reorder-spec-folders` (`git status` shows no uncommitted changes)
+- [x] T002 Count spec directories in `specs/` excluding `openapi.json` and confirm total is 43 (42 pre-existing + `043-reorder-spec-folders`)
+- [x] T003 Cross-check `specs/043-reorder-spec-folders/research.md` renaming map — all 42 pre-existing folders must appear exactly once in the "Current Folder" column
 
 **Checkpoint**: Confirmed 43 spec dirs, map is complete — proceed with renames.
 
@@ -38,18 +38,18 @@ No shared blocking infrastructure required for this maintenance task. Proceed di
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Rename high-range numbered specs in `specs/` (process top-down to free targets):
+- [x] T004 [US1] Rename high-range numbered specs in `specs/` (process top-down to free targets):
   - `git mv specs/037-loop-step-management specs/042-loop-step-management`
   - `git mv specs/036-tap-wait-retry specs/037-tap-wait-retry`
   - `git mv specs/035-ui-config-editor specs/036-ui-config-editor`
   - `git mv specs/034-background-screenshot-service specs/035-background-screenshot-service`
   - `git mv specs/033-command-loops specs/034-command-loops`
 
-- [ ] T005 [US1] Handle the 031/032 tie-swap in `specs/`:
+- [x] T005 [US1] Handle the 031/032 tie-swap in `specs/`:
   - `git mv specs/031-sequence-conditional-steps specs/033-sequence-conditional-steps`
   - (`032-per-step-conditions` keeps its number — no rename needed)
 
-- [ ] T006 [US1] Rename mid-range numbered specs in `specs/` (continue top-down):
+- [x] T006 [US1] Rename mid-range numbered specs in `specs/` (continue top-down):
   - `git mv specs/030-sequence-conditional-logic specs/031-sequence-conditional-logic`
   - `git mv specs/029-execution-logs-tab specs/030-execution-logs-tab`
   - `git mv specs/028-execution-log specs/029-execution-log`
@@ -77,13 +77,13 @@ No shared blocking infrastructure required for this maintenance task. Proceed di
   - `git mv specs/004-logging-config-refresh specs/005-logging-config-refresh`
   - `git mv specs/003-command-trigger-tests specs/004-command-trigger-tests`
 
-- [ ] T007 [US1] Rename late-arriving `001-*` specs in `specs/` to high targets (all targets are now free):
+- [x] T007 [US1] Rename late-arriving `001-*` specs in `specs/` to high targets (all targets are now free):
   - `git mv specs/001-sequence-random-delay specs/038-sequence-random-delay`
   - `git mv specs/001-primitive-actions-refactor specs/039-primitive-actions-refactor`
   - `git mv specs/001-wait-for-image specs/040-wait-for-image`
   - `git mv specs/001-fix-sequence-step-names specs/041-fix-sequence-step-names`
 
-- [ ] T008 [US1] Rename remaining `001-*` specs in `specs/` to low targets:
+- [x] T008 [US1] Rename remaining `001-*` specs in `specs/` to low targets:
   - `git mv specs/001-authoring-crud-ui specs/016-authoring-crud-ui`
   - `git mv specs/001-runtime-logging-control specs/007-runtime-logging-control`
   - `git mv specs/001-action-command-refactor specs/003-action-command-refactor`
@@ -100,9 +100,9 @@ No shared blocking infrastructure required for this maintenance task. Proceed di
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] For each of the 40 renamed spec folders that contain a `spec.md` with a `Feature Branch` or `Spec Directory` field referencing the old folder name, update those fields to the new folder name. Check `specs/*/spec.md` with `grep -rn "Feature Branch\|Spec Directory"` and apply in-place replacements (old prefix → new prefix, short name unchanged).
+- [x] T009 [US2] For each of the 40 renamed spec folders that contain a `spec.md` with a `Feature Branch` or `Spec Directory` field referencing the old folder name, update those fields to the new folder name. Check `specs/*/spec.md` with `grep -rn "Feature Branch\|Spec Directory"` and apply in-place replacements (old prefix → new prefix, short name unchanged).
 
-- [ ] T010 [P] [US2] Confirm `specs/043-reorder-spec-folders/spec.md` has `Spec Directory: 043-reorder-spec-folders` and `.specify/feature.json` contains `"feature_directory": "specs/043-reorder-spec-folders"` (no changes expected — verify only).
+- [x] T010 [P] [US2] Confirm `specs/043-reorder-spec-folders/spec.md` has `Spec Directory: 043-reorder-spec-folders` and `.specify/feature.json` contains `"feature_directory": "specs/043-reorder-spec-folders"` (no changes expected — verify only).
 
 **Checkpoint**: All `spec.md` front-matter fields match new folder names.
 
@@ -116,7 +116,7 @@ No shared blocking infrastructure required for this maintenance task. Proceed di
 
 ### Implementation for User Story 3
 
-- [ ] T011 [P] [US3] Edit `installer/versioning/version.override.json`: set `"minor"` to `"5"` and update `"updatedAtUtc"` to `"2026-05-30T00:00:00Z"`. All other fields (`major`, `patch`, `updatedBy`) remain unchanged.
+- [x] T011 [P] [US3] Edit `installer/versioning/version.override.json`: set `"minor"` to `"5"` and update `"updatedAtUtc"` to `"2026-05-30T00:00:00Z"`. All other fields (`major`, `patch`, `updatedBy`) remain unchanged.
 
 **Checkpoint**: Version file updated; `minor = "5"`, `patch = "0"`.
 
@@ -126,9 +126,9 @@ No shared blocking infrastructure required for this maintenance task. Proceed di
 
 **Purpose**: Confirm correctness of all changes and that no source code was touched.
 
-- [ ] T012 [P] Verify gapless sequence: `ls specs/ | grep -v openapi.json | wc -l` equals 43; all prefixes are unique integers 001–043.
-- [ ] T013 [P] Verify no source code modifications: `git diff --name-only HEAD` must contain only files under `specs/`, `installer/versioning/version.override.json`, and `.specify/feature.json`. No `.cs`, `.ts`, `.vue`, or other source files.
-- [ ] T014 Commit all changes with message: `"Reorder spec folders chronologically (001–042) and bump minor version to 0.5.0 (#043)"`
+- [x] T012 [P] Verify gapless sequence: `ls specs/ | grep -v openapi.json | wc -l` equals 43; all prefixes are unique integers 001–043.
+- [x] T013 [P] Verify no source code modifications: `git diff --name-only HEAD` must contain only files under `specs/`, `installer/versioning/version.override.json`, and `.specify/feature.json`. No `.cs`, `.ts`, `.vue`, or other source files.
+- [x] T014 Commit all changes with message: `"Reorder spec folders chronologically (001–042) and bump minor version to 0.5.0 (#043)"`
 
 ---
 
