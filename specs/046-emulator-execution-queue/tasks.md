@@ -27,8 +27,8 @@ Web application: backend in `src/GameBot.Domain/` and `src/GameBot.Service/`; fr
 
 **Purpose**: Add the minimal shared scaffolding the rest of the feature builds on.
 
-- [ ] T001 [P] Add `Queues = Base + "/queues"` constant to `src/GameBot.Service/ApiRoutes.cs`
-- [ ] T002 [P] Create the domain folder and `QueueExecutionStatus` enum (`Stopped`, `Running`) in `src/GameBot.Domain/Queues/QueueExecutionStatus.cs`
+- [x] T001 [P] Add `Queues = Base + "/queues"` constant to `src/GameBot.Service/ApiRoutes.cs`
+- [x] T002 [P] Create the domain folder and `QueueExecutionStatus` enum (`Stopped`, `Running`) in `src/GameBot.Domain/Queues/QueueExecutionStatus.cs`
 
 ---
 
@@ -38,17 +38,17 @@ Web application: backend in `src/GameBot.Domain/` and `src/GameBot.Service/`; fr
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 [P] Create `ExecutionQueue` persisted-config model (Id, Name, EmulatorSerial, CycleExecution, CreatedAt, UpdatedAt) in `src/GameBot.Domain/Queues/ExecutionQueue.cs`
-- [ ] T004 [P] Create `QueueEntry` (EntryId, SequenceId) and `QueueRuntimeState` (Entries list, Status) in `src/GameBot.Domain/Queues/QueueEntry.cs`
-- [ ] T005 [P] Define `IQueueRepository` (Get/List/Create/Update/Delete) in `src/GameBot.Domain/Queues/IQueueRepository.cs`
-- [ ] T006 Implement `FileQueueRepository` (JSON under `{dataRoot}/queues`, safe-id/path-traversal guard and JSON options copied from `FileSequenceRepository`; persists config only) in `src/GameBot.Domain/Queues/FileQueueRepository.cs` (depends on T003, T005)
-- [ ] T007 [P] Define `IQueueRuntimeStore` (GetEntries/AddEntry/RemoveEntry/GetStatus/SetStatus/Remove) in `src/GameBot.Domain/Queues/IQueueRuntimeStore.cs` (depends on T004)
-- [ ] T008 Implement `QueueRuntimeStore` (thread-safe `ConcurrentDictionary<queueId, QueueRuntimeState>`, append on AddEntry, default `Stopped`, non-persistent) in `src/GameBot.Domain/Queues/QueueRuntimeStore.cs` (depends on T007)
-- [ ] T009 [P] Create request/response DTOs (`CreateQueueRequest`, `UpdateQueueRequest`, `AddQueueEntryRequest`, `QueueResponse`, `QueueDetailResponse`) in `src/GameBot.Service/Contracts/Queues/` (one file per DTO)
-- [ ] T010 Create `QueuesEndpoints.MapQueueEndpoints(this IEndpointRouteBuilder)` skeleton (MapGroup on `ApiRoutes.Queues` with tag `Queues`, returns app; no routes yet) in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs`
-- [ ] T011 Register `IQueueRepository` → `FileQueueRepository(storageRoot)` and `IQueueRuntimeStore` → `QueueRuntimeStore` singletons, and call `app.MapQueueEndpoints()` in `src/GameBot.Service/Program.cs` (depends on T006, T008, T010)
-- [ ] T012 [P] Create frontend service client with all DTO types and functions (`listQueues`, `getQueue`, `createQueue`, `updateQueue`, `deleteQueue`, `addQueueEntry`, `removeQueueEntry`, `startQueue`, `stopQueue`) in `src/web-ui/src/services/queues.ts`
-- [ ] T013 [P] Add a unit-test helper/fixture for a temp `storageRoot` (or reuse existing helper) referenced by repository tests in `tests/unit/Queues/`
+- [x] T003 [P] Create `ExecutionQueue` persisted-config model (Id, Name, EmulatorSerial, CycleExecution, CreatedAt, UpdatedAt) in `src/GameBot.Domain/Queues/ExecutionQueue.cs`
+- [x] T004 [P] Create `QueueEntry` (EntryId, SequenceId) and `QueueRuntimeState` (Entries list, Status) in `src/GameBot.Domain/Queues/QueueEntry.cs`
+- [x] T005 [P] Define `IQueueRepository` (Get/List/Create/Update/Delete) in `src/GameBot.Domain/Queues/IQueueRepository.cs`
+- [x] T006 Implement `FileQueueRepository` (JSON under `{dataRoot}/queues`, safe-id/path-traversal guard and JSON options copied from `FileSequenceRepository`; persists config only) in `src/GameBot.Domain/Queues/FileQueueRepository.cs` (depends on T003, T005)
+- [x] T007 [P] Define `IQueueRuntimeStore` (GetEntries/AddEntry/RemoveEntry/GetStatus/SetStatus/Remove) in `src/GameBot.Domain/Queues/IQueueRuntimeStore.cs` (depends on T004)
+- [x] T008 Implement `QueueRuntimeStore` (thread-safe `ConcurrentDictionary<queueId, QueueRuntimeState>`, append on AddEntry, default `Stopped`, non-persistent) in `src/GameBot.Domain/Queues/QueueRuntimeStore.cs` (depends on T007)
+- [x] T009 [P] Create request/response DTOs (`CreateQueueRequest`, `UpdateQueueRequest`, `AddQueueEntryRequest`, `QueueResponse`, `QueueDetailResponse`) in `src/GameBot.Service/Contracts/Queues/` (one file per DTO)
+- [x] T010 Create `QueuesEndpoints.MapQueueEndpoints(this IEndpointRouteBuilder)` skeleton (MapGroup on `ApiRoutes.Queues` with tag `Queues`, returns app; no routes yet) in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs`
+- [x] T011 Register `IQueueRepository` → `FileQueueRepository(storageRoot)` and `IQueueRuntimeStore` → `QueueRuntimeStore` singletons, and call `app.MapQueueEndpoints()` in `src/GameBot.Service/Program.cs` (depends on T006, T008, T010)
+- [x] T012 [P] Create frontend service client with all DTO types and functions (`listQueues`, `getQueue`, `createQueue`, `updateQueue`, `deleteQueue`, `addQueueEntry`, `removeQueueEntry`, `startQueue`, `stopQueue`) in `src/web-ui/src/services/queues.ts`
+- [x] T013 [P] Add a unit-test helper/fixture for a temp `storageRoot` (or reuse existing helper) referenced by repository tests in `tests/unit/Queues/`
 
 **Checkpoint**: Foundation ready — models, persistence, runtime store, DI, endpoint group, and FE client all exist. User stories can now begin.
 
@@ -62,20 +62,20 @@ Web application: backend in `src/GameBot.Domain/` and `src/GameBot.Service/`; fr
 
 ### Tests for User Story 1 ⚠️ (write first, ensure they fail)
 
-- [ ] T014 [P] [US1] Unit tests for `FileQueueRepository` (create/get/list/update/delete round-trip in temp dir; safe-id rejection; config-only persistence — no entries/status serialized) in `tests/unit/Queues/FileQueueRepositoryTests.cs`
-- [ ] T015 [P] [US1] Integration tests for CRUD endpoints (create validation for missing name/emulator → 400 with field message; list/get shape incl. status `Stopped` + entryCount 0; PUT ignores emulator; update/delete on a non-running queue succeed; 404 for unknown id; **two queues may bind to the same `emulatorSerial` — no uniqueness constraint per FR-003a**) in `tests/integration/Queues/QueuesCrudEndpointTests.cs`
-- [ ] T016 [P] [US1] Contract test asserting `/api/queues` CRUD request/response shapes match `contracts/queues-api.md` in `tests/contract/Queues/QueuesApiContractTests.cs`
-- [ ] T017 [P] [US1] Frontend tests for `QueueForm` (required-field validation blocks submit; emulator picker disabled/hidden on edit) in `src/web-ui/src/components/queues/__tests__/QueueForm.test.tsx`
+- [x] T014 [P] [US1] Unit tests for `FileQueueRepository` (create/get/list/update/delete round-trip in temp dir; safe-id rejection; config-only persistence — no entries/status serialized) in `tests/unit/Queues/FileQueueRepositoryTests.cs`
+- [x] T015 [P] [US1] Integration tests for CRUD endpoints (create validation for missing name/emulator → 400 with field message; list/get shape incl. status `Stopped` + entryCount 0; PUT ignores emulator; update/delete on a non-running queue succeed; 404 for unknown id; **two queues may bind to the same `emulatorSerial` — no uniqueness constraint per FR-003a**) in `tests/integration/Queues/QueuesCrudEndpointTests.cs`
+- [x] T016 [P] [US1] Contract test asserting `/api/queues` CRUD request/response shapes match `contracts/queues-api.md` in `tests/contract/Queues/QueuesApiContractTests.cs`
+- [x] T017 [P] [US1] Frontend tests for `QueueForm` (required-field validation blocks submit; emulator picker disabled/hidden on edit) in `src/web-ui/src/components/queues/__tests__/QueueForm.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Implement CRUD routes in `MapQueueEndpoints` — `POST` (validate name+emulatorSerial), `GET` (list, join runtime status + entryCount), `GET {id}` (detail), `PUT {id}` (name/cycle only; reject emulator change), `DELETE {id}` — in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T006, T008, T009). NOTE: the running-state guard on `PUT`/`DELETE` (409 `queue_running`) is intentionally added later in T036 (US3), since status only becomes meaningful in US3.
-- [ ] T019 [US1] Add a private helper in `QueuesEndpoints.cs` to build `QueueResponse`/`QueueDetailResponse` from `ExecutionQueue` + runtime store (resolve entryCount; entries resolution stubbed until US2)
-- [ ] T020 [P] [US1] Add `'Queues'` to the `AuthoringTab` union and `tabs[]` array in `src/web-ui/src/components/Nav.tsx`
-- [ ] T021 [US1] Render `<QueuesPage/>` when `tab === 'Queues'` in `src/web-ui/src/App.tsx`; extend `normalizeTab` to accept `'Queues'` in `src/web-ui/src/lib/navigation.ts` if it whitelists names
-- [ ] T022 [P] [US1] Implement `QueueForm` (name `FormField`, emulator picker fed by `useAdbDevices` — create-only, cycle-execution checkbox; validation per FR-008) in `src/web-ui/src/components/queues/QueueForm.tsx`
-- [ ] T023 [US1] Implement `QueuesPage` list view using the `List` component (name, emulator serial, cycle on/off, status chip labeled `Running`/`Stopped` per FR-014, entry count) with New/Edit/Delete (delete via `ConfirmDeleteModal`) wired to `services/queues.ts` in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T012, T022)
-- [ ] T024 [P] [US1] Frontend tests for `QueuesPage` CRUD (lists queues; create/edit/delete flows; delete confirmation) in `src/web-ui/src/pages/__tests__/QueuesPage.spec.tsx`
+- [x] T018 [US1] Implement CRUD routes in `MapQueueEndpoints` — `POST` (validate name+emulatorSerial), `GET` (list, join runtime status + entryCount), `GET {id}` (detail), `PUT {id}` (name/cycle only; reject emulator change), `DELETE {id}` — in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T006, T008, T009). NOTE: the running-state guard on `PUT`/`DELETE` (409 `queue_running`) is intentionally added later in T036 (US3), since status only becomes meaningful in US3.
+- [x] T019 [US1] Add a private helper in `QueuesEndpoints.cs` to build `QueueResponse`/`QueueDetailResponse` from `ExecutionQueue` + runtime store (resolve entryCount; entries resolution stubbed until US2)
+- [x] T020 [P] [US1] Add `'Queues'` to the `AuthoringTab` union and `tabs[]` array in `src/web-ui/src/components/Nav.tsx`
+- [x] T021 [US1] Render `<QueuesPage/>` when `tab === 'Queues'` in `src/web-ui/src/App.tsx`; extend `normalizeTab` to accept `'Queues'` in `src/web-ui/src/lib/navigation.ts` if it whitelists names
+- [x] T022 [P] [US1] Implement `QueueForm` (name `FormField`, emulator picker fed by `useAdbDevices` — create-only, cycle-execution checkbox; validation per FR-008) in `src/web-ui/src/components/queues/QueueForm.tsx`
+- [x] T023 [US1] Implement `QueuesPage` list view using the `List` component (name, emulator serial, cycle on/off, status chip labeled `Running`/`Stopped` per FR-014, entry count) with New/Edit/Delete (delete via `ConfirmDeleteModal`) wired to `services/queues.ts` in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T012, T022)
+- [x] T024 [P] [US1] Frontend tests for `QueuesPage` CRUD (lists queues; create/edit/delete flows; delete confirmation) in `src/web-ui/src/pages/__tests__/QueuesPage.spec.tsx`
 
 **Checkpoint**: Queues tab supports full CRUD with persisted config — MVP is independently functional and testable.
 
@@ -89,16 +89,16 @@ Web application: backend in `src/GameBot.Domain/` and `src/GameBot.Service/`; fr
 
 ### Tests for User Story 2 ⚠️ (write first, ensure they fail)
 
-- [ ] T025 [P] [US2] Unit tests for `QueueRuntimeStore` entries (append preserves insertion order; remove keeps relative order; duplicate sequenceId allowed; unknown queue returns empty) in `tests/unit/Queues/QueueRuntimeStoreEntriesTests.cs`
-- [ ] T026 [P] [US2] Integration tests for entry endpoints (`POST /entries` appends and returns entry; `DELETE /entries/{entryId}`; missing sequenceId → 400; `GET {id}` resolves `sequenceName` and sets `stale:true` for deleted sequences; entries empty on a fresh store) in `tests/integration/Queues/QueueEntriesEndpointTests.cs`
-- [ ] T027 [P] [US2] Frontend tests for `QueueEntryList` (add appends to end; remove; stale badge rendered for stale entry) in `src/web-ui/src/components/queues/__tests__/QueueEntryList.test.tsx`
+- [x] T025 [P] [US2] Unit tests for `QueueRuntimeStore` entries (append preserves insertion order; remove keeps relative order; duplicate sequenceId allowed; unknown queue returns empty) in `tests/unit/Queues/QueueRuntimeStoreEntriesTests.cs`
+- [x] T026 [P] [US2] Integration tests for entry endpoints (`POST /entries` appends and returns entry; `DELETE /entries/{entryId}`; missing sequenceId → 400; `GET {id}` resolves `sequenceName` and sets `stale:true` for deleted sequences; entries empty on a fresh store) in `tests/integration/Queues/QueueEntriesEndpointTests.cs`
+- [x] T027 [P] [US2] Frontend tests for `QueueEntryList` (add appends to end; remove; stale badge rendered for stale entry) in `src/web-ui/src/components/queues/__tests__/QueueEntryList.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T028 [US2] Add entry routes to `MapQueueEndpoints` — `POST /api/queues/{id}/entries` (append via runtime store; validate sequenceId) and `DELETE /api/queues/{id}/entries/{entryId}` — in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T008, T018)
-- [ ] T029 [US2] Implement stale-aware entries resolution in the response helper (resolve each `SequenceId` via `ISequenceRepository`; set `sequenceName`/`stale`) and include `entries[]` in `QueueDetailResponse` in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T019, T028)
-- [ ] T030 [P] [US2] Implement `QueueEntryList` (ordered entries; "Add sequence" via `SearchableDropdown` populated from the sequences service; per-row remove; stale badge) in `src/web-ui/src/components/queues/QueueEntryList.tsx` (depends on T012)
-- [ ] T031 [US2] Wire `QueueEntryList` into `QueuesPage` (open a selected queue to manage its entries; refresh entryCount/detail after add/remove) in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T023, T030)
+- [x] T028 [US2] Add entry routes to `MapQueueEndpoints` — `POST /api/queues/{id}/entries` (append via runtime store; validate sequenceId) and `DELETE /api/queues/{id}/entries/{entryId}` — in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T008, T018)
+- [x] T029 [US2] Implement stale-aware entries resolution in the response helper (resolve each `SequenceId` via `ISequenceRepository`; set `sequenceName`/`stale`) and include `entries[]` in `QueueDetailResponse` in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T019, T028)
+- [x] T030 [P] [US2] Implement `QueueEntryList` (ordered entries; "Add sequence" via `SearchableDropdown` populated from the sequences service; per-row remove; stale badge) in `src/web-ui/src/components/queues/QueueEntryList.tsx` (depends on T012)
+- [x] T031 [US2] Wire `QueueEntryList` into `QueuesPage` (open a selected queue to manage its entries; refresh entryCount/detail after add/remove) in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T023, T030)
 
 **Checkpoint**: Queues hold ordered, in-memory sequence entries with stale-reference handling; US1 + US2 both work independently.
 
@@ -112,15 +112,15 @@ Web application: backend in `src/GameBot.Domain/` and `src/GameBot.Service/`; fr
 
 ### Tests for User Story 3 ⚠️ (write first, ensure they fail)
 
-- [ ] T032 [P] [US3] Unit tests for `QueueRuntimeStore` status (default `Stopped`; SetStatus; start/stop idempotency) in `tests/unit/Queues/QueueRuntimeStoreStatusTests.cs`
-- [ ] T033 [P] [US3] Integration tests for start/stop endpoints (`POST /start` → Running, idempotent, allowed when emulator serial not connected, logs transition; `POST /stop` → Stopped, idempotent; PUT and DELETE return 409 `queue_running` while Running; add/remove entry still allowed while Running) in `tests/integration/Queues/QueueExecutionEndpointTests.cs`
-- [ ] T034 [P] [US3] Frontend tests for `QueuesPage` start/stop (Start flips to Running and disables Edit/Delete; Stop re-enables; status chip reflects state) in `src/web-ui/src/pages/__tests__/QueuesPage.execution.spec.tsx`
+- [x] T032 [P] [US3] Unit tests for `QueueRuntimeStore` status (default `Stopped`; SetStatus; start/stop idempotency) in `tests/unit/Queues/QueueRuntimeStoreStatusTests.cs`
+- [x] T033 [P] [US3] Integration tests for start/stop endpoints (`POST /start` → Running, idempotent, allowed when emulator serial not connected, logs transition; `POST /stop` → Stopped, idempotent; PUT and DELETE return 409 `queue_running` while Running; add/remove entry still allowed while Running) in `tests/integration/Queues/QueueExecutionEndpointTests.cs`
+- [x] T034 [P] [US3] Frontend tests for `QueuesPage` start/stop (Start flips to Running and disables Edit/Delete; Stop re-enables; status chip reflects state) in `src/web-ui/src/pages/__tests__/QueuesPage.execution.spec.tsx`
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Add `POST /api/queues/{id}/start` and `POST /api/queues/{id}/stop` routes to `MapQueueEndpoints` (set status via runtime store, idempotent, `ILogger` info on each transition per FR-019b, start allowed when offline per FR-019a) in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T008, T018)
-- [ ] T036 [US3] Enforce running-state guards on `PUT {id}` and `DELETE {id}` (return 409 `queue_running` when status is Running per FR-005a) in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T018, T035)
-- [ ] T037 [P] [US3] Add a status chip (labeled `Running`/`Stopped` per FR-014) + Start/Stop buttons to the `QueuesPage` list rows (Start/Stop call the service; Edit/Delete disabled while Running) in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T023, T012)
+- [x] T035 [US3] Add `POST /api/queues/{id}/start` and `POST /api/queues/{id}/stop` routes to `MapQueueEndpoints` (set status via runtime store, idempotent, `ILogger` info on each transition per FR-019b, start allowed when offline per FR-019a) in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T008, T018)
+- [x] T036 [US3] Enforce running-state guards on `PUT {id}` and `DELETE {id}` (return 409 `queue_running` when status is Running per FR-005a) in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T018, T035)
+- [x] T037 [P] [US3] Add a status chip (labeled `Running`/`Stopped` per FR-014) + Start/Stop buttons to the `QueuesPage` list rows (Start/Stop call the service; Edit/Delete disabled while Running) in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T023, T012)
 
 **Checkpoint**: All three user stories are independently functional; full create → add → start → stop → delete workflow works from the Queues tab.
 
@@ -130,11 +130,11 @@ Web application: backend in `src/GameBot.Domain/` and `src/GameBot.Service/`; fr
 
 **Purpose**: Documentation, consistency, and end-to-end validation across stories.
 
-- [ ] T038 [P] Run `specs/046-emulator-execution-queue/quickstart.md` end-to-end (incl. the restart check: config persists, entries empty, status Stopped)
-- [ ] T039 [P] Verify CamelCase-only method names and ≤50 LOC per function across new C#/TS files; run ESLint + .NET analyzers clean
-- [ ] T040 Confirm coverage thresholds (≥80% line / ≥70% branch) on new backend and frontend modules; add edge-case tests if short
-- [ ] T041 [P] Regenerate/verify OpenAPI (`specs/openapi.json`) reflects the new `/api/queues` routes if the project tracks it
-- [ ] T042 [P] Scale smoke test for SC-007: seed ~50 queues each with ~100 entries, assert `GET /api/queues` (list) and `GET /api/queues/{id}` (detail) complete within the <1s interaction budget, in `tests/integration/Queues/QueueScaleTests.cs`
+- [ ] T038 [P] Run `specs/046-emulator-execution-queue/quickstart.md` end-to-end (incl. the restart check: config persists, entries empty, status Stopped) — *manual UI walkthrough still pending; restart/persistence behavior is covered by automated tests (QueueRuntimeStore unit tests + endpoint integration tests).*
+- [x] T039 [P] Verify CamelCase-only method names and ≤50 LOC per function across new C#/TS files; run ESLint + .NET analyzers clean
+- [x] T040 Confirm coverage thresholds (≥80% line / ≥70% branch) on new backend and frontend modules; add edge-case tests if short
+- [ ] T041 [P] Regenerate/verify OpenAPI (`specs/openapi.json`) reflects the new `/api/queues` routes if the project tracks it — *deferred: requires running the service to dump the OpenAPI doc; not regenerated in this pass.*
+- [x] T042 [P] Scale smoke test for SC-007: seed ~50 queues each with ~100 entries, assert `GET /api/queues` (list) and `GET /api/queues/{id}` (detail) complete within the <1s interaction budget, in `tests/integration/Queues/QueueScaleTests.cs`
 
 ---
 
