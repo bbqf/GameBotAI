@@ -110,7 +110,7 @@ From the list of queues, an operator can see each queue's execution status and c
 
 #### Execution status (placeholder)
 
-- **FR-014**: System MUST track and expose an execution status for each queue, with at least the states "not running" and "running".
+- **FR-014**: System MUST track and expose an execution status for each queue, with at least the states "not running" and "running". These states are represented canonically as `Stopped` (= "not running") and `Running` in the data model, API, and UI; the UI status indicator displays these labels.
 - **FR-015**: System MUST allow an operator to start a queue, which sets its status to "running".
 - **FR-016**: System MUST allow an operator to stop a queue, which returns its status to "not running".
 - **FR-017**: System MUST make start and stop idempotent: starting a running queue keeps it running, and stopping a not-running queue keeps it not running, without error.
@@ -144,6 +144,8 @@ From the list of queues, an operator can see each queue's execution status and c
 
 ### Measurable Outcomes
 
+> Note: SC-002 and SC-003 are the measurable, verifiable expression of the persistence requirements FR-020/FR-021/FR-022 (not separate requirements). They exist to give those FRs concrete pass/fail acceptance tests.
+
 - **SC-001**: An operator can create a queue bound to an emulator and see it in the Queues list in under 30 seconds, without consulting documentation.
 - **SC-002**: 100% of created queues retain their name, bound emulator, and cycle-execution setting after a service restart.
 - **SC-003**: 100% of queue sequence lists are empty immediately after a service restart, and every queue is in the not-running state after a restart.
@@ -158,7 +160,7 @@ From the list of queues, an operator can see each queue's execution status and c
 - **Emulator identity**: "Emulator" maps to a connected ADB device, identified by its device serial — the same device list already surfaced elsewhere in the app. The serial is persisted as the queue's binding. A persisted binding may reference a serial that is not currently connected.
 - **Multiple queues per emulator**: More than one queue may be bound to the same emulator; there is no uniqueness constraint on the emulator binding.
 - **Duplicate sequences and names**: A sequence may appear multiple times in a queue, and multiple queues may share the same name; queues and entries are distinguished by identity rather than name.
-- **Execution status states**: The minimal status model is "not running" (idle/stopped) and "running". Richer states (paused, error, completed) are out of scope for this iteration.
+- **Execution status states**: The minimal status model is "not running" and "running", represented canonically as `Stopped` and `Running` (the values used by the API/UI). Richer states (paused, error, completed) are out of scope for this iteration.
 - **Authorization/UI conventions**: The Queues tab and its API follow the same authentication, styling, and CRUD conventions as the existing authoring tabs (Commands, Games, Sequences, Images).
 - **Reordering**: Beyond append-on-add and remove, arbitrary reordering of queue entries is out of scope for this iteration ("by default places them at the end" implies append is the only insertion behavior required now).
 - **Scale**: The feature targets a single-operator desktop tool — up to ~50 queues total and ~100 sequence entries per queue. This bounds performance expectations and test data sizing.
