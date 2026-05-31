@@ -133,6 +133,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyConfigurationExamples(operation, path, method, context);
     ApplyTriggerExamples(operation, path, method, context);
     ApplyGameExamples(operation, path, method, context);
+    ApplyQueueExamples(operation, path, method, context);
     ApplyImageExamples(operation, path, method, context);
     ApplyExecutionLogExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
@@ -367,6 +368,89 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, GameUpdateRequest(), context, typeof(GameCreateSchema));
       SetResponseExample(operation, "200", GameCreateResponse(), context, typeof(GameResponseSchema));
     }
+  }
+
+  private static void ApplyQueueExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!path.StartsWith(ApiRoutes.Queues, StringComparison.OrdinalIgnoreCase)) {
+      return;
+    }
+
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Queues)) {
+      operation.Summary ??= "Create a queue";
+      SetRequestExample(operation, QueueCreateRequest(), context, typeof(GameBot.Service.Contracts.Queues.CreateQueueRequest));
+      SetResponseExample(operation, "201", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Queues)) {
+      operation.Summary ??= "List queues";
+      SetResponseExample(operation, "200", new OpenApiArray { QueueResponseExample() }, context, typeof(IEnumerable<GameBot.Service.Contracts.Queues.QueueResponse>));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && path.Contains("/entries", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Append a sequence entry to a queue";
+      SetRequestExample(operation, QueueEntryAddRequest(), context, typeof(GameBot.Service.Contracts.Queues.AddQueueEntryRequest));
+      SetResponseExample(operation, "201", QueueEntryExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueEntryResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/start", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Start a queue (placeholder: sets status to Running)";
+      SetResponseExample(operation, "200", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/stop", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Stop a queue (placeholder: sets status to Stopped)";
+      SetResponseExample(operation, "200", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Queues + "/", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Update a queue (name and cycle execution; emulator is immutable)";
+      SetRequestExample(operation, QueueUpdateRequest(), context, typeof(GameBot.Service.Contracts.Queues.UpdateQueueRequest));
+      SetResponseExample(operation, "200", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Queues + "/", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Get a queue with its ordered sequence entries";
+      SetResponseExample(operation, "200", QueueDetailExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueDetailResponse));
+    }
+  }
+
+  private static OpenApiObject QueueCreateRequest() => new OpenApiObject {
+    ["name"] = new OpenApiString("Daily Farm"),
+    ["emulatorSerial"] = new OpenApiString("emulator-5554"),
+    ["cycleExecution"] = new OpenApiBoolean(true)
+  };
+
+  private static OpenApiObject QueueUpdateRequest() => new OpenApiObject {
+    ["name"] = new OpenApiString("Daily Farm v2"),
+    ["cycleExecution"] = new OpenApiBoolean(false)
+  };
+
+  private static OpenApiObject QueueEntryAddRequest() => new OpenApiObject {
+    ["sequenceId"] = new OpenApiString("sequence-wait-home")
+  };
+
+  private static OpenApiObject QueueResponseExample() => new OpenApiObject {
+    ["id"] = new OpenApiString("queue-daily-farm"),
+    ["name"] = new OpenApiString("Daily Farm"),
+    ["emulatorSerial"] = new OpenApiString("emulator-5554"),
+    ["cycleExecution"] = new OpenApiBoolean(true),
+    ["status"] = new OpenApiString("Stopped"),
+    ["entryCount"] = new OpenApiInteger(2)
+  };
+
+  private static OpenApiObject QueueEntryExample() => new OpenApiObject {
+    ["entryId"] = new OpenApiString("entry-0001"),
+    ["sequenceId"] = new OpenApiString("sequence-wait-home"),
+    ["sequenceName"] = new OpenApiString("Wait for image sequence"),
+    ["stale"] = new OpenApiBoolean(false)
+  };
+
+  private static OpenApiObject QueueDetailExample() {
+    var detail = QueueResponseExample();
+    detail["entries"] = new OpenApiArray {
+      QueueEntryExample(),
+      new OpenApiObject {
+        ["entryId"] = new OpenApiString("entry-0002"),
+        ["sequenceId"] = new OpenApiString("sequence-removed"),
+        ["sequenceName"] = new OpenApiNull(),
+        ["stale"] = new OpenApiBoolean(true)
+      }
+    };
+    return detail;
   }
 
   private static void ApplyImageExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {

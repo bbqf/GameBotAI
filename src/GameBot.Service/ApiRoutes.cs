@@ -4,6 +4,7 @@ internal static class ApiRoutes {
   internal const string Base = "/api";
   internal const string Commands = Base + "/commands";
   internal const string Sequences = Base + "/sequences";
+  internal const string Queues = Base + "/queues";
   internal const string Sessions = Base + "/sessions";
   internal const string Games = Base + "/games";
   internal const string Config = Base + "/config";
