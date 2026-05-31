@@ -13,6 +13,17 @@ jest.mock('../../services/games', () => ({
   listGames: jest.fn()
 }));
 
+jest.mock('../../components/images/ImageSelectorDropdown', () => ({
+  ImageSelectorDropdown: ({ id, label, value, onChange, disabled }: {
+    id?: string; label?: string; value: string; onChange: (v: string) => void; disabled?: boolean;
+  }) => (
+    <>
+      {label && <label htmlFor={id}>{label}</label>}
+      <input id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+    </>
+  ),
+}));
+
 const listCommandsMock = listCommands as jest.MockedFunction<typeof listCommands>;
 const createCommandMock = createCommand as jest.MockedFunction<typeof createCommand>;
 const listSequencesMock = listSequences as jest.MockedFunction<typeof listSequences>;

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { ImageSelectorDropdown } from '../images/ImageSelectorDropdown';
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { FormActions, FormSection } from '../unified/FormLayout';
@@ -93,6 +94,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 }) => {
   const [pendingCommandId, setPendingCommandId] = useState<string | undefined>(undefined);
   const [pendingPrimitiveReferenceImageId, setPendingPrimitiveReferenceImageId] = useState('');
+  const [primitiveTapStale, setPrimitiveTapStale] = useState(false);
   const [pendingPrimitiveConfidence, setPendingPrimitiveConfidence] = useState('');
   const [pendingPrimitiveOffsetX, setPendingPrimitiveOffsetX] = useState('0');
   const [pendingPrimitiveOffsetY, setPendingPrimitiveOffsetY] = useState('0');
@@ -191,11 +193,14 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
         <div className="field grid-3">
           <div>
-            <label htmlFor="command-primitive-reference">Primitive tap image ID</label>
-            <input
+            <ImageSelectorDropdown
               id="command-primitive-reference"
+              label="Primitive tap image ID"
               value={pendingPrimitiveReferenceImageId}
-              onChange={(e) => setPendingPrimitiveReferenceImageId(e.target.value)}
+              onChange={setPendingPrimitiveReferenceImageId}
+              required
+              onStaleChange={setPrimitiveTapStale}
+              error={primitiveTapStale ? 'Selected image no longer exists — please choose a valid image' : undefined}
               disabled={submitting || loading}
             />
           </div>
@@ -255,7 +260,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
               setPendingPrimitiveOffsetX('0');
               setPendingPrimitiveOffsetY('0');
             }}
-            disabled={submitting || loading || !pendingPrimitiveReferenceImageId.trim()}
+            disabled={submitting || loading || !pendingPrimitiveReferenceImageId.trim() || primitiveTapStale}
           >
             Add primitive tap step
           </button>
@@ -263,16 +268,13 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
         <div className="field grid-3">
           <div>
-            <label htmlFor="command-wait-reference">Wait image ID</label>
-            <input
+            <ImageSelectorDropdown
               id="command-wait-reference"
+              label="Wait image ID"
               value={pendingWaitReferenceImageId}
-              onChange={(e) => {
-                const nextValue = e.target.value;
-                setPendingWaitReferenceImageId(nextValue);
-                if (!nextValue.trim()) {
-                  setPendingWaitConfidence('');
-                }
+              onChange={(id) => {
+                setPendingWaitReferenceImageId(id);
+                if (!id) setPendingWaitConfidence('');
               }}
               disabled={submitting || loading}
             />
@@ -351,11 +353,11 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
       <FormSection title="Detection" description="Optional detection target used for coordinate resolution." id="command-detection">
         <div className="field">
-          <label htmlFor="command-detection-reference">Reference image ID</label>
-          <input
+          <ImageSelectorDropdown
             id="command-detection-reference"
+            label="Reference image ID"
             value={value.detection?.referenceImageId ?? ''}
-            onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), referenceImageId: e.target.value } })}
+            onChange={(id) => onChange({ ...value, detection: { ...(value.detection ?? {}), referenceImageId: id } })}
             disabled={submitting}
           />
           <div className="form-hint">Use an existing captured image ID; leave blank to skip detection.</div>

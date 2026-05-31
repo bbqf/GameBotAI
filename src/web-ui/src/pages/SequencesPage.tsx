@@ -17,6 +17,7 @@ import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSte
 import { LoopBlock } from '../components/sequences/LoopBlock';
 import type { LoopStepEntry, BreakStepEntry, StepEntry } from '../types/stepEntry';
 import type { SequenceLinearStep, LoopConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
+import { ImageSelectorDropdown } from '../components/images/ImageSelectorDropdown';
 
 type SequenceStep = {
   id: string;
@@ -703,16 +704,15 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       {step.stepType === 'Action' && step.actionType === 'WaitForImage' && (
         <>
           <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
-            <label htmlFor={`step-wait-image-id-${step.id}`}>Wait image ID</label>
-            <input
+            <ImageSelectorDropdown
               id={`step-wait-image-id-${step.id}`}
+              label="Wait image ID"
               value={step.waitReferenceImageId}
-              onChange={(event) => {
-                const nextValue = event.target.value;
+              onChange={(id) => {
                 setForm((prev) => ({
                   ...prev,
                   steps: prev.steps.map((candidate) => candidate.id === step.id
-                    ? { ...candidate, waitReferenceImageId: nextValue, waitConfidence: nextValue.trim() ? candidate.waitConfidence : '' }
+                    ? { ...candidate, waitReferenceImageId: id, waitConfidence: id ? candidate.waitConfidence : '' }
                     : candidate)
                 }));
                 setDirty(true);
@@ -811,14 +811,14 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       {step.conditionType === 'imageVisible' && (
         <>
           <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
-            <label htmlFor={`step-image-id-${step.id}`}>Image Id</label>
-            <input
+            <ImageSelectorDropdown
               id={`step-image-id-${step.id}`}
+              label="Image Id"
               value={step.imageId}
-              onChange={(event) => {
+              onChange={(id) => {
                 setForm((prev) => ({
                   ...prev,
-                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, imageId: event.target.value } : candidate)
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, imageId: id } : candidate)
                 }));
                 setDirty(true);
               }}
@@ -1311,18 +1311,14 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             </div>
             <div className="field grid-3">
               <div>
-                <label htmlFor="sequence-wait-reference">Wait image ID</label>
-                <input
+                <ImageSelectorDropdown
                   id="sequence-wait-reference"
+                  label="Wait image ID"
                   value={pendingWaitReferenceImageId}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    setPendingWaitReferenceImageId(nextValue);
-                    if (!nextValue.trim()) {
-                      setPendingWaitConfidence('');
-                    }
+                  onChange={(id) => {
+                    setPendingWaitReferenceImageId(id);
+                    if (!id) setPendingWaitConfidence('');
                   }}
-                  disabled={submitting || loading}
                 />
               </div>
               <div>
@@ -1568,18 +1564,14 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               </div>
               <div className="field grid-3">
                 <div>
-                  <label htmlFor="sequence-edit-wait-reference">Wait image ID</label>
-                  <input
+                  <ImageSelectorDropdown
                     id="sequence-edit-wait-reference"
+                    label="Wait image ID"
                     value={pendingWaitReferenceImageId}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setPendingWaitReferenceImageId(nextValue);
-                      if (!nextValue.trim()) {
-                        setPendingWaitConfidence('');
-                      }
+                    onChange={(id) => {
+                      setPendingWaitReferenceImageId(id);
+                      if (!id) setPendingWaitConfidence('');
                     }}
-                    disabled={submitting || loading}
                   />
                 </div>
                 <div>

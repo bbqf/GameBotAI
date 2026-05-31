@@ -42,6 +42,17 @@ jest.mock('@dnd-kit/utilities', () => ({
   CSS: { Translate: { toString: () => '' }, Transform: { toString: () => '' } },
 }));
 
+jest.mock('../../components/images/ImageSelectorDropdown', () => ({
+  ImageSelectorDropdown: ({ id, label, value, onChange, disabled }: {
+    id?: string; label?: string; value: string; onChange: (v: string) => void; disabled?: boolean;
+  }) => (
+    <>
+      {label && <label htmlFor={id}>{label}</label>}
+      <input id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+    </>
+  ),
+}));
+
 import { DndContext, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 
