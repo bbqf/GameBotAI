@@ -25,6 +25,18 @@ jest.mock('@dnd-kit/utilities', () => ({
   CSS: { Translate: { toString: () => '' }, Transform: { toString: () => '' } },
 }));
 
+jest.mock('../../images/ImageSelectorDropdown', () => ({
+  ImageSelectorDropdown: ({ id, label, value, onChange, disabled, 'data-testid': testId }: {
+    id?: string; label?: string; value: string; onChange: (v: string) => void; disabled?: boolean;
+    'data-testid'?: string;
+  }) => (
+    <>
+      {label && <label htmlFor={id}>{label}</label>}
+      <input id={id} data-testid={testId} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+    </>
+  ),
+}));
+
 const testCommands: CommandOption[] = [
   { value: 'cmd-a', label: 'Command A' },
   { value: 'cmd-b', label: 'Command B' },

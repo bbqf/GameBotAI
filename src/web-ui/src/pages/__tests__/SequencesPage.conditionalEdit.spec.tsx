@@ -7,6 +7,17 @@ import { listCommands } from '../../services/commands';
 jest.mock('../../services/sequences');
 jest.mock('../../services/commands');
 
+jest.mock('../../components/images/ImageSelectorDropdown', () => ({
+  ImageSelectorDropdown: ({ id, label, value, onChange, disabled }: {
+    id?: string; label?: string; value: string; onChange: (v: string) => void; disabled?: boolean;
+  }) => (
+    <>
+      {label && <label htmlFor={id}>{label}</label>}
+      <input id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+    </>
+  ),
+}));
+
 const listSequencesMock = listSequences as jest.MockedFunction<typeof listSequences>;
 const getSequenceMock = getSequence as jest.MockedFunction<typeof getSequence>;
 const updateSequenceMock = updateSequence as jest.MockedFunction<typeof updateSequence>;

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { SequenceStepCondition } from '../../types/sequenceFlow';
 import { SimilarityInput } from './SimilarityInput';
+import { ImageSelectorDropdown } from '../images/ImageSelectorDropdown';
 
 export type BreakStepRowProps = {
   breakCondition?: SequenceStepCondition;
@@ -70,14 +71,12 @@ export const BreakStepRow: React.FC<BreakStepRowProps> = ({ breakCondition, onCh
           {breakCondition.type === 'imageVisible' && (
             <>
               <div className="break-step-row__field">
-                <label>Image ID</label>
-                <input
-                  type="text"
+                <ImageSelectorDropdown
+                  label="Image ID"
                   data-testid="break-image-id"
                   value={breakCondition.imageId}
+                  onChange={(id) => onChange({ ...breakCondition, imageId: id })}
                   disabled={disabled}
-                  placeholder="Enter image ID"
-                  onChange={(e) => onChange({ ...breakCondition, imageId: e.target.value })}
                 />
               </div>
               <div className="break-step-row__field">

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { SequenceStepCondition } from '../../types/sequenceFlow';
 import { SimilarityInput } from './SimilarityInput';
+import { ImageSelectorDropdown } from '../images/ImageSelectorDropdown';
 
 export type LoopBlockHeaderProps = {
   loopType: 'count' | 'while' | 'repeatUntil';
@@ -75,12 +76,11 @@ export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
 
           {condition?.type === 'imageVisible' && (
             <>
-              <input
+              <ImageSelectorDropdown
                 data-testid="loop-condition-imageId"
-                placeholder="Image ID"
                 value={condition.imageId}
+                onChange={(id) => onConditionChange?.({ ...condition, imageId: id })}
                 disabled={disabled}
-                onChange={(e) => onConditionChange?.({ ...condition, imageId: e.target.value })}
               />
               <SimilarityInput
                 data-testid="loop-condition-minSimilarity"
