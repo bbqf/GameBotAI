@@ -18,6 +18,12 @@ const renderDialog = (overrides: Partial<React.ComponentProps<typeof SaveTemplat
 };
 
 describe('SaveTemplateDialog', () => {
+  it('renders as an inline section, not a modal overlay', () => {
+    renderDialog();
+    expect(screen.getByRole('region', { name: 'Save template' })).toBeInTheDocument();
+    expect(document.querySelector('.modal-backdrop')).toBeNull();
+  });
+
   it('pre-fills the origin template name', () => {
     renderDialog({ originName: 'Daily Farm' });
     expect(screen.getByLabelText('Template name')).toHaveValue('Daily Farm');

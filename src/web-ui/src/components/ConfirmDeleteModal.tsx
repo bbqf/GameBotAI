@@ -55,10 +55,10 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
           </div>
         )}
         <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>
+          <button type="button" className="btn btn-secondary" onClick={onCancel}>
             {cancelText}
           </button>
-          <button className="btn btn-danger" onClick={onConfirm}>
+          <button type="button" className="btn btn-danger" onClick={onConfirm}>
             {confirmText}
           </button>
         </div>
