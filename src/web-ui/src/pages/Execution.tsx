@@ -134,11 +134,10 @@ export const ExecutionPage: React.FC = () => {
     }
   }, [commands, selectedCommandId]);
 
-  useEffect(() => {
-    if (!selectedSequenceId && sequences.length > 0) {
-      setSelectedSequenceId(sequences[0].id);
-    }
-  }, [sequences, selectedSequenceId]);
+  // Derive the effective selection so the dropdown's value and the execute handler never
+  // diverge: a controlled <select> would otherwise default its DOM value to the first option
+  // while state lags behind a separate auto-select effect, leaving the handler reading undefined.
+  const effectiveSequenceId = selectedSequenceId ?? sequences[0]?.id;
 
   const selectedRunningSession = useMemo(() => {
     if (!selectedGameId || !selectedAdbSerial) return undefined;
@@ -234,7 +233,7 @@ export const ExecutionPage: React.FC = () => {
   };
 
   const handleExecuteSequence = async () => {
-    if (!selectedSequenceId) {
+    if (!effectiveSequenceId) {
       setSequenceError('Select a sequence to execute.');
       return;
     }
@@ -244,7 +243,7 @@ export const ExecutionPage: React.FC = () => {
     setSequenceError(undefined);
 
     try {
-      await executeSequence(selectedSequenceId, cachedSession?.sessionId);
+      await executeSequence(effectiveSequenceId, cachedSession?.sessionId);
       setSequenceMessage('Sequence executed successfully.');
     } catch (err: any) {
       if (err instanceof ApiError) {
@@ -426,7 +425,7 @@ export const ExecutionPage: React.FC = () => {
           <select
             id="sequence-select"
             aria-label="Sequence"
-            value={selectedSequenceId ?? ''}
+            value={effectiveSequenceId ?? ''}
             onChange={(e) => { setSelectedSequenceId(e.target.value); setSequenceMessage(undefined); setSequenceError(undefined); }}
             disabled={loadingSequences || executingSequence || sequences.length === 0}
           >
