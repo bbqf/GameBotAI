@@ -103,7 +103,7 @@ describe('QueuesPage template load wiring', () => {
     const picker = await openLoadSection();
     fireEvent.click(within(picker).getByText('Load'));
 
-    const confirm = await screen.findByRole('dialog', { name: 'Replace queue entries' });
+    const confirm = await screen.findByRole('region', { name: 'Replace queue entries' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Replace' }));
 
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-x']));
@@ -113,7 +113,7 @@ describe('QueuesPage template load wiring', () => {
     const picker = await openLoadSection();
     fireEvent.click(within(picker).getByText('Load'));
 
-    const confirm = await screen.findByRole('dialog', { name: 'Replace queue entries' });
+    const confirm = await screen.findByRole('region', { name: 'Replace queue entries' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }));
 
     expect(replaceEntriesMock).not.toHaveBeenCalled();

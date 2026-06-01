@@ -5,6 +5,15 @@ import { TemplatePickerDialog } from './TemplatePickerDialog';
 
 type OpenSection = 'none' | 'save' | 'load';
 
+/** An inline confirmation prompt shown in place of the picker (between rows 2 and 3). */
+export type TemplateConfirm = {
+  title: string;
+  message: string;
+  confirmText: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+};
+
 type QueueTemplateControlsProps = {
   /** Name of the template the queue is currently associated with (loaded or saved this session). */
   associatedTemplateName?: string;
@@ -15,6 +24,8 @@ type QueueTemplateControlsProps = {
   onLoadTemplate: (templateId: string) => void;
   /** Re-applies the associated template's persisted entries (with diff-aware confirmation). */
   onReload: () => void;
+  /** When set, a replace/reload confirmation is shown inline (instead of the picker). */
+  pendingConfirm?: TemplateConfirm;
 };
 
 export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
@@ -23,9 +34,12 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
   onSaveTemplate,
   onLoadTemplate,
   onReload,
+  pendingConfirm,
 }) => {
   const [openSection, setOpenSection] = useState<OpenSection>('none');
   const running = status === 'Running';
+  // While a replace/reload confirmation is pending, it occupies the picker's spot.
+  const section = pendingConfirm ? 'none' : openSection;
 
   const toggle = (section: Exclude<OpenSection, 'none'>) =>
     setOpenSection((current) => (current === section ? 'none' : section));
@@ -63,14 +77,14 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
       </div>
 
       <SaveTemplateDialog
-        open={openSection === 'save'}
+        open={section === 'save'}
         originName={associatedTemplateName}
         onSave={onSaveTemplate}
         onClose={close}
       />
 
       <TemplatePickerDialog
-        open={openSection === 'load'}
+        open={section === 'load'}
         loadDisabled={running}
         onLoad={(templateId) => {
           onLoadTemplate(templateId);
@@ -78,6 +92,17 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
         }}
         onClose={close}
       />
+
+      {pendingConfirm && (
+        <section className="queue-template-section" aria-label={pendingConfirm.title}>
+          <h4>{pendingConfirm.title}</h4>
+          <p>{pendingConfirm.message}</p>
+          <div className="queue-template-section-actions">
+            <button type="button" className="btn btn-secondary" onClick={pendingConfirm.onCancel}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={pendingConfirm.onConfirm}>{pendingConfirm.confirmText}</button>
+          </div>
+        </section>
+      )}
     </section>
   );
 };

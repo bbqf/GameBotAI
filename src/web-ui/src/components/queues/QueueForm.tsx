@@ -53,42 +53,44 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         onSubmit();
       }}
     >
-      <div className="field">
-        <label htmlFor="queue-name">Name *</label>
-        <input
-          id="queue-name"
-          value={value.name}
-          onChange={(e) => onChange({ ...value, name: e.target.value })}
-          onKeyDown={(e) => {
-            // Row 2/4 slots carry their own inputs; with no submit button the form never
-            // implicitly submits, so trigger submit explicitly from the name field.
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onSubmit();
-            }
-          }}
-          aria-invalid={Boolean(fieldErrors?.name)}
-          aria-describedby={fieldErrors?.name ? 'queue-name-error' : undefined}
-          disabled={submitting}
-        />
-        {fieldErrors?.name && <div id="queue-name-error" className="field-error" role="alert">{fieldErrors.name}</div>}
-      </div>
-
-      <div className="field">
-        <label htmlFor="queue-emulator">Emulator *</label>
-        {isEdit ? (
-          <input id="queue-emulator" value={value.emulatorSerial} readOnly aria-readonly="true" disabled />
-        ) : (
-          <SearchableDropdown
-            id="queue-emulator"
-            value={value.emulatorSerial || undefined}
-            options={emulatorOptions}
-            placeholder={devicesLoading ? 'Loading devices…' : 'Select an emulator…'}
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="queue-name">Name *</label>
+          <input
+            id="queue-name"
+            value={value.name}
+            onChange={(e) => onChange({ ...value, name: e.target.value })}
+            onKeyDown={(e) => {
+              // Row 2/4 slots carry their own inputs; with no submit button the form never
+              // implicitly submits, so trigger submit explicitly from the name field.
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onSubmit();
+              }
+            }}
+            aria-invalid={Boolean(fieldErrors?.name)}
+            aria-describedby={fieldErrors?.name ? 'queue-name-error' : undefined}
             disabled={submitting}
-            onChange={(serial) => onChange({ ...value, emulatorSerial: serial ?? '' })}
-            error={fieldErrors?.emulatorSerial}
           />
-        )}
+          {fieldErrors?.name && <div id="queue-name-error" className="field-error" role="alert">{fieldErrors.name}</div>}
+        </div>
+
+        <div className="field">
+          <label htmlFor="queue-emulator">Emulator *</label>
+          {isEdit ? (
+            <input id="queue-emulator" value={value.emulatorSerial} readOnly aria-readonly="true" disabled />
+          ) : (
+            <SearchableDropdown
+              id="queue-emulator"
+              value={value.emulatorSerial || undefined}
+              options={emulatorOptions}
+              placeholder={devicesLoading ? 'Loading devices…' : 'Select an emulator…'}
+              disabled={submitting}
+              onChange={(serial) => onChange({ ...value, emulatorSerial: serial ?? '' })}
+              error={fieldErrors?.emulatorSerial}
+            />
+          )}
+        </div>
       </div>
 
       {isEdit && templateControls}

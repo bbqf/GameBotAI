@@ -207,6 +207,33 @@ export const QueuesPage: React.FC = () => {
     }
   };
 
+  // Replace/reload confirmation shown inline within the template controls (where the picker was).
+  const templateConfirm = pendingLoad
+    ? {
+        title: 'Replace queue entries',
+        message: "Loading this template will replace the queue's current entries.",
+        confirmText: 'Replace',
+        onCancel: () => setPendingLoad(undefined),
+        onConfirm: () => {
+          const p = pendingLoad;
+          setPendingLoad(undefined);
+          if (p) void applyLoad(p.name, p.sequenceIds);
+        },
+      }
+    : pendingReload
+      ? {
+          title: 'Reload template',
+          message: "Reloading will replace the queue's current entries with the template's.",
+          confirmText: 'Reload',
+          onCancel: () => setPendingReload(undefined),
+          onConfirm: () => {
+            const p = pendingReload;
+            setPendingReload(undefined);
+            if (p) void applyLoad(p.name, p.sequenceIds);
+          },
+        }
+      : undefined;
+
   return (
     <section>
       <h2>Queues</h2>
@@ -301,6 +328,7 @@ export const QueuesPage: React.FC = () => {
                 onSaveTemplate={handleSaveTemplate}
                 onLoadTemplate={(id) => void handleLoadTemplate(id)}
                 onReload={() => void handleReload()}
+                pendingConfirm={templateConfirm}
               />
             }
             entries={
@@ -314,32 +342,6 @@ export const QueuesPage: React.FC = () => {
           />
         </section>
       )}
-
-      <ConfirmDeleteModal
-        open={pendingReload !== undefined}
-        title="Reload template"
-        message="Reloading will replace the queue's current entries with the template's."
-        confirmText="Reload"
-        onCancel={() => setPendingReload(undefined)}
-        onConfirm={() => {
-          const p = pendingReload;
-          setPendingReload(undefined);
-          if (p) void applyLoad(p.name, p.sequenceIds);
-        }}
-      />
-
-      <ConfirmDeleteModal
-        open={pendingLoad !== undefined}
-        title="Replace queue entries"
-        message="Loading this template will replace the queue's current entries."
-        confirmText="Replace"
-        onCancel={() => setPendingLoad(undefined)}
-        onConfirm={() => {
-          const p = pendingLoad;
-          setPendingLoad(undefined);
-          if (p) void applyLoad(p.name, p.sequenceIds);
-        }}
-      />
 
       <ConfirmDeleteModal
         open={deleteOpen}

@@ -74,7 +74,7 @@ describe('QueuesPage reload template', () => {
     await openEditAndAssociate();
 
     fireEvent.click(screen.getByText('Reload Template'));
-    const confirm = await screen.findByRole('dialog', { name: 'Reload template' });
+    const confirm = await screen.findByRole('region', { name: 'Reload template' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Reload' }));
 
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-x']));
@@ -88,7 +88,7 @@ describe('QueuesPage reload template', () => {
     await openEditAndAssociate();
 
     fireEvent.click(screen.getByText('Reload Template'));
-    const confirm = await screen.findByRole('dialog', { name: 'Reload template' });
+    const confirm = await screen.findByRole('region', { name: 'Reload template' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }));
 
     expect(replaceEntriesMock).not.toHaveBeenCalled();
@@ -106,7 +106,7 @@ describe('QueuesPage reload template', () => {
 
     fireEvent.click(screen.getByText('Reload Template'));
     await waitFor(() => expect(getTemplateMock).toHaveBeenCalled());
-    expect(screen.queryByRole('dialog', { name: 'Reload template' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Reload template' })).not.toBeInTheDocument();
     expect(replaceEntriesMock).not.toHaveBeenCalled();
   });
 
@@ -120,7 +120,7 @@ describe('QueuesPage reload template', () => {
 
     fireEvent.click(screen.getByText('Reload Template'));
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-x']));
-    expect(screen.queryByRole('dialog', { name: 'Reload template' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Reload template' })).not.toBeInTheDocument();
   });
 
   it('reports when the associated template is no longer available', async () => {
