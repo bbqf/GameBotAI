@@ -43,6 +43,8 @@ export const addQueueEntry = (id: string, sequenceId: string) =>
   postJson<QueueEntryDto>(`${base}/${id}/entries`, { sequenceId });
 export const removeQueueEntry = (id: string, entryId: string) =>
   deleteJson<void>(`${base}/${id}/entries/${entryId}`);
+export const replaceQueueEntries = (id: string, sequenceIds: string[]) =>
+  putJson<QueueDetailDto>(`${base}/${id}/entries`, { sequenceIds });
 
 export const startQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/start`, {});
 export const stopQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/stop`, {});

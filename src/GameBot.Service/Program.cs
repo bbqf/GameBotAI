@@ -122,6 +122,7 @@ builder.Services.AddSingleton<ICommandRepository>(_ => new FileCommandRepository
 builder.Services.AddSingleton<ISequenceRepository>(_ => new FileSequenceRepository(storageRoot));
 builder.Services.AddSingleton<GameBot.Domain.Queues.IQueueRepository>(_ => new GameBot.Domain.Queues.FileQueueRepository(storageRoot));
 builder.Services.AddSingleton<GameBot.Domain.Queues.IQueueRuntimeStore, GameBot.Domain.Queues.QueueRuntimeStore>();
+builder.Services.AddSingleton<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>(_ => new GameBot.Domain.QueueTemplates.FileQueueTemplateRepository(storageRoot));
 builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
 builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
 builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLogService, GameBot.Service.Services.ExecutionLog.ExecutionLogService>();
@@ -390,6 +391,7 @@ app.MapGameEndpoints();
 // Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
 app.MapQueueEndpoints();
+app.MapQueueTemplateEndpoints();
 // Triggers endpoints (re-added after refactor to support direct CRUD)
 app.MapTriggerEndpoints();
 // ADB diagnostics endpoints (protected if token set)

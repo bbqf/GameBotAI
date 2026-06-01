@@ -1,0 +1,86 @@
+using System;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using FluentAssertions;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Xunit;
+
+namespace GameBot.ContractTests.QueueTemplates;
+
+/// <summary>
+/// Asserts the /api/queue-templates request/response shapes match contracts/queue-templates-api.md.
+/// </summary>
+public sealed class QueueTemplatesApiContractTests : IDisposable {
+  private readonly string? _prevAuthToken;
+  private readonly string? _prevUseAdb;
+  private readonly string? _prevDynamicPort;
+
+  public QueueTemplatesApiContractTests() {
+    _prevAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+    _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    _prevDynamicPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
+
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
+    Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", "false");
+    Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
+  }
+
+  public void Dispose() {
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", _prevAuthToken);
+    Environment.SetEnvironmentVariable("GAMEBOT_USE_ADB", _prevUseAdb);
+    Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", _prevDynamicPort);
+    GC.SuppressFinalize(this);
+  }
+
+  [Fact]
+  public async Task QueueTemplateLifecycleContractIsExposed() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+    var name = "Contract " + Guid.NewGuid().ToString("N");
+    var sequenceIds = new[] { "seq-x" };
+
+    // Save (create) -> 201 QueueTemplateDetailResponse shape
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name, sequenceIds, overwrite = false }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    foreach (var field in new[] { "id", "name", "entryCount", "createdAt", "updatedAt", "entries" }) {
+      created.TryGetProperty(field, out _).Should().BeTrue($"detail must expose '{field}'");
+    }
+    var entry = created.GetProperty("entries")[0];
+    foreach (var field in new[] { "sequenceId", "sequenceName", "stale" }) {
+      entry.TryGetProperty(field, out _).Should().BeTrue($"entry must expose '{field}'");
+    }
+    var id = created.GetProperty("id").GetString();
+
+    // List -> 200 array of summaries
+    var listResp = await client.GetAsync(new Uri("/api/queue-templates", UriKind.Relative)).ConfigureAwait(true);
+    listResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var list = JsonDocument.Parse(await listResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    list.ValueKind.Should().Be(JsonValueKind.Array);
+
+    // Detail -> entries array present
+    var detail = JsonDocument.Parse(await (await client.GetAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    detail.GetProperty("entries").ValueKind.Should().Be(JsonValueKind.Array);
+
+    // Duplicate name without overwrite -> 409
+    var conflict = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name, sequenceIds = Array.Empty<string>(), overwrite = false }).ConfigureAwait(true);
+    conflict.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+    // Overwrite -> 200
+    var overwrite = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name, sequenceIds = Array.Empty<string>(), overwrite = true }).ConfigureAwait(true);
+    overwrite.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    // Invalid name -> 400
+    var invalid = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "bad/name", sequenceIds = Array.Empty<string>(), overwrite = false }).ConfigureAwait(true);
+    invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+    // Delete -> 204
+    (await client.DeleteAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+  }
+}

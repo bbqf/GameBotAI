@@ -29,8 +29,8 @@ Frontend: `src/web-ui/src/`, tests in colocated `__tests__/` (Jest + RTL).
 
 **Purpose**: Create the new module locations; confirm a green baseline before changes.
 
-- [ ] T001 Create backend folders `src/GameBot.Domain/QueueTemplates/`, `src/GameBot.Service/Contracts/QueueTemplates/`, and test folders `tests/unit/QueueTemplates/`, `tests/integration/QueueTemplates/`, `tests/contract/QueueTemplates/` (the test projects `tests/unit`, `tests/integration`, `tests/contract` already exist; just add subfolders)
-- [ ] T002 Confirm baseline build + test pass (`dotnet build`, `dotnet test`, and `npm test` in `src/web-ui`) before starting (constitution: no red baseline)
+- [X] T001 Create backend folders `src/GameBot.Domain/QueueTemplates/`, `src/GameBot.Service/Contracts/QueueTemplates/`, and test folders `tests/unit/QueueTemplates/`, `tests/integration/QueueTemplates/`, `tests/contract/QueueTemplates/` (the test projects `tests/unit`, `tests/integration`, `tests/contract` already exist; just add subfolders)
+- [X] T002 Confirm baseline build + test pass (`dotnet build`, `dotnet test`, and `npm test` in `src/web-ui`) before starting (constitution: no red baseline)
 
 ---
 
@@ -42,29 +42,29 @@ Frontend: `src/web-ui/src/`, tests in colocated `__tests__/` (Jest + RTL).
 
 ### Backend — domain & persistence
 
-- [ ] T003 [P] Add route constant `QueueTemplates = Base + "/queue-templates"` in `src/GameBot.Service/ApiRoutes.cs`
-- [ ] T004 [P] Create `QueueTemplateEntry` (`{ string SequenceId }`) in `src/GameBot.Domain/QueueTemplates/QueueTemplateEntry.cs`
-- [ ] T005 [P] Create `QueueTemplate` (`Id`, `Name`, `List<QueueTemplateEntry> Entries`, `CreatedAt`, `UpdatedAt`) in `src/GameBot.Domain/QueueTemplates/QueueTemplate.cs`
-- [ ] T006 [P] Create `IQueueTemplateRepository` (`GetAsync`, `ListAsync`, `FindByNameAsync`, `CreateAsync`, `UpdateAsync`, `DeleteAsync`) in `src/GameBot.Domain/QueueTemplates/IQueueTemplateRepository.cs`
-- [ ] T007 Implement `FileQueueTemplateRepository` in `src/GameBot.Domain/QueueTemplates/FileQueueTemplateRepository.cs` — root `{storageRoot}/queue-templates`, GUID id, persist entries, indented JSON, safe-id/path-traversal guard and `FindByNameAsync` (OrdinalIgnoreCase); copy patterns from `FileQueueRepository.cs` (depends on T004–T006)
+- [X] T003 [P] Add route constant `QueueTemplates = Base + "/queue-templates"` in `src/GameBot.Service/ApiRoutes.cs`
+- [X] T004 [P] Create `QueueTemplateEntry` (`{ string SequenceId }`) in `src/GameBot.Domain/QueueTemplates/QueueTemplateEntry.cs`
+- [X] T005 [P] Create `QueueTemplate` (`Id`, `Name`, `List<QueueTemplateEntry> Entries`, `CreatedAt`, `UpdatedAt`) in `src/GameBot.Domain/QueueTemplates/QueueTemplate.cs`
+- [X] T006 [P] Create `IQueueTemplateRepository` (`GetAsync`, `ListAsync`, `FindByNameAsync`, `CreateAsync`, `UpdateAsync`, `DeleteAsync`) in `src/GameBot.Domain/QueueTemplates/IQueueTemplateRepository.cs`
+- [X] T007 Implement `FileQueueTemplateRepository` in `src/GameBot.Domain/QueueTemplates/FileQueueTemplateRepository.cs` — root `{storageRoot}/queue-templates`, GUID id, persist entries, indented JSON, safe-id/path-traversal guard and `FindByNameAsync` (OrdinalIgnoreCase); copy patterns from `FileQueueRepository.cs` (depends on T004–T006)
 
 ### Backend — DTOs & read endpoints
 
-- [ ] T008 [P] Create `SaveQueueTemplateRequest` (`Name`, `string[] SequenceIds`, `bool Overwrite`) in `src/GameBot.Service/Contracts/QueueTemplates/SaveQueueTemplateRequest.cs`
-- [ ] T009 [P] Create `QueueTemplateSummaryResponse` (`Id`, `Name`, `EntryCount`, `CreatedAt`, `UpdatedAt`) in `src/GameBot.Service/Contracts/QueueTemplates/QueueTemplateSummaryResponse.cs`
-- [ ] T010 [P] Create `QueueTemplateDetailResponse` (summary + `Collection<QueueTemplateEntryResponse> Entries` with `SequenceId`, `SequenceName`, `Stale`) in `src/GameBot.Service/Contracts/QueueTemplates/QueueTemplateDetailResponse.cs`
-- [ ] T011 Create `QueueTemplatesEndpoints.MapQueueTemplateEndpoints()` scaffold + `GET ""` (list summaries) and `GET "{id}"` (detail with stale resolution via `ISequenceRepository`, mirroring `QueuesEndpoints.ProjectEntry`) in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs`; reuse the shared `{ error:{code,message,hint} }` envelope (depends on T007–T010)
-- [ ] T012 Register `IQueueTemplateRepository` singleton and call `app.MapQueueTemplateEndpoints()` in `src/GameBot.Service/Program.cs` (beside the existing queue registrations)
+- [X] T008 [P] Create `SaveQueueTemplateRequest` (`Name`, `string[] SequenceIds`, `bool Overwrite`) in `src/GameBot.Service/Contracts/QueueTemplates/SaveQueueTemplateRequest.cs`
+- [X] T009 [P] Create `QueueTemplateSummaryResponse` (`Id`, `Name`, `EntryCount`, `CreatedAt`, `UpdatedAt`) in `src/GameBot.Service/Contracts/QueueTemplates/QueueTemplateSummaryResponse.cs`
+- [X] T010 [P] Create `QueueTemplateDetailResponse` (summary + `Collection<QueueTemplateEntryResponse> Entries` with `SequenceId`, `SequenceName`, `Stale`) in `src/GameBot.Service/Contracts/QueueTemplates/QueueTemplateDetailResponse.cs`
+- [X] T011 Create `QueueTemplatesEndpoints.MapQueueTemplateEndpoints()` scaffold + `GET ""` (list summaries) and `GET "{id}"` (detail with stale resolution via `ISequenceRepository`, mirroring `QueuesEndpoints.ProjectEntry`) in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs`; reuse the shared `{ error:{code,message,hint} }` envelope (depends on T007–T010)
+- [X] T012 Register `IQueueTemplateRepository` singleton and call `app.MapQueueTemplateEndpoints()` in `src/GameBot.Service/Program.cs` (beside the existing queue registrations)
 
 ### Backend — foundational tests
 
-- [ ] T013 [P] Repository tests in `tests/unit/QueueTemplates/FileQueueTemplateRepositoryTests.cs` (GameBot.UnitTests; mirrors `tests/unit/Queues/FileQueueRepositoryTests.cs`) — CRUD round-trip in a temp dir, **entries persisted & ordered**, `FindByNameAsync` case-insensitive, safe-id rejection
-- [ ] T014 [P] Read-endpoint tests in `tests/integration/QueueTemplates/QueueTemplatesReadEndpointTests.cs` (GameBot.IntegrationTests; mirrors `tests/integration/Queues/QueuesCrudEndpointTests.cs`) — list summaries, detail resolves `sequenceName`/`stale`, 404 unknown id
+- [X] T013 [P] Repository tests in `tests/unit/QueueTemplates/FileQueueTemplateRepositoryTests.cs` (GameBot.UnitTests; mirrors `tests/unit/Queues/FileQueueRepositoryTests.cs`) — CRUD round-trip in a temp dir, **entries persisted & ordered**, `FindByNameAsync` case-insensitive, safe-id rejection
+- [X] T014 [P] Read-endpoint tests in `tests/integration/QueueTemplates/QueueTemplatesReadEndpointTests.cs` (GameBot.IntegrationTests; mirrors `tests/integration/Queues/QueuesCrudEndpointTests.cs`) — list summaries, detail resolves `sequenceName`/`stale`, 404 unknown id
 
 ### Frontend — shared client
 
-- [ ] T015 [P] Create `src/web-ui/src/services/queueTemplates.ts` — types (`QueueTemplateSummary`, `QueueTemplateDetail`, `QueueTemplateEntryDto`, `SaveQueueTemplate`) + `listQueueTemplates`, `getQueueTemplate`, `saveQueueTemplate`, `deleteQueueTemplate` (mirror `services/queues.ts`)
-- [ ] T016 [P] Service-client tests in `src/web-ui/src/services/__tests__/queueTemplates.spec.ts` — each call hits the right URL/verb/body (mock `lib/api`)
+- [X] T015 [P] Create `src/web-ui/src/services/queueTemplates.ts` — types (`QueueTemplateSummary`, `QueueTemplateDetail`, `QueueTemplateEntryDto`, `SaveQueueTemplate`) + `listQueueTemplates`, `getQueueTemplate`, `saveQueueTemplate`, `deleteQueueTemplate` (mirror `services/queues.ts`)
+- [X] T016 [P] Service-client tests in `src/web-ui/src/services/__tests__/queueTemplates.spec.ts` — each call hits the right URL/verb/body (mock `lib/api`)
 
 **Checkpoint**: Template module persists, lists, and reads; frontend can query it. Story work can begin.
 
@@ -78,15 +78,15 @@ Frontend: `src/web-ui/src/`, tests in colocated `__tests__/` (Jest + RTL).
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Save-endpoint tests in `tests/integration/QueueTemplates/QueueTemplatesSaveEndpointTests.cs` (GameBot.IntegrationTests) — new name → 201; same name (incl. different casing) + `overwrite:false` → 409 `template_exists`; `overwrite:true` → 200 replaces entries + bumps `UpdatedAt`; blank/illegal-char/>100-char name → 400 naming the rule; empty `sequenceIds` allowed; duplicates preserved
-- [ ] T018 [P] [US1] `SaveTemplateDialog` tests in `src/web-ui/src/components/queues/__tests__/SaveTemplateDialog.test.tsx` — pre-fills `originName`; name-rule validation; on `template_exists` shows overwrite confirm then re-saves with `overwrite:true`; cancel saves nothing
+- [X] T017 [P] [US1] Save-endpoint tests in `tests/integration/QueueTemplates/QueueTemplatesSaveEndpointTests.cs` (GameBot.IntegrationTests) — new name → 201; same name (incl. different casing) + `overwrite:false` → 409 `template_exists`; `overwrite:true` → 200 replaces entries + bumps `UpdatedAt`; blank/illegal-char/>100-char name → 400 naming the rule; empty `sequenceIds` allowed; duplicates preserved
+- [X] T018 [P] [US1] `SaveTemplateDialog` tests in `src/web-ui/src/components/queues/__tests__/SaveTemplateDialog.test.tsx` — pre-fills `originName`; name-rule validation; on `template_exists` shows overwrite confirm then re-saves with `overwrite:true`; cancel saves nothing
 
 ### Implementation for User Story 1
 
-- [ ] T019 [US1] Implement `POST ""` save handler in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs` — validate name (trim → non-blank → `[A-Za-z0-9 _-]` → ≤100), `FindByNameAsync` → create (201) / overwrite when `Overwrite` (200) / 409 `template_exists` with hint; build entries from `SequenceIds` preserving order (depends on T011)
-- [ ] T020 [P] [US1] Create `SaveTemplateDialog` in `src/web-ui/src/components/queues/SaveTemplateDialog.tsx` — name input (pre-filled via `originName`), client-side validation hints, Save/Cancel, overwrite-confirm flow calling `onSave(name, overwrite)`
-- [ ] T021 [US1] Wire **Save as template** into `src/web-ui/src/pages/QueuesPage.tsx` — button in the Edit-Queue section; build `sequenceIds` from `detail.entries`; call `saveQueueTemplate`; map 409 → dialog overwrite confirm; pass `loadedTemplateName` as `originName`
-- [ ] T022 [US1] Add `QueuesPage` save-wiring tests in `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` — save builds sequenceIds from entries; success message; 409 path triggers overwrite confirm
+- [X] T019 [US1] Implement `POST ""` save handler in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs` — validate name (trim → non-blank → `[A-Za-z0-9 _-]` → ≤100), `FindByNameAsync` → create (201) / overwrite when `Overwrite` (200) / 409 `template_exists` with hint; build entries from `SequenceIds` preserving order (depends on T011)
+- [X] T020 [P] [US1] Create `SaveTemplateDialog` in `src/web-ui/src/components/queues/SaveTemplateDialog.tsx` — name input (pre-filled via `originName`), client-side validation hints, Save/Cancel, overwrite-confirm flow calling `onSave(name, overwrite)`
+- [X] T021 [US1] Wire **Save as template** into `src/web-ui/src/pages/QueuesPage.tsx` — button in the Edit-Queue section; build `sequenceIds` from `detail.entries`; call `saveQueueTemplate`; map 409 → dialog overwrite confirm; pass `loadedTemplateName` as `originName`
+- [X] T022 [US1] Add `QueuesPage` save-wiring tests in `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` — save builds sequenceIds from entries; success message; 409 path triggers overwrite confirm
 
 **Checkpoint**: Saving (incl. overwrite confirmation + validation) works end-to-end and persists across restart. US1 is independently demoable.
 
@@ -100,20 +100,20 @@ Frontend: `src/web-ui/src/`, tests in colocated `__tests__/` (Jest + RTL).
 
 ### Tests for User Story 2
 
-- [ ] T023 [P] [US2] `QueueRuntimeStore.SetEntries` tests in `tests/unit/Queues/QueueRuntimeStoreSetEntriesTests.cs` (GameBot.UnitTests; alongside `QueueRuntimeStoreEntriesTests.cs`) — replaces existing entries, preserves order, assigns new `EntryId`s, empty input clears
-- [ ] T024 [P] [US2] Replace-endpoint tests in `tests/integration/Queues/QueueEntriesReplaceEndpointTests.cs` (GameBot.IntegrationTests; alongside `QueueEntriesEndpointTests.cs`) — 404 unknown queue; 409 `queue_running` when Running; replaces and returns detail with resolved names/stale; empty array clears
-- [ ] T025 [P] [US2] `TemplatePickerDialog` tests in `src/web-ui/src/components/queues/__tests__/TemplatePickerDialog.test.tsx` — lists templates; empty state when none; **Load** fires `onLoad(id)`
+- [X] T023 [P] [US2] `QueueRuntimeStore.SetEntries` tests in `tests/unit/Queues/QueueRuntimeStoreSetEntriesTests.cs` (GameBot.UnitTests; alongside `QueueRuntimeStoreEntriesTests.cs`) — replaces existing entries, preserves order, assigns new `EntryId`s, empty input clears
+- [X] T024 [P] [US2] Replace-endpoint tests in `tests/integration/Queues/QueueEntriesReplaceEndpointTests.cs` (GameBot.IntegrationTests; alongside `QueueEntriesEndpointTests.cs`) — 404 unknown queue; 409 `queue_running` when Running; replaces and returns detail with resolved names/stale; empty array clears
+- [X] T025 [P] [US2] `TemplatePickerDialog` tests in `src/web-ui/src/components/queues/__tests__/TemplatePickerDialog.test.tsx` — lists templates; empty state when none; **Load** fires `onLoad(id)`
 
 ### Implementation for User Story 2
 
-- [ ] T026 [P] [US2] Add `SetEntries(string queueId, IEnumerable<string> sequenceIds)` to `src/GameBot.Domain/Queues/IQueueRuntimeStore.cs`
-- [ ] T027 [US2] Implement `SetEntries` in `src/GameBot.Domain/Queues/QueueRuntimeStore.cs` — under the per-state lock, clear and append fresh `QueueEntry`s in order; return the new list (depends on T026)
-- [ ] T028 [P] [US2] Create `ReplaceQueueEntriesRequest` (`string[] SequenceIds`) in `src/GameBot.Service/Contracts/Queues/ReplaceQueueEntriesRequest.cs`
-- [ ] T029 [US2] Add `PUT "{id}/entries"` to `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` — 404 if missing; 409 `queue_running` if Running; else `SetEntries` and return `BuildDetailAsync` (depends on T027, T028)
-- [ ] T030 [P] [US2] Add `replaceQueueEntries(id, sequenceIds)` to `src/web-ui/src/services/queues.ts` (`putJson<QueueDetailDto>(\`${base}/${id}/entries\`, { sequenceIds })`)
-- [ ] T031 [P] [US2] Create `TemplatePickerDialog` (the load picker) in `src/web-ui/src/components/queues/TemplatePickerDialog.tsx` — fetch `listQueueTemplates`, render names with **Load**, empty state; `onLoad(id)` callback
-- [ ] T032 [US2] Wire **Load template** into `src/web-ui/src/pages/QueuesPage.tsx` — open picker; on load: `getQueueTemplate(id)` → replace-confirm if `detail.entries.length > 0` → `replaceQueueEntries(queueId, ids)` → `reloadDetail` + `refresh`; set `loadedTemplateName`; disable Load while `status === 'Running'` and surface 409 message (depends on T030, T031)
-- [ ] T033 [US2] Add `QueuesPage` load-wiring tests to `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` — load replaces entries + reloads; replace-confirm appears for non-empty queue and is cancelable; loaded name pre-fills the save dialog; Load disabled while running; **FR-016** — loading the same template into two different queues drives an independent `replaceQueueEntries` call per queue, each carrying the template's `sequenceIds`
+- [X] T026 [P] [US2] Add `SetEntries(string queueId, IEnumerable<string> sequenceIds)` to `src/GameBot.Domain/Queues/IQueueRuntimeStore.cs`
+- [X] T027 [US2] Implement `SetEntries` in `src/GameBot.Domain/Queues/QueueRuntimeStore.cs` — under the per-state lock, clear and append fresh `QueueEntry`s in order; return the new list (depends on T026)
+- [X] T028 [P] [US2] Create `ReplaceQueueEntriesRequest` (`string[] SequenceIds`) in `src/GameBot.Service/Contracts/Queues/ReplaceQueueEntriesRequest.cs`
+- [X] T029 [US2] Add `PUT "{id}/entries"` to `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` — 404 if missing; 409 `queue_running` if Running; else `SetEntries` and return `BuildDetailAsync` (depends on T027, T028)
+- [X] T030 [P] [US2] Add `replaceQueueEntries(id, sequenceIds)` to `src/web-ui/src/services/queues.ts` (`putJson<QueueDetailDto>(\`${base}/${id}/entries\`, { sequenceIds })`)
+- [X] T031 [P] [US2] Create `TemplatePickerDialog` (the load picker) in `src/web-ui/src/components/queues/TemplatePickerDialog.tsx` — fetch `listQueueTemplates`, render names with **Load**, empty state; `onLoad(id)` callback
+- [X] T032 [US2] Wire **Load template** into `src/web-ui/src/pages/QueuesPage.tsx` — open picker; on load: `getQueueTemplate(id)` → replace-confirm if `detail.entries.length > 0` → `replaceQueueEntries(queueId, ids)` → `reloadDetail` + `refresh`; set `loadedTemplateName`; disable Load while `status === 'Running'` and surface 409 message (depends on T030, T031)
+- [X] T033 [US2] Add `QueuesPage` load-wiring tests to `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` — load replaces entries + reloads; replace-confirm appears for non-empty queue and is cancelable; loaded name pre-fills the save dialog; Load disabled while running; **FR-016** — loading the same template into two different queues drives an independent `replaceQueueEntries` call per queue, each carrying the template's `sequenceIds`
 
 **Checkpoint**: Round trip works — save in one queue, load into another; replacement + running guard + copy-independence verified. US1+US2 = MVP.
 
@@ -127,15 +127,15 @@ Frontend: `src/web-ui/src/`, tests in colocated `__tests__/` (Jest + RTL).
 
 ### Tests for User Story 3
 
-- [ ] T034 [P] [US3] Delete-endpoint tests in `tests/integration/QueueTemplates/QueueTemplatesDeleteEndpointTests.cs` (GameBot.IntegrationTests) — 204 on delete, 404 on unknown id
-- [ ] T035 [P] [US3] `TemplatePickerDialog` delete tests in `src/web-ui/src/components/queues/__tests__/TemplatePickerDialog.test.tsx` — **Delete** opens confirm; confirming fires `onDelete(id)` and removes the row; cancel retains
+- [X] T034 [P] [US3] Delete-endpoint tests in `tests/integration/QueueTemplates/QueueTemplatesDeleteEndpointTests.cs` (GameBot.IntegrationTests) — 204 on delete, 404 on unknown id
+- [X] T035 [P] [US3] `TemplatePickerDialog` delete tests in `src/web-ui/src/components/queues/__tests__/TemplatePickerDialog.test.tsx` — **Delete** opens confirm; confirming fires `onDelete(id)` and removes the row; cancel retains
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Implement `DELETE "{id}"` in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs` — `DeleteAsync` → 204 / 404 (depends on T011)
-- [ ] T037 [US3] Add per-template **Delete** action to `src/web-ui/src/components/queues/TemplatePickerDialog.tsx` using `ConfirmDeleteModal`; `onDelete(id)` callback (depends on T031)
-- [ ] T038 [US3] Wire delete handler in `src/web-ui/src/pages/QueuesPage.tsx` — `deleteQueueTemplate(id)` then refresh the picker list; queue entries untouched
-- [ ] T039 [US3] Add delete-wiring tests to `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` — delete removes from picker; current queue entries unchanged
+- [X] T036 [US3] Implement `DELETE "{id}"` in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs` — `DeleteAsync` → 204 / 404 (depends on T011)
+- [X] T037 [US3] Add per-template **Delete** action to `src/web-ui/src/components/queues/TemplatePickerDialog.tsx` using `ConfirmDeleteModal`; `onDelete(id)` callback (depends on T031)
+- [X] T038 [US3] Wire delete handler in `src/web-ui/src/pages/QueuesPage.tsx` — `deleteQueueTemplate(id)` then refresh the picker list; queue entries untouched
+- [X] T039 [US3] Add delete-wiring tests to `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` — delete removes from picker; current queue entries unchanged
 
 **Checkpoint**: All three stories independently functional.
 
@@ -143,11 +143,11 @@ Frontend: `src/web-ui/src/`, tests in colocated `__tests__/` (Jest + RTL).
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T040 [P] Add minimal styling for the new dialogs (Save / picker) consistent with existing queue UI in `src/web-ui/src/` styles (e.g., `App.css` or the relevant stylesheet)
-- [ ] T041 [P] Contract test for the template API in `tests/contract/QueueTemplates/QueueTemplatesApiContractTests.cs` (GameBot.ContractTests; mirrors `tests/contract/Queues/QueuesApiContractTests.cs`) — validate response/request shapes and status codes for list/detail/save (201/200/400/409)/delete (204/404) per `contracts/queue-templates-api.md` (FR-021..FR-024)
-- [ ] T042 [P] Scale test in `tests/integration/QueueTemplates/QueueTemplatesScaleTests.cs` (GameBot.IntegrationTests; mirrors `tests/integration/Queues/QueueScaleTests.cs`) — list 50 templates and load one with 100 entries reflect within target responsiveness (SC-007)
-- [ ] T043 Verify coverage on touched areas meets ≥80% line / ≥70% branch (backend `dotnet test` + frontend `npm test -- --coverage`)
-- [ ] T044 Run `dotnet build`, full `dotnet test`, and `npm test` — all green (constitution release-blocker gate)
+- [X] T040 [P] Add minimal styling for the new dialogs (Save / picker) consistent with existing queue UI in `src/web-ui/src/` styles (e.g., `App.css` or the relevant stylesheet)
+- [X] T041 [P] Contract test for the template API in `tests/contract/QueueTemplates/QueueTemplatesApiContractTests.cs` (GameBot.ContractTests; mirrors `tests/contract/Queues/QueuesApiContractTests.cs`) — validate response/request shapes and status codes for list/detail/save (201/200/400/409)/delete (204/404) per `contracts/queue-templates-api.md` (FR-021..FR-024)
+- [X] T042 [P] Scale test in `tests/integration/QueueTemplates/QueueTemplatesScaleTests.cs` (GameBot.IntegrationTests; mirrors `tests/integration/Queues/QueueScaleTests.cs`) — list 50 templates and load one with 100 entries reflect within target responsiveness (SC-007)
+- [X] T043 Verify coverage on touched areas meets ≥80% line / ≥70% branch (backend `dotnet test` + frontend `npm test -- --coverage`)
+- [X] T044 Run `dotnet build`, full `dotnet test`, and `npm test` — all green (constitution release-blocker gate)
 - [ ] T045 Execute `specs/047-queue-templates/quickstart.md` flows A–F manually against a running service
 
 ---
