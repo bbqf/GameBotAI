@@ -1,1 +1,3 @@
-﻿{ "feature_directory": "specs/047-queue-templates" }
+{
+  "feature_directory": "specs/048-edit-queue-layout"
+}
