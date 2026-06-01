@@ -134,6 +134,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyTriggerExamples(operation, path, method, context);
     ApplyGameExamples(operation, path, method, context);
     ApplyQueueExamples(operation, path, method, context);
+    ApplyQueueTemplateExamples(operation, path, method, context);
     ApplyImageExamples(operation, path, method, context);
     ApplyExecutionLogExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
@@ -397,6 +398,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       operation.Summary ??= "Stop a queue (placeholder: sets status to Stopped)";
       SetResponseExample(operation, "200", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
     }
+    else if (IsMethod(method, HttpMethods.Put) && path.Contains("/entries", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Replace a queue's entries (used to load a template)";
+      SetRequestExample(operation, QueueEntriesReplaceRequest(), context, typeof(GameBot.Service.Contracts.Queues.ReplaceQueueEntriesRequest));
+      SetResponseExample(operation, "200", QueueDetailExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueDetailResponse));
+    }
     else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Queues + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update a queue (name and cycle execution; emulator is immutable)";
       SetRequestExample(operation, QueueUpdateRequest(), context, typeof(GameBot.Service.Contracts.Queues.UpdateQueueRequest));
@@ -422,6 +428,71 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   private static OpenApiObject QueueEntryAddRequest() => new OpenApiObject {
     ["sequenceId"] = new OpenApiString("sequence-wait-home")
   };
+
+  private static OpenApiObject QueueEntriesReplaceRequest() => new OpenApiObject {
+    ["sequenceIds"] = new OpenApiArray {
+      new OpenApiString("sequence-wait-home"),
+      new OpenApiString("sequence-collect")
+    }
+  };
+
+  private static void ApplyQueueTemplateExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!path.StartsWith(ApiRoutes.QueueTemplates, StringComparison.OrdinalIgnoreCase)) {
+      return;
+    }
+
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.QueueTemplates)) {
+      operation.Summary ??= "Save (create or overwrite by name) a queue template";
+      SetRequestExample(operation, QueueTemplateSaveRequest(), context, typeof(GameBot.Service.Contracts.QueueTemplates.SaveQueueTemplateRequest));
+      SetResponseExample(operation, "201", QueueTemplateDetailExample(), context, typeof(GameBot.Service.Contracts.QueueTemplates.QueueTemplateDetailResponse));
+      SetResponseExample(operation, "200", QueueTemplateDetailExample(), context, typeof(GameBot.Service.Contracts.QueueTemplates.QueueTemplateDetailResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.QueueTemplates)) {
+      operation.Summary ??= "List queue templates";
+      SetResponseExample(operation, "200", new OpenApiArray { QueueTemplateSummaryExample() }, context, typeof(IEnumerable<GameBot.Service.Contracts.QueueTemplates.QueueTemplateSummaryResponse>));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.QueueTemplates + "/", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Get a queue template with its ordered entries";
+      SetResponseExample(operation, "200", QueueTemplateDetailExample(), context, typeof(GameBot.Service.Contracts.QueueTemplates.QueueTemplateDetailResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Delete) && path.StartsWith(ApiRoutes.QueueTemplates + "/", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Delete a queue template";
+    }
+  }
+
+  private static OpenApiObject QueueTemplateSaveRequest() => new OpenApiObject {
+    ["name"] = new OpenApiString("Daily Farm"),
+    ["sequenceIds"] = new OpenApiArray {
+      new OpenApiString("sequence-wait-home"),
+      new OpenApiString("sequence-collect")
+    },
+    ["overwrite"] = new OpenApiBoolean(false)
+  };
+
+  private static OpenApiObject QueueTemplateSummaryExample() => new OpenApiObject {
+    ["id"] = new OpenApiString("template-daily-farm"),
+    ["name"] = new OpenApiString("Daily Farm"),
+    ["entryCount"] = new OpenApiInteger(2),
+    ["createdAt"] = new OpenApiString("2026-05-31T10:00:00Z"),
+    ["updatedAt"] = new OpenApiString("2026-05-31T10:00:00Z")
+  };
+
+  private static OpenApiObject QueueTemplateDetailExample() {
+    var detail = QueueTemplateSummaryExample();
+    detail["entries"] = new OpenApiArray {
+      new OpenApiObject {
+        ["sequenceId"] = new OpenApiString("sequence-wait-home"),
+        ["sequenceName"] = new OpenApiString("Wait for image sequence"),
+        ["stale"] = new OpenApiBoolean(false)
+      },
+      new OpenApiObject {
+        ["sequenceId"] = new OpenApiString("sequence-removed"),
+        ["sequenceName"] = new OpenApiNull(),
+        ["stale"] = new OpenApiBoolean(true)
+      }
+    };
+    return detail;
+  }
 
   private static OpenApiObject QueueResponseExample() => new OpenApiObject {
     ["id"] = new OpenApiString("queue-daily-farm"),

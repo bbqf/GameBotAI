@@ -36,11 +36,12 @@ const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolea
 const getInitialArea = (): NavigationAreaId => {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get('area');
-  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring') return requested;
+  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring' || requested === 'queues') return requested;
   const path = window.location.pathname.toLowerCase();
   if (path.startsWith(CONFIGURATION_AREA_PATH)) return 'configuration';
   if (path.startsWith(EXECUTION_LOGS_AREA_PATH)) return 'execution-logs';
   if (path.startsWith(EXECUTION_AREA_PATH)) return 'execution';
+  if (path.startsWith('/queues')) return 'queues';
   return 'authoring';
 };
 
@@ -103,7 +104,15 @@ export const App: React.FC = () => {
         {tab === 'Games' && <GamesPage initialCreate={creationTarget === 'games'} initialEditId={requestedTab === 'Games' ? initialId : undefined} />}
         {tab === 'Sequences' && <SequencesPage initialCreate={creationTarget === 'sequences'} initialEditId={requestedTab === 'Sequences' ? initialId : undefined} />}
         {tab === 'Images' && <ImagesListPage />}
-        {tab === 'Queues' && <QueuesPage />}
+      </ErrorBoundary>
+    </section>
+  );
+
+  const renderQueues = () => (
+    <section id="queues-panel" className="queues">
+      <h1>Queues</h1>
+      <ErrorBoundary>
+        <QueuesPage />
       </ErrorBoundary>
     </section>
   );
@@ -146,6 +155,7 @@ export const App: React.FC = () => {
   const renderActiveArea = () => {
     if (isLegacyTriggersPath) return renderNotFound();
     if (activeArea === 'authoring') return renderAuthoring();
+    if (activeArea === 'queues') return renderQueues();
     if (activeArea === 'configuration') return renderConfiguration();
     if (activeArea === 'execution-logs') return renderExecutionLogs();
     return renderExecution();

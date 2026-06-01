@@ -16,6 +16,13 @@ namespace GameBot.Domain.Queues {
     /// <summary>Removes an entry by id; returns false if not found.</summary>
     bool RemoveEntry(string queueId, string entryId);
 
+    /// <summary>
+    /// Replaces all entries for the queue with fresh entries referencing the given sequence ids,
+    /// preserving the given order and assigning a new EntryId to each. An empty input clears the
+    /// queue's entries. Used to load a template into a queue.
+    /// </summary>
+    IReadOnlyList<QueueEntry> SetEntries(string queueId, IEnumerable<string> sequenceIds);
+
     /// <summary>Current status; <see cref="QueueExecutionStatus.Stopped"/> for an unknown queue.</summary>
     QueueExecutionStatus GetStatus(string queueId);
 

@@ -73,6 +73,15 @@ internal static class QueuesEndpoints {
       return Results.Created($"{ApiRoutes.Queues}/{id}/entries/{entry.EntryId}", ProjectEntry(entry, resolved?.Name));
     }).WithName("AddQueueEntry");
 
+    group.MapPut("{id}/entries", async (string id, ReplaceQueueEntriesRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences) => {
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+      if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
+        return Error(409, "queue_running", "Stop the queue before loading a template.");
+      runtime.SetEntries(id, req?.SequenceIds ?? Array.Empty<string>());
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences).ConfigureAwait(false));
+    }).WithName("ReplaceQueueEntries");
+
     group.MapDelete("{id}/entries/{entryId}", async (string id, string entryId, IQueueRepository repo, IQueueRuntimeStore runtime) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
