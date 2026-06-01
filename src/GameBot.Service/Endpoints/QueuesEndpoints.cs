@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Queues;
+using GameBot.Domain.QueueTemplates;
 using GameBot.Service.Contracts.Queues;
 using Microsoft.Extensions.Logging;
 
@@ -34,10 +35,11 @@ internal static class QueuesEndpoints {
       return Results.Ok(resp);
     }).WithName("ListQueues");
 
-    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences) => {
+    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
-      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences).ConfigureAwait(false));
+      await MaybeAutoLoadAsync(queue, repo, runtime, templates).ConfigureAwait(false);
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates).ConfigureAwait(false));
     }).WithName("GetQueue");
 
     group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime) => {
@@ -73,14 +75,25 @@ internal static class QueuesEndpoints {
       return Results.Created($"{ApiRoutes.Queues}/{id}/entries/{entry.EntryId}", ProjectEntry(entry, resolved?.Name));
     }).WithName("AddQueueEntry");
 
-    group.MapPut("{id}/entries", async (string id, ReplaceQueueEntriesRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences) => {
+    group.MapPut("{id}/entries", async (string id, ReplaceQueueEntriesRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
         return Error(409, "queue_running", "Stop the queue before loading a template.");
       runtime.SetEntries(id, req?.SequenceIds ?? Array.Empty<string>());
-      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates).ConfigureAwait(false));
     }).WithName("ReplaceQueueEntries");
+
+    group.MapPut("{id}/template", async (string id, SetQueueTemplateLinkRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates) => {
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+      var templateId = req?.TemplateId;
+      if (!string.IsNullOrEmpty(templateId) && await templates.GetAsync(templateId).ConfigureAwait(false) is null)
+        return Error(400, "invalid_request", "template not found");
+      queue.LinkedTemplateId = string.IsNullOrEmpty(templateId) ? null : templateId;
+      var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
+      return Results.Ok(await BuildDetailAsync(saved, runtime, sequences, templates).ConfigureAwait(false));
+    }).WithName("SetQueueTemplateLink");
 
     group.MapDelete("{id}/entries/{entryId}", async (string id, string entryId, IQueueRepository repo, IQueueRuntimeStore runtime) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
@@ -109,16 +122,35 @@ internal static class QueuesEndpoints {
     return app;
   }
 
+  /// <summary>
+  /// Auto-loads the linked template's entries into the queue's runtime on the first display
+  /// after a service start. Skips when unlinked, running, or already materialized; clears and
+  /// persists a now-unresolvable link instead of erroring (FR-006/010/011/012).
+  /// </summary>
+  private static async Task MaybeAutoLoadAsync(ExecutionQueue queue, IQueueRepository repo, IQueueRuntimeStore runtime, IQueueTemplateRepository templates) {
+    if (string.IsNullOrEmpty(queue.LinkedTemplateId)) return;
+    if (runtime.GetStatus(queue.Id) == QueueExecutionStatus.Running) return;
+    if (runtime.HasRuntimeState(queue.Id)) return;
+    var template = await templates.GetAsync(queue.LinkedTemplateId).ConfigureAwait(false);
+    if (template is null) {
+      queue.LinkedTemplateId = null;
+      await repo.UpdateAsync(queue).ConfigureAwait(false);
+      return;
+    }
+    runtime.SetEntries(queue.Id, template.Entries.Select(e => e.SequenceId));
+  }
+
   private static QueueResponse BuildResponse(ExecutionQueue queue, IQueueRuntimeStore runtime) => new() {
     Id = queue.Id,
     Name = queue.Name,
     EmulatorSerial = queue.EmulatorSerial,
     CycleExecution = queue.CycleExecution,
     Status = runtime.GetStatus(queue.Id),
-    EntryCount = runtime.GetEntries(queue.Id).Count
+    EntryCount = runtime.GetEntries(queue.Id).Count,
+    LinkedTemplateId = queue.LinkedTemplateId
   };
 
-  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences) {
+  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates) {
     var entries = runtime.GetEntries(queue.Id);
     var allSequences = await sequences.ListAsync().ConfigureAwait(false);
     var namesById = allSequences.ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
@@ -128,13 +160,21 @@ internal static class QueuesEndpoints {
       EmulatorSerial = queue.EmulatorSerial,
       CycleExecution = queue.CycleExecution,
       Status = runtime.GetStatus(queue.Id),
-      EntryCount = entries.Count
+      EntryCount = entries.Count,
+      LinkedTemplateId = queue.LinkedTemplateId,
+      LinkedTemplateName = await ResolveTemplateNameAsync(queue.LinkedTemplateId, templates).ConfigureAwait(false)
     };
     foreach (var entry in entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);
       detail.Entries.Add(ProjectEntry(entry, found ? name : null));
     }
     return detail;
+  }
+
+  private static async Task<string?> ResolveTemplateNameAsync(string? templateId, IQueueTemplateRepository templates) {
+    if (string.IsNullOrEmpty(templateId)) return null;
+    var template = await templates.GetAsync(templateId).ConfigureAwait(false);
+    return template?.Name;
   }
 
   private static QueueEntryResponse ProjectEntry(QueueEntry entry, string? sequenceName) => new() {

@@ -10,6 +10,14 @@ namespace GameBot.Domain.Queues {
     /// <summary>Ordered entries for the queue; empty for an unknown queue.</summary>
     IReadOnlyList<QueueEntry> GetEntries(string queueId);
 
+    /// <summary>
+    /// True iff a runtime state record currently exists for the queue. Distinguishes a queue
+    /// that has never been materialized this service lifetime (false) from one that exists but
+    /// may be empty (true, e.g. the operator cleared its entries). Backs the auto-load
+    /// "first display only" guard so a deliberately emptied queue is not re-filled.
+    /// </summary>
+    bool HasRuntimeState(string queueId);
+
     /// <summary>Appends a new entry referencing <paramref name="sequenceId"/> at the end.</summary>
     QueueEntry AddEntry(string queueId, string sequenceId);
 

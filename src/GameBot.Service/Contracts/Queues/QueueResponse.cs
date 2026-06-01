@@ -9,5 +9,8 @@ namespace GameBot.Service.Contracts.Queues {
     public bool CycleExecution { get; set; }
     public QueueExecutionStatus Status { get; set; } = QueueExecutionStatus.Stopped;
     public int EntryCount { get; set; }
+
+    /// <summary>Stable ID of the linked queue template, or null when the queue is unlinked.</summary>
+    public string? LinkedTemplateId { get; set; }
   }
 }

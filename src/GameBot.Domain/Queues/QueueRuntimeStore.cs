@@ -22,6 +22,8 @@ namespace GameBot.Domain.Queues {
       }
     }
 
+    public bool HasRuntimeState(string queueId) => _states.ContainsKey(queueId);
+
     public QueueEntry AddEntry(string queueId, string sequenceId) {
       var entry = new QueueEntry {
         EntryId = Guid.NewGuid().ToString("N"),

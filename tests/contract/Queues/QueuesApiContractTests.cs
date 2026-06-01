@@ -44,7 +44,7 @@ public sealed class QueuesApiContractTests : IDisposable {
       new { name = "Farm", emulatorSerial = "emu-1", cycleExecution = true }).ConfigureAwait(true);
     createResp.StatusCode.Should().Be(HttpStatusCode.Created);
     var created = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
-    foreach (var field in new[] { "id", "name", "emulatorSerial", "cycleExecution", "status", "entryCount" }) {
+    foreach (var field in new[] { "id", "name", "emulatorSerial", "cycleExecution", "status", "entryCount", "linkedTemplateId" }) {
       created.TryGetProperty(field, out _).Should().BeTrue($"QueueResponse must expose '{field}'");
     }
     var id = created.GetProperty("id").GetString();
@@ -57,9 +57,18 @@ public sealed class QueuesApiContractTests : IDisposable {
       entry.TryGetProperty(field, out _).Should().BeTrue($"QueueEntryResponse must expose '{field}'");
     }
 
-    // Detail -> QueueDetailResponse shape (entries array present)
+    // Detail -> QueueDetailResponse shape (entries array + link fields present)
     var detail = JsonDocument.Parse(await (await client.GetAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
     detail.GetProperty("entries").ValueKind.Should().Be(JsonValueKind.Array);
+    foreach (var field in new[] { "linkedTemplateId", "linkedTemplateName" }) {
+      detail.TryGetProperty(field, out _).Should().BeTrue($"QueueDetailResponse must expose '{field}'");
+    }
+
+    // Set-template link -> 200 with QueueDetailResponse (clearing an already-null link is a no-op)
+    var linkResp = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}/template", UriKind.Relative), new { templateId = (string?)null }).ConfigureAwait(true);
+    linkResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    JsonDocument.Parse(await linkResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement
+      .GetProperty("entries").ValueKind.Should().Be(JsonValueKind.Array);
 
     // Start/stop -> 200 with QueueResponse
     (await client.PostAsync(new Uri($"/api/queues/{id}/start", UriKind.Relative), null).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.OK);

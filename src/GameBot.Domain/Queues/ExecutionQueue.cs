@@ -26,6 +26,15 @@ namespace GameBot.Domain.Queues {
     /// </summary>
     public bool CycleExecution { get; set; }
 
+    /// <summary>
+    /// Optional link to a single queue template by its stable template ID
+    /// (0..1). Persisted. References by ID, so renaming the template keeps the link intact;
+    /// only deleting the template makes it unresolvable. Null when the queue is unlinked.
+    /// When set, the linked template's entries are auto-loaded into the queue's runtime on
+    /// the first display after a service start.
+    /// </summary>
+    public string? LinkedTemplateId { get; set; }
+
     public DateTimeOffset? CreatedAt { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }
