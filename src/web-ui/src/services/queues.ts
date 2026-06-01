@@ -9,6 +9,7 @@ export type QueueDto = {
   cycleExecution: boolean;
   status: QueueStatus;
   entryCount: number;
+  linkedTemplateId: string | null;
 };
 
 export type QueueEntryDto = {
@@ -18,7 +19,10 @@ export type QueueEntryDto = {
   stale: boolean;
 };
 
-export type QueueDetailDto = QueueDto & { entries: QueueEntryDto[] };
+export type QueueDetailDto = QueueDto & {
+  entries: QueueEntryDto[];
+  linkedTemplateName: string | null;
+};
 
 export type QueueCreate = {
   name: string;
@@ -45,6 +49,9 @@ export const removeQueueEntry = (id: string, entryId: string) =>
   deleteJson<void>(`${base}/${id}/entries/${entryId}`);
 export const replaceQueueEntries = (id: string, sequenceIds: string[]) =>
   putJson<QueueDetailDto>(`${base}/${id}/entries`, { sequenceIds });
+
+export const setQueueTemplateLink = (id: string, templateId: string | null) =>
+  putJson<QueueDetailDto>(`${base}/${id}/template`, { templateId });
 
 export const startQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/start`, {});
 export const stopQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/stop`, {});

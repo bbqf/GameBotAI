@@ -4,6 +4,12 @@ namespace GameBot.Service.Contracts.Queues {
   /// <summary>Single-queue representation including its ordered sequence entries.</summary>
   internal sealed class QueueDetailResponse : QueueResponse {
     public Collection<QueueEntryResponse> Entries { get; } = new Collection<QueueEntryResponse>();
+
+    /// <summary>
+    /// Display name of the linked queue template, resolved from the template store; null when
+    /// the queue is unlinked or the linked template can no longer be resolved.
+    /// </summary>
+    public string? LinkedTemplateName { get; set; }
   }
 
   /// <summary>
