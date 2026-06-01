@@ -17,6 +17,10 @@ type QueueFormProps = {
   submitting?: boolean;
   formError?: string;
   fieldErrors?: { name?: string; emulatorSerial?: string };
+  /** Edit-mode only: row 2 — template controls, rendered after the emulator and before cycle execution. */
+  templateControls?: React.ReactNode;
+  /** Edit-mode only: row 4 — queue sequence entries, rendered after cycle execution and before the actions. */
+  entries?: React.ReactNode;
 };
 
 export const QueueForm: React.FC<QueueFormProps> = ({
@@ -28,6 +32,8 @@ export const QueueForm: React.FC<QueueFormProps> = ({
   submitting,
   formError,
   fieldErrors,
+  templateControls,
+  entries,
 }) => {
   const isEdit = mode === 'edit';
   // The emulator binding is immutable after creation, so only fetch devices when creating.
@@ -53,6 +59,14 @@ export const QueueForm: React.FC<QueueFormProps> = ({
           id="queue-name"
           value={value.name}
           onChange={(e) => onChange({ ...value, name: e.target.value })}
+          onKeyDown={(e) => {
+            // Row 2/4 slots carry their own inputs; with no submit button the form never
+            // implicitly submits, so trigger submit explicitly from the name field.
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
           aria-invalid={Boolean(fieldErrors?.name)}
           aria-describedby={fieldErrors?.name ? 'queue-name-error' : undefined}
           disabled={submitting}
@@ -75,8 +89,9 @@ export const QueueForm: React.FC<QueueFormProps> = ({
             error={fieldErrors?.emulatorSerial}
           />
         )}
-        {isEdit && <div className="form-hint">The bound emulator cannot be changed after creation.</div>}
       </div>
+
+      {isEdit && templateControls}
 
       <div className="field">
         <label>
@@ -91,8 +106,10 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         </label>
       </div>
 
+      {isEdit && entries}
+
       <div className="form-actions">
-        <button type="submit" disabled={submitting}>Save</button>
+        <button type="button" onClick={onSubmit} disabled={submitting}>Save</button>
         <button type="button" onClick={onCancel} disabled={submitting}>Cancel</button>
       </div>
       {formError && <div className="form-error" role="alert">{formError}</div>}

@@ -64,37 +64,41 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({ open, or
   };
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Save template">
-      <div className="modal">
-        <h3>Save as template</h3>
-        {!confirmingOverwrite ? (
-          <>
-            <label htmlFor="template-name">Template name</label>
-            <input
-              id="template-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            {error && <div className="form-error" role="alert">{error}</div>}
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>Save</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p>
-              A template named <strong>{name.trim()}</strong> already exists. Overwrite it?
-            </p>
-            {error && <div className="form-error" role="alert">{error}</div>}
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
-              <button className="btn btn-danger" onClick={() => void persist(true)} disabled={saving}>Overwrite</button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <section className="queue-template-section" aria-label="Save template">
+      <h4>Save as template</h4>
+      {!confirmingOverwrite ? (
+        <>
+          <label htmlFor="template-name">Template name</label>
+          <input
+            id="template-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSave();
+              }
+            }}
+          />
+          {error && <div className="form-error" role="alert">{error}</div>}
+          <div className="queue-template-section-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>Save</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>
+            A template named <strong>{name.trim()}</strong> already exists. Overwrite it?
+          </p>
+          {error && <div className="form-error" role="alert">{error}</div>}
+          <div className="queue-template-section-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="button" className="btn btn-danger" onClick={() => void persist(true)} disabled={saving}>Overwrite</button>
+          </div>
+        </>
+      )}
+    </section>
   );
 };

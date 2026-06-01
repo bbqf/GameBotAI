@@ -48,28 +48,26 @@ export const TemplatePickerDialog: React.FC<TemplatePickerDialogProps> = ({ open
   };
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Load template">
-      <div className="modal">
-        <h3>Load template</h3>
-        {error && <div className="form-error" role="alert">{error}</div>}
-        {loading && <div className="form-hint">Loading…</div>}
-        {!loading && templates.length === 0 && (
-          <div className="form-hint" role="status">No templates saved yet.</div>
-        )}
-        <ul className="template-list">
-          {templates.map((t) => (
-            <li key={t.id} className="template-row" data-testid="template-row">
-              <span className="template-name">{t.name}</span>
-              <span className="template-actions">
-                <button type="button" disabled={loadDisabled} onClick={() => onLoad(t.id)}>Load</button>
-                <button type="button" className="btn btn-danger" onClick={() => setPendingDelete(t)}>Delete</button>
-              </span>
-            </li>
-          ))}
-        </ul>
-        <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onClose}>Close</button>
-        </div>
+    <section className="queue-template-section" aria-label="Load template">
+      <h4>Load template</h4>
+      {error && <div className="form-error" role="alert">{error}</div>}
+      {loading && <div className="form-hint">Loading…</div>}
+      {!loading && templates.length === 0 && (
+        <div className="form-hint" role="status">No templates saved yet.</div>
+      )}
+      <ul className="template-list">
+        {templates.map((t) => (
+          <li key={t.id} className="template-row" data-testid="template-row">
+            <span className="template-name">{t.name}</span>
+            <span className="template-actions">
+              <button type="button" disabled={loadDisabled} onClick={() => onLoad(t.id)}>Load</button>
+              <button type="button" className="btn btn-danger" onClick={() => setPendingDelete(t)}>Delete</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="queue-template-section-actions">
+        <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
       </div>
       <ConfirmDeleteModal
         open={pendingDelete !== undefined}
@@ -77,6 +75,6 @@ export const TemplatePickerDialog: React.FC<TemplatePickerDialogProps> = ({ open
         onCancel={() => setPendingDelete(undefined)}
         onConfirm={() => void confirmDelete()}
       />
-    </div>
+    </section>
   );
 };

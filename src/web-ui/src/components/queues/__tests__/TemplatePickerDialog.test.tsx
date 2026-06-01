@@ -23,6 +23,12 @@ const renderPicker = (overrides: Partial<React.ComponentProps<typeof TemplatePic
 };
 
 describe('TemplatePickerDialog', () => {
+  it('renders as an inline section, not a modal overlay', async () => {
+    renderPicker();
+    expect(await screen.findByRole('region', { name: 'Load template' })).toBeInTheDocument();
+    expect(document.querySelector('.modal-backdrop')).toBeNull();
+  });
+
   it('lists templates by name', async () => {
     renderPicker();
     expect(await screen.findByText('Daily Farm')).toBeInTheDocument();

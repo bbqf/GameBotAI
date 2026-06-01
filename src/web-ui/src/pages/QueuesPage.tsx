@@ -16,10 +16,10 @@ import {
 import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
 import { QueueEntryList } from '../components/queues/QueueEntryList';
-import { SaveTemplateDialog } from '../components/queues/SaveTemplateDialog';
-import { TemplatePickerDialog } from '../components/queues/TemplatePickerDialog';
+import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
-import { saveQueueTemplate, getQueueTemplate } from '../services/queueTemplates';
+import { saveQueueTemplate, getQueueTemplate, listQueueTemplates } from '../services/queueTemplates';
+import { sameSequenceOrder } from '../lib/sequenceOrder';
 import { ApiError } from '../lib/api';
 
 const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false };
@@ -39,10 +39,9 @@ export const QueuesPage: React.FC = () => {
 
   const [detail, setDetail] = useState<QueueDetailDto | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
-  const [loadedTemplateName, setLoadedTemplateName] = useState<string | undefined>(undefined);
-  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [associatedTemplateName, setAssociatedTemplateName] = useState<string | undefined>(undefined);
   const [pendingLoad, setPendingLoad] = useState<{ name: string; sequenceIds: string[] } | undefined>(undefined);
+  const [pendingReload, setPendingReload] = useState<{ name: string; sequenceIds: string[] } | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -83,7 +82,7 @@ export const QueuesPage: React.FC = () => {
     setCreating(false);
     setFieldErrors(undefined);
     setFormError(undefined);
-    setLoadedTemplateName(undefined);
+    setAssociatedTemplateName(undefined);
     const q = await getQueue(id);
     setDetail(q);
     setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution });
@@ -95,7 +94,7 @@ export const QueuesPage: React.FC = () => {
     setForm(emptyForm);
     setFieldErrors(undefined);
     setFormError(undefined);
-    setLoadedTemplateName(undefined);
+    setAssociatedTemplateName(undefined);
   };
 
   const validate = (): boolean => {
@@ -155,7 +154,7 @@ export const QueuesPage: React.FC = () => {
     if (!detail) return;
     const sequenceIds = detail.entries.map((e) => e.sequenceId);
     await saveQueueTemplate({ name, sequenceIds, overwrite });
-    setLoadedTemplateName(name);
+    setAssociatedTemplateName(name);
     setTableMessage(`Template "${name}" saved successfully.`);
   };
 
@@ -163,13 +162,11 @@ export const QueuesPage: React.FC = () => {
     if (!detail) return;
     try {
       await replaceQueueEntries(detail.id, sequenceIds);
-      setLoadedTemplateName(name);
-      setTemplatePickerOpen(false);
+      setAssociatedTemplateName(name);
       setTableMessage(`Template "${name}" loaded.`);
       await reloadDetail(detail.id);
       await refresh();
     } catch (err: any) {
-      setTemplatePickerOpen(false);
       setTableError(err instanceof ApiError ? err.message : err?.message ?? 'Failed to load template');
     }
   };
@@ -182,6 +179,31 @@ export const QueuesPage: React.FC = () => {
       setPendingLoad({ name: tpl.name, sequenceIds });
     } else {
       await applyLoad(tpl.name, sequenceIds);
+    }
+  };
+
+  const handleReload = async () => {
+    if (!detail || !associatedTemplateName || detail.status === 'Running') return;
+    try {
+      const templates = await listQueueTemplates();
+      const match = templates.find(
+        (t) => t.name.toLowerCase() === associatedTemplateName.toLowerCase()
+      );
+      if (!match) {
+        setTableError(`Template "${associatedTemplateName}" is no longer available.`);
+        return;
+      }
+      const tpl = await getQueueTemplate(match.id);
+      const templateSeqIds = tpl.entries.map((e) => e.sequenceId);
+      const currentSeqIds = detail.entries.map((e) => e.sequenceId);
+      if (sameSequenceOrder(currentSeqIds, templateSeqIds)) return; // nothing to discard, no prompt
+      if (detail.entries.length > 0) {
+        setPendingReload({ name: tpl.name, sequenceIds: templateSeqIds });
+      } else {
+        await applyLoad(tpl.name, templateSeqIds);
+      }
+    } catch (err: any) {
+      setTableError(err instanceof ApiError ? err.message : err?.message ?? 'Failed to reload template');
     }
   };
 
@@ -272,42 +294,38 @@ export const QueuesPage: React.FC = () => {
             submitting={submitting}
             formError={formError}
             fieldErrors={fieldErrors}
-          />
-          <section className="queue-templates-section" aria-label="Queue templates">
-            <h4>Templates</h4>
-            <div className="queue-template-actions">
-              <button type="button" onClick={() => setSaveTemplateOpen(true)}>Save as template</button>
-              <button
-                type="button"
-                onClick={() => setTemplatePickerOpen(true)}
-                disabled={detail.status === 'Running'}
-                title={detail.status === 'Running' ? 'Stop the queue before loading a template.' : undefined}
-              >
-                Load template
-              </button>
-            </div>
-          </section>
-          <QueueEntryList
-            entries={detail.entries}
-            sequences={sequences}
-            onAdd={(sid) => void onAddEntry(sid)}
-            onRemove={(eid) => void onRemoveEntry(eid)}
+            templateControls={
+              <QueueTemplateControls
+                associatedTemplateName={associatedTemplateName}
+                status={detail.status}
+                onSaveTemplate={handleSaveTemplate}
+                onLoadTemplate={(id) => void handleLoadTemplate(id)}
+                onReload={() => void handleReload()}
+              />
+            }
+            entries={
+              <QueueEntryList
+                entries={detail.entries}
+                sequences={sequences}
+                onAdd={(sid) => void onAddEntry(sid)}
+                onRemove={(eid) => void onRemoveEntry(eid)}
+              />
+            }
           />
         </section>
       )}
 
-      <SaveTemplateDialog
-        open={saveTemplateOpen}
-        originName={loadedTemplateName}
-        onSave={handleSaveTemplate}
-        onClose={() => setSaveTemplateOpen(false)}
-      />
-
-      <TemplatePickerDialog
-        open={templatePickerOpen}
-        loadDisabled={detail?.status === 'Running'}
-        onLoad={(id) => void handleLoadTemplate(id)}
-        onClose={() => setTemplatePickerOpen(false)}
+      <ConfirmDeleteModal
+        open={pendingReload !== undefined}
+        title="Reload template"
+        message="Reloading will replace the queue's current entries with the template's."
+        confirmText="Reload"
+        onCancel={() => setPendingReload(undefined)}
+        onConfirm={() => {
+          const p = pendingReload;
+          setPendingReload(undefined);
+          if (p) void applyLoad(p.name, p.sequenceIds);
+        }}
       />
 
       <ConfirmDeleteModal

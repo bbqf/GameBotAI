@@ -115,6 +115,14 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .collapsible-section-content { padding: 0 var(--gb-space-3) var(--gb-space-3); }
 
 
+/* Edit-queue template controls (row 2) */
+.queue-template-controls { margin: var(--gb-space-3) 0; }
+.queue-template-row { display: flex; align-items: center; gap: var(--gb-space-2); flex-wrap: wrap; }
+.queue-template-name { font-weight: 600; }
+.queue-template-section { border: 1px solid var(--gb-color-border); border-radius: var(--gb-radius-lg); background: var(--gb-color-surface); padding: var(--gb-space-3); margin-top: var(--gb-space-2); }
+.queue-template-section h4 { margin-top: 0; }
+.queue-template-section-actions { display: flex; gap: var(--gb-space-2); margin-top: var(--gb-space-2); }
+
 /* Drag-and-drop */
 .loop-block--drop-invalid { outline: 2px solid #d32f2f; opacity: 0.7; }
 .sortable-step-item { display: flex; align-items: flex-start; }

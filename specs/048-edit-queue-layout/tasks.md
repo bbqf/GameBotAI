@@ -28,7 +28,7 @@ subsection, per TDD.
 
 **Purpose**: Establish a green baseline before changing the edit-queue page.
 
-- [ ] T001 Run the frontend suite to confirm a green baseline and confirm the touched files exist (`npm --prefix src/web-ui test`); files: `src/web-ui/src/pages/QueuesPage.tsx`, `src/web-ui/src/components/queues/{QueueForm,QueueEntryList,SaveTemplateDialog,TemplatePickerDialog}.tsx`
+- [X] T001 Run the frontend suite to confirm a green baseline and confirm the touched files exist (`npm --prefix src/web-ui test`); files: `src/web-ui/src/pages/QueuesPage.tsx`, `src/web-ui/src/components/queues/{QueueForm,QueueEntryList,SaveTemplateDialog,TemplatePickerDialog}.tsx`
 
 ---
 
@@ -39,8 +39,8 @@ subsection, per TDD.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 Add optional `templateControls` and `entries` render slots to `QueueForm` — render `templateControls` after the emulator field and before cycle execution, and `entries` after cycle execution and before `form-actions`; remove the "The bound emulator cannot be changed after creation." hint (FR-003); create mode passes neither slot, preserving its layout — in `src/web-ui/src/components/queues/QueueForm.tsx`
-- [ ] T003 [P] Update `QueueForm` tests: assert the emulator hint is absent, that in edit mode the slot nodes render in order (emulator → templateControls → cycle → entries → actions), and that create mode renders without the slots — in `src/web-ui/src/components/queues/__tests__/QueueForm.test.tsx`
+- [X] T002 Add optional `templateControls` and `entries` render slots to `QueueForm` — render `templateControls` after the emulator field and before cycle execution, and `entries` after cycle execution and before `form-actions`; remove the "The bound emulator cannot be changed after creation." hint (FR-003); create mode passes neither slot, preserving its layout — in `src/web-ui/src/components/queues/QueueForm.tsx`
+- [X] T003 [P] Update `QueueForm` tests: assert the emulator hint is absent, that in edit mode the slot nodes render in order (emulator → templateControls → cycle → entries → actions), and that create mode renders without the slots — in `src/web-ui/src/components/queues/__tests__/QueueForm.test.tsx`
 
 **Checkpoint**: `QueueForm` exposes ordered slots and no longer shows the emulator hint.
 
@@ -59,11 +59,11 @@ name + cycle execution (entry add/remove persists regardless).
 
 ### Tests for User Story 1
 
-- [ ] T004 [P] [US1] Layout-order and Save/Cancel-scope test: edit page renders rows in order (name+emulator, a template-controls region between rows 2 and 3, cycle, sequences, Save/Cancel); emulator read-only; hint absent; Cancel discards name/cycle edits and closes; entry add/remove applies immediately and is unaffected by Cancel (FR-001–FR-005, FR-004a) — in `src/web-ui/src/pages/__tests__/QueuesPage.layout.spec.tsx`
+- [X] T004 [P] [US1] Layout-order and Save/Cancel-scope test: edit page renders rows in order (name+emulator, a template-controls region between rows 2 and 3, cycle, sequences, Save/Cancel); emulator read-only; hint absent; Cancel discards name/cycle edits and closes; entry add/remove applies immediately and is unaffected by Cancel (FR-001–FR-005, FR-004a) — in `src/web-ui/src/pages/__tests__/QueuesPage.layout.spec.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Compose the Edit-Queue section via `QueueForm` slots in `QueuesPage`: pass `<QueueEntryList>` as the `entries` slot (row 4) and an **empty/placeholder** template-controls region as the `templateControls` slot (row 2) — this placeholder is replaced by `<QueueTemplateControls>` in T012; remove the standalone `queue-templates-section` block so ordering follows rows 1–5; keep `submitForm` committing only name + cycle execution and `closeForms` as Cancel; leave entry add/remove calling their services immediately — in `src/web-ui/src/pages/QueuesPage.tsx`
+- [X] T005 [US1] Compose the Edit-Queue section via `QueueForm` slots in `QueuesPage`: pass `<QueueEntryList>` as the `entries` slot (row 4) and an **empty/placeholder** template-controls region as the `templateControls` slot (row 2) — this placeholder is replaced by `<QueueTemplateControls>` in T012; remove the standalone `queue-templates-section` block so ordering follows rows 1–5; keep `submitForm` committing only name + cycle execution and `closeForms` as Cancel; leave entry add/remove calling their services immediately — in `src/web-ui/src/pages/QueuesPage.tsx`
 
 **Checkpoint**: Edit page shows the correct row order; Name/Emulator/Cycle/Save/Cancel behave per FR-001–FR-005 (the template row content arrives in US2).
 
@@ -87,16 +87,16 @@ open at a time; saving/loading updates the displayed template name.
 
 ### Tests for User Story 2
 
-- [ ] T006 [P] [US2] `QueueTemplateControls` tests: both sections closed by default (FR-010); template-name button shows `(no template)` placeholder when none and opens the Load section (FR-007, FR-008); Save Template opens the Save section; opening one closes the other (FR-011); completing/dismissing collapses back to closed (FR-012) — in `src/web-ui/src/components/queues/__tests__/QueueTemplateControls.test.tsx`
-- [ ] T007 [P] [US2] Update inline-section tests: assert the Save and Load sections render inline (no `modal-backdrop`/`aria-modal`) while preserving behavior — name validation + overwrite confirm (Save); list/empty-state/per-row delete (Load) — in `src/web-ui/src/components/queues/__tests__/SaveTemplateDialog.test.tsx` and `src/web-ui/src/components/queues/__tests__/TemplatePickerDialog.test.tsx`
-- [ ] T008 [US2] Update `QueuesPage` template-wiring tests: associated template name pre-fills the inline Save section and updates after a successful save/load; Load disabled while the queue is Running (FR-013) — in `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx`
+- [X] T006 [P] [US2] `QueueTemplateControls` tests: both sections closed by default (FR-010); template-name button shows `(no template)` placeholder when none and opens the Load section (FR-007, FR-008); Save Template opens the Save section; opening one closes the other (FR-011); completing/dismissing collapses back to closed (FR-012) — in `src/web-ui/src/components/queues/__tests__/QueueTemplateControls.test.tsx`
+- [X] T007 [P] [US2] Update inline-section tests: assert the Save and Load sections render inline (no `modal-backdrop`/`aria-modal`) while preserving behavior — name validation + overwrite confirm (Save); list/empty-state/per-row delete (Load) — in `src/web-ui/src/components/queues/__tests__/SaveTemplateDialog.test.tsx` and `src/web-ui/src/components/queues/__tests__/TemplatePickerDialog.test.tsx`
+- [X] T008 [US2] Update `QueuesPage` template-wiring tests: associated template name pre-fills the inline Save section and updates after a successful save/load; Load disabled while the queue is Running (FR-013) — in `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T009 [P] [US2] Convert `SaveTemplateDialog` into an inline collapsible section (keep the file/component name): drop the `modal-backdrop`/`modal`/`aria-modal` wrappers, render a labeled `<section>`, expose Cancel/Close that calls `onClose` to collapse; keep name validation and the `template_exists` → overwrite-confirm flow unchanged — in `src/web-ui/src/components/queues/SaveTemplateDialog.tsx`
-- [ ] T010 [P] [US2] Convert `TemplatePickerDialog` into an inline collapsible section (keep the file/component name): drop the modal wrappers, render a labeled `<section>`; keep the template list, empty state, and per-row Delete (with `ConfirmDeleteModal`) and the `loadDisabled` behavior unchanged — in `src/web-ui/src/components/queues/TemplatePickerDialog.tsx`
-- [ ] T011 [US2] Create `QueueTemplateControls`: row with a template-name button (label `associatedTemplateName ?? '(no template)'`, opens Load) and a Save Template button (opens Save); `openSection: 'none' | 'save' | 'load'` state defaulting to `'none'` with mutual exclusion; render the inline Save/Load sections (from T009/T010) below the row; props `{ associatedTemplateName?, status, currentSequenceIds, onSaveTemplate, onLoadTemplate }` — in `src/web-ui/src/components/queues/QueueTemplateControls.tsx` (depends on T009, T010)
-- [ ] T012 [US2] Wire `QueueTemplateControls` into the `QueuesPage` `templateControls` slot, replacing the T005 placeholder region: replace `loadedTemplateName` usage with `associatedTemplateName` set on successful save and load, pass `currentSequenceIds` from `detail.entries`, and remove the standalone `<SaveTemplateDialog>`/`<TemplatePickerDialog>` mounts (now owned by the controls) — in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T011, T005)
+- [X] T009 [P] [US2] Convert `SaveTemplateDialog` into an inline collapsible section (keep the file/component name): drop the `modal-backdrop`/`modal`/`aria-modal` wrappers, render a labeled `<section>`, expose Cancel/Close that calls `onClose` to collapse; keep name validation and the `template_exists` → overwrite-confirm flow unchanged — in `src/web-ui/src/components/queues/SaveTemplateDialog.tsx`
+- [X] T010 [P] [US2] Convert `TemplatePickerDialog` into an inline collapsible section (keep the file/component name): drop the modal wrappers, render a labeled `<section>`; keep the template list, empty state, and per-row Delete (with `ConfirmDeleteModal`) and the `loadDisabled` behavior unchanged — in `src/web-ui/src/components/queues/TemplatePickerDialog.tsx`
+- [X] T011 [US2] Create `QueueTemplateControls`: row with a template-name button (label `associatedTemplateName ?? '(no template)'`, opens Load) and a Save Template button (opens Save); `openSection: 'none' | 'save' | 'load'` state defaulting to `'none'` with mutual exclusion; render the inline Save/Load sections (from T009/T010) below the row; props `{ associatedTemplateName?, status, currentSequenceIds, onSaveTemplate, onLoadTemplate }` — in `src/web-ui/src/components/queues/QueueTemplateControls.tsx` (depends on T009, T010)
+- [X] T012 [US2] Wire `QueueTemplateControls` into the `QueuesPage` `templateControls` slot, replacing the T005 placeholder region: replace `loadedTemplateName` usage with `associatedTemplateName` set on successful save and load, pass `currentSequenceIds` from `detail.entries`, and remove the standalone `<SaveTemplateDialog>`/`<TemplatePickerDialog>` mounts (now owned by the controls) — in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T011, T005)
 
 **Checkpoint**: The template row + inline Save/Load sections work end-to-end; existing save/load/delete behavior preserved (Reload arrives in US3).
 
@@ -116,14 +116,14 @@ applies without a prompt; running queue → Reload disabled; deleted/renamed tem
 
 ### Tests for User Story 3
 
-- [ ] T013 [P] [US3] Unit tests for `sameSequenceOrder`: equal arrays, empty arrays, different lengths, different order, duplicates — in `src/web-ui/src/lib/__tests__/sequenceOrder.test.ts`
-- [ ] T014 [P] [US3] Reload behavior tests in `QueuesPage`: Reload disabled when no associated template and when Running (FR-016/FR-017); identical entries → no prompt, no change; empty queue → applies without prompt; non-empty + divergent → confirmation shown and cancelable (FR-015); missing template → "Template '<name>' is no longer available", entries unchanged (FR-018) — in `src/web-ui/src/pages/__tests__/QueuesPage.reload.spec.tsx`
+- [X] T013 [P] [US3] Unit tests for `sameSequenceOrder`: equal arrays, empty arrays, different lengths, different order, duplicates — in `src/web-ui/src/lib/__tests__/sequenceOrder.test.ts`
+- [X] T014 [P] [US3] Reload behavior tests in `QueuesPage`: Reload disabled when no associated template and when Running (FR-016/FR-017); identical entries → no prompt, no change; empty queue → applies without prompt; non-empty + divergent → confirmation shown and cancelable (FR-015); missing template → "Template '<name>' is no longer available", entries unchanged (FR-018) — in `src/web-ui/src/pages/__tests__/QueuesPage.reload.spec.tsx`
 
 ### Implementation for User Story 3
 
-- [ ] T015 [P] [US3] Create the pure, order-sensitive `sameSequenceOrder(a: string[], b: string[]): boolean` helper — in `src/web-ui/src/lib/sequenceOrder.ts`
-- [ ] T016 [US3] Add the Reload Template button to `QueueTemplateControls` (completing row 2 per FR-006): disabled when `!associatedTemplateName || status === 'Running'` (FR-016/FR-017); calls a new `onReload` prop — in `src/web-ui/src/components/queues/QueueTemplateControls.tsx` (depends on T011)
-- [ ] T017 [US3] Implement the reload handler in `QueuesPage`: resolve the associated template by name via `listQueueTemplates()` (case-insensitive) → missing → surface "no longer available" (FR-018); else `getQueueTemplate(id)`, diff its `sequenceIds` against `detail.entries` via `sameSequenceOrder`; if non-empty and divergent set `pendingReload` and confirm via `ConfirmDeleteModal` (title "Reload template", confirm "Reload"), otherwise apply directly; apply reuses the existing `applyLoad` path; pass `onReload` to `QueueTemplateControls` — in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T015, T016, T012)
+- [X] T015 [P] [US3] Create the pure, order-sensitive `sameSequenceOrder(a: string[], b: string[]): boolean` helper — in `src/web-ui/src/lib/sequenceOrder.ts`
+- [X] T016 [US3] Add the Reload Template button to `QueueTemplateControls` (completing row 2 per FR-006): disabled when `!associatedTemplateName || status === 'Running'` (FR-016/FR-017); calls a new `onReload` prop — in `src/web-ui/src/components/queues/QueueTemplateControls.tsx` (depends on T011)
+- [X] T017 [US3] Implement the reload handler in `QueuesPage`: resolve the associated template by name via `listQueueTemplates()` (case-insensitive) → missing → surface "no longer available" (FR-018); else `getQueueTemplate(id)`, diff its `sequenceIds` against `detail.entries` via `sameSequenceOrder`; if non-empty and divergent set `pendingReload` and confirm via `ConfirmDeleteModal` (title "Reload template", confirm "Reload"), otherwise apply directly; apply reuses the existing `applyLoad` path; pass `onReload` to `QueueTemplateControls` — in `src/web-ui/src/pages/QueuesPage.tsx` (depends on T015, T016, T012)
 
 **Checkpoint**: All three stories function independently; reload honors the diff-aware confirmation rule.
 
@@ -133,8 +133,8 @@ applies without a prompt; running queue → Reload disabled; deleted/renamed tem
 
 **Purpose**: Styling and verification across the refined page.
 
-- [ ] T018 [P] Add styles for the template-controls row (template-name button, action buttons) and the inline Save/Load section panels so they read as rows between rows 2 and 3 — in `src/web-ui/src/styles.css`
-- [ ] T019 Run the full frontend suite and lint; confirm ≥80% line / ≥70% branch coverage on touched areas and zero lint errors (`npm --prefix src/web-ui test` and `npm --prefix src/web-ui run lint`)
+- [X] T018 [P] Add styles for the template-controls row (template-name button, action buttons) and the inline Save/Load section panels so they read as rows between rows 2 and 3 — in `src/web-ui/src/styles.css`
+- [X] T019 Run the full frontend suite and lint; confirm ≥80% line / ≥70% branch coverage on touched areas and zero lint errors (`npm --prefix src/web-ui test` and `npm --prefix src/web-ui run lint`)
 - [ ] T020 Execute `specs/048-edit-queue-layout/quickstart.md` manual verification (row order, inline section toggling, reload diff/confirm/disabled/missing, Save/Cancel independence)
 
 ---

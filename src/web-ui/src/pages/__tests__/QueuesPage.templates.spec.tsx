@@ -49,22 +49,22 @@ beforeEach(() => {
   replaceEntriesMock.mockResolvedValue({} as any);
 });
 
-const openSaveDialog = async () => {
+const openSaveSection = async () => {
   render(<QueuesPage />);
   await screen.findByText('Daily');
   fireEvent.click(screen.getByText('Daily'));
   await screen.findByText('Edit Queue');
-  fireEvent.click(screen.getByText('Save as template'));
-  return screen.findByRole('dialog', { name: 'Save template' });
+  fireEvent.click(screen.getByText('Save Template'));
+  return screen.findByRole('region', { name: 'Save template' });
 };
 
 describe('QueuesPage template save wiring', () => {
   it('builds sequenceIds from the current entries and saves', async () => {
     saveTemplateMock.mockResolvedValue({} as any);
-    const dialog = await openSaveDialog();
+    const section = await openSaveSection();
 
-    fireEvent.change(within(dialog).getByLabelText('Template name'), { target: { value: 'Daily Farm' } });
-    fireEvent.click(within(dialog).getByText('Save'));
+    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Daily Farm' } });
+    fireEvent.click(within(section).getByText('Save'));
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenCalledWith({ name: 'Daily Farm', sequenceIds: ['seq-a', 'seq-b'], overwrite: false })
@@ -76,12 +76,12 @@ describe('QueuesPage template save wiring', () => {
     saveTemplateMock
       .mockRejectedValueOnce(new ApiError(409, 'template_exists'))
       .mockResolvedValueOnce({} as any);
-    const dialog = await openSaveDialog();
+    const section = await openSaveSection();
 
-    fireEvent.change(within(dialog).getByLabelText('Template name'), { target: { value: 'Daily Farm' } });
-    fireEvent.click(within(dialog).getByText('Save'));
+    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Daily Farm' } });
+    fireEvent.click(within(section).getByText('Save'));
 
-    fireEvent.click(await within(dialog).findByText('Overwrite'));
+    fireEvent.click(await within(section).findByText('Overwrite'));
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenLastCalledWith({ name: 'Daily Farm', sequenceIds: ['seq-a', 'seq-b'], overwrite: true })
@@ -89,18 +89,18 @@ describe('QueuesPage template save wiring', () => {
   });
 });
 
-const openEditAndPicker = async () => {
+const openLoadSection = async () => {
   render(<QueuesPage />);
   await screen.findByText('Daily');
   fireEvent.click(screen.getByText('Daily'));
   await screen.findByText('Edit Queue');
-  fireEvent.click(screen.getByText('Load template'));
-  return screen.findByRole('dialog', { name: 'Load template' });
+  fireEvent.click(screen.getByText('(no template)'));
+  return screen.findByRole('region', { name: 'Load template' });
 };
 
 describe('QueuesPage template load wiring', () => {
   it('replaces entries after confirming the replacement for a non-empty queue', async () => {
-    const picker = await openEditAndPicker();
+    const picker = await openLoadSection();
     fireEvent.click(within(picker).getByText('Load'));
 
     const confirm = await screen.findByRole('dialog', { name: 'Replace queue entries' });
@@ -110,7 +110,7 @@ describe('QueuesPage template load wiring', () => {
   });
 
   it('does not replace entries when the replacement is canceled', async () => {
-    const picker = await openEditAndPicker();
+    const picker = await openLoadSection();
     fireEvent.click(within(picker).getByText('Load'));
 
     const confirm = await screen.findByRole('dialog', { name: 'Replace queue entries' });
@@ -119,24 +119,26 @@ describe('QueuesPage template load wiring', () => {
     expect(replaceEntriesMock).not.toHaveBeenCalled();
   });
 
-  it('pre-fills the save dialog with the loaded template name', async () => {
+  it('pre-fills the save section with the loaded template name', async () => {
     getQueueMock.mockResolvedValue({ ...queue({ entryCount: 0 }), entries: [] } as any);
-    const picker = await openEditAndPicker();
+    const picker = await openLoadSection();
     fireEvent.click(within(picker).getByText('Load'));
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-x']));
 
-    fireEvent.click(screen.getByText('Save as template'));
-    const saveDialog = await screen.findByRole('dialog', { name: 'Save template' });
-    expect(within(saveDialog).getByLabelText('Template name')).toHaveValue('Daily Farm');
+    fireEvent.click(screen.getByText('Save Template'));
+    const saveSection = await screen.findByRole('region', { name: 'Save template' });
+    expect(within(saveSection).getByLabelText('Template name')).toHaveValue('Daily Farm');
   });
 
-  it('disables Load template while the queue is running', async () => {
+  it('disables the Load action while the queue is running', async () => {
     getQueueMock.mockResolvedValue({ ...detailWithEntries(), status: 'Running' } as any);
     render(<QueuesPage />);
     await screen.findByText('Daily');
     fireEvent.click(screen.getByText('Daily'));
     await screen.findByText('Edit Queue');
-    expect(screen.getByText('Load template')).toBeDisabled();
+    fireEvent.click(screen.getByText('(no template)'));
+    const picker = await screen.findByRole('region', { name: 'Load template' });
+    expect(within(picker).getByText('Load')).toBeDisabled();
   });
 
   it('loads the same template independently into two different queues (FR-016)', async () => {
@@ -148,14 +150,14 @@ describe('QueuesPage template load wiring', () => {
 
     fireEvent.click(screen.getByText('Daily'));
     await screen.findByText('Edit Queue');
-    fireEvent.click(screen.getByText('Load template'));
-    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Load template' })).getByText('Load'));
+    fireEvent.click(screen.getByText('(no template)'));
+    fireEvent.click(within(await screen.findByRole('region', { name: 'Load template' })).getByText('Load'));
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-x']));
 
     fireEvent.click(screen.getByText('Arena'));
     await waitFor(() => expect(getQueueMock).toHaveBeenLastCalledWith('q2'));
-    fireEvent.click(screen.getByText('Load template'));
-    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Load template' })).getByText('Load'));
+    fireEvent.click(screen.getByText('(no template)'));
+    fireEvent.click(within(await screen.findByRole('region', { name: 'Load template' })).getByText('Load'));
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q2', ['seq-x']));
   });
 });
@@ -163,7 +165,7 @@ describe('QueuesPage template load wiring', () => {
 describe('QueuesPage template delete wiring', () => {
   it('deletes a template from the picker without touching the queue entries', async () => {
     deleteTemplateMock.mockResolvedValue(undefined as any);
-    const picker = await openEditAndPicker();
+    const picker = await openLoadSection();
     expect(screen.getAllByTestId('queue-entry')).toHaveLength(2);
 
     fireEvent.click(within(picker).getByText('Delete'));

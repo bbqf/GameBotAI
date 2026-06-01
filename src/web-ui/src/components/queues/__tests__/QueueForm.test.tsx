@@ -21,6 +21,8 @@ const renderForm = (overrides: Partial<React.ComponentProps<typeof QueueForm>> =
       onCancel={onCancel}
       fieldErrors={overrides.fieldErrors}
       formError={overrides.formError}
+      templateControls={overrides.templateControls}
+      entries={overrides.entries}
     />
   );
   return { onChange, onSubmit, onCancel };
@@ -34,13 +36,45 @@ describe('QueueForm', () => {
     expect(emulator).not.toBeDisabled();
   });
 
-  it('shows the emulator read-only in edit mode and explains it cannot change', () => {
+  it('shows the emulator read-only in edit mode without the "cannot be changed" hint', () => {
     renderForm({ mode: 'edit', value: { name: 'Farm', emulatorSerial: 'emu-9', cycleExecution: false } });
     const emulator = screen.getByLabelText('Emulator *') as HTMLInputElement;
     expect(emulator.tagName).toBe('INPUT');
     expect(emulator).toHaveValue('emu-9');
     expect(emulator).toBeDisabled();
-    expect(screen.getByText('The bound emulator cannot be changed after creation.')).toBeInTheDocument();
+    expect(screen.queryByText(/bound emulator cannot be changed/i)).not.toBeInTheDocument();
+  });
+
+  it('renders the template-controls and entries slots in row order (emulator -> templates -> cycle -> entries -> actions)', () => {
+    renderForm({
+      mode: 'edit',
+      value: { name: 'Farm', emulatorSerial: 'emu-9', cycleExecution: false },
+      templateControls: <div data-testid="slot-templates" />,
+      entries: <div data-testid="slot-entries" />,
+    });
+    const emulator = screen.getByLabelText('Emulator *');
+    const templates = screen.getByTestId('slot-templates');
+    const cycle = screen.getByLabelText('Cycle execution');
+    const entries = screen.getByTestId('slot-entries');
+    const actions = screen.getByText('Save');
+
+    const follows = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(emulator, templates)).toBe(true);
+    expect(follows(templates, cycle)).toBe(true);
+    expect(follows(cycle, entries)).toBe(true);
+    expect(follows(entries, actions)).toBe(true);
+  });
+
+  it('does not render the slots in create mode', () => {
+    renderForm({
+      mode: 'create',
+      templateControls: <div data-testid="slot-templates" />,
+      entries: <div data-testid="slot-entries" />,
+    });
+    // Create mode receives no slots from the page; even if passed, the form omits them.
+    expect(screen.queryByTestId('slot-templates')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('slot-entries')).not.toBeInTheDocument();
   });
 
   it('renders field and form errors', () => {
