@@ -273,23 +273,26 @@ export const QueuesPage: React.FC = () => {
             formError={formError}
             fieldErrors={fieldErrors}
           />
+          <section className="queue-templates-section" aria-label="Queue templates">
+            <h4>Templates</h4>
+            <div className="queue-template-actions">
+              <button type="button" onClick={() => setSaveTemplateOpen(true)}>Save as template</button>
+              <button
+                type="button"
+                onClick={() => setTemplatePickerOpen(true)}
+                disabled={detail.status === 'Running'}
+                title={detail.status === 'Running' ? 'Stop the queue before loading a template.' : undefined}
+              >
+                Load template
+              </button>
+            </div>
+          </section>
           <QueueEntryList
             entries={detail.entries}
             sequences={sequences}
             onAdd={(sid) => void onAddEntry(sid)}
             onRemove={(eid) => void onRemoveEntry(eid)}
           />
-          <div className="queue-template-actions">
-            <button type="button" onClick={() => setSaveTemplateOpen(true)}>Save as template</button>
-            <button
-              type="button"
-              onClick={() => setTemplatePickerOpen(true)}
-              disabled={detail.status === 'Running'}
-              title={detail.status === 'Running' ? 'Stop the queue before loading a template.' : undefined}
-            >
-              Load template
-            </button>
-          </div>
         </section>
       )}
 
