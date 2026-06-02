@@ -819,11 +819,26 @@ sequences.MapPost("{sequenceId}/execute", async (
       // empty body, malformed JSON, or missing content-type — no sessionId override
     }
 
+    // Create the in-progress root entry up front so invoked commands can be linked to it
+    // (and the sequence shows as a single top-level entry while it runs).
+    var startSequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
+    var startSequenceName = startSequence?.Name ?? sequenceId;
+    var rootExecutionId = await executionLogService.LogSequenceStartAsync(sequenceId, startSequenceName, ct).ConfigureAwait(false);
+    var childInvocationIndex = 0;
+
     var res = await runner.ExecuteAsync(
       sequenceId,
       async commandId => {
         try {
-          await commandExecutor.ForceExecuteAsync(sessionId, commandId, ct).ConfigureAwait(false);
+          var childContext = new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
+            ParentExecutionId = rootExecutionId,
+            RootExecutionId = rootExecutionId,
+            Depth = 1,
+            SequenceIndex = ++childInvocationIndex,
+            SequenceId = sequenceId,
+            SequenceLabel = startSequenceName
+          };
+          await commandExecutor.ForceExecuteAsync(sessionId, commandId, childContext, ct).ConfigureAwait(false);
         }
         catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
           throw new InvalidOperationException($"No cached session found for command '{commandId}'. Start a session first.");
@@ -989,7 +1004,8 @@ sequences.MapPost("{sequenceId}/execute", async (
           ["sequenceLabel"] = sequenceName,
           ["stepId"] = stepId,
           ["stepLabel"] = stepLabel,
-          ["commandName"] = isWaitForImageStep ? null : commandName
+          ["commandName"] = isWaitForImageStep ? null : commandName,
+          ["commandId"] = isWaitForImageStep ? null : step.CommandId
         },
         "normal"));
     }
@@ -1013,7 +1029,8 @@ sequences.MapPost("{sequenceId}/execute", async (
         "normal"));
     }
 
-    await executionLogService.LogSequenceExecutionAsync(
+    await executionLogService.LogSequenceFinalizeAsync(
+      rootExecutionId,
       sequenceId,
       sequenceName,
       status,

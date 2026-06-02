@@ -42,11 +42,33 @@ internal sealed record ExecutionLogDetailProjection(
   string? SnapshotCaption,
   IReadOnlyList<ExecutionLogStepProjection> StepOutcomes);
 
+internal sealed record ExecutionTreeNodeProjection(
+  string NodeKind,
+  string? ExecutionId,
+  int Order,
+  string Label,
+  string Status,
+  string? Message,
+  int? AppliedDelayMs,
+  string? CommandName,
+  WaitForImageDetailAttributes? DetailAttributes,
+  ConditionEvaluationTrace? ConditionTrace,
+  ExecutionLogStepDeepLinkProjection? DeepLink,
+  IReadOnlyList<ExecutionTreeNodeProjection> Children);
+
+internal sealed record ExecutionSubtreeProjection(
+  string ExecutionId,
+  string FinalStatus,
+  ExecutionTreeNodeProjection Root);
+
 internal interface IExecutionLogService {
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default);
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default);
   Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
+  Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, CancellationToken ct = default);
+  Task LogSequenceFinalizeAsync(string executionId, string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
+  Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default);
   Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default);
   Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default);
   Task<ExecutionLogRetentionPolicy> GetRetentionAsync(CancellationToken ct = default);
@@ -185,6 +207,167 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     await _repository.AddAsync(entry, ct).ConfigureAwait(false);
   }
 
+  public async Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, CancellationToken ct = default) {
+    var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
+    var now = DateTimeOffset.UtcNow;
+    var id = Guid.NewGuid().ToString("N");
+    var context = new ExecutionLogContext { SequenceId = sequenceId, SequenceLabel = sequenceName };
+    var entry = new ExecutionLogEntry {
+      Id = id,
+      TimestampUtc = now,
+      ExecutionType = "sequence",
+      FinalStatus = "running",
+      ObjectRef = new ExecutionObjectReference("sequence", sequenceId, sequenceName),
+      Navigation = ExecutionNavigationBuilder.Build("sequence", sequenceId, context),
+      Hierarchy = new ExecutionHierarchyContext(id, null, 0, null),
+      Summary = TrimSummary($"Sequence '{sequenceName}' running."),
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+    };
+    await _repository.AddAsync(entry, ct).ConfigureAwait(false);
+    return id;
+  }
+
+  public async Task LogSequenceFinalizeAsync(string executionId, string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) {
+    var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
+    var existing = await _repository.GetAsync(executionId, ct).ConfigureAwait(false);
+    var timestamp = existing?.TimestampUtc ?? DateTimeOffset.UtcNow;
+    var sanitizedDetails = ExecutionLogSanitizer.SanitizeDetails(details?.ToList() ?? new List<ExecutionDetailItem>());
+    var stepOutcomes = BuildSequenceStepOutcomes(sequenceId, sequenceName, context, sanitizedDetails);
+    var trimmedDetails = TrimDetails(sanitizedDetails);
+
+    var entry = new ExecutionLogEntry {
+      Id = executionId,
+      TimestampUtc = timestamp,
+      ExecutionType = "sequence",
+      FinalStatus = NormalizeStatus(finalStatus),
+      ObjectRef = new ExecutionObjectReference("sequence", sequenceId, sequenceName),
+      Navigation = ExecutionNavigationBuilder.Build("sequence", sequenceId, context),
+      Hierarchy = new ExecutionHierarchyContext(executionId, null, 0, null),
+      Summary = TrimSummary(summary),
+      Details = trimmedDetails,
+      StepOutcomes = stepOutcomes,
+      RetentionExpiresUtc = retention.Enabled ? timestamp.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+    };
+
+    await _repository.UpsertAsync(entry, ct).ConfigureAwait(false);
+  }
+
+  public async Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default) {
+    if (string.IsNullOrWhiteSpace(executionId)) return null;
+    var entries = await _repository.GetSubtreeAsync(executionId, ct).ConfigureAwait(false);
+    var root = entries.FirstOrDefault(e => string.Equals(e.Id, executionId, StringComparison.Ordinal))
+               ?? await _repository.GetAsync(executionId, ct).ConfigureAwait(false);
+    if (root is null) return null;
+
+    return BuildSubtree(root, entries);
+  }
+
+  internal static ExecutionSubtreeProjection BuildSubtree(ExecutionLogEntry root, IReadOnlyList<ExecutionLogEntry> all) {
+    var node = BuildTreeNode(root, all);
+    return new ExecutionSubtreeProjection(root.Id, NormalizeStatus(root.FinalStatus), node);
+  }
+
+  private static ExecutionTreeNodeProjection BuildTreeNode(ExecutionLogEntry entry, IReadOnlyList<ExecutionLogEntry> all) {
+    var isSequence = string.Equals(entry.ExecutionType, "sequence", StringComparison.OrdinalIgnoreCase);
+    var children = new List<ExecutionTreeNodeProjection>();
+
+    var directChildren = all
+      .Where(e => string.Equals(e.Hierarchy.ParentExecutionId, entry.Id, StringComparison.Ordinal))
+      .OrderBy(e => e.Hierarchy.SequenceIndex ?? int.MaxValue)
+      .ThenBy(e => e.TimestampUtc)
+      .ToList();
+    // Correlate command-backed steps to their linked child execution entries by command id,
+    // preserving invocation order so repeated commands map to the right child.
+    var childrenByCommandId = directChildren
+      .GroupBy(e => e.ObjectRef.ObjectId, StringComparer.Ordinal)
+      .ToDictionary(g => g.Key, g => new Queue<ExecutionLogEntry>(g), StringComparer.Ordinal);
+
+    if (entry.StepOutcomes.Count > 0) {
+      foreach (var step in entry.StepOutcomes.OrderBy(s => s.StepOrder)) {
+        ExecutionLogEntry? childEntry = null;
+        if (!string.IsNullOrWhiteSpace(step.CommandId)
+            && childrenByCommandId.TryGetValue(step.CommandId!, out var queue)
+            && queue.Count > 0) {
+          childEntry = queue.Dequeue();
+        }
+
+        if (childEntry is not null) {
+          var childNode = BuildTreeNode(childEntry, all);
+          children.Add(childNode with {
+            Order = step.StepOrder,
+            Label = string.IsNullOrWhiteSpace(step.CommandName) ? childNode.Label : step.CommandName!,
+            Status = MapStepStatus(step.Outcome),
+            Message = step.ReasonText ?? step.ReasonCode,
+            AppliedDelayMs = step.AppliedDelayMs,
+            CommandName = step.CommandName,
+            DeepLink = BuildDeepLink(entry, step)
+          });
+        }
+        else {
+          children.Add(BuildStepNode(entry, step));
+        }
+      }
+
+      // Defensive: surface any child executions that were not matched to a step.
+      foreach (var leftover in childrenByCommandId.Values.SelectMany(q => q)) {
+        children.Add(BuildTreeNode(leftover, all));
+      }
+    }
+    else {
+      foreach (var childEntry in directChildren) {
+        children.Add(BuildTreeNode(childEntry, all));
+      }
+    }
+
+    return new ExecutionTreeNodeProjection(
+      isSequence ? "sequence" : "command",
+      entry.Id,
+      entry.Hierarchy.SequenceIndex ?? 0,
+      entry.ObjectRef.DisplayNameSnapshot,
+      NormalizeStatus(entry.FinalStatus),
+      string.IsNullOrWhiteSpace(entry.Summary) ? null : entry.Summary,
+      null,
+      null,
+      null,
+      null,
+      null,
+      children);
+  }
+
+  private static ExecutionTreeNodeProjection BuildStepNode(ExecutionLogEntry entry, ExecutionStepOutcome step)
+    => new(
+      MapStepKind(step.StepType),
+      null,
+      step.StepOrder,
+      ResolveStepLabel(step),
+      MapStepStatus(step.Outcome),
+      step.ReasonText ?? step.ReasonCode,
+      step.AppliedDelayMs,
+      step.CommandName,
+      step.DetailAttributes,
+      step.ConditionTrace,
+      BuildDeepLink(entry, step),
+      Array.Empty<ExecutionTreeNodeProjection>());
+
+  private static string MapStepKind(string? stepType)
+    => (stepType ?? string.Empty).ToLowerInvariant() switch {
+      "waitforimage" => "wait",
+      "condition" => "condition",
+      "loop" => "loop",
+      "primitivetap" or "tap" => "tap",
+      "command" => "command",
+      _ => "step"
+    };
+
+  private static string MapStepStatus(string? outcome)
+    => (outcome ?? string.Empty).ToLowerInvariant() switch {
+      "executed" or "success" or "image_detected" or "true" => "success",
+      "skipped" => "skipped",
+      "not_executed" => "not_executed",
+      "running" => "running",
+      _ => "failure"
+    };
+
   public Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default) {
     var normalized = NormalizeQuery(query);
     return _repository.QueryAsync(normalized, ct);
@@ -275,8 +458,11 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       stepOutcomes);
   }
 
-  private static string NormalizeStatus(string status)
-    => string.Equals(status, "success", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+  private static string NormalizeStatus(string status) {
+    if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase)) return "success";
+    if (string.Equals(status, "running", StringComparison.OrdinalIgnoreCase)) return "running";
+    return "failure";
+  }
 
   private static List<ExecutionStepOutcome> BuildSequenceStepOutcomes(
     string sequenceId,
@@ -299,6 +485,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       var resolvedStepId = TryGetString(attributes, "stepId") ?? context.StepId;
       var resolvedStepLabel = TryGetString(attributes, "stepLabel") ?? context.StepLabel;
       var resolvedCommandName = TryGetString(attributes, "commandName");
+      var resolvedCommandId = TryGetString(attributes, "commandId");
       var appliedDelayMs = TryGetInt(attributes, "appliedDelayMs");
       var conditionTrace = TryGetConditionTrace(attributes, "conditionTrace")
                            ?? BuildConditionTraceFromAttributes(attributes);
@@ -317,6 +504,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         conditionTrace,
         appliedDelayMs) {
         CommandName = resolvedCommandName,
+        CommandId = resolvedCommandId,
         DetailAttributes = detailAttributes
       });
     }
@@ -552,7 +740,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       ObjectType = source.ObjectType,
       ObjectId = source.ObjectId,
       PageSize = source.PageSize <= 0 ? 50 : source.PageSize,
-      Cursor = source.Cursor
+      Cursor = source.Cursor,
+      RootsOnly = source.RootsOnly
     };
   }
 }

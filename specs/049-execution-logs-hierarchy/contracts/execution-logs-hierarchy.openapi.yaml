@@ -1,0 +1,213 @@
+openapi: 3.0.3
+info:
+  title: Execution Logs API — Hierarchy & Live Updates
+  version: 1.1.0
+  description: >
+    Contract additions for feature 049. The execution-logs list now returns only
+    top-level (root) entries; invoked commands of a sequence are recorded as linked
+    children and exposed via a subtree endpoint for expandable, live-updating tree
+    rendering. Additive and backward compatible with the 1.0.0 contract.
+servers:
+  - url: http://localhost:5081
+paths:
+  /api/execution-logs:
+    get:
+      summary: List top-level execution logs
+      description: >
+        Returns ONLY top-level (root) execution entries — stand-alone commands and
+        sequences. Commands invoked as part of a sequence run are excluded (they are
+        children of their sequence root). Sorting/filtering/paging unchanged from 1.0.0.
+      operationId: listExecutionLogs
+      parameters:
+        - { name: sortBy, in: query, schema: { type: string, enum: [timestamp, objectName, status], default: timestamp } }
+        - { name: sortDirection, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+        - { name: filterTimestamp, in: query, schema: { type: string } }
+        - { name: filterObjectName, in: query, schema: { type: string } }
+        - { name: filterStatus, in: query, schema: { type: string } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: pageToken, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Paged list of top-level execution log entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogListResponse'
+        '401': { description: Unauthorized }
+
+  /api/execution-logs/{id}:
+    get:
+      summary: Get execution log detail
+      description: Detail for a single execution (root or child). Unchanged from 1.0.0 plus optional status field.
+      operationId: getExecutionLog
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Execution detail.
+          content:
+            application/json:
+              schema: { type: object }
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/execution-logs/{id}/subtree:
+    get:
+      summary: Get the execution subtree (nested sub-elements)
+      description: >
+        Returns the execution identified by {id} together with its nested sub-elements
+        (steps, invoked commands, condition evaluations, loop iterations, wait outcomes)
+        as a tree. While the root is still running, the tree reflects the children
+        recorded so far (live progress); once finalized it reflects the complete picture.
+      operationId: getExecutionSubtree
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The execution subtree.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionSubtreeResponse'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  schemas:
+    ExecutionLogListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ExecutionLogListItem' }
+        nextPageToken: { type: string, nullable: true }
+        nextCursor: { type: string, nullable: true }
+
+    ExecutionLogListItem:
+      type: object
+      required: [id, timestampUtc, executionType, finalStatus, childCount, objectRef, summary]
+      properties:
+        id: { type: string }
+        timestampUtc: { type: string, format: date-time }
+        executionType: { type: string, description: "command | sequence" }
+        finalStatus:
+          type: string
+          enum: [running, success, failure]
+          description: >
+            Single status field. Enum extended to include the in-progress 'running' state for
+            sequences; drives the in-progress indicator and the client polling decision.
+        childCount:
+          type: integer
+          minimum: 0
+          description: Number of direct children. 0 ⇒ leaf (not expandable).
+        objectRef: { $ref: '#/components/schemas/ObjectRef' }
+        hierarchy: { $ref: '#/components/schemas/Hierarchy' }
+        summary: { type: string }
+
+    ExecutionSubtreeResponse:
+      type: object
+      required: [executionId, finalStatus, root]
+      properties:
+        executionId: { type: string }
+        finalStatus:
+          type: string
+          enum: [running, success, failure]
+          description: Root lifecycle status — same field/enum as the list item's finalStatus.
+        root: { $ref: '#/components/schemas/ExecutionTreeNode' }
+
+    ExecutionTreeNode:
+      type: object
+      required: [nodeKind, order, label, status]
+      properties:
+        nodeKind:
+          type: string
+          enum: [sequence, command, step, condition, loop, loopIteration, wait, tap]
+        executionId:
+          type: string
+          nullable: true
+          description: Present when the node maps to a real execution entry (sequence/command).
+        order: { type: integer }
+        label: { type: string }
+        status:
+          type: string
+          enum: [running, success, failure, skipped, not_executed]
+        message: { type: string, nullable: true }
+        appliedDelayMs: { type: integer, nullable: true }
+        commandName: { type: string, nullable: true }
+        detailAttributes:
+          $ref: '#/components/schemas/WaitForImageDetailAttributes'
+          nullable: true
+        conditionTrace:
+          $ref: '#/components/schemas/ConditionTrace'
+          nullable: true
+        deepLink:
+          $ref: '#/components/schemas/AuthoringDeepLink'
+          nullable: true
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/ExecutionTreeNode' }
+
+    ObjectRef:
+      type: object
+      required: [objectType, objectId, displayNameSnapshot]
+      properties:
+        objectType: { type: string }
+        objectId: { type: string }
+        displayNameSnapshot: { type: string }
+        versionSnapshot: { type: string, nullable: true }
+
+    Hierarchy:
+      type: object
+      required: [rootExecutionId, depth]
+      properties:
+        rootExecutionId: { type: string }
+        parentExecutionId: { type: string, nullable: true, description: "null ⇒ top-level (root)" }
+        depth: { type: integer }
+        sequenceIndex: { type: integer, nullable: true }
+
+    WaitForImageDetailAttributes:
+      type: object
+      properties:
+        timeoutMs: { type: integer, nullable: true }
+        effectiveTimeoutMs: { type: integer, nullable: true }
+        referenceImageId: { type: string, nullable: true }
+        confidence: { type: number, nullable: true }
+        exitCondition: { type: string, nullable: true, enum: [image_detected, timeout_elapsed, image_unavailable, null] }
+        imageLoadStatus: { type: string, nullable: true }
+
+    ConditionTrace:
+      type: object
+      required: [finalResult, selectedBranch]
+      properties:
+        finalResult: { type: boolean }
+        selectedBranch: { type: string }
+        failureReason: { type: string, nullable: true }
+
+    AuthoringDeepLink:
+      type: object
+      required: [sequenceId, sequenceLabel, stepLabel, resolutionStatus, directPath]
+      properties:
+        sequenceId: { type: string }
+        stepId: { type: string, nullable: true }
+        sequenceLabel: { type: string }
+        stepLabel: { type: string }
+        resolutionStatus: { type: string, enum: [resolved, step_missing, sequence_missing] }
+        directPath: { type: string }
+        fallbackRoute: { type: string, nullable: true }
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            hint: { type: string, nullable: true }

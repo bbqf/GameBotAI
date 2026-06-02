@@ -10,13 +10,49 @@ export type ExecutionLogObjectRefDto = {
   versionSnapshot?: string;
 };
 
+export type ExecutionStatus = 'running' | 'success' | 'failure';
+
 export type ExecutionLogEntryDto = {
   id: string;
   timestampUtc: string;
   executionType: string;
-  finalStatus: string;
+  finalStatus: ExecutionStatus;
+  childCount: number;
   objectRef: ExecutionLogObjectRefDto;
   summary: string;
+};
+
+export type ExecutionTreeNodeKind =
+  | 'sequence'
+  | 'command'
+  | 'step'
+  | 'condition'
+  | 'loop'
+  | 'loopIteration'
+  | 'wait'
+  | 'tap';
+
+export type ExecutionTreeNodeStatus = ExecutionStatus | 'skipped' | 'not_executed';
+
+export type ExecutionTreeNodeDto = {
+  nodeKind: ExecutionTreeNodeKind;
+  executionId?: string;
+  order: number;
+  label: string;
+  status: ExecutionTreeNodeStatus;
+  message?: string;
+  appliedDelayMs?: number;
+  commandName?: string;
+  detailAttributes?: ExecutionLogWaitForImageDetailAttributesDto;
+  conditionTrace?: ExecutionLogConditionTraceDto;
+  deepLink?: ExecutionLogStepDeepLinkDto;
+  children: ExecutionTreeNodeDto[];
+};
+
+export type ExecutionSubtreeResponseDto = {
+  executionId: string;
+  finalStatus: ExecutionStatus;
+  root: ExecutionTreeNodeDto;
 };
 
 export type ExecutionLogListResponseDto = {
@@ -125,3 +161,6 @@ export const listExecutionLogs = async (query: ListExecutionLogsRequest = {}): P
 };
 
 export const getExecutionLogDetail = (executionId: string) => getJson<ExecutionLogDetailDto>(`/api/execution-logs/${encodeURIComponent(executionId)}`);
+
+export const getExecutionSubtree = (executionId: string) =>
+  getJson<ExecutionSubtreeResponseDto>(`/api/execution-logs/${encodeURIComponent(executionId)}/subtree`);

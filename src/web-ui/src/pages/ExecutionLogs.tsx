@@ -1,15 +1,20 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ExecutionLogDetailDto,
   ExecutionLogEntryDto,
   ExecutionLogListSortBy,
   ExecutionLogSortDirection,
+  ExecutionLogStepDeepLinkDto,
+  ExecutionSubtreeResponseDto,
+  ExecutionTreeNodeDto,
   getExecutionLogDetail,
+  getExecutionSubtree,
   listExecutionLogs
 } from '../services/executionLogsApi';
 import { useNavigationCollapse } from '../hooks/useNavigationCollapse';
 
 const PAGE_SIZE = 50;
+const POLL_INTERVAL_MS = 2000;
 
 const formatRelativeTime = (timestampUtc: string): string => {
   const timestamp = new Date(timestampUtc);
@@ -40,6 +45,67 @@ const formatExitCondition = (exitCondition?: string): string => {
   }
 };
 
+const openAuthoringDeepLink = (deepLink?: ExecutionLogStepDeepLinkDto): void => {
+  if (!deepLink) {
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  params.set('area', 'authoring');
+  params.set('tab', 'Sequences');
+  params.set('id', deepLink.sequenceId);
+  if (deepLink.resolutionStatus === 'resolved' && deepLink.stepId) {
+    params.set('stepId', deepLink.stepId);
+    params.delete('missingStep');
+  } else {
+    params.delete('stepId');
+    params.set('missingStep', '1');
+  }
+
+  window.location.assign(`${window.location.pathname}?${params.toString()}`);
+};
+
+const ExecutionTreeNode: React.FC<{ node: ExecutionTreeNodeDto; depth: number }> = ({ node, depth }) => (
+  <li className="execution-tree-node" data-node-kind={node.nodeKind} data-status={node.status}>
+    <div className="execution-tree-node-row" style={{ paddingLeft: `${depth * 1.25}rem` }}>
+      <span className="execution-tree-node-kind">{node.nodeKind}</span>
+      <strong className="execution-tree-node-label">{node.label}</strong>
+      <span className="execution-tree-node-status">{node.status}</span>
+      {node.message && <span className="execution-tree-node-message"> — {node.message}</span>}
+      {typeof node.appliedDelayMs === 'number' && (
+        <span className="form-hint"> (delay {node.appliedDelayMs} ms)</span>
+      )}
+      {node.deepLink && (
+        <button
+          type="button"
+          className="execution-tree-deeplink"
+          onClick={() => openAuthoringDeepLink(node.deepLink)}
+        >
+          Open in sequence
+        </button>
+      )}
+    </div>
+    {node.conditionTrace && (
+      <div className="form-hint" style={{ paddingLeft: `${depth * 1.25}rem` }}>
+        Condition: final result {node.conditionTrace.finalResult ? 'true' : 'false'} ({node.conditionTrace.selectedBranch} branch)
+      </div>
+    )}
+    {node.detailAttributes && (
+      <div className="form-hint" style={{ paddingLeft: `${depth * 1.25}rem` }}>
+        Wait: timeout {typeof node.detailAttributes.timeoutMs === 'number' ? `${node.detailAttributes.timeoutMs} ms` : 'n/a'};
+        exit {formatExitCondition(node.detailAttributes.exitCondition)}.
+      </div>
+    )}
+    {node.children.length > 0 && (
+      <ul className="execution-tree-children">
+        {node.children.map((child, index) => (
+          <ExecutionTreeNode key={`${child.nodeKind}-${child.order}-${index}`} node={child} depth={depth + 1} />
+        ))}
+      </ul>
+    )}
+  </li>
+);
+
 export const ExecutionLogsPage: React.FC = () => {
   const [items, setItems] = useState<ExecutionLogEntryDto[]>([]);
   const [detail, setDetail] = useState<ExecutionLogDetailDto | undefined>(undefined);
@@ -58,6 +124,11 @@ export const ExecutionLogsPage: React.FC = () => {
   const [timestampMode, setTimestampMode] = useState<'exact' | 'relative'>('exact');
   const [showPhoneDetail, setShowPhoneDetail] = useState(false);
 
+  const [expandedId, setExpandedId] = useState<string | undefined>(undefined);
+  const [subtrees, setSubtrees] = useState<Record<string, ExecutionSubtreeResponseDto>>({});
+  const [loadingSubtreeId, setLoadingSubtreeId] = useState<string | undefined>(undefined);
+  const [subtreeError, setSubtreeError] = useState<string | undefined>(undefined);
+
   const { isCollapsed: isPhone } = useNavigationCollapse(640);
   const listRequestId = useRef(0);
   const detailRequestId = useRef(0);
@@ -70,57 +141,95 @@ export const ExecutionLogsPage: React.FC = () => {
     filterStatus
   }), [sortBy, sortDirection, filterTimestamp, filterObjectName, filterStatus]);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadSubtree = async (id: string) => {
+    setLoadingSubtreeId(id);
+    setSubtreeError(undefined);
+    try {
+      const response = await getExecutionSubtree(id);
+      setSubtrees((prev) => ({ ...prev, [id]: response }));
+    } catch (err: any) {
+      setSubtreeError(err?.message ?? 'Failed to load sub-elements');
+    } finally {
+      setLoadingSubtreeId((current) => (current === id ? undefined : current));
+    }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedId((current) => {
+      if (current === id) {
+        return undefined;
+      }
+      if (!subtrees[id]) {
+        void loadSubtree(id);
+      }
+      return id;
+    });
+  };
+
+  const fetchList = useCallback(async (silent = false) => {
     const requestId = ++listRequestId.current;
+    if (!silent) setLoadingList(true);
+    setError(undefined);
+    try {
+      const response = await listExecutionLogs({
+        sortBy: queryState.sortBy,
+        sortDirection: queryState.sortDirection,
+        filterTimestamp: queryState.filterTimestamp.trim() || undefined,
+        filterObjectName: queryState.filterObjectName.trim() || undefined,
+        filterStatus: queryState.filterStatus.trim() || undefined,
+        pageSize: PAGE_SIZE
+      });
 
-    const load = async () => {
-      setLoadingList(true);
-      setError(undefined);
-      try {
-        const response = await listExecutionLogs({
-          sortBy: queryState.sortBy,
-          sortDirection: queryState.sortDirection,
-          filterTimestamp: queryState.filterTimestamp.trim() || undefined,
-          filterObjectName: queryState.filterObjectName.trim() || undefined,
-          filterStatus: queryState.filterStatus.trim() || undefined,
-          pageSize: PAGE_SIZE
+      if (requestId !== listRequestId.current) return;
+
+      setItems(response.items ?? []);
+      setNextPageToken(response.nextPageToken);
+
+      if (response.items.length === 0) {
+        setSelectedId(undefined);
+        setDetail(undefined);
+        setShowPhoneDetail(false);
+      } else {
+        setSelectedId((previous) => {
+          if (previous && response.items.some((item) => item.id === previous)) {
+            return previous;
+          }
+          return response.items[0].id;
         });
-
-        if (!isMounted || requestId !== listRequestId.current) return;
-
-        setItems(response.items ?? []);
-        setNextPageToken(response.nextPageToken);
-
-        if (response.items.length === 0) {
-          setSelectedId(undefined);
-          setDetail(undefined);
-          setShowPhoneDetail(false);
-        } else {
-          setSelectedId((previous) => {
-            if (previous && response.items.some((item) => item.id === previous)) {
-              return previous;
-            }
-            return response.items[0].id;
-          });
-        }
-      } catch (err: any) {
-        if (!isMounted || requestId !== listRequestId.current) return;
+      }
+    } catch (err: any) {
+      if (requestId !== listRequestId.current) return;
+      if (!silent) {
         setItems([]);
         setNextPageToken(undefined);
-        setError(err?.message ?? 'Failed to load execution logs');
-      } finally {
-        if (isMounted && requestId === listRequestId.current) {
-          setLoadingList(false);
-        }
       }
-    };
-
-    void load();
-    return () => {
-      isMounted = false;
-    };
+      setError(err?.message ?? 'Failed to load execution logs');
+    } finally {
+      if (requestId === listRequestId.current && !silent) {
+        setLoadingList(false);
+      }
+    }
   }, [queryState]);
+
+  useEffect(() => {
+    void fetchList();
+  }, [fetchList]);
+
+  // Live updates: while any visible execution is still running, poll the list (and any
+  // expanded in-progress subtree) so sub-elements update without a manual reload.
+  const hasRunning = useMemo(() => items.some((item) => item.finalStatus === 'running'), [items]);
+
+  useEffect(() => {
+    if (!hasRunning) return undefined;
+    const interval = setInterval(() => {
+      void fetchList(true);
+      if (expandedId) {
+        void loadSubtree(expandedId);
+      }
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRunning, fetchList, expandedId]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -173,24 +282,33 @@ export const ExecutionLogsPage: React.FC = () => {
   };
 
   const openStepDeepLink = (step: ExecutionLogDetailDto['stepOutcomes'][number]) => {
-    const deepLink = step.deepLink;
-    if (!deepLink) {
-      return;
-    }
+    openAuthoringDeepLink(step.deepLink);
+  };
 
-    const params = new URLSearchParams(window.location.search);
-    params.set('area', 'authoring');
-    params.set('tab', 'Sequences');
-    params.set('id', deepLink.sequenceId);
-    if (deepLink.resolutionStatus === 'resolved' && deepLink.stepId) {
-      params.set('stepId', deepLink.stepId);
-      params.delete('missingStep');
-    } else {
-      params.delete('stepId');
-      params.set('missingStep', '1');
-    }
+  const isExpandable = (item: ExecutionLogEntryDto) =>
+    item.executionType === 'sequence' || item.childCount > 0;
 
-    window.location.assign(`${window.location.pathname}?${params.toString()}`);
+  const renderSubtree = (id: string) => {
+    if (loadingSubtreeId === id && !subtrees[id]) {
+      return <div className="form-hint">Loading sub-elements...</div>;
+    }
+    if (subtreeError && expandedId === id && !subtrees[id]) {
+      return <div className="form-error" role="alert">{subtreeError}</div>;
+    }
+    const subtree = subtrees[id];
+    if (!subtree) {
+      return null;
+    }
+    if (subtree.root.children.length === 0) {
+      return <div className="form-hint">No sub-elements were recorded.</div>;
+    }
+    return (
+      <ul className="execution-tree" aria-label="Execution sub-elements">
+        {subtree.root.children.map((child, index) => (
+          <ExecutionTreeNode key={`${child.nodeKind}-${child.order}-${index}`} node={child} depth={0} />
+        ))}
+      </ul>
+    );
   };
 
   const renderList = () => (
@@ -245,16 +363,37 @@ export const ExecutionLogsPage: React.FC = () => {
           <tbody>
             {items.map((item) => {
               const isSelected = item.id === selectedId;
+              const expandable = isExpandable(item);
+              const expanded = expandedId === item.id;
               return (
-                <tr
-                  key={item.id}
-                  className={isSelected ? 'execution-logs-row execution-logs-row--selected' : 'execution-logs-row'}
-                  onClick={() => handleSelectRow(item.id)}
-                >
-                  <td>{renderTimestamp(item.timestampUtc)}</td>
-                  <td>{item.objectRef.displayNameSnapshot}</td>
-                  <td>{item.finalStatus}</td>
-                </tr>
+                <React.Fragment key={item.id}>
+                  <tr
+                    className={isSelected ? 'execution-logs-row execution-logs-row--selected' : 'execution-logs-row'}
+                    onClick={() => handleSelectRow(item.id)}
+                  >
+                    <td>{renderTimestamp(item.timestampUtc)}</td>
+                    <td>
+                      {expandable && (
+                        <button
+                          type="button"
+                          className="execution-logs-expand"
+                          aria-expanded={expanded}
+                          aria-label={expanded ? 'Collapse sub-elements' : 'Expand sub-elements'}
+                          onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
+                        >
+                          {expanded ? '▾' : '▸'}
+                        </button>
+                      )}
+                      {item.objectRef.displayNameSnapshot}
+                    </td>
+                    <td>{item.finalStatus}</td>
+                  </tr>
+                  {expanded && (
+                    <tr className="execution-logs-subtree-row">
+                      <td colSpan={3}>{renderSubtree(item.id)}</td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
           </tbody>

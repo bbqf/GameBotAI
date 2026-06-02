@@ -16,8 +16,9 @@ const getExecutionLogDetailMock = getExecutionLogDetail as jest.MockedFunction<t
 const createListItem = (id: string, name: string, status: string) => ({
   id,
   timestampUtc: new Date().toISOString(),
-  executionType: 'command',
-  finalStatus: status,
+  executionType: 'command' as const,
+  finalStatus: status as 'running' | 'success' | 'failure',
+  childCount: 0,
   objectRef: {
     objectType: 'command',
     objectId: id,
