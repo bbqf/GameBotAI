@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Execution logs now reflect what was actually executed (049-execution-logs-hierarchy)
+  - The execution-logs list shows only top-level executed entities — stand-alone commands and sequences. Commands invoked as part of a sequence run are no longer separate top-level rows; they are recorded as linked children (kept, not deleted) and nested under their sequence.
+  - Top-level rows are now expandable: expanding a sequence reveals its ordered sub-elements (steps, invoked commands, primitive taps, conditions, loops, wait-for-image outcomes) with the same detail available before, and command sub-elements drill into their own primitive outcomes.
+  - A running sequence appears as a single in-progress entry (new `running` status) created at start and finalized in place when it completes; the page polls (~2s) while any entry is running so sub-elements update live without a manual reload.
+  - API: `GET /api/execution-logs` returns roots-only and each item gains `childCount`; `finalStatus` now includes `running`. New `GET /api/execution-logs/{id}/subtree` returns the nested execution tree.
+  - Performance: roots-only listing and subtree fetch are in-memory filters over the existing log store (no extra I/O on the hot path); live updates use a bounded ~2s poll gated on the presence of an in-progress entry (no polling when idle).
+  - Historical logs recorded before this change remain viewable as completed leaf rows (no migration required).
+
 ### Fixed
 - Sequence step command names are now preserved across save/reopen cycles (`001-fix-sequence-step-names`)
   - Reopening a saved sequence restores each step's selected command and user-visible label without reverting to "Select command".

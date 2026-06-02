@@ -62,6 +62,12 @@ public sealed record ExecutionStepOutcome(
   /// Human-readable command name for command-backed sequence steps when available.
   /// </summary>
   public string? CommandName { get; init; }
+
+  /// <summary>
+  /// Identifier of the command invoked by this step (for command-backed steps). Used to
+  /// correlate the step with its linked child execution entry when building the nested tree.
+  /// </summary>
+  public string? CommandId { get; init; }
 }
 
 public sealed record ExecutionDetailItem(
@@ -74,6 +80,9 @@ public sealed class ExecutionLogEntry {
   public string Id { get; init; } = Guid.NewGuid().ToString("N");
   public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
   public string ExecutionType { get; init; } = "command";
+  /// <summary>
+  /// Lifecycle status: "running" (in-progress sequence root), "success", or "failure".
+  /// </summary>
   public string FinalStatus { get; init; } = "success";
   public required ExecutionObjectReference ObjectRef { get; init; }
   public required ExecutionNavigationContext Navigation { get; init; }
@@ -99,6 +108,13 @@ public sealed class ExecutionLogQuery {
   public string? ObjectId { get; init; }
   public int PageSize { get; init; } = 50;
   public string? Cursor { get; init; }
+
+  /// <summary>
+  /// When true, only top-level (root) entries are returned — those whose
+  /// <see cref="ExecutionHierarchyContext.ParentExecutionId"/> is null. Child executions
+  /// (e.g. commands invoked by a sequence) are excluded from the result.
+  /// </summary>
+  public bool RootsOnly { get; init; }
 }
 
 public sealed record ExecutionLogPage(IReadOnlyList<ExecutionLogEntry> Items, string? NextCursor);

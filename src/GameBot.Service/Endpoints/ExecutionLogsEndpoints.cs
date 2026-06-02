@@ -42,7 +42,8 @@ internal static class ExecutionLogsEndpoints {
           ObjectType = objectType,
           ObjectId = objectId,
           PageSize = pageSize ?? 50,
-          Cursor = cursor
+          Cursor = cursor,
+          RootsOnly = true
         }, ct).ConfigureAwait(false);
 
         return Results.Ok(new ExecutionLogListResponseDto {
@@ -62,6 +63,21 @@ internal static class ExecutionLogsEndpoints {
 
       return Results.Ok(ToDetailResponse(item));
     }).WithName("GetExecutionLog");
+
+    group.MapGet("/{id}/subtree", async (string id, IExecutionLogService svc, CancellationToken ct) => {
+      var subtree = await svc.GetSubtreeAsync(id, ct).ConfigureAwait(false);
+      if (subtree is null) {
+        return Results.NotFound(new {
+          error = new { code = "not_found", message = "Execution log entry not found", hint = (string?)null }
+        });
+      }
+
+      return Results.Ok(new ExecutionSubtreeResponseDto {
+        ExecutionId = subtree.ExecutionId,
+        FinalStatus = subtree.FinalStatus,
+        Root = ToTreeNodeDto(subtree.Root)
+      });
+    }).WithName("GetExecutionSubtree");
 
     group.MapGet("/retention", async (IExecutionLogService svc, CancellationToken ct) => {
       var policy = await svc.GetRetentionAsync(ct).ConfigureAwait(false);
@@ -123,7 +139,53 @@ internal static class ExecutionLogsEndpoints {
         ReasonCode = s.ReasonCode,
         ReasonText = s.ReasonText,
         AppliedDelayMs = s.AppliedDelayMs
-      }).ToArray()
+      }).ToArray(),
+      ChildCount = string.Equals(entry.ExecutionType, "sequence", StringComparison.OrdinalIgnoreCase)
+        ? entry.StepOutcomes.Count
+        : 0
+    };
+
+  private static ExecutionTreeNodeDto ToTreeNodeDto(ExecutionTreeNodeProjection node)
+    => new() {
+      NodeKind = node.NodeKind,
+      ExecutionId = node.ExecutionId,
+      Order = node.Order,
+      Label = node.Label,
+      Status = node.Status,
+      Message = node.Message,
+      AppliedDelayMs = node.AppliedDelayMs,
+      CommandName = node.CommandName,
+      DetailAttributes = node.DetailAttributes is null
+        ? null
+        : new ExecutionLogWaitForImageDetailAttributesDto {
+          TimeoutMs = node.DetailAttributes.TimeoutMs,
+          EffectiveTimeoutMs = node.DetailAttributes.EffectiveTimeoutMs,
+          ReferenceImageId = node.DetailAttributes.ReferenceImageId,
+          Confidence = node.DetailAttributes.Confidence,
+          ExitCondition = node.DetailAttributes.ExitCondition,
+          ImageLoadStatus = node.DetailAttributes.ImageLoadStatus
+        },
+      ConditionTrace = node.ConditionTrace is null
+        ? null
+        : new ConditionEvaluationTraceDto {
+          FinalResult = node.ConditionTrace.FinalResult,
+          SelectedBranch = node.ConditionTrace.SelectedBranch,
+          FailureReason = node.ConditionTrace.FailureReason,
+          OperandResults = node.ConditionTrace.OperandResults,
+          OperatorSteps = node.ConditionTrace.OperatorSteps
+        },
+      DeepLink = node.DeepLink is null
+        ? null
+        : new AuthoringDeepLinkDto {
+          SequenceId = node.DeepLink.SequenceId,
+          StepId = node.DeepLink.StepId,
+          SequenceLabel = node.DeepLink.SequenceLabel,
+          StepLabel = node.DeepLink.StepLabel,
+          ResolutionStatus = node.DeepLink.ResolutionStatus,
+          DirectPath = node.DeepLink.DirectPath,
+          FallbackRoute = node.DeepLink.FallbackRoute
+        },
+      Children = node.Children.Select(ToTreeNodeDto).ToArray()
     };
 
   private static object ToDetailResponse(ExecutionLogEntry entry) {

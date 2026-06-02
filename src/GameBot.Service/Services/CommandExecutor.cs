@@ -53,12 +53,19 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _executionLogService = executionLogService;
   }
 
-  public async Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default) {
-    var result = await ForceExecuteDetailedAsync(sessionId, commandId, ct).ConfigureAwait(false);
+  public Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default)
+    => ForceExecuteAsync(sessionId, commandId, new ExecutionLogContext { Depth = 0 }, ct);
+
+  public async Task<int> ForceExecuteAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default) {
+    var result = await ForceExecuteDetailedAsync(sessionId, commandId, context, ct).ConfigureAwait(false);
     return result.Accepted;
   }
 
-  public async Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, CancellationToken ct = default) {
+  public Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, CancellationToken ct = default)
+    => ForceExecuteDetailedAsync(sessionId, commandId, new ExecutionLogContext { Depth = 0 }, ct);
+
+  public async Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(context);
     var resolvedSessionId = await ResolveSessionIdAsync(sessionId, commandId, ct).ConfigureAwait(false);
     var session = _sessions.GetSession(resolvedSessionId) ?? throw new KeyNotFoundException("Session not found");
     if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
@@ -77,7 +84,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
         cmdName,
         status,
         stepOutcomes,
-        new ExecutionLogContext { Depth = 0 },
+        context,
         ct).ConfigureAwait(false);
     }
     return new CommandForceExecutionResult(accepted, stepOutcomes);

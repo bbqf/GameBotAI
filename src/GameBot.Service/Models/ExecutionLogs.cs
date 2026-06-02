@@ -57,6 +57,29 @@ internal sealed class ExecutionLogEntryDto {
   public required string Summary { get; init; }
   public required IReadOnlyList<ExecutionDetailItemDto> Details { get; init; }
   public required IReadOnlyList<ExecutionStepOutcomeDto> StepOutcomes { get; init; }
+  /// <summary>Number of direct child executions (0 ⇒ leaf, not expandable).</summary>
+  public int ChildCount { get; init; }
+}
+
+internal sealed class ExecutionTreeNodeDto {
+  public required string NodeKind { get; init; }
+  public string? ExecutionId { get; init; }
+  public int Order { get; init; }
+  public required string Label { get; init; }
+  public required string Status { get; init; }
+  public string? Message { get; init; }
+  public int? AppliedDelayMs { get; init; }
+  public string? CommandName { get; init; }
+  public ExecutionLogWaitForImageDetailAttributesDto? DetailAttributes { get; init; }
+  public ConditionEvaluationTraceDto? ConditionTrace { get; init; }
+  public AuthoringDeepLinkDto? DeepLink { get; init; }
+  public IReadOnlyList<ExecutionTreeNodeDto> Children { get; init; } = Array.Empty<ExecutionTreeNodeDto>();
+}
+
+internal sealed class ExecutionSubtreeResponseDto {
+  public required string ExecutionId { get; init; }
+  public required string FinalStatus { get; init; }
+  public required ExecutionTreeNodeDto Root { get; init; }
 }
 
 internal sealed class ExecutionLogListResponseDto {

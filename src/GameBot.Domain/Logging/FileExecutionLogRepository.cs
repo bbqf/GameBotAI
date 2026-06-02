@@ -34,6 +34,42 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
     }
   }
 
+  public async Task UpsertAsync(ExecutionLogEntry entry, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(entry);
+    var path = Path.Combine(_dir, entry.Id + ".json");
+    await _mutex.WaitAsync(ct).ConfigureAwait(false);
+    try {
+      using var fs = File.Create(path);
+      await JsonSerializer.SerializeAsync(fs, entry, JsonOptions, ct).ConfigureAwait(false);
+      if (_entriesLoaded) {
+        var replaced = false;
+        var builder = ImmutableArray.CreateBuilder<ExecutionLogEntry>(_entries.Length);
+        foreach (var existing in _entries) {
+          if (!replaced && string.Equals(existing.Id, entry.Id, StringComparison.Ordinal)) {
+            builder.Add(entry);
+            replaced = true;
+          }
+          else {
+            builder.Add(existing);
+          }
+        }
+        if (!replaced) builder.Add(entry);
+        _entries = builder.ToImmutable();
+      }
+    }
+    finally {
+      _mutex.Release();
+    }
+  }
+
+  public async Task<IReadOnlyList<ExecutionLogEntry>> GetSubtreeAsync(string rootId, CancellationToken ct = default) {
+    if (string.IsNullOrWhiteSpace(rootId)) return Array.Empty<ExecutionLogEntry>();
+    await EnsureEntriesLoadedAsync(ct).ConfigureAwait(false);
+    return _entries
+      .Where(e => string.Equals(e.Hierarchy.RootExecutionId, rootId, StringComparison.Ordinal))
+      .ToList();
+  }
+
   public async Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default) {
     if (string.IsNullOrWhiteSpace(id)) return null;
     var path = Path.Combine(_dir, id + ".json");
@@ -52,6 +88,7 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
       ct.ThrowIfCancellationRequested();
       if (query.FromUtc.HasValue && item.TimestampUtc < query.FromUtc.Value) continue;
       if (query.ToUtc.HasValue && item.TimestampUtc > query.ToUtc.Value) continue;
+      if (query.RootsOnly && !string.IsNullOrWhiteSpace(item.Hierarchy.ParentExecutionId)) continue;
       if (!string.IsNullOrWhiteSpace(query.FinalStatus) && !string.Equals(item.FinalStatus, query.FinalStatus, StringComparison.OrdinalIgnoreCase)) continue;
       if (!string.IsNullOrWhiteSpace(query.ObjectType) && !string.Equals(item.ObjectRef.ObjectType, query.ObjectType, StringComparison.OrdinalIgnoreCase)) continue;
       if (!string.IsNullOrWhiteSpace(query.ObjectId) && !string.Equals(item.ObjectRef.ObjectId, query.ObjectId, StringComparison.OrdinalIgnoreCase)) continue;
