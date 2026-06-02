@@ -1,24 +1,21 @@
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ExecutionLogsPage } from '../ExecutionLogs';
-import { getExecutionLogDetail, listExecutionLogs } from '../../services/executionLogsApi';
+import { getExecutionSubtree, listExecutionLogs } from '../../services/executionLogsApi';
 
 jest.mock('../../services/executionLogsApi');
-jest.mock('../../hooks/useNavigationCollapse', () => ({
-  useNavigationCollapse: () => ({ isCollapsed: false })
-}));
 
 let nowSpy: jest.SpyInstance<number, []>;
 
 const listExecutionLogsMock = listExecutionLogs as jest.MockedFunction<typeof listExecutionLogs>;
-const getExecutionLogDetailMock = getExecutionLogDetail as jest.MockedFunction<typeof getExecutionLogDetail>;
+const getExecutionSubtreeMock = getExecutionSubtree as jest.MockedFunction<typeof getExecutionSubtree>;
 
-const createListItem = (id: string, name: string, status: string) => ({
+const createListItem = (id: string, name: string, status: string, childCount = 0) => ({
   id,
   timestampUtc: new Date().toISOString(),
   executionType: 'command' as const,
   finalStatus: status as 'running' | 'success' | 'failure',
-  childCount: 0,
+  childCount,
   objectRef: {
     objectType: 'command',
     objectId: id,
@@ -35,13 +32,6 @@ describe('ExecutionLogsPage', () => {
       items: [createListItem('id-1', 'Alpha Command', 'success')],
       nextPageToken: undefined
     });
-    getExecutionLogDetailMock.mockResolvedValue({
-      executionId: 'id-1',
-      summary: 'Command completed successfully',
-      relatedObjects: [],
-      snapshot: { isAvailable: false },
-      stepOutcomes: []
-    });
   });
 
   afterEach(() => {
@@ -53,8 +43,10 @@ describe('ExecutionLogsPage', () => {
 
     expect(await screen.findByText('Alpha Command')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Timestamp' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Object Name' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Name' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Status' })).toBeInTheDocument();
+    expect(screen.getByText('Type')).toBeInTheDocument();
+    expect(screen.getByText('Additional information')).toBeInTheDocument();
 
     await waitFor(() => expect(listExecutionLogsMock).toHaveBeenCalledWith(expect.objectContaining({
       sortBy: 'timestamp',
@@ -63,11 +55,11 @@ describe('ExecutionLogsPage', () => {
     })));
   }, 15000);
 
-  it('updates sorting when header is clicked', async () => {
+  it('updates sorting when the Name header is clicked', async () => {
     render(<ExecutionLogsPage />);
 
     await screen.findByText('Alpha Command');
-    fireEvent.click(screen.getByRole('button', { name: 'Object Name' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Name' }));
 
     await waitFor(() => expect(listExecutionLogsMock).toHaveBeenCalledWith(expect.objectContaining({
       sortBy: 'objectName',
@@ -105,59 +97,82 @@ describe('ExecutionLogsPage', () => {
     expect(screen.queryByText('Stale Command')).not.toBeInTheDocument();
   });
 
-  it('renders details in plain language without raw JSON blocks', async () => {
-    getExecutionLogDetailMock.mockResolvedValueOnce({
+  it('shows sub-element detail in plain language without raw JSON blocks', async () => {
+    listExecutionLogsMock.mockResolvedValue({
+      items: [createListItem('id-1', 'Alpha Command', 'success', 1)],
+      nextPageToken: undefined
+    });
+    getExecutionSubtreeMock.mockResolvedValue({
       executionId: 'id-1',
-      summary: 'The command finished successfully.',
-      relatedObjects: [
-        { label: 'Farm Command', targetType: 'command', targetId: 'cmd-1', isAvailable: true }
-      ],
-      snapshot: { isAvailable: true, caption: 'Snapshot captured during execution.' },
-      stepOutcomes: [
-        { stepName: 'Tap target', status: 'success', message: 'Tapped at the expected location.' }
-      ]
+      finalStatus: 'success',
+      root: {
+        nodeKind: 'command',
+        executionId: 'id-1',
+        order: 0,
+        label: 'Alpha Command',
+        status: 'success',
+        children: [
+          { nodeKind: 'tap', order: 1, label: 'Tap target', status: 'success', message: 'Tapped at the expected location.', children: [] }
+        ]
+      }
     });
 
     const { container } = render(<ExecutionLogsPage />);
 
-    expect(await screen.findByText('The command finished successfully.')).toBeInTheDocument();
-    expect(screen.getByText(/Tap target/)).toBeInTheDocument();
-    expect(screen.getByText(/Tapped at the expected location./)).toBeInTheDocument();
+    await screen.findByText('Alpha Command');
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sub-elements' }));
+
+    expect(await screen.findByText('Tap target')).toBeInTheDocument();
+    expect(screen.getByText(/Tapped at the expected location\./)).toBeInTheDocument();
     expect(container.querySelector('pre.json')).toBeNull();
     expect(screen.queryByText(/"executionId"/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/"stepOutcomes"/i)).not.toBeInTheDocument();
   });
 
-  it('renders wait-for-image parameters and exit condition in step details', async () => {
-    getExecutionLogDetailMock.mockResolvedValueOnce({
+  it('renders wait-for-image parameters and exit condition in the additional-information column', async () => {
+    listExecutionLogsMock.mockResolvedValue({
+      items: [createListItem('id-1', 'Alpha Command', 'success', 1)],
+      nextPageToken: undefined
+    });
+    getExecutionSubtreeMock.mockResolvedValue({
       executionId: 'id-1',
-      summary: 'Wait step complete.',
-      relatedObjects: [],
-      snapshot: { isAvailable: false },
-      stepOutcomes: [
-        {
-          stepName: 'waitForImage',
-          stepType: 'waitForImage',
-          status: 'completed_timeout',
-          message: 'timeout_elapsed',
-          detailAttributes: {
-            timeoutMs: 1500,
-            effectiveTimeoutMs: 1500,
-            referenceImageId: 'mail_icon',
-            confidence: 0.92,
-            exitCondition: 'timeout_elapsed',
-            imageLoadStatus: 'loaded'
+      finalStatus: 'success',
+      root: {
+        nodeKind: 'command',
+        executionId: 'id-1',
+        order: 0,
+        label: 'Alpha Command',
+        status: 'success',
+        children: [
+          {
+            nodeKind: 'wait',
+            order: 1,
+            label: 'waitForImage',
+            status: 'completed_timeout',
+            message: 'timeout_elapsed',
+            detailAttributes: {
+              timeoutMs: 1500,
+              effectiveTimeoutMs: 1500,
+              referenceImageId: 'mail_icon',
+              confidence: 0.92,
+              exitCondition: 'timeout_elapsed',
+              imageLoadStatus: 'loaded'
+            },
+            children: []
           }
-        }
-      ]
+        ]
+      }
     });
 
     render(<ExecutionLogsPage />);
 
-    expect(await screen.findByText('Wait step complete.')).toBeInTheDocument();
-    expect(screen.getByText(/Wait settings: timeout 1500 ms, effective timeout 1500 ms./)).toBeInTheDocument();
-    expect(screen.getByText(/Image: mail_icon; confidence 0.92; load status loaded./)).toBeInTheDocument();
-    expect(screen.getByText(/Exit condition: Timeout elapsed./)).toBeInTheDocument();
+    await screen.findByText('Alpha Command');
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sub-elements' }));
+
+    const waitRow = (await screen.findByText('waitForImage')).closest('tr') as HTMLElement;
+    expect(within(waitRow).getByText(/Wait settings: timeout 1500 ms, effective timeout 1500 ms\./)).toBeInTheDocument();
+    expect(within(waitRow).getByText(/Image: mail_icon; confidence 0.92; load status loaded\./)).toBeInTheDocument();
+    expect(within(waitRow).getByText(/Exit condition: Timeout elapsed\./)).toBeInTheDocument();
   });
 
   it('defaults to exact local timestamp and switches to relative mode', async () => {
@@ -172,7 +187,7 @@ describe('ExecutionLogsPage', () => {
 
     render(<ExecutionLogsPage />);
 
-    expect(await screen.findByText(/Alpha Command/)).toBeInTheDocument();
+    expect(await screen.findByText('Alpha Command')).toBeInTheDocument();
     expect(screen.getByText(new Date('2026-03-02T11:57:00.000Z').toLocaleString())).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Timestamp display'), { target: { value: 'relative' } });

@@ -1,15 +1,11 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ExecutionLogsPage } from '../ExecutionLogs';
-import { getExecutionLogDetail, getExecutionSubtree, listExecutionLogs } from '../../services/executionLogsApi';
+import { getExecutionSubtree, listExecutionLogs } from '../../services/executionLogsApi';
 
 jest.mock('../../services/executionLogsApi');
-jest.mock('../../hooks/useNavigationCollapse', () => ({
-  useNavigationCollapse: () => ({ isCollapsed: false })
-}));
 
 const listExecutionLogsMock = listExecutionLogs as jest.MockedFunction<typeof listExecutionLogs>;
-const getExecutionLogDetailMock = getExecutionLogDetail as jest.MockedFunction<typeof getExecutionLogDetail>;
 const getExecutionSubtreeMock = getExecutionSubtree as jest.MockedFunction<typeof getExecutionSubtree>;
 
 const sequenceItem = {
@@ -17,12 +13,22 @@ const sequenceItem = {
   timestampUtc: new Date('2026-06-02T10:00:00.000Z').toISOString(),
   executionType: 'sequence' as const,
   finalStatus: 'success' as const,
-  childCount: 2,
+  childCount: 1,
   objectRef: { objectType: 'sequence', objectId: 'seq-1', displayNameSnapshot: 'My Sequence' },
-  summary: 'My Sequence success'
+  summary: "Sequence 'My Sequence' success with 1 step executed."
 };
 
-const subtree = {
+const commandItem = {
+  id: 'cmd-exec-1',
+  timestampUtc: new Date('2026-06-02T10:01:00.000Z').toISOString(),
+  executionType: 'command' as const,
+  finalStatus: 'success' as const,
+  childCount: 1,
+  objectRef: { objectType: 'command', objectId: 'cmd-1', displayNameSnapshot: 'Standalone Cmd' },
+  summary: "Command 'Standalone Cmd' success."
+};
+
+const sequenceSubtree = {
   executionId: 'seq-exec-1',
   finalStatus: 'success' as const,
   root: {
@@ -39,14 +45,6 @@ const subtree = {
         label: 'Open Mail',
         status: 'success' as const,
         commandName: 'Open Mail',
-        deepLink: {
-          sequenceId: 'seq-1',
-          stepId: 'step-1',
-          sequenceLabel: 'My Sequence',
-          stepLabel: 'Step 1',
-          resolutionStatus: 'resolved' as const,
-          directPath: '/authoring/sequences/seq-1?stepId=step-1'
-        },
         children: [
           { nodeKind: 'tap' as const, order: 1, label: 'Tap target', status: 'success' as const, children: [] }
         ]
@@ -55,43 +53,121 @@ const subtree = {
   }
 };
 
-describe('ExecutionLogsPage tree', () => {
+const commandSubtree = {
+  executionId: 'cmd-exec-1',
+  finalStatus: 'success' as const,
+  root: {
+    nodeKind: 'command' as const,
+    executionId: 'cmd-exec-1',
+    order: 0,
+    label: 'Standalone Cmd',
+    status: 'success' as const,
+    children: [
+      { nodeKind: 'tap' as const, order: 1, label: 'Cmd Tap', status: 'success' as const, children: [] }
+    ]
+  }
+};
+
+const rowOf = (name: string) => screen.getByText(name).closest('tr') as HTMLElement;
+const expand = (name: string) =>
+  fireEvent.click(within(rowOf(name)).getByRole('button', { name: 'Expand sub-elements' }));
+const collapse = (name: string) =>
+  fireEvent.click(within(rowOf(name)).getByRole('button', { name: 'Collapse sub-elements' }));
+
+describe('ExecutionLogsPage grid', () => {
   beforeEach(() => {
     jest.resetAllMocks();
-    listExecutionLogsMock.mockResolvedValue({ items: [sequenceItem], nextPageToken: undefined });
-    getExecutionLogDetailMock.mockResolvedValue({
-      executionId: 'seq-exec-1',
-      summary: 'My Sequence success',
-      relatedObjects: [],
-      snapshot: { isAvailable: false },
-      stepOutcomes: []
-    });
-    getExecutionSubtreeMock.mockResolvedValue(subtree);
+    listExecutionLogsMock.mockResolvedValue({ items: [sequenceItem, commandItem], nextPageToken: undefined });
+    getExecutionSubtreeMock.mockImplementation((id: string) =>
+      Promise.resolve(id === 'seq-exec-1' ? sequenceSubtree : commandSubtree)
+    );
   });
 
-  it('expands a sequence row to reveal nested sub-elements', async () => {
+  // --- US1: single full-width grid replaces the split list/detail layout ---
+
+  it('renders a single grid with the six columns and no separate detail panel', async () => {
     render(<ExecutionLogsPage />);
-
     await screen.findByText('My Sequence');
-    fireEvent.click(screen.getByRole('button', { name: 'Expand sub-elements' }));
 
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers).toHaveLength(6);
+    expect(screen.getByRole('button', { name: 'Timestamp' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Name' })).toBeInTheDocument();
+    expect(screen.getByText('Type')).toBeInTheDocument();
+    expect(screen.getByText('Additional information')).toBeInTheDocument();
+
+    // The former Execution Detail panel is gone.
+    expect(screen.queryByText('Execution details')).not.toBeInTheDocument();
+    expect(screen.queryByText('Related objects')).not.toBeInTheDocument();
+  });
+
+  it('shows top-level type, status and summary in the additional-information column', async () => {
+    render(<ExecutionLogsPage />);
+    await screen.findByText('My Sequence');
+
+    const row = rowOf('My Sequence');
+    expect(within(row).getByText('Sequence')).toBeInTheDocument();
+    expect(within(row).getByText('success')).toBeInTheDocument();
+    expect(within(row).getByText("Sequence 'My Sequence' success with 1 step executed.")).toBeInTheDocument();
+  });
+
+  // --- US2: expandable commands and multi-level independent expansion ---
+
+  it('expands a command step to a second level only after the step is expanded', async () => {
+    render(<ExecutionLogsPage />);
+    await screen.findByText('My Sequence');
+
+    expand('My Sequence');
     await waitFor(() => expect(getExecutionSubtreeMock).toHaveBeenCalledWith('seq-exec-1'));
     expect(await screen.findByText('Open Mail')).toBeInTheDocument();
-    // Nested command primitive is reachable through expansion.
-    expect(screen.getByText('Tap target')).toBeInTheDocument();
+    // The command's own child is not visible until the command step is expanded.
+    expect(screen.queryByText('Tap target')).not.toBeInTheDocument();
+
+    expand('Open Mail');
+    expect(await screen.findByText('Tap target')).toBeInTheDocument();
   });
 
-  it('exposes a deep link from a sub-element to its authored sequence/step', async () => {
+  it('makes a stand-alone command expandable and a leaf tap non-expandable', async () => {
     render(<ExecutionLogsPage />);
+    await screen.findByText('Standalone Cmd');
 
+    expand('Standalone Cmd');
+    expect(await screen.findByText('Cmd Tap')).toBeInTheDocument();
+    // A leaf node (tap) exposes no expand control.
+    expect(within(rowOf('Cmd Tap')).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('expands multiple top-level rows independently', async () => {
+    render(<ExecutionLogsPage />);
     await screen.findByText('My Sequence');
-    fireEvent.click(screen.getByRole('button', { name: 'Expand sub-elements' }));
-    await screen.findByText('Open Mail');
 
-    // The nested command sub-element offers an in-sequence deep link (FR-011) and
-    // activating it is handled without error.
-    const deepLink = screen.getByRole('button', { name: 'Open in sequence' });
-    expect(deepLink).toBeInTheDocument();
-    expect(() => fireEvent.click(deepLink)).not.toThrow();
+    expand('My Sequence');
+    await screen.findByText('Open Mail');
+    expand('Standalone Cmd');
+    await screen.findByText('Cmd Tap');
+
+    // Both branches are open at once.
+    expect(screen.getByText('Open Mail')).toBeInTheDocument();
+    expect(screen.getByText('Cmd Tap')).toBeInTheDocument();
+
+    // Collapsing one leaves the other expanded.
+    collapse('My Sequence');
+    expect(screen.queryByText('Open Mail')).not.toBeInTheDocument();
+    expect(screen.getByText('Cmd Tap')).toBeInTheDocument();
+  });
+
+  // --- US3: "Open in sequence" buttons removed ---
+
+  it('renders no "Open in sequence" buttons anywhere', async () => {
+    render(<ExecutionLogsPage />);
+    await screen.findByText('My Sequence');
+
+    expand('My Sequence');
+    await screen.findByText('Open Mail');
+    expand('Open Mail');
+    await screen.findByText('Tap target');
+
+    expect(screen.queryByText('Open in sequence')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open in sequence' })).not.toBeInTheDocument();
   });
 });
