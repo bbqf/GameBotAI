@@ -37,9 +37,16 @@ public sealed class QueueTemplateLinkEndpointTests {
     return client;
   }
 
-  private static async Task<string> CreateQueueAsync(HttpClient client, string name = "Farm") {
-    var resp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative), new { name, emulatorSerial = "emu-1" }).ConfigureAwait(true);
+  private static async Task<string> CreateQueueAsync(HttpClient client, string name = "Farm", bool cycle = false) {
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative), new { name, emulatorSerial = "emu-1", cycleExecution = cycle }).ConfigureAwait(true);
     return JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
+  }
+
+  private static async Task<string> StartCyclingQueueAsync(HttpClient client, string queueId, string templateId) {
+    await client.PutAsJsonAsync(new Uri($"/api/queues/{queueId}/template", UriKind.Relative), new { templateId }).ConfigureAwait(true);
+    await client.PostAsync(new Uri($"/api/queues/{queueId}/start", UriKind.Relative), null).ConfigureAwait(true);
+    await Task.Delay(50).ConfigureAwait(true); // allow run to start
+    return queueId;
   }
 
   private static async Task<string> CreateTemplateAsync(HttpClient client, string name, params string[] sequenceIds) {
@@ -127,12 +134,16 @@ public sealed class QueueTemplateLinkEndpointTests {
     SeedSequence("seq-a", "Alpha");
     using var app = new WebApplicationFactory<Program>();
     var client = NewClient(app);
-    var id = await CreateQueueAsync(client).ConfigureAwait(true);
-    var tplId = await CreateTemplateAsync(client, "T", "seq-a").ConfigureAwait(true);
-    await client.PostAsync(new Uri($"/api/queues/{id}/start", UriKind.Relative), null).ConfigureAwait(true);
+    // Use a different cycle template so the queue stays Running when SetLink fires
+    var id = await CreateQueueAsync(client, cycle: true).ConfigureAwait(true);
+    var cycleTemplateId = await CreateTemplateAsync(client, "CycleTpl", "seq-a").ConfigureAwait(true);
+    await StartCyclingQueueAsync(client, id, cycleTemplateId).ConfigureAwait(true);
 
+    var tplId = await CreateTemplateAsync(client, "T", "seq-a").ConfigureAwait(true);
     (await SetLinkAsync(client, id, tplId).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.OK);
     (await LinkedIdAsync(client, id).ConfigureAwait(true)).Should().Be(tplId);
+
+    await client.PostAsync(new Uri($"/api/queues/{id}/stop", UriKind.Relative), null).ConfigureAwait(true);
   }
 
   [Fact]

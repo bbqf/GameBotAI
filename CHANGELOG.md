@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-02
+
+### Added
+- Queue execution runtime (051-queue-execution-runtime)
+  - Starting a queue now runs it for real: the linked template is loaded server-side, a session is opened to the queue's bound emulator, and the template's sequences run in order — replacing the previous placeholder that only flipped status.
+  - "Cycle execution" gains its runtime meaning: when enabled, the run repeats from the first sequence (reusing the template snapshot loaded at start) until stopped or a run-level failure; an empty template completes without busy-looping.
+  - Stopping a queue aborts the run promptly, disconnects the emulator session, and records a "stopped manually" entry; the session is disconnected on every end path.
+  - Every run writes exactly one terminating queue-run execution-log entry with its stop reason (completed full run / stopped manually / failure). Individual sequence failures are non-fatal — recorded per sequence while the run continues — whereas no resolvable linked template, an unreachable emulator at start, or a lost connection mid-run end the run as a failure.
+  - Concurrency: one run per queue (a second start returns 409 `already_running`); queues bound to the same emulator may run concurrently (operator's responsibility).
+  - Execution log: a queue run appears as a single top-level entry (`executionType: "queue"`) with its sequences and their steps nested beneath it, reusing the existing hierarchy/grid; the grid shows a "Queue" row type.
+  - API: `POST /api/queues/{id}/start` launches the run (200 Running, 404, or 409 `already_running`); `POST /api/queues/{id}/stop` aborts and is a no-op when not running.
+  - Internal: extracted the sequence-execution wiring into a reusable `ISequenceExecutionService` shared by the standalone execute endpoint and the queue engine.
+
 ### Changed
 - Execution logs now reflect what was actually executed (049-execution-logs-hierarchy)
   - The execution-logs list shows only top-level executed entities — stand-alone commands and sequences. Commands invoked as part of a sequence run are no longer separate top-level rows; they are recorded as linked children (kept, not deleted) and nested under their sequence.

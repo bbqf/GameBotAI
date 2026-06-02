@@ -12,12 +12,12 @@ describe('services validation helpers', () => {
   });
 
   it('validates required fields', () => {
-    const def: AttributeDefinition = { key: 'name', dataType: 'string', required: true };
+    const def: AttributeDefinition = { key: 'name', label: 'Name', dataType: 'string', required: true };
     expect(validateAttribute(def, '')).toEqual({ field: 'name', message: 'This field is required' });
   });
 
   it('validates numeric constraints', () => {
-    const def: AttributeDefinition = { key: 'count', dataType: 'number', required: true, constraints: { min: 2, max: 4 } };
+    const def: AttributeDefinition = { key: 'count', label: 'Count', dataType: 'number', required: true, constraints: { min: 2, max: 4 } };
 
     expect(validateAttribute(def, '3' as any)).toEqual({ field: 'count', message: 'Must be a number' });
     expect(validateAttribute(def, 1)).toEqual({ field: 'count', message: 'Must be at least 2' });
@@ -26,7 +26,7 @@ describe('services validation helpers', () => {
   });
 
   it('validates boolean fields', () => {
-    const def: AttributeDefinition = { key: 'enabled', dataType: 'boolean', required: false };
+    const def: AttributeDefinition = { key: 'enabled', label: 'Enabled', dataType: 'boolean', required: false };
 
     expect(validateAttribute(def, 'true' as any)).toEqual({ field: 'enabled', message: 'Must be true or false' });
     expect(validateAttribute(def, true)).toBeUndefined();
@@ -35,12 +35,14 @@ describe('services validation helpers', () => {
   it('validates enum and pattern constraints', () => {
     const enumDef: AttributeDefinition = {
       key: 'mode',
+      label: 'Mode',
       dataType: 'enum',
       required: true,
       constraints: { allowedValues: ['fast', 'slow'] }
     };
     const patternDef: AttributeDefinition = {
       key: 'tag',
+      label: 'Tag',
       dataType: 'string',
       required: true,
       constraints: { pattern: '^test-' }
@@ -57,8 +59,8 @@ describe('services validation helpers', () => {
 
   it('validates multiple attributes', () => {
     const defs: AttributeDefinition[] = [
-      { key: 'a', dataType: 'string', required: true },
-      { key: 'b', dataType: 'number', required: true }
+      { key: 'a', label: 'A', dataType: 'string', required: true },
+      { key: 'b', label: 'B', dataType: 'number', required: true }
     ];
 
     const result = validateAttributes(defs, { a: '', b: 'nope' });

@@ -174,14 +174,15 @@ export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[]
     }
 
     if (step.condition?.type === 'commandOutcome') {
-      if (!step.condition.stepRef?.trim()) {
+      const stepRef = step.condition.stepRef;
+      if (!stepRef?.trim()) {
         errors.push(`Step '${stepLabel}' commandOutcome condition requires stepRef.`);
       } else {
-        const refIndex = steps.findIndex((candidate) => candidate.stepId === step.condition?.stepRef);
+        const refIndex = steps.findIndex((candidate) => candidate.stepId === stepRef);
         if (refIndex < 0) {
-          errors.push(`Step '${stepLabel}' commandOutcome references unknown prior step '${step.condition.stepRef}'.`);
+          errors.push(`Step '${stepLabel}' commandOutcome references unknown prior step '${stepRef}'.`);
         } else if (refIndex >= index) {
-          errors.push(`Step '${stepLabel}' commandOutcome stepRef '${step.condition.stepRef}' must reference a prior step.`);
+          errors.push(`Step '${stepLabel}' commandOutcome stepRef '${stepRef}' must reference a prior step.`);
         }
       }
 

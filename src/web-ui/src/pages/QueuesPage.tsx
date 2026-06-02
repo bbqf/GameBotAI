@@ -127,12 +127,16 @@ export const QueuesPage: React.FC = () => {
     }
   };
 
-  const runAction = async (id: string, action: (id: string) => Promise<unknown>) => {
+  const runAction = async (id: string, action: (id: string) => Promise<unknown>, successMessage?: string) => {
     try {
+      setTableError(undefined);
       await action(id);
       await refresh();
       if (detail?.id === id) await reloadDetail(id);
+      if (successMessage) setTableMessage(successMessage);
     } catch (err: any) {
+      // Start/stop request errors (e.g. 409 already_running) surface here; the run's own
+      // pass/fail outcome is recorded in the Execution Logs.
       setTableError(err?.message ?? 'Action failed');
     }
   };
@@ -276,9 +280,9 @@ export const QueuesPage: React.FC = () => {
                 <td>{q.entryCount}</td>
                 <td>
                   {running ? (
-                    <button type="button" onClick={() => void runAction(q.id, stopQueue)}>Stop</button>
+                    <button type="button" onClick={() => void runAction(q.id, stopQueue, 'Queue stopped.')}>Stop</button>
                   ) : (
-                    <button type="button" onClick={() => void runAction(q.id, startQueue)}>Start</button>
+                    <button type="button" onClick={() => void runAction(q.id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}>Start</button>
                   )}
                   <button type="button" onClick={() => void openEdit(q.id)} disabled={running}>Edit</button>
                   <button

@@ -74,7 +74,8 @@ describe('Commands and sequences primitive authoring', () => {
 
     await waitFor(() => expect(createSequenceMock).toHaveBeenCalled());
     const payload = createSequenceMock.mock.calls[0][0];
-    expect(payload.steps?.[0].primitiveAction?.type).toBe('command');
-    expect(payload.steps?.[0].primitiveAction?.payload?.commandId).toBe(nestedCommandId);
+    const firstStep = payload.steps?.[0] as any;
+    expect(firstStep.primitiveAction?.type).toBe('command');
+    expect(firstStep.primitiveAction?.payload?.commandId).toBe(nestedCommandId);
   });
 });

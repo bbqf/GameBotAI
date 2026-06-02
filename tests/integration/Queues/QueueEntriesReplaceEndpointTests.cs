@@ -33,10 +33,30 @@ public sealed class QueueEntriesReplaceEndpointTests {
     return client;
   }
 
-  private static async Task<string> CreateQueueAsync(HttpClient client) {
-    var resp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative), new { name = "Farm", emulatorSerial = "emu-1" }).ConfigureAwait(true);
+  private static async Task<string> CreateQueueAsync(HttpClient client, bool cycle = false) {
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative), new { name = "Farm", emulatorSerial = "emu-1", cycleExecution = cycle }).ConfigureAwait(true);
     var json = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
     return json.GetProperty("id").GetString()!;
+  }
+
+  private static readonly string[] LoopSequenceIds = { "seq-loop" };
+
+  private static async Task<string> CreateTemplateAsync(HttpClient client) {
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative), new { name = "Tpl-" + Guid.NewGuid().ToString("N"), sequenceIds = LoopSequenceIds, overwrite = false }).ConfigureAwait(true);
+    return JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
+  }
+
+  private static Task<HttpResponseMessage> LinkTemplateAsync(HttpClient client, string queueId, string templateId) =>
+    client.PutAsJsonAsync(new Uri($"/api/queues/{queueId}/template", UriKind.Relative), new { templateId });
+
+  private static async Task<string> StartCyclingQueueAsync(HttpClient client) {
+    var id = await CreateQueueAsync(client, cycle: true).ConfigureAwait(true);
+    var tpl = await CreateTemplateAsync(client).ConfigureAwait(true);
+    await LinkTemplateAsync(client, id, tpl).ConfigureAwait(true);
+    await client.PostAsync(new Uri($"/api/queues/{id}/start", UriKind.Relative), null).ConfigureAwait(true);
+    // Give the run a moment to start and stay Running
+    await Task.Delay(100).ConfigureAwait(true);
+    return id;
   }
 
   private static Task<HttpResponseMessage> ReplaceAsync(HttpClient client, string id, string[] sequenceIds) =>
@@ -87,13 +107,14 @@ public sealed class QueueEntriesReplaceEndpointTests {
   public async Task ReplaceWhileRunningReturns409() {
     using var app = new WebApplicationFactory<Program>();
     var client = NewClient(app);
-    var id = await CreateQueueAsync(client).ConfigureAwait(true);
-    await client.PostAsync(new Uri($"/api/queues/{id}/start", UriKind.Relative), null).ConfigureAwait(true);
+    var id = await StartCyclingQueueAsync(client).ConfigureAwait(true);
 
     var ids = new[] { "seq-a" };
     var resp = await ReplaceAsync(client, id, ids).ConfigureAwait(true);
     resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
     var root = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
     root.GetProperty("error").GetProperty("code").GetString().Should().Be("queue_running");
+
+    await client.PostAsync(new Uri($"/api/queues/{id}/stop", UriKind.Relative), null).ConfigureAwait(true);
   }
 }

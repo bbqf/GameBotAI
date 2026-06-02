@@ -16,6 +16,6 @@ if (!window.matchMedia) {
 				if (idx >= 0) listeners.splice(idx, 1);
 			},
 			dispatchEvent: () => false
-		} as MediaQueryList;
+		} as unknown as MediaQueryList;
 	};
 }

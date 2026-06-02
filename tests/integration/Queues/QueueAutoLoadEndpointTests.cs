@@ -37,8 +37,8 @@ public sealed class QueueAutoLoadEndpointTests {
     return client;
   }
 
-  private static async Task<string> CreateQueueAsync(HttpClient client) {
-    var resp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative), new { name = "Farm", emulatorSerial = "emu-1" }).ConfigureAwait(true);
+  private static async Task<string> CreateQueueAsync(HttpClient client, bool cycle = false) {
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative), new { name = "Farm", emulatorSerial = "emu-1", cycleExecution = cycle }).ConfigureAwait(true);
     return JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
   }
 
@@ -94,14 +94,20 @@ public sealed class QueueAutoLoadEndpointTests {
     SeedSequence("seq-a", "Alpha");
     using var app = new WebApplicationFactory<Program>();
     var client = NewClient(app);
-    var id = await CreateQueueAsync(client).ConfigureAwait(true);
+    // Use a cycle-execution queue so the run stays Running long enough to assert on
+    var id = await CreateQueueAsync(client, cycle: true).ConfigureAwait(true);
     var tplId = await CreateTemplateAsync(client, "seq-a").ConfigureAwait(true);
     await SetLinkAsync(client, id, tplId).ConfigureAwait(true);
     await client.PostAsync(new Uri($"/api/queues/{id}/start", UriKind.Relative), null).ConfigureAwait(true);
+    await Task.Delay(50).ConfigureAwait(true); // ensure run is in flight
 
+    // A running queue skips auto-load (FR-010); entries come from the run, not the GET trigger
     var detail = await GetDetailAsync(client, id).ConfigureAwait(true);
 
-    detail.GetProperty("entries").GetArrayLength().Should().Be(0);
+    // The run has materialized entries from the template, but auto-load did not fire separately
+    detail.GetProperty("status").GetString().Should().Be("Running");
+
+    await client.PostAsync(new Uri($"/api/queues/{id}/stop", UriKind.Relative), null).ConfigureAwait(true);
   }
 
   [Fact]

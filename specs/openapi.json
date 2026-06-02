@@ -2281,7 +2281,7 @@
         "tags": [
           "Queues"
         ],
-        "summary": "Start a queue (placeholder: sets status to Running)",
+        "summary": "Start a queue run (loads the linked template, connects to the emulator, and executes the sequences; returns immediately with status Running)",
         "operationId": "StartQueue",
         "parameters": [
           {
@@ -2295,7 +2295,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Run launched; queue is Running. The run proceeds asynchronously and its outcome (completed full run / stopped manually / failure) is recorded in the execution log.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2306,11 +2306,17 @@
                   "name": "Daily Farm",
                   "emulatorSerial": "emulator-5554",
                   "cycleExecution": true,
-                  "status": "Stopped",
+                  "status": "Running",
                   "entryCount": 2
                 }
               }
             }
+          },
+          "404": {
+            "description": "No queue exists with the given id."
+          },
+          "409": {
+            "description": "A run is already in progress for this queue (error code already_running). The existing run is unaffected."
           }
         }
       }
@@ -2320,7 +2326,7 @@
         "tags": [
           "Queues"
         ],
-        "summary": "Stop a queue (placeholder: sets status to Stopped)",
+        "summary": "Stop a queue run (aborts the in-flight run promptly, disconnects the emulator session, writes a 'stopped manually' log entry; no-op when not running)",
         "operationId": "StopQueue",
         "parameters": [
           {
@@ -2350,6 +2356,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No queue exists with the given id."
           }
         }
       }

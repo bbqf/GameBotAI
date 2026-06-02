@@ -7,6 +7,7 @@ using GameBot.Domain.Commands;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Service.Contracts.Queues;
+using GameBot.Service.Services.QueueExecution;
 using Microsoft.Extensions.Logging;
 
 namespace GameBot.Service.Endpoints;
@@ -103,18 +104,20 @@ internal static class QueuesEndpoints {
         : Error(404, "not_found", "Queue entry not found");
     }).WithName("RemoveQueueEntry");
 
-    group.MapPost("{id}/start", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ILoggerFactory loggerFactory) => {
+    group.MapPost("{id}/start", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, IQueueExecutionService execution, ILoggerFactory loggerFactory) => {
+      var outcome = await execution.StartAsync(id).ConfigureAwait(false);
+      if (outcome == QueueStartOutcome.NotFound) return NotFound();
+      if (outcome == QueueStartOutcome.AlreadyRunning) return Error(409, "already_running", "The queue is already running.");
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
-      runtime.SetStatus(id, QueueExecutionStatus.Running);
       loggerFactory.CreateLogger("Queues").LogQueueStarted(id, queue.EmulatorSerial);
       return Results.Ok(BuildResponse(queue, runtime));
     }).WithName("StartQueue");
 
-    group.MapPost("{id}/stop", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ILoggerFactory loggerFactory) => {
+    group.MapPost("{id}/stop", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, IQueueExecutionService execution, ILoggerFactory loggerFactory) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
-      runtime.SetStatus(id, QueueExecutionStatus.Stopped);
+      await execution.StopAsync(id).ConfigureAwait(false);
       loggerFactory.CreateLogger("Queues").LogQueueStopped(id);
       return Results.Ok(BuildResponse(queue, runtime));
     }).WithName("StopQueue");

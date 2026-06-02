@@ -19,6 +19,7 @@ const makeNode = (overrides: Partial<ExecutionTreeNodeDto> = {}): ExecutionTreeN
 describe('executionLogGrid helpers', () => {
   describe('typeLabel', () => {
     it('maps known node kinds to display labels', () => {
+      expect(typeLabel('queue')).toBe('Queue');
       expect(typeLabel('sequence')).toBe('Sequence');
       expect(typeLabel('command')).toBe('Command');
       expect(typeLabel('loopIteration')).toBe('Iteration');
@@ -122,6 +123,19 @@ describe('executionLogGrid helpers', () => {
     it('marks a childless command as not expandable', () => {
       const command = { ...entry, executionType: 'command', childCount: 0 } as ExecutionLogEntryDto;
       expect(projectEntryRow(command, 'x').expandable).toBe(false);
+    });
+
+    it('maps a queue run to the "Queue" type and treats it as expandable', () => {
+      const queueRun = {
+        ...entry,
+        executionType: 'queue',
+        childCount: 0,
+        objectRef: { objectType: 'queue', objectId: 'q-1', displayNameSnapshot: 'Daily Farm' },
+        summary: "Queue 'Daily Farm' completed full run: 3 sequence(s) executed."
+      } as ExecutionLogEntryDto;
+      const row = projectEntryRow(queueRun, 'x');
+      expect(row.type).toBe('Queue');
+      expect(row.expandable).toBe(true);
     });
   });
 
