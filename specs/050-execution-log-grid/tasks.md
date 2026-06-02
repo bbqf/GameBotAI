@@ -115,7 +115,7 @@ Web application; only the frontend `src/web-ui` is affected:
 
 - [X] T016 [P] Remove any now-dead CSS selectors, unused imports/exports, and dead helpers across `src/web-ui/src/pages/ExecutionLogs.tsx` and `src/web-ui/src/styles.css`; run `eslint --fix` in `src/web-ui`.
 - [X] T017 Run `npm run lint`, `npm run build`, and `npm test` in `src/web-ui` and confirm all are green (Quality Gate — hard stop on any failure).
-- [ ] T018 Execute the manual validation in `specs/050-execution-log-grid/quickstart.md` (all 10 checks) and confirm SC-001…SC-008.
+- [X] T018 Execute the manual validation in `specs/050-execution-log-grid/quickstart.md` (all 10 checks) and confirm SC-001…SC-008.
 
 ---
 
