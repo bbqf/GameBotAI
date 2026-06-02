@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ExecutionLogsPage } from '../ExecutionLogs';
-import { getExecutionSubtree, listExecutionLogs } from '../../services/executionLogsApi';
+import { getExecutionSubtree, listExecutionLogs, ExecutionTreeNodeStatus } from '../../services/executionLogsApi';
 
 jest.mock('../../services/executionLogsApi');
 
@@ -148,7 +148,7 @@ describe('ExecutionLogsPage', () => {
             nodeKind: 'wait',
             order: 1,
             label: 'waitForImage',
-            status: 'completed_timeout',
+            status: 'completed_timeout' as unknown as ExecutionTreeNodeStatus,
             message: 'timeout_elapsed',
             detailAttributes: {
               timeoutMs: 1500,

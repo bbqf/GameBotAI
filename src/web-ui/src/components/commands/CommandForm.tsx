@@ -372,7 +372,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
               min="0"
               max="1"
               value={value.detection?.confidence ?? ''}
-              onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), confidence: e.target.value } })}
+              onChange={(e) => onChange({ ...value, detection: { referenceImageId: '', ...(value.detection ?? {}), confidence: e.target.value } })}
               disabled={submitting}
             />
             <div className="form-hint">Lower values accept looser matches; 0.8 is a typical start.</div>
@@ -383,7 +383,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
               id="command-detection-offset-x"
               type="number"
               value={value.detection?.offsetX ?? ''}
-              onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), offsetX: e.target.value } })}
+              onChange={(e) => onChange({ ...value, detection: { referenceImageId: '', ...(value.detection ?? {}), offsetX: e.target.value } })}
               disabled={submitting}
             />
             <div className="form-hint">Pixels to move right from the detected point (negative to move left).</div>
@@ -394,7 +394,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
               id="command-detection-offset-y"
               type="number"
               value={value.detection?.offsetY ?? ''}
-              onChange={(e) => onChange({ ...value, detection: { ...(value.detection ?? {}), offsetY: e.target.value } })}
+              onChange={(e) => onChange({ ...value, detection: { referenceImageId: '', ...(value.detection ?? {}), offsetY: e.target.value } })}
               disabled={submitting}
             />
             <div className="form-hint">Pixels to move down from the detected point (negative to move up).</div>

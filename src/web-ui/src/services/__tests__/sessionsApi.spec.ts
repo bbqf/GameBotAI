@@ -26,7 +26,7 @@ describe('sessionsApi', () => {
     const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ sessions: [{ sessionId: 's1', gameId: 'g1', emulatorId: 'e1', startedAtUtc: '', lastHeartbeatUtc: '', status: 'Running' }] })
+      json: async () => ({ sessions: [{ sessionId: 's1', gameId: 'g1', adbSerial: 'e1', startedAtUtc: '', lastHeartbeatUtc: '', status: 'Running' }] })
     } as Response);
 
     await expect(getRunningSessions(1000)).resolves.toHaveLength(1);
@@ -120,10 +120,10 @@ describe('sessionsApi', () => {
         json: async () => ({})
       } as Response);
 
-    await expect(startSession({ gameId: 'g1', emulatorId: 'e1' }, 1000)).resolves.toEqual({ sessionId: 's1', runningSessions: [] });
-    await expect(startSession({ gameId: 'g1', emulatorId: 'e1' }, 1000)).rejects.toEqual(expect.objectContaining({ status: 404 }));
-    await expect(startSession({ gameId: 'g1', emulatorId: 'e1' }, 1000)).rejects.toEqual(expect.objectContaining({ status: 429 }));
-    await expect(startSession({ gameId: 'g1', emulatorId: 'e1' }, 1000)).rejects.toEqual(expect.objectContaining({ status: 400 }));
+    await expect(startSession({ gameId: 'g1', adbSerial: 'e1' }, 1000)).resolves.toEqual({ sessionId: 's1', runningSessions: [] });
+    await expect(startSession({ gameId: 'g1', adbSerial: 'e1' }, 1000)).rejects.toEqual(expect.objectContaining({ status: 404 }));
+    await expect(startSession({ gameId: 'g1', adbSerial: 'e1' }, 1000)).rejects.toEqual(expect.objectContaining({ status: 429 }));
+    await expect(startSession({ gameId: 'g1', adbSerial: 'e1' }, 1000)).rejects.toEqual(expect.objectContaining({ status: 400 }));
     await expect(stopSession('s1', 1000)).resolves.toBe(true);
     await expect(stopSession('s1', 1000)).rejects.toEqual(expect.objectContaining({ status: 404 }));
     await expect(stopSession('s1', 1000)).rejects.toEqual(expect.objectContaining({ status: 504 }));

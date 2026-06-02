@@ -19,6 +19,7 @@ export type GridRow = {
 };
 
 const NODE_TYPE_LABELS: Record<ExecutionTreeNodeKind, string> = {
+  queue: 'Queue',
   sequence: 'Sequence',
   command: 'Command',
   step: 'Step',
@@ -82,7 +83,7 @@ export const nodeKey = (node: ExecutionTreeNodeDto, parentKey: string): string =
 export const projectEntryRow = (entry: ExecutionLogEntryDto, timestamp: string): GridRow => ({
   key: entry.id,
   depth: 0,
-  expandable: entry.executionType === 'sequence' || entry.childCount > 0,
+  expandable: entry.executionType === 'sequence' || entry.executionType === 'queue' || entry.childCount > 0,
   timestamp,
   name: entry.objectRef.displayNameSnapshot,
   type: typeLabel(entry.executionType),

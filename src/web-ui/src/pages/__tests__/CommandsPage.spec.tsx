@@ -10,7 +10,7 @@ jest.mock('../../services/games', () => ({
 }));
 
 jest.mock('@dnd-kit/core', () => {
-  const React = require('react');
+  const React = jest.requireActual('react');
   return {
     DndContext: jest.fn(({ children }: any) => React.createElement(React.Fragment, null, children)),
     PointerSensor: class {},
@@ -73,7 +73,7 @@ describe('CommandsPage', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     // Re-apply DndContext implementation after resetAllMocks clears it
-    (DndContext as jest.Mock).mockImplementation(({ children, onDragEnd, onDragStart, onDragOver, onDragCancel }: any) => {
+    (DndContext as unknown as jest.Mock).mockImplementation(({ children, onDragEnd, onDragStart, onDragOver, onDragCancel }: any) => {
       dndHandlers.onDragEnd = onDragEnd;
       dndHandlers.onDragStart = onDragStart;
       dndHandlers.onDragOver = onDragOver;

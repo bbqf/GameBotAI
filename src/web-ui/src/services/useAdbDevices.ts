@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AdbDevice, listAdbDevices } from './adbApi';
 
 export type UseAdbDevicesState = {
@@ -13,7 +13,7 @@ export const useAdbDevices = (enabled = true): UseAdbDevicesState => {
   const [devices, setDevices] = useState<AdbDevice[]>([]);
   const [error, setError] = useState<string | undefined>(undefined);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!enabled) return;
     setLoading(true);
     setError(undefined);
@@ -26,7 +26,7 @@ export const useAdbDevices = (enabled = true): UseAdbDevicesState => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) {
@@ -36,7 +36,7 @@ export const useAdbDevices = (enabled = true): UseAdbDevicesState => {
       return;
     }
     void load();
-  }, [enabled]);
+  }, [enabled, load]);
 
   return { loading, devices, error, refresh: () => { void load(); } };
 };

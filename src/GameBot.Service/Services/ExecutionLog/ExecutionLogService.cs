@@ -67,7 +67,10 @@ internal interface IExecutionLogService {
   Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, CancellationToken ct = default);
+  Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, ExecutionLogContext parentContext, CancellationToken ct = default);
   Task LogSequenceFinalizeAsync(string executionId, string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
+  Task<string> LogQueueStartAsync(string queueId, string queueName, CancellationToken ct = default);
+  Task LogQueueFinalizeAsync(string executionId, string queueId, string queueName, string finalStatus, string summary, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default);
   Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default);
   Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default);
@@ -227,6 +230,33 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     return id;
   }
 
+  public async Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, ExecutionLogContext parentContext, CancellationToken ct = default) {
+    var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
+    var now = DateTimeOffset.UtcNow;
+    var id = Guid.NewGuid().ToString("N");
+    var context = new ExecutionLogContext { SequenceId = sequenceId, SequenceLabel = sequenceName };
+    // Nest the sequence under its parent (e.g. a queue run): parent/root come from the caller,
+    // falling back to a self-root when no parent is provided (standalone behavior).
+    var hierarchy = new ExecutionHierarchyContext(
+      string.IsNullOrWhiteSpace(parentContext?.RootExecutionId) ? id : parentContext!.RootExecutionId!,
+      string.IsNullOrWhiteSpace(parentContext?.ParentExecutionId) ? null : parentContext!.ParentExecutionId,
+      Math.Max(0, parentContext?.Depth ?? 0),
+      parentContext?.SequenceIndex);
+    var entry = new ExecutionLogEntry {
+      Id = id,
+      TimestampUtc = now,
+      ExecutionType = "sequence",
+      FinalStatus = "running",
+      ObjectRef = new ExecutionObjectReference("sequence", sequenceId, sequenceName),
+      Navigation = ExecutionNavigationBuilder.Build("sequence", sequenceId, context),
+      Hierarchy = hierarchy,
+      Summary = TrimSummary($"Sequence '{sequenceName}' running."),
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+    };
+    await _repository.AddAsync(entry, ct).ConfigureAwait(false);
+    return id;
+  }
+
   public async Task LogSequenceFinalizeAsync(string executionId, string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) {
     var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
     var existing = await _repository.GetAsync(executionId, ct).ConfigureAwait(false);
@@ -234,6 +264,9 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     var sanitizedDetails = ExecutionLogSanitizer.SanitizeDetails(details?.ToList() ?? new List<ExecutionDetailItem>());
     var stepOutcomes = BuildSequenceStepOutcomes(sequenceId, sequenceName, context, sanitizedDetails);
     var trimmedDetails = TrimDetails(sanitizedDetails);
+    // Preserve the parent hierarchy established at start (e.g. a sequence nested under a queue run)
+    // rather than forcing the entry back to a root.
+    var hierarchy = existing?.Hierarchy ?? new ExecutionHierarchyContext(executionId, null, 0, null);
 
     var entry = new ExecutionLogEntry {
       Id = executionId,
@@ -242,13 +275,52 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       FinalStatus = NormalizeStatus(finalStatus),
       ObjectRef = new ExecutionObjectReference("sequence", sequenceId, sequenceName),
       Navigation = ExecutionNavigationBuilder.Build("sequence", sequenceId, context),
-      Hierarchy = new ExecutionHierarchyContext(executionId, null, 0, null),
+      Hierarchy = hierarchy,
       Summary = TrimSummary(summary),
       Details = trimmedDetails,
       StepOutcomes = stepOutcomes,
       RetentionExpiresUtc = retention.Enabled ? timestamp.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
     };
 
+    await _repository.UpsertAsync(entry, ct).ConfigureAwait(false);
+  }
+
+  public async Task<string> LogQueueStartAsync(string queueId, string queueName, CancellationToken ct = default) {
+    var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
+    var now = DateTimeOffset.UtcNow;
+    var id = Guid.NewGuid().ToString("N");
+    var entry = new ExecutionLogEntry {
+      Id = id,
+      TimestampUtc = now,
+      ExecutionType = "queue",
+      FinalStatus = "running",
+      ObjectRef = new ExecutionObjectReference("queue", queueId, queueName),
+      Navigation = ExecutionNavigationBuilder.Build("queue", queueId, new ExecutionLogContext()),
+      Hierarchy = new ExecutionHierarchyContext(id, null, 0, null),
+      Summary = TrimSummary($"Queue '{queueName}' running."),
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+    };
+    await _repository.AddAsync(entry, ct).ConfigureAwait(false);
+    return id;
+  }
+
+  public async Task LogQueueFinalizeAsync(string executionId, string queueId, string queueName, string finalStatus, string summary, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) {
+    var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
+    var existing = await _repository.GetAsync(executionId, ct).ConfigureAwait(false);
+    var timestamp = existing?.TimestampUtc ?? DateTimeOffset.UtcNow;
+    var trimmedDetails = TrimDetails(ExecutionLogSanitizer.SanitizeDetails(details?.ToList() ?? new List<ExecutionDetailItem>()));
+    var entry = new ExecutionLogEntry {
+      Id = executionId,
+      TimestampUtc = timestamp,
+      ExecutionType = "queue",
+      FinalStatus = NormalizeStatus(finalStatus),
+      ObjectRef = new ExecutionObjectReference("queue", queueId, queueName),
+      Navigation = ExecutionNavigationBuilder.Build("queue", queueId, new ExecutionLogContext()),
+      Hierarchy = existing?.Hierarchy ?? new ExecutionHierarchyContext(executionId, null, 0, null),
+      Summary = TrimSummary(summary),
+      Details = trimmedDetails,
+      RetentionExpiresUtc = retention.Enabled ? timestamp.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+    };
     await _repository.UpsertAsync(entry, ct).ConfigureAwait(false);
   }
 
@@ -268,7 +340,11 @@ internal sealed class ExecutionLogService : IExecutionLogService {
   }
 
   private static ExecutionTreeNodeProjection BuildTreeNode(ExecutionLogEntry entry, IReadOnlyList<ExecutionLogEntry> all) {
-    var isSequence = string.Equals(entry.ExecutionType, "sequence", StringComparison.OrdinalIgnoreCase);
+    var nodeKind = (entry.ExecutionType ?? string.Empty).ToLowerInvariant() switch {
+      "sequence" => "sequence",
+      "queue" => "queue",
+      _ => "command"
+    };
     var children = new List<ExecutionTreeNodeProjection>();
 
     var directChildren = all
@@ -320,7 +396,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     }
 
     return new ExecutionTreeNodeProjection(
-      isSequence ? "sequence" : "command",
+      nodeKind,
       entry.Id,
       entry.Hierarchy.SequenceIndex ?? 0,
       entry.ObjectRef.DisplayNameSnapshot,

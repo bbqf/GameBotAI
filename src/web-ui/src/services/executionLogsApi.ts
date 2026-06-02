@@ -23,6 +23,7 @@ export type ExecutionLogEntryDto = {
 };
 
 export type ExecutionTreeNodeKind =
+  | 'queue'
   | 'sequence'
   | 'command'
   | 'step'

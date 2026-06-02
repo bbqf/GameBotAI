@@ -207,12 +207,6 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     return commandOptions.filter((c) => c.value !== editingId);
   }, [commandOptions, editingId]);
 
-  const gameLookup = useMemo(() => {
-    const map = new Map<string, string>();
-    games.forEach((g) => map.set(g.id, g.name));
-    return map;
-  }, [games]);
-
   const commandRows: CommandRow[] = useMemo(() => {
     return commands.map((c) => {
       const stepCount = c.steps?.length ?? 0;
@@ -274,7 +268,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
       }
     }
     const detectionResult = detectionToDto(v.detection);
-    if (detectionResult && 'error' in detectionResult) next.detection = detectionResult.error;
+    if (detectionResult && 'error' in detectionResult) next.detection = detectionResult.error ?? 'Invalid detection target';
     return Object.keys(next).length ? next : undefined;
   };
 
@@ -358,13 +352,13 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
             try {
               const detectionResult = detectionToDto(form.detection);
               if (detectionResult && 'error' in detectionResult) {
-                setErrors({ detection: detectionResult.error });
+                setErrors({ detection: detectionResult.error ?? 'Invalid detection target' });
                 return;
               }
               await createCommand({
                 name: form.name.trim(),
                 steps: stepsToDto(form.steps),
-                detection: detectionResult?.value,
+                detection: detectionResult?.value ?? undefined,
               });
               setCreating(false);
               setForm(emptyForm);
@@ -402,13 +396,13 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
               try {
                 const detectionResult = detectionToDto(form.detection);
                 if (detectionResult && 'error' in detectionResult) {
-                  setErrors({ detection: detectionResult.error });
+                  setErrors({ detection: detectionResult.error ?? 'Invalid detection target' });
                   return;
                 }
                 await updateCommand(editingId, {
                   name: form.name.trim(),
                   steps: stepsToDto(form.steps),
-                  detection: detectionResult?.value,
+                  detection: detectionResult?.value ?? undefined,
                 });
                 await reloadCommands();
                 setEditingId(undefined);

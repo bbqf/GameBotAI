@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { CommandForm, CommandFormValue, StepEntry } from '../../../components/commands/CommandForm';
 
 jest.mock('@dnd-kit/core', () => {
-  const React = require('react');
+  const React = jest.requireActual('react');
   const MockDndContext = jest.fn(({ children }: any) => React.createElement(React.Fragment, null, children));
   return {
     DndContext: MockDndContext,
@@ -39,7 +39,7 @@ jest.mock('@dnd-kit/utilities', () => ({
 import { DndContext } from '@dnd-kit/core';
 
 const getDndHandlers = () => {
-  const mock = DndContext as jest.Mock;
+  const mock = DndContext as unknown as jest.Mock;
   return mock.mock.calls[mock.mock.calls.length - 1][0] as {
     onDragEnd: (e: any) => void;
     onDragStart: (e: any) => void;
@@ -98,7 +98,7 @@ describe('CommandForm zoom layout', () => {
 
 describe('CommandForm drag-and-drop reordering', () => {
   beforeEach(() => {
-    (DndContext as jest.Mock).mockClear();
+    (DndContext as unknown as jest.Mock).mockClear();
   });
 
   it('T007 calls onChange with steps in new order after drag end', () => {
@@ -233,7 +233,7 @@ describe('CommandForm drag-and-drop reordering', () => {
 
 describe('CommandForm drag handle visibility', () => {
   beforeEach(() => {
-    (DndContext as jest.Mock).mockClear();
+    (DndContext as unknown as jest.Mock).mockClear();
   });
 
   it('T013 renders a drag handle for each step', () => {

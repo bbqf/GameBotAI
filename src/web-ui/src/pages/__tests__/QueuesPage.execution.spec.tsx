@@ -55,4 +55,29 @@ describe('QueuesPage start/stop', () => {
     await waitFor(() => expect(stopQueueMock).toHaveBeenCalledWith('q1'));
     await waitFor(() => expect(screen.getByTestId('queue-status')).toHaveTextContent('Stopped'));
   });
+
+  it('points the operator to the Execution Logs after starting', async () => {
+    listQueuesMock.mockResolvedValueOnce([queue({ status: 'Stopped' })] as any);
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+
+    startQueueMock.mockResolvedValue({} as any);
+    listQueuesMock.mockResolvedValueOnce([queue({ status: 'Running' })] as any);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Execution Logs/i));
+  });
+
+  it('surfaces a start failure (e.g. already running) to the operator', async () => {
+    listQueuesMock.mockResolvedValueOnce([queue({ status: 'Stopped' })] as any);
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+
+    startQueueMock.mockRejectedValue(Object.assign(new Error('The queue is already running.'), { status: 409 }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('already running'));
+  });
 });

@@ -126,6 +126,8 @@ builder.Services.AddSingleton<GameBot.Domain.QueueTemplates.IQueueTemplateReposi
 builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
 builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
 builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLogService, GameBot.Service.Services.ExecutionLog.ExecutionLogService>();
+builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.ISequenceExecutionService, GameBot.Service.Services.SequenceExecution.SequenceExecutionService>();
+builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueExecutionService, GameBot.Service.Services.QueueExecution.QueueExecutionService>();
 builder.Services.AddSingleton<SemanticVersionComparer>();
 builder.Services.AddSingleton<VersionSourceLoader>();
 builder.Services.AddSingleton<VersionResolutionService>();
@@ -798,14 +800,7 @@ sequences.MapDelete("{sequenceId}", async (ISequenceRepository repo, string sequ
 }).WithName("DeleteSequence");
 
 sequences.MapPost("{sequenceId}/execute", async (
-  GameBot.Domain.Services.SequenceRunner runner,
-  TriggerEvaluationService evalSvc,
-  IImageVisibleConditionAdapter imageVisibleConditionAdapter,
-  GameBot.Domain.Images.IImageRepository imageRepository,
-  GameBot.Service.Services.ExecutionLog.IExecutionLogService executionLogService,
-  ICommandRepository commandRepository,
-  ISequenceRepository sequenceRepository,
-  GameBot.Service.Services.ICommandExecutor commandExecutor,
+  GameBot.Service.Services.SequenceExecution.ISequenceExecutionService sequenceExecution,
   string sequenceId,
   HttpContext httpContext,
   CancellationToken ct) => {
@@ -819,244 +814,10 @@ sequences.MapPost("{sequenceId}/execute", async (
       // empty body, malformed JSON, or missing content-type — no sessionId override
     }
 
-    // Create the in-progress root entry up front so invoked commands can be linked to it
-    // (and the sequence shows as a single top-level entry while it runs).
-    var startSequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
-    var startSequenceName = startSequence?.Name ?? sequenceId;
-    var rootExecutionId = await executionLogService.LogSequenceStartAsync(sequenceId, startSequenceName, ct).ConfigureAwait(false);
-    var childInvocationIndex = 0;
-
-    var res = await runner.ExecuteAsync(
-      sequenceId,
-      async commandId => {
-        try {
-          var childContext = new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
-            ParentExecutionId = rootExecutionId,
-            RootExecutionId = rootExecutionId,
-            Depth = 1,
-            SequenceIndex = ++childInvocationIndex,
-            SequenceId = sequenceId,
-            SequenceLabel = startSequenceName
-          };
-          await commandExecutor.ForceExecuteAsync(sessionId, commandId, childContext, ct).ConfigureAwait(false);
-        }
-        catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
-          throw new InvalidOperationException($"No cached session found for command '{commandId}'. Start a session first.");
-        }
-        catch (InvalidOperationException ex) when (ex.Message == "missing_session_context") {
-          throw new InvalidOperationException($"No session available for command '{commandId}'. Start a session or pass a sessionId.");
-        }
-        catch (KeyNotFoundException) {
-          // Command not found in repository — step uses a primitive action type (e.g. tap)
-          // or references a non-existent command; treat as completed.
-        }
-      },
-      gateEvaluator: (step, token) => {
-        // Temporary evaluator for integration tests:
-        // TargetId "always" => gate passes; "never" => gate fails
-        if (step.Gate == null) return Task.FromResult(true);
-        var tid = step.Gate.TargetId ?? string.Empty;
-        if (string.Equals(tid, "always", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(true);
-        if (string.Equals(tid, "never", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(false);
-        // Default: pass
-        return Task.FromResult(true);
-      },
-      conditionEvaluator: (cond, token) => {
-        // Map Blocks.Condition to a transient Trigger and evaluate via TriggerEvaluationService
-        if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)) {
-          return EvaluateImageConditionAsync(cond, imageRepository, imageVisibleConditionAdapter, token);
-        }
-        if (string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase)) {
-          var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
-                                           : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
-          var mode = string.Equals(cond.Mode, "Absent", StringComparison.OrdinalIgnoreCase) ? "not-found" : "found";
-          var trig = new GameBot.Domain.Triggers.Trigger {
-            Id = "inline-text",
-            Type = GameBot.Domain.Triggers.TriggerType.TextMatch,
-            Enabled = true,
-            Params = new GameBot.Domain.Triggers.TextMatchParams {
-              Target = cond.TargetId,
-              Region = region,
-              ConfidenceThreshold = cond.ConfidenceThreshold ?? 0.80,
-              Mode = mode,
-              Language = cond.Language
-            }
-          };
-          var r = evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
-          return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
-        }
-        // Unsupported source
-        return Task.FromResult(false);
-      },
-      ct: ct
-    ).ConfigureAwait(false);
-    var sequence = await sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
-    var sequenceName = sequence?.Name ?? sequenceId;
-    var status = string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
-    var flattenedSequenceSteps = FlattenSequenceSteps(sequence?.Steps ?? Array.Empty<GameBot.Domain.Commands.SequenceStep>()).ToArray();
-    var sequenceStepsByRef = flattenedSequenceSteps
-      .GroupBy(step => !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId! : step.CommandId, StringComparer.Ordinal)
-      .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-    var sequenceStepsByCommandId = flattenedSequenceSteps
-      .Where(step => !string.IsNullOrWhiteSpace(step.CommandId))
-      .GroupBy(step => step.CommandId, StringComparer.Ordinal)
-      .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-    var flowStepsByCommandRef = (sequence?.FlowSteps ?? Array.Empty<GameBot.Domain.Commands.FlowStep>())
-      .GroupBy(step => string.IsNullOrWhiteSpace(step.PayloadRef) ? step.StepId : step.PayloadRef!, StringComparer.Ordinal)
-      .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-    var commandNamesById = new Dictionary<string, string>(StringComparer.Ordinal);
-    foreach (var commandId in res.Steps
-      .Where(step => step.LoopIterations is null && !string.IsNullOrWhiteSpace(step.CommandId))
-      .Select(step => step.CommandId)
-      .Distinct(StringComparer.Ordinal)) {
-      var command = await commandRepository.GetAsync(commandId, ct).ConfigureAwait(false);
-      if (command is not null && !string.IsNullOrWhiteSpace(command.Name)) {
-        commandNamesById[commandId] = command.Name;
-      }
-    }
-
-    var commandSteps = res.Steps.Where(s => s.LoopIterations is null).ToList();
-    var detailItems = new List<GameBot.Domain.Logging.ExecutionDetailItem> {
-      new(
-        "sequence",
-        $"Executed commands: {string.Join(",", commandSteps.Select(s => s.CommandId).Take(10))}",
-        new Dictionary<string, object?> { ["executedCount"] = commandSteps.Count },
-        "normal")
-    };
-
-    var stepOrder = 1;
-    foreach (var step in res.Steps) {
-      flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
-      sequenceStepsByCommandId.TryGetValue(step.CommandId, out var sequenceStep);
-      var stepId = flowStep?.StepId ?? sequenceStep?.StepId ?? step.CommandId;
-      var stepLabel = flowStep?.Label ?? sequenceStep?.Label ?? sequenceStep?.StepId ?? step.CommandId;
-
-      // Loop summary entries are not command executions — emit a loop-type detail instead.
-      if (step.LoopIterations is not null) {
-        var iterCount = step.LoopIterations.Count;
-        detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
-          "step",
-          $"Loop '{stepLabel}' {step.Status.ToLowerInvariant()} after {iterCount} iteration{(iterCount == 1 ? "" : "s")}.",
-          new Dictionary<string, object?> {
-            ["stepOrder"] = stepOrder++,
-            ["stepType"] = "loop",
-            ["status"] = step.Status,
-            ["actionOutcome"] = step.Status.ToLowerInvariant(),
-            ["appliedDelayMs"] = step.InterStepDelayMs ?? step.AppliedDelayMs,
-            ["stepDelayMs"] = step.AppliedDelayMs,
-            ["interStepDelayMs"] = step.InterStepDelayMs,
-            ["iterations"] = iterCount,
-            ["message"] = step.Message,
-            ["sequenceId"] = sequenceId,
-            ["sequenceLabel"] = sequenceName,
-            ["stepId"] = stepId,
-            ["stepLabel"] = stepLabel
-          },
-          "normal"));
-        continue;
-      }
-
-      var actionOutcome = string.IsNullOrWhiteSpace(step.ActionOutcome)
-        ? (string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase) ? "skipped" : "executed")
-        : step.ActionOutcome;
-      var waitDetails = step.WaitForImageDetails;
-      var waitConfig = sequenceStep?.WaitForImage;
-      var isWaitForImageStep = waitDetails is not null
-        || waitConfig is not null
-        || string.Equals(sequenceStep?.Action?.Type, "WaitForImage", StringComparison.OrdinalIgnoreCase);
-      commandNamesById.TryGetValue(step.CommandId, out var commandName);
-      var stepType = isWaitForImageStep ? "waitForImage" : "command";
-      var imageLoadStatus = waitDetails?.ImageLoadStatus
-        ?? (waitConfig?.DetectionTarget is null
-          ? null
-          : string.Equals(actionOutcome, "image_unavailable", StringComparison.OrdinalIgnoreCase)
-            ? "unavailable"
-            : "loaded");
-      var stepDisplayMessage = isWaitForImageStep || string.IsNullOrWhiteSpace(commandName)
-        ? (!string.IsNullOrWhiteSpace(step.Message)
-          ? $"Step '{stepLabel}' {actionOutcome}: {step.Message}"
-          : $"Step '{stepLabel}' {actionOutcome}.")
-        : (!string.IsNullOrWhiteSpace(step.Message)
-          ? $"Step '{stepLabel}' ran command '{commandName}' with outcome '{actionOutcome}': {step.Message}"
-          : $"Step '{stepLabel}' ran command '{commandName}' with outcome '{actionOutcome}'.");
-      detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
-        "step",
-        stepDisplayMessage,
-        new Dictionary<string, object?> {
-          ["stepOrder"] = stepOrder++,
-          ["stepType"] = stepType,
-          ["status"] = step.Status,
-          ["actionOutcome"] = actionOutcome,
-          ["reasonCode"] = actionOutcome,
-          ["appliedDelayMs"] = step.InterStepDelayMs ?? step.AppliedDelayMs,
-          ["stepDelayMs"] = step.AppliedDelayMs,
-          ["interStepDelayMs"] = step.InterStepDelayMs,
-          ["conditionType"] = step.ConditionType,
-          ["conditionResult"] = step.ConditionResult,
-          ["message"] = step.Message,
-          ["timeoutMs"] = waitDetails?.TimeoutMs ?? waitConfig?.TimeoutMs,
-          ["effectiveTimeoutMs"] = waitDetails?.EffectiveTimeoutMs ?? waitConfig?.TimeoutMs,
-          ["referenceImageId"] = waitDetails?.ReferenceImageId ?? waitConfig?.DetectionTarget?.ReferenceImageId,
-          ["confidence"] = waitDetails?.Confidence ?? waitConfig?.DetectionTarget?.Confidence,
-          ["exitCondition"] = isWaitForImageStep ? (waitDetails?.ExitCondition ?? actionOutcome) : null,
-          ["imageLoadStatus"] = imageLoadStatus,
-          ["sequenceId"] = sequenceId,
-          ["sequenceLabel"] = sequenceName,
-          ["stepId"] = stepId,
-          ["stepLabel"] = stepLabel,
-          ["commandName"] = isWaitForImageStep ? null : commandName,
-          ["commandId"] = isWaitForImageStep ? null : step.CommandId
-        },
-        "normal"));
-    }
-
-    foreach (var trace in res.ConditionTraces) {
-      detailItems.Add(new GameBot.Domain.Logging.ExecutionDetailItem(
-        "step",
-        $"Condition step '{trace.StepLabel ?? trace.StepId}' evaluated to {trace.Trace.FinalResult}.",
-        new Dictionary<string, object?> {
-          ["stepOrder"] = stepOrder++,
-          ["stepType"] = "condition",
-          ["status"] = "executed",
-          ["conditionResult"] = trace.Trace.FinalResult,
-          ["actionOutcome"] = trace.Trace.FinalResult ? "executed" : "skipped",
-          ["sequenceId"] = sequenceId,
-          ["sequenceLabel"] = sequenceName,
-          ["stepId"] = trace.StepId,
-          ["stepLabel"] = trace.StepLabel ?? trace.StepId,
-          ["conditionTrace"] = trace.Trace
-        },
-        "normal"));
-    }
-
-    await executionLogService.LogSequenceFinalizeAsync(
-      rootExecutionId,
-      sequenceId,
-      sequenceName,
-      status,
-      $"Sequence '{sequenceName}' {status} with {commandSteps.Count} step{(commandSteps.Count == 1 ? "" : "s")} executed.",
-      new GameBot.Service.Services.ExecutionLog.ExecutionLogContext {
-        Depth = 0,
-        SequenceId = sequenceId,
-        SequenceLabel = sequenceName
-      },
-      details: detailItems,
-      ct).ConfigureAwait(false);
+    var res = await sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext: null, ct).ConfigureAwait(false);
     return Results.Ok(res);
   }).WithName("ExecuteSequence").WithTags("Sequences");
 
-static async Task<bool> EvaluateImageConditionAsync(
-  GameBot.Domain.Commands.Blocks.Condition cond,
-  GameBot.Domain.Images.IImageRepository imageRepository,
-  IImageVisibleConditionAdapter imageVisibleConditionAdapter,
-  CancellationToken token) {
-  if (!string.IsNullOrWhiteSpace(cond.TargetId)
-      && !await imageRepository.ExistsAsync(cond.TargetId, token).ConfigureAwait(false)) {
-    throw new InvalidOperationException("image_unavailable");
-  }
-
-  return await imageVisibleConditionAdapter.EvaluateAsync(cond, token).ConfigureAwait(false);
-}
 
 // Legacy guard rails: respond with guidance instead of serving old roots
 MapLegacyGuard("/commands", ApiRoutes.Commands);
