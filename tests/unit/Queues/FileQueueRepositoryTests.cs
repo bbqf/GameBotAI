@@ -83,6 +83,33 @@ public sealed class FileQueueRepositoryTests : IDisposable {
   }
 
   [Fact]
+  public async Task UpdatePersistsLinkedTemplateId() {
+    var repo = NewRepo();
+    var created = await repo.CreateAsync(new ExecutionQueue { Name = "A", EmulatorSerial = "emu-1" }).ConfigureAwait(true);
+
+    created.LinkedTemplateId = "tpl-123";
+    await repo.UpdateAsync(created).ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync(created.Id).ConfigureAwait(true);
+    loaded!.LinkedTemplateId.Should().Be("tpl-123");
+  }
+
+  [Fact]
+  public async Task LegacyQueueJsonWithoutLinkedTemplateIdLoadsAsUnlinked() {
+    var repo = NewRepo();
+    var dir = Path.Combine(_root, "queues");
+    Directory.CreateDirectory(dir);
+    // A queue document written before this feature: no LinkedTemplateId property.
+    await File.WriteAllTextAsync(Path.Combine(dir, "legacy.json"),
+      "{\"Id\":\"legacy\",\"Name\":\"Old\",\"EmulatorSerial\":\"emu-1\",\"CycleExecution\":false}").ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync("legacy").ConfigureAwait(true);
+
+    loaded.Should().NotBeNull();
+    loaded!.LinkedTemplateId.Should().BeNull();
+  }
+
+  [Fact]
   public async Task GetWithUnsafeIdReturnsNull() {
     var repo = NewRepo();
     (await repo.GetAsync("../escape").ConfigureAwait(true)).Should().BeNull();

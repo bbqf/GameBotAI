@@ -10,6 +10,7 @@ import {
   addQueueEntry,
   removeQueueEntry,
   replaceQueueEntries,
+  setQueueTemplateLink,
   startQueue,
   stopQueue,
 } from '../services/queues';
@@ -40,8 +41,8 @@ export const QueuesPage: React.FC = () => {
   const [detail, setDetail] = useState<QueueDetailDto | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [associatedTemplateName, setAssociatedTemplateName] = useState<string | undefined>(undefined);
-  const [pendingLoad, setPendingLoad] = useState<{ name: string; sequenceIds: string[] } | undefined>(undefined);
-  const [pendingReload, setPendingReload] = useState<{ name: string; sequenceIds: string[] } | undefined>(undefined);
+  const [pendingLoad, setPendingLoad] = useState<{ name: string; sequenceIds: string[]; templateId: string } | undefined>(undefined);
+  const [pendingReload, setPendingReload] = useState<{ name: string; sequenceIds: string[]; templateId: string } | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -82,9 +83,9 @@ export const QueuesPage: React.FC = () => {
     setCreating(false);
     setFieldErrors(undefined);
     setFormError(undefined);
-    setAssociatedTemplateName(undefined);
     const q = await getQueue(id);
     setDetail(q);
+    setAssociatedTemplateName(q.linkedTemplateName ?? undefined);
     setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution });
   };
 
@@ -153,15 +154,17 @@ export const QueuesPage: React.FC = () => {
   const handleSaveTemplate = async (name: string, overwrite: boolean) => {
     if (!detail) return;
     const sequenceIds = detail.entries.map((e) => e.sequenceId);
-    await saveQueueTemplate({ name, sequenceIds, overwrite });
+    const saved = await saveQueueTemplate({ name, sequenceIds, overwrite });
+    await setQueueTemplateLink(detail.id, saved.id);
     setAssociatedTemplateName(name);
     setTableMessage(`Template "${name}" saved successfully.`);
   };
 
-  const applyLoad = async (name: string, sequenceIds: string[]) => {
+  const applyLoad = async (name: string, sequenceIds: string[], templateId: string) => {
     if (!detail) return;
     try {
       await replaceQueueEntries(detail.id, sequenceIds);
+      await setQueueTemplateLink(detail.id, templateId);
       setAssociatedTemplateName(name);
       setTableMessage(`Template "${name}" loaded.`);
       await reloadDetail(detail.id);
@@ -176,9 +179,9 @@ export const QueuesPage: React.FC = () => {
     const tpl = await getQueueTemplate(templateId);
     const sequenceIds = tpl.entries.map((e) => e.sequenceId);
     if (detail.entries.length > 0) {
-      setPendingLoad({ name: tpl.name, sequenceIds });
+      setPendingLoad({ name: tpl.name, sequenceIds, templateId: tpl.id });
     } else {
-      await applyLoad(tpl.name, sequenceIds);
+      await applyLoad(tpl.name, sequenceIds, tpl.id);
     }
   };
 
@@ -198,9 +201,9 @@ export const QueuesPage: React.FC = () => {
       const currentSeqIds = detail.entries.map((e) => e.sequenceId);
       if (sameSequenceOrder(currentSeqIds, templateSeqIds)) return; // nothing to discard, no prompt
       if (detail.entries.length > 0) {
-        setPendingReload({ name: tpl.name, sequenceIds: templateSeqIds });
+        setPendingReload({ name: tpl.name, sequenceIds: templateSeqIds, templateId: match.id });
       } else {
-        await applyLoad(tpl.name, templateSeqIds);
+        await applyLoad(tpl.name, templateSeqIds, match.id);
       }
     } catch (err: any) {
       setTableError(err instanceof ApiError ? err.message : err?.message ?? 'Failed to reload template');
@@ -217,7 +220,7 @@ export const QueuesPage: React.FC = () => {
         onConfirm: () => {
           const p = pendingLoad;
           setPendingLoad(undefined);
-          if (p) void applyLoad(p.name, p.sequenceIds);
+          if (p) void applyLoad(p.name, p.sequenceIds, p.templateId);
         },
       }
     : pendingReload
@@ -229,7 +232,7 @@ export const QueuesPage: React.FC = () => {
           onConfirm: () => {
             const p = pendingReload;
             setPendingReload(undefined);
-            if (p) void applyLoad(p.name, p.sequenceIds);
+            if (p) void applyLoad(p.name, p.sequenceIds, p.templateId);
           },
         }
       : undefined;
