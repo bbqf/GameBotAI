@@ -824,9 +824,10 @@ namespace GameBot.Domain.Services {
 
         iterations++;
         if (iterations > maxIterations) {
-          result.AddLoopStep(stepKey, "Succeeded", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
-          stepOutcomes[stepKey] = "success";
-          return false;
+          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+          result.Fail($"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+          stepOutcomes[stepKey] = "failed";
+          return true;
         }
 
         var iterCtx = ImmutableIterContext(iterations);
@@ -895,9 +896,10 @@ namespace GameBot.Domain.Services {
         if (breakTriggered) break;
 
         if (iterations >= maxIterations) {
-          result.AddLoopStep(stepKey, "Succeeded", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
-          stepOutcomes[stepKey] = "success";
-          return false;
+          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+          result.Fail($"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+          stepOutcomes[stepKey] = "failed";
+          return true;
         }
 
         // Evaluate exit condition after body executes
@@ -1295,14 +1297,14 @@ namespace GameBot.Domain.Services {
 
         if (maxIterations.HasValue && iterations >= maxIterations.Value) {
           var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-          result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
-          if (_logger != null) LogBlockEnd(_logger, "while", "Succeeded", iterations, evals, null);
+          result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
+          if (_logger != null) LogBlockEnd(_logger, "while", "Failed", iterations, evals, null);
           return;
         }
         if (startDeadline.HasValue && DateTimeOffset.UtcNow >= startDeadline.Value) {
           var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-          result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
-          if (_logger != null) LogBlockEnd(_logger, "while", "Succeeded", iterations, evals, null);
+          result.AddBlock(new BlockResult { BlockType = "while", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
+          if (_logger != null) LogBlockEnd(_logger, "while", "Failed", iterations, evals, null);
           return;
         }
         await Task.Delay(cadenceMs, ct).ConfigureAwait(false);
@@ -1390,8 +1392,8 @@ namespace GameBot.Domain.Services {
         }
         if (satisfied) {
           var durOk = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-          result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations - 1, Evaluations = evals, DurationMs = durOk, Status = "true" });
-          if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "true", iterations - 1, evals, null);
+          result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations - 1, Evaluations = evals, DurationMs = durOk, Status = "Succeeded" });
+          if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Succeeded", iterations - 1, evals, null);
           return;
         }
 
@@ -1444,14 +1446,15 @@ namespace GameBot.Domain.Services {
         // Safeguards: first-hit wins (FR-20)
         if (maxIterations.HasValue && iterations >= maxIterations.Value) {
           var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-          result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
-          if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Succeeded", iterations, evals, null);
+          result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
+          result.Fail($"repeatUntil exceeded maximum iterations ({maxIterations.Value}).");
+          if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Failed", iterations, evals, null);
           return;
         }
         if (startDeadline.HasValue && DateTimeOffset.UtcNow >= startDeadline.Value) {
           var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-          result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
-          if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Succeeded", iterations, evals, null);
+          result.AddBlock(new BlockResult { BlockType = "repeatUntil", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Failed" });
+          if (_logger != null) LogBlockEnd(_logger, "repeatUntil", "Failed", iterations, evals, null);
           return;
         }
 
@@ -1536,10 +1539,10 @@ namespace GameBot.Domain.Services {
           if (_logger != null) LogBlockEvaluation(_logger, "repeatCount", "breakOn-start", brStart, null);
           if (brStart) {
             var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-            result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "true" });
+            result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
             if (_logger != null) {
               LogBlockDecision(_logger, "repeatCount", "break", iterations, null);
-              LogBlockEnd(_logger, "repeatCount", "true", iterations, evals, null);
+              LogBlockEnd(_logger, "repeatCount", "Succeeded", iterations, evals, null);
             }
             return;
           }
@@ -1569,10 +1572,10 @@ namespace GameBot.Domain.Services {
               if (_logger != null) LogBlockEvaluation(_logger, "repeatCount", "breakOn-mid", brMid, null);
               if (brMid) {
                 var dur = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-                result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "true" });
+                result.AddBlock(new BlockResult { BlockType = "repeatCount", Iterations = iterations, Evaluations = evals, DurationMs = dur, Status = "Succeeded" });
                 if (_logger != null) {
                   LogBlockDecision(_logger, "repeatCount", "break", iterations, null);
-                  LogBlockEnd(_logger, "repeatCount", "true", iterations, evals, null);
+                  LogBlockEnd(_logger, "repeatCount", "Succeeded", iterations, evals, null);
                 }
                 return;
               }
