@@ -416,7 +416,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       null,
       step.StepOrder,
       ResolveStepLabel(step),
-      MapStepStatus(step.Outcome),
+      step.ConditionTrace is not null ? (step.ConditionTrace.FinalResult ? "success" : "failure") : MapStepStatus(step.Outcome),
       step.ReasonText ?? step.ReasonCode,
       step.AppliedDelayMs,
       step.CommandName,
