@@ -93,6 +93,17 @@ export const QueuesPage: React.FC = () => {
     setDetail(q);
     setAssociatedTemplateName(q.linkedTemplateName ?? undefined);
     setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution });
+
+    // Restore per-entry schedule state from the linked template so that the editor
+    // reflects previously saved schedule types and saving doesn't overwrite them with OncePerRun.
+    if (q.linkedTemplateId && q.entries.length > 0) {
+      try {
+        const tpl = await getQueueTemplate(q.linkedTemplateId);
+        setEntrySchedule(buildScheduleFromTemplateEntries(q.entries.map((e) => e.entryId), tpl.entries));
+      } catch {
+        // Template may have been deleted; leave entrySchedule empty (defaults to OncePerRun).
+      }
+    }
   };
 
   const closeForms = () => {
