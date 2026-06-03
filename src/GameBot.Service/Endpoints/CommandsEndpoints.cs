@@ -94,6 +94,10 @@ internal static class CommandsEndpoints {
       return null;
     }
 
+    if (step.Type == CommandStepTypeDto.EnsureGameRunning) {
+      return null;
+    }
+
     if (string.IsNullOrWhiteSpace(step.TargetId)) {
       return "targetId is required for Command steps";
     }
