@@ -11,6 +11,7 @@ import {
   removeQueueEntry,
   replaceQueueEntries,
   setQueueTemplateLink,
+  setQueueGameLink,
   startQueue,
   stopQueue,
 } from '../services/queues';
@@ -18,6 +19,7 @@ import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
 import { QueueEntryList } from '../components/queues/QueueEntryList';
 import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
+import { QueueGameControls } from '../components/queues/QueueGameControls';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { saveQueueTemplate, getQueueTemplate, listQueueTemplates } from '../services/queueTemplates';
 import { sameSequenceOrder } from '../lib/sequenceOrder';
@@ -214,6 +216,28 @@ export const QueuesPage: React.FC = () => {
     }
   };
 
+  const handleLinkGame = async (gameId: string) => {
+    if (!detail) return;
+    try {
+      const updated = await setQueueGameLink(detail.id, gameId);
+      setDetail(updated);
+      await refresh();
+    } catch (err: any) {
+      setTableError(err?.message ?? 'Failed to link game');
+    }
+  };
+
+  const handleUnlinkGame = async () => {
+    if (!detail) return;
+    try {
+      const updated = await setQueueGameLink(detail.id, null);
+      setDetail(updated);
+      await refresh();
+    } catch (err: any) {
+      setTableError(err?.message ?? 'Failed to unlink game');
+    }
+  };
+
   // Replace/reload confirmation shown inline within the template controls (where the picker was).
   const templateConfirm = pendingLoad
     ? {
@@ -336,6 +360,15 @@ export const QueuesPage: React.FC = () => {
                 onLoadTemplate={(id) => void handleLoadTemplate(id)}
                 onReload={() => void handleReload()}
                 pendingConfirm={templateConfirm}
+              />
+            }
+            gameControls={
+              <QueueGameControls
+                linkedGameId={detail.linkedGameId}
+                linkedGameName={detail.linkedGameName}
+                status={detail.status}
+                onLink={(gameId) => void handleLinkGame(gameId)}
+                onUnlink={() => void handleUnlinkGame()}
               />
             }
             entries={

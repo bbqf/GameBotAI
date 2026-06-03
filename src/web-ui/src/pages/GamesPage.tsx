@@ -8,9 +8,10 @@ import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 
 type GameFormValue = {
   name: string;
+  packageName: string;
 };
 
-const emptyForm: GameFormValue = { name: '' };
+const emptyForm: GameFormValue = { name: '', packageName: '' };
 
 type GamesPageProps = {
   initialCreate?: boolean;
@@ -59,7 +60,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
         const g = await getGame(initialEditId);
         setEditingId(initialEditId);
         setCreating(false);
-        setForm({ name: g.name });
+        setForm({ name: g.name, packageName: g.packageName ?? '' });
         setDirty(false);
       } catch (err: any) {
         setErrors({ form: err?.message ?? 'Failed to load game' });
@@ -121,7 +122,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
                   try {
                     const game = await getGame(g.id);
                     setEditingId(g.id);
-                    setForm({ name: game.name });
+                    setForm({ name: game.name, packageName: game.packageName ?? '' });
                     setDirty(false);
                   } catch (err: any) {
                     setErrors({ form: err?.message ?? 'Failed to load game' });
@@ -145,7 +146,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
             if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
             setSubmitting(true);
             try {
-              await createGame({ name: form.name.trim() });
+              await createGame({ name: form.name.trim(), packageName: form.packageName.trim() || undefined });
               setCreating(false);
               resetForm();
               const data = await listGames();
@@ -171,6 +172,16 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
               />
               {errors?.name && <div id="game-name-error" className="field-error" role="alert">{errors.name}</div>}
             </div>
+            <div className="field">
+              <label htmlFor="game-package-name">Package Name</label>
+              <input
+                id="game-package-name"
+                value={form.packageName}
+                onChange={(e) => { setForm({ ...form, packageName: e.target.value }); setErrors(undefined); setDirty(true); }}
+                placeholder="e.g. com.example.game"
+                disabled={submitting || loading}
+              />
+            </div>
           </FormSection>
 
           <FormActions submitting={submitting} onCancel={() => { if (!confirmNavigate()) return; setCreating(false); resetForm(); }}>
@@ -193,7 +204,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
               if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
               setSubmitting(true);
               try {
-                await updateGame(editingId, { name: form.name.trim() });
+                await updateGame(editingId, { name: form.name.trim(), packageName: form.packageName.trim() || undefined });
                 const data = await listGames();
                 setGames(data);
                 setTableMessage('Game updated successfully.');
@@ -219,6 +230,16 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
                   disabled={submitting || loading}
                 />
                 {errors?.name && <div id="game-edit-name-error" className="field-error" role="alert">{errors.name}</div>}
+              </div>
+              <div className="field">
+                <label htmlFor="game-edit-package-name">Package Name</label>
+                <input
+                  id="game-edit-package-name"
+                  value={form.packageName}
+                  onChange={(e) => { setForm({ ...form, packageName: e.target.value }); setErrors(undefined); setDirty(true); }}
+                  placeholder="e.g. com.example.game"
+                  disabled={submitting || loading}
+                />
               </div>
             </FormSection>
 

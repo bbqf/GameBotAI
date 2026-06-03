@@ -69,6 +69,46 @@ public sealed class AdbClient {
     return ExecAsync($"shell input swipe {x1} {y1} {x2} {y2} {(durationMs is null ? string.Empty : durationMs.Value.ToString(CultureInfo.InvariantCulture))}", ct);
   }
 
+  /// <summary>
+  /// Returns the package name of the activity currently in the foreground on this device,
+  /// or <c>null</c> if it cannot be determined. Parses the <c>mResumedActivity</c> line from
+  /// <c>dumpsys activity activities</c>.
+  /// Expected execution time: &lt;1 second under normal connected-emulator conditions.
+  /// </summary>
+  public async Task<string?> GetForegroundPackageAsync(CancellationToken ct = default) {
+    var (_, stdout, _) = await ExecAsync("shell dumpsys activity activities", ct).ConfigureAwait(false);
+    return ParseForegroundPackage(stdout);
+  }
+
+  /// <summary>
+  /// Parses the foreground package name from <c>dumpsys activity activities</c> output.
+  /// Looks for the line containing <c>mResumedActivity</c> and extracts the package before <c>/</c>
+  /// in the segment after <c>u0 </c>.
+  /// </summary>
+  public static string? ParseForegroundPackage(string adbOutput) {
+    ArgumentNullException.ThrowIfNull(adbOutput);
+    foreach (var line in adbOutput.Split('\n')) {
+      var trimmed = line.Trim();
+      if (!trimmed.Contains("mResumedActivity", StringComparison.OrdinalIgnoreCase)) continue;
+      var u0Index = trimmed.IndexOf("u0 ", StringComparison.Ordinal);
+      if (u0Index < 0) continue;
+      var afterU0 = trimmed[(u0Index + 3)..];
+      var slashIndex = afterU0.IndexOf('/', StringComparison.Ordinal);
+      if (slashIndex <= 0) continue;
+      return afterU0[..slashIndex];
+    }
+    return null;
+  }
+
+  /// <summary>
+  /// Launches the app with the given package name on this device using the monkey launcher.
+  /// Fire-and-forget: the result is not inspected by the caller.
+  /// </summary>
+  public Task<(int ExitCode, string StdOut, string StdErr)> LaunchAppAsync(string packageName, CancellationToken ct = default) {
+    Log.LaunchApp(_logger, packageName);
+    return ExecAsync($"shell monkey -p {packageName} -c android.intent.category.LAUNCHER 1", ct);
+  }
+
   public async Task<byte[]> GetScreenshotPngAsync(CancellationToken ct = default) {
     // Use exec-out for raw PNG
     var cmdArgs = string.IsNullOrWhiteSpace(_serial) ? "exec-out screencap -p" : $"-s {_serial} exec-out screencap -p";
@@ -130,6 +170,10 @@ internal static class Log {
       LoggerMessage.Define<int>(LogLevel.Debug, new EventId(1007, nameof(ScreencapEnd)),
           "ADB screencap end size={Bytes}");
 
+  private static readonly Action<ILogger, string, Exception?> _launchApp =
+      LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1008, nameof(LaunchApp)),
+          "ADB launch app {Package}");
+
   public static void ExecStart(ILogger? l, string adb, string args) { if (l != null) _execStart(l, adb, args, null); }
   public static void ExecEnd(ILogger? l, int exit, string args, string stdout, string stderr) { if (l != null) _execEnd(l, exit, args, stdout, null); }
   public static void KeyEvent(ILogger? l, int key) { if (l != null) _keyEvent(l, key, null); }
@@ -137,4 +181,5 @@ internal static class Log {
   public static void Swipe(ILogger? l, int x1, int y1, int x2, int y2, int? dur) { if (l != null) _swipe(l, x1, y1, x2, y2, dur, null); }
   public static void ScreencapStart(ILogger? l, string args) { if (l != null) _screencapStart(l, args, null); }
   public static void ScreencapEnd(ILogger? l, int bytes) { if (l != null) _screencapEnd(l, bytes, null); }
+  public static void LaunchApp(ILogger? l, string pkg) { if (l != null) _launchApp(l, pkg, null); }
 }
