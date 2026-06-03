@@ -77,12 +77,14 @@ public sealed class EnsureGameRunningActionHandlerTests {
   }
 
   [Fact]
-  public async Task ReturnsNoQueueContextWhenSessionLabelHasNoQueuePrefix() {
+  public async Task ReturnsNoPackageNameWhenDirectSessionGameNotFound() {
+    // For direct (non-queue) sessions the handler uses session.GameId as the game ID.
+    // When no game with that ID exists the result is NoPackageName.
     var sessions = new FakeSessionManager();
-    sessions.Seed(new EmulatorSession { Id = "s1", GameId = "direct-session", Status = SessionStatus.Running });
+    sessions.Seed(new EmulatorSession { Id = "s1", GameId = "unknown-game-id", Status = SessionStatus.Running });
     var handler = BuildHandler(sessions, new(), new(), new());
     var result = await handler.ExecuteAsync("s1");
-    result.Outcome.Should().Be(EnsureGameRunningOutcome.NoQueueContext);
+    result.Outcome.Should().Be(EnsureGameRunningOutcome.NoPackageName);
   }
 
   [Fact]

@@ -27,7 +27,7 @@ internal sealed class EnsureGameRunningActionHandler : IEnsureGameRunningActionH
     // 1. Resolve session
     var session = _sessions.GetSession(sessionId);
     if (session is null)
-      return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoPackageName);
+      return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoQueueContext);
 
     // 2. Platform guard — must come before any ADB call
     if (!OperatingSystem.IsWindows())
