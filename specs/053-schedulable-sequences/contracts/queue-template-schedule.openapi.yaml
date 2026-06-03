@@ -1,0 +1,194 @@
+openapi: "3.1.0"
+info:
+  title: Queue Template Schedule Types — Contract Delta
+  description: |
+    Documents the changes to the Queue Templates API introduced by feature 053-schedulable-sequences.
+    Only the affected endpoints and schemas are listed here; all other endpoints are unchanged.
+  version: "053"
+
+paths:
+  /api/queue-templates:
+    post:
+      summary: Save (create or overwrite) a queue template
+      description: |
+        BREAKING CHANGE from feature 047: the `sequenceIds` string array is replaced by a structured
+        `entries` array that carries per-entry schedule type and optional timer time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveQueueTemplateRequest'
+            examples:
+              mixed_schedule_types:
+                summary: Template with all three schedule types
+                value:
+                  name: "Daily Farm"
+                  overwrite: false
+                  entries:
+                    - sequenceId: "abc123"
+                    - sequenceId: "def456"
+                      scheduleType: "EveryStep"
+                    - sequenceId: "ghi789"
+                      scheduleType: "Timer"
+                      timerTimeOfDay: "15:30"
+              once_per_run_only:
+                summary: Template with only once-per-run entries (default behavior preserved)
+                value:
+                  name: "Simple Queue"
+                  overwrite: false
+                  entries:
+                    - sequenceId: "abc123"
+                    - sequenceId: "def456"
+      responses:
+        "200":
+          description: Template updated (overwrite)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueTemplateDetailResponse'
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueTemplateDetailResponse'
+        "400":
+          description: Validation error (blank name, invalid schedule type, missing timer time)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "409":
+          description: Template name already exists and overwrite=false
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/queue-templates/{id}:
+    get:
+      summary: Get a queue template by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Template detail including schedule types per entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueTemplateDetailResponse'
+        "404":
+          description: Not found
+
+components:
+  schemas:
+
+    ScheduleType:
+      type: string
+      enum:
+        - OncePerRun
+        - EveryStep
+        - Timer
+      default: OncePerRun
+      description: |
+        Determines when a template entry's sequence is executed during a queue run.
+        - OncePerRun: default; executes in template order once per cycle (existing behavior).
+        - EveryStep: executes after each OncePerRun sequence completes; does not count toward run completion.
+        - Timer: executes at the start of an iteration when the wall-clock time (server local) has passed the configured time-of-day; fires at most once per calendar day per run.
+
+    TemplateEntrySaveRequest:
+      type: object
+      required:
+        - sequenceId
+      properties:
+        sequenceId:
+          type: string
+          description: ID of the sequence to reference. Must be non-blank.
+        scheduleType:
+          $ref: '#/components/schemas/ScheduleType'
+        timerTimeOfDay:
+          type: string
+          nullable: true
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
+          description: |
+            Required when scheduleType is "Timer". Wall-clock time in HH:mm (24-hour, server local time).
+            Ignored for other schedule types.
+          example: "15:30"
+
+    SaveQueueTemplateRequest:
+      type: object
+      required:
+        - name
+        - entries
+      properties:
+        name:
+          type: string
+          description: Template name (1-100 chars, letters/digits/spaces/hyphens/underscores only).
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateEntrySaveRequest'
+          description: Ordered list of sequence entries. Replaces the previous sequenceIds field.
+        overwrite:
+          type: boolean
+          default: false
+          description: When true, overwrites an existing template with the same name.
+
+    QueueTemplateEntryResponse:
+      type: object
+      properties:
+        sequenceId:
+          type: string
+        sequenceName:
+          type: string
+          nullable: true
+        stale:
+          type: boolean
+          description: True when the referenced sequence no longer exists.
+        scheduleType:
+          $ref: '#/components/schemas/ScheduleType'
+        timerTimeOfDay:
+          type: string
+          nullable: true
+          description: "HH:mm (24-hour) if scheduleType is Timer; null otherwise."
+
+    QueueTemplateDetailResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        entryCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueueTemplateEntryResponse'
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            hint:
+              type: string
+              nullable: true

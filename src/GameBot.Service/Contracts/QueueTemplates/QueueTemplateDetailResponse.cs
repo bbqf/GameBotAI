@@ -14,5 +14,16 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public string SequenceId { get; set; } = string.Empty;
     public string? SequenceName { get; set; }
     public bool Stale { get; set; }
+
+    /// <summary>
+    /// Schedule type of this entry: "OncePerRun", "EveryStep", or "Timer".
+    /// </summary>
+    public string ScheduleType { get; set; } = "OncePerRun";
+
+    /// <summary>
+    /// Wall-clock time-of-day in HH:mm (24-hour) when <see cref="ScheduleType"/> is "Timer";
+    /// null otherwise.
+    /// </summary>
+    public string? TimerTimeOfDay { get; set; }
   }
 }

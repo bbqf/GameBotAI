@@ -24,8 +24,10 @@ public sealed class QueueTemplatesSaveEndpointTests {
     return client;
   }
 
-  private static Task<HttpResponseMessage> SaveAsync(HttpClient client, string name, string[] sequenceIds, bool overwrite) =>
-    client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative), new { name, sequenceIds, overwrite });
+  private static Task<HttpResponseMessage> SaveAsync(HttpClient client, string name, string[] sequenceIds, bool overwrite) {
+    var entries = Array.ConvertAll(sequenceIds, id => new { sequenceId = id });
+    return client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative), new { name, entries, overwrite });
+  }
 
   private static async Task<JsonElement> BodyAsync(HttpResponseMessage resp) =>
     JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.Clone();

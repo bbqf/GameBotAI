@@ -36,7 +36,7 @@ const detailWithEntries = () => ({
 
 const templateDetail = () => ({
   id: 't1', name: 'Daily Farm', entryCount: 1, createdAt: null, updatedAt: null,
-  entries: [{ sequenceId: 'seq-x', sequenceName: 'X', stale: false }],
+  entries: [{ sequenceId: 'seq-x', sequenceName: 'X', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null }],
 });
 
 beforeEach(() => {
@@ -67,7 +67,14 @@ describe('QueuesPage template save wiring', () => {
     fireEvent.click(within(section).getByText('Save'));
 
     await waitFor(() =>
-      expect(saveTemplateMock).toHaveBeenCalledWith({ name: 'Daily Farm', sequenceIds: ['seq-a', 'seq-b'], overwrite: false })
+      expect(saveTemplateMock).toHaveBeenCalledWith({
+        name: 'Daily Farm',
+        entries: [
+          { sequenceId: 'seq-a', scheduleType: 'OncePerRun' },
+          { sequenceId: 'seq-b', scheduleType: 'OncePerRun' },
+        ],
+        overwrite: false,
+      })
     );
     expect(await screen.findByText('Template "Daily Farm" saved successfully.')).toBeInTheDocument();
   });
@@ -84,7 +91,14 @@ describe('QueuesPage template save wiring', () => {
     fireEvent.click(await within(section).findByText('Overwrite'));
 
     await waitFor(() =>
-      expect(saveTemplateMock).toHaveBeenLastCalledWith({ name: 'Daily Farm', sequenceIds: ['seq-a', 'seq-b'], overwrite: true })
+      expect(saveTemplateMock).toHaveBeenLastCalledWith({
+        name: 'Daily Farm',
+        entries: [
+          { sequenceId: 'seq-a', scheduleType: 'OncePerRun' },
+          { sequenceId: 'seq-b', scheduleType: 'OncePerRun' },
+        ],
+        overwrite: true,
+      })
     );
   });
 });

@@ -42,7 +42,8 @@ public sealed class QueueEntriesReplaceEndpointTests {
   private static readonly string[] LoopSequenceIds = { "seq-loop" };
 
   private static async Task<string> CreateTemplateAsync(HttpClient client) {
-    var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative), new { name = "Tpl-" + Guid.NewGuid().ToString("N"), sequenceIds = LoopSequenceIds, overwrite = false }).ConfigureAwait(true);
+    var entries = Array.ConvertAll(LoopSequenceIds, id => new { sequenceId = id });
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative), new { name = "Tpl-" + Guid.NewGuid().ToString("N"), entries, overwrite = false }).ConfigureAwait(true);
     return JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
   }
 
