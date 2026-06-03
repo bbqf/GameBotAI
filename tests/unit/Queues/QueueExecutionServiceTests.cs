@@ -396,4 +396,200 @@ public sealed class QueueExecutionServiceTests {
     h.Log.FinalStatus.Should().Be("failure");
     h.Log.Summary.Should().Contain("connection lost");
   }
+
+  // ── US2 (spec): EveryStep scheduling ─────────────────────────────────────
+
+  private static ExecutionQueue AddQueueWithEntries(Harness h, string id, QueueTemplateEntry[] entries, bool cycle = false) {
+    var templateId = $"tpl-{id}";
+    var template = new QueueTemplate { Id = templateId, Name = $"T-{id}" };
+    foreach (var e in entries) template.Entries.Add(e);
+    h.Templates.Add(template);
+    var queue = new ExecutionQueue { Id = id, Name = $"Q-{id}", EmulatorSerial = "emu-1", CycleExecution = cycle, LinkedTemplateId = templateId };
+    h.Queues.Add(queue);
+    return queue;
+  }
+
+  private static QueueTemplateEntry OncePerRun(string id) => new() { SequenceId = id, ScheduleType = ScheduleType.OncePerRun };
+  private static QueueTemplateEntry EveryStep(string id) => new() { SequenceId = id, ScheduleType = ScheduleType.EveryStep };
+  private static QueueTemplateEntry TimerEntry(string id, TimeOnly time) => new() { SequenceId = id, ScheduleType = ScheduleType.Timer, TimerTimeOfDay = time };
+
+  [Fact]
+  public async Task EveryStepRunsAfterEachOncePerRunStepAndAfterLast() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), OncePerRun("B"), EveryStep("C") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-006/FR-007: C fires after A and after B
+    h.Sequences.Executed.Should().Equal("A", "C", "B", "C");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact]
+  public async Task EveryStepDoesNotCountTowardExecutedInSummary() {
+    var h = new Harness();
+    // 2 OncePerRun + 1 EveryStep; executed count should be 2
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), OncePerRun("B"), EveryStep("C") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-008/SC-002: summary reflects 2 sequences, not 4
+    h.Log.Summary.Should().Contain("2 sequence(s) executed");
+    h.Log.Summary.Should().NotContain("4 sequence");
+  }
+
+  [Fact]
+  public async Task NoOncePerRunOnlyEveryStepRunsOnce() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { EveryStep("C") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-009: EveryStep runs exactly once when there are no OncePerRun entries
+    h.Sequences.Executed.Should().Equal("C");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact]
+  public async Task MultipleEveryStepRunInTemplateOrderAfterEachStep() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), EveryStep("C1"), EveryStep("C2") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "C1", "C2");
+  }
+
+  [Fact]
+  public async Task EveryStepFailureIsNonFatalRunContinues() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), OncePerRun("B"), EveryStep("C") });
+    h.Sequences.Handler = (id, ct) =>
+      Task.FromResult(id == "C" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "C", "B", "C");
+    h.Log.FinalStatus.Should().Be("success"); // FR-010: EveryStep failure is non-fatal
+    h.Log.Summary.Should().Contain("2 failed");
+  }
+
+  [Fact]
+  public async Task EveryStepAlsoRunsInCyclicMode() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), EveryStep("C") }, cycle: true);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(10, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 4); // two full cycles: A,C,A,C
+    await h.Service.StopAsync("q1");
+
+    var first4 = h.Sequences.Executed.Take(4).ToList();
+    first4.Should().Equal("A", "C", "A", "C");
+  }
+
+  // ── US3 (spec): Timer scheduling ─────────────────────────────────────────
+
+  [Fact]
+  public async Task TimerPastDueFiresBeforeOncePerRunOnFirstIteration() {
+    var h = new Harness();
+    // TimeOnly.MinValue (00:00) has always passed today
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.MinValue), OncePerRun("A") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-011/FR-016: T fires first (at iteration boundary), then A
+    h.Sequences.Executed[0].Should().Be("T");
+    h.Sequences.Executed[1].Should().Be("A");
+  }
+
+  [Fact]
+  public async Task TimerNotYetDueNeverFiresInNonCyclicRun() {
+    var h = new Harness();
+    // 23:59 has not yet passed (test doesn't run at midnight)
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", new TimeOnly(23, 59)), OncePerRun("A") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-012/SC-004: T never executes
+    h.Sequences.Executed.Should().Equal("A");
+    h.Sequences.Executed.Should().NotContain("T");
+  }
+
+  [Fact]
+  public async Task TimerFiresAtMostOncePerCalendarDayAcrossCycles() {
+    var h = new Harness();
+    // Timer always due; with 3 cycles it must fire exactly once (once per calendar day)
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.MinValue), OncePerRun("A") }, cycle: true);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(10, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 4); // T + A + A + A (at minimum)
+    await h.Service.StopAsync("q1");
+
+    // T must appear exactly once (fired on first iteration, skipped on subsequent same-day iterations)
+    h.Sequences.Executed.Count(id => id == "T").Should().Be(1);
+  }
+
+  [Fact]
+  public async Task MultipleSimultaneousDueTimersAllFireBeforeRegularSteps() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      TimerEntry("T1", TimeOnly.MinValue),
+      TimerEntry("T2", TimeOnly.MinValue),
+      OncePerRun("A")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-013/SC-005: T1 and T2 both fire, then A; their relative order is unspecified
+    h.Sequences.Executed.Should().Contain("T1");
+    h.Sequences.Executed.Should().Contain("T2");
+    h.Sequences.Executed.Should().Contain("A");
+    // Both timers execute before A
+    var t1Idx = h.Sequences.Executed.IndexOf("T1");
+    var t2Idx = h.Sequences.Executed.IndexOf("T2");
+    var aIdx = h.Sequences.Executed.IndexOf("A");
+    t1Idx.Should().BeLessThan(aIdx);
+    t2Idx.Should().BeLessThan(aIdx);
+  }
+
+  [Fact]
+  public async Task TimerFailureIsNonFatalRunContinues() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.MinValue), OncePerRun("A") });
+    h.Sequences.Handler = (id, ct) =>
+      Task.FromResult(id == "T" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Contain("T");
+    h.Sequences.Executed.Should().Contain("A");
+    h.Log.FinalStatus.Should().Be("success"); // FR-015: timer failure non-fatal
+  }
+
+  [Fact]
+  public async Task TimerAndEveryStepCombinedOrderIsCorrect() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      TimerEntry("T", TimeOnly.MinValue),
+      OncePerRun("A"),
+      EveryStep("C")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-016: T fires first (timer boundary), then A (OncePerRun), then C (EveryStep)
+    h.Sequences.Executed.Should().Equal("T", "A", "C");
+  }
 }

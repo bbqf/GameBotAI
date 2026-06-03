@@ -5,7 +5,7 @@ import { TemplatePickerDialog } from './TemplatePickerDialog';
 
 type OpenSection = 'none' | 'save' | 'load';
 
-/** An inline confirmation prompt shown in place of the picker (between rows 2 and 3). */
+/** An inline confirmation prompt shown between the template header and sequences. */
 export type TemplateConfirm = {
   title: string;
   message: string;
@@ -24,8 +24,10 @@ type QueueTemplateControlsProps = {
   onLoadTemplate: (templateId: string) => void;
   /** Re-applies the associated template's persisted entries (with diff-aware confirmation). */
   onReload: () => void;
-  /** When set, a replace/reload confirmation is shown inline (instead of the picker). */
+  /** When set, a replace/reload confirmation is shown between the template header and sequences. */
   pendingConfirm?: TemplateConfirm;
+  /** Sequence entries to render between the template header and the Save/Reload action row. */
+  children?: React.ReactNode;
 };
 
 export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
@@ -35,20 +37,22 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
   onLoadTemplate,
   onReload,
   pendingConfirm,
+  children,
 }) => {
   const [openSection, setOpenSection] = useState<OpenSection>('none');
   const running = status === 'Running';
-  // While a replace/reload confirmation is pending, it occupies the picker's spot.
   const section = pendingConfirm ? 'none' : openSection;
 
-  const toggle = (section: Exclude<OpenSection, 'none'>) =>
-    setOpenSection((current) => (current === section ? 'none' : section));
+  const toggle = (s: Exclude<OpenSection, 'none'>) =>
+    setOpenSection((current) => (current === s ? 'none' : s));
 
   const close = () => setOpenSection('none');
 
   return (
     <section className="queue-template-controls" aria-label="Queue templates">
+      {/* Template name — clicking opens the load picker */}
       <div className="queue-template-row">
+        <span className="queue-section-label">Template</span>
         <button
           type="button"
           className="link-button queue-template-name"
@@ -56,23 +60,6 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
           aria-expanded={openSection === 'load'}
         >
           {associatedTemplateName ?? '(no template)'}
-        </button>
-        <button type="button" onClick={() => toggle('save')} aria-expanded={openSection === 'save'}>
-          Save Template
-        </button>
-        <button
-          type="button"
-          onClick={onReload}
-          disabled={!associatedTemplateName || running}
-          title={
-            !associatedTemplateName
-              ? 'No template to reload.'
-              : running
-                ? 'Stop the queue before reloading a template.'
-                : undefined
-          }
-        >
-          Reload Template
         </button>
       </div>
 
@@ -103,6 +90,30 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
           </div>
         </section>
       )}
+
+      {/* Sequence entries */}
+      {children}
+
+      {/* Template action buttons below sequences */}
+      <div className="queue-template-row">
+        <button type="button" onClick={() => toggle('save')} aria-expanded={openSection === 'save'}>
+          Save Template
+        </button>
+        <button
+          type="button"
+          onClick={onReload}
+          disabled={!associatedTemplateName || running}
+          title={
+            !associatedTemplateName
+              ? 'No template to reload.'
+              : running
+                ? 'Stop the queue before reloading a template.'
+                : undefined
+          }
+        >
+          Reload Template
+        </button>
+      </div>
     </section>
   );
 };

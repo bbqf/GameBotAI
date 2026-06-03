@@ -6,7 +6,13 @@ namespace GameBot.Service.Contracts.QueueTemplates {
   /// </summary>
   internal sealed class SaveQueueTemplateRequest {
     public string? Name { get; set; }
-    public string[]? SequenceIds { get; set; }
+
+    /// <summary>
+    /// Ordered list of sequence entries to persist. Replaces the former <c>SequenceIds</c>
+    /// string array; each entry carries its sequence reference and optional schedule type.
+    /// </summary>
+    public TemplateEntrySaveRequest[]? Entries { get; set; }
+
     public bool Overwrite { get; set; }
   }
 }

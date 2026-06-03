@@ -17,11 +17,11 @@ import {
 } from '../services/queues';
 import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
-import { QueueEntryList } from '../components/queues/QueueEntryList';
+import { QueueEntryList, EntrySchedule } from '../components/queues/QueueEntryList';
 import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
 import { QueueGameControls } from '../components/queues/QueueGameControls';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
-import { saveQueueTemplate, getQueueTemplate, listQueueTemplates } from '../services/queueTemplates';
+import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, ScheduleType, QueueTemplateEntryDto } from '../services/queueTemplates';
 import { sameSequenceOrder } from '../lib/sequenceOrder';
 import { ApiError } from '../lib/api';
 
@@ -43,8 +43,12 @@ export const QueuesPage: React.FC = () => {
   const [detail, setDetail] = useState<QueueDetailDto | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [associatedTemplateName, setAssociatedTemplateName] = useState<string | undefined>(undefined);
-  const [pendingLoad, setPendingLoad] = useState<{ name: string; sequenceIds: string[]; templateId: string } | undefined>(undefined);
-  const [pendingReload, setPendingReload] = useState<{ name: string; sequenceIds: string[]; templateId: string } | undefined>(undefined);
+  const [pendingLoad, setPendingLoad] = useState<{ name: string; sequenceIds: string[]; templateId: string; templateEntries?: QueueTemplateEntryDto[] } | undefined>(undefined);
+  const [pendingReload, setPendingReload] = useState<{ name: string; sequenceIds: string[]; templateId: string; templateEntries?: QueueTemplateEntryDto[] } | undefined>(undefined);
+
+  // Per-entry schedule state (UI-local; not stored in the runtime API).
+  // Keys are entryIds from the runtime queue entries.
+  const [entrySchedule, setEntrySchedule] = useState<Record<string, EntrySchedule>>({});
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -89,6 +93,17 @@ export const QueuesPage: React.FC = () => {
     setDetail(q);
     setAssociatedTemplateName(q.linkedTemplateName ?? undefined);
     setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution });
+
+    // Restore per-entry schedule state from the linked template so that the editor
+    // reflects previously saved schedule types and saving doesn't overwrite them with OncePerRun.
+    if (q.linkedTemplateId && q.entries.length > 0) {
+      try {
+        const tpl = await getQueueTemplate(q.linkedTemplateId);
+        setEntrySchedule(buildScheduleFromTemplateEntries(q.entries.map((e) => e.entryId), tpl.entries));
+      } catch {
+        // Template may have been deleted; leave entrySchedule empty (defaults to OncePerRun).
+      }
+    }
   };
 
   const closeForms = () => {
@@ -98,6 +113,23 @@ export const QueuesPage: React.FC = () => {
     setFieldErrors(undefined);
     setFormError(undefined);
     setAssociatedTemplateName(undefined);
+    setEntrySchedule({});
+  };
+
+  const buildScheduleFromTemplateEntries = (runtimeEntryIds: string[], tplEntries: QueueTemplateEntryDto[]): Record<string, EntrySchedule> => {
+    const schedule: Record<string, EntrySchedule> = {};
+    runtimeEntryIds.forEach((entryId, i) => {
+      const tplEntry = tplEntries[i];
+      if (tplEntry) {
+        schedule[entryId] = {
+          scheduleType: tplEntry.scheduleType ?? 'OncePerRun',
+          timerTimeOfDay: tplEntry.timerTimeOfDay ?? '',
+        };
+      } else {
+        schedule[entryId] = { scheduleType: 'OncePerRun', timerTimeOfDay: '' };
+      }
+    });
+    return schedule;
   };
 
   const validate = (): boolean => {
@@ -145,7 +177,8 @@ export const QueuesPage: React.FC = () => {
 
   const onAddEntry = async (sequenceId: string) => {
     if (!detail) return;
-    await addQueueEntry(detail.id, sequenceId);
+    const newEntry = await addQueueEntry(detail.id, sequenceId);
+    setEntrySchedule((prev) => ({ ...prev, [newEntry.entryId]: { scheduleType: 'OncePerRun' as ScheduleType, timerTimeOfDay: '' } }));
     await reloadDetail(detail.id);
     await refresh();
   };
@@ -153,27 +186,43 @@ export const QueuesPage: React.FC = () => {
   const onRemoveEntry = async (entryId: string) => {
     if (!detail) return;
     await removeQueueEntry(detail.id, entryId);
+    setEntrySchedule((prev) => {
+      const next = { ...prev };
+      delete next[entryId];
+      return next;
+    });
     await reloadDetail(detail.id);
     await refresh();
   };
 
   const handleSaveTemplate = async (name: string, overwrite: boolean) => {
     if (!detail) return;
-    const sequenceIds = detail.entries.map((e) => e.sequenceId);
-    const saved = await saveQueueTemplate({ name, sequenceIds, overwrite });
+    const entries = detail.entries.map((e) => {
+      const sched = entrySchedule[e.entryId] ?? { scheduleType: 'OncePerRun' as ScheduleType, timerTimeOfDay: '' };
+      return {
+        sequenceId: e.sequenceId,
+        scheduleType: sched.scheduleType,
+        ...(sched.scheduleType === 'Timer' && sched.timerTimeOfDay ? { timerTimeOfDay: sched.timerTimeOfDay } : {}),
+      };
+    });
+    const saved = await saveQueueTemplate({ name, entries, overwrite });
     await setQueueTemplateLink(detail.id, saved.id);
     setAssociatedTemplateName(name);
     setTableMessage(`Template "${name}" saved successfully.`);
   };
 
-  const applyLoad = async (name: string, sequenceIds: string[], templateId: string) => {
+  const applyLoad = async (name: string, sequenceIds: string[], templateId: string, tplEntries?: QueueTemplateEntryDto[]) => {
     if (!detail) return;
     try {
       await replaceQueueEntries(detail.id, sequenceIds);
       await setQueueTemplateLink(detail.id, templateId);
       setAssociatedTemplateName(name);
       setTableMessage(`Template "${name}" loaded.`);
-      await reloadDetail(detail.id);
+      const refreshed = await getQueue(detail.id);
+      setDetail(refreshed);
+      if (tplEntries) {
+        setEntrySchedule(buildScheduleFromTemplateEntries(refreshed.entries.map((e) => e.entryId), tplEntries));
+      }
       await refresh();
     } catch (err: any) {
       setTableError(err instanceof ApiError ? err.message : err?.message ?? 'Failed to load template');
@@ -185,9 +234,9 @@ export const QueuesPage: React.FC = () => {
     const tpl = await getQueueTemplate(templateId);
     const sequenceIds = tpl.entries.map((e) => e.sequenceId);
     if (detail.entries.length > 0) {
-      setPendingLoad({ name: tpl.name, sequenceIds, templateId: tpl.id });
+      setPendingLoad({ name: tpl.name, sequenceIds, templateId: tpl.id, templateEntries: tpl.entries });
     } else {
-      await applyLoad(tpl.name, sequenceIds, tpl.id);
+      await applyLoad(tpl.name, sequenceIds, tpl.id, tpl.entries);
     }
   };
 
@@ -207,9 +256,9 @@ export const QueuesPage: React.FC = () => {
       const currentSeqIds = detail.entries.map((e) => e.sequenceId);
       if (sameSequenceOrder(currentSeqIds, templateSeqIds)) return; // nothing to discard, no prompt
       if (detail.entries.length > 0) {
-        setPendingReload({ name: tpl.name, sequenceIds: templateSeqIds, templateId: match.id });
+        setPendingReload({ name: tpl.name, sequenceIds: templateSeqIds, templateId: match.id, templateEntries: tpl.entries });
       } else {
-        await applyLoad(tpl.name, templateSeqIds, match.id);
+        await applyLoad(tpl.name, templateSeqIds, match.id, tpl.entries);
       }
     } catch (err: any) {
       setTableError(err instanceof ApiError ? err.message : err?.message ?? 'Failed to reload template');
@@ -248,7 +297,7 @@ export const QueuesPage: React.FC = () => {
         onConfirm: () => {
           const p = pendingLoad;
           setPendingLoad(undefined);
-          if (p) void applyLoad(p.name, p.sequenceIds, p.templateId);
+          if (p) void applyLoad(p.name, p.sequenceIds, p.templateId, p.templateEntries);
         },
       }
     : pendingReload
@@ -260,7 +309,7 @@ export const QueuesPage: React.FC = () => {
           onConfirm: () => {
             const p = pendingReload;
             setPendingReload(undefined);
-            if (p) void applyLoad(p.name, p.sequenceIds, p.templateId);
+            if (p) void applyLoad(p.name, p.sequenceIds, p.templateId, p.templateEntries);
           },
         }
       : undefined;
@@ -360,7 +409,18 @@ export const QueuesPage: React.FC = () => {
                 onLoadTemplate={(id) => void handleLoadTemplate(id)}
                 onReload={() => void handleReload()}
                 pendingConfirm={templateConfirm}
-              />
+              >
+                <QueueEntryList
+                  entries={detail.entries}
+                  sequences={sequences}
+                  onAdd={(sid) => void onAddEntry(sid)}
+                  onRemove={(eid) => void onRemoveEntry(eid)}
+                  entrySchedule={entrySchedule}
+                  onScheduleTypeChange={(eid, st) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }, scheduleType: st } }))}
+                  onTimerTimeChange={(eid, t) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerTimeOfDay: t } }))}
+                  disabled={detail.status === 'Running'}
+                />
+              </QueueTemplateControls>
             }
             gameControls={
               <QueueGameControls
@@ -369,14 +429,6 @@ export const QueuesPage: React.FC = () => {
                 status={detail.status}
                 onLink={(gameId) => void handleLinkGame(gameId)}
                 onUnlink={() => void handleUnlinkGame()}
-              />
-            }
-            entries={
-              <QueueEntryList
-                entries={detail.entries}
-                sequences={sequences}
-                onAdd={(sid) => void onAddEntry(sid)}
-                onRemove={(eid) => void onRemoveEntry(eid)}
               />
             }
           />

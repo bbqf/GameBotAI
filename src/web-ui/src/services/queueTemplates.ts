@@ -8,17 +8,28 @@ export type QueueTemplateSummary = {
   updatedAt: string | null;
 };
 
+export type ScheduleType = 'OncePerRun' | 'EveryStep' | 'Timer';
+
 export type QueueTemplateEntryDto = {
   sequenceId: string;
   sequenceName: string | null;
   stale: boolean;
+  scheduleType: ScheduleType;
+  timerTimeOfDay: string | null;
 };
 
 export type QueueTemplateDetail = QueueTemplateSummary & { entries: QueueTemplateEntryDto[] };
 
+/** Per-entry payload for saving a template. */
+export type TemplateEntrySaveDto = {
+  sequenceId: string;
+  scheduleType?: ScheduleType;
+  timerTimeOfDay?: string;
+};
+
 export type SaveQueueTemplate = {
   name: string;
-  sequenceIds: string[];
+  entries: TemplateEntrySaveDto[];
   overwrite: boolean;
 };
 

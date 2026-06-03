@@ -43,8 +43,9 @@ public sealed class QueueAutoLoadEndpointTests {
   }
 
   private static async Task<string> CreateTemplateAsync(HttpClient client, params string[] sequenceIds) {
+    var entries = Array.ConvertAll(sequenceIds, id => new { sequenceId = id });
     var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
-      new { name = "Daily Farm", sequenceIds, overwrite = false }).ConfigureAwait(true);
+      new { name = "Daily Farm", entries, overwrite = false }).ConfigureAwait(true);
     return JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
   }
 
@@ -189,14 +190,14 @@ public sealed class QueueAutoLoadEndpointTests {
   [Fact]
   public async Task AutoLoadOfLargeTemplateIsWithinBudget() {
     for (var i = 0; i < 100; i++) SeedSequence($"seq-{i}", $"S{i}");
-    var sequenceIds = new string[100];
-    for (var i = 0; i < 100; i++) sequenceIds[i] = $"seq-{i}";
+    var entries = new object[100];
+    for (var i = 0; i < 100; i++) entries[i] = new { sequenceId = $"seq-{i}" };
 
     using var app = new WebApplicationFactory<Program>();
     var client = NewClient(app);
     var id = await CreateQueueAsync(client).ConfigureAwait(true);
     var tplResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
-      new { name = "Big", sequenceIds, overwrite = false }).ConfigureAwait(true);
+      new { name = "Big", entries, overwrite = false }).ConfigureAwait(true);
     var tplId = JsonDocument.Parse(await tplResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
     await SetLinkAsync(client, id, tplId).ConfigureAwait(true);
 

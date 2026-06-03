@@ -18,6 +18,11 @@ namespace GameBot.Service.Services.QueueExecution;
 /// Executes queues for real: loads the linked template, connects to the bound emulator, runs the
 /// template's sequences in order (optionally cycling), and writes one terminating queue-run
 /// execution-log entry with the stop reason. Replaces the placeholder start/stop behavior.
+///
+/// Schedule types:
+///   OncePerRun  — executed in template order as the regular "step"; defines run completion.
+///   EveryStep   — executed after each OncePerRun step (and after the final step); not counted.
+///   Timer       — evaluated at each iteration boundary; fires at most once per calendar day.
 /// </summary>
 internal sealed class QueueExecutionService : IQueueExecutionService {
   private readonly IQueueRepository _queues;
@@ -80,8 +85,6 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     catch (ObjectDisposedException) {
       // run already completed and disposed its CTS; nothing to cancel
     }
-    // Wait for the run to settle (disconnect + terminating entry + status reset) so callers
-    // observe a fully-stopped queue. The run aborts promptly, well within the stop budget.
     try {
       await handle.RunTask.ConfigureAwait(false);
     }
@@ -111,7 +114,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         failureReason = "no template to run (the queue has no linked template, or it could not be resolved)";
       }
       else {
-        var snapshot = template.Entries.Select(e => e.SequenceId).ToList();
+        // Pre-partition entries by schedule type (FR-001). Snapshots taken once at run start.
+        var allEntries = template.Entries.ToList();
+        var oncePerRunEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.OncePerRun).ToList();
+        var everyStepEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.EveryStep).ToList();
+        var timerEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.Timer).ToList();
 
         // 2. Connect to the bound emulator (FR-003/FR-004).
         try {
@@ -127,24 +134,66 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
           failureReason = $"emulator could not be reached ('{queue.EmulatorSerial}'): {ex.Message}";
         }
 
-        // 3. Run the sequences in order, optionally cycling (FR-006/FR-014/FR-016/FR-017).
+        // 3. Run sequences in order, respecting schedule types, optionally cycling.
         if (sessionId is not null) {
           try {
-            if (snapshot.Count > 0) {
-              var index = 0;
+            var index = 0;
+
+            // Per-run timer state: maps timer-entry index → last-fired calendar date (FR-003/FR-012).
+            // Declared OUTSIDE the do-while loop so it persists across all cycles of this run.
+            var timerFiredDate = new Dictionary<int, DateOnly>();
+
+            if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
               do {
                 ct.ThrowIfCancellationRequested();
-                foreach (var sequenceId in snapshot) {
-                  ct.ThrowIfCancellationRequested();
-                  // The emulator session vanishing mid-run is a run-level failure: remaining
-                  // sequences cannot run (FR-008a).
-                  if (_sessions.GetSession(sessionId) is null) {
-                    throw new QueueConnectionLostException();
+
+                // (a) Evaluate timer entries at iteration boundary (FR-011/FR-012/FR-016).
+                for (var ti = 0; ti < timerEntries.Count; ti++) {
+                  var timerEntry = timerEntries[ti];
+                  if (timerEntry.TimerTimeOfDay is null) continue;
+
+                  var today = DateOnly.FromDateTime(DateTime.Now);
+                  var now = TimeOnly.FromDateTime(DateTime.Now);
+                  if (now >= timerEntry.TimerTimeOfDay.Value
+                      && (!timerFiredDate.TryGetValue(ti, out var lastFired) || lastFired != today)) {
+                    ct.ThrowIfCancellationRequested();
+                    if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                    var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                    if (!timerOk) failed++;
+                    // Timer executions do not count toward `executed` (SC-002 analogue for timers)
+                    timerFiredDate[ti] = today;
                   }
-                  var ok = await RunOneSequenceAsync(sequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
-                  executed++;
-                  if (!ok) failed++;
                 }
+
+                // (b) OncePerRun steps, each followed by all EveryStep sequences (FR-006/FR-007/FR-016).
+                if (oncePerRunEntries.Count > 0) {
+                  foreach (var entry in oncePerRunEntries) {
+                    ct.ThrowIfCancellationRequested();
+                    if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                    var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                    executed++;
+                    if (!ok) failed++;
+
+                    // Run every-step sequences after each OncePerRun step (FR-006).
+                    foreach (var esEntry in everyStepEntries) {
+                      ct.ThrowIfCancellationRequested();
+                      if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                      var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                      if (!esOk) failed++;
+                      // Every-step executions do not count toward `executed` (FR-008/SC-002).
+                    }
+                  }
+                }
+                else if (everyStepEntries.Count > 0) {
+                  // FR-009: no OncePerRun entries — EveryStep runs exactly once, then the run ends.
+                  foreach (var esEntry in everyStepEntries) {
+                    ct.ThrowIfCancellationRequested();
+                    if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                    var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                    if (!esOk) failed++;
+                  }
+                }
+
                 cycles++;
               } while (queue.CycleExecution);
             }
@@ -173,8 +222,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       QueueExecutionLog.RunFaulted(_logger, queue.Id, ex);
     }
     finally {
-      // Always disconnect the session (FR-020/FR-023) — teardown errors must not prevent
-      // finalizing the run (FR-023 edge case).
+      // Always disconnect the session (FR-020/FR-023).
       if (sessionId is not null) {
         try { _captureService?.StopCapture(sessionId); }
         catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
@@ -220,23 +268,24 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     }
   }
 
-  /// <summary>Signals that the bound emulator session disappeared while the run was in progress.</summary>
-  private sealed class QueueConnectionLostException : Exception {
-    public QueueConnectionLostException() { }
-    public QueueConnectionLostException(string message) : base(message) { }
-    public QueueConnectionLostException(string message, Exception innerException) : base(message, innerException) { }
-  }
-
   private static string BuildSummary(string queueName, QueueRunResult r) {
     var failedNote = r.SequencesFailed > 0 ? $", {r.SequencesFailed} failed" : string.Empty;
+    var cycleNote = r.Cycles > 1 ? $" across {r.Cycles} cycles" : string.Empty;
     return r.StopReason switch {
       QueueStopReason.CompletedFullRun =>
-        $"Queue '{queueName}' completed full run: {r.SequencesExecuted} sequence(s) executed{failedNote}{(r.Cycles > 1 ? $" across {r.Cycles} cycles" : string.Empty)}.",
+        $"Queue '{queueName}' completed full run: {r.SequencesExecuted} sequence(s) executed{failedNote}{cycleNote}.",
       QueueStopReason.StoppedManually =>
         $"Queue '{queueName}' stopped manually after {r.SequencesExecuted} sequence(s) executed{failedNote}.",
       _ =>
         $"Queue '{queueName}' failed: {r.FailureReason ?? "unknown error"}."
     };
+  }
+
+  /// <summary>Signals that the bound emulator session disappeared while the run was in progress.</summary>
+  private sealed class QueueConnectionLostException : Exception {
+    public QueueConnectionLostException() { }
+    public QueueConnectionLostException(string message) : base(message) { }
+    public QueueConnectionLostException(string message, Exception innerException) : base(message, innerException) { }
   }
 }
 

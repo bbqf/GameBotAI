@@ -29,6 +29,27 @@ internal static class QueueTemplatesEndpoints {
       var nameError = ValidateName(name);
       if (nameError is not null) return Error(400, "invalid_request", nameError);
 
+      // Validate each entry in the request
+      var entries = req!.Entries ?? Array.Empty<TemplateEntrySaveRequest>();
+      for (var i = 0; i < entries.Length; i++) {
+        var entry = entries[i];
+        if (string.IsNullOrWhiteSpace(entry.SequenceId))
+          return Error(400, "invalid_request", $"entries[{i}].sequenceId is required and must be non-blank");
+
+        if (!TryParseScheduleType(entry.ScheduleType, out var scheduleType))
+          return Error(400, "invalid_request",
+            $"entries[{i}].scheduleType '{entry.ScheduleType}' is not valid; accepted values: OncePerRun, EveryStep, Timer");
+
+        if (scheduleType == ScheduleType.Timer) {
+          if (string.IsNullOrWhiteSpace(entry.TimerTimeOfDay))
+            return Error(400, "invalid_request",
+              $"entries[{i}].timerTimeOfDay is required when scheduleType is Timer");
+          if (!TimeOnly.TryParseExact(entry.TimerTimeOfDay, "HH:mm", out _))
+            return Error(400, "invalid_request",
+              $"entries[{i}].timerTimeOfDay '{entry.TimerTimeOfDay}' is not a valid HH:mm time (e.g. '15:30')");
+        }
+      }
+
       var existing = await repo.FindByNameAsync(name!).ConfigureAwait(false);
       if (existing is not null && !req!.Overwrite) {
         return Error(409, "template_exists",
@@ -39,8 +60,20 @@ internal static class QueueTemplatesEndpoints {
       var target = existing ?? new QueueTemplate();
       target.Name = name!;
       target.Entries.Clear();
-      foreach (var sid in req!.SequenceIds ?? Array.Empty<string>()) {
-        target.Entries.Add(new QueueTemplateEntry { SequenceId = sid });
+      foreach (var entry in entries) {
+        // Schedule type already validated above; parse is guaranteed to succeed here.
+        var scheduleType = string.IsNullOrWhiteSpace(entry.ScheduleType)
+          ? ScheduleType.OncePerRun
+          : Enum.Parse<ScheduleType>(entry.ScheduleType, ignoreCase: true);
+        TimeOnly? timerTime = scheduleType == ScheduleType.Timer && !string.IsNullOrWhiteSpace(entry.TimerTimeOfDay)
+          ? TimeOnly.ParseExact(entry.TimerTimeOfDay!, "HH:mm")
+          : null;
+
+        target.Entries.Add(new QueueTemplateEntry {
+          SequenceId = entry.SequenceId!,
+          ScheduleType = scheduleType,
+          TimerTimeOfDay = timerTime
+        });
       }
 
       if (existing is null) {
@@ -74,6 +107,15 @@ internal static class QueueTemplatesEndpoints {
     return null;
   }
 
+  private static bool TryParseScheduleType(string? raw, out ScheduleType result) {
+    if (string.IsNullOrWhiteSpace(raw)) {
+      result = ScheduleType.OncePerRun;
+      return true;
+    }
+    return Enum.TryParse(raw, ignoreCase: true, out result)
+           && Enum.IsDefined(result);
+  }
+
   private static QueueTemplateSummaryResponse BuildSummary(QueueTemplate template) => new() {
     Id = template.Id,
     Name = template.Name,
@@ -97,7 +139,9 @@ internal static class QueueTemplatesEndpoints {
       detail.Entries.Add(new QueueTemplateEntryResponse {
         SequenceId = entry.SequenceId,
         SequenceName = found ? name : null,
-        Stale = !found
+        Stale = !found,
+        ScheduleType = entry.ScheduleType.ToString(),
+        TimerTimeOfDay = entry.TimerTimeOfDay?.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)
       });
     }
     return detail;

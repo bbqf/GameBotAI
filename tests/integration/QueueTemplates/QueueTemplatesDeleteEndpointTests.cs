@@ -28,9 +28,9 @@ public sealed class QueueTemplatesDeleteEndpointTests {
   public async Task DeleteRemovesTemplateAndReturns204() {
     using var app = new WebApplicationFactory<Program>();
     var client = NewClient(app);
-    var ids = new[] { "seq-a" };
+    var entries = new[] { new { sequenceId = "seq-a" } };
     var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
-      new { name = "Daily Farm", sequenceIds = ids, overwrite = false }).ConfigureAwait(true);
+      new { name = "Daily Farm", entries, overwrite = false }).ConfigureAwait(true);
     var id = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString();
 
     var resp = await client.DeleteAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true);
