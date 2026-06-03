@@ -409,7 +409,18 @@ export const QueuesPage: React.FC = () => {
                 onLoadTemplate={(id) => void handleLoadTemplate(id)}
                 onReload={() => void handleReload()}
                 pendingConfirm={templateConfirm}
-              />
+              >
+                <QueueEntryList
+                  entries={detail.entries}
+                  sequences={sequences}
+                  onAdd={(sid) => void onAddEntry(sid)}
+                  onRemove={(eid) => void onRemoveEntry(eid)}
+                  entrySchedule={entrySchedule}
+                  onScheduleTypeChange={(eid, st) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }, scheduleType: st } }))}
+                  onTimerTimeChange={(eid, t) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerTimeOfDay: t } }))}
+                  disabled={detail.status === 'Running'}
+                />
+              </QueueTemplateControls>
             }
             gameControls={
               <QueueGameControls
@@ -418,18 +429,6 @@ export const QueuesPage: React.FC = () => {
                 status={detail.status}
                 onLink={(gameId) => void handleLinkGame(gameId)}
                 onUnlink={() => void handleUnlinkGame()}
-              />
-            }
-            entries={
-              <QueueEntryList
-                entries={detail.entries}
-                sequences={sequences}
-                onAdd={(sid) => void onAddEntry(sid)}
-                onRemove={(eid) => void onRemoveEntry(eid)}
-                entrySchedule={entrySchedule}
-                onScheduleTypeChange={(eid, st) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }, scheduleType: st } }))}
-                onTimerTimeChange={(eid, t) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerTimeOfDay: t } }))}
-                disabled={detail.status === 'Running'}
               />
             }
           />

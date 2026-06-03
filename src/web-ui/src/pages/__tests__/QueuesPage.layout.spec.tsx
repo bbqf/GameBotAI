@@ -40,20 +40,21 @@ const follows = (a: Node, b: Node) =>
   Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe('QueuesPage edit layout', () => {
-  it('renders the edit controls in row order: name+emulator -> templates -> cycle -> sequences -> Save/Cancel', async () => {
+  it('renders the edit controls in new order: name+emulator → cycle → Save/Cancel → template section → sequences', async () => {
     await openEdit();
     const name = screen.getByLabelText('Name *');
     const emulator = screen.getByLabelText('Emulator *');
-    const templates = screen.getByRole('region', { name: 'Queue templates' });
     const cycle = screen.getByLabelText('Cycle execution');
-    const sequences = screen.getByRole('region', { name: 'Queue sequences' });
     const save = screen.getByText('Save');
+    const templates = screen.getByRole('region', { name: 'Queue templates' });
+    const sequences = screen.getByRole('region', { name: 'Queue sequences' });
 
     expect(follows(name, emulator)).toBe(true);
-    expect(follows(emulator, templates)).toBe(true);
-    expect(follows(templates, cycle)).toBe(true);
-    expect(follows(cycle, sequences)).toBe(true);
-    expect(follows(sequences, save)).toBe(true);
+    expect(follows(emulator, cycle)).toBe(true);
+    expect(follows(cycle, save)).toBe(true);
+    expect(follows(save, templates)).toBe(true);
+    // sequences are inside the template section
+    expect(follows(templates, sequences)).toBe(true);
   });
 
   it('shows the emulator read-only with no "cannot be changed" hint', async () => {

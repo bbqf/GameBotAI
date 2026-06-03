@@ -31,9 +31,6 @@ export const QueueGameControls: React.FC<QueueGameControlsProps> = ({
         >
           {linkedGameName ?? '(no game)'}
         </button>
-        <button type="button" onClick={() => setPickerOpen((o) => !o)} aria-expanded={pickerOpen}>
-          Link Game
-        </button>
         <button
           type="button"
           onClick={onUnlink}
