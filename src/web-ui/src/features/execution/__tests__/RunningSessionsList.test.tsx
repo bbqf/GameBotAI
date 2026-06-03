@@ -52,7 +52,7 @@ describe('Running sessions list', () => {
     render(<ExecutionPage />);
 
     const runningSection = await screen.findByRole('region', { name: /Running sessions/i });
-    expect(within(runningSection).getByText(/Session: s-1/i)).toBeInTheDocument();
+    await waitFor(() => expect(within(runningSection).getByText(/Session: s-1/i)).toBeInTheDocument());
     expect(within(runningSection).getByRole('status', { name: /Status: Running/i })).toBeInTheDocument();
   });
 

@@ -3,11 +3,13 @@ import { deleteJson, getJson, postJson, putJson } from '../lib/api';
 export type GameDto = {
   id: string;
   name: string;
+  packageName?: string;
   metadata?: Record<string, unknown>;
 };
 
 export type GameCreate = {
   name: string;
+  packageName?: string;
   metadata?: Record<string, unknown>;
 };
 

@@ -17,8 +17,10 @@ type QueueFormProps = {
   submitting?: boolean;
   formError?: string;
   fieldErrors?: { name?: string; emulatorSerial?: string };
-  /** Edit-mode only: row 2 — template controls, rendered after the emulator and before cycle execution. */
+  /** Edit-mode only: row 2 — template controls, rendered after the emulator and before game controls. */
   templateControls?: React.ReactNode;
+  /** Edit-mode only: row 3 — game controls, rendered after template controls and before cycle execution. */
+  gameControls?: React.ReactNode;
   /** Edit-mode only: row 4 — queue sequence entries, rendered after cycle execution and before the actions. */
   entries?: React.ReactNode;
 };
@@ -33,6 +35,7 @@ export const QueueForm: React.FC<QueueFormProps> = ({
   formError,
   fieldErrors,
   templateControls,
+  gameControls,
   entries,
 }) => {
   const isEdit = mode === 'edit';
@@ -94,6 +97,8 @@ export const QueueForm: React.FC<QueueFormProps> = ({
       </div>
 
       {isEdit && templateControls}
+
+      {isEdit && gameControls}
 
       <div className="field">
         <label>

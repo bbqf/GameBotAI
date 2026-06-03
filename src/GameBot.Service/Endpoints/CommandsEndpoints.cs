@@ -25,12 +25,14 @@ internal static class CommandsEndpoints {
   private static CommandStepType MapStepTypeFromDto(CommandStepTypeDto dto) => dto switch {
     CommandStepTypeDto.Command => CommandStepType.Command,
     CommandStepTypeDto.WaitForImage => CommandStepType.WaitForImage,
+    CommandStepTypeDto.EnsureGameRunning => CommandStepType.EnsureGameRunning,
     _ => CommandStepType.PrimitiveTap
   };
 
   private static CommandStepTypeDto MapStepTypeToDto(CommandStepType type) => type switch {
     CommandStepType.Command => CommandStepTypeDto.Command,
     CommandStepType.WaitForImage => CommandStepTypeDto.WaitForImage,
+    CommandStepType.EnsureGameRunning => CommandStepTypeDto.EnsureGameRunning,
     _ => CommandStepTypeDto.PrimitiveTap
   };
 
@@ -89,6 +91,10 @@ internal static class CommandsEndpoints {
         return "waitForImage.detectionTarget.referenceImageId must not be empty when detectionTarget is provided";
       }
 
+      return null;
+    }
+
+    if (step.Type == CommandStepTypeDto.EnsureGameRunning) {
       return null;
     }
 

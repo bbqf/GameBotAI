@@ -6,6 +6,7 @@ using GameBot.Domain.Triggers;
 using GameBot.Emulator.Session;
 using Microsoft.Extensions.Logging;
 using GameBot.Service.Services;
+using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.ExecutionLog;
 using System.Globalization;
 
@@ -23,11 +24,12 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly ISessionContextCache _sessionCache;
   private readonly IExecutionLogService? _executionLogService;
   private readonly AppConfig _appConfig;
+  private readonly IEnsureGameRunningActionHandler? _ensureGameRunning;
 
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null) {
     _commands = commands;
     _sessions = sessions;
-    _triggers = triggers; // No change here, just context
+    _triggers = triggers;
     _triggerEval = triggerEval;
     _logger = logger;
     _images = images;
@@ -36,10 +38,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _sessionCache = sessionCache;
     _appConfig = appConfig;
     _executionLogService = executionLogService;
+    _ensureGameRunning = ensureGameRunning;
   }
 
   // Fallback constructor for environments without detection services registered (non-Windows or tests)
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -51,6 +54,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _sessionCache = sessionCache;
     _appConfig = new AppConfig();
     _executionLogService = executionLogService;
+    _ensureGameRunning = ensureGameRunning;
   }
 
   public Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default)
@@ -160,6 +164,21 @@ internal sealed class CommandExecutor : ICommandExecutor {
     foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
       if (step.Type == CommandStepType.WaitForImage) {
         stepOutcomes.Add(await ExecuteWaitForImageStepAsync(step, ct).ConfigureAwait(false));
+        continue;
+      }
+
+      if (step.Type == CommandStepType.EnsureGameRunning) {
+        var result = _ensureGameRunning is not null
+          ? await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false)
+          : new EnsureGameRunningActionResult(EnsureGameRunningOutcome.PlatformUnsupported);
+
+        if (result.IsSuccess) {
+          totalAccepted++;
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", result.ReasonCode, null, null, StepType: "ensure-game-running"));
+        }
+        else {
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
+        }
         continue;
       }
 

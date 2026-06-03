@@ -9,6 +9,7 @@ public static class PrimitiveActionTypes {
   public const string Command = "command";
   public const string ConnectToGame = "connect-to-game";
   public const string WaitForImage = "WaitForImage";
+  public const string EnsureGameRunning = "ensure-game-running";
 
   public static IReadOnlyCollection<string> All { get; } = new ReadOnlyCollection<string>(new[] {
     Tap,
@@ -16,7 +17,8 @@ public static class PrimitiveActionTypes {
     Key,
     Command,
     ConnectToGame,
-    WaitForImage
+    WaitForImage,
+    EnsureGameRunning
   });
 }
 

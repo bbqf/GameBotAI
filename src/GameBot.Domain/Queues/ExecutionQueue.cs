@@ -35,6 +35,13 @@ namespace GameBot.Domain.Queues {
     /// </summary>
     public string? LinkedTemplateId { get; set; }
 
+    /// <summary>
+    /// Optional link to a single game by its stable ID (0..1). Persisted.
+    /// When set, game-aware actions in this queue's sequences resolve the target game automatically.
+    /// Null when the queue is unlinked.
+    /// </summary>
+    public string? LinkedGameId { get; set; }
+
     public DateTimeOffset? CreatedAt { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }

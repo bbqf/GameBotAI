@@ -10,7 +10,7 @@ import './CommandForm.css';
 
 export type StepEntry = {
   id: string;
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning';
   targetId?: string;
   primitiveTap?: {
     detectionTarget: DetectionTargetForm;
@@ -69,6 +69,14 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
         id: step.id,
         label: `Wait for image: ${imageId}`,
         description: confidence ? `Timeout ${timeoutMs} ms, confidence ${confidence}` : `Timeout ${timeoutMs} ms`,
+      };
+    }
+
+    if (step.type === 'EnsureGameRunning') {
+      return {
+        id: step.id,
+        label: 'Ensure game running',
+        description: 'Checks foreground app; starts game if not running',
       };
     }
 
@@ -328,6 +336,16 @@ export const CommandForm: React.FC<CommandFormProps> = ({
             disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
           >
             Add wait for image step
+          </button>
+        </div>
+
+        <div className="field">
+          <button
+            type="button"
+            onClick={() => addStep({ type: 'EnsureGameRunning' })}
+            disabled={submitting || loading}
+          >
+            Add ensure game running step
           </button>
         </div>
 

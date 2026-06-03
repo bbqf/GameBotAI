@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Games;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Service.Contracts.Queues;
@@ -36,11 +37,11 @@ internal static class QueuesEndpoints {
       return Results.Ok(resp);
     }).WithName("ListQueues");
 
-    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates) => {
+    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       await MaybeAutoLoadAsync(queue, repo, runtime, templates).ConfigureAwait(false);
-      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games).ConfigureAwait(false));
     }).WithName("GetQueue");
 
     group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime) => {
@@ -76,16 +77,16 @@ internal static class QueuesEndpoints {
       return Results.Created($"{ApiRoutes.Queues}/{id}/entries/{entry.EntryId}", ProjectEntry(entry, resolved?.Name));
     }).WithName("AddQueueEntry");
 
-    group.MapPut("{id}/entries", async (string id, ReplaceQueueEntriesRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates) => {
+    group.MapPut("{id}/entries", async (string id, ReplaceQueueEntriesRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
         return Error(409, "queue_running", "Stop the queue before loading a template.");
       runtime.SetEntries(id, req?.SequenceIds ?? Array.Empty<string>());
-      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games).ConfigureAwait(false));
     }).WithName("ReplaceQueueEntries");
 
-    group.MapPut("{id}/template", async (string id, SetQueueTemplateLinkRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates) => {
+    group.MapPut("{id}/template", async (string id, SetQueueTemplateLinkRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       var templateId = req?.TemplateId;
@@ -93,8 +94,19 @@ internal static class QueuesEndpoints {
         return Error(400, "invalid_request", "template not found");
       queue.LinkedTemplateId = string.IsNullOrEmpty(templateId) ? null : templateId;
       var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
-      return Results.Ok(await BuildDetailAsync(saved, runtime, sequences, templates).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(saved, runtime, sequences, templates, games).ConfigureAwait(false));
     }).WithName("SetQueueTemplateLink");
+
+    group.MapPut("{id}/game", async (string id, SetQueueGameLinkRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) => {
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+      var gameId = req?.GameId;
+      if (!string.IsNullOrEmpty(gameId) && await games.GetAsync(gameId).ConfigureAwait(false) is null)
+        return Error(400, "invalid_request", "game not found");
+      queue.LinkedGameId = string.IsNullOrEmpty(gameId) ? null : gameId;
+      var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
+      return Results.Ok(await BuildDetailAsync(saved, runtime, sequences, templates, games).ConfigureAwait(false));
+    }).WithName("SetQueueGameLink");
 
     group.MapDelete("{id}/entries/{entryId}", async (string id, string entryId, IQueueRepository repo, IQueueRuntimeStore runtime) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
@@ -150,10 +162,11 @@ internal static class QueuesEndpoints {
     CycleExecution = queue.CycleExecution,
     Status = runtime.GetStatus(queue.Id),
     EntryCount = runtime.GetEntries(queue.Id).Count,
-    LinkedTemplateId = queue.LinkedTemplateId
+    LinkedTemplateId = queue.LinkedTemplateId,
+    LinkedGameId = queue.LinkedGameId
   };
 
-  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates) {
+  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) {
     var entries = runtime.GetEntries(queue.Id);
     var allSequences = await sequences.ListAsync().ConfigureAwait(false);
     var namesById = allSequences.ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
@@ -165,7 +178,9 @@ internal static class QueuesEndpoints {
       Status = runtime.GetStatus(queue.Id),
       EntryCount = entries.Count,
       LinkedTemplateId = queue.LinkedTemplateId,
-      LinkedTemplateName = await ResolveTemplateNameAsync(queue.LinkedTemplateId, templates).ConfigureAwait(false)
+      LinkedTemplateName = await ResolveTemplateNameAsync(queue.LinkedTemplateId, templates).ConfigureAwait(false),
+      LinkedGameId = queue.LinkedGameId,
+      LinkedGameName = await ResolveGameNameAsync(queue.LinkedGameId, games).ConfigureAwait(false)
     };
     foreach (var entry in entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);
@@ -178,6 +193,12 @@ internal static class QueuesEndpoints {
     if (string.IsNullOrEmpty(templateId)) return null;
     var template = await templates.GetAsync(templateId).ConfigureAwait(false);
     return template?.Name;
+  }
+
+  private static async Task<string?> ResolveGameNameAsync(string? gameId, IGameRepository games) {
+    if (string.IsNullOrEmpty(gameId)) return null;
+    var game = await games.GetAsync(gameId).ConfigureAwait(false);
+    return game?.Name;
   }
 
   private static QueueEntryResponse ProjectEntry(QueueEntry entry, string? sequenceName) => new() {

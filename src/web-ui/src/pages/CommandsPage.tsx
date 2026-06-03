@@ -100,6 +100,10 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
     };
   }
 
+  if (s.type === 'EnsureGameRunning') {
+    return { type: 'EnsureGameRunning', order: idx };
+  }
+
   return {
     type: s.type,
     targetId: s.targetId ?? '',
@@ -262,7 +266,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           next.steps = 'Wait for image timeout must be a non-negative integer';
           break;
         }
-      } else if (!step.targetId?.trim()) {
+      } else if (step.type !== 'EnsureGameRunning' && !step.targetId?.trim()) {
         next.steps = 'Command steps require a target';
         break;
       }

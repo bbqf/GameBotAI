@@ -10,6 +10,8 @@ export type QueueDto = {
   status: QueueStatus;
   entryCount: number;
   linkedTemplateId: string | null;
+  linkedGameId: string | null;
+  linkedGameName: string | null;
 };
 
 export type QueueEntryDto = {
@@ -22,6 +24,7 @@ export type QueueEntryDto = {
 export type QueueDetailDto = QueueDto & {
   entries: QueueEntryDto[];
   linkedTemplateName: string | null;
+  // linkedGameId and linkedGameName are inherited from QueueDto
 };
 
 export type QueueCreate = {
@@ -52,6 +55,9 @@ export const replaceQueueEntries = (id: string, sequenceIds: string[]) =>
 
 export const setQueueTemplateLink = (id: string, templateId: string | null) =>
   putJson<QueueDetailDto>(`${base}/${id}/template`, { templateId });
+
+export const setQueueGameLink = (id: string, gameId: string | null) =>
+  putJson<QueueDetailDto>(`${base}/${id}/game`, { gameId });
 
 export const startQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/start`, {});
 export const stopQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/stop`, {});

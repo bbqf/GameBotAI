@@ -3,7 +3,8 @@ namespace GameBot.Domain.Commands;
 public enum CommandStepType {
   Command,
   PrimitiveTap,
-  WaitForImage
+  WaitForImage,
+  EnsureGameRunning
 }
 
 public sealed class PrimitiveTapConfig {

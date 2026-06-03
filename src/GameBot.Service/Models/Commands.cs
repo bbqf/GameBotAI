@@ -40,7 +40,8 @@ internal sealed class CommandResponse {
 internal enum CommandStepTypeDto {
   Command,
   PrimitiveTap,
-  WaitForImage
+  WaitForImage,
+  EnsureGameRunning
 }
 
 internal sealed class PrimitiveTapConfigDto {

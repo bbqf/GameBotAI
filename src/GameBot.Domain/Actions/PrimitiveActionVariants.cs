@@ -32,6 +32,10 @@ public sealed class PrimitiveCommandAction : PrimitiveActionBase {
   public PrimitiveCommandAction() : base(PrimitiveActionTypes.Command) { }
 }
 
+public sealed class PrimitiveEnsureGameRunningAction : PrimitiveActionBase {
+  public PrimitiveEnsureGameRunningAction() : base(PrimitiveActionTypes.EnsureGameRunning) { }
+}
+
 public sealed class PrimitiveConnectToGameAction : PrimitiveActionBase {
   public string? GameId { get; set; }
   public string? AdbSerial { get; set; }
