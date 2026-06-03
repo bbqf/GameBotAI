@@ -23,6 +23,7 @@ export const QueueGameControls: React.FC<QueueGameControlsProps> = ({
   return (
     <section className="queue-template-controls" aria-label="Queue game">
       <div className="queue-template-row">
+        <span className="queue-section-label">Game</span>
         <button
           type="button"
           className="link-button queue-template-name"

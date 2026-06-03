@@ -52,6 +52,7 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
     <section className="queue-template-controls" aria-label="Queue templates">
       {/* Template name — clicking opens the load picker */}
       <div className="queue-template-row">
+        <span className="queue-section-label">Template</span>
         <button
           type="button"
           className="link-button queue-template-name"
