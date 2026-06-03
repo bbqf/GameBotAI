@@ -18,7 +18,7 @@ export type CommandCreate = {
 export type CommandUpdate = CommandCreate;
 
 export type CommandStepDto = {
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning';
   targetId?: string;
   order: number;
   primitiveTap?: PrimitiveTapConfigDto;

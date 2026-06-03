@@ -100,6 +100,10 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
     };
   }
 
+  if (s.type === 'EnsureGameRunning') {
+    return { type: 'EnsureGameRunning', order: idx };
+  }
+
   return {
     type: s.type,
     targetId: s.targetId ?? '',
