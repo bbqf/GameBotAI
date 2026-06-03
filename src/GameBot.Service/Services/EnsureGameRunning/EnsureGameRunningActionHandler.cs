@@ -27,24 +27,29 @@ internal sealed class EnsureGameRunningActionHandler : IEnsureGameRunningActionH
     // 1. Resolve session
     var session = _sessions.GetSession(sessionId);
     if (session is null)
-      return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoQueueContext);
+      return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoPackageName);
 
-    // 2. Extract queue ID from session label
-    var queueId = ExtractQueueId(session.GameId);
-    if (queueId is null)
-      return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoQueueContext);
-
-    // 3. Platform guard — must come before any ADB call
+    // 2. Platform guard — must come before any ADB call
     if (!OperatingSystem.IsWindows())
       return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.PlatformUnsupported);
 
-    // 4. Resolve queue and linked game ID
-    var queue = await _queues.GetAsync(queueId).ConfigureAwait(false);
-    if (queue is null || string.IsNullOrEmpty(queue.LinkedGameId))
-      return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoLinkedGame);
+    // 3. Resolve the game:
+    //    - Queue context (label = "queue:{id}"): resolve game via queue's LinkedGameId
+    //    - Direct session (label = game ID): use the session label as the game ID directly
+    GameArtifact? game;
+    var queueId = ExtractQueueId(session.GameId);
+    if (queueId is not null) {
+      var queue = await _queues.GetAsync(queueId).ConfigureAwait(false);
+      if (queue is null || string.IsNullOrEmpty(queue.LinkedGameId))
+        return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoLinkedGame);
+      game = await _games.GetAsync(queue.LinkedGameId, ct).ConfigureAwait(false);
+    }
+    else {
+      // Direct session: session.GameId is the game ID
+      game = await _games.GetAsync(session.GameId, ct).ConfigureAwait(false);
+    }
 
-    // 5. Resolve game and package name
-    var game = await _games.GetAsync(queue.LinkedGameId, ct).ConfigureAwait(false);
+    // 4. Validate package name
     if (game is null || string.IsNullOrEmpty(game.PackageName))
       return new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoPackageName);
 

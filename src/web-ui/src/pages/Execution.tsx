@@ -208,12 +208,18 @@ export const ExecutionPage: React.FC = () => {
       const executedSteps = stepOutcomes.filter((o) => `${o.status ?? ''}`.toLowerCase() === 'executed').length;
 
       if ((accepted ?? 0) <= 0 && stepOutcomes.length > 0 && executedSteps === 0) {
-        const firstReason = stepOutcomes.find((o) => o.reason)?.reason;
+        const firstOutcome = stepOutcomes.find((o) => o.reason || o.status);
+        const firstReason = firstOutcome?.reason ?? firstOutcome?.status;
         const normalizedReason = firstReason ? firstReason.replace(/_/g, ' ') : undefined;
+        const isEnsureGameRunning = stepOutcomes.some((o) => o.stepType === 'ensure-game-running');
         setCommandMessage(undefined);
-        setCommandError(normalizedReason
-          ? `Command did not execute any tap: ${normalizedReason}`
-          : 'Command did not execute any tap.');
+        if (isEnsureGameRunning) {
+          setCommandError(normalizedReason ?? 'Game was not running (launch attempted).');
+        } else {
+          setCommandError(normalizedReason
+            ? `Command did not execute any tap: ${normalizedReason}`
+            : 'Command did not execute any tap.');
+        }
         return;
       }
 
