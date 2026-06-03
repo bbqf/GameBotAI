@@ -25,6 +25,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   private readonly IQueueTemplateRepository _templates;
   private readonly ISequenceExecutionService _sequenceExecution;
   private readonly ISessionManager _sessions;
+  private readonly BackgroundScreenCaptureService? _captureService;
   private readonly IExecutionLogService _log;
   private readonly ILogger<QueueExecutionService> _logger;
   private readonly CancellationToken _appStopping;
@@ -40,12 +41,14 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     ISessionManager sessions,
     IExecutionLogService log,
     ILogger<QueueExecutionService> logger,
-    IHostApplicationLifetime? lifetime = null) {
+    IHostApplicationLifetime? lifetime = null,
+    BackgroundScreenCaptureService? captureService = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
     _sequenceExecution = sequenceExecution;
     _sessions = sessions;
+    _captureService = captureService;
     _log = log;
     _logger = logger;
     _appStopping = lifetime?.ApplicationStopping ?? CancellationToken.None;
@@ -115,6 +118,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
           var session = _sessions.CreateSession($"queue:{queue.Id}", queue.EmulatorSerial);
           sessionId = session.Id;
           handle.SessionId = sessionId;
+          if (_captureService is not null && !string.IsNullOrWhiteSpace(session.DeviceSerial)) {
+            _captureService.StartCapture(session.Id, session.DeviceSerial);
+          }
         }
         catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) {
           reason = QueueStopReason.Failure;
@@ -170,6 +176,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // Always disconnect the session (FR-020/FR-023) — teardown errors must not prevent
       // finalizing the run (FR-023 edge case).
       if (sessionId is not null) {
+        try { _captureService?.StopCapture(sessionId); }
+        catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
         try { _sessions.StopSession(sessionId); }
         catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
       }
