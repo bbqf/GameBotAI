@@ -149,7 +149,7 @@
 .command-form .reorderable-list__controls {
   display: flex;
   gap: var(--gb-space-2);
-  flex-wrap: wrap;
+  flex-shrink: 0;
   justify-content: flex-end;
 }
 
