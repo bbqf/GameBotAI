@@ -28,11 +28,11 @@ public sealed class QueueTemplatesScaleTests {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
-    var sequenceIds = Enumerable.Range(0, 100).Select(e => $"seq-{e}").ToArray();
+    var entries = Enumerable.Range(0, 100).Select(e => new { sequenceId = $"seq-{e}" }).ToArray();
     string? firstId = null;
     for (var t = 0; t < 50; t++) {
       var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
-        new { name = $"Template{t}", sequenceIds, overwrite = false }).ConfigureAwait(true);
+        new { name = $"Template{t}", entries, overwrite = false }).ConfigureAwait(true);
       var id = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
       firstId ??= id;
     }

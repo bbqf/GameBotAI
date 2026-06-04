@@ -17,12 +17,13 @@ type QueueFormProps = {
   submitting?: boolean;
   formError?: string;
   fieldErrors?: { name?: string; emulatorSerial?: string };
-  /** Edit-mode only: row 2 — template controls, rendered after the emulator and before game controls. */
-  templateControls?: React.ReactNode;
-  /** Edit-mode only: row 3 — game controls, rendered after template controls and before cycle execution. */
+  /** Edit-mode only: game name + unlink row, rendered after cycle execution. */
   gameControls?: React.ReactNode;
-  /** Edit-mode only: row 4 — queue sequence entries, rendered after cycle execution and before the actions. */
-  entries?: React.ReactNode;
+  /**
+   * Edit-mode only: the full template section (template name link, sequence entries,
+   * Save Template / Reload Template), rendered below the separator.
+   */
+  templateControls?: React.ReactNode;
 };
 
 export const QueueForm: React.FC<QueueFormProps> = ({
@@ -34,12 +35,10 @@ export const QueueForm: React.FC<QueueFormProps> = ({
   submitting,
   formError,
   fieldErrors,
-  templateControls,
   gameControls,
-  entries,
+  templateControls,
 }) => {
   const isEdit = mode === 'edit';
-  // The emulator binding is immutable after creation, so only fetch devices when creating.
   const { devices, loading: devicesLoading } = useAdbDevices(!isEdit);
 
   const emulatorOptions = useMemo<SearchableOption[]>(
@@ -56,6 +55,7 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         onSubmit();
       }}
     >
+      {/* Row 1: Name | Emulator */}
       <div className="field-row">
         <div className="field">
           <label htmlFor="queue-name">Name *</label>
@@ -64,8 +64,6 @@ export const QueueForm: React.FC<QueueFormProps> = ({
             value={value.name}
             onChange={(e) => onChange({ ...value, name: e.target.value })}
             onKeyDown={(e) => {
-              // Row 2/4 slots carry their own inputs; with no submit button the form never
-              // implicitly submits, so trigger submit explicitly from the name field.
               if (e.key === 'Enter') {
                 e.preventDefault();
                 onSubmit();
@@ -96,10 +94,7 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         </div>
       </div>
 
-      {isEdit && templateControls}
-
-      {isEdit && gameControls}
-
+      {/* Row 2: Cycle execution */}
       <div className="field">
         <label>
           <input
@@ -113,13 +108,23 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         </label>
       </div>
 
-      {isEdit && entries}
+      {/* Row 3: Game controls (edit only) */}
+      {isEdit && gameControls}
 
+      {/* Row 4: Save / Cancel */}
       <div className="form-actions">
         <button type="button" onClick={onSubmit} disabled={submitting}>Save</button>
         <button type="button" onClick={onCancel} disabled={submitting}>Cancel</button>
       </div>
       {formError && <div className="form-error" role="alert">{formError}</div>}
+
+      {/* Separator + template section (edit only) */}
+      {isEdit && templateControls && (
+        <>
+          <hr className="queue-form-separator" />
+          {templateControls}
+        </>
+      )}
     </form>
   );
 };

@@ -39,18 +39,18 @@ public sealed class QueueTemplatesApiContractTests : IDisposable {
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
     var name = "Contract " + Guid.NewGuid().ToString("N");
-    var sequenceIds = new[] { "seq-x" };
+    var entries = new[] { new { sequenceId = "seq-x" } };
 
     // Save (create) -> 201 QueueTemplateDetailResponse shape
     var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
-      new { name, sequenceIds, overwrite = false }).ConfigureAwait(true);
+      new { name, entries, overwrite = false }).ConfigureAwait(true);
     createResp.StatusCode.Should().Be(HttpStatusCode.Created);
     var created = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
     foreach (var field in new[] { "id", "name", "entryCount", "createdAt", "updatedAt", "entries" }) {
       created.TryGetProperty(field, out _).Should().BeTrue($"detail must expose '{field}'");
     }
     var entry = created.GetProperty("entries")[0];
-    foreach (var field in new[] { "sequenceId", "sequenceName", "stale" }) {
+    foreach (var field in new[] { "sequenceId", "sequenceName", "stale", "scheduleType", "timerTimeOfDay" }) {
       entry.TryGetProperty(field, out _).Should().BeTrue($"entry must expose '{field}'");
     }
     var id = created.GetProperty("id").GetString();
@@ -67,17 +67,17 @@ public sealed class QueueTemplatesApiContractTests : IDisposable {
 
     // Duplicate name without overwrite -> 409
     var conflict = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
-      new { name, sequenceIds = Array.Empty<string>(), overwrite = false }).ConfigureAwait(true);
+      new { name, entries = Array.Empty<object>(), overwrite = false }).ConfigureAwait(true);
     conflict.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
     // Overwrite -> 200
     var overwrite = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
-      new { name, sequenceIds = Array.Empty<string>(), overwrite = true }).ConfigureAwait(true);
+      new { name, entries = Array.Empty<object>(), overwrite = true }).ConfigureAwait(true);
     overwrite.StatusCode.Should().Be(HttpStatusCode.OK);
 
     // Invalid name -> 400
     var invalid = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
-      new { name = "bad/name", sequenceIds = Array.Empty<string>(), overwrite = false }).ConfigureAwait(true);
+      new { name = "bad/name", entries = Array.Empty<object>(), overwrite = false }).ConfigureAwait(true);
     invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
     // Delete -> 204

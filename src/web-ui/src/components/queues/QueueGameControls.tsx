@@ -23,6 +23,7 @@ export const QueueGameControls: React.FC<QueueGameControlsProps> = ({
   return (
     <section className="queue-template-controls" aria-label="Queue game">
       <div className="queue-template-row">
+        <span className="queue-section-label">Game</span>
         <button
           type="button"
           className="link-button queue-template-name"
@@ -30,9 +31,6 @@ export const QueueGameControls: React.FC<QueueGameControlsProps> = ({
           aria-expanded={pickerOpen}
         >
           {linkedGameName ?? '(no game)'}
-        </button>
-        <button type="button" onClick={() => setPickerOpen((o) => !o)} aria-expanded={pickerOpen}>
-          Link Game
         </button>
         <button
           type="button"
