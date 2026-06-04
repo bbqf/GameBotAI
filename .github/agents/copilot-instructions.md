@@ -27,6 +27,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-03
 - Existing file-backed JSON command repository under `data/commands` and existing file-backed execution-log repository under `data/execution-logs`; no new persistence store (001-wait-for-image)
 - Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing `GameBot.Domain` sequence repository and runner, existing execution-log service, React/Vite authoring UI, existing command repository contracts (001-fix-sequence-step-names)
 - File-backed JSON under `data/commands/sequences`, `data/commands`, and `data/execution-logs` (001-fix-sequence-step-names)
+- TypeScript 5.x / React 18 + React Testing Library, Jest, @dnd-kit/core, @dnd-kit/sortable (053-command-editor-rework)
+- N/A (UI-only change) (053-command-editor-rework)
 
 - Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing `GameBot.Domain` sequence/command services, existing image detection pipeline, existing execution-log services/repositories, React 18 + Vite 5 UI stack (030-sequence-conditional-logic)
 
@@ -47,9 +49,9 @@ npm test; npm run lint
 Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18: Follow standard conventions
 
 ## Recent Changes
+- 053-command-editor-rework: Added TypeScript 5.x / React 18 + React Testing Library, Jest, @dnd-kit/core, @dnd-kit/sortable
 - 001-fix-sequence-step-names: Added Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing `GameBot.Domain` sequence repository and runner, existing execution-log service, React/Vite authoring UI, existing command repository contracts
 - 001-wait-for-image: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (web UI) + ASP.NET Core Minimal API, existing `GameBot.Domain` command/action/logging models, `CommandExecutor`, existing detection pipeline (`IReferenceImageStore`, `IScreenSource`, `ITemplateMatcher`), existing web-ui command authoring and execution-log APIs
-- 001-primitive-actions-refactor: Added Backend C# 13 / .NET 9; Frontend TypeScript ES2020 / React 18 (Vite 5) + ASP.NET Core Minimal API, GameBot.Domain repositories/services, System.Text.Json, existing OpenCvSharp/ADB/session services, React + existing web-ui toolchain
 
 
 <!-- MANUAL ADDITIONS START -->

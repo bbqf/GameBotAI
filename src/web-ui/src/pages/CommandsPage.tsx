@@ -246,12 +246,12 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
     if (v.steps.length === 0) {
-      next.steps = 'Add at least one step before saving (for example, a Primitive tap step).';
+      next.steps = 'Add at least one step before saving (for example, a Tap step).';
     }
     for (const step of v.steps) {
       if (step.type === 'PrimitiveTap') {
         if (!step.primitiveTap?.detectionTarget.referenceImageId?.trim()) {
-          next.steps = 'Primitive tap steps require a detection target reference image ID';
+          next.steps = 'Tap steps require a detection target reference image ID';
           break;
         }
       } else if (step.type === 'WaitForImage') {

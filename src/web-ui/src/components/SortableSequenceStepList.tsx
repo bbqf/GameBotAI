@@ -7,6 +7,7 @@ import type { ReorderableListItem } from './ReorderableList';
 type SortableSequenceStepListProps = {
   items: ReorderableListItem[];
   onDelete: (item: ReorderableListItem) => void;
+  onEdit?: (item: ReorderableListItem) => void;
   disabled?: boolean;
   emptyMessage?: string;
   activeId?: string | null;
@@ -16,6 +17,7 @@ type SortableSequenceStepListProps = {
 export const SortableSequenceStepList: React.FC<SortableSequenceStepListProps> = ({
   items,
   onDelete,
+  onEdit,
   disabled,
   emptyMessage = 'No steps added yet.',
   activeId,
@@ -42,6 +44,7 @@ export const SortableSequenceStepList: React.FC<SortableSequenceStepListProps> =
                   {item.details && <div className="reorderable-list__details">{item.details}</div>}
                 </div>
                 <div className="reorderable-list__controls">
+                  {onEdit && <button type="button" onClick={() => onEdit(item)} disabled={disabled}>Edit</button>}
                   <button type="button" onClick={() => onDelete(item)} disabled={disabled}>Delete</button>
                 </div>
               </SortableStepItem>

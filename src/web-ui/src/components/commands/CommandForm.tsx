@@ -3,9 +3,13 @@ import { ImageSelectorDropdown } from '../images/ImageSelectorDropdown';
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { FormActions, FormSection } from '../unified/FormLayout';
-import { SearchableDropdown, SearchableOption } from '../SearchableDropdown';
+import type { SearchableOption } from '../SearchableDropdown';
 import type { ReorderableListItem } from '../ReorderableList';
 import { SortableSequenceStepList } from '../SortableSequenceStepList';
+import { ActionTypeSelector, PrimitiveActionType } from './ActionTypeSelector';
+import { TapPanel } from './TapPanel';
+import { WaitForImagePanel } from './WaitForImagePanel';
+import { EnsureGameRunningPanel } from './EnsureGameRunningPanel';
 import './CommandForm.css';
 
 export type StepEntry = {
@@ -56,7 +60,7 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
       const offsetY = step.primitiveTap?.detectionTarget.offsetY ?? '0';
       return {
         id: step.id,
-        label: `Primitive tap: ${imageId}`,
+        label: `Tap: ${imageId}`,
         description: `Offset (${offsetX}, ${offsetY})`,
       };
     }
@@ -90,6 +94,8 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
   });
 };
 
+const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning']);
+
 export const CommandForm: React.FC<CommandFormProps> = ({
   value,
   commandOptions,
@@ -100,30 +106,58 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const [pendingCommandId, setPendingCommandId] = useState<string | undefined>(undefined);
-  const [pendingPrimitiveReferenceImageId, setPendingPrimitiveReferenceImageId] = useState('');
-  const [primitiveTapStale, setPrimitiveTapStale] = useState(false);
-  const [pendingPrimitiveConfidence, setPendingPrimitiveConfidence] = useState('');
-  const [pendingPrimitiveOffsetX, setPendingPrimitiveOffsetX] = useState('0');
-  const [pendingPrimitiveOffsetY, setPendingPrimitiveOffsetY] = useState('0');
-  const [pendingWaitReferenceImageId, setPendingWaitReferenceImageId] = useState('');
-  const [pendingWaitConfidence, setPendingWaitConfidence] = useState('');
-  const [pendingWaitTimeoutMs, setPendingWaitTimeoutMs] = useState('1000');
+  const [pendingActionType, setPendingActionType] = useState<PrimitiveActionType | ''>('');
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
   const stepItems = useMemo(() => toStepItems(value.steps, commandOptions), [value.steps, commandOptions]);
 
   const addStep = (step: Omit<StepEntry, 'id'>) => {
-    const next = [...value.steps, { ...step, id: makeId() }];
+    onChange({ ...value, steps: [...value.steps, { ...step, id: makeId() }] });
+  };
+
+  const updateStep = (id: string, step: Omit<StepEntry, 'id'>) => {
+    const idx = value.steps.findIndex((s) => s.id === id);
+    if (idx === -1) return;
+    const next = [...value.steps];
+    next[idx] = { ...step, id };
     onChange({ ...value, steps: next });
   };
 
   const removeStep = (itemId: string) => {
     onChange({ ...value, steps: value.steps.filter((s) => s.id !== itemId) });
   };
+
+  const handleActionTypeChange = (next: PrimitiveActionType | '') => {
+    setPendingActionType(next);
+    setEditingStepId(null);
+  };
+
+  const handleEditStep = (item: ReorderableListItem) => {
+    const step = value.steps.find((s) => s.id === item.id);
+    if (!step || !EDITABLE_TYPES.has(step.type)) return;
+    setEditingStepId(step.id);
+    setPendingActionType(step.type as PrimitiveActionType);
+  };
+
+  const handlePanelConfirm = (step: Omit<StepEntry, 'id'>) => {
+    if (editingStepId) {
+      updateStep(editingStepId, step);
+    } else {
+      addStep(step);
+    }
+    setPendingActionType('');
+    setEditingStepId(null);
+  };
+
+  const handlePanelCancel = () => {
+    setPendingActionType('');
+    setEditingStepId(null);
+  };
+
+  const editingStep = editingStepId ? value.steps.find((s) => s.id === editingStepId) : undefined;
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveStepId(event.active.id as string);
@@ -174,180 +208,61 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         </div>
       </FormSection>
 
-      <FormSection title="Steps" description="Choose command or primitive tap steps and set their order." id="command-steps">
-
-        <SearchableDropdown
-          id="command-commands-dropdown"
-          label="Add command"
-          options={commandOptions}
-          value={pendingCommandId}
-          onChange={setPendingCommandId}
+      <FormSection title="Steps" description="Select an action type to add or edit steps." id="command-steps">
+        <ActionTypeSelector
+          value={pendingActionType}
+          onChange={handleActionTypeChange}
           disabled={submitting || loading}
-          placeholder="Select a command"
         />
-        <div className="field">
-          <button
-            type="button"
-            onClick={() => {
-              if (!pendingCommandId) return;
-              addStep({ type: 'Command', targetId: pendingCommandId });
-              setPendingCommandId(undefined);
-            }}
-            disabled={submitting || loading || !pendingCommandId}
-          >
-            Add command step
-          </button>
-        </div>
 
-        <div className="field grid-3">
-          <div>
-            <ImageSelectorDropdown
-              id="command-primitive-reference"
-              label="Primitive tap image ID"
-              value={pendingPrimitiveReferenceImageId}
-              onChange={setPendingPrimitiveReferenceImageId}
-              required
-              onStaleChange={setPrimitiveTapStale}
-              error={primitiveTapStale ? 'Selected image no longer exists — please choose a valid image' : undefined}
-              disabled={submitting || loading}
-            />
-          </div>
-          <div>
-            <label htmlFor="command-primitive-confidence">Primitive confidence (0-1)</label>
-            <input
-              id="command-primitive-confidence"
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
-              value={pendingPrimitiveConfidence}
-              onChange={(e) => setPendingPrimitiveConfidence(e.target.value)}
-              disabled={submitting || loading}
-            />
-          </div>
-          <div>
-            <label htmlFor="command-primitive-offset-x">Primitive offset X</label>
-            <input
-              id="command-primitive-offset-x"
-              type="number"
-              value={pendingPrimitiveOffsetX}
-              onChange={(e) => setPendingPrimitiveOffsetX(e.target.value)}
-              disabled={submitting || loading}
-            />
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor="command-primitive-offset-y">Primitive offset Y</label>
-          <input
-            id="command-primitive-offset-y"
-            type="number"
-            value={pendingPrimitiveOffsetY}
-            onChange={(e) => setPendingPrimitiveOffsetY(e.target.value)}
-            disabled={submitting || loading}
-          />
-        </div>
-        <div className="field">
-          <button
-            type="button"
-            onClick={() => {
-              const imageId = pendingPrimitiveReferenceImageId.trim();
-              if (!imageId) return;
-              addStep({
+        {pendingActionType === 'PrimitiveTap' && (
+          <TapPanel
+            initialValue={editingStep?.primitiveTap?.detectionTarget}
+            onConfirm={(tapValue) =>
+              handlePanelConfirm({
                 type: 'PrimitiveTap',
-                primitiveTap: {
-                  detectionTarget: {
-                    referenceImageId: imageId,
-                    confidence: pendingPrimitiveConfidence || undefined,
-                    offsetX: pendingPrimitiveOffsetX || undefined,
-                    offsetY: pendingPrimitiveOffsetY || undefined,
-                  }
-                }
-              });
-              setPendingPrimitiveReferenceImageId('');
-              setPendingPrimitiveConfidence('');
-              setPendingPrimitiveOffsetX('0');
-              setPendingPrimitiveOffsetY('0');
-            }}
-            disabled={submitting || loading || !pendingPrimitiveReferenceImageId.trim() || primitiveTapStale}
-          >
-            Add primitive tap step
-          </button>
-        </div>
+                primitiveTap: { detectionTarget: tapValue },
+              })
+            }
+            onCancel={handlePanelCancel}
+            disabled={submitting}
+          />
+        )}
 
-        <div className="field grid-3">
-          <div>
-            <ImageSelectorDropdown
-              id="command-wait-reference"
-              label="Wait image ID"
-              value={pendingWaitReferenceImageId}
-              onChange={(id) => {
-                setPendingWaitReferenceImageId(id);
-                if (!id) setPendingWaitConfidence('');
-              }}
-              disabled={submitting || loading}
-            />
-          </div>
-          <div>
-            <label htmlFor="command-wait-confidence">Wait confidence (0-1)</label>
-            <input
-              id="command-wait-confidence"
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
-              value={pendingWaitConfidence}
-              onChange={(e) => setPendingWaitConfidence(e.target.value)}
-              disabled={submitting || loading || !pendingWaitReferenceImageId.trim()}
-            />
-          </div>
-          <div>
-            <label htmlFor="command-wait-timeout">Wait timeout (ms)</label>
-            <input
-              id="command-wait-timeout"
-              type="number"
-              min="0"
-              value={pendingWaitTimeoutMs}
-              onChange={(e) => setPendingWaitTimeoutMs(e.target.value)}
-              disabled={submitting || loading}
-            />
-          </div>
-        </div>
-        <div className="field">
-          <button
-            type="button"
-            onClick={() => {
-              const imageId = pendingWaitReferenceImageId.trim();
-              addStep({
+        {pendingActionType === 'WaitForImage' && (
+          <WaitForImagePanel
+            initialValue={
+              editingStep?.waitForImage
+                ? {
+                    timeoutMs: editingStep.waitForImage.timeoutMs,
+                    referenceImageId: editingStep.waitForImage.detectionTarget?.referenceImageId,
+                    confidence: editingStep.waitForImage.detectionTarget?.confidence,
+                  }
+                : undefined
+            }
+            onConfirm={(wfValue) =>
+              handlePanelConfirm({
                 type: 'WaitForImage',
                 waitForImage: {
-                  detectionTarget: imageId
-                    ? {
-                      referenceImageId: imageId,
-                      confidence: pendingWaitConfidence || undefined,
-                    }
+                  timeoutMs: wfValue.timeoutMs,
+                  detectionTarget: wfValue.referenceImageId?.trim()
+                    ? { referenceImageId: wfValue.referenceImageId, confidence: wfValue.confidence }
                     : undefined,
-                  timeoutMs: pendingWaitTimeoutMs || '1000',
-                }
-              });
-              setPendingWaitReferenceImageId('');
-              setPendingWaitConfidence('');
-              setPendingWaitTimeoutMs('1000');
-            }}
-            disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
-          >
-            Add wait for image step
-          </button>
-        </div>
+                },
+              })
+            }
+            onCancel={handlePanelCancel}
+            disabled={submitting}
+          />
+        )}
 
-        <div className="field">
-          <button
-            type="button"
-            onClick={() => addStep({ type: 'EnsureGameRunning' })}
-            disabled={submitting || loading}
-          >
-            Add ensure game running step
-          </button>
-        </div>
+        {pendingActionType === 'EnsureGameRunning' && (
+          <EnsureGameRunningPanel
+            onConfirm={() => handlePanelConfirm({ type: 'EnsureGameRunning' })}
+            onCancel={handlePanelCancel}
+            disabled={submitting}
+          />
+        )}
 
         <DndContext
           sensors={sensors}
@@ -359,8 +274,9 @@ export const CommandForm: React.FC<CommandFormProps> = ({
           <SortableSequenceStepList
             items={stepItems}
             onDelete={(item) => removeStep(item.id)}
+            onEdit={handleEditStep}
             disabled={submitting || loading}
-            emptyMessage="No steps yet. Add command, primitive tap, or wait-for-image steps."
+            emptyMessage="No steps yet. Select an action type above to add steps."
             activeId={activeStepId}
             overId={overId}
           />
