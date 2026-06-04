@@ -11,7 +11,7 @@ describe('ActionTypeSelector', () => {
     expect(options[0].value).toBe('');
   });
 
-  it('renders exactly Tap, Wait for Image, Ensure Game Running options', () => {
+  it('renders exactly Tap, Wait for Image, Ensure Game Running, Key Input, Swipe options', () => {
     render(<ActionTypeSelector value="" onChange={() => {}} />);
     const select = screen.getByRole('combobox', { name: /action type/i });
     const options = Array.from((select as HTMLSelectElement).options).map((o) => ({
@@ -23,8 +23,10 @@ describe('ActionTypeSelector', () => {
       { value: 'PrimitiveTap', text: 'Tap' },
       { value: 'WaitForImage', text: 'Wait for Image' },
       { value: 'EnsureGameRunning', text: 'Ensure Game Running' },
+      { value: 'KeyInput', text: 'Key Input' },
+      { value: 'Swipe', text: 'Swipe' },
     ]);
-    expect(options).toHaveLength(4);
+    expect(options).toHaveLength(6);
   });
 
   it('onChange fires with PrimitiveTap when Tap is selected', () => {

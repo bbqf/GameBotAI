@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Sessions;
+using GameBot.Domain.Services;
 using GameBot.Domain.Triggers;
 using GameBot.Domain.Triggers.Evaluators;
 using GameBot.Emulator.Session;
