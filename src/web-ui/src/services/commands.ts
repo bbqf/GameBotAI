@@ -18,11 +18,25 @@ export type CommandCreate = {
 export type CommandUpdate = CommandCreate;
 
 export type CommandStepDto = {
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'KeyInput' | 'Swipe';
   targetId?: string;
   order: number;
   primitiveTap?: PrimitiveTapConfigDto;
   waitForImage?: WaitForImageConfigDto;
+  keyInput?: KeyInputConfigDto;
+  swipe?: SwipeConfigDto;
+};
+
+export type KeyInputConfigDto = {
+  key: string;
+};
+
+export type SwipeConfigDto = {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  durationMs?: number;
 };
 
 export type PrimitiveTapConfigDto = {

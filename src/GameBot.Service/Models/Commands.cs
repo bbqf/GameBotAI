@@ -41,7 +41,21 @@ internal enum CommandStepTypeDto {
   Command,
   PrimitiveTap,
   WaitForImage,
-  EnsureGameRunning
+  EnsureGameRunning,
+  KeyInput,
+  Swipe
+}
+
+internal sealed class KeyInputConfigDto {
+  public required string Key { get; init; }
+}
+
+internal sealed class SwipeConfigDto {
+  public required int StartX { get; init; }
+  public required int StartY { get; init; }
+  public required int EndX { get; init; }
+  public required int EndY { get; init; }
+  public int? DurationMs { get; init; }
 }
 
 internal sealed class PrimitiveTapConfigDto {
@@ -58,6 +72,8 @@ internal sealed class CommandStepDto {
   public string? TargetId { get; init; }
   public PrimitiveTapConfigDto? PrimitiveTap { get; init; }
   public WaitForImageConfigDto? WaitForImage { get; init; }
+  public KeyInputConfigDto? KeyInput { get; init; }
+  public SwipeConfigDto? Swipe { get; init; }
   public int Order { get; init; }
 }
 

@@ -99,6 +99,77 @@ public sealed class PrimitiveAuthoringFlowTests : IDisposable {
   }
 
   [Fact]
+  public async Task CommandCreateReadSupportsKeyInputStep() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+
+    var createPayload = new {
+      name = "key-input-command",
+      steps = new[] {
+        new {
+          type = "KeyInput",
+          order = 0,
+          keyInput = new { key = "Enter" }
+        }
+      }
+    };
+
+    var createResponse = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), createPayload).ConfigureAwait(false);
+    createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+    var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var commandId = created.GetProperty("id").GetString();
+    commandId.Should().NotBeNullOrWhiteSpace();
+
+    var getResponse = await client.GetAsync(new Uri($"/api/commands/{commandId}", UriKind.Relative)).ConfigureAwait(false);
+    getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    var retrieved = await getResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var step = retrieved.GetProperty("steps")[0];
+    step.GetProperty("type").GetString().Should().Be("KeyInput");
+    step.GetProperty("keyInput").GetProperty("key").GetString().Should().Be("Enter");
+  }
+
+  [Fact]
+  public async Task CommandCreateReadSupportsSwipeStep() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+
+    var createPayload = new {
+      name = "swipe-command",
+      steps = new[] {
+        new {
+          type = "Swipe",
+          order = 0,
+          swipe = new { startX = 100, startY = 800, endX = 100, endY = 200, durationMs = 300 }
+        }
+      }
+    };
+
+    var createResponse = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), createPayload).ConfigureAwait(false);
+    createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+    var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var commandId = created.GetProperty("id").GetString();
+    commandId.Should().NotBeNullOrWhiteSpace();
+
+    var getResponse = await client.GetAsync(new Uri($"/api/commands/{commandId}", UriKind.Relative)).ConfigureAwait(false);
+    getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    var retrieved = await getResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var step = retrieved.GetProperty("steps")[0];
+    step.GetProperty("type").GetString().Should().Be("Swipe");
+    var swipe = step.GetProperty("swipe");
+    swipe.GetProperty("startX").GetInt32().Should().Be(100);
+    swipe.GetProperty("startY").GetInt32().Should().Be(800);
+    swipe.GetProperty("endX").GetInt32().Should().Be(100);
+    swipe.GetProperty("endY").GetInt32().Should().Be(200);
+    swipe.GetProperty("durationMs").GetInt32().Should().Be(300);
+  }
+
+  [Fact]
   public async Task SequenceCreateReadUpdateSupportsInlinePrimitiveActions() {
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
