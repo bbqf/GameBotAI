@@ -43,11 +43,12 @@ describe('CommandsPage detection persistence', () => {
     fireEvent.change(screen.getByLabelText('Confidence (0-1)'), { target: { value: '0.77' } });
     fireEvent.change(screen.getByLabelText('Offset X'), { target: { value: '5' } });
     fireEvent.change(screen.getByLabelText('Offset Y'), { target: { value: '-3' } });
-    fireEvent.change(screen.getByLabelText('Primitive tap image ID'), { target: { value: 'template_a' } });
-    fireEvent.change(screen.getByLabelText('Primitive confidence (0-1)'), { target: { value: '0.77' } });
-    fireEvent.change(screen.getByLabelText('Primitive offset X'), { target: { value: '5' } });
-    fireEvent.change(screen.getByLabelText('Primitive offset Y'), { target: { value: '-3' } });
-    fireEvent.click(screen.getByText('Add primitive tap step'));
+    fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'PrimitiveTap' } });
+    fireEvent.change(screen.getByLabelText('Reference image *'), { target: { value: 'template_a' } });
+    fireEvent.change(screen.getByLabelText('Confidence (0–1)'), { target: { value: '0.77' } });
+    fireEvent.change(screen.getByLabelText('Offset X', { selector: '#tap-panel-offset-x' }), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('Offset Y', { selector: '#tap-panel-offset-y' }), { target: { value: '-3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     createCommandMock.mockResolvedValue({} as any);
 
@@ -112,7 +113,7 @@ describe('CommandsPage detection persistence', () => {
     await screen.findByText('Edit Command');
     fireEvent.click(screen.getAllByText('Save')[0]);
 
-    expect(await screen.findByText('Primitive tap steps require a detection target reference image ID')).toBeInTheDocument();
+    expect(await screen.findByText('Tap steps require a detection target reference image ID')).toBeInTheDocument();
     expect(updateCommandMock).not.toHaveBeenCalled();
   });
 
@@ -135,6 +136,6 @@ describe('CommandsPage detection persistence', () => {
     fireEvent.click(screen.getByText('FallbackPrimitive'));
 
     await screen.findByText('Edit Command');
-    expect(screen.getByText('Primitive tap: tpl-fallback')).toBeInTheDocument();
+    expect(screen.getByText('Tap: tpl-fallback')).toBeInTheDocument();
   });
 });

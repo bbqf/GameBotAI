@@ -162,6 +162,35 @@
   border-top: 1px solid var(--gb-color-border);
 }
 
+/* ── Action panels ─────────────────────────────────────────────────── */
+
+.command-form .action-panel {
+  display: grid;
+  gap: var(--gb-space-3);
+  padding: var(--gb-space-3) var(--gb-space-4);
+  border: 1px solid var(--gb-color-border-strong);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface-alt);
+}
+
+.command-form .action-panel__description {
+  margin: 0;
+  color: var(--gb-color-text);
+  line-height: 1.5;
+}
+
+.command-form .action-panel__controls {
+  display: flex;
+  gap: var(--gb-space-2);
+  flex-wrap: wrap;
+}
+
+.command-form .action-panel .field-error {
+  color: var(--gb-color-danger);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
 @media (min-width: 1280px) {
   .command-form {
     padding: 20px 24px;

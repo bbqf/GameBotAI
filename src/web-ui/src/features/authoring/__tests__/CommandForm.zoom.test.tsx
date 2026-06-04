@@ -36,6 +36,20 @@ jest.mock('@dnd-kit/utilities', () => ({
   CSS: { Translate: { toString: () => '' }, Transform: { toString: () => '' } },
 }));
 
+jest.mock('../../../components/images/ImageSelectorDropdown', () => ({
+  ImageSelectorDropdown: ({ value, onChange, label, id }: any) => (
+    <div>
+      {label && <label htmlFor={id}>{label}</label>}
+      <input
+        id={id}
+        data-testid={`image-input-${id ?? 'default'}`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  ),
+}));
+
 import { DndContext } from '@dnd-kit/core';
 
 const getDndHandlers = () => {
@@ -92,9 +106,18 @@ describe('CommandForm zoom layout', () => {
     expect(screen.getByLabelText(/Offset X/i, { selector: '#command-detection-offset-x' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Offset Y/i, { selector: '#command-detection-offset-y' })).toBeInTheDocument();
   });
+
+  it('action type selector is visible at 125% zoom', () => {
+    render(
+      <div style={{ width: '1280px', zoom: 1.25 }}>
+        <CommandForm value={baseValue} commandOptions={[]} onChange={() => undefined} />
+      </div>
+    );
+    expect(screen.getByRole('combobox', { name: /action type/i })).toBeInTheDocument();
+  });
 });
 
-// ── US1: Drag to reorder (T007-T012) ─────────────────────────────────────────
+// ── US1: Drag to reorder ──────────────────────────────────────────────────────
 
 describe('CommandForm drag-and-drop reordering', () => {
   beforeEach(() => {
@@ -186,7 +209,6 @@ describe('CommandForm drag-and-drop reordering', () => {
       onDragOver({ over: { id: 'step-2' } });
     });
 
-    // Re-read handlers after re-render caused by state update
     const { onDragStart: _s, onDragOver: _o, ..._ } = getDndHandlers();
     expect(document.querySelector('.drop-indicator')).toBeInTheDocument();
   });
@@ -229,7 +251,7 @@ describe('CommandForm drag-and-drop reordering', () => {
   });
 });
 
-// ── US2: Visual consistency (T013) ───────────────────────────────────────────
+// ── US2: Visual consistency ───────────────────────────────────────────────────
 
 describe('CommandForm drag handle visibility', () => {
   beforeEach(() => {

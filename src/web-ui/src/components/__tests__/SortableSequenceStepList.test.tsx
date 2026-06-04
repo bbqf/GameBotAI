@@ -62,6 +62,28 @@ describe('SortableSequenceStepList', () => {
     screen.getAllByText('Delete').forEach((btn) => expect(btn).toBeDisabled());
   });
 
+  it('does not render Edit buttons when onEdit is not supplied', () => {
+    render(<SortableSequenceStepList items={items} onDelete={() => {}} />);
+    expect(screen.queryByText('Edit')).toBeNull();
+  });
+
+  it('renders an Edit button for each item when onEdit is supplied', () => {
+    render(<SortableSequenceStepList items={items} onDelete={() => {}} onEdit={() => {}} />);
+    expect(screen.getAllByText('Edit')).toHaveLength(items.length);
+  });
+
+  it('calls onEdit with the correct item when Edit is clicked', () => {
+    const onEdit = jest.fn();
+    render(<SortableSequenceStepList items={items} onDelete={() => {}} onEdit={onEdit} />);
+    fireEvent.click(screen.getAllByText('Edit')[1]);
+    expect(onEdit).toHaveBeenCalledWith(items[1]);
+  });
+
+  it('Edit buttons are disabled when disabled prop is true', () => {
+    render(<SortableSequenceStepList items={items} onDelete={() => {}} onEdit={() => {}} disabled />);
+    screen.getAllByText('Edit').forEach((btn) => expect(btn).toBeDisabled());
+  });
+
   it('renders a drag handle for each item', () => {
     render(<SortableSequenceStepList items={items} onDelete={() => {}} />);
     expect(screen.getAllByLabelText('Drag to reorder')).toHaveLength(items.length);

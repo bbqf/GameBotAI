@@ -24,6 +24,39 @@ jest.mock('../../components/images/ImageSelectorDropdown', () => ({
   ),
 }));
 
+jest.mock('@dnd-kit/core', () => {
+  const React = jest.requireActual('react');
+  return {
+    DndContext: jest.fn(({ children }: any) => React.createElement(React.Fragment, null, children)),
+    PointerSensor: class {},
+    useSensor: jest.fn(),
+    useSensors: jest.fn(() => []),
+  };
+});
+
+jest.mock('@dnd-kit/sortable', () => ({
+  SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  verticalListSortingStrategy: {},
+  useSortable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: jest.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+  }),
+  arrayMove: jest.fn((arr: unknown[], from: number, to: number) => {
+    const result = [...arr];
+    const [item] = result.splice(from, 1);
+    result.splice(to, 0, item);
+    return result;
+  }),
+}));
+
+jest.mock('@dnd-kit/utilities', () => ({
+  CSS: { Translate: { toString: () => '' }, Transform: { toString: () => '' } },
+}));
+
 const listCommandsMock = listCommands as jest.MockedFunction<typeof listCommands>;
 const createCommandMock = createCommand as jest.MockedFunction<typeof createCommand>;
 const listSequencesMock = listSequences as jest.MockedFunction<typeof listSequences>;
@@ -50,9 +83,10 @@ describe('Commands and sequences primitive authoring', () => {
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
     fireEvent.click(screen.getByText('Create Command'));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Primitive Command' } });
-    fireEvent.change(screen.getByLabelText('Primitive tap image ID'), { target: { value: tapImageId } });
-    fireEvent.change(screen.getByLabelText('Primitive confidence (0-1)'), { target: { value: `${tapConfidence}` } });
-    fireEvent.click(screen.getByText('Add primitive tap step'));
+    fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'PrimitiveTap' } });
+    fireEvent.change(screen.getByLabelText('Reference image *'), { target: { value: tapImageId } });
+    fireEvent.change(screen.getByLabelText('Confidence (0–1)'), { target: { value: `${tapConfidence}` } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => expect(createCommandMock).toHaveBeenCalled());

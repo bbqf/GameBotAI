@@ -101,8 +101,9 @@ describe('CommandsPage', () => {
     expect(await screen.findByText('Name is required')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Test Cmd' } });
-    fireEvent.change(screen.getByLabelText('Primitive tap image ID'), { target: { value: 'alliance_button' } });
-    fireEvent.click(screen.getByText('Add primitive tap step'));
+    fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'PrimitiveTap' } });
+    fireEvent.change(screen.getByLabelText('Reference image *'), { target: { value: 'alliance_button' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     createCommandMock.mockResolvedValue({} as any);
 
@@ -209,12 +210,13 @@ describe('CommandsPage', () => {
 
     fireEvent.click(screen.getByText('Create Command'));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Primitive Command' } });
-    fireEvent.change(screen.getByLabelText('Primitive tap image ID'), { target: { value: 'home_button' } });
-    fireEvent.change(screen.getByLabelText('Primitive confidence (0-1)'), { target: { value: '0.95' } });
-    fireEvent.change(screen.getByLabelText('Primitive offset X'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('Primitive offset Y'), { target: { value: '-1' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'PrimitiveTap' } });
+    fireEvent.change(screen.getByLabelText('Reference image *'), { target: { value: 'home_button' } });
+    fireEvent.change(screen.getByLabelText('Confidence (0–1)'), { target: { value: '0.95' } });
+    fireEvent.change(screen.getByLabelText('Offset X', { selector: '#tap-panel-offset-x' }), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Offset Y', { selector: '#tap-panel-offset-y' }), { target: { value: '-1' } });
 
-    fireEvent.click(screen.getByText('Add primitive tap step'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     createCommandMock.mockResolvedValue({} as any);
     fireEvent.click(screen.getByText('Save'));
@@ -237,25 +239,21 @@ describe('CommandsPage', () => {
     }));
   });
 
-  it('creates a command with a command step', async () => {
+  it('does not show Add command UI (Command step addition is removed, FR-001)', async () => {
     listCommandsMock.mockResolvedValue([{ id: 'existing-cmd', name: 'Existing Command', steps: [] } as any]);
 
     render(<CommandsPage />);
     await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText('Create Command'));
-    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Composite Command' } });
-    fireEvent.change(screen.getByLabelText('Add command'), { target: { value: 'existing-cmd' } });
-    fireEvent.click(screen.getByText('Add command step'));
+    expect(screen.queryByText('Add command step')).toBeNull();
+    expect(screen.queryByText('Add command')).toBeNull();
 
-    createCommandMock.mockResolvedValue({} as any);
-    fireEvent.click(screen.getByText('Save'));
-
-    await waitFor(() => expect(createCommandMock).toHaveBeenCalledWith({
-      name: 'Composite Command',
-      steps: [{ type: 'Command', targetId: 'existing-cmd', order: 0 }],
-      detection: undefined,
-    }));
+    // Action type selector lists only the three primitive actions — no Command option
+    const options = Array.from(
+      (screen.getByRole('combobox', { name: /action type/i }) as HTMLSelectElement).options
+    ).map((o) => o.value);
+    expect(options).not.toContain('Command');
   });
 
   it('creates a command with a wait for image step', async () => {
@@ -264,10 +262,11 @@ describe('CommandsPage', () => {
 
     fireEvent.click(screen.getByText('Create Command'));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Wait Command' } });
-    fireEvent.change(screen.getByLabelText('Wait image ID'), { target: { value: 'home_button' } });
-    fireEvent.change(screen.getByLabelText('Wait confidence (0-1)'), { target: { value: '0.91' } });
-    fireEvent.change(screen.getByLabelText('Wait timeout (ms)'), { target: { value: '2500' } });
-    fireEvent.click(screen.getByText('Add wait for image step'));
+    fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'WaitForImage' } });
+    fireEvent.change(screen.getByLabelText('Timeout (ms) *'), { target: { value: '2500' } });
+    fireEvent.change(screen.getByLabelText('Reference image (optional)'), { target: { value: 'home_button' } });
+    fireEvent.change(screen.getByLabelText('Confidence (0–1)'), { target: { value: '0.91' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     createCommandMock.mockResolvedValue({} as any);
     fireEvent.click(screen.getByText('Save'));
