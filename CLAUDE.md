@@ -6,4 +6,5 @@ shell commands, and other important information, read the current plan
 at specs/053-command-editor-rework/plan.md
 at specs/053-schedulable-sequences/plan.md
 at specs/054-key-swipe-actions/plan.md
+at specs/055-record-command/plan.md
 <!-- SPECKIT END -->
