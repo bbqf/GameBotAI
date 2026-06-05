@@ -7,4 +7,5 @@ at specs/053-command-editor-rework/plan.md
 at specs/053-schedulable-sequences/plan.md
 at specs/054-key-swipe-actions/plan.md
 at specs/055-record-command/plan.md
+at specs/056-simulate-recorded-step/plan.md
 <!-- SPECKIT END -->

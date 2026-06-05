@@ -16,7 +16,7 @@ type VisualStepPickerProps = {
 const SWIPE_THRESHOLD_PX = 10;
 
 export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, onCancel }) => {
-  const { state, openPicker, recapture, recordTap, recordKey, recordSwipe, removeStep, reorderSteps } =
+  const { state, openPicker, recapture, recordTap, recordKey, recordSwipe, removeStep, reorderSteps, runStep, runAll } =
     usePickerState();
   const focusRef = useRef<HTMLDivElement | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -56,6 +56,11 @@ export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, o
     const newIdx = state.steps.findIndex((s) => s.id === over.id);
     if (oldIdx === -1 || newIdx === -1) return;
     reorderSteps(arrayMove(state.steps, oldIdx, newIdx));
+  };
+
+  const handleConfirm = () => {
+    const cleanSteps = state.steps.map(({ executionStatus: _es, errorMessage: _em, ...rest }) => rest as RecordedStep);
+    onConfirm(cleanSteps);
   };
 
   return (
@@ -109,12 +114,23 @@ export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, o
           <div className="visual-step-picker__steps">
             <div className="visual-step-picker__steps-header">
               <span className="visual-step-picker__steps-label">Recorded steps ({state.steps.length})</span>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void runAll()}
+                disabled={state.steps.length === 0 || state.isExecuting}
+                aria-label="Run all steps"
+              >
+                Run all
+              </button>
             </div>
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <RecordedStepList
                 steps={state.steps}
+                isExecuting={state.isExecuting}
                 onRemove={removeStep}
                 onReorder={reorderSteps}
+                onRunStep={(id) => void runStep(id)}
               />
             </DndContext>
             {state.steps.length === 0 && (
@@ -132,7 +148,7 @@ export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, o
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => onConfirm(state.steps)}
+            onClick={handleConfirm}
             disabled={state.steps.length === 0}
           >
             Confirm ({state.steps.length})

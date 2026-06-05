@@ -128,6 +128,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
 
     // Apply by path so examples appear even if tags are missing or reordered
     ApplyCommandExamples(operation, path, method, context);
+    ApplyStepExamples(operation, path, method, context);
     ApplySequenceExamples(operation, path, method, context);
     ApplySessionExamples(operation, path, method, context);
     ApplyConfigurationExamples(operation, path, method, context);
@@ -186,6 +187,37 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetResponseExample(operation, "202", CommandEvaluateResponse(), context, typeof(CommandExecuteResponseSchema));
     }
   }
+
+  private static void ApplyStepExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Steps + "/execute", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Execute a single recorded step against the emulator";
+      SetRequestExample(operation, StepExecuteRequest(), context, typeof(GameBot.Service.Endpoints.ExecuteStepRequest));
+      SetResponseExample(operation, "202", StepExecuteResponse(), context, typeof(CommandExecuteResponseSchema));
+    }
+  }
+
+  private static OpenApiObject StepExecuteRequest() => new OpenApiObject {
+    ["step"] = new OpenApiObject {
+      ["type"] = new OpenApiString("KeyInput"),
+      ["order"] = new OpenApiInteger(0),
+      ["keyInput"] = new OpenApiObject {
+        ["key"] = new OpenApiString("HOME")
+      }
+    },
+    ["sessionId"] = new OpenApiNull()
+  };
+
+  private static OpenApiObject StepExecuteResponse() => new OpenApiObject {
+    ["accepted"] = new OpenApiInteger(1),
+    ["stepOutcomes"] = new OpenApiArray {
+      new OpenApiObject {
+        ["stepOrder"] = new OpenApiInteger(0),
+        ["status"] = new OpenApiString("executed"),
+        ["stepType"] = new OpenApiString("keyInput"),
+        ["reason"] = new OpenApiNull()
+      }
+    }
+  };
 
   private static void ApplySequenceExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Sequences)) {
