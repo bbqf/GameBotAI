@@ -44,7 +44,17 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
               : undefined,
             timeoutMs: s.waitForImage.timeoutMs !== undefined ? String(s.waitForImage.timeoutMs) : '1000',
           }
-          : undefined
+          : undefined,
+        keyInput: s.keyInput ? { key: s.keyInput.key } : undefined,
+        swipe: s.swipe
+          ? {
+            startX: String(s.swipe.startX),
+            startY: String(s.swipe.startY),
+            endX: String(s.swipe.endX),
+            endY: String(s.swipe.endY),
+            durationMs: s.swipe.durationMs !== undefined ? String(s.swipe.durationMs) : undefined,
+          }
+          : undefined,
       }));
   }
   return [];
@@ -102,6 +112,26 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
 
   if (s.type === 'EnsureGameRunning') {
     return { type: 'EnsureGameRunning', order: idx };
+  }
+
+  if (s.type === 'KeyInput') {
+    return { type: 'KeyInput', order: idx, keyInput: { key: s.keyInput?.key ?? '' } };
+  }
+
+  if (s.type === 'Swipe') {
+    return {
+      type: 'Swipe',
+      order: idx,
+      swipe: {
+        startX: s.swipe?.startX !== undefined && s.swipe.startX !== '' ? Number(s.swipe.startX) : 0,
+        startY: s.swipe?.startY !== undefined && s.swipe.startY !== '' ? Number(s.swipe.startY) : 0,
+        endX: s.swipe?.endX !== undefined && s.swipe.endX !== '' ? Number(s.swipe.endX) : 0,
+        endY: s.swipe?.endY !== undefined && s.swipe.endY !== '' ? Number(s.swipe.endY) : 0,
+        durationMs: s.swipe?.durationMs !== undefined && s.swipe.durationMs !== ''
+          ? Number(s.swipe.durationMs)
+          : undefined,
+      },
+    };
   }
 
   return {
@@ -266,7 +296,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           next.steps = 'Wait for image timeout must be a non-negative integer';
           break;
         }
-      } else if (step.type !== 'EnsureGameRunning' && !step.targetId?.trim()) {
+      } else if (step.type === 'Command' && !step.targetId?.trim()) {
         next.steps = 'Command steps require a target';
         break;
       }

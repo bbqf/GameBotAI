@@ -2,6 +2,38 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace GameBot.Service.Endpoints.Dto {
+  internal sealed class DetectAllRequest {
+    [JsonPropertyName("captureId")]
+    public string? CaptureId { get; set; }
+  }
+
+  internal sealed class DetectAllMatch {
+    [JsonPropertyName("imageId")]
+    public string ImageId { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageName")]
+    public string ImageName { get; set; } = string.Empty;
+
+    [JsonPropertyName("x")]
+    public int X { get; set; }
+
+    [JsonPropertyName("y")]
+    public int Y { get; set; }
+
+    [JsonPropertyName("width")]
+    public int Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public int Height { get; set; }
+
+    [JsonPropertyName("confidence")]
+    public double Confidence { get; set; }
+  }
+
+  internal sealed class DetectAllResponse {
+    [JsonPropertyName("matches")]
+    public System.Collections.ObjectModel.Collection<DetectAllMatch> Matches { get; set; } = new();
+  }
   internal sealed class DetectRequest {
     [JsonPropertyName("referenceImageId")]
     public string? ReferenceImageId { get; set; }

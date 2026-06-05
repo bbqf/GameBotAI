@@ -169,6 +169,35 @@ export const fetchEmulatorScreenshot = async (): Promise<EmulatorScreenshot> => 
   return { captureId, blob };
 };
 
+export type DetectAllMatch = {
+  imageId: string;
+  imageName: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  confidence: number;
+};
+
+export type DetectAllResponse = {
+  matches: DetectAllMatch[];
+};
+
+export const detectAll = async (captureId: string): Promise<DetectAllMatch[]> => {
+  const res = await fetch(buildApiUrl('/api/images/detect-all'), {
+    method: 'POST',
+    headers: buildAuthHeaders(true),
+    body: JSON.stringify({ captureId })
+  });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => undefined);
+    const message = (payload?.message ?? payload?.error?.message ?? payload?.error?.code) || `HTTP ${res.status}`;
+    throw new ApiError(res.status, message, undefined, payload);
+  }
+  const data: DetectAllResponse = await res.json();
+  return data.matches ?? [];
+};
+
 export const cropImageFromCapture = async (request: CropRequest): Promise<CropResponse> => {
   const res = await fetch(buildApiUrl('/api/images/crop'), {
     method: 'POST',

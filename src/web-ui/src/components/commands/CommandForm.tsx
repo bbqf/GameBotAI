@@ -12,6 +12,7 @@ import { WaitForImagePanel } from './WaitForImagePanel';
 import { EnsureGameRunningPanel } from './EnsureGameRunningPanel';
 import { KeyInputPanel } from './KeyInputPanel';
 import { SwipePanel } from './SwipePanel';
+import { VisualStepPicker } from './VisualStepPicker/VisualStepPicker';
 import './CommandForm.css';
 
 export type StepEntry = {
@@ -130,6 +131,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const stepItems = useMemo(() => toStepItems(value.steps, commandOptions), [value.steps, commandOptions]);
@@ -228,12 +230,61 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         </div>
       </FormSection>
 
+      {pickerOpen && (
+        <VisualStepPicker
+          onConfirm={(recordedSteps) => {
+            const newEntries: StepEntry[] = recordedSteps.map((rs) => {
+              if (rs.type === 'PrimitiveTap') {
+                return {
+                  id: makeId(),
+                  type: 'PrimitiveTap' as const,
+                  primitiveTap: {
+                    detectionTarget: {
+                      referenceImageId: rs.imageId,
+                      offsetX: String(rs.offsetX),
+                      offsetY: String(rs.offsetY),
+                    },
+                  },
+                };
+              }
+              if (rs.type === 'KeyInput') {
+                return { id: makeId(), type: 'KeyInput' as const, keyInput: { key: rs.key } };
+              }
+              return {
+                id: makeId(),
+                type: 'Swipe' as const,
+                swipe: {
+                  startX: String(rs.startX),
+                  startY: String(rs.startY),
+                  endX: String(rs.endX),
+                  endY: String(rs.endY),
+                  durationMs: String(rs.durationMs),
+                },
+              };
+            });
+            onChange({ ...value, steps: [...value.steps, ...newEntries] });
+            setPickerOpen(false);
+          }}
+          onCancel={() => setPickerOpen(false)}
+        />
+      )}
+
       <FormSection title="Steps" description="Select an action type to add or edit steps." id="command-steps">
         <ActionTypeSelector
           value={pendingActionType}
           onChange={handleActionTypeChange}
           disabled={submitting || loading}
         />
+        <div className="command-form__record-row">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setPickerOpen(true)}
+            disabled={submitting || loading}
+          >
+            Record steps…
+          </button>
+        </div>
 
         {pendingActionType === 'PrimitiveTap' && (
           <TapPanel
