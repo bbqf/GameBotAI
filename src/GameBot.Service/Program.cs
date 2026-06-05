@@ -394,6 +394,7 @@ app.MapSessionEndpoints();
 app.MapGameEndpoints();
 // Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
+app.MapStepEndpoints();
 app.MapQueueEndpoints();
 app.MapQueueTemplateEndpoints();
 // Triggers endpoints (re-added after refactor to support direct CRUD)

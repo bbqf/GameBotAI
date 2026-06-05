@@ -31,27 +31,27 @@ jest.mock('@dnd-kit/utilities', () => ({
 }));
 
 const steps: RecordedStep[] = [
-  { id: 'a', type: 'PrimitiveTap', imageId: 'img1', offsetX: 5, offsetY: -3, label: 'img1 (+5, -3)' },
-  { id: 'b', type: 'KeyInput', key: 'ENTER', label: 'Key: ENTER' },
+  { id: 'a', type: 'PrimitiveTap', imageId: 'img1', offsetX: 5, offsetY: -3, label: 'img1 (+5, -3)', executionStatus: 'idle' },
+  { id: 'b', type: 'KeyInput', key: 'ENTER', label: 'Key: ENTER', executionStatus: 'idle' },
 ];
 
 describe('RecordedStepList', () => {
   it('renders a label for each step', () => {
-    render(<RecordedStepList steps={steps} onRemove={jest.fn()} onReorder={jest.fn()} />);
+    render(<RecordedStepList steps={steps} isExecuting={false} onRemove={jest.fn()} onReorder={jest.fn()} onRunStep={jest.fn()} />);
     expect(screen.getByText('img1 (+5, -3)')).toBeInTheDocument();
     expect(screen.getByText('Key: ENTER')).toBeInTheDocument();
   });
 
   it('calls onRemove with the correct step id when delete is clicked', () => {
     const onRemove = jest.fn();
-    render(<RecordedStepList steps={steps} onRemove={onRemove} onReorder={jest.fn()} />);
+    render(<RecordedStepList steps={steps} isExecuting={false} onRemove={onRemove} onReorder={jest.fn()} onRunStep={jest.fn()} />);
     const removeButtons = screen.getAllByRole('button', { name: /remove step/i });
     fireEvent.click(removeButtons[0]);
     expect(onRemove).toHaveBeenCalledWith('a');
   });
 
   it('renders empty list without errors', () => {
-    render(<RecordedStepList steps={[]} onRemove={jest.fn()} onReorder={jest.fn()} />);
+    render(<RecordedStepList steps={[]} isExecuting={false} onRemove={jest.fn()} onReorder={jest.fn()} onRunStep={jest.fn()} />);
     expect(screen.getByRole('list')).toBeInTheDocument();
   });
 });

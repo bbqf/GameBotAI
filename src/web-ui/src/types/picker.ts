@@ -1,3 +1,10 @@
+export type StepExecutionStatus = 'idle' | 'running' | 'success' | 'error';
+
+export type StepRunResult = {
+  status: 'executed' | 'timeout' | 'error' | string;
+  reason?: string;
+};
+
 export type RecordedPrimitiveTapStep = {
   id: string;
   type: 'PrimitiveTap';
@@ -5,6 +12,8 @@ export type RecordedPrimitiveTapStep = {
   offsetX: number;
   offsetY: number;
   label: string;
+  executionStatus: StepExecutionStatus;
+  errorMessage?: string;
 };
 
 export type RecordedKeyInputStep = {
@@ -12,6 +21,8 @@ export type RecordedKeyInputStep = {
   type: 'KeyInput';
   key: string;
   label: string;
+  executionStatus: StepExecutionStatus;
+  errorMessage?: string;
 };
 
 export type RecordedSwipeStep = {
@@ -23,6 +34,8 @@ export type RecordedSwipeStep = {
   endY: number;
   durationMs: number;
   label: string;
+  executionStatus: StepExecutionStatus;
+  errorMessage?: string;
 };
 
 export type RecordedStep = RecordedPrimitiveTapStep | RecordedKeyInputStep | RecordedSwipeStep;
@@ -48,4 +61,5 @@ export type PickerState = {
   matches: ImageMatchResult[];
   steps: RecordedStep[];
   errorMessage: string | null;
+  isExecuting: boolean;
 };

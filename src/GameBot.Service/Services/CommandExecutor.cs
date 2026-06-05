@@ -151,6 +151,31 @@ internal sealed class CommandExecutor : ICommandExecutor {
     return new CommandEvaluationExecutionResult(0, res.Status, res.Reason, Array.Empty<PrimitiveTapStepOutcome>());
   }
 
+  public async Task<CommandForceExecutionResult> ForceExecuteStepAsync(string? sessionId, CommandStep step, CancellationToken ct = default) {
+    string resolvedSessionId;
+    if (!string.IsNullOrWhiteSpace(sessionId)) {
+      resolvedSessionId = sessionId;
+    }
+    else {
+      var runningSessions = _sessions.ListSessions()
+        .Where(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
+        .ToList();
+      if (runningSessions.Count == 1) {
+        resolvedSessionId = runningSessions[0].Id;
+      }
+      else {
+        throw new InvalidOperationException("missing_session_context");
+      }
+    }
+
+    var session = _sessions.GetSession(resolvedSessionId) ?? throw new KeyNotFoundException("Session not found");
+    if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
+      throw new InvalidOperationException("not_running");
+
+    var (accepted, outcome) = await ExecuteOneStepAsync(resolvedSessionId, step, null, ct).ConfigureAwait(false);
+    return new CommandForceExecutionResult(accepted, new[] { outcome });
+  }
+
   private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, CancellationToken ct) {
     if (!visited.Add(commandId))
       throw new InvalidOperationException("command_cycle_detected");
@@ -162,143 +187,145 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     var totalAccepted = 0;
     foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
-      if (step.Type == CommandStepType.WaitForImage) {
-        stepOutcomes.Add(await ExecuteWaitForImageStepAsync(step, ct).ConfigureAwait(false));
+      if (step.Type == CommandStepType.Command) {
+        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, ct).ConfigureAwait(false);
         continue;
       }
 
-      if (step.Type == CommandStepType.EnsureGameRunning) {
-        var result = _ensureGameRunning is not null
-          ? await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false)
-          : new EnsureGameRunningActionResult(EnsureGameRunningOutcome.PlatformUnsupported);
-
-        if (result.IsSuccess) {
-          totalAccepted++;
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", result.ReasonCode, null, null, StepType: "ensure-game-running"));
-        }
-        else {
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
-        }
-        continue;
-      }
-
-      if (step.Type == CommandStepType.KeyInput) {
-        if (step.KeyInput is null) {
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "key_input_missing_config", null, null, StepType: "key"));
-          continue;
-        }
-        var keyArgs = new Dictionary<string, object> { ["key"] = step.KeyInput.Key };
-        var keyAction = new GameBot.Emulator.Session.InputAction("key", keyArgs, null, null);
-        totalAccepted += await _sessions.SendInputsAsync(sessionId, new[] { keyAction }, ct).ConfigureAwait(false);
-        stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "key"));
-        continue;
-      }
-
-      if (step.Type == CommandStepType.Swipe) {
-        if (step.Swipe is null) {
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "swipe_missing_config", null, null, StepType: "swipe"));
-          continue;
-        }
-        var swipeArgs = new Dictionary<string, object> {
-          ["x1"] = step.Swipe.StartX,
-          ["y1"] = step.Swipe.StartY,
-          ["x2"] = step.Swipe.EndX,
-          ["y2"] = step.Swipe.EndY
-        };
-        if (step.Swipe.DurationMs.HasValue) {
-          swipeArgs["durationMs"] = step.Swipe.DurationMs.Value;
-        }
-        var swipeAction = new GameBot.Emulator.Session.InputAction("swipe", swipeArgs, null, null);
-        totalAccepted += await _sessions.SendInputsAsync(sessionId, new[] { swipeAction }, ct).ConfigureAwait(false);
-        stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "swipe"));
-        continue;
-      }
-
-      if (step.Type == CommandStepType.PrimitiveTap) {
-        // Backward-compatible fallback: older commands may keep detection at command level.
-        var primitiveDetection = step.PrimitiveTap?.DetectionTarget ?? cmd.Detection;
-        if (primitiveDetection is null) {
-          Log.DetectionSkip(_logger, "primitive_tap_missing_detection");
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_missing_detection", null, null));
-          continue;
-        }
-
-        if (!OperatingSystem.IsWindows()) {
-          Log.DetectionSkip(_logger, "primitive_tap_detection_windows_only");
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_detection_windows_only", null, null));
-          continue;
-        }
-
-        var cancelCycleTracker = 0;
-        try {
-          var screenSrc = _screen;
-          var images = _images;
-          var matcher = _matcher;
-          if (screenSrc is null || images is null || matcher is null) {
-            Log.DetectionSkip(_logger, "services_unavailable");
-            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "services_unavailable", null, null));
-            continue;
-          }
-
-          if (!images.TryGet(primitiveDetection.ReferenceImageId, out var templateBmp) || templateBmp is null) {
-            Log.DetectionSkip(_logger, "template_not_found");
-            stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "template_not_found", null, null));
-            continue;
-          }
-
-          var baseWaitMs = _appConfig.CaptureIntervalMs;
-          var retryCount = _appConfig.TapRetryCount;
-          var progression = _appConfig.TapRetryProgression;
-          var currentWaitMs = (double)baseWaitMs;
-          var detected = false;
-
-          Log.TapRetryWaiting(_logger, step.Order, baseWaitMs, 0);
-          await Task.Delay(baseWaitMs, ct).ConfigureAwait(false);
-
-          detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, stepOutcomes, ref totalAccepted, 0, ct);
-
-          if (!detected) {
-            Log.TapRetryNotDetected(_logger, step.Order, 0);
-
-            for (int retry = 0; retry < retryCount; retry++) {
-              cancelCycleTracker = retry + 1;
-              var waitMs = (int)currentWaitMs;
-              Log.TapRetryWaiting(_logger, step.Order, waitMs, cancelCycleTracker);
-              await Task.Delay(waitMs, ct).ConfigureAwait(false);
-              currentWaitMs *= progression;
-
-              detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, stepOutcomes, ref totalAccepted, cancelCycleTracker, ct);
-              if (detected) {
-                Log.TapRetryDetected(_logger, step.Order, cancelCycleTracker);
-                break;
-              }
-
-              Log.TapRetryNotDetected(_logger, step.Order, cancelCycleTracker);
-            }
-
-            if (!detected) {
-              Log.TapRetryExhausted(_logger, step.Order, retryCount);
-              stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", $"detection_failed_after_{retryCount}_retries", null, null));
-            }
-          }
-        }
-        catch (OperationCanceledException) {
-          Log.TapRetryCancelled(_logger, step.Order, cancelCycleTracker);
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "cancelled", $"cancelled_during_retry_{cancelCycleTracker}", null, null));
-        }
-        catch (Exception ex) {
-          Log.DetectionError(_logger, ex);
-          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", "primitive_tap_exception", null, null));
-        }
-
-        continue;
-      }
-
-      totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, ct).ConfigureAwait(false);
+      var (accepted, outcome) = await ExecuteOneStepAsync(sessionId, step, cmd.Detection, ct).ConfigureAwait(false);
+      totalAccepted += accepted;
+      stepOutcomes.Add(outcome);
     }
 
     visited.Remove(commandId);
     return totalAccepted;
+  }
+
+  private async Task<(int Accepted, PrimitiveTapStepOutcome Outcome)> ExecuteOneStepAsync(
+      string sessionId,
+      CommandStep step,
+      DetectionTarget? commandLevelDetection,
+      CancellationToken ct) {
+    if (step.Type == CommandStepType.WaitForImage) {
+      return (0, await ExecuteWaitForImageStepAsync(step, ct).ConfigureAwait(false));
+    }
+
+    if (step.Type == CommandStepType.EnsureGameRunning) {
+      var result = _ensureGameRunning is not null
+        ? await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false)
+        : new EnsureGameRunningActionResult(EnsureGameRunningOutcome.PlatformUnsupported);
+
+      return result.IsSuccess
+        ? (1, new PrimitiveTapStepOutcome(step.Order, "executed", result.ReasonCode, null, null, StepType: "ensure-game-running"))
+        : (0, new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
+    }
+
+    if (step.Type == CommandStepType.KeyInput) {
+      if (step.KeyInput is null) {
+        return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "key_input_missing_config", null, null, StepType: "key"));
+      }
+      var keyArgs = new Dictionary<string, object> { ["key"] = step.KeyInput.Key };
+      var keyAction = new GameBot.Emulator.Session.InputAction("key", keyArgs, null, null);
+      var keyAccepted = await _sessions.SendInputsAsync(sessionId, new[] { keyAction }, ct).ConfigureAwait(false);
+      return (keyAccepted, new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "key"));
+    }
+
+    if (step.Type == CommandStepType.Swipe) {
+      if (step.Swipe is null) {
+        return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "swipe_missing_config", null, null, StepType: "swipe"));
+      }
+      var swipeArgs = new Dictionary<string, object> {
+        ["x1"] = step.Swipe.StartX,
+        ["y1"] = step.Swipe.StartY,
+        ["x2"] = step.Swipe.EndX,
+        ["y2"] = step.Swipe.EndY
+      };
+      if (step.Swipe.DurationMs.HasValue) {
+        swipeArgs["durationMs"] = step.Swipe.DurationMs.Value;
+      }
+      var swipeAction = new GameBot.Emulator.Session.InputAction("swipe", swipeArgs, null, null);
+      var swipeAccepted = await _sessions.SendInputsAsync(sessionId, new[] { swipeAction }, ct).ConfigureAwait(false);
+      return (swipeAccepted, new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "swipe"));
+    }
+
+    if (step.Type == CommandStepType.PrimitiveTap) {
+      // Backward-compatible fallback: older commands may keep detection at command level.
+      var primitiveDetection = step.PrimitiveTap?.DetectionTarget ?? commandLevelDetection;
+      if (primitiveDetection is null) {
+        Log.DetectionSkip(_logger, "primitive_tap_missing_detection");
+        return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_missing_detection", null, null));
+      }
+
+      if (!OperatingSystem.IsWindows()) {
+        Log.DetectionSkip(_logger, "primitive_tap_detection_windows_only");
+        return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "primitive_tap_detection_windows_only", null, null));
+      }
+
+      var cancelCycleTracker = 0;
+      try {
+        var screenSrc = _screen;
+        var images = _images;
+        var matcher = _matcher;
+        if (screenSrc is null || images is null || matcher is null) {
+          Log.DetectionSkip(_logger, "services_unavailable");
+          return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "services_unavailable", null, null));
+        }
+
+        if (!images.TryGet(primitiveDetection.ReferenceImageId, out var templateBmp) || templateBmp is null) {
+          Log.DetectionSkip(_logger, "template_not_found");
+          return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "template_not_found", null, null));
+        }
+
+        var baseWaitMs = _appConfig.CaptureIntervalMs;
+        var retryCount = _appConfig.TapRetryCount;
+        var progression = _appConfig.TapRetryProgression;
+        var currentWaitMs = (double)baseWaitMs;
+
+        Log.TapRetryWaiting(_logger, step.Order, baseWaitMs, 0);
+        await Task.Delay(baseWaitMs, ct).ConfigureAwait(false);
+
+        var tapOutcomes = new List<PrimitiveTapStepOutcome>();
+        var tapAccepted = 0;
+        var detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, tapOutcomes, ref tapAccepted, 0, ct);
+
+        if (!detected) {
+          Log.TapRetryNotDetected(_logger, step.Order, 0);
+
+          for (int retry = 0; retry < retryCount; retry++) {
+            cancelCycleTracker = retry + 1;
+            var waitMs = (int)currentWaitMs;
+            Log.TapRetryWaiting(_logger, step.Order, waitMs, cancelCycleTracker);
+            await Task.Delay(waitMs, ct).ConfigureAwait(false);
+            currentWaitMs *= progression;
+
+            detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, tapOutcomes, ref tapAccepted, cancelCycleTracker, ct);
+            if (detected) {
+              Log.TapRetryDetected(_logger, step.Order, cancelCycleTracker);
+              break;
+            }
+
+            Log.TapRetryNotDetected(_logger, step.Order, cancelCycleTracker);
+          }
+
+          if (!detected) {
+            Log.TapRetryExhausted(_logger, step.Order, retryCount);
+            return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", $"detection_failed_after_{retryCount}_retries", null, null));
+          }
+        }
+
+        return (tapAccepted, tapOutcomes[0]);
+      }
+      catch (OperationCanceledException) {
+        Log.TapRetryCancelled(_logger, step.Order, cancelCycleTracker);
+        return (0, new PrimitiveTapStepOutcome(step.Order, "cancelled", $"cancelled_during_retry_{cancelCycleTracker}", null, null));
+      }
+      catch (Exception ex) {
+        Log.DetectionError(_logger, ex);
+        return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", "primitive_tap_exception", null, null));
+      }
+    }
+
+    throw new InvalidOperationException($"Step type {step.Type} cannot be executed as a standalone step");
   }
 
   private async Task<PrimitiveTapStepOutcome> ExecuteWaitForImageStepAsync(CommandStep step, CancellationToken ct) {

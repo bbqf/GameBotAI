@@ -1,7 +1,9 @@
 import { useCallback, useReducer, Dispatch } from 'react';
 import { ApiError } from '../../../lib/api';
 import { fetchEmulatorScreenshot, detectAll } from '../../../services/images';
-import type { PickerState, PickerStatus, RecordedStep, ImageMatchResult } from '../../../types/picker';
+import { executeStep } from '../../../services/commands';
+import type { PickerState, PickerStatus, RecordedStep, ImageMatchResult, StepRunResult } from '../../../types/picker';
+import { toCommandStepDto } from './stepUtils';
 
 const makeId = () =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -17,6 +19,7 @@ const initialState: PickerState = {
   matches: [],
   steps: [],
   errorMessage: null,
+  isExecuting: false,
 };
 
 type Action =
@@ -25,7 +28,10 @@ type Action =
   | { type: 'LOAD_ERROR'; message: string; keepScreenshot: boolean }
   | { type: 'ADD_STEP'; step: RecordedStep }
   | { type: 'REMOVE_STEP'; id: string }
-  | { type: 'REORDER_STEPS'; steps: RecordedStep[] };
+  | { type: 'REORDER_STEPS'; steps: RecordedStep[] }
+  | { type: 'RUN_STEP_START'; id: string }
+  | { type: 'RUN_STEP_COMPLETE'; id: string; result: StepRunResult }
+  | { type: 'RUN_ALL_DONE' };
 
 function reducer(state: PickerState, action: Action): PickerState {
   switch (action.type) {
@@ -61,6 +67,36 @@ function reducer(state: PickerState, action: Action): PickerState {
       return { ...state, steps: state.steps.filter((s) => s.id !== action.id) };
     case 'REORDER_STEPS':
       return { ...state, steps: action.steps };
+    case 'RUN_STEP_START':
+      return {
+        ...state,
+        isExecuting: true,
+        steps: state.steps.map((s) =>
+          s.id === action.id ? { ...s, executionStatus: 'running' as const } : s
+        ),
+      };
+    case 'RUN_STEP_COMPLETE': {
+      const isSuccess = action.result.status === 'executed';
+      return {
+        ...state,
+        isExecuting: false,
+        steps: state.steps.map((s) => {
+          if (s.id !== action.id) return s;
+          if (isSuccess) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { errorMessage: _e, ...rest } = s as RecordedStep & { errorMessage?: string };
+            return { ...rest, executionStatus: 'success' as const };
+          }
+          return {
+            ...s,
+            executionStatus: 'error' as const,
+            errorMessage: action.result.reason ?? 'Execution failed',
+          };
+        }),
+      };
+    }
+    case 'RUN_ALL_DONE':
+      return { ...state, isExecuting: false };
     default:
       return state;
   }
@@ -135,6 +171,8 @@ export type UsePickerState = {
   recordSwipe: (startX: number, startY: number, endX: number, endY: number, durationMs: number) => void;
   removeStep: (id: string) => void;
   reorderSteps: (steps: RecordedStep[]) => void;
+  runStep: (id: string) => Promise<void>;
+  runAll: () => Promise<void>;
 };
 
 export function usePickerState(): UsePickerState {
@@ -169,6 +207,7 @@ export function usePickerState(): UsePickerState {
         offsetX,
         offsetY,
         label,
+        executionStatus: 'idle',
       };
       dispatch({ type: 'ADD_STEP', step });
     },
@@ -183,6 +222,7 @@ export function usePickerState(): UsePickerState {
         type: 'KeyInput',
         key: adbKey,
         label: `Key: ${adbKey}`,
+        executionStatus: 'idle',
       };
       dispatch({ type: 'ADD_STEP', step });
     },
@@ -201,6 +241,7 @@ export function usePickerState(): UsePickerState {
         endY,
         durationMs,
         label: `Swipe (${startX},${startY})→(${endX},${endY}) ${durationMs}ms`,
+        executionStatus: 'idle',
       };
       dispatch({ type: 'ADD_STEP', step });
     },
@@ -215,5 +256,51 @@ export function usePickerState(): UsePickerState {
     dispatch({ type: 'REORDER_STEPS', steps });
   }, []);
 
-  return { state, openPicker, recapture, recordTap, recordKey, recordSwipe, removeStep, reorderSteps };
+  const runStep = useCallback(
+    async (id: string): Promise<void> => {
+      if (state.isExecuting) return;
+      const step = state.steps.find((s) => s.id === id);
+      if (!step) return;
+      dispatch({ type: 'RUN_STEP_START', id });
+      try {
+        const dto = toCommandStepDto(step);
+        const response = await executeStep(dto);
+        const outcome = response.stepOutcomes?.[0];
+        const result: StepRunResult = {
+          status: outcome?.status ?? 'error',
+          reason: outcome?.reason,
+        };
+        dispatch({ type: 'RUN_STEP_COMPLETE', id, result });
+      } catch (e: unknown) {
+        const reason = e instanceof Error ? e.message : 'Execution failed';
+        dispatch({ type: 'RUN_STEP_COMPLETE', id, result: { status: 'error', reason } });
+      }
+    },
+    [state.isExecuting, state.steps]
+  );
+
+  const runAll = useCallback(async (): Promise<void> => {
+    if (state.isExecuting) return;
+    for (const step of state.steps) {
+      dispatch({ type: 'RUN_STEP_START', id: step.id });
+      try {
+        const dto = toCommandStepDto(step);
+        const response = await executeStep(dto);
+        const outcome = response.stepOutcomes?.[0];
+        const result: StepRunResult = {
+          status: outcome?.status ?? 'error',
+          reason: outcome?.reason,
+        };
+        dispatch({ type: 'RUN_STEP_COMPLETE', id: step.id, result });
+        if (result.status !== 'executed') break;
+      } catch (e: unknown) {
+        const reason = e instanceof Error ? e.message : 'Execution failed';
+        dispatch({ type: 'RUN_STEP_COMPLETE', id: step.id, result: { status: 'error', reason } });
+        break;
+      }
+    }
+    dispatch({ type: 'RUN_ALL_DONE' });
+  }, [state.isExecuting, state.steps]);
+
+  return { state, openPicker, recapture, recordTap, recordKey, recordSwipe, removeStep, reorderSteps, runStep, runAll };
 }

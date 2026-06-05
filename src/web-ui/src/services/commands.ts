@@ -92,3 +92,6 @@ export const forceExecuteCommand = (id: string, sessionId?: string) => {
   const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
   return postJson<CommandExecuteResponse>(`${base}/${id}/force-execute${query}`, {});
 };
+
+export const executeStep = (step: CommandStepDto, sessionId?: string) =>
+  postJson<CommandExecuteResponse>('/api/steps/execute', { step, sessionId });
