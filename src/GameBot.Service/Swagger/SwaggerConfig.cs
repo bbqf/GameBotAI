@@ -348,6 +348,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
     }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetectAll)) {
+      operation.Summary ??= "Detect all reference image matches against a captured screenshot";
+      SetRequestExample(operation, ImageDetectAllRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectAllRequest));
+      SetResponseExample(operation, "200", ImageDetectAllResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectAllResponse));
+    }
   }
 
   private static void ApplyGameExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
@@ -552,6 +557,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       operation.Summary ??= "Detect reference image matches";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetectAll)) {
+      operation.Summary ??= "Detect all reference image matches against a captured screenshot";
+      SetRequestExample(operation, ImageDetectAllRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectAllRequest));
+      SetResponseExample(operation, "200", ImageDetectAllResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectAllResponse));
     }
   }
 
@@ -1144,6 +1154,24 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["threshold"] = new OpenApiDouble(0.85),
     ["maxResults"] = new OpenApiInteger(3),
     ["overlap"] = new OpenApiDouble(0.1)
+  };
+
+  private static OpenApiObject ImageDetectAllRequest() => new OpenApiObject {
+    ["captureId"] = new OpenApiString("cap_abc123")
+  };
+
+  private static OpenApiObject ImageDetectAllResponse() => new OpenApiObject {
+    ["matches"] = new OpenApiArray {
+      new OpenApiObject {
+        ["imageId"] = new OpenApiString("start-button"),
+        ["imageName"] = new OpenApiString("start-button"),
+        ["x"] = new OpenApiInteger(120),
+        ["y"] = new OpenApiInteger(45),
+        ["width"] = new OpenApiInteger(80),
+        ["height"] = new OpenApiInteger(32),
+        ["confidence"] = new OpenApiDouble(0.94)
+      }
+    }
   };
 
   private static OpenApiObject ImageDetectResponse() => new OpenApiObject {
