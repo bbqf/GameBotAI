@@ -5,4 +5,5 @@ For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
 at specs/053-command-editor-rework/plan.md
 at specs/053-schedulable-sequences/plan.md
+at specs/054-key-swipe-actions/plan.md
 <!-- SPECKIT END -->

@@ -182,6 +182,38 @@ internal sealed class CommandExecutor : ICommandExecutor {
         continue;
       }
 
+      if (step.Type == CommandStepType.KeyInput) {
+        if (step.KeyInput is null) {
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "key_input_missing_config", null, null, StepType: "key"));
+          continue;
+        }
+        var keyArgs = new Dictionary<string, object> { ["key"] = step.KeyInput.Key };
+        var keyAction = new GameBot.Emulator.Session.InputAction("key", keyArgs, null, null);
+        totalAccepted += await _sessions.SendInputsAsync(sessionId, new[] { keyAction }, ct).ConfigureAwait(false);
+        stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "key"));
+        continue;
+      }
+
+      if (step.Type == CommandStepType.Swipe) {
+        if (step.Swipe is null) {
+          stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "swipe_missing_config", null, null, StepType: "swipe"));
+          continue;
+        }
+        var swipeArgs = new Dictionary<string, object> {
+          ["x1"] = step.Swipe.StartX,
+          ["y1"] = step.Swipe.StartY,
+          ["x2"] = step.Swipe.EndX,
+          ["y2"] = step.Swipe.EndY
+        };
+        if (step.Swipe.DurationMs.HasValue) {
+          swipeArgs["durationMs"] = step.Swipe.DurationMs.Value;
+        }
+        var swipeAction = new GameBot.Emulator.Session.InputAction("swipe", swipeArgs, null, null);
+        totalAccepted += await _sessions.SendInputsAsync(sessionId, new[] { swipeAction }, ct).ConfigureAwait(false);
+        stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "swipe"));
+        continue;
+      }
+
       if (step.Type == CommandStepType.PrimitiveTap) {
         // Backward-compatible fallback: older commands may keep detection at command level.
         var primitiveDetection = step.PrimitiveTap?.DetectionTarget ?? cmd.Detection;

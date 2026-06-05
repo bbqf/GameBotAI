@@ -26,6 +26,8 @@ internal static class CommandsEndpoints {
     CommandStepTypeDto.Command => CommandStepType.Command,
     CommandStepTypeDto.WaitForImage => CommandStepType.WaitForImage,
     CommandStepTypeDto.EnsureGameRunning => CommandStepType.EnsureGameRunning,
+    CommandStepTypeDto.KeyInput => CommandStepType.KeyInput,
+    CommandStepTypeDto.Swipe => CommandStepType.Swipe,
     _ => CommandStepType.PrimitiveTap
   };
 
@@ -33,6 +35,8 @@ internal static class CommandsEndpoints {
     CommandStepType.Command => CommandStepTypeDto.Command,
     CommandStepType.WaitForImage => CommandStepTypeDto.WaitForImage,
     CommandStepType.EnsureGameRunning => CommandStepTypeDto.EnsureGameRunning,
+    CommandStepType.KeyInput => CommandStepTypeDto.KeyInput,
+    CommandStepType.Swipe => CommandStepTypeDto.Swipe,
     _ => CommandStepTypeDto.PrimitiveTap
   };
 
@@ -59,6 +63,26 @@ internal static class CommandsEndpoints {
       DetectionTarget = ToDomainDetection(dto.DetectionTarget),
       TimeoutMs = timeoutMs
     };
+  }
+
+  private static KeyInputConfig? ToDomainKeyInput(KeyInputConfigDto? dto) {
+    if (dto is null || string.IsNullOrWhiteSpace(dto.Key)) return null;
+    return new KeyInputConfig { Key = dto.Key };
+  }
+
+  private static KeyInputConfigDto? ToResponseKeyInput(KeyInputConfig? cfg) {
+    if (cfg is null) return null;
+    return new KeyInputConfigDto { Key = cfg.Key };
+  }
+
+  private static SwipeConfig? ToDomainSwipe(SwipeConfigDto? dto) {
+    if (dto is null) return null;
+    return new SwipeConfig { StartX = dto.StartX, StartY = dto.StartY, EndX = dto.EndX, EndY = dto.EndY, DurationMs = dto.DurationMs };
+  }
+
+  private static SwipeConfigDto? ToResponseSwipe(SwipeConfig? cfg) {
+    if (cfg is null) return null;
+    return new SwipeConfigDto { StartX = cfg.StartX, StartY = cfg.StartY, EndX = cfg.EndX, EndY = cfg.EndY, DurationMs = cfg.DurationMs };
   }
 
   private static WaitForImageConfigDto? ToResponseWaitForImage(WaitForImageConfig? cfg) {
@@ -98,6 +122,23 @@ internal static class CommandsEndpoints {
       return null;
     }
 
+    if (step.Type == CommandStepTypeDto.KeyInput) {
+      if (step.KeyInput is null || string.IsNullOrWhiteSpace(step.KeyInput.Key)) {
+        return "keyInput.key is required for KeyInput steps";
+      }
+      return null;
+    }
+
+    if (step.Type == CommandStepTypeDto.Swipe) {
+      if (step.Swipe is null) {
+        return "swipe is required for Swipe steps";
+      }
+      if (step.Swipe.DurationMs is < 0) {
+        return "swipe.durationMs must be greater than or equal to zero";
+      }
+      return null;
+    }
+
     if (string.IsNullOrWhiteSpace(step.TargetId)) {
       return "targetId is required for Command steps";
     }
@@ -109,6 +150,8 @@ internal static class CommandsEndpoints {
     TargetId = s.TargetId ?? string.Empty,
     PrimitiveTap = s.Type == CommandStepTypeDto.PrimitiveTap ? ToDomainPrimitiveTap(s.PrimitiveTap) : null,
     WaitForImage = s.Type == CommandStepTypeDto.WaitForImage ? ToDomainWaitForImage(s.WaitForImage) : null,
+    KeyInput = s.Type == CommandStepTypeDto.KeyInput ? ToDomainKeyInput(s.KeyInput) : null,
+    Swipe = s.Type == CommandStepTypeDto.Swipe ? ToDomainSwipe(s.Swipe) : null,
     Order = s.Order
   };
 
@@ -117,6 +160,8 @@ internal static class CommandsEndpoints {
     TargetId = s.Type == CommandStepType.Command ? s.TargetId : null,
     PrimitiveTap = s.Type == CommandStepType.PrimitiveTap ? ToResponsePrimitiveTap(s.PrimitiveTap) : null,
     WaitForImage = s.Type == CommandStepType.WaitForImage ? ToResponseWaitForImage(s.WaitForImage) : null,
+    KeyInput = s.Type == CommandStepType.KeyInput ? ToResponseKeyInput(s.KeyInput) : null,
+    Swipe = s.Type == CommandStepType.Swipe ? ToResponseSwipe(s.Swipe) : null,
     Order = s.Order
   };
 

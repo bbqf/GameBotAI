@@ -10,11 +10,13 @@ import { ActionTypeSelector, PrimitiveActionType } from './ActionTypeSelector';
 import { TapPanel } from './TapPanel';
 import { WaitForImagePanel } from './WaitForImagePanel';
 import { EnsureGameRunningPanel } from './EnsureGameRunningPanel';
+import { KeyInputPanel } from './KeyInputPanel';
+import { SwipePanel } from './SwipePanel';
 import './CommandForm.css';
 
 export type StepEntry = {
   id: string;
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'KeyInput' | 'Swipe';
   targetId?: string;
   primitiveTap?: {
     detectionTarget: DetectionTargetForm;
@@ -23,6 +25,8 @@ export type StepEntry = {
     detectionTarget?: DetectionTargetForm;
     timeoutMs?: string;
   };
+  keyInput?: { key: string };
+  swipe?: { startX: string; startY: string; endX: string; endY: string; durationMs?: string };
 };
 
 export type DetectionTargetForm = {
@@ -84,6 +88,22 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
       };
     }
 
+    if (step.type === 'KeyInput') {
+      return {
+        id: step.id,
+        label: `Key: ${step.keyInput?.key ?? ''}`,
+        description: undefined,
+      };
+    }
+
+    if (step.type === 'Swipe') {
+      const { startX = '0', startY = '0', endX = '0', endY = '0', durationMs } = step.swipe ?? {};
+      const desc = durationMs?.trim()
+        ? `(${startX},${startY}) → (${endX},${endY}), ${durationMs}ms`
+        : `(${startX},${startY}) → (${endX},${endY})`;
+      return { id: step.id, label: 'Swipe', description: desc };
+    }
+
     const targetId = step.targetId ?? '';
     const match = commandMap.get(targetId);
     return {
@@ -94,7 +114,7 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
   });
 };
 
-const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning']);
+const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning', 'KeyInput', 'Swipe']);
 
 export const CommandForm: React.FC<CommandFormProps> = ({
   value,
@@ -259,6 +279,29 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         {pendingActionType === 'EnsureGameRunning' && (
           <EnsureGameRunningPanel
             onConfirm={() => handlePanelConfirm({ type: 'EnsureGameRunning' })}
+            onCancel={handlePanelCancel}
+            disabled={submitting}
+          />
+        )}
+
+        {pendingActionType === 'KeyInput' && (
+          <KeyInputPanel
+            initialValue={editingStep?.keyInput}
+            onConfirm={(v) => handlePanelConfirm({ type: 'KeyInput', keyInput: { key: v.key } })}
+            onCancel={handlePanelCancel}
+            disabled={submitting}
+          />
+        )}
+
+        {pendingActionType === 'Swipe' && (
+          <SwipePanel
+            initialValue={editingStep?.swipe}
+            onConfirm={(v) =>
+              handlePanelConfirm({
+                type: 'Swipe',
+                swipe: { startX: v.startX, startY: v.startY, endX: v.endX, endY: v.endY, durationMs: v.durationMs },
+              })
+            }
             onCancel={handlePanelCancel}
             disabled={submitting}
           />

@@ -191,6 +191,14 @@
   margin-top: 2px;
 }
 
+.command-form .action-panel--key-input {
+  max-width: 420px;
+}
+
+.command-form .action-panel--swipe {
+  max-width: 480px;
+}
+
 @media (min-width: 1280px) {
   .command-form {
     padding: 20px 24px;
