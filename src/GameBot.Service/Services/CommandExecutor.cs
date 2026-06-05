@@ -543,7 +543,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
     if (x < 0 || y < 0 || x >= screenshotBmp.Width || y >= screenshotBmp.Height)
       return false;
 
-    var sessionInput = new GameBot.Emulator.Session.InputAction("tap", new Dictionary<string, object>(primitiveAction.Args), null, null);
+    // Use swipe-to-same-point so the tap has a hold duration; more reliable on slow emulators.
+    var tapArgs = new Dictionary<string, object> { ["x1"] = x, ["y1"] = y, ["x2"] = x, ["y2"] = y };
+    var sessionInput = new GameBot.Emulator.Session.InputAction("swipe", tapArgs, null, 200);
     var accepted = _sessions.SendInputsAsync(sessionId, new[] { sessionInput }, ct).GetAwaiter().GetResult();
     totalAccepted += accepted;
 

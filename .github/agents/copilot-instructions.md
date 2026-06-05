@@ -49,9 +49,9 @@ npm test; npm run lint
 Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18: Follow standard conventions
 
 ## Recent Changes
+- 055-record-command: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 - 053-command-editor-rework: Added TypeScript 5.x / React 18 + React Testing Library, Jest, @dnd-kit/core, @dnd-kit/sortable
 - 001-fix-sequence-step-names: Added Backend C# 13 / .NET 9, Frontend TypeScript ES2020 / React 18 + ASP.NET Core Minimal API, existing `GameBot.Domain` sequence repository and runner, existing execution-log service, React/Vite authoring UI, existing command repository contracts
-- 001-wait-for-image: Added C# 13 / .NET 9 (backend), TypeScript ES2020 / React 18 (web UI) + ASP.NET Core Minimal API, existing `GameBot.Domain` command/action/logging models, `CommandExecutor`, existing detection pipeline (`IReferenceImageStore`, `IScreenSource`, `ITemplateMatcher`), existing web-ui command authoring and execution-log APIs
 
 
 <!-- MANUAL ADDITIONS START -->

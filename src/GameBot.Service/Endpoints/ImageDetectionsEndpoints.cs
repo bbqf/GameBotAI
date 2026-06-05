@@ -1,12 +1,19 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Threading;
+using System.Threading.Tasks;
 using GameBot.Service;
 using GameBot.Service.Endpoints.Dto;
+using GameBot.Service.Services;
 using GameBot.Domain.Vision;
+using GameBot.Domain.Images;
 using GameBot.Domain.Triggers.Evaluators;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenCvSharp;
@@ -125,6 +132,109 @@ namespace GameBot.Service.Endpoints {
           })
       .WithTags("Images")
       .WithName("DetectImageMatches");
+
+      endpoints.MapPost(ApiRoutes.ImageDetectAll, async (
+          DetectAllRequest req,
+          CaptureSessionStore captures,
+          IImageRepository imageRepo,
+          ITemplateMatcher matcher,
+          IOptions<GameBot.Service.Services.Detections.DetectionOptions> detOpts,
+          CancellationToken ct) => {
+            if (string.IsNullOrWhiteSpace(req.CaptureId)) {
+              return Results.BadRequest(new { code = "invalid_request", message = "captureId is required" });
+            }
+
+            if (!captures.TryGet(req.CaptureId, out var capture) || capture is null) {
+              return Results.NotFound(new { code = "not_found", message = "capture not found or expired" });
+            }
+
+            Mat screenshotMat;
+            try {
+              screenshotMat = Mat.FromImageData(capture.Png, ImreadModes.Color);
+            }
+            catch {
+              return Results.Problem("Failed to decode screenshot", statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+
+            var opts = detOpts.Value;
+            var cfg = new TemplateMatcherConfig(opts.Threshold, opts.MaxResults, opts.Overlap);
+
+            IReadOnlyCollection<string> ids;
+            try {
+              ids = await imageRepo.ListIdsAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) {
+              screenshotMat.Dispose();
+              return Results.Problem("Request cancelled", statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+
+            if (ids.Count == 0) {
+              screenshotMat.Dispose();
+              return Results.Ok(new DetectAllResponse());
+            }
+
+            var matchTasks = ids.Select(async id => {
+              Stream? stream;
+              try {
+                stream = await imageRepo.OpenReadAsync(id, ct).ConfigureAwait(false);
+              }
+              catch { return (id, (TemplateMatchResult?)null); }
+              if (stream is null) return (id, (TemplateMatchResult?)null);
+
+              byte[] bytes;
+              try {
+                using (stream)
+                using (var ms = new MemoryStream()) {
+                  await stream.CopyToAsync(ms, ct).ConfigureAwait(false);
+                  bytes = ms.ToArray();
+                }
+              }
+              catch { return (id, (TemplateMatchResult?)null); }
+
+              Mat templateMat;
+              try { templateMat = Mat.FromImageData(bytes, ImreadModes.Color); }
+              catch { return (id, (TemplateMatchResult?)null); }
+
+              TemplateMatchResult result;
+              try {
+                using (templateMat)
+                  result = await matcher.MatchAllAsync(screenshotMat, templateMat, cfg, ct).ConfigureAwait(false);
+              }
+              catch { return (id, (TemplateMatchResult?)null); }
+
+              return (id, (TemplateMatchResult?)result);
+            }).ToList();
+
+            (string id, TemplateMatchResult? result)[] allResults;
+            try {
+              allResults = await Task.WhenAll(matchTasks).ConfigureAwait(false);
+            }
+            catch {
+              screenshotMat.Dispose();
+              return Results.Problem("Detection failed", statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            screenshotMat.Dispose();
+
+            var resp = new DetectAllResponse();
+            foreach (var (id, result) in allResults) {
+              if (result is null) continue;
+              foreach (var m in result.Matches) {
+                resp.Matches.Add(new DetectAllMatch {
+                  ImageId = id,
+                  ImageName = id,
+                  X = m.BBox.X,
+                  Y = m.BBox.Y,
+                  Width = m.BBox.Width,
+                  Height = m.BBox.Height,
+                  Confidence = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence)
+                });
+              }
+            }
+
+            return Results.Ok(resp);
+          })
+      .WithTags("Images")
+      .WithName("DetectAllImageMatches");
 
       return endpoints;
     }

@@ -19,6 +19,7 @@ internal static class ApiRoutes {
   internal const string Emulator = Base + "/emulator";
   internal const string EmulatorScreenshot = Emulator + "/screenshot";
   internal const string ImageDetect = Images + "/detect";
+  internal const string ImageDetectAll = Images + "/detect-all";
   internal const string Metrics = Base + "/metrics";
   internal const string ExecutionLogs = Base + "/execution-logs";
   internal const string Adb = Base + "/adb";
