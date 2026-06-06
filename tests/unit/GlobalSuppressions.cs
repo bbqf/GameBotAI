@@ -4,3 +4,5 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "xUnit discovers test classes via reflection; analyzers cannot see instantiation.", Scope = "module")]
 [assembly: SuppressMessage("Performance", "CA1852:Seal internal types", Justification = "Test classes need not be sealed; suppress to reduce noise.", Scope = "module")]
 [assembly: SuppressMessage("xUnit", "xUnit1030:Test methods should not call ConfigureAwait(false)", Justification = "ConfigureAwait(false) usage is acceptable in our tests; parallelism is managed elsewhere.", Scope = "module")]
+[assembly: SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Underscore-separated test method names are the accepted xUnit naming convention.", Scope = "module")]
+[assembly: SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance", Justification = "Test helpers intentionally use interface return types for readability.", Scope = "module")]

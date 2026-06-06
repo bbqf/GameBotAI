@@ -7,6 +7,7 @@ import { CommandsPage } from './pages/CommandsPage';
 import { GamesPage } from './pages/GamesPage';
 import { SequencesPage } from './pages/SequencesPage';
 import { ImagesListPage } from './pages/images/ImagesListPage';
+import { BackupRestorePage } from './pages/BackupRestorePage';
 import { QueuesPage } from './pages/QueuesPage';
 import { normalizeTab } from './lib/navigation';
 import { useNavigationCollapse } from './hooks/useNavigationCollapse';
@@ -104,6 +105,7 @@ export const App: React.FC = () => {
         {tab === 'Games' && <GamesPage initialCreate={creationTarget === 'games'} initialEditId={requestedTab === 'Games' ? initialId : undefined} />}
         {tab === 'Sequences' && <SequencesPage initialCreate={creationTarget === 'sequences'} initialEditId={requestedTab === 'Sequences' ? initialId : undefined} />}
         {tab === 'Images' && <ImagesListPage />}
+        {tab === 'Backup & Restore' && <BackupRestorePage />}
       </ErrorBoundary>
     </section>
   );
