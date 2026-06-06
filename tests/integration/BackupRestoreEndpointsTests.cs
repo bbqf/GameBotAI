@@ -86,9 +86,10 @@ public sealed class BackupRestoreEndpointsTests : IDisposable {
     var report = await PostDryRunAsync(client, archive).ConfigureAwait(false);
 
     report.Should().NotBeNull();
-    report.Value.TryGetProperty("hasConflicts", out var hc).Should().BeTrue();
+    var reportEl1 = report!.Value;
+    reportEl1.TryGetProperty("hasConflicts", out var hc).Should().BeTrue();
     hc.GetBoolean().Should().BeFalse();
-    report.Value.TryGetProperty("totalCommands", out var tc).Should().BeTrue();
+    reportEl1.TryGetProperty("totalCommands", out var tc).Should().BeTrue();
     tc.GetInt32().Should().Be(1);
   }
 
@@ -106,9 +107,10 @@ public sealed class BackupRestoreEndpointsTests : IDisposable {
     var report = await PostDryRunAsync(client, archive).ConfigureAwait(false);
 
     report.Should().NotBeNull();
-    report.Value.TryGetProperty("hasConflicts", out var hc).Should().BeTrue();
+    var reportEl2 = report!.Value;
+    reportEl2.TryGetProperty("hasConflicts", out var hc).Should().BeTrue();
     hc.GetBoolean().Should().BeTrue();
-    report.Value.TryGetProperty("conflictingCommandNames", out var names).Should().BeTrue();
+    reportEl2.TryGetProperty("conflictingCommandNames", out var names).Should().BeTrue();
     names.EnumerateArray().Select(n => n.GetString()).Should().Contain("cmd-conflict-dry");
   }
 
@@ -128,9 +130,10 @@ public sealed class BackupRestoreEndpointsTests : IDisposable {
     var result = await PostApplyAsync(client, archive).ConfigureAwait(false);
 
     result.Should().NotBeNull();
-    result.Value.TryGetProperty("restoredCommands", out var rc).Should().BeTrue();
+    var resultEl1 = result!.Value;
+    resultEl1.TryGetProperty("restoredCommands", out var rc).Should().BeTrue();
     rc.GetInt32().Should().Be(1);
-    result.Value.TryGetProperty("rolledBack", out var rb).Should().BeTrue();
+    resultEl1.TryGetProperty("rolledBack", out var rb).Should().BeTrue();
     rb.GetBoolean().Should().BeFalse();
   }
 
@@ -152,13 +155,14 @@ public sealed class BackupRestoreEndpointsTests : IDisposable {
     // Dry-run should show conflict
     var dryRun = await PostDryRunAsync(client, archive).ConfigureAwait(false);
     dryRun.Should().NotBeNull();
-    dryRun.Value.GetProperty("hasConflicts").GetBoolean().Should().BeTrue();
+    dryRun!.Value.GetProperty("hasConflicts").GetBoolean().Should().BeTrue();
 
     // Apply should succeed: overwrite the conflicting command
     var result = await PostApplyAsync(client, archive).ConfigureAwait(false);
     result.Should().NotBeNull();
-    result.Value.GetProperty("rolledBack").GetBoolean().Should().BeFalse();
-    result.Value.GetProperty("restoredCommands").GetInt32().Should().Be(1);
+    var resultEl2 = result!.Value;
+    resultEl2.GetProperty("rolledBack").GetBoolean().Should().BeFalse();
+    resultEl2.GetProperty("restoredCommands").GetInt32().Should().Be(1);
   }
 
   // ────────────── T040: 400 edge cases ──────────────

@@ -6,3 +6,4 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("xUnit", "xUnit1030:Test methods should not call ConfigureAwait(false)", Justification = "ConfigureAwait(false) usage is acceptable in our tests; parallelism is managed elsewhere.", Scope = "module")]
 [assembly: SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Underscore-separated test method names are the accepted xUnit naming convention.", Scope = "module")]
 [assembly: SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance", Justification = "Test helpers intentionally use interface return types for readability.", Scope = "module")]
+[assembly: SuppressMessage("Reliability", "CA2025:Ensure tasks using IDisposable instances complete before the instances are disposed", Justification = "ThrowAsync awaits the lambda before the using scope exits; disposal is safe.", Scope = "module")]
