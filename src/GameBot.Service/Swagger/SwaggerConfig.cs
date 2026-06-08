@@ -139,6 +139,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyImageExamples(operation, path, method, context);
     ApplyExecutionLogExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
+    ApplyBackupRestoreExamples(operation, path, method, context);
   }
 
   private static void ApplyInstallerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
@@ -616,6 +617,24 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetResponseExample(operation, "200", ExecutionLogRetentionResponse(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyDto));
     }
   }
+
+  private static void ApplyBackupRestoreExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.AuthoringBackup)) {
+      operation.Summary ??= "Create a backup archive of selected commands and sequences";
+      SetRequestExample(operation, BackupRequest(), context, typeof(GameBot.Service.Contracts.Backup.BackupRequestDto));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.AuthoringRestoreDryRun)) {
+      operation.Summary ??= "Dry-run a restore: report conflicts without modifying data";
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.AuthoringRestoreApply)) {
+      operation.Summary ??= "Apply a restore: import commands and sequences from a backup archive";
+    }
+  }
+
+  private static OpenApiObject BackupRequest() => new OpenApiObject {
+    ["commandIds"] = new OpenApiArray { new OpenApiString("cmd-abc123") },
+    ["sequenceIds"] = new OpenApiArray()
+  };
 
   private static string NormalizePath(string? relativePath) {
     if (string.IsNullOrWhiteSpace(relativePath)) return string.Empty;
