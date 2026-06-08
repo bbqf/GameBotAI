@@ -182,6 +182,32 @@ public sealed class BackupServiceTests {
     archive.GetEntry("sequences/seq1.json").Should().NotBeNull();
   }
 
+  [Fact(DisplayName = "Sequence with per-step break condition round-trips through backup JSON options")]
+  public void BackupJsonOptions_SequenceWithBreakConditionRoundTripsWithoutDuplicateTypeKey() {
+    var seq = new CommandSequence { Id = "seq1", Name = "LoopSeq" };
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepType = SequenceStepType.Loop,
+      Loop = new CountLoopConfig { Count = 3 },
+      Body = new List<SequenceStep> {
+        new SequenceStep {
+          Order = 0,
+          StepType = SequenceStepType.Break,
+          BreakCondition = new ImageVisibleStepCondition { ImageId = "img1", MinSimilarity = 0.9 }
+        }
+      }
+    };
+    seq.SetSteps([loopStep]);
+
+    var json = JsonSerializer.Serialize(seq, JsonOpts);
+    var loaded = JsonSerializer.Deserialize<CommandSequence>(json, JsonOpts);
+
+    loaded.Should().NotBeNull();
+    var breakCondition = loaded!.Steps[0].Body[0].BreakCondition;
+    breakCondition.Should().BeOfType<ImageVisibleStepCondition>();
+    ((ImageVisibleStepCondition)breakCondition!).ImageId.Should().Be("img1");
+  }
+
   [Fact]
   public async Task CreateBackupAsync_DeduplicatesCommandsAndImages() {
     var imgData = new byte[] { 1, 2, 3 };
