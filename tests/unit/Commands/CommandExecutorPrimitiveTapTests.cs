@@ -355,7 +355,93 @@ public sealed class CommandExecutorPrimitiveTapTests {
     result.StepOutcomes[0].Reason.Should().Be("detection_failed_after_2_retries");
   }
 
+  [Fact]
+  public async Task PrimitiveTapExecutedPointReflectsJitteredArgsWhileResolvedPointKeepsTarget() {
+    var command = CreatePrimitiveTapCommand();
+    using var bmp = CreateOneByOneBitmap();
+
+    var screenSource = new ScreenSourceStub(bmp);
+    var imageStore = new ReferenceImageStoreStub(("img-1", bmp));
+    var matcher = new TemplateMatcherStub(new[] { new TemplateMatch(new BoundingBox(0, 0, 1, 1), 0.95) });
+    var config = new AppConfig { CaptureIntervalMs = 50, TapRetryCount = 3, TapRetryProgression = 1.0 };
+
+    // Simulate the real SessionManager's jitter by mutating the dispatched args in place.
+    var sessions = new MutatingSessionManagerStub(offsetX: 3, offsetY: 4);
+
+    var executor = new CommandExecutor(
+      new CommandRepoStub(command),
+      sessions,
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      NullLogger<CommandExecutor>.Instance,
+      imageStore, screenSource, matcher,
+      new SessionContextCache(),
+      config);
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+
+    result.StepOutcomes.Should().HaveCount(1);
+    var outcome = result.StepOutcomes[0];
+    outcome.Status.Should().Be("executed");
+    outcome.ResolvedPoint.Should().Be(new PrimitiveTapResolvedPoint(0, 0));
+    outcome.ExecutedPoint.Should().Be(new PrimitiveTapResolvedPoint(3, 4));
+  }
+
+  [Fact]
+  public async Task PrimitiveTapExecutedPointEqualsResolvedPointWhenArgsAreNotMutated() {
+    var command = CreatePrimitiveTapCommand();
+    using var bmp = CreateOneByOneBitmap();
+
+    var screenSource = new ScreenSourceStub(bmp);
+    var imageStore = new ReferenceImageStoreStub(("img-1", bmp));
+    var matcher = new TemplateMatcherStub(new[] { new TemplateMatch(new BoundingBox(0, 0, 1, 1), 0.95) });
+    var config = new AppConfig { CaptureIntervalMs = 50, TapRetryCount = 3, TapRetryProgression = 1.0 };
+
+    var executor = new CommandExecutor(
+      new CommandRepoStub(command),
+      new SessionManagerStub(),
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      NullLogger<CommandExecutor>.Instance,
+      imageStore, screenSource, matcher,
+      new SessionContextCache(),
+      config);
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+
+    result.StepOutcomes.Should().HaveCount(1);
+    var outcome = result.StepOutcomes[0];
+    outcome.Status.Should().Be("executed");
+    outcome.ExecutedPoint.Should().Be(outcome.ResolvedPoint);
+  }
+
   #region Test stubs
+
+  private sealed class MutatingSessionManagerStub : ISessionManager {
+    private readonly EmulatorSession _session = new() { Id = "sess-1", Status = SessionStatus.Running, GameId = "game-1" };
+    private readonly int _offsetX;
+    private readonly int _offsetY;
+    public MutatingSessionManagerStub(int offsetX, int offsetY) { _offsetX = offsetX; _offsetY = offsetY; }
+    public int ActiveCount => 1;
+    public bool CanCreateSession => true;
+    public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) => _session;
+    public EmulatorSession? GetSession(string id) => id == _session.Id ? _session : null;
+    public IReadOnlyCollection<EmulatorSession> ListSessions() => new[] { _session };
+    public bool StopSession(string id) => true;
+    public Task<int> SendInputsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) {
+      var list = actions.ToList();
+      foreach (var a in list) {
+        foreach (var key in new[] { "x1", "x2" }) {
+          if (a.Args.TryGetValue(key, out var v)) a.Args[key] = Convert.ToInt32(v, System.Globalization.CultureInfo.InvariantCulture) + _offsetX;
+        }
+        foreach (var key in new[] { "y1", "y2" }) {
+          if (a.Args.TryGetValue(key, out var v)) a.Args[key] = Convert.ToInt32(v, System.Globalization.CultureInfo.InvariantCulture) + _offsetY;
+        }
+      }
+      return Task.FromResult(list.Count);
+    }
+    public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
+  }
 
   private sealed class CommandRepoStub : ICommandRepository {
     private readonly Command _command;

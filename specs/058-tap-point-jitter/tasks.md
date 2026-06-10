@@ -19,7 +19,7 @@
 
 **Purpose**: No new projects or directories needed. This phase verifies the build is green before changes begin.
 
-- [ ] T001 Verify build and full test suite pass (`dotnet build -c Debug && dotnet test -c Debug`)
+- [X] T001 Verify build and full test suite pass (`dotnet build -c Debug && dotnet test -c Debug`)
 
 ---
 
@@ -33,16 +33,16 @@
 
 ### Tests for Foundational Phase
 
-- [ ] T002 [P] [US2] Add `tests/unit/Domain/CoordinateJitterTests.cs` — radius=0 returns input unchanged; radius=N produces results within `[x-N,x+N]`/`[y-N,y+N]` across many samples; near-zero coordinates with radius>0 never go negative; consecutive calls (e.g. 4 in a row) produce varying offsets (seed-uniqueness per research R-002)
-- [ ] T003 [P] [US2] Add `DefaultTapJitterRadiusPxIsFive`, `TapJitterRadiusPxCanBeSetToZero`, `TapJitterRadiusPxNegativeFallsBackToDefault` tests to `tests/unit/Config/AppConfigValidationTests.cs`
+- [X] T002 [P] [US2] Add `tests/unit/Domain/CoordinateJitterTests.cs` — radius=0 returns input unchanged; radius=N produces results within `[x-N,x+N]`/`[y-N,y+N]` across many samples; near-zero coordinates with radius>0 never go negative; consecutive calls (e.g. 4 in a row) produce varying offsets (seed-uniqueness per research R-002)
+- [X] T003 [P] [US2] Add `DefaultTapJitterRadiusPxIsFive`, `TapJitterRadiusPxCanBeSetToZero`, `TapJitterRadiusPxNegativeFallsBackToDefault` tests to `tests/unit/Config/AppConfigValidationTests.cs`
 
 ### Implementation for Foundational Phase
 
-- [ ] T004 [P] [US2] Implement `CoordinateJitter` static helper in `src/GameBot.Domain/Services/CoordinateJitter.cs` — `Apply(int x, int y, int radiusPx)` returns `(x, y)` unchanged when `radiusPx <= 0`; otherwise draws independent per-axis offsets from `[-radiusPx, +radiusPx]` using an LCG seeded from `DateTime.UtcNow.Ticks` XORed with an `Interlocked.Increment`-based counter (mirrors `SequenceRunner.GetAppliedDelay` pattern, per research R-002), then clamps each result with `Math.Max(0, ...)`
-- [ ] T005 [P] [US2] Add `TapJitterRadiusPx` property (`int`, default `5`) with XML doc comment to `src/GameBot.Domain/Config/AppConfig.cs`, documenting `GAMEBOT_TAP_JITTER_RADIUS_PX` mapping, `0` disables, negative falls back to 5, per data-model.md
-- [ ] T006 [US2] Wire `GAMEBOT_TAP_JITTER_RADIUS_PX` in the `AppConfig` singleton registration in `src/GameBot.Service/Program.cs` (~line 145-172): `int.TryParse(jitterEnv, out var jParsed) && jParsed >= 0 ? jParsed : 5`, include `TapJitterRadiusPx = jitterRadius` in the constructed `AppConfig`
-- [ ] T007 [US2] Add `_appConfig.TapJitterRadiusPx = GetInt(snapshot, "GAMEBOT_TAP_JITTER_RADIUS_PX", 5) is var jitter && jitter >= 0 ? jitter : 5;` to `Apply` in `src/GameBot.Service/Services/IConfigApplier.cs` (~line 51-56, alongside `TapRetryProgression`)
-- [ ] T008 [US2] Verify build passes and T002-T003 tests are green
+- [X] T004 [P] [US2] Implement `CoordinateJitter` static helper in `src/GameBot.Domain/Services/CoordinateJitter.cs` — `Apply(int x, int y, int radiusPx)` returns `(x, y)` unchanged when `radiusPx <= 0`; otherwise draws independent per-axis offsets from `[-radiusPx, +radiusPx]` using an LCG seeded from `DateTime.UtcNow.Ticks` XORed with an `Interlocked.Increment`-based counter (mirrors `SequenceRunner.GetAppliedDelay` pattern, per research R-002), then clamps each result with `Math.Max(0, ...)`
+- [X] T005 [P] [US2] Add `TapJitterRadiusPx` property (`int`, default `5`) with XML doc comment to `src/GameBot.Domain/Config/AppConfig.cs`, documenting `GAMEBOT_TAP_JITTER_RADIUS_PX` mapping, `0` disables, negative falls back to 5, per data-model.md
+- [X] T006 [US2] Wire `GAMEBOT_TAP_JITTER_RADIUS_PX` in the `AppConfig` singleton registration in `src/GameBot.Service/Program.cs` (~line 145-172): `int.TryParse(jitterEnv, out var jParsed) && jParsed >= 0 ? jParsed : 5`, include `TapJitterRadiusPx = jitterRadius` in the constructed `AppConfig`
+- [X] T007 [US2] Add `_appConfig.TapJitterRadiusPx = GetInt(snapshot, "GAMEBOT_TAP_JITTER_RADIUS_PX", 5) is var jitter && jitter >= 0 ? jitter : 5;` to `Apply` in `src/GameBot.Service/Services/IConfigApplier.cs` (~line 51-56, alongside `TapRetryProgression`)
+- [X] T008 [US2] Verify build passes and T002-T003 tests are green
 
 **Checkpoint**: `AppConfig.TapJitterRadiusPx` and `CoordinateJitter.Apply` are available and validated. US1 dispatch-time jitter can now be implemented.
 
@@ -56,21 +56,21 @@
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Add `tests/unit/Emulator/SessionManagerJitterTests.cs` — construct `SessionManager` in stub mode (set `GAMEBOT_USE_ADB=false` for the test) and verify `SendInputsAsync` mutates `InputAction.Args["x"]/["y"]` for `Type=="tap"` and `["x1"]["y1"]["x2"]["y2"]` for `Type=="swipe"` to values within the default ±5px radius of the original targets; start/end swipe offsets are independent (not identical across many samples); near-zero targets never produce negative results (jitter normalization runs before the ADB-mode branch, so stub mode exercises it)
-- [ ] T010 [P] [US1] Add unit test(s) to `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs` — when a primitive tap is detected and dispatched, the resulting `PrimitiveTapStepOutcome.ExecutedPoint` reflects the (possibly jittered) coordinates read back from the dispatched `InputAction.Args`, while `ResolvedPoint` continues to hold the pre-jitter detected target
-- [ ] T011 [P] [US1] Add unit test(s) to `tests/unit/Commands/CommandExecutorSwipeTests.cs` — for an explicit `Swipe` step, `PrimitiveTapStepOutcome.TargetSwipe` reflects `step.Swipe.StartX/Y`/`EndX/Y` and `ExecutedSwipe` reflects the (possibly jittered) coordinates read back from the dispatched `InputAction.Args`
+- [X] T009 [P] [US1] Add `tests/unit/Emulator/SessionManagerJitterTests.cs` — construct `SessionManager` in stub mode (set `GAMEBOT_USE_ADB=false` for the test) and verify `SendInputsAsync` mutates `InputAction.Args["x"]/["y"]` for `Type=="tap"` and `["x1"]["y1"]["x2"]["y2"]` for `Type=="swipe"` to values within the default ±5px radius of the original targets; start/end swipe offsets are independent (not identical across many samples); near-zero targets never produce negative results (jitter normalization runs before the ADB-mode branch, so stub mode exercises it)
+- [X] T010 [P] [US1] Add unit test(s) to `tests/unit/Commands/CommandExecutorPrimitiveTapTests.cs` — when a primitive tap is detected and dispatched, the resulting `PrimitiveTapStepOutcome.ExecutedPoint` reflects the (possibly jittered) coordinates read back from the dispatched `InputAction.Args`, while `ResolvedPoint` continues to hold the pre-jitter detected target
+- [X] T011 [P] [US1] Add unit test(s) to `tests/unit/Commands/CommandExecutorSwipeTests.cs` — for an explicit `Swipe` step, `PrimitiveTapStepOutcome.TargetSwipe` reflects `step.Swipe.StartX/Y`/`EndX/Y` and `ExecutedSwipe` reflects the (possibly jittered) coordinates read back from the dispatched `InputAction.Args`
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Add `PrimitiveSwipePoints(PrimitiveTapResolvedPoint Start, PrimitiveTapResolvedPoint End)` record and append optional `ExecutedPoint` (`PrimitiveTapResolvedPoint?`), `TargetSwipe` (`PrimitiveSwipePoints?`), `ExecutedSwipe` (`PrimitiveSwipePoints?`) parameters to `PrimitiveTapStepOutcome` in `src/GameBot.Service/Services/ICommandExecutor.cs`
-- [ ] T013 [US1] In `src/GameBot.Emulator/Session/SessionManager.cs` `SendInputsAsync`, add a jitter normalization pass at the **top of the method** (after the session lookup, **before** the `_useAdb`/`DeviceSerial` branch at ~line 114): materialize `actions` once, and for each action call `CoordinateJitter.Apply` with `_appConfig.TapJitterRadiusPx` — for `Type=="tap"` on `Args["x"]`/`["y"]`, for `Type=="swipe"` independently on `Args["x1"]/["y1"]` and `["x2"]/["y2"]` — writing the jittered values back into the same `Args` entries. This ensures jitter applies (and the caller-visible `Args` mutation occurs) in **both** real-ADB mode and stub mode (`GAMEBOT_USE_ADB=false` / no bound device, where the per-action ADB loop is skipped entirely), keeping behaviour consistent and the T009/T021/T022 tests runnable in CI
-- [ ] T014 [US1] In `TryDetectAndTap` in `src/GameBot.Service/Services/CommandExecutor.cs` (~line 574-585), after `SendInputsAsync` returns, read back `tapArgs["x1"]`/`["y1"]` and pass `new PrimitiveTapResolvedPoint(executedX, executedY)` as `ExecutedPoint` in the constructed `PrimitiveTapStepOutcome` (keeping existing `ResolvedPoint = (x, y)` as the pre-jitter target)
-- [ ] T015 [US1] In the `Swipe` step handling in `src/GameBot.Service/Services/CommandExecutor.cs` (~line 233-249), after `SendInputsAsync` returns, build `TargetSwipe` from `step.Swipe.StartX/Y`/`EndX/Y` and `ExecutedSwipe` by reading back `swipeArgs["x1"]/["y1"]/["x2"]/["y2"]`, and include both in the returned `PrimitiveTapStepOutcome`
-- [ ] T016 [US1] In `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs` `LogCommandExecutionAsync` (~line 136-146), extend the "Tap executed at (X,Y)." detail item to include `ExecutedPoint` when present (e.g. `"Tap targeted (X,Y), executed at (X',Y')."` when they differ, otherwise unchanged text), and add an analogous detail item for swipe steps using `TargetSwipe`/`ExecutedSwipe`
-- [ ] T017 [US1] In `src/GameBot.Service/Models/Commands.cs` (~line 80-96), add a `SwipePointsDto` (`{ Start, End }`, each a `ResolvedPointDto`) and add `ResolvedPointDto? ExecutedPoint`, `SwipePointsDto? TargetSwipe`, `SwipePointsDto? ExecutedSwipe` properties to `StepExecutionOutcomeDto` — reuse the existing `ResolvedPointDto` for all point shapes (do NOT add a duplicate `ExecutedPointDto` type)
-- [ ] T018 [P] [US1] Map `ExecutedPoint`/`TargetSwipe`/`ExecutedSwipe` from `PrimitiveTapStepOutcome` to the new DTO fields in `ToResponseOutcome` in `src/GameBot.Service/Endpoints/CommandsEndpoints.cs` (~line 168-184)
-- [ ] T019 [P] [US1] Map `executedPoint`/`targetSwipe`/`executedSwipe` from `PrimitiveTapStepOutcome` into the anonymous outcome object in `ToResponseOutcome` in `src/GameBot.Service/Endpoints/StepsEndpoints.cs` (~line 164-171)
-- [ ] T020 [US1] Verify build passes and T009-T011 tests (plus existing suite) are green
+- [X] T012 [US1] Add `PrimitiveSwipePoints(PrimitiveTapResolvedPoint Start, PrimitiveTapResolvedPoint End)` record and append optional `ExecutedPoint` (`PrimitiveTapResolvedPoint?`), `TargetSwipe` (`PrimitiveSwipePoints?`), `ExecutedSwipe` (`PrimitiveSwipePoints?`) parameters to `PrimitiveTapStepOutcome` in `src/GameBot.Service/Services/ICommandExecutor.cs`
+- [X] T013 [US1] In `src/GameBot.Emulator/Session/SessionManager.cs` `SendInputsAsync`, add a jitter normalization pass at the **top of the method** (after the session lookup, **before** the `_useAdb`/`DeviceSerial` branch at ~line 114): materialize `actions` once, and for each action call `CoordinateJitter.Apply` with `_appConfig.TapJitterRadiusPx` — for `Type=="tap"` on `Args["x"]`/`["y"]`, for `Type=="swipe"` independently on `Args["x1"]/["y1"]` and `["x2"]/["y2"]` — writing the jittered values back into the same `Args` entries. This ensures jitter applies (and the caller-visible `Args` mutation occurs) in **both** real-ADB mode and stub mode (`GAMEBOT_USE_ADB=false` / no bound device, where the per-action ADB loop is skipped entirely), keeping behaviour consistent and the T009/T021/T022 tests runnable in CI
+- [X] T014 [US1] In `TryDetectAndTap` in `src/GameBot.Service/Services/CommandExecutor.cs` (~line 574-585), after `SendInputsAsync` returns, read back `tapArgs["x1"]`/`["y1"]` and pass `new PrimitiveTapResolvedPoint(executedX, executedY)` as `ExecutedPoint` in the constructed `PrimitiveTapStepOutcome` (keeping existing `ResolvedPoint = (x, y)` as the pre-jitter target)
+- [X] T015 [US1] In the `Swipe` step handling in `src/GameBot.Service/Services/CommandExecutor.cs` (~line 233-249), after `SendInputsAsync` returns, build `TargetSwipe` from `step.Swipe.StartX/Y`/`EndX/Y` and `ExecutedSwipe` by reading back `swipeArgs["x1"]/["y1"]/["x2"]/["y2"]`, and include both in the returned `PrimitiveTapStepOutcome`
+- [X] T016 [US1] In `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs` `LogCommandExecutionAsync` (~line 136-146), extend the "Tap executed at (X,Y)." detail item to include `ExecutedPoint` when present (e.g. `"Tap targeted (X,Y), executed at (X',Y')."` when they differ, otherwise unchanged text), and add an analogous detail item for swipe steps using `TargetSwipe`/`ExecutedSwipe`
+- [X] T017 [US1] In `src/GameBot.Service/Models/Commands.cs` (~line 80-96), add a `SwipePointsDto` (`{ Start, End }`, each a `ResolvedPointDto`) and add `ResolvedPointDto? ExecutedPoint`, `SwipePointsDto? TargetSwipe`, `SwipePointsDto? ExecutedSwipe` properties to `StepExecutionOutcomeDto` — reuse the existing `ResolvedPointDto` for all point shapes (do NOT add a duplicate `ExecutedPointDto` type)
+- [X] T018 [P] [US1] Map `ExecutedPoint`/`TargetSwipe`/`ExecutedSwipe` from `PrimitiveTapStepOutcome` to the new DTO fields in `ToResponseOutcome` in `src/GameBot.Service/Endpoints/CommandsEndpoints.cs` (~line 168-184)
+- [X] T019 [P] [US1] Map `executedPoint`/`targetSwipe`/`executedSwipe` from `PrimitiveTapStepOutcome` into the anonymous outcome object in `ToResponseOutcome` in `src/GameBot.Service/Endpoints/StepsEndpoints.cs` (~line 164-171)
+- [X] T020 [US1] Verify build passes and T009-T011 tests (plus existing suite) are green
 
 **Checkpoint**: All taps and swipes dispatched via `SessionManager` are jittered automatically (FR-001/002/003/007/012), and step outcomes/execution logs report both target and executed coordinates (FR-013/SC-006).
 
@@ -86,12 +86,12 @@
 
 ### Tests for User Story 2
 
-- [ ] T021 [US2] Add test to `tests/unit/Emulator/SessionManagerJitterTests.cs` (stub mode, as in T009) — construct `SessionManager` with `AppConfig { TapJitterRadiusPx = 0 }`; verify `SendInputsAsync` leaves tap and swipe `Args` coordinates exactly equal to the original target values (FR-005, US2 acceptance scenario 1)
-- [ ] T022 [US2] Add test to `tests/unit/Emulator/SessionManagerJitterTests.cs` (stub mode, as in T009) — construct `SessionManager` with `AppConfig { TapJitterRadiusPx = 20 }`; verify dispatched coordinates fall within `[-20,+20]` of the target across many samples and that values outside the default `[-5,+5]` range occur (confirms the configured radius, not the default, governs the offset; US2 acceptance scenario 2)
+- [X] T021 [US2] Add test to `tests/unit/Emulator/SessionManagerJitterTests.cs` (stub mode, as in T009) — construct `SessionManager` with `AppConfig { TapJitterRadiusPx = 0 }`; verify `SendInputsAsync` leaves tap and swipe `Args` coordinates exactly equal to the original target values (FR-005, US2 acceptance scenario 1)
+- [X] T022 [US2] Add test to `tests/unit/Emulator/SessionManagerJitterTests.cs` (stub mode, as in T009) — construct `SessionManager` with `AppConfig { TapJitterRadiusPx = 20 }`; verify dispatched coordinates fall within `[-20,+20]` of the target across many samples and that values outside the default `[-5,+5]` range occur (confirms the configured radius, not the default, governs the offset; US2 acceptance scenario 2)
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Verify build passes and T021-T022 tests are green
+- [X] T023 [US2] Verify build passes and T021-T022 tests are green
 
 **Checkpoint**: Jitter radius is fully configurable end-to-end, including disabling it (US2 acceptance scenarios 1-4 satisfied).
 
@@ -105,13 +105,13 @@
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] Add tests to `tests/unit/ConfigMaskingAndMergeTests.cs` (or `ConfigUpdateTests.cs`) asserting (a) `RefreshAsync` snapshot `Parameters` contains `GAMEBOT_TAP_JITTER_RADIUS_PX` with default value `5` and source `Default` when not otherwise set, and (b) a value saved in `config/config.json` for `GAMEBOT_TAP_JITTER_RADIUS_PX` is reflected in the snapshot with source `File` (FR-008 precedence: default → saved file → environment)
+- [X] T024 [P] [US3] Add tests to `tests/unit/ConfigMaskingAndMergeTests.cs` (or `ConfigUpdateTests.cs`) asserting (a) `RefreshAsync` snapshot `Parameters` contains `GAMEBOT_TAP_JITTER_RADIUS_PX` with default value `5` and source `Default` when not otherwise set, and (b) a value saved in `config/config.json` for `GAMEBOT_TAP_JITTER_RADIUS_PX` is reflected in the snapshot with source `File` (FR-008 precedence: default → saved file → environment)
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] Add `["GAMEBOT_TAP_JITTER_RADIUS_PX"] = 5` to `BuildDefaultRelevantKeys()` in `src/GameBot.Service/Services/ConfigSnapshotService.cs` (~line 259-260, alongside `GAMEBOT_TAP_RETRY_COUNT`/`GAMEBOT_TAP_RETRY_PROGRESSION`)
-- [ ] T026 [P] [US3] Add a `GAMEBOT_TAP_JITTER_RADIUS_PX` entry to `ENVIRONMENT.md` (alongside the `ADB / Emulator` or tap-retry section) documenting purpose, default `5`, `0` disables jitter, negative values fall back to `5`, and noting that jitter applies to **all** dispatch paths including the raw `POST /sessions/{id}/inputs` API (radius `0` is the escape hatch for pixel-exact input)
-- [ ] T027 [US3] Verify build passes and T024 test is green; manually confirm the web-ui Configuration page lists `GAMEBOT_TAP_JITTER_RADIUS_PX` and that no jitter-specific control exists in the command authoring or execution UIs (FR-011)
+- [X] T025 [US3] Add `["GAMEBOT_TAP_JITTER_RADIUS_PX"] = 5` to `BuildDefaultRelevantKeys()` in `src/GameBot.Service/Services/ConfigSnapshotService.cs` (~line 259-260, alongside `GAMEBOT_TAP_RETRY_COUNT`/`GAMEBOT_TAP_RETRY_PROGRESSION`)
+- [X] T026 [P] [US3] Add a `GAMEBOT_TAP_JITTER_RADIUS_PX` entry to `ENVIRONMENT.md` (alongside the `ADB / Emulator` or tap-retry section) documenting purpose, default `5`, `0` disables jitter, negative values fall back to `5`, and noting that jitter applies to **all** dispatch paths including the raw `POST /sessions/{id}/inputs` API (radius `0` is the escape hatch for pixel-exact input)
+- [X] T027 [US3] Verify build passes and T024 test is green; manually confirm the web-ui Configuration page lists `GAMEBOT_TAP_JITTER_RADIUS_PX` and that no jitter-specific control exists in the command authoring or execution UIs (FR-011)
 
 **Checkpoint**: The jitter radius parameter is discoverable and documented exactly like other `GAMEBOT_*` parameters, with no new UI surface.
 
@@ -121,9 +121,9 @@
 
 **Purpose**: Documentation and final validation.
 
-- [ ] T028 [P] Add `CHANGELOG.md` entry documenting the tap-point jitter feature, the `GAMEBOT_TAP_JITTER_RADIUS_PX` configuration parameter, and its default
-- [ ] T029 Run full regression: `dotnet build -c Debug && dotnet test -c Debug` — all tests pass, 0 warnings, 0 errors
-- [ ] T030 Validate `quickstart.md` scenarios manually: default jitter (±5px) varies dispatched coordinates run-to-run; `GAMEBOT_TAP_JITTER_RADIUS_PX=0` disables jitter; execution log shows target vs. executed coordinates
+- [X] T028 [P] Add `CHANGELOG.md` entry documenting the tap-point jitter feature, the `GAMEBOT_TAP_JITTER_RADIUS_PX` configuration parameter, and its default
+- [X] T029 Run full regression: `dotnet build -c Debug && dotnet test -c Debug` — all tests pass, 0 warnings, 0 errors
+- [X] T030 Validate `quickstart.md` scenarios manually: default jitter (±5px) varies dispatched coordinates run-to-run; `GAMEBOT_TAP_JITTER_RADIUS_PX=0` disables jitter; execution log shows target vs. executed coordinates
 
 ---
 

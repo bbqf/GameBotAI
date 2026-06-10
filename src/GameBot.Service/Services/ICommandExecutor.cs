@@ -23,6 +23,9 @@ internal sealed record CommandEvaluationDecision(int Accepted, TriggerStatus Tri
 
 internal sealed record PrimitiveTapResolvedPoint(int X, int Y);
 
+/// <summary>Start/end point pair for a swipe step (pre- or post-jitter).</summary>
+internal sealed record PrimitiveSwipePoints(PrimitiveTapResolvedPoint Start, PrimitiveTapResolvedPoint End);
+
 internal sealed record PrimitiveTapStepOutcome(
   int StepOrder,
   string Status,
@@ -34,7 +37,10 @@ internal sealed record PrimitiveTapStepOutcome(
   int? EffectiveTimeoutMs = null,
   string? ReferenceImageId = null,
   string? ImageLoadStatus = null,
-  double? ConfiguredConfidence = null);
+  double? ConfiguredConfidence = null,
+  PrimitiveTapResolvedPoint? ExecutedPoint = null,
+  PrimitiveSwipePoints? TargetSwipe = null,
+  PrimitiveSwipePoints? ExecutedSwipe = null);
 
 internal sealed record CommandForceExecutionResult(int Accepted, IReadOnlyList<PrimitiveTapStepOutcome> StepOutcomes);
 

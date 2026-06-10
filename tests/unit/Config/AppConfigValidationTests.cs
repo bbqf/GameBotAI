@@ -40,4 +40,22 @@ public sealed class AppConfigValidationTests {
     var config = new AppConfig { TapRetryProgression = 2.5 };
     config.TapRetryProgression.Should().Be(2.5);
   }
+
+  [Fact]
+  public void DefaultTapJitterRadiusPxIsFive() {
+    var config = new AppConfig();
+    config.TapJitterRadiusPx.Should().Be(5);
+  }
+
+  [Fact]
+  public void TapJitterRadiusPxCanBeSetToZero() {
+    var config = new AppConfig { TapJitterRadiusPx = 0 };
+    config.TapJitterRadiusPx.Should().Be(0);
+  }
+
+  [Fact]
+  public void TapJitterRadiusPxCanBeSetToCustomValue() {
+    var config = new AppConfig { TapJitterRadiusPx = 20 };
+    config.TapJitterRadiusPx.Should().Be(20);
+  }
 }

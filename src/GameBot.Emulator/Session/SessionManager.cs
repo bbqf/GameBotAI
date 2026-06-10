@@ -108,13 +108,21 @@ public sealed class SessionManager : ISessionManager {
   public async Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) {
     if (!_sessions.TryGetValue(id, out var s)) return 0;
     s.LastActivity = DateTimeOffset.UtcNow;
-    var count = actions?.Count() ?? 0;
+    var actionList = actions?.ToList() ?? new List<InputAction>();
+    var count = actionList.Count;
+
+    // Tap-point jitter normalization: offset tap/swipe coordinates in place before any dispatch
+    // branch, so the ADB call and the caller-visible Args dictionary both reflect the executed
+    // coordinates, in real-ADB and stub modes alike.
+    foreach (var a in actionList) {
+      ApplyTapJitter(a);
+    }
 
     // If ADB enabled and we have a bound device, execute via ADB
     if (_useAdb && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial)) {
       var adb = new AdbClient(_adbLogger).WithSerial(s.DeviceSerial);
       var executed = 0;
-      foreach (var a in actions ?? Array.Empty<InputAction>()) {
+      foreach (var a in actionList) {
         try {
           if (string.Equals(a.Type, "tap", StringComparison.OrdinalIgnoreCase)) {
             var x = GetInt(a.Args, "x");
@@ -211,14 +219,45 @@ public sealed class SessionManager : ISessionManager {
 
     Log.InputsAccepted(_logger, id, count);
     // Still honor delay pacing in stub mode (optional; only if delays exist)
-    if (actions is not null) {
-      foreach (var a in actions) {
-        if (a.DelayMs.HasValue && a.DelayMs.Value > 0) {
-          await Task.Delay(a.DelayMs.Value, ct).ConfigureAwait(false);
-        }
+    foreach (var a in actionList) {
+      if (a.DelayMs.HasValue && a.DelayMs.Value > 0) {
+        await Task.Delay(a.DelayMs.Value, ct).ConfigureAwait(false);
       }
     }
     return count;
+  }
+
+  /// <summary>
+  /// Applies the configured tap-point jitter (<see cref="GameBot.Domain.Config.AppConfig.TapJitterRadiusPx"/>)
+  /// to a tap's (x, y) or, independently per endpoint, a swipe's (x1, y1)/(x2, y2) coordinates,
+  /// mutating <see cref="InputAction.Args"/> in place. Actions of other types, actions with
+  /// missing/malformed coordinate args, and a radius of 0 leave the action unchanged.
+  /// </summary>
+  private void ApplyTapJitter(InputAction action) {
+    var radius = _appConfig.TapJitterRadiusPx;
+    if (radius <= 0) return;
+    try {
+      if (string.Equals(action.Type, "tap", StringComparison.OrdinalIgnoreCase)) {
+        if (!action.Args.ContainsKey("x") || !action.Args.ContainsKey("y")) return;
+        var (x, y) = GameBot.Domain.Services.CoordinateJitter.Apply(GetInt(action.Args, "x"), GetInt(action.Args, "y"), radius);
+        action.Args["x"] = x;
+        action.Args["y"] = y;
+      }
+      else if (string.Equals(action.Type, "swipe", StringComparison.OrdinalIgnoreCase)) {
+        if (!action.Args.ContainsKey("x1") || !action.Args.ContainsKey("y1") ||
+            !action.Args.ContainsKey("x2") || !action.Args.ContainsKey("y2")) return;
+        var (x1, y1) = GameBot.Domain.Services.CoordinateJitter.Apply(GetInt(action.Args, "x1"), GetInt(action.Args, "y1"), radius);
+        var (x2, y2) = GameBot.Domain.Services.CoordinateJitter.Apply(GetInt(action.Args, "x2"), GetInt(action.Args, "y2"), radius);
+        action.Args["x1"] = x1;
+        action.Args["y1"] = y1;
+        action.Args["x2"] = x2;
+        action.Args["y2"] = y2;
+      }
+    }
+    catch (FormatException) { /* malformed args: leave unchanged for the dispatch loop's existing error handling */ }
+    catch (InvalidCastException) { /* as above */ }
+    catch (OverflowException) { /* as above */ }
+    catch (KeyNotFoundException) { /* as above */ }
   }
 
   public async Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) {

@@ -134,13 +134,42 @@ internal sealed class ExecutionLogService : IExecutionLogService {
           "normal"));
       }
       else if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) && outcome.ResolvedPoint is not null) {
+        // Report both the pre-jitter target (ResolvedPoint) and the post-jitter executed point
+        // when they differ; keep the original single-point text when no jitter was applied.
+        var executed = outcome.ExecutedPoint;
+        var text = executed is not null && executed != outcome.ResolvedPoint
+          ? $"Tap targeted ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}), executed at ({executed.X},{executed.Y})."
+          : $"Tap executed at ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}).";
         details.Add(new ExecutionDetailItem(
           "tap",
-          $"Tap executed at ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}).",
+          text,
           new Dictionary<string, object?> {
             ["x"] = outcome.ResolvedPoint.X,
             ["y"] = outcome.ResolvedPoint.Y,
+            ["executedX"] = (executed ?? outcome.ResolvedPoint).X,
+            ["executedY"] = (executed ?? outcome.ResolvedPoint).Y,
             ["confidence"] = outcome.DetectionConfidence
+          },
+          "normal"));
+      }
+      else if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) && outcome.ExecutedSwipe is not null) {
+        var target = outcome.TargetSwipe;
+        var swipe = outcome.ExecutedSwipe;
+        var text = target is not null && target != swipe
+          ? $"Swipe targeted ({target.Start.X},{target.Start.Y})->({target.End.X},{target.End.Y}), executed ({swipe.Start.X},{swipe.Start.Y})->({swipe.End.X},{swipe.End.Y})."
+          : $"Swipe executed ({swipe.Start.X},{swipe.Start.Y})->({swipe.End.X},{swipe.End.Y}).";
+        details.Add(new ExecutionDetailItem(
+          "swipe",
+          text,
+          new Dictionary<string, object?> {
+            ["targetX1"] = (target ?? swipe).Start.X,
+            ["targetY1"] = (target ?? swipe).Start.Y,
+            ["targetX2"] = (target ?? swipe).End.X,
+            ["targetY2"] = (target ?? swipe).End.Y,
+            ["executedX1"] = swipe.Start.X,
+            ["executedY1"] = swipe.Start.Y,
+            ["executedX2"] = swipe.End.X,
+            ["executedY2"] = swipe.End.Y
           },
           "normal"));
       }

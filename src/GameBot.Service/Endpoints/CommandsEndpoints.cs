@@ -175,13 +175,20 @@ internal static class CommandsEndpoints {
     EffectiveTimeoutMs = outcome.EffectiveTimeoutMs,
     ReferenceImageId = outcome.ReferenceImageId,
     ImageLoadStatus = outcome.ImageLoadStatus,
-    ResolvedPoint = outcome.ResolvedPoint is null
-      ? null
-      : new ResolvedPointDto {
-        X = outcome.ResolvedPoint.X,
-        Y = outcome.ResolvedPoint.Y
-      }
+    ResolvedPoint = ToResolvedPointDto(outcome.ResolvedPoint),
+    ExecutedPoint = ToResolvedPointDto(outcome.ExecutedPoint),
+    TargetSwipe = ToSwipePointsDto(outcome.TargetSwipe),
+    ExecutedSwipe = ToSwipePointsDto(outcome.ExecutedSwipe)
   };
+
+  private static ResolvedPointDto? ToResolvedPointDto(PrimitiveTapResolvedPoint? point) =>
+    point is null ? null : new ResolvedPointDto { X = point.X, Y = point.Y };
+
+  private static SwipePointsDto? ToSwipePointsDto(PrimitiveSwipePoints? points) =>
+    points is null ? null : new SwipePointsDto {
+      Start = new ResolvedPointDto { X = points.Start.X, Y = points.Start.Y },
+      End = new ResolvedPointDto { X = points.End.X, Y = points.End.Y }
+    };
 
   private static DetectionTarget? ToDomainDetection(DetectionTargetDto? dto) {
     if (dto is null) return null;

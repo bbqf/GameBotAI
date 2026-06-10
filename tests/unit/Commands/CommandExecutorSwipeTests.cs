@@ -35,6 +35,8 @@ public sealed class CommandExecutorSwipeTests {
     private readonly EmulatorSession _session;
     public List<InputAction> ReceivedInputs { get; } = new();
     public int SendResult { get; set; } = 1;
+    /// <summary>Optional per-action mutation simulating the real SessionManager's in-place jitter.</summary>
+    public Action<InputAction>? OnSend { get; set; }
     public RecordingSessionManager(EmulatorSession session) => _session = session;
     public int ActiveCount => 1;
     public bool CanCreateSession => false;
@@ -43,7 +45,10 @@ public sealed class CommandExecutorSwipeTests {
     public IReadOnlyCollection<EmulatorSession> ListSessions() => new[] { _session };
     public bool StopSession(string id) => false;
     public Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) {
-      ReceivedInputs.AddRange(actions);
+      foreach (var action in actions) {
+        OnSend?.Invoke(action);
+        ReceivedInputs.Add(action);
+      }
       return Task.FromResult(SendResult);
     }
     public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
@@ -162,6 +167,43 @@ public sealed class CommandExecutorSwipeTests {
     result.Accepted.Should().Be(0);
     sessions.ReceivedInputs.Should().BeEmpty();
     result.StepOutcomes.Should().ContainSingle().Which.Status.Should().Be("skipped_invalid_config");
+  }
+
+  [Fact]
+  public async Task SwipeStepReportsTargetSwipeAndExecutedSwipeFromMutatedArgs() {
+    var cmds = new FakeCommandRepository();
+    var sessions = new RecordingSessionManager(RunningSession()) {
+      // Simulate the real SessionManager's tap-point jitter mutating the args in place.
+      OnSend = a => {
+        a.Args["x1"] = 102;
+        a.Args["y1"] = 199;
+        a.Args["x2"] = 304;
+        a.Args["y2"] = 405;
+      }
+    };
+    cmds.Seed(SwipeCommand(100, 200, 300, 400, null));
+    var executor = BuildExecutor(cmds, sessions);
+
+    var result = await executor.ForceExecuteDetailedAsync("session1", "cmd1");
+
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.TargetSwipe.Should().Be(new PrimitiveSwipePoints(
+      new PrimitiveTapResolvedPoint(100, 200), new PrimitiveTapResolvedPoint(300, 400)));
+    outcome.ExecutedSwipe.Should().Be(new PrimitiveSwipePoints(
+      new PrimitiveTapResolvedPoint(102, 199), new PrimitiveTapResolvedPoint(304, 405)));
+  }
+
+  [Fact]
+  public async Task SwipeStepExecutedSwipeEqualsTargetSwipeWhenArgsAreNotMutated() {
+    var cmds = new FakeCommandRepository();
+    var sessions = new RecordingSessionManager(RunningSession());
+    cmds.Seed(SwipeCommand(100, 200, 300, 400, null));
+    var executor = BuildExecutor(cmds, sessions);
+
+    var result = await executor.ForceExecuteDetailedAsync("session1", "cmd1");
+
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.ExecutedSwipe.Should().Be(outcome.TargetSwipe);
   }
 
   [Fact]

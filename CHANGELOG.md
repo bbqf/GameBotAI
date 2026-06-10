@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Tap-point jitter (058-tap-point-jitter)
+  - Every tap and swipe sent to the device now lands within a small random offset of its target instead of always hitting the exact same pixel, making repeated executions look more natural. Each axis offset is drawn independently from `[-radius, +radius]`; swipe start and end points are jittered independently; results are clamped so coordinates are never negative.
+  - Applied automatically and centrally in the session input dispatch path, so it covers all origins: authored steps, image-detection-resolved primitive taps, recorder replays, and the raw `POST /sessions/{id}/inputs` API. No per-step opt-in/opt-out and no new authoring/execution UI controls.
+  - New configuration parameter `GAMEBOT_TAP_JITTER_RADIUS_PX` (default `5`): `0` disables jitter entirely (pixel-exact input); negative/invalid values fall back to the default. Follows the standard precedence (default → saved config file → environment variable), appears in the generic UI Configuration variables list, and is documented in `ENVIRONMENT.md`.
+  - Execution logs and step outcomes now report both the pre-jitter target and the post-jitter executed coordinates: tap details read "Tap targeted (X,Y), executed at (X',Y')" and step outcome payloads gain additive `executedPoint`, `targetSwipe`, and `executedSwipe` fields alongside the existing `resolvedPoint`.
+
 ## [0.7.0] - 2026-06-02
 
 ### Added

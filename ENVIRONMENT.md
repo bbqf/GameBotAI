@@ -170,6 +170,12 @@ Examples:
   - Used in: `SessionManager`
   - Default: `100`
 
+- GAMEBOT_TAP_JITTER_RADIUS_PX
+  - Purpose: Maximum random per-axis offset (pixels) applied independently to the X and Y coordinate of every tap and swipe endpoint immediately before dispatch, so repeated executions don't always land on the exact same pixel. Each axis offset is drawn uniformly from `[-radius, +radius]`; results are clamped to be non-negative.
+  - Used in: `SessionManager` (applies to all dispatch paths — command steps, image-detection taps, recorder replays, and the raw `POST /sessions/{id}/inputs` API; set to `0` for pixel-exact input, e.g. calibration)
+  - Default: `5`
+  - Valid range: `0` or greater. `0` disables jitter entirely; negative or non-numeric values fall back to the default `5`.
+
 ## Service Options via ASP.NET Core Configuration
 
 You can set these via appsettings or environment variables using double underscores.
