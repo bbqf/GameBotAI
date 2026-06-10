@@ -41,6 +41,14 @@ public sealed class AppConfig {
   public double TapRetryProgression { get; set; } = 1.0;
 
   /// <summary>
+  /// Maximum random per-axis offset in pixels applied independently to the X and Y coordinate
+  /// of every tap and swipe endpoint immediately before it is sent to the device.
+  /// <c>0</c> disables jitter (coordinates pass through unchanged); negative values fall back
+  /// to the default 5. Maps to <c>GAMEBOT_TAP_JITTER_RADIUS_PX</c> environment variable.
+  /// </summary>
+  public int TapJitterRadiusPx { get; set; } = 5;
+
+  /// <summary>
   /// Maximum number of ADB retries per operation.
   /// Maps to <c>GAMEBOT_ADB_RETRIES</c> environment variable. Default 2.
   /// </summary>

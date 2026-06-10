@@ -82,6 +82,11 @@ internal sealed class ResolvedPointDto {
   public required int Y { get; init; }
 }
 
+internal sealed class SwipePointsDto {
+  public required ResolvedPointDto Start { get; init; }
+  public required ResolvedPointDto End { get; init; }
+}
+
 internal sealed class StepExecutionOutcomeDto {
   public required int StepOrder { get; init; }
   public required string Status { get; init; }
@@ -93,6 +98,9 @@ internal sealed class StepExecutionOutcomeDto {
   public int? EffectiveTimeoutMs { get; init; }
   public string? ReferenceImageId { get; init; }
   public string? ImageLoadStatus { get; init; }
+  public ResolvedPointDto? ExecutedPoint { get; init; }
+  public SwipePointsDto? TargetSwipe { get; init; }
+  public SwipePointsDto? ExecutedSwipe { get; init; }
 }
 
 internal enum DetectionSelectionStrategyDto {

@@ -243,9 +243,22 @@ internal sealed class CommandExecutor : ICommandExecutor {
       if (step.Swipe.DurationMs.HasValue) {
         swipeArgs["durationMs"] = step.Swipe.DurationMs.Value;
       }
+      var targetSwipe = new PrimitiveSwipePoints(
+        new PrimitiveTapResolvedPoint(step.Swipe.StartX, step.Swipe.StartY),
+        new PrimitiveTapResolvedPoint(step.Swipe.EndX, step.Swipe.EndY));
       var swipeAction = new GameBot.Emulator.Session.InputAction("swipe", swipeArgs, null, null);
       var swipeAccepted = await _sessions.SendInputsAsync(sessionId, new[] { swipeAction }, ct).ConfigureAwait(false);
-      return (swipeAccepted, new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "swipe"));
+      // The session manager applies tap-point jitter by mutating the args in place; read the
+      // values back so the outcome reports the coordinates actually sent to the device.
+      var executedSwipe = new PrimitiveSwipePoints(
+        new PrimitiveTapResolvedPoint(
+          Convert.ToInt32(swipeArgs["x1"], CultureInfo.InvariantCulture),
+          Convert.ToInt32(swipeArgs["y1"], CultureInfo.InvariantCulture)),
+        new PrimitiveTapResolvedPoint(
+          Convert.ToInt32(swipeArgs["x2"], CultureInfo.InvariantCulture),
+          Convert.ToInt32(swipeArgs["y2"], CultureInfo.InvariantCulture)));
+      return (swipeAccepted, new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "swipe",
+        TargetSwipe: targetSwipe, ExecutedSwipe: executedSwipe));
     }
 
     if (step.Type == CommandStepType.PrimitiveTap) {
@@ -576,12 +589,18 @@ internal sealed class CommandExecutor : ICommandExecutor {
     var accepted = _sessions.SendInputsAsync(sessionId, new[] { sessionInput }, ct).GetAwaiter().GetResult();
     totalAccepted += accepted;
 
+    // The session manager applies tap-point jitter by mutating the args in place; read the
+    // values back so the outcome reports the coordinates actually sent to the device.
+    var executedX = Convert.ToInt32(tapArgs["x1"], CultureInfo.InvariantCulture);
+    var executedY = Convert.ToInt32(tapArgs["y1"], CultureInfo.InvariantCulture);
+
     var detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
       ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
       : (double?)null;
 
     var reason = retryAttempt > 0 ? $"detected_after_{retryAttempt}_retries" : null;
-    stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", reason, new PrimitiveTapResolvedPoint(x, y), detectionConfidence));
+    stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", reason, new PrimitiveTapResolvedPoint(x, y), detectionConfidence,
+      ExecutedPoint: new PrimitiveTapResolvedPoint(executedX, executedY)));
     return true;
   }
 

@@ -167,7 +167,16 @@ internal static class StepsEndpoints {
     stepType = outcome.StepType,
     reason = outcome.Reason,
     detectionConfidence = outcome.DetectionConfidence,
-    resolvedPoint = outcome.ResolvedPoint is null ? null : new { x = outcome.ResolvedPoint.X, y = outcome.ResolvedPoint.Y }
+    resolvedPoint = outcome.ResolvedPoint is null ? null : new { x = outcome.ResolvedPoint.X, y = outcome.ResolvedPoint.Y },
+    executedPoint = outcome.ExecutedPoint is null ? null : new { x = outcome.ExecutedPoint.X, y = outcome.ExecutedPoint.Y },
+    targetSwipe = outcome.TargetSwipe is null ? null : new {
+      start = new { x = outcome.TargetSwipe.Start.X, y = outcome.TargetSwipe.Start.Y },
+      end = new { x = outcome.TargetSwipe.End.X, y = outcome.TargetSwipe.End.Y }
+    },
+    executedSwipe = outcome.ExecutedSwipe is null ? null : new {
+      start = new { x = outcome.ExecutedSwipe.Start.X, y = outcome.ExecutedSwipe.Start.Y },
+      end = new { x = outcome.ExecutedSwipe.End.X, y = outcome.ExecutedSwipe.End.Y }
+    }
   };
 }
 

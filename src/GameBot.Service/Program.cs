@@ -155,6 +155,9 @@ builder.Services.AddSingleton(_ => {
   var retryProgressionEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_PROGRESSION");
   var retryProgression = double.TryParse(retryProgressionEnv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rpParsed) && rpParsed > 0 ? rpParsed : 1.0;
 
+  var tapJitterEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_JITTER_RADIUS_PX");
+  var tapJitterRadius = int.TryParse(tapJitterEnv, out var tjParsed) && tjParsed >= 0 ? tjParsed : 5;
+
   var adbRetriesEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES");
   var adbRetries = int.TryParse(adbRetriesEnv, out var arParsed) && arParsed >= 0 ? arParsed : 2;
 
@@ -166,6 +169,7 @@ builder.Services.AddSingleton(_ => {
     CaptureIntervalMs = captureInterval,
     TapRetryCount = retryCount,
     TapRetryProgression = retryProgression,
+    TapJitterRadiusPx = tapJitterRadius,
     AdbRetries = adbRetries,
     AdbRetryDelayMs = adbRetryDelay,
   };

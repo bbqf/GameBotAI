@@ -258,6 +258,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["GAMEBOT_CAPTURE_INTERVAL_MS"] = 500,
       ["GAMEBOT_TAP_RETRY_COUNT"] = 3,
       ["GAMEBOT_TAP_RETRY_PROGRESSION"] = 1.0,
+      ["GAMEBOT_TAP_JITTER_RADIUS_PX"] = 5,
 
       // ASP.NET Core configuration env keys and their documented defaults/effective values
       ["Service__Storage__Root"] = _storageRoot,

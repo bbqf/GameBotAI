@@ -52,6 +52,7 @@ internal sealed class ConfigApplier : IConfigApplier {
     _appConfig.CaptureIntervalMs = Math.Max(50, GetInt(snapshot, "GAMEBOT_CAPTURE_INTERVAL_MS", 500));
     _appConfig.TapRetryCount = Math.Max(0, GetInt(snapshot, "GAMEBOT_TAP_RETRY_COUNT", 3));
     _appConfig.TapRetryProgression = GetDouble(snapshot, "GAMEBOT_TAP_RETRY_PROGRESSION", 1.0) is var prog && prog > 0 ? prog : 1.0;
+    _appConfig.TapJitterRadiusPx = GetInt(snapshot, "GAMEBOT_TAP_JITTER_RADIUS_PX", 5) is var jitter && jitter >= 0 ? jitter : 5;
     _appConfig.AdbRetries = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRIES", 2));
     _appConfig.AdbRetryDelayMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRY_DELAY_MS", 100));
 
