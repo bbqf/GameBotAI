@@ -170,4 +170,49 @@ public sealed class QueueExecutionEndpointTests {
 
     await StopAsync(client, id).ConfigureAwait(true);
   }
+
+  // feature 059: live relative scheduling against a running queue (200 happy path + SC-004).
+
+  private static async Task<string> CreateSequenceAsync(HttpClient client, string name) {
+    var resp = await client.PostAsJsonAsync(new Uri("/api/sequences", UriKind.Relative),
+      new { name, steps = Array.Empty<string>() }).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.Created);
+    return JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
+  }
+
+  private static async Task<string> TemplateJsonAsync(HttpClient client, string templateId) {
+    var resp = await client.GetAsync(new Uri($"/api/queue-templates/{templateId}", UriKind.Relative)).ConfigureAwait(true);
+    return await resp.Content.ReadAsStringAsync().ConfigureAwait(true);
+  }
+
+  [Fact]
+  public async Task LiveScheduleAgainstRunningQueueReturns200AndLeavesTemplateUnchanged() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    // A running cycling queue linked to a template, plus a real target sequence in the library.
+    var queueId = await CreateQueueAsync(client, cycle: true).ConfigureAwait(true);
+    var templateId = await CreateTemplateAsync(client, "seq-loop").ConfigureAwait(true);
+    await LinkTemplateAsync(client, queueId, templateId).ConfigureAwait(true);
+    await client.PostAsync(new Uri($"/api/queues/{queueId}/start", UriKind.Relative), null).ConfigureAwait(true);
+    await WaitForStatusAsync(client, queueId, "Running").ConfigureAwait(true);
+
+    var seq = await CreateSequenceAsync(client, "Live " + Guid.NewGuid().ToString("N")).ConfigureAwait(true);
+    var templateBefore = await TemplateJsonAsync(client, templateId).ConfigureAwait(true);
+
+    var resp = await client.PostAsJsonAsync(new Uri($"/api/queues/{queueId}/live-schedule", UriKind.Relative),
+      new { sequenceId = seq, offset = "00:10:00" }).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var body = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    body.GetProperty("sequenceId").GetString().Should().Be(seq);
+    body.GetProperty("offset").GetString().Should().Be("00:10:00");
+    body.TryGetProperty("expectedFireAt", out var fireAt).Should().BeTrue();
+    fireAt.ValueKind.Should().Be(JsonValueKind.String);
+
+    // SC-004: the live schedule is in-memory only; the linked template is untouched.
+    var templateAfter = await TemplateJsonAsync(client, templateId).ConfigureAwait(true);
+    templateAfter.Should().Be(templateBefore);
+
+    await StopAsync(client, queueId).ConfigureAwait(true);
+  }
 }

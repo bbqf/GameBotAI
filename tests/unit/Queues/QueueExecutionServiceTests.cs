@@ -128,10 +128,12 @@ public sealed class QueueExecutionServiceTests {
     public FakeSessionManager Sessions { get; } = new();
     public RecordingExecutionLog Log { get; } = new();
     public QueueRuntimeStore Runtime { get; } = new();
+    public FakeTimeProvider? Clock { get; }
     public QueueExecutionService Service { get; }
 
-    public Harness() {
-      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance);
+    public Harness(FakeTimeProvider? clock = null) {
+      Clock = clock;
+      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, timeProvider: clock);
     }
 
     public ExecutionQueue AddQueue(string id, IReadOnlyList<string> sequenceIds, bool cycle = false, bool linkTemplate = true) {
@@ -412,6 +414,9 @@ public sealed class QueueExecutionServiceTests {
   private static QueueTemplateEntry OncePerRun(string id) => new() { SequenceId = id, ScheduleType = ScheduleType.OncePerRun };
   private static QueueTemplateEntry EveryStep(string id) => new() { SequenceId = id, ScheduleType = ScheduleType.EveryStep };
   private static QueueTemplateEntry TimerEntry(string id, TimeOnly time) => new() { SequenceId = id, ScheduleType = ScheduleType.Timer, TimerTimeOfDay = time };
+  private static QueueTemplateEntry RelativeTimer(string id, TimeSpan offset) => new() { SequenceId = id, ScheduleType = ScheduleType.Timer, TimerRelativeOffset = offset };
+
+  private static readonly DateTimeOffset FakeStart = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
   [Fact]
   public async Task EveryStepRunsAfterEachOncePerRunStepAndAfterLast() {
@@ -591,5 +596,193 @@ public sealed class QueueExecutionServiceTests {
 
     // FR-016: T fires first (timer boundary), then A (OncePerRun), then C (EveryStep)
     h.Sequences.Executed.Should().Equal("T", "A", "C");
+  }
+
+  // ── US1 (feature 059): relative-offset timers ────────────────────────────
+
+  [Fact] // T007 — zero offset fires at first boundary and COUNTS toward executed (FR-016a)
+  public async Task RelativeTimerZeroOffsetFiresAtFirstBoundaryAndCountsTowardExecuted() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { RelativeTimer("T", TimeSpan.Zero), OncePerRun("A") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // Relative timer fires before the OncePerRun step, then A.
+    h.Sequences.Executed.Should().Equal("T", "A");
+    // FR-016a: both the relative firing and the once-per-run step count → 2 executed.
+    h.Log.Summary.Should().Contain("2 sequence(s) executed");
+  }
+
+  [Fact] // T007 — does not fire before the offset elapses, then fires exactly once after
+  public async Task RelativeTimerFiresOncePerRunOnlyAfterOffsetElapses() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { RelativeTimer("T", TimeSpan.FromMinutes(10)), OncePerRun("A") }, cycle: true);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(10, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    // Several cycles elapse with the clock un-advanced: T must NOT fire yet (FR-005 anchor).
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= 2);
+    h.Sequences.Executed.Should().NotContain("T");
+
+    // Advance past the offset → T fires at the next boundary, exactly once.
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T"));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= 5);
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Count(id => id == "T").Should().Be(1);
+  }
+
+  [Fact] // T007 — recomputes fresh on every run (fires again on a second run)
+  public async Task RelativeTimerRecomputesOnEachRun() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { RelativeTimer("T", TimeSpan.Zero), OncePerRun("A") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+    h.Sequences.Executed.Should().Equal("T", "A");
+
+    // A fresh run re-anchors to the new run start and fires again.
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+    h.Sequences.Executed.Should().Equal("T", "A", "T", "A");
+  }
+
+  [Fact] // T007 — a failed relative firing is non-fatal, counted in failed, run continues (FR-016)
+  public async Task RelativeTimerFailureIsNonFatalAndStillCounts() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { RelativeTimer("T", TimeSpan.Zero), OncePerRun("A") });
+    h.Sequences.Handler = (id, ct) =>
+      Task.FromResult(id == "T" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("T", "A"); // run continued past the failure
+    h.Log.FinalStatus.Should().Be("success");
+    h.Log.Summary.Should().Contain("2 sequence(s) executed"); // FR-016a: counted even though it failed
+    h.Log.Summary.Should().Contain("1 failed");
+  }
+
+  // ── US2 (feature 059): live relative scheduling ──────────────────────────
+
+  [Fact] // T013 — scheduling against a queue with no active run is rejected
+  public void ScheduleRelativeWhenNotRunningReturnsNotRunning() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" });
+
+    var result = h.Service.ScheduleRelative("q1", "L", TimeSpan.FromMinutes(1));
+
+    result.Outcome.Should().Be(LiveScheduleOutcome.NotRunning);
+  }
+
+  [Fact] // T013 — a live schedule fires once after its offset, counts toward executed, then clears
+  public async Task LiveScheduleFiresOnceAfterOffsetAndCountsTowardExecuted() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(10, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Service.IsRunning("q1"));
+
+    var result = h.Service.ScheduleRelative("q1", "L", TimeSpan.FromMinutes(5));
+    result.Outcome.Should().Be(LiveScheduleOutcome.Scheduled);
+    result.ExpectedFireAt.Should().Be(FakeStart + TimeSpan.FromMinutes(5));
+
+    // Not due yet.
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= 2);
+    h.Sequences.Executed.Should().NotContain("L");
+
+    // Advance past the offset → L fires once at the next boundary, then is removed.
+    clock.Advance(TimeSpan.FromMinutes(5));
+    await WaitForAsync(() => h.Sequences.Executed.Contains("L"));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= 5);
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Count(id => id == "L").Should().Be(1);
+  }
+
+  [Fact] // T013 — re-scheduling the same sequence replaces the pending one (most-recent-wins, FR-011)
+  public async Task LiveScheduleMostRecentWinsPerSequence() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(10, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Service.IsRunning("q1"));
+
+    // First a far-future schedule, then replace it with an immediately-due one.
+    h.Service.ScheduleRelative("q1", "L", TimeSpan.FromHours(12));
+    h.Service.ScheduleRelative("q1", "L", TimeSpan.Zero);
+
+    await WaitForAsync(() => h.Sequences.Executed.Contains("L"));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= 4);
+    await h.Service.StopAsync("q1");
+
+    // The 12-hour schedule was replaced; L fired once (from the zero-offset re-schedule).
+    h.Sequences.Executed.Count(id => id == "L").Should().Be(1);
+  }
+
+  [Fact] // T013 — a failed live firing is non-fatal and the run continues (FR-016)
+  public async Task LiveScheduleFailedFiringIsNonFatalAndRunContinues() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+    h.Sequences.Handler = async (id, ct) => {
+      await Task.Delay(10, ct);
+      return id == "L" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Service.IsRunning("q1"));
+    h.Service.ScheduleRelative("q1", "L", TimeSpan.Zero);
+
+    await WaitForAsync(() => h.Sequences.Executed.Contains("L"));
+    // The run keeps going after the failed firing.
+    var aAfterFailure = h.Sequences.Executed.Count(id => id == "A");
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") > aAfterFailure);
+    h.Service.IsRunning("q1").Should().BeTrue();
+
+    await h.Service.StopAsync("q1");
+    h.Sequences.Executed.Count(id => id == "L").Should().Be(1);
+  }
+
+  // ── T025: relative-timer edge cases ──────────────────────────────────────
+
+  [Fact] // an offset that never elapses during the run never fires
+  public async Task RelativeTimerThatNeverElapsesNeverFires() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { RelativeTimer("T", TimeSpan.FromHours(12)), OncePerRun("A") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A");
+    h.Sequences.Executed.Should().NotContain("T");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact] // multiple simultaneously-due relative timers all fire before the regular steps (FR-015)
+  public async Task MultipleRelativeTimersAllFireBeforeRegularSteps() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] {
+      RelativeTimer("T1", TimeSpan.Zero),
+      RelativeTimer("T2", TimeSpan.Zero),
+      OncePerRun("A")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("T1", "T2", "A");
   }
 }

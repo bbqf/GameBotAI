@@ -134,6 +134,36 @@ internal static class QueuesEndpoints {
       return Results.Ok(BuildResponse(queue, runtime));
     }).WithName("StopQueue");
 
+    // Live relative scheduling (feature 059): schedule any library sequence to fire once after a
+    // relative offset from now against the queue's active run. Ephemeral; never persisted.
+    group.MapPost("{id}/live-schedule", async (string id, LiveScheduleRequest? req, IQueueRepository repo, ISequenceRepository sequences, IQueueExecutionService execution) => {
+      // (1) Queue must exist.
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+
+      // (2) Offset must be a well-formed, non-negative, in-range HH:mm:ss duration.
+      if (!RelativeOffsetParser.TryParse(req?.Offset, out var offset, out var offsetError))
+        return Error(400, "invalid_request", offsetError!);
+
+      // (3) Target sequence must exist in the library.
+      var sequenceId = req?.SequenceId?.Trim();
+      if (string.IsNullOrWhiteSpace(sequenceId))
+        return Error(400, "invalid_request", "sequenceId is required");
+      if (await sequences.GetAsync(sequenceId).ConfigureAwait(false) is null)
+        return Error(404, "not_found", "Sequence not found");
+
+      // (4) The queue must have an active run to schedule against.
+      var result = execution.ScheduleRelative(id, sequenceId, offset);
+      if (result.Outcome == LiveScheduleOutcome.NotRunning)
+        return Error(409, "not_running", "The queue has no active run to schedule against.");
+
+      return Results.Ok(new LiveScheduleResponse {
+        SequenceId = sequenceId,
+        Offset = RelativeOffsetParser.Format(offset),
+        ExpectedFireAt = result.ExpectedFireAt
+      });
+    }).WithName("LiveScheduleQueueSequence");
+
     return app;
   }
 

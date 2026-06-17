@@ -59,11 +59,12 @@ only on the once-per-run steps. (Time-of-day timers and every-step entries remai
 
 ```powershell
 # Backend
-& "c:\src\GameBot\.specify\scripts\powershell\..\..\..\" ; dotnet test c:\src\GameBot\GameBot.sln
+dotnet test c:\src\GameBot\GameBot.sln
 
-# Web UI (the real green gate)
+# Web UI (the real green gate). `vite build` runs via --prefix, but jest must run from the
+# web-ui directory so it can load its ESM jest.config.ts.
 npm --prefix c:\src\GameBot\src\web-ui run build
-npm --prefix c:\src\GameBot\src\web-ui test
+Push-Location c:\src\GameBot\src\web-ui; npx jest; Pop-Location
 ```
 
 Key tests to expect green: relative timer fires once after offset and counts toward `executed`

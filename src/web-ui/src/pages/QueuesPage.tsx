@@ -14,10 +14,12 @@ import {
   setQueueGameLink,
   startQueue,
   stopQueue,
+  liveScheduleSequence,
 } from '../services/queues';
 import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
 import { QueueEntryList, EntrySchedule } from '../components/queues/QueueEntryList';
+import { QueueLiveScheduleControl } from '../components/queues/QueueLiveScheduleControl';
 import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
 import { QueueGameControls } from '../components/queues/QueueGameControls';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
@@ -49,6 +51,9 @@ export const QueuesPage: React.FC = () => {
   // Per-entry schedule state (UI-local; not stored in the runtime API).
   // Keys are entryIds from the runtime queue entries.
   const [entrySchedule, setEntrySchedule] = useState<Record<string, EntrySchedule>>({});
+
+  // Which running queue (if any) currently has its live-schedule control expanded.
+  const [liveScheduleFor, setLiveScheduleFor] = useState<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -124,6 +129,8 @@ export const QueuesPage: React.FC = () => {
         schedule[entryId] = {
           scheduleType: tplEntry.scheduleType ?? 'OncePerRun',
           timerTimeOfDay: tplEntry.timerTimeOfDay ?? '',
+          timerMode: tplEntry.timerRelativeOffset ? 'relative' : 'timeOfDay',
+          timerRelativeOffset: tplEntry.timerRelativeOffset ?? '',
         };
       } else {
         schedule[entryId] = { scheduleType: 'OncePerRun', timerTimeOfDay: '' };
@@ -199,10 +206,13 @@ export const QueuesPage: React.FC = () => {
     if (!detail) return;
     const entries = detail.entries.map((e) => {
       const sched = entrySchedule[e.entryId] ?? { scheduleType: 'OncePerRun' as ScheduleType, timerTimeOfDay: '' };
+      const timerMode = sched.timerMode ?? (sched.timerRelativeOffset ? 'relative' : 'timeOfDay');
+      const isRelative = sched.scheduleType === 'Timer' && timerMode === 'relative';
       return {
         sequenceId: e.sequenceId,
         scheduleType: sched.scheduleType,
-        ...(sched.scheduleType === 'Timer' && sched.timerTimeOfDay ? { timerTimeOfDay: sched.timerTimeOfDay } : {}),
+        ...(sched.scheduleType === 'Timer' && !isRelative && sched.timerTimeOfDay ? { timerTimeOfDay: sched.timerTimeOfDay } : {}),
+        ...(isRelative && sched.timerRelativeOffset ? { timerRelativeOffset: sched.timerRelativeOffset } : {}),
       };
     });
     const saved = await saveQueueTemplate({ name, entries, overwrite });
@@ -339,35 +349,56 @@ export const QueuesPage: React.FC = () => {
           {!loading && queues.map((q) => {
             const running = q.status === 'Running';
             return (
-              <tr key={q.id} className="queues-row">
-                <td>
-                  <button type="button" className="link-button" onClick={() => void openEdit(q.id)}>{q.name}</button>
-                </td>
-                <td>{q.emulatorSerial}</td>
-                <td>{q.cycleExecution ? 'On' : 'Off'}</td>
-                <td>
-                  <span className={running ? 'status-chip status-running' : 'status-chip status-stopped'} data-testid="queue-status">
-                    {q.status}
-                  </span>
-                </td>
-                <td>{q.entryCount}</td>
-                <td>
-                  {running ? (
-                    <button type="button" onClick={() => void runAction(q.id, stopQueue, 'Queue stopped.')}>Stop</button>
-                  ) : (
-                    <button type="button" onClick={() => void runAction(q.id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}>Start</button>
-                  )}
-                  <button type="button" onClick={() => void openEdit(q.id)} disabled={running}>Edit</button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    disabled={running}
-                    onClick={async () => { await openEdit(q.id); setDeleteOpen(true); }}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
+              <React.Fragment key={q.id}>
+                <tr className="queues-row">
+                  <td>
+                    <button type="button" className="link-button" onClick={() => void openEdit(q.id)}>{q.name}</button>
+                  </td>
+                  <td>{q.emulatorSerial}</td>
+                  <td>{q.cycleExecution ? 'On' : 'Off'}</td>
+                  <td>
+                    <span className={running ? 'status-chip status-running' : 'status-chip status-stopped'} data-testid="queue-status">
+                      {q.status}
+                    </span>
+                  </td>
+                  <td>{q.entryCount}</td>
+                  <td>
+                    {running ? (
+                      <button type="button" onClick={() => void runAction(q.id, stopQueue, 'Queue stopped.')}>Stop</button>
+                    ) : (
+                      <button type="button" onClick={() => void runAction(q.id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}>Start</button>
+                    )}
+                    {running && (
+                      <button
+                        type="button"
+                        aria-label={`Schedule a sequence for ${q.name}`}
+                        onClick={() => setLiveScheduleFor((cur) => (cur === q.id ? undefined : q.id))}
+                      >
+                        Schedule
+                      </button>
+                    )}
+                    <button type="button" onClick={() => void openEdit(q.id)} disabled={running}>Edit</button>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      disabled={running}
+                      onClick={async () => { await openEdit(q.id); setDeleteOpen(true); }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+                {running && liveScheduleFor === q.id && (
+                  <tr className="queues-live-schedule-row">
+                    <td colSpan={6}>
+                      <QueueLiveScheduleControl
+                        sequences={sequences}
+                        onSchedule={(sequenceId, offset) => liveScheduleSequence(q.id, sequenceId, offset)}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             );
           })}
         </tbody>
@@ -418,6 +449,8 @@ export const QueuesPage: React.FC = () => {
                   entrySchedule={entrySchedule}
                   onScheduleTypeChange={(eid, st) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }, scheduleType: st } }))}
                   onTimerTimeChange={(eid, t) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerTimeOfDay: t } }))}
+                  onTimerModeChange={(eid, mode) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: mode } }))}
+                  onTimerRelativeOffsetChange={(eid, offset) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: 'relative', timerRelativeOffset: offset } }))}
                   disabled={detail.status === 'Running'}
                 />
               </QueueTemplateControls>

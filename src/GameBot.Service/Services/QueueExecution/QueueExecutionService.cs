@@ -33,6 +33,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   private readonly BackgroundScreenCaptureService? _captureService;
   private readonly IExecutionLogService _log;
   private readonly ILogger<QueueExecutionService> _logger;
+  private readonly TimeProvider _timeProvider;
   private readonly CancellationToken _appStopping;
 
   private readonly ConcurrentDictionary<string, QueueRunHandle> _runs =
@@ -47,7 +48,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IExecutionLogService log,
     ILogger<QueueExecutionService> logger,
     IHostApplicationLifetime? lifetime = null,
-    BackgroundScreenCaptureService? captureService = null) {
+    BackgroundScreenCaptureService? captureService = null,
+    TimeProvider? timeProvider = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -56,10 +58,21 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _captureService = captureService;
     _log = log;
     _logger = logger;
+    _timeProvider = timeProvider ?? TimeProvider.System;
     _appStopping = lifetime?.ApplicationStopping ?? CancellationToken.None;
   }
 
   public bool IsRunning(string queueId) => _runs.ContainsKey(queueId);
+
+  public LiveScheduleResult ScheduleRelative(string queueId, string sequenceId, TimeSpan offset) {
+    if (!_runs.TryGetValue(queueId, out var handle))
+      return new LiveScheduleResult(LiveScheduleOutcome.NotRunning, default);
+
+    var fireAt = _timeProvider.GetLocalNow() + offset;
+    // Upsert: a new schedule for the same sequence replaces a still-pending one (FR-011).
+    handle.PendingLiveSchedules[sequenceId] = fireAt;
+    return new LiveScheduleResult(LiveScheduleOutcome.Scheduled, fireAt);
+  }
 
   public async Task<QueueStartOutcome> StartAsync(string queueId, CancellationToken ct = default) {
     var queue = await _queues.GetAsync(queueId).ConfigureAwait(false);
@@ -143,6 +156,13 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // Declared OUTSIDE the do-while loop so it persists across all cycles of this run.
             var timerFiredDate = new Dictionary<int, DateOnly>();
 
+            // Relative-offset timer state (feature 059): the run-start anchor and the set of
+            // relative-timer indices already fired this run (fire-once-per-run, FR-005). Both live
+            // outside the loop so they survive cycles. Recomputed fresh on every run.
+            var runStartedAt = _timeProvider.GetLocalNow();
+            handle.RunStartedAt = runStartedAt;
+            var relativeTimerFired = new HashSet<int>();
+
             if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
               do {
                 ct.ThrowIfCancellationRequested();
@@ -152,8 +172,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var timerEntry = timerEntries[ti];
                   if (timerEntry.TimerTimeOfDay is null) continue;
 
-                  var today = DateOnly.FromDateTime(DateTime.Now);
-                  var now = TimeOnly.FromDateTime(DateTime.Now);
+                  var localNow = _timeProvider.GetLocalNow();
+                  var today = DateOnly.FromDateTime(localNow.DateTime);
+                  var now = TimeOnly.FromDateTime(localNow.DateTime);
                   if (now >= timerEntry.TimerTimeOfDay.Value
                       && (!timerFiredDate.TryGetValue(ti, out var lastFired) || lastFired != today)) {
                     ct.ThrowIfCancellationRequested();
@@ -163,6 +184,42 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     // Timer executions do not count toward `executed` (SC-002 analogue for timers)
                     timerFiredDate[ti] = today;
                   }
+                }
+
+                // (a2) Evaluate relative-offset timers at the iteration boundary (feature 059).
+                // Fire once per run when elapsed-since-run-start >= offset (FR-005). Relative firings
+                // COUNT toward `executed` (FR-016a), unlike time-of-day timers. A failed firing is
+                // non-fatal: recorded in `failed`, run continues (FR-016).
+                var elapsedSinceStart = _timeProvider.GetLocalNow() - runStartedAt;
+                for (var ri = 0; ri < timerEntries.Count; ri++) {
+                  var relEntry = timerEntries[ri];
+                  if (relEntry.TimerRelativeOffset is not { } relOffset) continue;
+                  if (relativeTimerFired.Contains(ri)) continue;
+                  if (elapsedSinceStart < relOffset) continue;
+
+                  ct.ThrowIfCancellationRequested();
+                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                  executed++;
+                  if (!relOk) failed++;
+                  relativeTimerFired.Add(ri);
+                }
+
+                // (a3) Evaluate live relative schedules at the iteration boundary (feature 059).
+                // Snapshot the entries that are now due (fireAt <= now), fire each once, then remove
+                // it (fires once, FR-009). Live firings COUNT toward `executed` (FR-016a); a failed
+                // firing is non-fatal (FR-016). May target any library sequence (FR-013).
+                var liveNow = _timeProvider.GetLocalNow();
+                foreach (var due in handle.PendingLiveSchedules
+                           .Where(kv => kv.Value <= liveNow)
+                           .Select(kv => kv.Key)
+                           .ToList()) {
+                  if (!handle.PendingLiveSchedules.TryRemove(due, out _)) continue;
+                  ct.ThrowIfCancellationRequested();
+                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                  executed++;
+                  if (!liveOk) failed++;
                 }
 
                 // (b) OncePerRun steps, each followed by all EveryStep sequences (FR-006/FR-007/FR-016).

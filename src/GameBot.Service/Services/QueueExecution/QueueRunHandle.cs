@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Queues;
@@ -24,6 +25,21 @@ internal sealed class QueueRunHandle {
   public string? SessionId { get; set; }
 
   public DateTimeOffset StartedAtUtc { get; init; } = DateTimeOffset.UtcNow;
+
+  /// <summary>
+  /// The local-clock instant captured once when the run loop starts; the anchor against which
+  /// template relative-offset timers are measured (feature 059). Set by the run loop.
+  /// </summary>
+  public DateTimeOffset RunStartedAt { get; set; }
+
+  /// <summary>
+  /// Live, ephemeral relative schedules requested against this run via the live-schedule endpoint.
+  /// Key = sequence id; value = expected fire instant (call time + offset, local clock). Upserts are
+  /// most-recent-wins per sequence (FR-011); an entry is removed once fired (fires once, FR-009).
+  /// Never persisted — discarded with the handle when the run ends (FR-008).
+  /// </summary>
+  public ConcurrentDictionary<string, DateTimeOffset> PendingLiveSchedules { get; } =
+    new(StringComparer.Ordinal);
 }
 
 /// <summary>Outcome of a queue run, used to build the terminating execution-log entry.</summary>

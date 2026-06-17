@@ -173,4 +173,71 @@ public sealed class QueueTemplatesScheduleTypeTests {
     body.GetProperty("error").GetProperty("message").GetString().Should()
       .Contain("timerTimeOfDay");
   }
+
+  // ── feature 059: relative-offset timer round-trip + validation ─────────────
+
+  [Fact]
+  public async Task SaveTimerRelativeOffsetRoundTripsScheduleTypeAndOffset() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    var entries = new[] { new { sequenceId = "seq-a", scheduleType = "Timer", timerRelativeOffset = "00:10:00" } };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "RelativeTemplate", entries, overwrite = false }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = await BodyAsync(createResp).ConfigureAwait(true);
+    var id = created.GetProperty("id").GetString()!;
+
+    var getResp = await client.GetAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true);
+    var body = await BodyAsync(getResp).ConfigureAwait(true);
+    var entry = body.GetProperty("entries")[0];
+    entry.GetProperty("scheduleType").GetString().Should().Be("Timer");
+    entry.GetProperty("timerRelativeOffset").GetString().Should().Be("00:10:00");
+    entry.GetProperty("timerTimeOfDay").ValueKind.Should().Be(JsonValueKind.Null);
+  }
+
+  [Fact]
+  public async Task SaveTimerRelativeOffsetZeroIsValid() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    var entries = new[] { new { sequenceId = "seq-a", scheduleType = "Timer", timerRelativeOffset = "00:00:00" } };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "ZeroOffset", entries, overwrite = false }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = await BodyAsync(createResp).ConfigureAwait(true);
+    var id = created.GetProperty("id").GetString()!;
+
+    var getResp = await client.GetAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true);
+    var body = await BodyAsync(getResp).ConfigureAwait(true);
+    body.GetProperty("entries")[0].GetProperty("timerRelativeOffset").GetString().Should().Be("00:00:00");
+  }
+
+  [Fact]
+  public async Task TimerWithBothTimerFieldsReturns400() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    var entries = new[] { new { sequenceId = "seq-a", scheduleType = "Timer", timerTimeOfDay = "15:30", timerRelativeOffset = "00:10:00" } };
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "Both", entries, overwrite = false }).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var body = await BodyAsync(resp).ConfigureAwait(true);
+    body.GetProperty("error").GetProperty("code").GetString().Should().Be("invalid_request");
+    body.GetProperty("error").GetProperty("message").GetString().Should().Contain("exactly one");
+  }
+
+  [Fact]
+  public async Task TimerWithNegativeRelativeOffsetReturns400() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    var entries = new[] { new { sequenceId = "seq-a", scheduleType = "Timer", timerRelativeOffset = "-00:10:00" } };
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "Negative", entries, overwrite = false }).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var body = await BodyAsync(resp).ConfigureAwait(true);
+    body.GetProperty("error").GetProperty("code").GetString().Should().Be("invalid_request");
+    body.GetProperty("error").GetProperty("message").GetString().Should().Contain("timerRelativeOffset");
+  }
 }

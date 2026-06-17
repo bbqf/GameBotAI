@@ -20,11 +20,27 @@ namespace GameBot.Domain.QueueTemplates {
 
     /// <summary>
     /// Wall-clock time-of-day (server local time) at which this entry fires when
-    /// <see cref="ScheduleType"/> is <see cref="ScheduleType.Timer"/>. Null for all other types.
+    /// <see cref="ScheduleType"/> is <see cref="ScheduleType.Timer"/> in <b>time-of-day mode</b>.
+    /// Null in relative mode and for all non-timer types.
     /// The sequence executes at most once per calendar day: it fires at the first iteration
     /// boundary after this time has passed today, provided it has not already fired today in the
     /// current run.
     /// </summary>
     public TimeOnly? TimerTimeOfDay { get; set; }
+
+    /// <summary>
+    /// Relative duration offset (measured from the queue run start) at which this entry fires when
+    /// <see cref="ScheduleType"/> is <see cref="ScheduleType.Timer"/> in <b>relative mode</b>.
+    /// Null in time-of-day mode and for all non-timer types.
+    /// <para>
+    /// The timer "mode" is inferred from which field is set: a <see cref="ScheduleType.Timer"/>
+    /// entry MUST have exactly one of <see cref="TimerTimeOfDay"/> / <see cref="TimerRelativeOffset"/>
+    /// non-null (enforced at the API layer). In relative mode the sequence fires once per run, at the
+    /// first iteration boundary at or after this much time has elapsed since the run started, and is
+    /// recomputed fresh on every run. An offset of <c>00:00:00</c> fires at the first iteration
+    /// boundary. Serializes as an "HH:mm:ss" string.
+    /// </para>
+    /// </summary>
+    public TimeSpan? TimerRelativeOffset { get; set; }
   }
 }

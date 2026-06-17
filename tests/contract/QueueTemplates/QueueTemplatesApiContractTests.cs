@@ -83,4 +83,39 @@ public sealed class QueueTemplatesApiContractTests : IDisposable {
     // Delete -> 204
     (await client.DeleteAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
   }
+
+  [Fact] // feature 059: relative-offset timer mode
+  public async Task TimerRelativeOffsetContractIsAcceptedReturnedAndValidated() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+    var name = "Relative " + Guid.NewGuid().ToString("N");
+
+    // Accepts a Timer entry with timerRelativeOffset and echoes it back; timerTimeOfDay stays null.
+    var entries = new[] { new { sequenceId = "seq-x", scheduleType = "Timer", timerRelativeOffset = "00:10:00" } };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name, entries, overwrite = true }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    var entry = created.GetProperty("entries")[0];
+    entry.TryGetProperty("timerRelativeOffset", out _).Should().BeTrue("entry must expose 'timerRelativeOffset'");
+    entry.GetProperty("scheduleType").GetString().Should().Be("Timer");
+    entry.GetProperty("timerRelativeOffset").GetString().Should().Be("00:10:00");
+    entry.GetProperty("timerTimeOfDay").ValueKind.Should().Be(JsonValueKind.Null);
+
+    // Rejects a Timer entry that sets BOTH timer fields -> 400.
+    var both = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = name + "b", overwrite = true, entries = new[] { new { sequenceId = "seq-x", scheduleType = "Timer", timerTimeOfDay = "15:30", timerRelativeOffset = "00:10:00" } } }).ConfigureAwait(true);
+    both.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+    // Rejects a Timer entry that sets NEITHER timer field -> 400.
+    var neither = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = name + "n", overwrite = true, entries = new[] { new { sequenceId = "seq-x", scheduleType = "Timer" } } }).ConfigureAwait(true);
+    neither.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+    // Rejects an out-of-range offset -> 400.
+    var tooBig = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = name + "x", overwrite = true, entries = new[] { new { sequenceId = "seq-x", scheduleType = "Timer", timerRelativeOffset = "25:00:00" } } }).ConfigureAwait(true);
+    tooBig.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+  }
 }

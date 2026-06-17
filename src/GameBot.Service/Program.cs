@@ -130,6 +130,7 @@ builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLog
 builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
 builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLogService, GameBot.Service.Services.ExecutionLog.ExecutionLogService>();
 builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.ISequenceExecutionService, GameBot.Service.Services.SequenceExecution.SequenceExecutionService>();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueExecutionService, GameBot.Service.Services.QueueExecution.QueueExecutionService>();
 builder.Services.AddSingleton<SemanticVersionComparer>();
 builder.Services.AddSingleton<VersionSourceLoader>();

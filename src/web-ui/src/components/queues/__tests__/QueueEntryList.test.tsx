@@ -199,4 +199,81 @@ describe('QueueEntryList', () => {
     fireEvent.change(screen.getByLabelText('Schedule type for Alpha'), { target: { value: 'EveryStep' } });
     expect(onScheduleTypeChange).toHaveBeenCalledWith('e1', 'EveryStep' as ScheduleType);
   });
+
+  // Relative-offset timer mode (feature 059, US4)
+
+  const timerEntry: QueueEntryDto[] = [
+    { entryId: 'e1', sequenceId: 'seq-a', sequenceName: 'Alpha', stale: false },
+  ];
+
+  it('renders the time-of-day/relative mode toggle for Timer entries', () => {
+    const entrySchedule: Record<string, EntrySchedule> = {
+      e1: { scheduleType: 'Timer', timerTimeOfDay: '15:30', timerMode: 'timeOfDay' },
+    };
+    render(
+      <QueueEntryList
+        entries={timerEntry}
+        sequences={sequences}
+        onAdd={jest.fn()}
+        onRemove={jest.fn()}
+        entrySchedule={entrySchedule}
+        onScheduleTypeChange={jest.fn()}
+        onTimerTimeChange={jest.fn()}
+        onTimerModeChange={jest.fn()}
+        onTimerRelativeOffsetChange={jest.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Timer mode for Alpha')).toBeInTheDocument();
+  });
+
+  it('shows offset inputs and the relative badge in relative mode', () => {
+    const entrySchedule: Record<string, EntrySchedule> = {
+      e1: { scheduleType: 'Timer', timerTimeOfDay: '', timerMode: 'relative', timerRelativeOffset: '00:10:00' },
+    };
+    render(
+      <QueueEntryList
+        entries={timerEntry}
+        sequences={sequences}
+        onAdd={jest.fn()}
+        onRemove={jest.fn()}
+        entrySchedule={entrySchedule}
+        onScheduleTypeChange={jest.fn()}
+        onTimerModeChange={jest.fn()}
+        onTimerRelativeOffsetChange={jest.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Relative timer')).toBeInTheDocument();
+    expect(screen.getByLabelText('Offset minutes for Alpha')).toBeInTheDocument();
+    expect(screen.getByLabelText('Offset seconds for Alpha')).toBeInTheDocument();
+    // Time-of-day input is hidden in relative mode.
+    expect(screen.queryByLabelText('Timer time for Alpha')).not.toBeInTheDocument();
+  });
+
+  it('emits a composed offset and never a negative one', () => {
+    const onTimerRelativeOffsetChange = jest.fn();
+    const entrySchedule: Record<string, EntrySchedule> = {
+      e1: { scheduleType: 'Timer', timerTimeOfDay: '', timerMode: 'relative', timerRelativeOffset: '00:00:00' },
+    };
+    render(
+      <QueueEntryList
+        entries={timerEntry}
+        sequences={sequences}
+        onAdd={jest.fn()}
+        onRemove={jest.fn()}
+        entrySchedule={entrySchedule}
+        onScheduleTypeChange={jest.fn()}
+        onTimerModeChange={jest.fn()}
+        onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Offset minutes for Alpha'), { target: { value: '10' } });
+    expect(onTimerRelativeOffsetChange).toHaveBeenCalledWith('e1', '00:10:00');
+
+    onTimerRelativeOffsetChange.mockClear();
+    fireEvent.change(screen.getByLabelText('Offset minutes for Alpha'), { target: { value: '-5' } });
+    expect(onTimerRelativeOffsetChange).not.toHaveBeenCalled();
+  });
 });

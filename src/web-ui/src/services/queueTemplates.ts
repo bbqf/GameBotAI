@@ -16,6 +16,8 @@ export type QueueTemplateEntryDto = {
   stale: boolean;
   scheduleType: ScheduleType;
   timerTimeOfDay: string | null;
+  /** Relative-mode offset ("HH:mm:ss") for a Timer entry; null in time-of-day mode. */
+  timerRelativeOffset: string | null;
 };
 
 export type QueueTemplateDetail = QueueTemplateSummary & { entries: QueueTemplateEntryDto[] };
@@ -25,6 +27,8 @@ export type TemplateEntrySaveDto = {
   sequenceId: string;
   scheduleType?: ScheduleType;
   timerTimeOfDay?: string;
+  /** Relative-mode offset ("HH:mm:ss"); mutually exclusive with timerTimeOfDay. */
+  timerRelativeOffset?: string;
 };
 
 export type SaveQueueTemplate = {
