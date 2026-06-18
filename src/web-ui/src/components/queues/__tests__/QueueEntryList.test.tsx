@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueueEntryList, EntrySchedule } from '../QueueEntryList';
 import { QueueEntryDto } from '../../../services/queues';
 import { SequenceDto } from '../../../services/sequences';
@@ -115,7 +115,7 @@ describe('QueueEntryList', () => {
     expect(screen.queryByLabelText('Timer time for Alpha')).not.toBeInTheDocument();
   });
 
-  it('shows EveryStep badge for EveryStep entries', () => {
+  it('shows the After Every Step badge for EveryStep entries', () => {
     const entries: QueueEntryDto[] = [
       { entryId: 'e1', sequenceId: 'seq-a', sequenceName: 'Alpha', stale: false },
     ];
@@ -132,7 +132,8 @@ describe('QueueEntryList', () => {
       />
     );
 
-    expect(screen.getByLabelText('Every Step')).toBeInTheDocument();
+    // FR-002/FR-012: the badge is relabeled "After Every Step" (wire value stays EveryStep).
+    expect(screen.getByLabelText('After Every Step')).toBeInTheDocument();
   });
 
   it('shows Timer badge for Timer entries', () => {
@@ -172,8 +173,62 @@ describe('QueueEntryList', () => {
       />
     );
 
-    expect(screen.queryByLabelText('Every Step')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('After Every Step')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Timer')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('At Queue Start')).not.toBeInTheDocument();
+  });
+
+  // feature 060: "After Every Step" rename (US2) + "At Queue Start" option (US3)
+
+  it('renders the per-step schedule option labeled "After Every Step" (T009)', () => {
+    const entries: QueueEntryDto[] = [
+      { entryId: 'e1', sequenceId: 'seq-a', sequenceName: 'Alpha', stale: false },
+    ];
+    const entrySchedule: Record<string, EntrySchedule> = {
+      e1: { scheduleType: 'OncePerRun', timerTimeOfDay: '' },
+    };
+    render(
+      <QueueEntryList
+        entries={entries}
+        sequences={sequences}
+        onAdd={jest.fn()}
+        onRemove={jest.fn()}
+        entrySchedule={entrySchedule}
+        onScheduleTypeChange={jest.fn()}
+        onTimerTimeChange={jest.fn()}
+      />
+    );
+
+    const dropdown = screen.getByLabelText('Schedule type for Alpha');
+    const everyStepOption = within(dropdown).getByRole('option', { name: 'After Every Step' }) as HTMLOptionElement;
+    // The display label changed but the underlying value remains the EveryStep identifier (FR-010).
+    expect(everyStepOption.value).toBe('EveryStep');
+  });
+
+  it('renders "At Queue Start" as a dropdown option and shows its badge when selected (T012)', () => {
+    const entries: QueueEntryDto[] = [
+      { entryId: 'e1', sequenceId: 'seq-a', sequenceName: 'Alpha', stale: false },
+    ];
+    const entrySchedule: Record<string, EntrySchedule> = {
+      e1: { scheduleType: 'AtQueueStart', timerTimeOfDay: '' },
+    };
+    render(
+      <QueueEntryList
+        entries={entries}
+        sequences={sequences}
+        onAdd={jest.fn()}
+        onRemove={jest.fn()}
+        entrySchedule={entrySchedule}
+        onScheduleTypeChange={jest.fn()}
+        onTimerTimeChange={jest.fn()}
+      />
+    );
+
+    const dropdown = screen.getByLabelText('Schedule type for Alpha');
+    const option = within(dropdown).getByRole('option', { name: 'At Queue Start' }) as HTMLOptionElement;
+    expect(option.value).toBe('AtQueueStart');
+    // The badge renders for an at-queue-start entry.
+    expect(screen.getByLabelText('At Queue Start')).toBeInTheDocument();
   });
 
   it('calls onScheduleTypeChange when dropdown changes', () => {

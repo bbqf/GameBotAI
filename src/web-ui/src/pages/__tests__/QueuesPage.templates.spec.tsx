@@ -176,6 +176,48 @@ describe('QueuesPage template load wiring', () => {
   });
 });
 
+describe('QueuesPage AtQueueStart round-trip (feature 060, T013)', () => {
+  it('saves an AtQueueStart entry and reflects it after reload', async () => {
+    saveTemplateMock.mockResolvedValue({ id: 't1' } as any);
+    // Reload returns the saved template with the entry typed AtQueueStart.
+    getTemplateMock.mockResolvedValue({
+      id: 't1', name: 'At Start Farm', entryCount: 1, createdAt: null, updatedAt: null,
+      entries: [
+        { sequenceId: 'seq-a', sequenceName: 'A', stale: false, scheduleType: 'AtQueueStart', timerTimeOfDay: null },
+        { sequenceId: 'seq-b', sequenceName: 'B', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null },
+      ],
+    } as any);
+
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+    fireEvent.click(screen.getByText('Daily'));
+    await screen.findByText('Edit Queue');
+
+    // Mark the first entry as "At Queue Start" via the schedule dropdown.
+    fireEvent.change(screen.getByLabelText('Schedule type for A'), { target: { value: 'AtQueueStart' } });
+
+    // Save the template and confirm the schedule type is carried on the wire (SC-004).
+    fireEvent.click(screen.getByText('Save Template'));
+    const section = await screen.findByRole('region', { name: 'Save template' });
+    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'At Start Farm' } });
+    fireEvent.click(within(section).getByText('Save'));
+
+    await waitFor(() =>
+      expect(saveTemplateMock).toHaveBeenCalledWith({
+        name: 'At Start Farm',
+        entries: [
+          { sequenceId: 'seq-a', scheduleType: 'AtQueueStart' },
+          { sequenceId: 'seq-b', scheduleType: 'OncePerRun' },
+        ],
+        overwrite: false,
+      })
+    );
+
+    // The dropdown still reflects the selected at-queue-start type for the first entry.
+    expect((screen.getByLabelText('Schedule type for A') as HTMLSelectElement).value).toBe('AtQueueStart');
+  });
+});
+
 describe('QueuesPage template delete wiring', () => {
   it('deletes a template from the picker without touching the queue entries', async () => {
     deleteTemplateMock.mockResolvedValue(undefined as any);

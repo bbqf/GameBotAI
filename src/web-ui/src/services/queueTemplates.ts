@@ -8,7 +8,7 @@ export type QueueTemplateSummary = {
   updatedAt: string | null;
 };
 
-export type ScheduleType = 'OncePerRun' | 'EveryStep' | 'Timer';
+export type ScheduleType = 'OncePerRun' | 'EveryStep' | 'Timer' | 'AtQueueStart';
 
 export type QueueTemplateEntryDto = {
   sequenceId: string;

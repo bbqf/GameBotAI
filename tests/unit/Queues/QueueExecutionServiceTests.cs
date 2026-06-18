@@ -413,6 +413,7 @@ public sealed class QueueExecutionServiceTests {
 
   private static QueueTemplateEntry OncePerRun(string id) => new() { SequenceId = id, ScheduleType = ScheduleType.OncePerRun };
   private static QueueTemplateEntry EveryStep(string id) => new() { SequenceId = id, ScheduleType = ScheduleType.EveryStep };
+  private static QueueTemplateEntry AtQueueStart(string id) => new() { SequenceId = id, ScheduleType = ScheduleType.AtQueueStart };
   private static QueueTemplateEntry TimerEntry(string id, TimeOnly time) => new() { SequenceId = id, ScheduleType = ScheduleType.Timer, TimerTimeOfDay = time };
   private static QueueTemplateEntry RelativeTimer(string id, TimeSpan offset) => new() { SequenceId = id, ScheduleType = ScheduleType.Timer, TimerRelativeOffset = offset };
 
@@ -811,5 +812,155 @@ public sealed class QueueExecutionServiceTests {
     await WaitUntilStoppedAsync(h.Service, "q1");
 
     h.Sequences.Executed.Should().Equal("T1", "T2", "A");
+  }
+
+  // ── US1 (feature 060): at-queue-start scheduling ─────────────────────────
+
+  [Fact] // T003 — at-queue-start runs before timer evaluation AND before the first OncePerRun step
+  public async Task AtQueueStartRunsBeforeTimersAndBeforeFirstOncePerRunStep() {
+    var h = new Harness();
+    // Timer is past-due (00:00), so it would otherwise fire first at the iteration boundary.
+    AddQueueWithEntries(h, "q1", new[] {
+      OncePerRun("A"),
+      TimerEntry("T", TimeOnly.MinValue),
+      AtQueueStart("S")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-003: S runs before the timer and before the OncePerRun step.
+    h.Sequences.Executed.Should().Equal("S", "T", "A");
+  }
+
+  [Fact] // T003 — multiple at-queue-start entries run in template order
+  public async Task MultipleAtQueueStartRunInTemplateOrderBeforeRegularSteps() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      AtQueueStart("S1"),
+      AtQueueStart("S2"),
+      OncePerRun("A")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-014: at-queue-start entries run in their template order, all before regular steps.
+    h.Sequences.Executed.Should().Equal("S1", "S2", "A");
+  }
+
+  [Fact] // T003 — each at-queue-start firing counts toward executed
+  public async Task AtQueueStartCountsTowardExecuted() {
+    var h = new Harness();
+    // 2 at-queue-start + 1 once-per-run → executed total should be 3.
+    AddQueueWithEntries(h, "q1", new[] {
+      AtQueueStart("S1"),
+      AtQueueStart("S2"),
+      OncePerRun("A")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-015: at-queue-start firings count toward the executed total.
+    h.Log.Summary.Should().Contain("3 sequence(s) executed");
+  }
+
+  [Fact] // T004 — at-queue-start runs once per run on a cycling queue (not per cycle)
+  public async Task AtQueueStartRunsOncePerRunOnCyclingQueue() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S"), OncePerRun("A") }, cycle: true);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(10, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= 3); // several cycles
+    await h.Service.StopAsync("q1");
+
+    // FR-004: S fires exactly once even though A cycles repeatedly.
+    h.Sequences.Executed.Count(id => id == "S").Should().Be(1);
+    h.Sequences.Executed[0].Should().Be("S");
+  }
+
+  [Fact] // T004 — a failing at-queue-start sequence is non-fatal
+  public async Task AtQueueStartFailureIsNonFatalRunContinues() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S"), OncePerRun("A") });
+    h.Sequences.Handler = (id, ct) =>
+      Task.FromResult(id == "S" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-007: the failed at-queue-start firing is counted but the run continues to completion.
+    h.Sequences.Executed.Should().Equal("S", "A");
+    h.Log.FinalStatus.Should().Be("success");
+    h.Log.Summary.Should().Contain("2 sequence(s) executed"); // counted even though it failed
+    h.Log.Summary.Should().Contain("1 failed");
+  }
+
+  [Fact] // T004 — a template with only at-queue-start entries runs them once and completes
+  public async Task OnlyAtQueueStartTemplateRunsOnceAndCompletes() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S1"), AtQueueStart("S2") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-008/SC-003: both entries fire once, then the run completes cleanly (no busy-loop).
+    h.Sequences.Executed.Should().Equal("S1", "S2");
+    h.Log.FinalStatus.Should().Be("success");
+    h.Log.Summary.Should().Contain("completed full run");
+  }
+
+  [Fact] // T004 — only-at-queue-start template completes even when cycling is enabled
+  public async Task OnlyAtQueueStartTemplateCompletesEvenWhenCycling() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S") }, cycle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // No OncePerRun/EveryStep/Timer work means nothing to cycle: S fires once and the run ends.
+    h.Sequences.Executed.Should().Equal("S");
+    h.Log.FinalStatus.Should().Be("success");
+    h.Log.Summary.Should().Contain("completed full run");
+  }
+
+  // ── US2 (feature 060): "After Every Step" narrow-trigger guarantee ────────
+
+  [Fact] // T008 — EveryStep fires ONLY after OncePerRun steps, never after at-start or timer firings
+  public async Task EveryStepFiresOnlyAfterOncePerRunNotAfterAtQueueStartOrTimer() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] {
+      AtQueueStart("S"),
+      TimerEntry("T", TimeOnly.MinValue),
+      OncePerRun("A"),
+      EveryStep("C")
+    });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // FR-005/FR-006: order is S (at-start), T (timer), A (once-per-run), C (every-step after A only).
+    // C must NOT appear right after S or right after T.
+    h.Sequences.Executed.Should().Equal("S", "T", "A", "C");
+    // EveryStep fired exactly once — only after the single OncePerRun step.
+    h.Sequences.Executed.Count(id => id == "C").Should().Be(1);
+  }
+
+  // ── Polish (feature 060): regression — unchanged OncePerRun/Timer behavior ─
+
+  [Fact] // T019 — default (no scheduleType) entry behaves as OncePerRun; ordering/counting unchanged
+  public async Task DefaultScheduleTypeStillBehavesAsOncePerRun() {
+    var h = new Harness();
+    // No at-queue-start entries: pure OncePerRun + Timer should behave exactly as before.
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.MinValue), OncePerRun("A"), OncePerRun("B") });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // Timer fires at the boundary, then OncePerRun steps in order; only the two steps are counted.
+    h.Sequences.Executed.Should().Equal("T", "A", "B");
+    h.Log.Summary.Should().Contain("2 sequence(s) executed");
   }
 }

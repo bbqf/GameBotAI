@@ -20,6 +20,8 @@ namespace GameBot.Service.Services.QueueExecution;
 /// execution-log entry with the stop reason. Replaces the placeholder start/stop behavior.
 ///
 /// Schedule types:
+///   AtQueueStart — executed once at run start, in template order, before any timer evaluation and
+///                 before the first OncePerRun step; counts toward executed (feature 060).
 ///   OncePerRun  — executed in template order as the regular "step"; defines run completion.
 ///   EveryStep   — executed after each OncePerRun step (and after the final step); not counted.
 ///   Timer       — evaluated at each iteration boundary; either an absolute time-of-day (fires at
@@ -140,6 +142,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       else {
         // Pre-partition entries by schedule type (FR-001). Snapshots taken once at run start.
         var allEntries = template.Entries.ToList();
+        var atQueueStartEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.AtQueueStart).ToList();
         var oncePerRunEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.OncePerRun).ToList();
         var everyStepEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.EveryStep).ToList();
         var timerEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.Timer).ToList();
@@ -162,6 +165,19 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         if (sessionId is not null) {
           try {
             var index = 0;
+
+            // (0) At-queue-start pre-pass (feature 060, FR-003/FR-004/FR-007/FR-014/FR-015).
+            // Run every at-queue-start entry once, in template order, BEFORE any timer evaluation
+            // and before the first OncePerRun step. Runs once per run (outside the do/while, so it
+            // never repeats on a cycling queue). Each firing COUNTS toward `executed`; a failure is
+            // non-fatal (recorded in `failed`, run continues), consistent with OncePerRun handling.
+            foreach (var startEntry in atQueueStartEntries) {
+              ct.ThrowIfCancellationRequested();
+              if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+              var startOk = await RunOneSequenceAsync(startEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+              executed++;
+              if (!startOk) failed++;
+            }
 
             // Per-run timer state: maps timer-entry index → last-fired calendar date (FR-003/FR-012).
             // Declared OUTSIDE the do-while loop so it persists across all cycles of this run.

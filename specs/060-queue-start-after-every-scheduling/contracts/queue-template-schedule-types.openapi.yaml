@@ -1,0 +1,146 @@
+openapi: 3.0.3
+info:
+  title: Queue Template — At-Queue-Start Schedule Type (feature 060)
+  version: 1.0.0
+  description: >
+    Additive extension to the queue-template entry schedule (features 053/059). The schedule-type
+    enumeration gains a new value, "AtQueueStart": entries with this type run once per run, in
+    template order, before the run loop begins (before any timer evaluation and before the first
+    OncePerRun step), and count toward the run's executed total.
+
+    The existing "EveryStep" value is UNCHANGED on the wire — it is only re-labeled "After Every
+    Step" in the operator-facing UI. API request/response identifiers stay "EveryStep" for full
+    backward compatibility (no migration). No new endpoint is introduced; both options flow through
+    the existing template save/read endpoints.
+
+paths:
+  /api/queue-templates:
+    post:
+      summary: Create or update a queue template (schedule-type enum extended with AtQueueStart)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveQueueTemplateRequest'
+      responses:
+        '200':
+          description: Template updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueTemplateDetailResponse' }
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueTemplateDetailResponse' }
+        '400':
+          description: >
+            Validation error, including: unrecognized scheduleType (accepted values now:
+            OncePerRun, EveryStep, Timer, AtQueueStart); blank sequenceId; or, for a Timer entry,
+            invalid/ambiguous timer fields. AtQueueStart entries require no timer fields.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: Template name already exists and overwrite=false
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /api/queue-templates/{id}:
+    get:
+      summary: Read a queue template (scheduleType may be AtQueueStart)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Template detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueTemplateDetailResponse' }
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+components:
+  schemas:
+    SaveQueueTemplateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 100 }
+        overwrite: { type: boolean, default: false }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/TemplateEntrySaveRequest' }
+
+    TemplateEntrySaveRequest:
+      type: object
+      required: [sequenceId]
+      properties:
+        sequenceId: { type: string, minLength: 1 }
+        scheduleType:
+          type: string
+          enum: [OncePerRun, EveryStep, Timer, AtQueueStart]
+          default: OncePerRun
+          description: >
+            Schedule option for this entry. "EveryStep" is displayed as "After Every Step" in the
+            UI but its wire value is unchanged. "AtQueueStart" requires no timer fields.
+        timerTimeOfDay:
+          type: string
+          nullable: true
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: 'HH:mm (24h). Only for a Timer entry in time-of-day mode. Ignored for AtQueueStart.'
+          example: '15:30'
+        timerRelativeOffset:
+          type: string
+          nullable: true
+          pattern: '^([01]?\d|2[0-4]):[0-5]\d:[0-5]\d$'
+          description: 'HH:mm:ss offset from run start. Only for a Timer entry in relative mode. Ignored for AtQueueStart.'
+          example: '00:10:00'
+
+    QueueTemplateDetailResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        entryCount: { type: integer }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/QueueTemplateEntryResponse' }
+
+    QueueTemplateEntryResponse:
+      type: object
+      properties:
+        sequenceId: { type: string }
+        sequenceName: { type: string, nullable: true }
+        stale: { type: boolean }
+        scheduleType:
+          type: string
+          enum: [OncePerRun, EveryStep, Timer, AtQueueStart]
+          description: 'Wire value. "EveryStep" is shown as "After Every Step" in the UI only.'
+        timerTimeOfDay:
+          type: string
+          nullable: true
+          example: '15:30'
+        timerRelativeOffset:
+          type: string
+          nullable: true
+          description: 'HH:mm:ss when this entry is a relative-offset timer; null otherwise.'
+          example: '00:10:00'
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            hint: { type: string, nullable: true }
