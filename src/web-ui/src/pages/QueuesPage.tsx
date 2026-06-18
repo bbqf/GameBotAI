@@ -18,7 +18,9 @@ import {
 } from '../services/queues';
 import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
-import { QueueEntryList, EntrySchedule } from '../components/queues/QueueEntryList';
+import { EntrySchedule } from '../components/queues/QueueEntryList';
+import { QueueSchedulingAreas } from '../components/queues/QueueSchedulingAreas';
+import { SchedulingAreasState } from '../components/queues/schedulingAreas';
 import { QueueLiveScheduleControl } from '../components/queues/QueueLiveScheduleControl';
 import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
 import { QueueGameControls } from '../components/queues/QueueGameControls';
@@ -202,10 +204,37 @@ export const QueuesPage: React.FC = () => {
     await refresh();
   };
 
+  // Reflect a drag reorder/reassign immediately: reorder the working entries into the new
+  // canonical order and apply the new schedule map (cross-area reassignment persists on save).
+  const onReorderAndReassign = (next: SchedulingAreasState) => {
+    setEntrySchedule(next.schedule);
+    setDetail((prev) => {
+      if (!prev) return prev;
+      const byId = new Map(prev.entries.map((e) => [e.entryId, e]));
+      const reordered = next.orderedEntryIds
+        .map((id) => byId.get(id))
+        .filter((e): e is QueueDetailDto['entries'][number] => Boolean(e));
+      return { ...prev, entries: reordered };
+    });
+  };
+
   const handleSaveTemplate = async (name: string, overwrite: boolean) => {
     if (!detail) return;
-    const entries = detail.entries.map((e) => {
-      const sched = entrySchedule[e.entryId] ?? { scheduleType: 'OncePerRun' as ScheduleType, timerTimeOfDay: '' };
+    // Order-aware save: persist the current linear order to the runtime queue first, then build
+    // the template entries in that exact order so the positional reload restore stays correct.
+    const orderedSequenceIds = detail.entries.map((e) => e.sequenceId);
+    const orderedSchedules = detail.entries.map(
+      (e) => entrySchedule[e.entryId] ?? { scheduleType: 'OncePerRun' as ScheduleType, timerTimeOfDay: '' }
+    );
+    await replaceQueueEntries(detail.id, orderedSequenceIds);
+    const refreshed = await getQueue(detail.id);
+    // replaceQueueEntries regenerates entryIds: re-key the schedule onto the new entries by position.
+    const rekeyed: Record<string, EntrySchedule> = {};
+    refreshed.entries.forEach((e, i) => {
+      rekeyed[e.entryId] = orderedSchedules[i] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' };
+    });
+    const entries = refreshed.entries.map((e, i) => {
+      const sched = orderedSchedules[i] ?? { scheduleType: 'OncePerRun' as ScheduleType, timerTimeOfDay: '' };
       const timerMode = sched.timerMode ?? (sched.timerRelativeOffset ? 'relative' : 'timeOfDay');
       const isRelative = sched.scheduleType === 'Timer' && timerMode === 'relative';
       return {
@@ -217,6 +246,8 @@ export const QueuesPage: React.FC = () => {
     });
     const saved = await saveQueueTemplate({ name, entries, overwrite });
     await setQueueTemplateLink(detail.id, saved.id);
+    setDetail(refreshed);
+    setEntrySchedule(rekeyed);
     setAssociatedTemplateName(name);
     setTableMessage(`Template "${name}" saved successfully.`);
   };
@@ -441,13 +472,13 @@ export const QueuesPage: React.FC = () => {
                 onReload={() => void handleReload()}
                 pendingConfirm={templateConfirm}
               >
-                <QueueEntryList
+                <QueueSchedulingAreas
                   entries={detail.entries}
                   sequences={sequences}
                   onAdd={(sid) => void onAddEntry(sid)}
                   onRemove={(eid) => void onRemoveEntry(eid)}
                   entrySchedule={entrySchedule}
-                  onScheduleTypeChange={(eid, st) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }, scheduleType: st } }))}
+                  onReorderAndReassign={onReorderAndReassign}
                   onTimerTimeChange={(eid, t) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerTimeOfDay: t } }))}
                   onTimerModeChange={(eid, mode) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: mode } }))}
                   onTimerRelativeOffsetChange={(eid, offset) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: 'relative', timerRelativeOffset: offset } }))}

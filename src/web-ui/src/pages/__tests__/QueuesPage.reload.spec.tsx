@@ -55,6 +55,9 @@ const openEditAndAssociate = async () => {
   fireEvent.click(within(section).getByText('Save'));
   // After save, the name button reflects the associated template.
   await screen.findByText('Daily Farm');
+  // Order-aware save (feature 061) persists the entry order via replaceQueueEntries; the reload
+  // assertions below only care about what the *reload* action does, so reset the call history.
+  replaceEntriesMock.mockClear();
 };
 
 describe('QueuesPage reload template', () => {

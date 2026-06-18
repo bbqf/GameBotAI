@@ -25,8 +25,8 @@ Web application, frontend only. All paths under `src/web-ui/src/`:
 
 **Purpose**: Confirm prerequisites and create file skeletons. Dependencies (`@dnd-kit/*`) are already installed.
 
-- [ ] T001 Verify `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` resolve and review the existing dnd-kit usage in `src/web-ui/src/components/SortableSequenceStepList.tsx`, `src/web-ui/src/components/SortableStepItem.tsx`, and `src/web-ui/src/components/DropIndicator.tsx` to reuse their conventions.
-- [ ] T002 Create empty skeleton files: `src/web-ui/src/components/queues/schedulingAreas.ts`, `src/web-ui/src/components/queues/SchedulingSequenceCard.tsx`, `src/web-ui/src/components/queues/SchedulingArea.tsx`, `src/web-ui/src/components/queues/QueueSchedulingAreas.tsx`, and `src/web-ui/src/components/queues/QueueSchedulingAreas.css`.
+- [X] T001 Verify `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` resolve and review the existing dnd-kit usage in `src/web-ui/src/components/SortableSequenceStepList.tsx`, `src/web-ui/src/components/SortableStepItem.tsx`, and `src/web-ui/src/components/DropIndicator.tsx` to reuse their conventions.
+- [X] T002 Create empty skeleton files: `src/web-ui/src/components/queues/schedulingAreas.ts`, `src/web-ui/src/components/queues/SchedulingSequenceCard.tsx`, `src/web-ui/src/components/queues/SchedulingArea.tsx`, `src/web-ui/src/components/queues/QueueSchedulingAreas.tsx`, and `src/web-ui/src/components/queues/QueueSchedulingAreas.css`.
 
 ---
 
@@ -36,8 +36,8 @@ Web application, frontend only. All paths under `src/web-ui/src/`:
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 In `src/web-ui/src/components/queues/schedulingAreas.ts`, define `SchedulingAreaId` (`'startOfExecution' | 'oncePerRun' | 'scheduled' | 'afterEveryStep'`), `AREA_LABELS`, `CANONICAL_AREA_ORDER` (`startOfExecution, oncePerRun, scheduled, afterEveryStep`), and the pure helpers `areaForScheduleType(scheduleType): SchedulingAreaId` and `scheduleTypeForArea(areaId): ScheduleType` (1:1 with `ScheduleType` from `services/queueTemplates.ts`; `Timer`↔`scheduled`, `EveryStep`↔`afterEveryStep`).
-- [ ] T004 [P] Add `src/web-ui/src/components/queues/__tests__/schedulingAreas.test.ts` covering the mapping helpers round-trip (every `ScheduleType` ↔ `SchedulingAreaId` both directions) and the canonical order constant.
+- [X] T003 In `src/web-ui/src/components/queues/schedulingAreas.ts`, define `SchedulingAreaId` (`'startOfExecution' | 'oncePerRun' | 'scheduled' | 'afterEveryStep'`), `AREA_LABELS`, `CANONICAL_AREA_ORDER` (`startOfExecution, oncePerRun, scheduled, afterEveryStep`), and the pure helpers `areaForScheduleType(scheduleType): SchedulingAreaId` and `scheduleTypeForArea(areaId): ScheduleType` (1:1 with `ScheduleType` from `services/queueTemplates.ts`; `Timer`↔`scheduled`, `EveryStep`↔`afterEveryStep`).
+- [X] T004 [P] Add `src/web-ui/src/components/queues/__tests__/schedulingAreas.test.ts` covering the mapping helpers round-trip (every `ScheduleType` ↔ `SchedulingAreaId` both directions) and the canonical order constant.
 
 **Checkpoint**: Mapping foundation ready.
 
@@ -51,17 +51,17 @@ Web application, frontend only. All paths under `src/web-ui/src/`:
 
 ### Tests for User Story 1
 
-- [ ] T005 [P] [US1] In `src/web-ui/src/components/queues/__tests__/schedulingAreas.test.ts`, add tests for `groupEntriesIntoAreas` (entries grouped by current `scheduleType`; missing schedule defaults to `oncePerRun`; ordering within an area follows `orderedEntryIds`; no entry lost/duplicated).
-- [ ] T006 [P] [US1] Add `src/web-ui/src/components/queues/__tests__/QueueSchedulingAreas.test.tsx` asserting contract C1–C5 and C7: four labeled areas render, entries grouped by schedule type, empty area shows label + hint, badges per type (At Queue Start / After Every Step / Timer; none for OncePerRun), stale badge preserved, and `disabled` renders grouping without draggable cards.
+- [X] T005 [P] [US1] In `src/web-ui/src/components/queues/__tests__/schedulingAreas.test.ts`, add tests for `groupEntriesIntoAreas` (entries grouped by current `scheduleType`; missing schedule defaults to `oncePerRun`; ordering within an area follows `orderedEntryIds`; no entry lost/duplicated).
+- [X] T006 [P] [US1] Add `src/web-ui/src/components/queues/__tests__/QueueSchedulingAreas.test.tsx` asserting contract C1–C5 and C7: four labeled areas render, entries grouped by schedule type, empty area shows label + hint, badges per type (At Queue Start / After Every Step / Timer; none for OncePerRun), stale badge preserved, and `disabled` renders grouping without draggable cards.
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Implement `groupEntriesIntoAreas(orderedEntryIds, schedule, entriesById)` in `src/web-ui/src/components/queues/schedulingAreas.ts` returning `Record<SchedulingAreaId, SchedulingCard[]>` (uses `areaForScheduleType`; default `OncePerRun`).
-- [ ] T008 [P] [US1] Implement `SchedulingSequenceCard` in `src/web-ui/src/components/queues/SchedulingSequenceCard.tsx`: renders label, stale badge, schedule badge consistent with its area, and a Remove button; uses `useSortable` (drag handle/attributes) following `SortableStepItem` conventions; respects `disabled`.
-- [ ] T009 [P] [US1] Implement `SchedulingArea` in `src/web-ui/src/components/queues/SchedulingArea.tsx`: a droppable area with heading (`AREA_LABELS`), a `SortableContext` over its card ids, an empty-state hint when no cards, and `DropIndicator` support (reuse existing `DropIndicator`).
-- [ ] T010 [US1] Implement `QueueSchedulingAreas` shell in `src/web-ui/src/components/queues/QueueSchedulingAreas.tsx`: props per contract (`entries`, `sequences`, `entrySchedule`, `onAdd`, `onRemove`, `onReorderAndReassign`, timer handlers, `disabled`); derive areas via `groupEntriesIntoAreas`; render the four `SchedulingArea`s inside one `DndContext`; keep the existing "Add sequence" control (routes through `onAdd`). Drag handlers may be stubs at this stage (wired in US2/US3).
-- [ ] T011 [US1] Add four-area responsive CSS grid in `src/web-ui/src/components/queues/QueueSchedulingAreas.css` (full-width top row; left column stacking Once-per-run over Scheduled; right column "After every step" spanning both) and import it in `QueueSchedulingAreas.tsx`; follow existing `reorderable-list`/`empty-state` visual conventions.
-- [ ] T012 [US1] Wire `QueueSchedulingAreas` into `src/web-ui/src/pages/QueuesPage.tsx` in place of `QueueEntryList` (within `QueueTemplateControls`), passing existing `detail.entries`, `entrySchedule`, `onAdd`/`onRemove`, and `disabled={detail.status === 'Running'}`; existing `buildScheduleFromTemplateEntries` continues to restore grouping on open.
+- [X] T007 [US1] Implement `groupEntriesIntoAreas(orderedEntryIds, schedule, entriesById)` in `src/web-ui/src/components/queues/schedulingAreas.ts` returning `Record<SchedulingAreaId, SchedulingCard[]>` (uses `areaForScheduleType`; default `OncePerRun`).
+- [X] T008 [P] [US1] Implement `SchedulingSequenceCard` in `src/web-ui/src/components/queues/SchedulingSequenceCard.tsx`: renders label, stale badge, schedule badge consistent with its area, and a Remove button; uses `useSortable` (drag handle/attributes) following `SortableStepItem` conventions; respects `disabled`.
+- [X] T009 [P] [US1] Implement `SchedulingArea` in `src/web-ui/src/components/queues/SchedulingArea.tsx`: a droppable area with heading (`AREA_LABELS`), a `SortableContext` over its card ids, an empty-state hint when no cards, and `DropIndicator` support (reuse existing `DropIndicator`).
+- [X] T010 [US1] Implement `QueueSchedulingAreas` shell in `src/web-ui/src/components/queues/QueueSchedulingAreas.tsx`: props per contract (`entries`, `sequences`, `entrySchedule`, `onAdd`, `onRemove`, `onReorderAndReassign`, timer handlers, `disabled`); derive areas via `groupEntriesIntoAreas`; render the four `SchedulingArea`s inside one `DndContext`; keep the existing "Add sequence" control (routes through `onAdd`). Drag handlers may be stubs at this stage (wired in US2/US3).
+- [X] T011 [US1] Add four-area responsive CSS grid in `src/web-ui/src/components/queues/QueueSchedulingAreas.css` (full-width top row; left column stacking Once-per-run over Scheduled; right column "After every step" spanning both) and import it in `QueueSchedulingAreas.tsx`; follow existing `reorderable-list`/`empty-state` visual conventions.
+- [X] T012 [US1] Wire `QueueSchedulingAreas` into `src/web-ui/src/pages/QueuesPage.tsx` in place of `QueueEntryList` (within `QueueTemplateControls`), passing existing `detail.entries`, `entrySchedule`, `onAdd`/`onRemove`, and `disabled={detail.status === 'Running'}`; existing `buildScheduleFromTemplateEntries` continues to restore grouping on open.
 
 **Checkpoint**: Read-only grouped four-area view works end-to-end and is independently testable (MVP).
 
@@ -75,16 +75,16 @@ Web application, frontend only. All paths under `src/web-ui/src/`:
 
 ### Tests for User Story 2
 
-- [ ] T013 [P] [US2] In `schedulingAreas.test.ts`, add reducer tests R1–R5 and R7 for `applyDragMove`: cross-area reassign sets destination `scheduleType` (each pair incl. → `scheduled` = `Timer`), move out of `scheduled` retains `timerTimeOfDay`/`timerRelativeOffset`/`timerMode` (inactive), move back restores them, a no-op drop leaves state unchanged, and a cancelled/out-of-area drop (no/`null` target area, FR-013) leaves both `orderedEntryIds` and `schedule` unchanged.
-- [ ] T014 [P] [US2] In `QueueSchedulingAreas.test.tsx`, add contract C6: a card in the "Scheduled" area exposes timer controls (mode toggle + time-of-day input or relative-offset inputs); cards in other areas do not.
-- [ ] T015 [P] [US2] Extend `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` with integration tests I1 and I4: reassigning a card to another area then saving + reloading the template shows it in the destination area with the new `scheduleType`; a `Timer` card retains its timer value across save/reload, and a card moved out of "Scheduled" before save is emitted with the destination type and no timer fields.
+- [X] T013 [P] [US2] In `schedulingAreas.test.ts`, add reducer tests R1–R5 and R7 for `applyDragMove`: cross-area reassign sets destination `scheduleType` (each pair incl. → `scheduled` = `Timer`), move out of `scheduled` retains `timerTimeOfDay`/`timerRelativeOffset`/`timerMode` (inactive), move back restores them, a no-op drop leaves state unchanged, and a cancelled/out-of-area drop (no/`null` target area, FR-013) leaves both `orderedEntryIds` and `schedule` unchanged.
+- [X] T014 [P] [US2] In `QueueSchedulingAreas.test.tsx`, add contract C6: a card in the "Scheduled" area exposes timer controls (mode toggle + time-of-day input or relative-offset inputs); cards in other areas do not.
+- [X] T015 [P] [US2] Extend `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` with integration tests I1 and I4: reassigning a card to another area then saving + reloading the template shows it in the destination area with the new `scheduleType`; a `Timer` card retains its timer value across save/reload, and a card moved out of "Scheduled" before save is emitted with the destination type and no timer fields.
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Implement the cross-area branch of `applyDragMove(state, { entryId, targetArea, targetIndex })` in `src/web-ui/src/components/queues/schedulingAreas.ts`: set `schedule[entryId].scheduleType = scheduleTypeForArea(targetArea)`; on enter `scheduled` keep/empty timer fields; on exit `scheduled` retain timer fields inactive; rebuild `orderedEntryIds` keeping canonical inter-area order; no-op when area+index unchanged.
-- [ ] T017 [US2] Render per-card Timer controls in `SchedulingSequenceCard`/`SchedulingArea` for cards in the "Scheduled" area only (mode toggle, time-of-day input, relative-offset inputs), reusing the existing markup/handlers from `QueueEntryList.tsx` and forwarding `onTimerTimeChange`/`onTimerModeChange`/`onTimerRelativeOffsetChange`.
-- [ ] T018 [US2] Wire `onDragEnd` in `QueueSchedulingAreas.tsx` to translate the dnd-kit event into `{ entryId, targetArea, targetIndex }`, call `applyDragMove`, and invoke `onReorderAndReassign(next)`; track `activeId`/`overId` for `DropIndicator`. Guard a cancelled/dropped-outside drag (FR-013): when the dnd-kit `over` is `null` or resolves to no valid area, return early without calling `applyDragMove`/`onReorderAndReassign` so the card returns to its origin unchanged.
-- [ ] T019 [US2] In `src/web-ui/src/pages/QueuesPage.tsx`, add an `onReorderAndReassign` handler that updates `entrySchedule` (and the working ordered-entry state) from the reducer output so reassignment is reflected immediately; cross-area reassignment persists via the existing `handleSaveTemplate` (schedule type is stored positionally — no entry reorder needed for US2).
+- [X] T016 [US2] Implement the cross-area branch of `applyDragMove(state, { entryId, targetArea, targetIndex })` in `src/web-ui/src/components/queues/schedulingAreas.ts`: set `schedule[entryId].scheduleType = scheduleTypeForArea(targetArea)`; on enter `scheduled` keep/empty timer fields; on exit `scheduled` retain timer fields inactive; rebuild `orderedEntryIds` keeping canonical inter-area order; no-op when area+index unchanged.
+- [X] T017 [US2] Render per-card Timer controls in `SchedulingSequenceCard`/`SchedulingArea` for cards in the "Scheduled" area only (mode toggle, time-of-day input, relative-offset inputs), reusing the existing markup/handlers from `QueueEntryList.tsx` and forwarding `onTimerTimeChange`/`onTimerModeChange`/`onTimerRelativeOffsetChange`.
+- [X] T018 [US2] Wire `onDragEnd` in `QueueSchedulingAreas.tsx` to translate the dnd-kit event into `{ entryId, targetArea, targetIndex }`, call `applyDragMove`, and invoke `onReorderAndReassign(next)`; track `activeId`/`overId` for `DropIndicator`. Guard a cancelled/dropped-outside drag (FR-013): when the dnd-kit `over` is `null` or resolves to no valid area, return early without calling `applyDragMove`/`onReorderAndReassign` so the card returns to its origin unchanged.
+- [X] T019 [US2] In `src/web-ui/src/pages/QueuesPage.tsx`, add an `onReorderAndReassign` handler that updates `entrySchedule` (and the working ordered-entry state) from the reducer output so reassignment is reflected immediately; cross-area reassignment persists via the existing `handleSaveTemplate` (schedule type is stored positionally — no entry reorder needed for US2).
 
 **Checkpoint**: Cross-area reassignment + Timer retention work and round-trip; US1 still functions.
 
@@ -98,13 +98,13 @@ Web application, frontend only. All paths under `src/web-ui/src/`:
 
 ### Tests for User Story 3
 
-- [ ] T020 [P] [US3] In `schedulingAreas.test.ts`, add reducer test R6: within-area reorder changes only `orderedEntryIds` for the affected cards and leaves every `scheduleType` unchanged.
-- [ ] T021 [P] [US3] Extend `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` with integration test I2: reordering within an area, saving, and reloading preserves the within-area order (and thus per-type execution order), verifying the order-aware save path.
+- [X] T020 [P] [US3] In `schedulingAreas.test.ts`, add reducer test R6: within-area reorder changes only `orderedEntryIds` for the affected cards and leaves every `scheduleType` unchanged.
+- [X] T021 [P] [US3] Extend `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` with integration test I2: reordering within an area, saving, and reloading preserves the within-area order (and thus per-type execution order), verifying the order-aware save path.
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Implement the within-area reorder branch of `applyDragMove` in `src/web-ui/src/components/queues/schedulingAreas.ts` (reinsert `entryId` at `targetIndex` within the same area; `scheduleType` unchanged); confirm `onDragEnd` already routes same-area drops here.
-- [ ] T023 [US3] Make `handleSaveTemplate` in `src/web-ui/src/pages/QueuesPage.tsx` order-aware: before saving, compute `orderedSequenceIds` from the working ordered-entry state, call `replaceQueueEntries(detail.id, orderedSequenceIds)`, `getQueue` to fetch reordered entries, re-key `entrySchedule` onto the new entries by position, then build the template entries in that order (timer fields only for `Timer`). Keeps runtime order == saved template order so positional reload restore stays correct.
+- [X] T022 [US3] Implement the within-area reorder branch of `applyDragMove` in `src/web-ui/src/components/queues/schedulingAreas.ts` (reinsert `entryId` at `targetIndex` within the same area; `scheduleType` unchanged); confirm `onDragEnd` already routes same-area drops here.
+- [X] T023 [US3] Make `handleSaveTemplate` in `src/web-ui/src/pages/QueuesPage.tsx` order-aware: before saving, compute `orderedSequenceIds` from the working ordered-entry state, call `replaceQueueEntries(detail.id, orderedSequenceIds)`, `getQueue` to fetch reordered entries, re-key `entrySchedule` onto the new entries by position, then build the template entries in that order (timer fields only for `Timer`). Keeps runtime order == saved template order so positional reload restore stays correct.
 
 **Checkpoint**: Within-area reorder persists; US1 and US2 still function.
 
@@ -118,12 +118,12 @@ Web application, frontend only. All paths under `src/web-ui/src/`:
 
 ### Tests for User Story 4
 
-- [ ] T024 [P] [US4] In `schedulingAreas.test.ts`, add reducer/grouping test R8: an entry with `scheduleType 'OncePerRun'` appears last in the `oncePerRun` area after being appended to `orderedEntryIds`.
-- [ ] T025 [P] [US4] Extend `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` with integration test I3: adding a sequence places it in "Once per run" and saving emits it with `scheduleType: 'OncePerRun'`.
+- [X] T024 [P] [US4] In `schedulingAreas.test.ts`, add reducer/grouping test R8: an entry with `scheduleType 'OncePerRun'` appears last in the `oncePerRun` area after being appended to `orderedEntryIds`.
+- [X] T025 [P] [US4] Extend `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx` with integration test I3: adding a sequence places it in "Once per run" and saving emits it with `scheduleType: 'OncePerRun'`.
 
 ### Implementation for User Story 4
 
-- [ ] T026 [US4] Confirm/adjust `onAddEntry` in `src/web-ui/src/pages/QueuesPage.tsx` so a new entry seeds `entrySchedule[newEntry.entryId] = { scheduleType: 'OncePerRun', timerTimeOfDay: '' }` and is appended to the working ordered-entry state (so it renders last in "Once per run"); ensure `QueueSchedulingAreas` reflects the new card without manual area selection.
+- [X] T026 [US4] Confirm/adjust `onAddEntry` in `src/web-ui/src/pages/QueuesPage.tsx` so a new entry seeds `entrySchedule[newEntry.entryId] = { scheduleType: 'OncePerRun', timerTimeOfDay: '' }` and is appended to the working ordered-entry state (so it renders last in "Once per run"); ensure `QueueSchedulingAreas` reflects the new card without manual area selection.
 
 **Checkpoint**: All four user stories independently functional.
 
@@ -133,9 +133,9 @@ Web application, frontend only. All paths under `src/web-ui/src/`:
 
 **Purpose**: Consistency, regression safety, and gate validation.
 
-- [ ] T027 [P] Responsive/empty-area polish in `src/web-ui/src/components/queues/QueueSchedulingAreas.css` (narrow-viewport stacking; consistent empty-area sizing) and verify ARIA labels on areas/cards/badges follow existing conventions.
-- [ ] T028 Confirm the existing scheduling/queue suites pass unchanged (I5): run `src/web-ui/src/components/queues/__tests__/QueueEntryList.test.tsx` and existing `QueuesPage.templates.spec.tsx` cases; update only references made obsolete by replacing `QueueEntryList` in the editor (do not change runtime/API behavior).
-- [ ] T029 Run the quality gate: `npm run build` (vite) and `npm test` (jest) from `src/web-ui` must both be green; fix any failures before marking complete (constitution NON-NEGOTIABLE).
+- [X] T027 [P] Responsive/empty-area polish in `src/web-ui/src/components/queues/QueueSchedulingAreas.css` (narrow-viewport stacking; consistent empty-area sizing) and verify ARIA labels on areas/cards/badges follow existing conventions.
+- [X] T028 Confirm the existing scheduling/queue suites pass unchanged (I5): run `src/web-ui/src/components/queues/__tests__/QueueEntryList.test.tsx` and existing `QueuesPage.templates.spec.tsx` cases; update only references made obsolete by replacing `QueueEntryList` in the editor (do not change runtime/API behavior).
+- [X] T029 Run the quality gate: `npm run build` (vite) and `npm test` (jest) from `src/web-ui` must both be green; fix any failures before marking complete (constitution NON-NEGOTIABLE).
 - [ ] T030 [P] Execute the `specs/061-queue-scheduling-areas/quickstart.md` manual verification (US1–US4 walkthroughs incl. Timer retain/restore) and note results.
 
 ---
