@@ -91,13 +91,20 @@ export const projectEntryRow = (entry: ExecutionLogEntryDto, timestamp: string):
   info: entry.summary
 });
 
-// Projects a sub-element node onto a grid row. Sub-element rows leave the
-// timestamp blank (FR-013); timing is conveyed via the info column.
-export const projectNodeRow = (node: ExecutionTreeNodeDto, parentKey: string, depth: number): GridRow => ({
+// Projects a sub-element node onto a grid row. Nodes backed by a recorded execution
+// (queue/sequence/command) carry the moment they ran; the caller formats it (exact/relative
+// mode lives in component state) and passes it in. Primitive step nodes have no recorded
+// execution time, so their timestamp stays blank.
+export const projectNodeRow = (
+  node: ExecutionTreeNodeDto,
+  parentKey: string,
+  depth: number,
+  timestamp = ''
+): GridRow => ({
   key: nodeKey(node, parentKey),
   depth,
   expandable: node.children.length > 0,
-  timestamp: '',
+  timestamp,
   name: node.label,
   type: typeLabel(node.nodeKind),
   status: node.status,

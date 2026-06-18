@@ -21,9 +21,15 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public string ScheduleType { get; set; } = "OncePerRun";
 
     /// <summary>
-    /// Wall-clock time-of-day in HH:mm (24-hour) when <see cref="ScheduleType"/> is "Timer";
-    /// null otherwise.
+    /// Wall-clock time-of-day in HH:mm (24-hour) when <see cref="ScheduleType"/> is "Timer" in
+    /// time-of-day mode; null otherwise.
     /// </summary>
     public string? TimerTimeOfDay { get; set; }
+
+    /// <summary>
+    /// Relative offset in HH:mm:ss when <see cref="ScheduleType"/> is "Timer" in relative mode;
+    /// null otherwise.
+    /// </summary>
+    public string? TimerRelativeOffset { get; set; }
   }
 }

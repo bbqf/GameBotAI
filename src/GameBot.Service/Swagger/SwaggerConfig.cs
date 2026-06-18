@@ -436,6 +436,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       operation.Summary ??= "Stop a queue (placeholder: sets status to Stopped)";
       SetResponseExample(operation, "200", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
     }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/live-schedule", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Schedule a sequence to fire after a relative offset against the running queue";
+      SetRequestExample(operation, QueueLiveScheduleRequest(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleRequest));
+      SetResponseExample(operation, "200", QueueLiveScheduleResponse(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleResponse));
+    }
     else if (IsMethod(method, HttpMethods.Put) && path.Contains("/entries", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Replace a queue's entries (used to load a template)";
       SetRequestExample(operation, QueueEntriesReplaceRequest(), context, typeof(GameBot.Service.Contracts.Queues.ReplaceQueueEntriesRequest));
@@ -465,6 +470,17 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
 
   private static OpenApiObject QueueEntryAddRequest() => new OpenApiObject {
     ["sequenceId"] = new OpenApiString("sequence-wait-home")
+  };
+
+  private static OpenApiObject QueueLiveScheduleRequest() => new OpenApiObject {
+    ["sequenceId"] = new OpenApiString("sequence-collect"),
+    ["offset"] = new OpenApiString("00:10:00")
+  };
+
+  private static OpenApiObject QueueLiveScheduleResponse() => new OpenApiObject {
+    ["sequenceId"] = new OpenApiString("sequence-collect"),
+    ["offset"] = new OpenApiString("00:10:00"),
+    ["expectedFireAt"] = new OpenApiString("2026-06-17T14:10:00+00:00")
   };
 
   private static OpenApiObject QueueEntriesReplaceRequest() => new OpenApiObject {

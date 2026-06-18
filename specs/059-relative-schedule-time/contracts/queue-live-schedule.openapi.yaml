@@ -1,0 +1,84 @@
+openapi: 3.0.3
+info:
+  title: Queue Live Relative Schedule (feature 059)
+  version: 1.0.0
+  description: >
+    Live, ephemeral scheduling of a sequence to fire after a relative offset from "now" (the
+    moment the call is received) against a currently running queue. Not persisted to the template;
+    applies only to the active run. Fires once at the first iteration boundary at or after
+    (call time + offset). Re-issuing for the same sequence replaces a still-pending schedule
+    (most-recent-wins). The target may be any sequence in the library, not only template entries;
+    it fires as an additional execution and counts toward the run's completed-step total.
+
+paths:
+  /api/queues/{id}/live-schedule:
+    post:
+      summary: Schedule a sequence to fire after a relative offset in the running queue
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Queue id (must have an active run).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LiveScheduleRequest' }
+      responses:
+        '200':
+          description: Scheduled. Returns the resolved expected fire time.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LiveScheduleResponse' }
+        '400':
+          description: Malformed/negative/out-of-range offset, or missing sequenceId.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '404':
+          description: Queue not found, or the target sequence does not exist in the library.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: The queue has no active run (live scheduling targets the current run only).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+components:
+  schemas:
+    LiveScheduleRequest:
+      type: object
+      required: [sequenceId, offset]
+      properties:
+        sequenceId:
+          type: string
+          minLength: 1
+          description: Any sequence id in the library.
+        offset:
+          type: string
+          pattern: '^([01]?\d|2[0-4]):[0-5]\d:[0-5]\d$'
+          description: 'HH:mm:ss duration from now. Must be >= 00:00:00 and <= 24:00:00.'
+          example: '00:10:00'
+
+    LiveScheduleResponse:
+      type: object
+      properties:
+        sequenceId: { type: string }
+        offset: { type: string, example: '00:10:00' }
+        expectedFireAt:
+          type: string
+          format: date-time
+          description: call time + offset (server local clock). Actual firing occurs at the first iteration boundary at or after this instant.
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: not_running }
+            message: { type: string }
+            hint: { type: string, nullable: true }

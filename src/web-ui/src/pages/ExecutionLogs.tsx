@@ -187,7 +187,8 @@ export const ExecutionLogsPage: React.FC = () => {
   // Renders a sub-element node row and (when expanded) its descendants. The full
   // tree is already cached, so nested expansion is pure client-side state.
   const renderNodeRows = (node: ExecutionTreeNodeDto, parentKey: string, depth: number): React.ReactNode[] => {
-    const row = projectNodeRow(node, parentKey, depth);
+    const nodeTimestamp = node.timestampUtc ? renderTimestamp(node.timestampUtc) : '';
+    const row = projectNodeRow(node, parentKey, depth, nodeTimestamp);
     const expanded = expandedKeys.has(row.key);
     const rows: React.ReactNode[] = [
       <GridRowView key={row.key} row={row} expanded={expanded} onToggle={() => toggleKey(row.key)} />

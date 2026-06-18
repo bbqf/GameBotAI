@@ -1,0 +1,118 @@
+openapi: 3.0.3
+info:
+  title: Queue Template — Relative-Offset Timer (feature 059)
+  version: 1.0.0
+  description: >
+    Additive extension to the queue-template entry schedule (feature 053). A Timer entry may now
+    carry a relative duration offset (anchored to queue run start) instead of an absolute
+    time-of-day. Exactly one of timerTimeOfDay / timerRelativeOffset must be set for a Timer entry.
+
+paths:
+  /api/queue-templates:
+    post:
+      summary: Create or update a queue template (extended with relative-offset timers)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveQueueTemplateRequest'
+      responses:
+        '200':
+          description: Template updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueTemplateDetailResponse' }
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueTemplateDetailResponse' }
+        '400':
+          description: >
+            Validation error, including: scheduleType=Timer with neither or both of
+            timerTimeOfDay/timerRelativeOffset set; malformed or negative timerRelativeOffset;
+            offset greater than 24:00:00.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: Template name already exists and overwrite=false
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+components:
+  schemas:
+    SaveQueueTemplateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 100 }
+        overwrite: { type: boolean, default: false }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/TemplateEntrySaveRequest' }
+
+    TemplateEntrySaveRequest:
+      type: object
+      required: [sequenceId]
+      properties:
+        sequenceId: { type: string, minLength: 1 }
+        scheduleType:
+          type: string
+          enum: [OncePerRun, EveryStep, Timer]
+          default: OncePerRun
+        timerTimeOfDay:
+          type: string
+          nullable: true
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: 'HH:mm (24h). Set for a Timer entry in time-of-day mode. Mutually exclusive with timerRelativeOffset.'
+          example: '15:30'
+        timerRelativeOffset:
+          type: string
+          nullable: true
+          pattern: '^([01]?\d|2[0-4]):[0-5]\d:[0-5]\d$'
+          description: >
+            HH:mm:ss duration offset from queue run start. Set for a Timer entry in relative mode.
+            Must be >= 00:00:00 and <= 24:00:00. Mutually exclusive with timerTimeOfDay.
+          example: '00:10:00'
+
+    QueueTemplateDetailResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        entryCount: { type: integer }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/QueueTemplateEntryResponse' }
+
+    QueueTemplateEntryResponse:
+      type: object
+      properties:
+        sequenceId: { type: string }
+        sequenceName: { type: string, nullable: true }
+        stale: { type: boolean }
+        scheduleType:
+          type: string
+          enum: [OncePerRun, EveryStep, Timer]
+        timerTimeOfDay:
+          type: string
+          nullable: true
+          example: '15:30'
+        timerRelativeOffset:
+          type: string
+          nullable: true
+          description: 'HH:mm:ss when this entry is a relative-offset timer; null otherwise.'
+          example: '00:10:00'
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            hint: { type: string, nullable: true }

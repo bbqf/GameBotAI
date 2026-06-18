@@ -54,7 +54,13 @@ internal sealed record ExecutionTreeNodeProjection(
   WaitForImageDetailAttributes? DetailAttributes,
   ConditionEvaluationTrace? ConditionTrace,
   ExecutionLogStepDeepLinkProjection? DeepLink,
-  IReadOnlyList<ExecutionTreeNodeProjection> Children);
+  IReadOnlyList<ExecutionTreeNodeProjection> Children) {
+  /// <summary>
+  /// When this node corresponds to a recorded execution (queue/sequence/command), the moment it ran.
+  /// Null for primitive step nodes, which have no independently recorded execution time.
+  /// </summary>
+  public DateTimeOffset? TimestampUtc { get; init; }
+}
 
 internal sealed record ExecutionSubtreeProjection(
   string ExecutionId,
@@ -436,7 +442,9 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       null,
       null,
       null,
-      children);
+      children) {
+      TimestampUtc = entry.TimestampUtc
+    };
   }
 
   private static ExecutionTreeNodeProjection BuildStepNode(ExecutionLogEntry entry, ExecutionStepOutcome step)

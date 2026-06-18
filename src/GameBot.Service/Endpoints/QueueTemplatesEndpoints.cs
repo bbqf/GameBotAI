@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using GameBot.Domain.Commands;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Service.Contracts.QueueTemplates;
+using GameBot.Service.Services.QueueExecution;
 
 namespace GameBot.Service.Endpoints;
 
@@ -41,12 +42,17 @@ internal static class QueueTemplatesEndpoints {
             $"entries[{i}].scheduleType '{entry.ScheduleType}' is not valid; accepted values: OncePerRun, EveryStep, Timer");
 
         if (scheduleType == ScheduleType.Timer) {
-          if (string.IsNullOrWhiteSpace(entry.TimerTimeOfDay))
+          var hasTimeOfDay = !string.IsNullOrWhiteSpace(entry.TimerTimeOfDay);
+          var hasRelative = !string.IsNullOrWhiteSpace(entry.TimerRelativeOffset);
+          if (hasTimeOfDay == hasRelative)
             return Error(400, "invalid_request",
-              $"entries[{i}].timerTimeOfDay is required when scheduleType is Timer");
-          if (!TimeOnly.TryParseExact(entry.TimerTimeOfDay, "HH:mm", out _))
+              $"entries[{i}] must set exactly one of timerTimeOfDay or timerRelativeOffset when scheduleType is Timer");
+          if (hasTimeOfDay && !TimeOnly.TryParseExact(entry.TimerTimeOfDay, "HH:mm", out _))
             return Error(400, "invalid_request",
               $"entries[{i}].timerTimeOfDay '{entry.TimerTimeOfDay}' is not a valid HH:mm time (e.g. '15:30')");
+          if (hasRelative && !RelativeOffsetParser.TryParse(entry.TimerRelativeOffset, out _, out var offsetError))
+            return Error(400, "invalid_request",
+              $"entries[{i}].timerRelativeOffset {offsetError}");
         }
       }
 
@@ -68,11 +74,17 @@ internal static class QueueTemplatesEndpoints {
         TimeOnly? timerTime = scheduleType == ScheduleType.Timer && !string.IsNullOrWhiteSpace(entry.TimerTimeOfDay)
           ? TimeOnly.ParseExact(entry.TimerTimeOfDay!, "HH:mm")
           : null;
+        TimeSpan? timerOffset = scheduleType == ScheduleType.Timer
+            && !string.IsNullOrWhiteSpace(entry.TimerRelativeOffset)
+            && RelativeOffsetParser.TryParse(entry.TimerRelativeOffset, out var parsedOffset, out _)
+          ? parsedOffset
+          : null;
 
         target.Entries.Add(new QueueTemplateEntry {
           SequenceId = entry.SequenceId!,
           ScheduleType = scheduleType,
-          TimerTimeOfDay = timerTime
+          TimerTimeOfDay = timerTime,
+          TimerRelativeOffset = timerOffset
         });
       }
 
@@ -141,7 +153,8 @@ internal static class QueueTemplatesEndpoints {
         SequenceName = found ? name : null,
         Stale = !found,
         ScheduleType = entry.ScheduleType.ToString(),
-        TimerTimeOfDay = entry.TimerTimeOfDay?.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)
+        TimerTimeOfDay = entry.TimerTimeOfDay?.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture),
+        TimerRelativeOffset = entry.TimerRelativeOffset is { } offset ? RelativeOffsetParser.Format(offset) : null
       });
     }
     return detail;

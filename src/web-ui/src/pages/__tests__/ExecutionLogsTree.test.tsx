@@ -45,6 +45,7 @@ const sequenceSubtree = {
         label: 'Open Mail',
         status: 'success' as const,
         commandName: 'Open Mail',
+        timestampUtc: new Date('2026-06-02T10:00:30.000Z').toISOString(),
         children: [
           { nodeKind: 'tap' as const, order: 1, label: 'Tap target', status: 'success' as const, children: [] }
         ]
@@ -154,6 +155,24 @@ describe('ExecutionLogsPage grid', () => {
     collapse('My Sequence');
     expect(screen.queryByText('Open Mail')).not.toBeInTheDocument();
     expect(screen.getByText('Cmd Tap')).toBeInTheDocument();
+  });
+
+  it('shows the execution timestamp on a sequence/command sub-element row', async () => {
+    render(<ExecutionLogsPage />);
+    await screen.findByText('My Sequence');
+
+    expand('My Sequence');
+    await screen.findByText('Open Mail');
+
+    // The command sub-element carries its own recorded execution time, formatted like top-level rows.
+    const expected = new Date('2026-06-02T10:00:30.000Z').toLocaleString();
+    expect(within(rowOf('Open Mail')).getByText(expected)).toBeInTheDocument();
+
+    // A primitive leaf step has no recorded time, so its timestamp cell stays blank.
+    expand('Open Mail');
+    await screen.findByText('Tap target');
+    const tapCells = rowOf('Tap target').querySelectorAll('td');
+    expect(tapCells[1].textContent).toBe('');
   });
 
   // --- US3: "Open in sequence" buttons removed ---

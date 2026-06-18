@@ -14,9 +14,17 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public string? ScheduleType { get; set; }
 
     /// <summary>
-    /// Required when <see cref="ScheduleType"/> is "Timer". Wall-clock time-of-day in HH:mm
-    /// (24-hour, server local time). Ignored for other schedule types.
+    /// Time-of-day mode for a "Timer" entry: wall-clock time-of-day in HH:mm (24-hour, server
+    /// local time). Mutually exclusive with <see cref="TimerRelativeOffset"/>; ignored for other
+    /// schedule types.
     /// </summary>
     public string? TimerTimeOfDay { get; set; }
+
+    /// <summary>
+    /// Relative mode for a "Timer" entry: duration offset from the queue run start, as an
+    /// "HH:mm:ss" string (e.g. "00:10:00"). Must be non-negative and at most 24:00:00. Mutually
+    /// exclusive with <see cref="TimerTimeOfDay"/>; ignored for other schedule types.
+    /// </summary>
+    public string? TimerRelativeOffset { get; set; }
   }
 }

@@ -42,6 +42,7 @@ export type ExecutionTreeNodeDto = {
   label: string;
   status: ExecutionTreeNodeStatus;
   message?: string;
+  timestampUtc?: string;
   appliedDelayMs?: number;
   commandName?: string;
   detailAttributes?: ExecutionLogWaitForImageDetailAttributesDto;

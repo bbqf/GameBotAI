@@ -22,7 +22,13 @@ namespace GameBot.Service.Services.QueueExecution;
 /// Schedule types:
 ///   OncePerRun  — executed in template order as the regular "step"; defines run completion.
 ///   EveryStep   — executed after each OncePerRun step (and after the final step); not counted.
-///   Timer       — evaluated at each iteration boundary; fires at most once per calendar day.
+///   Timer       — evaluated at each iteration boundary; either an absolute time-of-day (fires at
+///                 most once per calendar day) or a relative offset / live schedule (feature 059).
+///
+/// A cycling run re-evaluates timers on every cycle. A non-cyclic run runs its once-per-run steps
+/// once and then, if any relative-offset timer or live schedule is still pending, stays alive and
+/// keeps re-evaluating (polling) until those fire or the run is stopped — so a "+10s" relative timer
+/// on a non-cyclic queue actually becomes due instead of the run completing instantly (feature 059).
 /// </summary>
 internal sealed class QueueExecutionService : IQueueExecutionService {
   private readonly IQueueRepository _queues;
@@ -33,10 +39,16 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   private readonly BackgroundScreenCaptureService? _captureService;
   private readonly IExecutionLogService _log;
   private readonly ILogger<QueueExecutionService> _logger;
+  private readonly TimeProvider _timeProvider;
   private readonly CancellationToken _appStopping;
 
   private readonly ConcurrentDictionary<string, QueueRunHandle> _runs =
     new(StringComparer.Ordinal);
+
+  // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
+  // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
+  // enough to avoid a busy-wait. (feature 059)
+  private static readonly TimeSpan RelativeTimerPollInterval = TimeSpan.FromMilliseconds(250);
 
   public QueueExecutionService(
     IQueueRepository queues,
@@ -47,7 +59,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IExecutionLogService log,
     ILogger<QueueExecutionService> logger,
     IHostApplicationLifetime? lifetime = null,
-    BackgroundScreenCaptureService? captureService = null) {
+    BackgroundScreenCaptureService? captureService = null,
+    TimeProvider? timeProvider = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -56,10 +69,21 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _captureService = captureService;
     _log = log;
     _logger = logger;
+    _timeProvider = timeProvider ?? TimeProvider.System;
     _appStopping = lifetime?.ApplicationStopping ?? CancellationToken.None;
   }
 
   public bool IsRunning(string queueId) => _runs.ContainsKey(queueId);
+
+  public LiveScheduleResult ScheduleRelative(string queueId, string sequenceId, TimeSpan offset) {
+    if (!_runs.TryGetValue(queueId, out var handle))
+      return new LiveScheduleResult(LiveScheduleOutcome.NotRunning, default);
+
+    var fireAt = _timeProvider.GetLocalNow() + offset;
+    // Upsert: a new schedule for the same sequence replaces a still-pending one (FR-011).
+    handle.PendingLiveSchedules[sequenceId] = fireAt;
+    return new LiveScheduleResult(LiveScheduleOutcome.Scheduled, fireAt);
+  }
 
   public async Task<QueueStartOutcome> StartAsync(string queueId, CancellationToken ct = default) {
     var queue = await _queues.GetAsync(queueId).ConfigureAwait(false);
@@ -143,6 +167,27 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // Declared OUTSIDE the do-while loop so it persists across all cycles of this run.
             var timerFiredDate = new Dictionary<int, DateOnly>();
 
+            // Relative-offset timer state (feature 059): the run-start anchor and the set of
+            // relative-timer indices already fired this run (fire-once-per-run, FR-005). Both live
+            // outside the loop so they survive cycles. Recomputed fresh on every run.
+            var runStartedAt = _timeProvider.GetLocalNow();
+            handle.RunStartedAt = runStartedAt;
+            var relativeTimerFired = new HashSet<int>();
+            // Tracks whether the once-per-run/every-step pass has executed. For a non-cyclic run the
+            // pass runs once; later loop iterations exist only to wait for pending relative/live
+            // timers and must not re-run those steps (feature 059).
+            var oncePerRunDone = false;
+
+            // True while a relative-offset timer (template) or a live schedule is still pending and
+            // could yet fire — keeps a non-cyclic run alive until its scheduled firings land.
+            bool HasPendingRelativeOrLive() {
+              for (var pi = 0; pi < timerEntries.Count; pi++) {
+                if (timerEntries[pi].TimerRelativeOffset is not null && !relativeTimerFired.Contains(pi))
+                  return true;
+              }
+              return !handle.PendingLiveSchedules.IsEmpty;
+            }
+
             if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
               do {
                 ct.ThrowIfCancellationRequested();
@@ -152,8 +197,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var timerEntry = timerEntries[ti];
                   if (timerEntry.TimerTimeOfDay is null) continue;
 
-                  var today = DateOnly.FromDateTime(DateTime.Now);
-                  var now = TimeOnly.FromDateTime(DateTime.Now);
+                  var localNow = _timeProvider.GetLocalNow();
+                  var today = DateOnly.FromDateTime(localNow.DateTime);
+                  var now = TimeOnly.FromDateTime(localNow.DateTime);
                   if (now >= timerEntry.TimerTimeOfDay.Value
                       && (!timerFiredDate.TryGetValue(ti, out var lastFired) || lastFired != today)) {
                     ct.ThrowIfCancellationRequested();
@@ -165,37 +211,87 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   }
                 }
 
-                // (b) OncePerRun steps, each followed by all EveryStep sequences (FR-006/FR-007/FR-016).
-                if (oncePerRunEntries.Count > 0) {
-                  foreach (var entry in oncePerRunEntries) {
-                    ct.ThrowIfCancellationRequested();
-                    if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                    var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
-                    executed++;
-                    if (!ok) failed++;
+                // (a2) Evaluate relative-offset timers at the iteration boundary (feature 059).
+                // Fire once per run when elapsed-since-run-start >= offset (FR-005). Relative firings
+                // COUNT toward `executed` (FR-016a), unlike time-of-day timers. A failed firing is
+                // non-fatal: recorded in `failed`, run continues (FR-016).
+                var elapsedSinceStart = _timeProvider.GetLocalNow() - runStartedAt;
+                for (var ri = 0; ri < timerEntries.Count; ri++) {
+                  var relEntry = timerEntries[ri];
+                  if (relEntry.TimerRelativeOffset is not { } relOffset) continue;
+                  if (relativeTimerFired.Contains(ri)) continue;
+                  if (elapsedSinceStart < relOffset) continue;
 
-                    // Run every-step sequences after each OncePerRun step (FR-006).
+                  ct.ThrowIfCancellationRequested();
+                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                  executed++;
+                  if (!relOk) failed++;
+                  relativeTimerFired.Add(ri);
+                }
+
+                // (a3) Evaluate live relative schedules at the iteration boundary (feature 059).
+                // Snapshot the entries that are now due (fireAt <= now), fire each once, then remove
+                // it (fires once, FR-009). Live firings COUNT toward `executed` (FR-016a); a failed
+                // firing is non-fatal (FR-016). May target any library sequence (FR-013).
+                var liveNow = _timeProvider.GetLocalNow();
+                foreach (var due in handle.PendingLiveSchedules
+                           .Where(kv => kv.Value <= liveNow)
+                           .Select(kv => kv.Key)
+                           .ToList()) {
+                  if (!handle.PendingLiveSchedules.TryRemove(due, out _)) continue;
+                  ct.ThrowIfCancellationRequested();
+                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                  executed++;
+                  if (!liveOk) failed++;
+                }
+
+                // (b) OncePerRun steps, each followed by all EveryStep sequences (FR-006/FR-007/FR-016).
+                // A cycling run executes these every cycle; a non-cyclic run executes them once, so the
+                // relative/live timer-wait passes below never re-run the once-per-run steps.
+                if (queue.CycleExecution || !oncePerRunDone) {
+                  if (oncePerRunEntries.Count > 0) {
+                    foreach (var entry in oncePerRunEntries) {
+                      ct.ThrowIfCancellationRequested();
+                      if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                      var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                      executed++;
+                      if (!ok) failed++;
+
+                      // Run every-step sequences after each OncePerRun step (FR-006).
+                      foreach (var esEntry in everyStepEntries) {
+                        ct.ThrowIfCancellationRequested();
+                        if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                        var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                        if (!esOk) failed++;
+                        // Every-step executions do not count toward `executed` (FR-008/SC-002).
+                      }
+                    }
+                  }
+                  else if (everyStepEntries.Count > 0) {
+                    // FR-009: no OncePerRun entries — EveryStep runs exactly once, then the run ends.
                     foreach (var esEntry in everyStepEntries) {
                       ct.ThrowIfCancellationRequested();
                       if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                       var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
                       if (!esOk) failed++;
-                      // Every-step executions do not count toward `executed` (FR-008/SC-002).
                     }
                   }
-                }
-                else if (everyStepEntries.Count > 0) {
-                  // FR-009: no OncePerRun entries — EveryStep runs exactly once, then the run ends.
-                  foreach (var esEntry in everyStepEntries) {
-                    ct.ThrowIfCancellationRequested();
-                    if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                    var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
-                    if (!esOk) failed++;
-                  }
+
+                  oncePerRunDone = true;
+                  cycles++;
                 }
 
-                cycles++;
-              } while (queue.CycleExecution);
+                // A cycling run loops immediately (existing behavior). A non-cyclic run breaks once its
+                // once-per-run steps are done UNLESS a relative-offset timer or live schedule is still
+                // pending — in which case it stays alive, polling, until those fire or it is stopped.
+                // Without this a non-cyclic run would finish instantly and a "+10s" relative timer (or
+                // live schedule) would never become due (feature 059 fix).
+                if (queue.CycleExecution) continue;
+                if (!HasPendingRelativeOrLive()) break;
+                await Task.Delay(RelativeTimerPollInterval, ct).ConfigureAwait(false);
+              } while (true);
             }
             else {
               // Empty template: a full pass with no work; never busy-loop when cycling (FR-017).

@@ -61,3 +61,17 @@ export const setQueueGameLink = (id: string, gameId: string | null) =>
 
 export const startQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/start`, {});
 export const stopQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/stop`, {});
+
+/** Result of scheduling a sequence to fire after a relative offset against a running queue. */
+export type LiveScheduleResult = {
+  sequenceId: string;
+  offset: string;
+  expectedFireAt: string;
+};
+
+/**
+ * Schedule a sequence to fire once after a relative offset ("HH:mm:ss") from now against the
+ * queue's active run. Ephemeral; not persisted to the template.
+ */
+export const liveScheduleSequence = (queueId: string, sequenceId: string, offset: string) =>
+  postJson<LiveScheduleResult>(`${base}/${queueId}/live-schedule`, { sequenceId, offset });
