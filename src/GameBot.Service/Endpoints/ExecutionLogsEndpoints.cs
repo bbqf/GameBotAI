@@ -153,6 +153,7 @@ internal static class ExecutionLogsEndpoints {
       Label = node.Label,
       Status = node.Status,
       Message = node.Message,
+      TimestampUtc = node.TimestampUtc,
       AppliedDelayMs = node.AppliedDelayMs,
       CommandName = node.CommandName,
       DetailAttributes = node.DetailAttributes is null

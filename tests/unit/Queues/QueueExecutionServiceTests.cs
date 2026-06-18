@@ -756,18 +756,45 @@ public sealed class QueueExecutionServiceTests {
 
   // ── T025: relative-timer edge cases ──────────────────────────────────────
 
-  [Fact] // an offset that never elapses during the run never fires
-  public async Task RelativeTimerThatNeverElapsesNeverFires() {
+  [Fact] // feature 059 fix: a non-cyclic run stays alive waiting for a pending relative timer; an
+         // offset that never elapses before the run is stopped never fires.
+  public async Task RelativeTimerThatNeverElapsesNeverFiresWhenStoppedFirst() {
     var clock = new FakeTimeProvider(FakeStart);
     var h = new Harness(clock);
     AddQueueWithEntries(h, "q1", new[] { RelativeTimer("T", TimeSpan.FromHours(12)), OncePerRun("A") });
 
     await h.Service.StartAsync("q1");
-    await WaitUntilStoppedAsync(h.Service, "q1");
+    // A runs immediately; the run then waits for the 12h timer rather than completing.
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    h.Service.IsRunning("q1").Should().BeTrue();
+    h.Sequences.Executed.Should().NotContain("T");
 
+    await h.Service.StopAsync("q1");
     h.Sequences.Executed.Should().Equal("A");
     h.Sequences.Executed.Should().NotContain("T");
+    h.Log.Summary.Should().Contain("stopped manually");
+  }
+
+  [Fact] // feature 059 fix: a non-cyclic run waits for a relative timer and fires it once the offset
+         // elapses, then completes (the original bug: such timers never fired on a non-cyclic queue).
+  public async Task NonCyclicRunWaitsForRelativeTimerThenFiresAndCompletes() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)) });
+
+    await h.Service.StartAsync("q1");
+    // A runs immediately; T is not yet due, so the run stays alive instead of completing.
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    h.Sequences.Executed.Should().NotContain("T");
+    h.Service.IsRunning("q1").Should().BeTrue();
+
+    // Once the offset elapses, T fires at the next poll boundary and the run completes.
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Contain("T");
     h.Log.FinalStatus.Should().Be("success");
+    h.Log.Summary.Should().Contain("2 sequence(s) executed"); // A (once-per-run) + T (relative) = 2
   }
 
   [Fact] // multiple simultaneously-due relative timers all fire before the regular steps (FR-015)

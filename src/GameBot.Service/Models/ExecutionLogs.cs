@@ -68,6 +68,8 @@ internal sealed class ExecutionTreeNodeDto {
   public required string Label { get; init; }
   public required string Status { get; init; }
   public string? Message { get; init; }
+  /// <summary>When the node's execution ran (queue/sequence/command). Null for primitive step nodes.</summary>
+  public DateTimeOffset? TimestampUtc { get; init; }
   public int? AppliedDelayMs { get; init; }
   public string? CommandName { get; init; }
   public ExecutionLogWaitForImageDetailAttributesDto? DetailAttributes { get; init; }

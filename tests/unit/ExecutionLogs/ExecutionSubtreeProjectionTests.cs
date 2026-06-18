@@ -60,6 +60,45 @@ public sealed class ExecutionSubtreeProjectionTests {
     innerNode.Children[0].NodeKind.Should().Be("command");
   }
 
+  [Fact]
+  public void BuildSubtreeCarriesExecutionTimestampOnNodesButNotPrimitiveSteps() {
+    var seqTime = new DateTimeOffset(2026, 6, 2, 10, 0, 0, TimeSpan.Zero);
+    var cmdTime = new DateTimeOffset(2026, 6, 2, 10, 0, 30, TimeSpan.Zero);
+    var root = new ExecutionLogEntry {
+      Id = "root-1",
+      TimestampUtc = seqTime,
+      ExecutionType = "sequence",
+      FinalStatus = "success",
+      ObjectRef = new ExecutionObjectReference("sequence", "root-1", "My Sequence"),
+      Navigation = new ExecutionNavigationContext("/authoring/sequences/root-1", null),
+      Hierarchy = new ExecutionHierarchyContext("root-1", null, 0, null),
+      Summary = "My Sequence executed.",
+      StepOutcomes = new[] { CommandStep(1, "cmd-a", "Open Mail") },
+      RetentionExpiresUtc = DateTimeOffset.UtcNow.AddDays(1)
+    };
+    var child = new ExecutionLogEntry {
+      Id = "child-a",
+      TimestampUtc = cmdTime,
+      ExecutionType = "command",
+      FinalStatus = "success",
+      ObjectRef = new ExecutionObjectReference("command", "cmd-a", "Open Mail"),
+      Navigation = new ExecutionNavigationContext("/authoring/commands/cmd-a", "/authoring/sequences/root-1"),
+      Hierarchy = new ExecutionHierarchyContext("root-1", "root-1", 1, 1),
+      Summary = "Open Mail executed.",
+      StepOutcomes = new[] { new ExecutionStepOutcome(1, "primitiveTap", "executed", "executed", "Tap executed.") },
+      RetentionExpiresUtc = DateTimeOffset.UtcNow.AddDays(1)
+    };
+
+    var subtree = ExecutionLogService.BuildSubtree(root, new[] { root, child });
+
+    // Sequence and command nodes carry the moment they ran.
+    subtree.Root.TimestampUtc.Should().Be(seqTime);
+    var commandNode = subtree.Root.Children[0];
+    commandNode.TimestampUtc.Should().Be(cmdTime);
+    // The command's primitive tap step has no independently recorded execution time.
+    commandNode.Children[0].TimestampUtc.Should().BeNull();
+  }
+
   private static ExecutionLogEntry SequenceEntry(string id, string name, string status, ExecutionStepOutcome[] steps)
     => new() {
       Id = id,

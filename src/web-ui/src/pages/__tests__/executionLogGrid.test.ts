@@ -140,7 +140,7 @@ describe('executionLogGrid helpers', () => {
   });
 
   describe('projectNodeRow', () => {
-    it('blanks the timestamp and projects label/type/status/info', () => {
+    it('projects label/type/status/info and blanks the timestamp when none is supplied', () => {
       const row = projectNodeRow(makeNode({ label: 'primitiveTap' }), 'root', 2);
       expect(row).toMatchObject({
         depth: 2,
@@ -150,6 +150,12 @@ describe('executionLogGrid helpers', () => {
         type: 'Tap',
         status: 'success'
       });
+    });
+
+    it('uses the supplied formatted timestamp (sequence/command nodes carry one)', () => {
+      const row = projectNodeRow(makeNode({ nodeKind: 'sequence', label: 'Collect' }), 'root', 1, '6/2/2026, 7:09:11 AM');
+      expect(row.timestamp).toBe('6/2/2026, 7:09:11 AM');
+      expect(row.type).toBe('Sequence');
     });
 
     it('is expandable when the node has children', () => {
