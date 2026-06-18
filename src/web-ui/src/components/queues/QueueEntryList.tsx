@@ -30,8 +30,10 @@ type QueueEntryListProps = {
 
 const SCHEDULE_LABELS: Record<ScheduleType, string> = {
   OncePerRun: 'Once Per Run',
-  EveryStep: 'Every Step',
+  // Display label only — the stored/wire identifier remains "EveryStep" (FR-002/FR-010).
+  EveryStep: 'After Every Step',
   Timer: 'Timer',
+  AtQueueStart: 'At Queue Start',
 };
 
 const pad2 = (n: number): string => n.toString().padStart(2, '0');
@@ -75,6 +77,7 @@ export const QueueEntryList: React.FC<QueueEntryListProps> = ({
           const schedule = entrySchedule[entry.entryId] ?? { scheduleType: 'OncePerRun' as ScheduleType, timerTimeOfDay: '' };
           const isTimer = schedule.scheduleType === 'Timer';
           const isEveryStep = schedule.scheduleType === 'EveryStep';
+          const isAtQueueStart = schedule.scheduleType === 'AtQueueStart';
           const timerMode: TimerMode = schedule.timerMode ?? (schedule.timerRelativeOffset ? 'relative' : 'timeOfDay');
           const isRelative = isTimer && timerMode === 'relative';
           const label = entry.sequenceName ?? entry.sequenceId;
@@ -91,7 +94,8 @@ export const QueueEntryList: React.FC<QueueEntryListProps> = ({
               <span className="queue-entry-name">
                 {label}
                 {entry.stale && <span className="badge badge-warning" role="status"> (stale)</span>}
-                {isEveryStep && <span className="badge badge-info" role="status" aria-label="Every Step"> Every Step</span>}
+                {isAtQueueStart && <span className="badge badge-info" role="status" aria-label="At Queue Start"> At Queue Start</span>}
+                {isEveryStep && <span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
                 {isTimer && !isRelative && <span className="badge badge-info" role="status" aria-label="Timer"> Timer</span>}
                 {isRelative && <span className="badge badge-info" role="status" aria-label="Relative timer"> Timer · relative</span>}
               </span>

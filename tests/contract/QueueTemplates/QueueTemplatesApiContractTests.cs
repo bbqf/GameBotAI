@@ -118,4 +118,49 @@ public sealed class QueueTemplatesApiContractTests : IDisposable {
       new { name = name + "x", overwrite = true, entries = new[] { new { sequenceId = "seq-x", scheduleType = "Timer", timerRelativeOffset = "25:00:00" } } }).ConfigureAwait(true);
     tooBig.StatusCode.Should().Be(HttpStatusCode.BadRequest);
   }
+
+  [Fact] // feature 060 (T007): renaming "Every Step" → "After Every Step" must not change the wire value
+  public async Task EveryStepEntryRoundTripsUnchanged() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+    var name = "EveryStep " + Guid.NewGuid().ToString("N");
+
+    // Saves an EveryStep entry and reads it back as the SAME "EveryStep" identifier (FR-002/FR-010).
+    var entries = new[] { new { sequenceId = "seq-x", scheduleType = "EveryStep" } };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name, entries, overwrite = true }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    var id = created.GetProperty("id").GetString();
+
+    var detail = JsonDocument.Parse(await (await client.GetAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    detail.GetProperty("entries")[0].GetProperty("scheduleType").GetString().Should().Be("EveryStep");
+  }
+
+  [Fact] // feature 060 (T011): AtQueueStart round-trips unchanged; an unknown schedule type is rejected
+  public async Task AtQueueStartRoundTripsAndInvalidScheduleTypeIsRejected() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+    var name = "AtQueueStart " + Guid.NewGuid().ToString("N");
+
+    // Saves an AtQueueStart entry and reads it back unchanged (FR-009).
+    var entries = new[] { new { sequenceId = "seq-x", scheduleType = "AtQueueStart" } };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name, entries, overwrite = true }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var id = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString();
+
+    var detail = JsonDocument.Parse(await (await client.GetAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    detail.GetProperty("entries")[0].GetProperty("scheduleType").GetString().Should().Be("AtQueueStart");
+
+    // An unrecognized scheduleType returns 400 with the { error: { code, message, hint } } envelope (FR-013).
+    var invalid = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = name + "x", overwrite = true, entries = new[] { new { sequenceId = "seq-x", scheduleType = "Whenever" } } }).ConfigureAwait(true);
+    invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var body = JsonDocument.Parse(await invalid.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    body.GetProperty("error").GetProperty("code").GetString().Should().Be("invalid_request");
+    body.GetProperty("error").GetProperty("message").GetString().Should().Contain("Whenever");
+  }
 }

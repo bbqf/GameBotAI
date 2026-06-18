@@ -17,6 +17,8 @@ namespace GameBot.Domain.QueueTemplates {
     /// Executes automatically after each OncePerRun sequence completes, and once more after the
     /// final OncePerRun step. Does not count toward run completion. Multiple EveryStep entries
     /// execute in their template order after each regular step.
+    /// Displayed to operators as "After Every Step"; the stored/wire identifier remains
+    /// <c>EveryStep</c> for backward compatibility.
     /// </summary>
     EveryStep = 1,
 
@@ -26,6 +28,14 @@ namespace GameBot.Domain.QueueTemplates {
     /// (server local time) has passed and the entry has not already fired on the current
     /// calendar date within this run. Resets on queue restart.
     /// </summary>
-    Timer = 2
+    Timer = 2,
+
+    /// <summary>
+    /// Executes once at the start of the run, in template order, before any timer evaluation and
+    /// before the first OncePerRun step. Runs once per run (not per cycle) and counts toward the
+    /// run's executed total. A failure is non-fatal (recorded in failed; the run continues),
+    /// consistent with OncePerRun handling.
+    /// </summary>
+    AtQueueStart = 3
   }
 }

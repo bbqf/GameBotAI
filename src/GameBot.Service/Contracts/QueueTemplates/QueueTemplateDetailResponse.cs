@@ -16,7 +16,8 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public bool Stale { get; set; }
 
     /// <summary>
-    /// Schedule type of this entry: "OncePerRun", "EveryStep", or "Timer".
+    /// Schedule type of this entry: "OncePerRun", "EveryStep", "Timer", or "AtQueueStart".
+    /// ("EveryStep" is displayed to operators as "After Every Step"; the returned value is unchanged.)
     /// </summary>
     public string ScheduleType { get; set; } = "OncePerRun";
 

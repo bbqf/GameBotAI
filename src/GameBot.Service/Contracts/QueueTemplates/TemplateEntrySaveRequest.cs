@@ -8,8 +8,9 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public string? SequenceId { get; set; }
 
     /// <summary>
-    /// Schedule type string: "OncePerRun", "EveryStep", or "Timer".
-    /// When absent or null, defaults to "OncePerRun".
+    /// Schedule type string: "OncePerRun", "EveryStep", "Timer", or "AtQueueStart".
+    /// When absent or null, defaults to "OncePerRun". ("EveryStep" is displayed to operators as
+    /// "After Every Step"; the wire value is unchanged.)
     /// </summary>
     public string? ScheduleType { get; set; }
 
