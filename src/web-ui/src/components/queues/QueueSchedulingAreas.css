@@ -1,0 +1,80 @@
+/* Four-area scheduling editor layout.
+   Row 1: full-width "Start of execution".
+   Row 2: left column stacks "Once per run" over "Scheduled"; right column "After every step". */
+.scheduling-areas__grid {
+  display: grid;
+  gap: var(--gb-space-3);
+  margin: var(--gb-space-2) 0;
+}
+
+.scheduling-areas__body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gb-space-3);
+  align-items: stretch;
+}
+
+.scheduling-areas__left {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--gb-space-3);
+}
+
+.scheduling-areas__right {
+  display: grid;
+}
+
+.scheduling-area {
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-lg);
+  background: var(--gb-color-surface);
+  padding: var(--gb-space-3);
+  min-height: 96px;
+}
+
+.scheduling-area--over {
+  border-color: var(--gb-color-primary, #2563eb);
+  background: var(--gb-color-surface-alt, #f5f7fb);
+}
+
+.scheduling-area__heading {
+  margin: 0 0 var(--gb-space-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gb-color-text-muted, #888);
+}
+
+.scheduling-area__list {
+  min-height: 48px;
+}
+
+.scheduling-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gb-space-2);
+  padding: var(--gb-space-2);
+  border: 1px solid var(--gb-color-border);
+  border-radius: var(--gb-radius-md);
+  background: var(--gb-color-surface-alt, #fafafa);
+}
+
+.scheduling-card__handle {
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.scheduling-card__name {
+  flex: 1 1 auto;
+  min-width: 8rem;
+  font-weight: 500;
+}
+
+/* Narrow viewports: collapse the two columns into a single stacked column. */
+@media (max-width: 720px) {
+  .scheduling-areas__body {
+    grid-template-columns: 1fr;
+  }
+}

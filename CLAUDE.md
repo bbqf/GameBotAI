@@ -3,5 +3,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/060-queue-start-after-every-scheduling/plan.md
+at specs/061-queue-scheduling-areas/plan.md
 <!-- SPECKIT END -->
