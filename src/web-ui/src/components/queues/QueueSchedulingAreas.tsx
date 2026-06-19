@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import {
-  closestCenter,
+  CollisionDetection,
   DndContext,
   DragEndEvent,
   DragOverEvent,
   DragStartEvent,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -42,6 +43,20 @@ export type QueueSchedulingAreasProps = {
 
 const isAreaId = (id: string): id is SchedulingAreaId =>
   (CANONICAL_AREA_ORDER as string[]).includes(id);
+
+/**
+ * Pointer-based collision detection: the droppable directly under the cursor is the target,
+ * rather than the dragged card's center (which is offset from the drag handle and feels
+ * counter-intuitive). A card under the pointer wins over its enclosing area so the reorder
+ * index is precise; empty space within an area falls back to the area itself. The dragged card
+ * is excluded so it never targets itself, and releasing outside every area resolves to no target
+ * (a no-op that returns the card to its origin — FR-013).
+ */
+const collisionDetectionStrategy: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args).filter((c) => c.id !== args.active.id);
+  const cardCollision = pointerCollisions.find((c) => !isAreaId(String(c.id)));
+  return cardCollision ? [cardCollision] : pointerCollisions;
+};
 
 export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
   entries,
@@ -130,7 +145,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
     <section className="queue-entries scheduling-areas" aria-label="Queue sequences">
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={collisionDetectionStrategy}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
