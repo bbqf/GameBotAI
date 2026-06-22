@@ -16,6 +16,8 @@ type QueueFormProps = {
   onCancel: () => void;
   submitting?: boolean;
   formError?: string;
+  /** Inline save outcome shown at the Save/Cancel action row (co-located with the Save button). */
+  saveResult?: { kind: 'success' | 'error'; message: string };
   fieldErrors?: { name?: string; emulatorSerial?: string };
   /** Edit-mode only: game name + unlink row, rendered after cycle execution. */
   gameControls?: React.ReactNode;
@@ -34,6 +36,7 @@ export const QueueForm: React.FC<QueueFormProps> = ({
   onCancel,
   submitting,
   formError,
+  saveResult,
   fieldErrors,
   gameControls,
   templateControls,
@@ -116,6 +119,11 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         <button type="button" onClick={onSubmit} disabled={submitting}>Save</button>
         <button type="button" onClick={onCancel} disabled={submitting}>Cancel</button>
       </div>
+      {saveResult && (
+        saveResult.kind === 'success'
+          ? <div className="form-hint" role="status">{saveResult.message}</div>
+          : <div className="form-error" role="alert">{saveResult.message}</div>
+      )}
       {formError && <div className="form-error" role="alert">{formError}</div>}
 
       {/* Separator + template section (edit only) */}

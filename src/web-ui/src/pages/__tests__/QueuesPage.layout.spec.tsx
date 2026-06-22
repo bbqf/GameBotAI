@@ -81,3 +81,38 @@ describe('QueuesPage edit layout', () => {
     await waitFor(() => expect(screen.queryByText('Edit Queue')).not.toBeInTheDocument());
   });
 });
+
+describe('QueuesPage overview table columns (US3)', () => {
+  it('does not render a Sequences column, but keeps Name/Emulator/Cycle/Status/Actions', async () => {
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+
+    expect(screen.queryByRole('columnheader', { name: 'Sequences' })).not.toBeInTheDocument();
+    ['Name', 'Emulator', 'Cycle', 'Status', 'Actions'].forEach((header) => {
+      expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
+    });
+  });
+
+  it('keeps the row actions working with the Sequences column removed', async () => {
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+
+    // A stopped queue exposes Start / Edit / Delete (Schedule only appears while running).
+    expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it('spans the expanded live-schedule row across the 5 remaining columns', async () => {
+    listQueuesMock.mockResolvedValue([
+      { id: 'q1', name: 'Daily', emulatorSerial: 'emu-9', cycleExecution: false, status: 'Running', entryCount: 1 },
+    ] as any);
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule a sequence for Daily' }));
+    const cell = document.querySelector('.queues-live-schedule-row td') as HTMLTableCellElement;
+    expect(cell).not.toBeNull();
+    expect(cell.colSpan).toBe(5);
+  });
+});

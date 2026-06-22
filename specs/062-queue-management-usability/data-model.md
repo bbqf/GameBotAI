@@ -10,29 +10,43 @@ client-side decision logic and the UI-state additions needed for inline confirma
   is removed.
 - `SaveQueueTemplate`: `{ name, entries, overwrite }` — sent to `POST /api/queue-templates`. Unchanged.
 - `associatedTemplateName?: string` — the template the queue is currently linked to (held in
-  `QueuesPage`; passed into `SaveTemplateDialog` as its `originName` prop). Drives the one-click
-  decision.
+  `QueuesPage`; passed into `QueueTemplateControls`). Pre-fills the editable name field and is the
+  name used by the one-click **Save Template** action.
 
-## Template-save decision (one-click vs. confirm)
+## Template-save controls and decision (one-click vs. confirm)
 
-Inputs: `typedName` (trimmed), `originName` (the associated template name). No template-list fetch is
-needed — the server's existing `409` distinguishes the non-associated cases.
+There are two distinct save triggers; neither needs a template-list fetch — the server's existing
+`409` distinguishes the collision case.
+
+`originName` = the associated template name; `typedName` = the editable name field (trimmed).
+
+**Save Template (bottom button)** — quick re-save to the associated template:
+
+```
+if originName is set:
+    → save(name = originName, overwrite = true)   # one click, no prompt; ignores typedName
+else:
+    → disabled                                    # no template yet; create one via Rename
+```
+
+**Rename (next to the name field, in the template area)** — save under the typed name:
 
 ```
 norm(x) = x.trim().toLowerCase()
 
 if norm(typedName) == norm(originName):
-    → save(overwrite = true)                      # same (associated) template, one click
+    → save(name = typedName, overwrite = true)    # same (associated) template, one click
 else:
-    → save(overwrite = false)
-       on success     → done                      # new name, one click (succeeds)
-       on 409 (exists)→ show overwrite confirmation
-                          on confirm → save(overwrite = true)   # different existing template, guarded
+    → save(name = typedName, overwrite = false)
+       on success     → done                       # new name, one click (succeeds)
+       on 409 (exists)→ show overwrite confirmation NEXT TO Rename
+                          on confirm → save(name = typedName, overwrite = true)  # different template, guarded
                           on cancel  → no-op
 ```
 
-Validation rules (unchanged, applied before any save): name required; ≤ 100 chars; pattern
-`^[A-Za-z0-9 _-]+$`.
+Validation rules (applied before a Rename save): name required; ≤ 100 chars; pattern
+`^[A-Za-z0-9 _-]+$`. Opening the template area resets `typedName` to `originName` so an unconfirmed
+edit does not linger.
 
 ## Inline confirmation UI state
 

@@ -31,7 +31,7 @@ Web application, frontend only: source under `src/web-ui/src/`, tests under
 
 **Purpose**: Establish the green baseline before changing behavior.
 
-- [ ] T001 Establish baseline: from `src/web-ui` run `npm install` (if needed), `npm run build`, and `npm test`; confirm the suite is green so later diffs are attributable to this feature.
+- [X] T001 Establish baseline: from `src/web-ui` run `npm install` (if needed), `npm run build`, and `npm test`; confirm the suite is green so later diffs are attributable to this feature.
 
 ---
 
@@ -57,13 +57,13 @@ Template without renaming → saved with no overwrite prompt. Rename to a differ
 
 > Write/adjust these FIRST and ensure they fail before implementation.
 
-- [ ] T002 [P] [US1] Update `src/web-ui/src/components/queues/__tests__/SaveTemplateDialog.test.tsx`: assert that when the typed name equals `originName` (trimmed, case-insensitive) Save persists immediately with `overwrite: true` and shows NO overwrite confirmation; when the name differs and the API returns 409, the overwrite confirmation still appears; and that an empty/invalid name (FR-009) blocks the save (shows the validation error, no `onSave` call) on both the one-click and the differing-name paths.
-- [ ] T003 [P] [US1] Update `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx`: assert one-click save (no prompt) for the associated-name and brand-new-name cases, and that the overwrite confirmation path still works for a different existing template.
+- [X] T002 [P] [US1] Update `src/web-ui/src/components/queues/__tests__/SaveTemplateDialog.test.tsx`: assert that when the typed name equals `originName` (trimmed, case-insensitive) Save persists immediately with `overwrite: true` and shows NO overwrite confirmation; when the name differs and the API returns 409, the overwrite confirmation still appears; and that an empty/invalid name (FR-009) blocks the save (shows the validation error, no `onSave` call) on both the one-click and the differing-name paths.
+- [X] T003 [P] [US1] Update `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx`: assert one-click save (no prompt) for the associated-name and brand-new-name cases, and that the overwrite confirmation path still works for a different existing template.
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] In `src/web-ui/src/components/queues/SaveTemplateDialog.tsx`, change `handleSave` so that after validation, if the trimmed name matches `originName` (case-insensitive) it calls `persist(true)` directly (one-click overwrite of the associated template); otherwise it calls `persist(false)` and keeps the existing 409 → overwrite-confirmation branch for collisions with a different existing template. Brand-new names continue to succeed with `overwrite: false`.
-- [ ] T005 [US1] Verify `handleSaveTemplate` in `src/web-ui/src/pages/QueuesPage.tsx` still passes `overwrite` through unchanged to `saveQueueTemplate` and updates `associatedTemplateName` on success (no behavior change needed beyond confirming compatibility with T004).
+- [X] T004 [US1] In `src/web-ui/src/components/queues/SaveTemplateDialog.tsx`, change `handleSave` so that after validation, if the trimmed name matches `originName` (case-insensitive) it calls `persist(true)` directly (one-click overwrite of the associated template); otherwise it calls `persist(false)` and keeps the existing 409 → overwrite-confirmation branch for collisions with a different existing template. Brand-new names continue to succeed with `overwrite: false`.
+- [X] T005 [US1] Verify `handleSaveTemplate` in `src/web-ui/src/pages/QueuesPage.tsx` still passes `overwrite` through unchanged to `saveQueueTemplate` and updates `associatedTemplateName` on success (no behavior change needed beyond confirming compatibility with T004).
 
 **Checkpoint**: Re-saving the associated template is one click; destructive renames still guarded. Run `npm test`.
 
@@ -80,14 +80,14 @@ appears at the same control.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T006 [P] [US2] Update `src/web-ui/src/components/queues/__tests__/QueueTemplateControls.test.tsx`: assert a success message renders at the template controls after a successful template save, and an error renders there on failure.
-- [ ] T007 [US2] Update `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx`: assert the queue-save and template-save success confirmations render at their respective Save controls and that the page-top banner is NOT used for these two saves (other table messages — start/stop/load/delete — remain unchanged). *(Same file as T003; do not run in parallel with it.)*
+- [X] T006 [P] [US2] Update `src/web-ui/src/components/queues/__tests__/QueueTemplateControls.test.tsx`: assert a success message renders at the template controls after a successful template save, and an error renders there on failure.
+- [X] T007 [US2] Update `src/web-ui/src/pages/__tests__/QueuesPage.templates.spec.tsx`: assert the queue-save and template-save success confirmations render at their respective Save controls and that the page-top banner is NOT used for these two saves (other table messages — start/stop/load/delete — remain unchanged). *(Same file as T003; do not run in parallel with it.)*
 
 ### Implementation for User Story 2
 
-- [ ] T008 [P] [US2] In `src/web-ui/src/components/queues/QueueForm.tsx`, render an inline status/error region at the Save/Cancel action row driven by a new optional prop (e.g. `saveResult?: { kind: 'success' | 'error'; message: string }`) with `role="status"`/`role="alert"` respectively.
-- [ ] T009 [P] [US2] In `src/web-ui/src/components/queues/QueueTemplateControls.tsx`, render an inline status/error region at the Save Template row driven by a new optional prop (e.g. `saveResult?: { kind: 'success' | 'error'; message: string }`).
-- [ ] T010 [US2] In `src/web-ui/src/pages/QueuesPage.tsx`, add state for the queue-save result and the template-save result; set them in `submitForm` (success/error for queue create+update) and in `handleSaveTemplate` (success/error for template save) instead of routing those outcomes through `setTableMessage`; pass the results into `QueueForm` and `QueueTemplateControls`; clear them when forms re-open. Leave `tableMessage` for the unrelated start/stop/load/delete flows.
+- [X] T008 [P] [US2] In `src/web-ui/src/components/queues/QueueForm.tsx`, render an inline status/error region at the Save/Cancel action row driven by a new optional prop (e.g. `saveResult?: { kind: 'success' | 'error'; message: string }`) with `role="status"`/`role="alert"` respectively.
+- [X] T009 [P] [US2] In `src/web-ui/src/components/queues/QueueTemplateControls.tsx`, render an inline status/error region at the Save Template row driven by a new optional prop (e.g. `saveResult?: { kind: 'success' | 'error'; message: string }`).
+- [X] T010 [US2] In `src/web-ui/src/pages/QueuesPage.tsx`, add state for the queue-save result and the template-save result; set them in `submitForm` (success/error for queue create+update) and in `handleSaveTemplate` (success/error for template save) instead of routing those outcomes through `setTableMessage`; pass the results into `QueueForm` and `QueueTemplateControls`; clear them when forms re-open. Leave `tableMessage` for the unrelated start/stop/load/delete flows.
 
 **Checkpoint**: Both saves confirm at the click site; page-top banner no longer used for them. Run `npm test`.
 
@@ -103,11 +103,11 @@ the live-schedule row still spans the table correctly.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T011 [P] [US3] Update `src/web-ui/src/pages/__tests__/QueuesPage.layout.spec.tsx`: assert the Sequences header/cell is absent; that the remaining columns (Name, Emulator, Cycle, Status, Actions) are present; that the row actions (Start/Stop/Schedule/Edit/Delete) still render (FR-002); and that the expanded live-schedule row spans the full table (its `colSpan` matches the new 5-column count, not 6).
+- [X] T011 [P] [US3] Update `src/web-ui/src/pages/__tests__/QueuesPage.layout.spec.tsx`: assert the Sequences header/cell is absent; that the remaining columns (Name, Emulator, Cycle, Status, Actions) are present; that the row actions (Start/Stop/Schedule/Edit/Delete) still render (FR-002); and that the expanded live-schedule row spans the full table (its `colSpan` matches the new 5-column count, not 6).
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] In `src/web-ui/src/pages/QueuesPage.tsx`, remove the `<th>Sequences</th>` header and the `<td>{q.entryCount}</td>` cell, and change the `colSpan={6}` on the loading, empty, and live-schedule rows to `colSpan={5}`.
+- [X] T012 [US3] In `src/web-ui/src/pages/QueuesPage.tsx`, remove the `<th>Sequences</th>` header and the `<td>{q.entryCount}</td>` cell, and change the `colSpan={6}` on the loading, empty, and live-schedule rows to `colSpan={5}`.
 
 **Checkpoint**: Overview is decluttered and layout intact. Run `npm test`.
 
@@ -117,7 +117,7 @@ the live-schedule row still spans the table correctly.
 
 **Purpose**: Final verification across all stories.
 
-- [ ] T013 Run the full web-ui gate from `src/web-ui`: `npm run build` and `npm test`; ensure green.
+- [X] T013 Run the full web-ui gate from `src/web-ui`: `npm run build` and `npm test`; ensure green.
 - [ ] T014 Execute `specs/062-queue-management-usability/quickstart.md` scenarios A, B, and C manually against the running web-ui.
 
 ---

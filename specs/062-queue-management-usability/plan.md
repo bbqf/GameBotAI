@@ -9,9 +9,11 @@ Three self-contained usability improvements to the Queues management UI, all con
 web-ui and backed by the existing queue/template HTTP endpoints (no backend changes):
 
 1. **Remove the Sequences (entry-count) column** from the queues overview table.
-2. **One-click template save** — saving back to the queue's currently associated template, or under a
-   genuinely new name, persists in a single action with no overwrite prompt; only a collision with a
-   *different* existing template still asks to confirm.
+2. **One-click template save + in-area rename** — a bottom **Save Template** button re-saves to the
+   queue's currently associated template under its existing name in one action (disabled when there
+   is no template yet); a **Rename** button next to the editable name field (in the template area)
+   saves under a typed name. Neither prompts unless Rename hits a collision with a *different*
+   existing template, in which case an overwrite confirmation appears next to Rename.
 3. **Co-located save confirmations** — both the queue Save and the template Save show their
    success/failure result inline at the control the user clicked, replacing the page-top status
    banner for these saves.
@@ -36,8 +38,9 @@ web-ui and backed by the existing queue/template HTTP endpoints (no backend chan
 *NON-NEGOTIABLE*: If `build` or required `test` runs are failing (local or CI), implementation progression is blocked until failures are fixed or a documented maintainer waiver exists.
 
 - **I. Code Quality Discipline**: PASS — small, cohesive component edits; CamelCase preserved; no new
-  dependencies; no dead code (the `overwrite` confirmation branch in `SaveTemplateDialog` is repurposed,
-  not duplicated).
+  dependencies; no dead code (the standalone `SaveTemplateDialog` popup was removed and its
+  validation/overwrite-confirmation logic consolidated into `QueueTemplateControls` +
+  `TemplatePickerDialog`).
 - **II. Testing Standards**: PASS — every behavior change is covered by Jest/RTL tests (column removal,
   one-click vs. collision-confirm save, inline confirmation on success/failure). Existing tests that
   assert the old behavior (Sequences column, page-top banner text, always-prompt overwrite) are updated
@@ -73,21 +76,24 @@ existing `PUT /api/queues/{id}` update endpoint, both unchanged.
 ```text
 src/web-ui/src/
 ├── pages/
-│   └── QueuesPage.tsx                         # remove Sequences column + colSpan; route save results inline; one-click save decision
+│   └── QueuesPage.tsx                         # remove Sequences column + colSpan; route save results inline; wire Save Template / Rename
 ├── components/queues/
 │   ├── QueueForm.tsx                          # surface inline queue-save confirmation at the Save action row
-│   ├── QueueTemplateControls.tsx             # surface inline template-save confirmation at the Save Template row
-│   └── SaveTemplateDialog.tsx                 # one-click path: only confirm overwrite on different-template collision
+│   ├── QueueTemplateControls.tsx             # Save Template (one-click, old name) + Rename decision; inline template-save confirmation
+│   └── TemplatePickerDialog.tsx              # hosts the editable name field + Rename button + collision overwrite confirmation
 └── pages/__tests__/ , components/queues/__tests__/
-    ├── QueuesPage.layout.spec.tsx             # update: assert no Sequences column / column count
-    ├── QueuesPage.templates.spec.tsx          # update: inline confirmation location; one-click save
-    ├── QueueTemplateControls.test.tsx         # update/extend: inline confirmation rendering
-    └── SaveTemplateDialog.test.tsx            # update: one-click vs collision-confirm behavior
+    ├── QueuesPage.layout.spec.tsx             # assert no Sequences column / column count
+    ├── QueuesPage.templates.spec.tsx          # inline confirmation location; Save Template vs Rename
+    ├── QueuesPage.link.spec.tsx               # link after Rename save
+    ├── QueuesPage.reload.spec.tsx             # associate via Rename, then reload behavior
+    └── QueueTemplateControls.test.tsx         # Save Template/Rename behavior + inline confirmation rendering
 ```
 
 **Structure Decision**: Single-frontend web application. All changes live under `src/web-ui/src`;
-the host/back end is untouched. Existing component boundaries are preserved — no new components are
-required (confirmations attach to the existing `QueueForm` and `QueueTemplateControls`).
+the host/back end is untouched. The standalone `SaveTemplateDialog` (a separate "save as template"
+popup) was removed in favor of editing the name inside the template area (`TemplatePickerDialog`)
+with an explicit **Rename** action; confirmations attach to the existing `QueueForm` and
+`QueueTemplateControls`.
 
 ## Complexity Tracking
 

@@ -12,34 +12,47 @@
 - Q: When saving a template under a name that matches a *different* existing template, should the overwrite confirmation still be shown? → A: Yes — confirmation only on collision with a different existing template; unchanged or brand-new names save in one click.
 - Q: With the confirmation now shown at the Save action's location, should the existing top-of-page status banner still appear for queue/template saves? → A: Move it — show the confirmation only at the Save action's location and drop the top-of-page banner for these saves.
 
+### Session 2026-06-22 (template-save controls refinement)
+
+- Q: How is the template name edited and saved — via a separate "save as template" popup? → A: No popup. The template name is edited inside the area that opens from the template-name control (the same area that lists templates to load), and an explicit **Rename** button next to the name field saves under the typed name.
+- Q: When the user clicks Rename and the typed name collides with a different existing template, where is the overwrite confirmation shown? → A: Next to the Rename button, inside that same area.
+- Q: What does the separate bottom **Save Template** button do, versus Rename? → A: Save Template re-saves the current entries to the queue's already-associated template under its existing name, in one click, ignoring any unsaved edit in the name field. It is disabled when the queue has no associated template yet (the first template must be created via the name field + Rename).
+
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - One-click template save when the name is unchanged (Priority: P1)
+### User Story 1 - One-click template save, with rename in the template area (Priority: P1)
 
 A user editing a queue that is already associated with a template wants to push their latest
-changes back into that same template. Because they are not renaming it, they expect the save to
-complete in a single action without any extra "a template with this name already exists —
-overwrite?" prompt.
+changes back into that same template in a single click. When they do want to save under a different
+name, they edit the name in the template area and confirm with a dedicated **Rename** action — only
+a collision with a *different* existing template adds an overwrite confirmation.
 
-**Why this priority**: This is the most frequent template interaction (iterating on an existing
-template) and the current multi-step overwrite confirmation is the biggest friction point the user
-called out. Removing it delivers the clearest day-to-day time savings.
+**Why this priority**: Iterating on an existing template is the most frequent template interaction,
+and the previous multi-step overwrite confirmation was the biggest friction point the user called
+out. A one-click Save Template plus an explicit Rename path delivers the clearest day-to-day time
+savings while keeping name changes deliberate.
 
-**Independent Test**: Load a queue that is linked to an existing template, make an entry change,
-click Save Template without altering the pre-filled name, and confirm the template is updated in
-one action with no overwrite prompt.
+**Independent Test**: Open a queue linked to an existing template, change an entry, click Save
+Template, and confirm the template is updated in one action with no overwrite prompt. Separately,
+open the template area, type a different name, click Rename, and confirm the save/overwrite behavior.
 
 **Acceptance Scenarios**:
 
-1. **Given** a queue associated with a template named "Daily Farm" and the save name still reads
-   "Daily Farm", **When** the user saves the template, **Then** the template is overwritten
-   immediately with no overwrite confirmation step.
-2. **Given** the same queue, **When** the user changes the name to a brand-new name that does not
-   match any existing template, **Then** the template is saved as a new template in one action with
-   no overwrite prompt.
-3. **Given** the same queue, **When** the user changes the name to one that matches a *different*
-   existing template, **Then** an overwrite confirmation is shown before that other template is
-   replaced.
+1. **Given** a queue associated with a template named "Daily Farm", **When** the user clicks **Save
+   Template**, **Then** the current entries are saved back to "Daily Farm" in one action with no
+   overwrite confirmation.
+2. **Given** a queue not yet associated with any template, **When** the user opens the template
+   area, types a name that matches no existing template, and clicks **Rename**, **Then** a new
+   template is created under that name in one action (no overwrite prompt) and the queue becomes
+   associated with it.
+3. **Given** a queue, **When** the user opens the template area, changes the name to one that
+   matches a *different* existing template, and clicks **Rename**, **Then** an overwrite
+   confirmation is shown next to the Rename button before that other template is replaced.
+4. **Given** a queue associated with "Daily Farm", **When** the user edits the name field but does
+   **not** click Rename and instead clicks **Save Template**, **Then** the template is saved under
+   the old name "Daily Farm" and the typed-but-unconfirmed edit is ignored.
+5. **Given** a queue with no associated template, **Then** the bottom **Save Template** action is
+   disabled until a template is created via the name field + Rename.
 
 ---
 
@@ -89,11 +102,15 @@ other column and action still works.
 
 ### Edge Cases
 
-- Saving a template when the queue is not yet associated with any template and the typed name is
-  new: saves in one action, no overwrite prompt.
-- Saving a template with a name that, after trimming, matches an existing template's name
+- Creating the first template for a queue not yet associated with any template: done via the name
+  field + **Rename**; saves in one action, no overwrite prompt. (The bottom **Save Template** button
+  is disabled in this state.)
+- Saving a template with a name that, after trimming, matches the associated template's name
   case-insensitively: treated as the same name (overwrite path), consistent with how templates are
   matched elsewhere.
+- Editing the name field but not clicking **Rename**, then clicking **Save Template**: the save uses
+  the old (associated) name; the unconfirmed edit is ignored. Reopening the template area resets the
+  field to the current name so a stale edit does not linger.
 - A save confirmation from one action should not be mistaken for another; the most recent save's
   result is what the user sees at the relevant location.
 - Removing the Sequences column must not break the layout of expandable rows (e.g. the live
@@ -107,24 +124,30 @@ other column and action still works.
 - **FR-002**: The queues overview MUST continue to display the queue Name, Emulator, Cycle, Status,
   and Actions, and all existing row actions (Start, Stop, Schedule, Edit, Delete) MUST continue to
   function.
-- **FR-003**: When the user saves a template using a name that matches the template the queue is
-  currently associated with, the system MUST persist (overwrite) the template in a single action
+- **FR-003**: Clicking **Save Template** MUST persist (overwrite) the queue's currently associated
+  template under its existing name in a single action without showing an overwrite confirmation, and
+  MUST ignore any unsaved edit in the template name field.
+- **FR-004**: When the user clicks **Rename** with a name that matches no existing template (or
+  matches the queue's currently associated template), the system MUST save in a single action
   without showing an overwrite confirmation.
-- **FR-004**: When the user saves a template using a name that does not match any existing template,
-  the system MUST save it in a single action without showing an overwrite confirmation.
-- **FR-005**: When the user saves a template using a name that matches a *different* existing
+- **FR-005**: When the user clicks **Rename** with a name that matches a *different* existing
   template (one the queue is not currently associated with), the system MUST request explicit
-  confirmation before overwriting that template.
+  confirmation, shown next to the Rename action, before overwriting that template.
 - **FR-006**: Upon a successful queue save, the system MUST display a success confirmation at the
   location of the queue Save action, and MUST NOT rely on the top-of-page status banner to convey
   that result.
 - **FR-007**: Upon a successful template save, the system MUST display a success confirmation at the
-  location of the template Save action, and MUST NOT rely on the top-of-page status banner to convey
-  that result.
+  template controls (the Save Template / Rename location), and MUST NOT rely on the top-of-page
+  status banner to convey that result.
 - **FR-008**: Upon a failed queue or template save, the system MUST display an error indication at
   the same location as the corresponding Save action so the user knows the save did not complete.
-- **FR-009**: Template name validation (required, length, allowed characters) MUST continue to apply
-  before any save is attempted, including the one-click path.
+- **FR-009**: Template name validation (required, length, allowed characters) MUST apply before a
+  Rename save is attempted.
+- **FR-010**: The template name MUST be edited inside the area that opens from the template-name
+  control (the same area that lists templates to load), with an explicit **Rename** action next to
+  the name field; there MUST NOT be a separate "save as template" popup/dialog.
+- **FR-011**: The **Save Template** action MUST be disabled when the queue has no associated template
+  yet; in that state the first template is created via the name field + **Rename**.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -153,8 +176,10 @@ other column and action still works.
   than supplements — the page-top status banner currently used for these saves.
 - Template name matching is case-insensitive and trimmed, consistent with existing template
   reload/matching behavior.
-- The one-click rule is keyed on whether the typed name resolves to the queue's currently
-  associated template (unchanged → overwrite silently) versus a different existing template
-  (changed-into-collision → confirm). Saving under a genuinely new name always proceeds directly.
+- Two distinct save controls exist: **Save Template** (bottom) is a one-click re-save to the
+  associated template under its existing name; **Rename** (next to the name field, in the template
+  area) saves under the typed name. The overwrite confirmation can only arise from Rename, and only
+  when the typed name collides with a *different* existing template; saving under the associated
+  name or a genuinely new name proceeds directly.
 - Removing the Sequences column does not change any underlying data; entry counts remain available
   inside the queue editor where entries are managed.

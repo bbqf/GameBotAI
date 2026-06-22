@@ -8,9 +8,22 @@ type TemplatePickerDialogProps = {
   onClose: () => void;
   /** Disables the Load action (e.g. the queue is running). */
   loadDisabled?: boolean;
+  /** Editable template name used by the Rename action; when provided, a name field is shown. */
+  name?: string;
+  onNameChange?: (value: string) => void;
+  /** Applies the typed name (Rename button / Enter in the name field). */
+  onSubmitName?: () => void;
+  /** Disables the Rename action (e.g. while a save is in flight). */
+  submitDisabled?: boolean;
+  /** Validation/save error for the name field, shown beneath it. */
+  nameError?: string;
+  /** When true, an overwrite confirmation is shown next to the Rename button. */
+  confirmingOverwrite?: boolean;
+  onConfirmOverwrite?: () => void;
+  onCancelOverwrite?: () => void;
 };
 
-export const TemplatePickerDialog: React.FC<TemplatePickerDialogProps> = ({ open, onLoad, onClose, loadDisabled }) => {
+export const TemplatePickerDialog: React.FC<TemplatePickerDialogProps> = ({ open, onLoad, onClose, loadDisabled, name, onNameChange, onSubmitName, submitDisabled, nameError, confirmingOverwrite, onConfirmOverwrite, onCancelOverwrite }) => {
   const [templates, setTemplates] = useState<QueueTemplateSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -50,6 +63,36 @@ export const TemplatePickerDialog: React.FC<TemplatePickerDialogProps> = ({ open
   return (
     <section className="queue-template-section" aria-label="Load template">
       <h4>Load template</h4>
+      {onNameChange && (
+        <div className="queue-template-name-edit">
+          <label htmlFor="template-name">Template name</label>
+          <input
+            id="template-name"
+            type="text"
+            value={name ?? ''}
+            onChange={(e) => onNameChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && onSubmitName) {
+                e.preventDefault();
+                onSubmitName();
+              }
+            }}
+          />
+          <button type="button" className="btn btn-primary" onClick={onSubmitName} disabled={submitDisabled}>Rename</button>
+        </div>
+      )}
+      {nameError && <div className="form-error" role="alert">{nameError}</div>}
+      {confirmingOverwrite && (
+        <section className="queue-template-section" aria-label="Confirm overwrite">
+          <p>
+            A template named <strong>{name?.trim()}</strong> already exists. Overwrite it?
+          </p>
+          <div className="queue-template-section-actions">
+            <button type="button" className="btn btn-danger" onClick={onConfirmOverwrite} disabled={submitDisabled}>Overwrite</button>
+            <button type="button" className="btn btn-secondary" onClick={onCancelOverwrite} disabled={submitDisabled}>Cancel</button>
+          </div>
+        </section>
+      )}
       {error && <div className="form-error" role="alert">{error}</div>}
       {loading && <div className="form-hint">Loading…</div>}
       {!loading && templates.length === 0 && (
@@ -66,9 +109,11 @@ export const TemplatePickerDialog: React.FC<TemplatePickerDialogProps> = ({ open
           </li>
         ))}
       </ul>
-      <div className="queue-template-section-actions">
-        <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
-      </div>
+      {!onNameChange && (
+        <div className="queue-template-section-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+        </div>
+      )}
       <ConfirmDeleteModal
         open={pendingDelete !== undefined}
         itemName={pendingDelete?.name}

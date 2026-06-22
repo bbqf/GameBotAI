@@ -61,10 +61,10 @@ describe('QueuesPage link wiring (US2)', () => {
   it('links the queue to the saved template id after saving', async () => {
     saveTemplateMock.mockResolvedValue({ id: 't9', name: 'Patrol', entryCount: 0, createdAt: null, updatedAt: null, entries: [] } as any);
     await openEdit();
-    fireEvent.click(screen.getByText('Save Template'));
-    const section = await screen.findByRole('region', { name: 'Save template' });
-    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Patrol' } });
-    fireEvent.click(within(section).getByText('Save'));
+    fireEvent.click(screen.getByText('(no template)'));
+    const area = await screen.findByRole('region', { name: 'Load template' });
+    fireEvent.change(within(area).getByLabelText('Template name'), { target: { value: 'Patrol' } });
+    fireEvent.click(within(area).getByText('Rename'));
 
     await waitFor(() => expect(saveTemplateMock).toHaveBeenCalled());
     expect(setLinkMock).toHaveBeenCalledWith('q1', 't9');
