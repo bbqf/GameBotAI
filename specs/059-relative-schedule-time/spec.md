@@ -2,7 +2,7 @@
 
 **Feature Branch**: `059-relative-schedule-time`  
 **Created**: 2026-06-17  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I need the next feature: when scheduling the sequences in the queue I want to be able to schedule them as relative time: e.g. in 10 min 0 sec from now. This should be possible via API and UI."
 
 ## Context

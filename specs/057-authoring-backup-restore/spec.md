@@ -2,7 +2,7 @@
 
 **Feature Branch**: `057-authoring-backup-restore`  
 **Created**: 2026-06-06  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I want to be able to backup up and restore commands and sequences, including all necessary images, etc. The functionality should be available via UI, but the actual composition should be done on the server side. I want the backup to be provided as a downloadable zip archive. When restoring the archive and objects with the same names already existing, I want to be asked, if I want to overwrite the existing objects (so probably some kind of dry-run would be needed on the server-side). The only way to restore if the objects already exist is to override them, no need to rename or anything else. I guess the backup/restore could be put under Authoring itself, as it's the area that is being affected."
 
 ## User Scenarios & Testing *(mandatory)*

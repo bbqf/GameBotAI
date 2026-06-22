@@ -2,7 +2,7 @@
 
 **Feature Branch**: `023-emulator-image-crop`  
 **Created**: 2026-01-20  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Let's work on preparing images easily. I want to be able to capture the image from the emulator screenshot, mark a rectangular part of the screenshot visually and create an stored image using the marked area."
 
 ## User Scenarios & Testing *(mandatory)*

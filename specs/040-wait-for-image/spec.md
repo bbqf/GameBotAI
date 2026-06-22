@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[001-wait-for-image]`  
 **Created**: 2026-05-27  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Next feature: new primitive action 'Wait for Image'. I want to be able to specify a step in which command execution will pause and wait for an image to appear, so I have to select an image to be detected, as well as certainity. There waiting time should be limited by a optional timeout in milliseconds, default 1000ms. In the authoring UI as well as in the execution log I want to see all the parameters of this step. The image itself should also be optional, so when there's no image specified or the specified image cannot be found, the step should just wait for the timeout to occur and return. Timeout should not trigger error condition, the execution should just continue. In the execution log I want to see the actual exit condition though, i.e. if an image has been detected, timeout occured as well as if the image could not have been loaded."
 
 ## Clarifications

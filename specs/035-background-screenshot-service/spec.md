@@ -2,7 +2,7 @@
 
 **Feature Branch**: `035-background-screenshot-service`  
 **Created**: 2025-04-13  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I need the background screenshot service to be constantly running and providing all the requests with the latest screenshot instantly. The service has to run in a separate thread, so that request for the last screenshot would be completed instantly if a last screenshot is available. All of the requests for screenshot currently being performed directly via ADB have to be rerouted to this service. The service has to run whenever an active session exists and the actual FPS or seconds per frame, depending on what is >1 has to be reported on the execution tab in UI where running sessions are displayed."
 
 ## Clarifications

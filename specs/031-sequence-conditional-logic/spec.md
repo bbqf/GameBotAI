@@ -2,7 +2,7 @@
 
 **Feature Branch**: `031-sequence-conditional-logic`  
 **Created**: 2026-03-02  
-**Status**: Draft  
+**Status**: Superseded by 032, 033
 **Input**: User description: "Add IF-style conditional branching in sequences based on command success/failure or image detections, support AND/OR/NOT logic, provide a visual flow authoring experience, and improve execution logging with step/sequence context, deep links, and debug-level condition traces."
 
 ## Clarifications

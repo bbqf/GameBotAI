@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[032-per-step-conditions]`  
 **Created**: 2026-03-06  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Implement per-step optional conditions in sequence authoring and execution UI/API, replacing entry-step true/false branch flow"
 
 ## Clarifications

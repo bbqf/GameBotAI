@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-save-config`  
 **Created**: 2025-11-14  
-**Status**: Implemented (Feature merged on 2025-11-14)  
+**Status**: Implemented
 **Input**: User description: "Save configuration. All of the configuration parameters, including but not limited to environment variables collected in ENVIRONMENT.md. The configuration should be stored in a config subdirectory of data directory in JSON format. Respectively the data dir directory shouldn't be part of the saved configuration."
 
 ## User Scenarios & Testing *(mandatory)*

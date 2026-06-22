@@ -2,7 +2,7 @@
 
 **Feature Branch**: `021-connect-game-action`  
 **Created**: 2025-12-30  
-**Status**: Draft  
+**Status**: Implemented (re-homed as a primitive action by 039)
 **Input**: User description: "I need a new Action Type "Connect to game". It has to reference a game, like the other actions and apart from that have one parameter: adbSerial, as needed for POST /api/sessions. This has to be implemented both in backend and frontend. On the frontend side, when creating or editing an action, the game has to be selectable from the list of games only, however for adbSerial choices have to presented from the /api/adb/devices but the field has to be modifiable as well. 
 When the Action is executed over the command execution capabilities, is has to call POST /api/sessions in a syncronous call (timeout 30s) and if successful, the session ID has to be returned back to the UI and stored in local storage for future use with other calls to /api/command/... Incidentally, this has to be the first call in a row, but as this one returns session ID, the parameter sessionId to /api/commands/{id}/force-execute and /api/commands/{id}/evaluate-and-execute has to be made optional (but semantically required for all but the first call)"
 

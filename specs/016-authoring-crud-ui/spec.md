@@ -2,7 +2,7 @@
 
 **Feature Branch**: `016-authoring-crud-ui`  
 **Created**: 2025-12-26  
-**Status**: Draft  
+**Status**: Superseded by 018, 020, 039
 **Input**: Extend the web UI authoring experience: add a navigation menu to select object types (actions, commands, games, sequences, triggers). For each, display a list of existing objects and provide full CRUD operations aligned with available backend capabilities. When an API requires referencing another object by ID, present a dropdown showing human-readable names while using IDs internally.
 
 ## User Scenarios & Testing *(mandatory)*

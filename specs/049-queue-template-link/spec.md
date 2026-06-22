@@ -2,7 +2,7 @@
 
 **Feature Branch**: `049-queue-template-link`
 **Created**: 2026-06-01
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I want the queues to be linked to 0 or 1 templates, that should be loaded automatically when the queue is displayed in the UI. The relation is 0..1:0:n, meaning a queue can have 0 or 1 templates linked and a template can be linked to 0 to n queues. No visual changes are expected here, but the UI behaviour when opening the queue."
 
 ## Clarifications

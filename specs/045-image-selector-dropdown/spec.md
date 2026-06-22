@@ -2,7 +2,7 @@
 
 **Feature Branch**: `045-image-selector-dropdown`  
 **Created**: 2026-05-30  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Replace all image entry fields with a drop-down selection of available images. I also want to see miniature images in that drop-down. Find all text fields where image id is entered and replace them with such a selector"
 
 ## User Scenarios & Testing *(mandatory)*

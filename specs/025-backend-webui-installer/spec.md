@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[024-backend-webui-installer]`  
 **Created**: 2026-02-13  
-**Status**: Draft  
+**Status**: Superseded by 026
 **Input**: User description: "I need an installer for the backend and web-ui..."
 
 ## Clarifications

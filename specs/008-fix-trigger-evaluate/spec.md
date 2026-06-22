@@ -2,7 +2,7 @@
 
 **Feature Branch**: `008-fix-trigger-evaluate`  
 **Created**: 2025-11-26  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "The logic of EvaluateAndExecute must be corrected. It should first evaluate the trigger associated with the command. This has to be covered by unit tests with positive (execution performed when the trigger evaluates successfully) as well as negative (no execution when the trigger is pending)."
 
 ## User Scenarios & Testing *(mandatory)*

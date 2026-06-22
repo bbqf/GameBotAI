@@ -2,7 +2,7 @@
 
 **Feature Branch**: `044-commands-drag-drop`  
 **Created**: 2026-05-30  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I want to be able to use drag and drop not only in sequences, but also in commands. Reuse the components you've already created"
 
 ## User Scenarios & Testing *(mandatory)*

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `062-queue-management-usability`  
 **Created**: 2026-06-22  
-**Status**: Draft  
+**Status**: Draft (active)
 **Input**: User description: "let's improve the usability of queues management. first I want you to remove the sequences column in the overview - it doesn't bring anything, especially if many of them contain 0. second: save template should work as one click, if I didn't change the name, no need to ask for overwrite or anything. third: confirmations MUST be shown wherever I clicked Save - either for the queue itself or for the template"
 
 ## Clarifications

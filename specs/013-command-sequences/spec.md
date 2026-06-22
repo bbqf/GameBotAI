@@ -2,7 +2,7 @@
 
 **Feature Branch**: `013-command-sequences`  
 **Created**: 2025-12-09  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Sequences of Commands. I need to be able to create a sequence of Commands. It should support 0..n Commands in the sequence, with optional delays in between. Delays should be specified either in milliseconds or a range of x to y milliseconds, meaning there will be a random delay between x and y milliseconds during run time. It should also be supported to continue to the next step only if an image will be detected or a configurable timeout (15s default) occurs. If a timeout occurs, the sequence execution should be aborted and an appropriate warning message logged."
 
 ## User Scenarios & Testing *(mandatory)*

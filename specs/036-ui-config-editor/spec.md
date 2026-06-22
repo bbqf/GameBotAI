@@ -2,7 +2,7 @@
 
 **Feature Branch**: `036-ui-config-editor`  
 **Created**: 2026-04-14  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Introduce a UI Configuration editor with dynamic backend-driven parameters, drag-and-drop reorder, filtering, and collapsible Backend section for API Base URL and Bearer Token"
 
 ## Overview

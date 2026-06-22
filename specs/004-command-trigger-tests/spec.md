@@ -2,7 +2,7 @@
 
 **Feature Branch**: `004-command-trigger-tests`  
 **Created**: 2025-11-21  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Improve unit and integration testing for command execution (evaluate-and-execute & force-execute) and trigger evaluation (found/not-found correctness)"
 
 ## User Scenarios & Testing *(mandatory)*

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `051-queue-execution-runtime`  
 **Created**: 2026-06-02  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "let's bring live into the queues. I want to be able to execute the queues. When the queue is executed (either via API or from the UI), first a linked template is loaded on the server side, then the queue establishes connection to the configured emulator (for now if the emulator is not available, it should stop with a failure execution log entry), and then execute sequences from loaded template one after another until the end. At the end of every execution, an execution log entry should be made, why the execution was stopped (completed full run/stopped manually/failure due to what). If the 'cycle execution' is set, it should then start from the beginning without reloading the template. When I stop the execution either via API of via UI, the execution should abort immediately, disconnect a session from the emulator and write a log entry."
 
 ## Clarifications

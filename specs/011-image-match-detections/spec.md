@@ -2,7 +2,7 @@
 
 **Feature Branch**: `011-image-match-detections`  
 **Created**: 2025-12-02  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Introducing improved image matching trigger. I need a new image matching functionality (don't replace, but extend the old endpoints), given a reference image and the certainty set by the trigger, the system should try to find the image, possibly multiple times, within current screenshot and return the list of positions along with certainties for these positions. Use an external library, for example OpenCV or something similar for this. Don't depend on externally installed binaries/libraries, bring everything into the application that it needs in runtime."
 
 ## User Scenarios & Testing *(mandatory)*

@@ -1,8 +1,8 @@
 # Feature Specification: Execution Logs Reflect What Was Actually Executed
 
-**Feature Branch**: `049-execution-logs-hierarchy`  
+**Feature Branch**: `049-execution-logs-hierarchy` (folder renumbered 049→063 to resolve a duplicate-049 collision; the merged branch kept its original name)  
 **Created**: 2026-06-01  
-**Status**: Draft  
+**Status**: Implemented (iterated by 050)
 **Input**: User description: "Let's change the logic of the execution logs a bit. I want to have a clear view of what's been executed. At the moment, if I execute sequence, then I see in the real time the execution logs of the individual commands from it, but nothing else and at the end of sequence execution I see the whole picture: with all the sequence of steps, primitive actions, etc. In this particular case, I want to see only the sequence with the subelements under it. Ideally it should work in the real time (with updates of the steps as they progress), but it's ok to see the proper results once the sequence ends. You may need to refactor the UI and API for that, that's OK, just make sure the execution logs contain the things what actually have been executed: stand-alone commands or sequences with all the information provided as today."
 
 ## Clarifications

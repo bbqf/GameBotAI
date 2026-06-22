@@ -2,7 +2,7 @@
 
 **Feature Branch**: `024-authoring-execution-ui`  
 **Created**: 2026-01-28  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Visual bugfixes and improvements of authoring and Execution UI"
 
 ## Clarifications

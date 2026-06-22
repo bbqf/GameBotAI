@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[018-api-refactor]`  
 **Created**: 2025-12-28  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Refactor API. API got cluttered and some endpoints are duplicated. I want to have a clear, structured API. No duplication of endpoints like /actions and /api/actions is needed. Do not pay attention about migration, just move all endpoints under /api and make sure all tests run properly. Also structure the swagger in clear sections: actions, sequences, etc."
 
 ## User Scenarios & Testing *(mandatory)*

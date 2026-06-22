@@ -2,7 +2,7 @@
 
 **Feature Branch**: `033-sequence-conditional-steps`  
 **Created**: 2026-03-05  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Add minimal conditional sequence step support so a sequence can run actions only when an image is visible, then continue with unconditional steps."
 
 ## Clarifications

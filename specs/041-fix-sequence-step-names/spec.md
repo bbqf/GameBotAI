@@ -2,7 +2,7 @@
 
 **Feature Branch**: `041-fix-sequence-step-names`  
 **Created**: 2026-05-29  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "There's a bug (or two - I don't know) I want you to fix. When creating the steps of a sequence, their names appear properly in the UI. However when the sequence is saved and reopened, the step names disappear, the step names are also missing from the execution logs, they appear like \"command: executed — Step 'body-step-2' executed.\" so I don't know which command was that and I cannot even check it in the UI, as UI is showing steps, however all of them show the drop down box with \"Select command\" in them. Can you fix this?"
 
 ## Clarifications

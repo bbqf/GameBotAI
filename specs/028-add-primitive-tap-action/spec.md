@@ -2,7 +2,7 @@
 
 **Feature Branch**: `028-add-primitive-tap-action`  
 **Created**: 2026-02-24  
-**Status**: Draft  
+**Status**: Implemented (iterated by 064)
 **Input**: User description: "Implement a possibility to add primitive tap actions to the commands. This means the command will include a click action step, where an action does not explicitly exist and will not be executed unless the detection with the x/y offset is specified. It should work as if there was an action with tap(0,0) was selected, with one exception: if a detection fails, the tap should not happen at all."
 
 ## Clarifications

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `042-loop-step-management`  
 **Created**: 2026-05-30  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I want to be able to create new steps in the sequence within the loop as well as outside. Now it works like this: once I add a loop to the sequence, I can only create new steps within this loop. This is OK for starters, and it must be kept, however I cannot add a step after the loop. Once The step is added outside the loop, I also need to be able to move the step before and after the loop, i.e. reordering the steps should work only between the nesting level where the steps are, not moving the steps in and out of the loop just by reordering."
 
 ## User Scenarios & Testing *(mandatory)*

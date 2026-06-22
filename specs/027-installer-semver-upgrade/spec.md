@@ -2,7 +2,7 @@
 
 **Feature Branch**: `027-installer-semver-upgrade`  
 **Created**: 2026-02-18  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I want the installer to be able to process upgrades properly. While it already has the basic functionality, I'd like to introduce the automatic build versioning following semantic versioning scheme. The versions have to follow the scheme: <Major>.<Minor>.<Patch>.<Build> Major will be set explicitly by me. Minor will increase with every new feature and/or branch Patch is reset automatically with every new Minor all of them must be possible to overwrite manually from some checked in file Build version has to be increased by 1 every time a local or CI build is triggered. It also means, it has to be persisted somewhere in the repository, however I don't need to set it manually in normal cases. Installer shoud use this versioning scheme and should a) prohibit downgrades; b) install the upgrades without changing the properties and c) ask what to do if reinstall of the same build is requested."
 
 ## Clarifications

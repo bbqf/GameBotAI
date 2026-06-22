@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[017-unify-authoring-ui]`  
 **Created**: 2025-12-27  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Unify the page format for all the objects. Use Actions as Template and implement the same UI for all other objects. Authoring UI is supposed to be used by non-technical users, so instead of specifying JSON and technical IDs, always use the dropdowns for referenced objects and individual atttribute fields. Pay attention to the arrays in the API: it means the arrays have to be manupulated (CRUD+reorder) as new objects in the UI."
 
 ## Clarifications

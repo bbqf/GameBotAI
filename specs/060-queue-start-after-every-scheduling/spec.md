@@ -2,7 +2,7 @@
 
 **Feature Branch**: `060-queue-start-after-every-scheduling`  
 **Created**: 2026-06-18  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I need two more scheduling options: at queue start and after every sequence. It should work like this: all the sequences that are scheduled to be started at queue start, must be executed in the order of appearing in the template at queue start, before any evaluation of execution timers take place. the 'after every sequence' means that after every sequence step, one or many 'after every sequence' sequences will be executed. 'after every' in this respect doesn't apply to such sequences, so that they don't create endless loops. The functionality has to be enabled in the UI and API."
 
 ## Clarifications
