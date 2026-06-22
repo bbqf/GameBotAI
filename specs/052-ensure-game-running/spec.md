@@ -2,7 +2,7 @@
 
 **Feature Branch**: `052-ensure-game-running`
 **Created**: 2026-06-03
-**Status**: Draft
+**Status**: Implemented
 
 ## User Scenarios & Testing *(mandatory)*
 

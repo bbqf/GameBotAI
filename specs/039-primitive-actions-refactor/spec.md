@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[001-primitive-actions-refactor]`  
 **Created**: 2026-05-25  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Let's do a deep refactor of data model. Actions are not used, only their type is relevant. Remove Actions from backend, frontend, and tests. Make Primitive Action a separate data model object corresponding to current action types. Primitive actions should be selectable where Actions are selectable. Keep existing primitive-action parameter behavior where already configured; only connect-to-game should expose parameters in the execution tab UI."
 
 ## Clarifications

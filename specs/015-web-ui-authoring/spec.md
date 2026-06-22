@@ -1,5 +1,7 @@
 # Feature: Web UI — Authoring (MVP)
 
+**Status**: Superseded by 018
+
 ## Overview
 
 Create a browser-first Web UI for GameBot with mobile-friendly responsiveness. The first phase delivers an Authoring UI MVP for creating and managing sequences, actions, commands, triggers, and images. Subsequent phases will add Configuration, Execution, and Monitoring UIs.

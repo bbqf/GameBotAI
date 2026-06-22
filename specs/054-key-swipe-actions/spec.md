@@ -2,7 +2,7 @@
 
 **Feature Branch**: `054-key-swipe-actions`  
 **Created**: 2026-06-04  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "i want to be able to add key input and swipe as primitive actions as steps of a command via UI. it should be done in the same style and reusing all possible components that are available for the tap, wait for image and connect to game."
 
 ## User Scenarios & Testing *(mandatory)*

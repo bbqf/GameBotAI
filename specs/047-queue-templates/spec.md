@@ -2,7 +2,7 @@
 
 **Feature Branch**: `047-queue-templates`  
 **Created**: 2026-05-31  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I want you to create \"queue templates\" - this is the missing persistence of the queue elements. When I create a template in the UI, I want to be able to persist the queue elements, but unbound from the queue itself, so that I can share the template among different queues. Saving and loading of the template should happen in the UI whenever I edit the queue. I also want to be able to delete the templates, think of a appropriate solution in the UI, where to put this function. I don't want an explicit editing of a template, if needed, I will load a template into the queue, edit the sequence steps there and save it, overwriting whatever is persisted - ask me if I am sure overwriting."
 
 ## Clarifications

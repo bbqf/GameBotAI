@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[019-web-ui-nav]`  
 **Created**: 2025-12-29  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "We need to extend and refactor Web UI now. There have to be 3 navigation area: Authoring, Execution and Configuration. Let's move Actions, Sequences and Commands to the Authoring, Host/Token at the top to the Configuration, Triggers UI should be deleted and Execution should be there but empty for now. Make suggestions for the best layout. These three area are going to be independent (from the use-case point of view) from each other, so these can be represented as tabs or different top level pages, so that one could easily switch among these."
 
 ## Clarifications

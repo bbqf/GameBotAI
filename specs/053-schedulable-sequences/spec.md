@@ -2,7 +2,7 @@
 
 **Feature Branch**: `053-schedulable-sequences`  
 **Created**: 2026-06-03  
-**Status**: Draft  
+**Status**: Implemented (iterated by 059, 060, 061)
 **Input**: User description: "I want make a sequences in the queues schedulable. There should be following types of schedules: 1. Once per queue run (current implementation) 2. Every step - the sequences that are marked this way, will be executed after every step. These sequences do not count towards the steps needed to be performed to complete the queue execution run. If the last step of the queue is executed, these sequences are executed for the last time and the queue run ends. 3. Scheduled per timer - if a certain sequence is scheduled to run at a given time, it's execution should be done at the beginning of the queue, but only after the time has passed. If two sequences are scheduled to be executed at the same time, then the order is not important, so for example the last one to be scheduled will be executed first. These types of scheduling has to be configurable within template via API and UI."
 
 ## User Scenarios & Testing *(mandatory)*

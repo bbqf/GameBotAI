@@ -2,7 +2,7 @@
 
 **Feature Branch**: `061-queue-scheduling-areas`  
 **Created**: 2026-06-18  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "In order to provide a better overview of the queue execution scheduling, I want to see distinct areas when defining a queue template: Start of execution (full page/area on the page width at the top), \"Once per run\" and \"scheduled\" under each other on the left side, \"After every step\" to the right of the \"once per run\" and \"scheduled\". I should be able to move the sequences from one area to the other as well as change the order of the sequences by drag and drop. If a sequence moves from one area to the other, its scheduling type has to be adjusted automatically. By default new sequences should be added to the \"once per run\" area."
 
 ## Clarifications

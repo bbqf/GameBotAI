@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[001-semantic-actions-ui]`  
 **Created**: 2025-12-27  
-**Status**: Draft  
+**Status**: Superseded by 039, 064
 **Input**: User description: "Semantic UI for Actions. I need UI to be intelligent and to support the action types that the API supports. The user should be able to specify all supported actions and their attributes that differ, depending on action type, without having to enter JSON. The attribute values should be validated."
 
 ## User Scenarios & Testing *(mandatory)*

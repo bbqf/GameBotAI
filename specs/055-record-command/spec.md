@@ -2,7 +2,7 @@
 
 **Feature Branch**: `055-record-command`  
 **Created**: 2026-06-05  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "record a command instead of defining it manually; show all found images on the captured screen so that clicking images = identifiable areas instead of exact coordinates; also support key input and swipe; for primitive tap note not only the image but also position within the image"
 
 ## User Scenarios & Testing *(mandatory)*

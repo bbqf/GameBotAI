@@ -2,7 +2,7 @@
 
 **Feature Branch**: `048-edit-queue-layout`  
 **Created**: 2026-06-01  
-**Status**: Draft  
+**Status**: Implemented (iterated by 061, 062)
 **Input**: User description: "let's refine the edit queue page a bit more. I want the controls be raw by raw like this: 1. Name, editable. Emulator read-only. Remove the text that 'bound emulator cannot be exchanged...' 2. Template name; Save Template; Reload Template (new button). Reload should ask for confirmation. Template name is a button, which is clickable, when clicked it opens the current Load Template section. Both Load and Save template sections open between row 2 and 3, and closed. 3. Cycle execution 4. Sequences (as many rows as there are) 5. Save and Cancel buttons for the edit page."
 
 ## Clarifications

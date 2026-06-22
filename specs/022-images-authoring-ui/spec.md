@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[021-images-authoring-ui]`  
 **Created**: 2025-12-30  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Extend Authoring UI with the Images. In the same look and feel as other Authoring pages, implement all functions of Images API. Additionally, extend the GET /api/images/{id} so that it actually returns the saved image and display it in the web UI. Table on the list page should list the ID's only, click on that  should open a detail page, showing the image and providing a possibility to overwrite an image (make a choice if a new endpoint PUT is needed or a POST with the same ID can be reused). From the detail page it should also be possible to delete the image, provided it's not used in the triggers."
 
 ## Clarifications

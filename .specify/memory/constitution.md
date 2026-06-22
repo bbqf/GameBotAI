@@ -1,16 +1,18 @@
 <!--
 Sync Impact Report
-Version change: 0.0.0 → 1.0.0
-Modified principles: N/A (initial adoption)
-Added sections: Core Principles (4), Quality Gates and Definition of Done, Development Workflow and Review Process, Governance
-Removed sections: Template placeholder for Principle 5
+Version change: 1.1.0 → 1.2.0
+Modified principles: N/A
+Added sections: Core Principle V (Living Documentation); Definition of Done bullet for living docs
+Removed sections: N/A
+New artifacts introduced alongside this amendment:
+- docs/architecture.md — living current-state source of truth
+- specs/STATUS.md — roll-up of every spec's Status line
+- Per-spec **Status** lines normalized across specs/001..064
 Templates requiring updates:
-- .specify/templates/plan-template.md ✅ updated (removed broken commands path; clarified Constitution Check)
-- .specify/templates/spec-template.md ⚠ pending (consider adding UX and performance success criteria examples)
-- .specify/templates/tasks-template.md ✅ updated (tests required per constitution)
-- .specify/templates/commands/* ⚠ pending (directory not present in repo)
+- .specify/templates/spec-template.md ⚠ pending (Status line vocabulary could be documented)
 Follow-up TODOs:
 - TODO(RATIFICATION_DATE): Original adoption date unknown — project owner to provide
+- Delete orphaned web-ui trigger code (TriggersPage.tsx, services/triggers.ts, TriggerPicker.tsx)
 -->
 
 # GameBot Constitution
@@ -63,6 +65,26 @@ Define, measure, and hold performance budgets:
 
 Rationale: Predictable performance protects user experience and infrastructure costs.
 
+### V. Living Documentation (NON-NEGOTIABLE)
+
+Current-state documentation MUST track the code, and feature history MUST stay honestly labelled:
+- `docs/architecture.md` is the single source of truth for current system behaviour (domain model,
+  capability set, API surface, persistence layout). Any change that alters one of these MUST update
+  `docs/architecture.md` in the same PR, and its "Last reviewed" date MUST be refreshed.
+- Feature specs under `specs/` are immutable point-in-time history, NOT living documentation. Every
+  `specs/NNN-*/spec.md` MUST carry an accurate `**Status**:` line (Implemented / Implemented
+  (iterated by N) / Superseded by N / Meta / Draft / Abandoned), and `specs/STATUS.md` MUST be kept
+  consistent with those lines.
+- When a change supersedes or reworks an earlier feature, the earlier spec's `Status` MUST be
+  updated to point at the superseding spec in the same PR, so no spec misrepresents current
+  behaviour.
+- Spec folder numbers MUST be unique; duplicates are reconciled by renumbering the later-created
+  folder to the next free sequential slot, preserving the original branch name in the spec.
+
+Rationale: Stale or mislabelled documentation actively misleads humans and AI agents — it is worse
+than no documentation. Separating "what is true now" (architecture) from "why we got here"
+(specs) keeps both trustworthy.
+
 ## Quality Gates and Definition of Done
 
 A change is Done only when all gates pass:
@@ -73,6 +95,9 @@ A change is Done only when all gates pass:
 - UX: interfaces documented; help text/messages updated; any breaking change accompanied by version note and migration path.
 - Performance: declared goals documented; perf note included for hot-path changes; no regression beyond agreed budgets.
 - Documentation: public APIs and configuration updated; changelog entry added when user-visible.
+- Living docs: `docs/architecture.md` updated (with refreshed "Last reviewed" date) for any change
+  to the domain model, capabilities, API surface, or persistence; touched specs carry an accurate
+  `Status` line and `specs/STATUS.md` is consistent.
 
 ## Development Workflow and Review Process
 
@@ -89,4 +114,4 @@ A change is Done only when all gates pass:
 - Versioning: Semantic versioning for this document: MAJOR (principle removals/redefinitions), MINOR (new sections/principles), PATCH (clarifications).
 - Compliance: Periodic audits review adherence. Non-compliance requires remediation tasks prioritized in the next cycle.
 
-**Version**: 1.1.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-03-03
+**Version**: 1.2.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-06-22

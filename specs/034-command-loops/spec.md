@@ -2,7 +2,7 @@
 
 **Feature Branch**: `034-command-loops`  
 **Created**: 2026-03-31  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I need the loop structures within commands. It should be standard iterate X times, whereas X should be somehow made available within the loop body and while(condition) do something as well as repeat until (condition). It should be possible to break out of the loops on a certain step (likely with condition). The loops should be visualized in the UI in a clear way, e.g. indented from the rest of the step or put in a rectangle with background color. Inside the loops there must be the same steps as in all other commands."
 
 ## Clarifications

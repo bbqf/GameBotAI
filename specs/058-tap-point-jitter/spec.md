@@ -2,7 +2,7 @@
 
 **Feature Branch**: `058-tap-point-jitter`
 **Created**: 2026-06-10
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I want to have tap-point jitter (e.g., randomizing X/Y within a small radius of the target). This should be applied automatically to all taps and swipes. Default \"small radius\" should be +/-5 pixels of the target. and should be configurable via configuration parameter. Make sure that the configuration is properly stored/retrieved, documented and included in the UI Configuration variables list, but no specific UI option should be created for this in any of the authoring or execution UIs"
 
 ## User Scenarios & Testing *(mandatory)*

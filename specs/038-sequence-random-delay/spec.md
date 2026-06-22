@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[001-sequence-random-delay]`  
 **Created**: 2026-05-25  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "New feature: introduce random delays in between Sequence execution steps. After each step in the sequence execution a random delay should be introduced. The default delay duration should be random in the range of 100ms-300ms and this range should be configurable per sequence."
 
 ## Clarifications

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `012-image-detect-command`  
 **Created**: 2025-12-05  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "commands based on detected image. I need a new command trigger and parameterized definition combined: if exactly one image is detected on the current screen, I need the possibility to use the coordinates of the detected image to be used as coordinates for the actions. For example is a 'Home' image is detected, I need to be able to tap at the center of the detected image, or if another image is detected on the screen, I need to be able to tap the location of the detected image plus offset x,y. Make sure this only works if only one image is detected and an appropriate error message is logged if more than one images are detected. A good default for the confidence should be .8, but it should be configurable within the command itself. These detected coordinates and offsets should be available for all the input actions requiring coordinates."
 
 ## User Scenarios & Testing (mandatory)

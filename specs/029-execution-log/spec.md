@@ -2,7 +2,7 @@
 
 **Feature Branch**: `[028-execution-log]`  
 **Created**: 2026-02-27  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "execution log. I want to have a persisted execution log of each command and sequence execution in order to be able to check what failed and what succeeded. The log must contain the following information: Timestamp, Object being executed (also the hierarchy, i.e. if a command was a standalone or part of sequence) and status: success/failure. Object should be identifiable, so that the end user can find what execution object actually failed or succeeded, maybe a link to open it in the authoring UI (watch out for hierarchy) would be helpful. The link should be relative, of course, as we cannot bind to a specific host/port, make a suggestion, how to achieve this. If an object is parametrized (like a primitive tap), make sure you log, what actually happened, e.g. Detected an image ABC at location (x,y) with Confidence a, then Tap at location (x,y). Also necessary information available now in traces should be noted, for example if command execution was not performed due to detection not being able to find anything above threshold. The log should be consise and informative and it should be oriented on the end users, not the developers. Later I'd like to have it displayed in the web-ui, but for now it's enough if it's stored on the backend."
 
 ## Clarifications

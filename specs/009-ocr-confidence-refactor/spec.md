@@ -2,7 +2,7 @@
 
 **Feature Branch**: `009-ocr-confidence-refactor`  
 **Created**: 2025-11-26  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Improvment in OCR is needed. Calculating Confidence is wrong, tesseract should be started with the parameter tsv that reports the correct confidence. In order to make use of it, refactoring of tesseract output is required."
 
 ## User Scenarios & Testing (mandatory)

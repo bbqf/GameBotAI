@@ -2,7 +2,7 @@
 
 **Feature Branch**: `056-simulate-recorded-step`  
 **Created**: 2026-06-05  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "When recording a command I want to run the just recorded command step in order to simulate step by step execution of a command and be able to adjust the steps accordingly."
 
 ## User Scenarios & Testing *(mandatory)*

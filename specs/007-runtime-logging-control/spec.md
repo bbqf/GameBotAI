@@ -2,7 +2,7 @@
 
 **Feature Branch**: `007-runtime-logging-control`  
 **Created**: 2025-11-25  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Runtime logging configuration and fine control over the various levels per component and subcomponent. The logging levels should be controllable via REST API, maybe under the config endpoint. What is also needed is a possibility to activate/deactivate the logging per component (Microsoft.AspNetCore or GameBot.Domain.Triggers) and in the runtime, so when the logging is enabled or disabled this should be applied immediately, without the application restart. Also the default level for all of the components should be set to Warning."
 
 ## User Scenarios & Testing *(mandatory)*

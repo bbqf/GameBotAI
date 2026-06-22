@@ -1,8 +1,8 @@
 # Feature Specification: Command Editor Rework
 
-**Feature Branch**: `053-command-editor-rework`
+**Feature Branch**: `053-command-editor-rework` (folder renumbered 053→064 to resolve a duplicate-053 collision; the merged branch kept its original name)
 **Created**: 2026-06-04
-**Status**: Draft
+**Status**: Implemented (iterated by 054)
 **Input**: User description: "Let's rework and extend command creation/editing. I want to be able to specify all primitive actions. Different primitive actions have different attributes, which clutter the ui enormously, so let me select the action first, which will open a panel with corresponding attributes. Create one panel for each action. Remove all current controls: Add command (remove completely, it's not needed), primitive tap (rename to Tap, use attributes for the panel), wait for image (use attributes) and ensure game running."
 
 ## User Scenarios & Testing *(mandatory)*

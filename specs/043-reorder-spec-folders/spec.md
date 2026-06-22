@@ -3,7 +3,7 @@
 **Feature Branch**: `038-reorder-spec-folders`  
 **Spec Directory**: `043-reorder-spec-folders`  
 **Created**: 2026-05-30  
-**Status**: Draft  
+**Status**: Meta (housekeeping)
 **Input**: User description: "This is a maintenance feature, don't change anything in the source code itself. The features that have been created up till now are not ordered properly, there're some features that have all got the number 001. Please find the proper chronological order and rename the folders accordingly. Make sure this feature itself has the correct number AFTER the reordering. Also bump the minor number."
 
 ## Context

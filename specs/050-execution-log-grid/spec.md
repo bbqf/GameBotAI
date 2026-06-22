@@ -2,7 +2,7 @@
 
 **Feature Branch**: `050-execution-log-grid`  
 **Created**: 2026-06-02  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "let's cleanup the ui in the execution log area. first let's remove the execution detail area alltogether as it is superflous. Use the whole available width for the main area. Command execution log detail should be expandable via a button, like it is for the sequences. Sequences, that have commands as steps, should then get second level of expanding - reuse the expandable commands within the sequences. second: remove \"Open in sequence\" buttons, they just clutter the UI without significant benefit. And third - probably the largest change, the main area should be a grid on all levels, so make like: <Expand Button> | Timestamp | Name | Type | Status | Additional information (you can reuse the information from the current Execution Detail). For the sequence it will be for example: <Expand Button> | 6/2/2026, 7:09:01 AM | Donate | Sequence | success | Sequence 'Donate' success with 7 steps executed. <Expand Button> |  | Open Alliance Tech | Command | success |  Step 'step-3' ran command 'Open Alliance Tech' with outcome 'executed'. (delay 197 ms). |  | primitiveTap | Tap | success |"
 
 ## Clarifications

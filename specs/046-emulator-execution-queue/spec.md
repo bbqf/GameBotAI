@@ -2,7 +2,7 @@
 
 **Feature Branch**: `046-emulator-execution-queue`  
 **Created**: 2026-05-31  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "I need a completely new execution object: emulator execution queue or queue. There should be an API and the UI for the new queues. In the UI there should be a new tab Queues, showing a list of queues as well as standard CRUD operations. Every queue is bound exactly to one emulator at creation time. A queue should have a name and checkbox attribute: cycle execution. The queue entries in the queue are sequences. Adding objects to the queue by default places them at the end of the queue. From the list of queues I should see queue execution status, as well as be able to start execution and stop execution (both placeholder for now, just change status to running). The content - list of sequence of the queue should not be persistent across service restarts, however the rest of the queue configuration should be persisted."
 
 ## Clarifications

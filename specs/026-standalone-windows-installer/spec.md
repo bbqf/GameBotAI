@@ -2,7 +2,7 @@
 
 **Feature Branch**: `026-standalone-windows-installer`
 **Created**: 2026-02-16
-**Status**: Draft
+**Status**: Implemented
 
 ## Clarifications
 

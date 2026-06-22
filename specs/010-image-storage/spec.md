@@ -2,7 +2,7 @@
 
 **Feature Branch**: `010-image-storage`  
 **Created**: 2025-11-26  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Introduce the disk-backed storage for the images to be used as referenced images. The images should be stored on disk under the data directory."
 
 ### User Story 1 - Persist uploaded reference images (Priority: P1)

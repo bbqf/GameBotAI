@@ -2,7 +2,7 @@
 
 **Feature Branch**: `037-tap-wait-retry`  
 **Created**: 2025-04-15  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: User description: "Extend primitive tap actions with a wait-and-retry mechanism before execution. Before a primitive tap action is executed, the system waits for the configured screenshot capture interval (WAIT_TIME). Two new configuration parameters are introduced: COUNT (max retry cycles, default 3) and PROGRESSION (wait time multiplier, default 1). On each retry cycle, if the expected image is not found and the retry count has not been exceeded, the system waits WAIT_TIME and then sets WAIT_TIME = WAIT_TIME × PROGRESSION. Once the image is found, the tap executes. If COUNT is exceeded, the action fails. All three variables must be documented and set in the configuration file."
 
 ## User Scenarios & Testing *(mandatory)*

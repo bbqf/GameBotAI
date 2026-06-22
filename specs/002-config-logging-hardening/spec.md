@@ -2,7 +2,7 @@
 
 Feature Branch: `002-config-logging-hardening`
 Created: 2025-11-14
-Status: Implemented (Merged on 2025-11-14)
+**Status**: Implemented
 
 Context: This spec replaces prior user stories. It focuses narrowly on:
 1) Reducing default HTTP logging verbosity.

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `014-sequence-logic`  
 **Created**: 2025-12-17  
-**Status**: Draft  
+**Status**: Superseded by 031-034
 **Input**: Sequence blocks for loops and conditions: repeat steps N times, repeat until image/text detected, if/then/else; consider additional control blocks if needed
 
 ## Overview

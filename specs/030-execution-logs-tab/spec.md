@@ -2,7 +2,7 @@
 
 **Feature Branch**: `030-execution-logs-tab`  
 **Created**: 2026-03-02  
-**Status**: Draft  
+**Status**: Implemented (iterated by 063, 050)
 **Input**: User description: "I want to have the execution logs as a separate tab, on the same level as Execution, and after it, before Configuration. The tab should display a table with the following columns by default: timestamp (local time, not UTC), execution object name, status. Deault sorting is descending on the timestamp, however it should be possible to change the sort order by clicking on the column headers of any column. It should be also possible to filter by any column by entering a free text to filter for. By default no filters should be set. Filtering and sorting should be possible to combine, so the backend api should support this. When an entry is selected in the table, I should be able to see the details of the execution: summary, details from json, links to the executed objects and if available snapshot. and step outcomes. Make a suggestion for design that would work for small screen - phone and pc monitor, maybe make two different variants of the page. This page should be understandable for a non-tech user, so no json or similar should be displayed. Performance goals: first open should happen < 100ms, filter/sort changes for 1000 execution logs on the backend should happen within 300ms. Make sure these performance goals are met on the local and can be somewhat relaxed for the CI."
 
 ## Clarifications
