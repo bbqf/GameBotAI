@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueuesPage } from '../QueuesPage';
-import { listQueues, getQueue, replaceQueueEntries, addQueueEntry } from '../../services/queues';
+import { listQueues, getQueue, updateQueue, replaceQueueEntries, addQueueEntry } from '../../services/queues';
 import { listSequences } from '../../services/sequences';
 import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, deleteQueueTemplate } from '../../services/queueTemplates';
 import { ApiError } from '../../lib/api';
@@ -15,6 +15,7 @@ jest.mock('../../services/useAdbDevices', () => ({
 
 const listQueuesMock = listQueues as jest.MockedFunction<typeof listQueues>;
 const getQueueMock = getQueue as jest.MockedFunction<typeof getQueue>;
+const updateQueueMock = updateQueue as jest.MockedFunction<typeof updateQueue>;
 const replaceEntriesMock = replaceQueueEntries as jest.MockedFunction<typeof replaceQueueEntries>;
 const listSequencesMock = listSequences as jest.MockedFunction<typeof listSequences>;
 const saveTemplateMock = saveQueueTemplate as jest.MockedFunction<typeof saveQueueTemplate>;
@@ -47,24 +48,39 @@ beforeEach(() => {
   listTemplatesMock.mockResolvedValue([{ id: 't1', name: 'Daily Farm', entryCount: 1, createdAt: null, updatedAt: null }] as any);
   getTemplateMock.mockResolvedValue(templateDetail() as any);
   replaceEntriesMock.mockResolvedValue({} as any);
+  updateQueueMock.mockResolvedValue({} as any);
 });
 
-const openSaveSection = async () => {
+const openEditQueue = async () => {
   render(<QueuesPage />);
   await screen.findByText('Daily');
   fireEvent.click(screen.getByText('Daily'));
   await screen.findByText('Edit Queue');
-  fireEvent.click(screen.getByText('Save Template'));
-  return screen.findByRole('region', { name: 'Save template' });
+};
+
+/** Opens the manage area (load list + editable template name) via the template name button. */
+const openManageArea = async (label = '(no template)') => {
+  fireEvent.click(screen.getByText(label));
+  return screen.findByRole('region', { name: 'Load template' });
+};
+
+/** With the editor already open, sets the template name in the manage area and clicks Rename. */
+const saveTemplateAs = async (name: string, label = '(no template)') => {
+  const area = await openManageArea(label);
+  fireEvent.change(within(area).getByLabelText('Template name'), { target: { value: name } });
+  fireEvent.click(within(area).getByText('Rename'));
+};
+
+/** Opens the edit queue, then saves the template under a typed name via Rename. */
+const openEditAndSaveAs = async (name: string, label = '(no template)') => {
+  await openEditQueue();
+  await saveTemplateAs(name, label);
 };
 
 describe('QueuesPage template save wiring', () => {
-  it('builds sequenceIds from the current entries and saves', async () => {
+  it('builds sequenceIds from the current entries and saves (via Rename)', async () => {
     saveTemplateMock.mockResolvedValue({} as any);
-    const section = await openSaveSection();
-
-    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Daily Farm' } });
-    fireEvent.click(within(section).getByText('Save'));
+    await openEditAndSaveAs('Daily Farm');
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenCalledWith({
@@ -76,19 +92,95 @@ describe('QueuesPage template save wiring', () => {
         overwrite: false,
       })
     );
-    expect(await screen.findByText('Template "Daily Farm" saved successfully.')).toBeInTheDocument();
+    // The confirmation appears at the template controls, not via the page-top status banner.
+    const controls = screen.getByRole('region', { name: 'Queue templates' });
+    expect(await within(controls).findByText('Template "Daily Farm" saved successfully.')).toBeInTheDocument();
   });
 
-  it('on 409 conflict prompts to overwrite and re-saves with overwrite=true', async () => {
+  it('saves under a brand-new name in one action via Rename (no overwrite prompt)', async () => {
+    saveTemplateMock.mockResolvedValue({} as any);
+    await openEditAndSaveAs('Fresh Name');
+
+    await waitFor(() =>
+      expect(saveTemplateMock).toHaveBeenCalledWith({
+        name: 'Fresh Name',
+        entries: [
+          { sequenceId: 'seq-a', scheduleType: 'OncePerRun' },
+          { sequenceId: 'seq-b', scheduleType: 'OncePerRun' },
+        ],
+        overwrite: false,
+      })
+    );
+    expect(screen.queryByRole('region', { name: 'Confirm overwrite' })).not.toBeInTheDocument();
+  });
+
+  it('Save Template (bottom) re-saves the associated template in one click under the old name', async () => {
+    // The queue is already linked to "Daily Farm"; clicking Save Template (bottom) without opening
+    // the area overwrites the associated template directly.
+    getQueueMock.mockResolvedValue({
+      ...detailWithEntries(),
+      linkedTemplateId: 't1',
+      linkedTemplateName: 'Daily Farm',
+    } as any);
+    saveTemplateMock.mockResolvedValue({} as any);
+    await openEditQueue();
+    expect(screen.getByText('Daily Farm')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Save Template'));
+
+    await waitFor(() =>
+      expect(saveTemplateMock).toHaveBeenCalledWith({
+        name: 'Daily Farm',
+        entries: [
+          { sequenceId: 'seq-a', scheduleType: 'OncePerRun' },
+          { sequenceId: 'seq-b', scheduleType: 'OncePerRun' },
+        ],
+        overwrite: true,
+      })
+    );
+    expect(screen.queryByRole('region', { name: 'Confirm overwrite' })).not.toBeInTheDocument();
+  });
+
+  it('Save Template (bottom) saves under the OLD name even after the field was edited without Rename', async () => {
+    getQueueMock.mockResolvedValue({
+      ...detailWithEntries(),
+      linkedTemplateId: 't1',
+      linkedTemplateName: 'Daily Farm',
+    } as any);
+    saveTemplateMock.mockResolvedValue({} as any);
+    await openEditQueue();
+
+    // Edit the name in the manage area but do NOT click Rename, then use the bottom Save Template.
+    const area = await openManageArea('Daily Farm');
+    fireEvent.change(within(area).getByLabelText('Template name'), { target: { value: 'Renamed Farm' } });
+    fireEvent.click(screen.getByText('Save Template'));
+
+    await waitFor(() =>
+      expect(saveTemplateMock).toHaveBeenCalledWith({
+        name: 'Daily Farm',
+        entries: [
+          { sequenceId: 'seq-a', scheduleType: 'OncePerRun' },
+          { sequenceId: 'seq-b', scheduleType: 'OncePerRun' },
+        ],
+        overwrite: true,
+      })
+    );
+  });
+
+  it('disables Save Template (bottom) when the queue has no associated template', async () => {
+    await openEditQueue();
+    expect(screen.getByText('Save Template')).toBeDisabled();
+  });
+
+  it('on a differing name that collides (409) prompts to overwrite (near Rename) and re-saves with overwrite=true', async () => {
     saveTemplateMock
       .mockRejectedValueOnce(new ApiError(409, 'template_exists'))
       .mockResolvedValueOnce({} as any);
-    const section = await openSaveSection();
+    // No linked template (associated name undefined): a typed name always takes the differing path.
+    await openEditAndSaveAs('Daily Farm');
 
-    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Daily Farm' } });
-    fireEvent.click(within(section).getByText('Save'));
-
-    fireEvent.click(await within(section).findByText('Overwrite'));
+    const confirm = await screen.findByRole('region', { name: 'Confirm overwrite' });
+    fireEvent.click(within(confirm).getByText('Overwrite'));
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenLastCalledWith({
@@ -100,6 +192,47 @@ describe('QueuesPage template save wiring', () => {
         overwrite: true,
       })
     );
+  });
+});
+
+describe('QueuesPage save confirmations are co-located (US2)', () => {
+  const openEditForm = async () => {
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+    fireEvent.click(screen.getByText('Daily'));
+    await screen.findByText('Edit Queue');
+    return screen.getByRole('form', { name: 'Edit queue form' });
+  };
+
+  it('shows the queue-save success confirmation at the queue form, not the page-top banner', async () => {
+    updateQueueMock.mockResolvedValue({} as any);
+    const form = await openEditForm();
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Daily Renamed' } });
+    fireEvent.click(within(form).getByText('Save'));
+
+    await waitFor(() => expect(updateQueueMock).toHaveBeenCalled());
+    expect(await within(form).findByText('Queue updated successfully.')).toBeInTheDocument();
+    // No duplicate page-top banner for this save.
+    expect(screen.getAllByText('Queue updated successfully.')).toHaveLength(1);
+  });
+
+  it('shows a queue-save error at the queue form when the save fails', async () => {
+    updateQueueMock.mockRejectedValue(new Error('Update failed'));
+    const form = await openEditForm();
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Daily Renamed' } });
+    fireEvent.click(within(form).getByText('Save'));
+
+    expect(await within(form).findByText('Update failed')).toBeInTheDocument();
+  });
+
+  it('shows a template-save success confirmation at the template controls', async () => {
+    saveTemplateMock.mockResolvedValue({} as any);
+    await openEditAndSaveAs('Fresh One');
+
+    const controls = screen.getByRole('region', { name: 'Queue templates' });
+    expect(await within(controls).findByText('Template "Fresh One" saved successfully.')).toBeInTheDocument();
+    // Not surfaced via the page-top banner.
+    expect(screen.getAllByText('Template "Fresh One" saved successfully.')).toHaveLength(1);
   });
 });
 
@@ -133,15 +266,15 @@ describe('QueuesPage template load wiring', () => {
     expect(replaceEntriesMock).not.toHaveBeenCalled();
   });
 
-  it('pre-fills the save section with the loaded template name', async () => {
+  it('pre-fills the editable name with the loaded template name', async () => {
     getQueueMock.mockResolvedValue({ ...queue({ entryCount: 0 }), entries: [] } as any);
     const picker = await openLoadSection();
     fireEvent.click(within(picker).getByText('Load'));
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-x']));
 
-    fireEvent.click(screen.getByText('Save Template'));
-    const saveSection = await screen.findByRole('region', { name: 'Save template' });
-    expect(within(saveSection).getByLabelText('Template name')).toHaveValue('Daily Farm');
+    // The name button now shows the loaded template; reopening the area shows it pre-filled.
+    const area = await openManageArea('Daily Farm');
+    expect(within(area).getByLabelText('Template name')).toHaveValue('Daily Farm');
   });
 
   it('disables the Load action while the queue is running', async () => {
@@ -197,10 +330,7 @@ describe('QueuesPage AtQueueStart round-trip (feature 060, T013)', () => {
     fireEvent.change(screen.getByLabelText('Schedule type for A'), { target: { value: 'AtQueueStart' } });
 
     // Save the template and confirm the schedule type is carried on the wire (SC-004).
-    fireEvent.click(screen.getByText('Save Template'));
-    const section = await screen.findByRole('region', { name: 'Save template' });
-    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'At Start Farm' } });
-    fireEvent.click(within(section).getByText('Save'));
+    await saveTemplateAs('At Start Farm');
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenCalledWith({
@@ -249,10 +379,7 @@ describe('QueuesPage scheduling areas round-trip (feature 061)', () => {
     expect(within(screen.getByRole('region', { name: 'After every step' })).getByText('A')).toBeInTheDocument();
     expect(screen.getByLabelText('After Every Step')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Save Template'));
-    const section = await screen.findByRole('region', { name: 'Save template' });
-    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Farm' } });
-    fireEvent.click(within(section).getByText('Save'));
+    await saveTemplateAs('Farm');
 
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-b', 'seq-a']));
     await waitFor(() =>
@@ -272,10 +399,7 @@ describe('QueuesPage scheduling areas round-trip (feature 061)', () => {
     saveTemplateMock.mockResolvedValue({ id: 't1' } as any);
     await openEditor();
 
-    fireEvent.click(screen.getByText('Save Template'));
-    const section = await screen.findByRole('region', { name: 'Save template' });
-    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Ordered' } });
-    fireEvent.click(within(section).getByText('Save'));
+    await saveTemplateAs('Ordered');
 
     // The runtime queue order is rewritten to the editor's linear order before the template is built.
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-a', 'seq-b']));
@@ -315,10 +439,7 @@ describe('QueuesPage scheduling areas round-trip (feature 061)', () => {
     const oncePerRun = await screen.findByRole('region', { name: 'Once per run' });
     await waitFor(() => expect(within(oncePerRun).getByText('Charlie')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('Save Template'));
-    const section = await screen.findByRole('region', { name: 'Save template' });
-    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Added' } });
-    fireEvent.click(within(section).getByText('Save'));
+    await saveTemplateAs('Added');
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenCalledWith({
@@ -360,10 +481,7 @@ describe('QueuesPage scheduling areas round-trip (feature 061)', () => {
     // Move it out to "Once per run"; its timer detail is retained in state but must not be emitted.
     fireEvent.change(screen.getByLabelText('Schedule type for A'), { target: { value: 'OncePerRun' } });
 
-    fireEvent.click(screen.getByText('Save Template'));
-    const section = await screen.findByRole('region', { name: 'Save template' });
-    fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Moved' } });
-    fireEvent.click(within(section).getByText('Save'));
+    await saveTemplateAs('Moved', 'Timed');
 
     await waitFor(() =>
       expect(saveTemplateMock).toHaveBeenCalledWith({

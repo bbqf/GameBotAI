@@ -44,6 +44,10 @@ export const QueuesPage: React.FC = () => {
   const [formError, setFormError] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
 
+  // Inline save outcomes shown at the click site (replaces the page-top banner for these two saves).
+  const [queueSaveResult, setQueueSaveResult] = useState<{ kind: 'success' | 'error'; message: string } | undefined>(undefined);
+  const [templateSaveResult, setTemplateSaveResult] = useState<{ kind: 'success' | 'error'; message: string } | undefined>(undefined);
+
   const [detail, setDetail] = useState<QueueDetailDto | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [associatedTemplateName, setAssociatedTemplateName] = useState<string | undefined>(undefined);
@@ -90,12 +94,16 @@ export const QueuesPage: React.FC = () => {
     setForm(emptyForm);
     setFieldErrors(undefined);
     setFormError(undefined);
+    setQueueSaveResult(undefined);
+    setTemplateSaveResult(undefined);
   };
 
   const openEdit = async (id: string) => {
     setCreating(false);
     setFieldErrors(undefined);
     setFormError(undefined);
+    setQueueSaveResult(undefined);
+    setTemplateSaveResult(undefined);
     const q = await getQueue(id);
     setDetail(q);
     setAssociatedTemplateName(q.linkedTemplateName ?? undefined);
@@ -119,6 +127,8 @@ export const QueuesPage: React.FC = () => {
     setForm(emptyForm);
     setFieldErrors(undefined);
     setFormError(undefined);
+    setQueueSaveResult(undefined);
+    setTemplateSaveResult(undefined);
     setAssociatedTemplateName(undefined);
     setEntrySchedule({});
   };
@@ -153,18 +163,20 @@ export const QueuesPage: React.FC = () => {
     if (!validate()) return;
     setSubmitting(true);
     setFormError(undefined);
+    setQueueSaveResult(undefined);
     try {
       if (creating) {
         await createQueue({ name: form.name.trim(), emulatorSerial: form.emulatorSerial.trim(), cycleExecution: form.cycleExecution });
-        setTableMessage('Queue created successfully.');
+        setQueueSaveResult({ kind: 'success', message: 'Queue created successfully.' });
       } else if (detail) {
         await updateQueue(detail.id, { name: form.name.trim(), cycleExecution: form.cycleExecution });
-        setTableMessage('Queue updated successfully.');
+        setQueueSaveResult({ kind: 'success', message: 'Queue updated successfully.' });
       }
-      closeForms();
+      // Keep the form open so the confirmation is visible at the Save action (FR-006); just
+      // refresh the overview so the row reflects the saved name/cycle.
       await refresh();
     } catch (err: any) {
-      setFormError(err?.message ?? 'Failed to save queue');
+      setQueueSaveResult({ kind: 'error', message: err?.message ?? 'Failed to save queue' });
     } finally {
       setSubmitting(false);
     }
@@ -249,7 +261,7 @@ export const QueuesPage: React.FC = () => {
     setDetail(refreshed);
     setEntrySchedule(rekeyed);
     setAssociatedTemplateName(name);
-    setTableMessage(`Template "${name}" saved successfully.`);
+    setTemplateSaveResult({ kind: 'success', message: `Template "${name}" saved successfully.` });
   };
 
   const applyLoad = async (name: string, sequenceIds: string[], templateId: string, tplEntries?: QueueTemplateEntryDto[]) => {
@@ -370,13 +382,12 @@ export const QueuesPage: React.FC = () => {
             <th>Emulator</th>
             <th>Cycle</th>
             <th>Status</th>
-            <th>Sequences</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {loading && <tr><td colSpan={6}>Loading…</td></tr>}
-          {!loading && queues.length === 0 && <tr><td colSpan={6}>No queues found.</td></tr>}
+          {loading && <tr><td colSpan={5}>Loading…</td></tr>}
+          {!loading && queues.length === 0 && <tr><td colSpan={5}>No queues found.</td></tr>}
           {!loading && queues.map((q) => {
             const running = q.status === 'Running';
             return (
@@ -392,7 +403,6 @@ export const QueuesPage: React.FC = () => {
                       {q.status}
                     </span>
                   </td>
-                  <td>{q.entryCount}</td>
                   <td>
                     {running ? (
                       <button type="button" onClick={() => void runAction(q.id, stopQueue, 'Queue stopped.')}>Stop</button>
@@ -421,7 +431,7 @@ export const QueuesPage: React.FC = () => {
                 </tr>
                 {running && liveScheduleFor === q.id && (
                   <tr className="queues-live-schedule-row">
-                    <td colSpan={6}>
+                    <td colSpan={5}>
                       <QueueLiveScheduleControl
                         sequences={sequences}
                         onSchedule={(sequenceId, offset) => liveScheduleSequence(q.id, sequenceId, offset)}
@@ -446,6 +456,7 @@ export const QueuesPage: React.FC = () => {
             onCancel={closeForms}
             submitting={submitting}
             formError={formError}
+            saveResult={queueSaveResult}
             fieldErrors={fieldErrors}
           />
         </section>
@@ -462,6 +473,7 @@ export const QueuesPage: React.FC = () => {
             onCancel={closeForms}
             submitting={submitting}
             formError={formError}
+            saveResult={queueSaveResult}
             fieldErrors={fieldErrors}
             templateControls={
               <QueueTemplateControls
@@ -471,6 +483,7 @@ export const QueuesPage: React.FC = () => {
                 onLoadTemplate={(id) => void handleLoadTemplate(id)}
                 onReload={() => void handleReload()}
                 pendingConfirm={templateConfirm}
+                saveResult={templateSaveResult}
               >
                 <QueueSchedulingAreas
                   entries={detail.entries}

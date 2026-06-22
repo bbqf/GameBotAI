@@ -49,12 +49,12 @@ const openEditAndAssociate = async () => {
   await screen.findByText('Daily');
   fireEvent.click(screen.getByText('Daily'));
   await screen.findByText('Edit Queue');
-  fireEvent.click(screen.getByText('Save Template'));
-  const section = await screen.findByRole('region', { name: 'Save template' });
-  fireEvent.change(within(section).getByLabelText('Template name'), { target: { value: 'Daily Farm' } });
-  fireEvent.click(within(section).getByText('Save'));
-  // After save, the name button reflects the associated template.
-  await screen.findByText('Daily Farm');
+  fireEvent.click(screen.getByText('(no template)'));
+  const area = await screen.findByRole('region', { name: 'Load template' });
+  fireEvent.change(within(area).getByLabelText('Template name'), { target: { value: 'Daily Farm' } });
+  fireEvent.click(within(area).getByText('Rename'));
+  // Wait for the save to complete (association set) — the inline success confirmation appears.
+  await screen.findByText('Template "Daily Farm" saved successfully.');
   // Order-aware save (feature 061) persists the entry order via replaceQueueEntries; the reload
   // assertions below only care about what the *reload* action does, so reset the call history.
   replaceEntriesMock.mockClear();
