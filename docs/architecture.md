@@ -53,6 +53,13 @@ not survive a service restart; queue *configuration* and templates are persisted
   be shared across queues.
 - **Sequence schedule** (within a template) — how/when an entry runs in a queue cycle:
   *Once per run*, *At queue start*, *After every step*, and *Scheduled* (absolute or relative time).
+- **Self-reschedule action** (within a sequence) — an authorable sequence action (`reschedule-self`,
+  placeable under IF/conditional flow) that, when reached during a queue-driven run, schedules **one
+  additional firing of the same sequence into the current run** using any of the schedule options
+  above (At Queue Start / Once Per Run / Timer / After Every Step). It is **ephemeral** (current run
+  only, never persisted) and a **success no-op** when the sequence was not started from a queue. The
+  run's active-run state lives in a singleton `IQueueRunRegistry`; an `ISelfRescheduleCoordinator`
+  injects the ephemeral firing, which the queue run loop drains at the matching boundary.
 - **Trigger** — an evaluation construct (image-visible / text-match / time / delay / schedule),
   used internally to decide whether a step executes. Still present in the domain and on the API,
   but **no longer authored as a standalone object in the UI**.
@@ -68,8 +75,10 @@ not survive a service restart; queue *configuration* and templates are persisted
 - **Vision / OCR**: OpenCV-based template matching (bundled, no external binary) returning
   multiple detections with confidence; Tesseract OCR with TSV-based confidence.
 - **Execution**: per-emulator queues with start/stop, cycle execution, scheduling areas
-  (start / once-per-run / after-every-step / scheduled), a background screen-capture service
-  reporting FPS, and "ensure game running" handling.
+  (start / once-per-run / after-every-step / scheduled), live relative scheduling against a running
+  queue, sequences that can **self-reschedule** into their originating queue run (ephemeral, any
+  schedule option, IF-gated), a background screen-capture service reporting FPS, and "ensure game
+  running" handling.
 - **Execution Logs** (separate tab): filterable/sortable grid, expandable hierarchy reflecting
   what actually executed, deep links into authoring, snapshots and step outcomes; non-technical
   presentation (no raw JSON).

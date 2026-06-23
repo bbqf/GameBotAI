@@ -175,3 +175,14 @@ referencing any scheduling type directly.
 No constitution violations. The only structural change beyond additive members — extracting the
 active-run registry into `IQueueRunRegistry` — exists solely to keep dependency flow acyclic and
 relocates state that already lives inside `QueueExecutionService`; it adds no new behavior.
+
+## Performance note (implementation, SC-006 / Principle IV)
+
+The self-reschedule action dispatch is O(1) in memory: it reads the typed payload and appends one
+entry to a run-scoped register (`ConcurrentQueue`/`ConcurrentDictionary`/guarded `List`) — no I/O, no
+ADB round-trip, well within the conditional-step p95 ≤ 200 ms budget. The run-loop draining added to
+`QueueExecutionService.RunAsync` is O(pending self-reschedules) per iteration boundary: each register
+is drained with a single dequeue/snapshot pass at the same cadence as the existing template/live
+timer evaluation (features 053/059/060), so it adds no new polling and negligible per-boundary cost
+at operator scale (a handful of pending entries). Unfired entries are discarded with the run handle
+in `RunAsync`'s `finally`, so they never accumulate across runs.

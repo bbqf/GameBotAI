@@ -49,6 +49,7 @@ namespace GameBot.Domain.Services {
         Func<string, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator = null,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator = null,
+        Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher = null,
         CancellationToken ct = default) {
       ArgumentNullException.ThrowIfNull(executeCommandAsync);
       var sequence = await _repository.GetAsync(sequenceId).ConfigureAwait(false);
@@ -81,6 +82,7 @@ namespace GameBot.Domain.Services {
             linearStepOutcomes,
             result,
             sequenceId,
+            actionDispatcher,
             ct).ConfigureAwait(false);
         if (earlyStop) {
           if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
@@ -392,6 +394,7 @@ namespace GameBot.Domain.Services {
         Dictionary<string, string> stepOutcomes,
         SequenceExecutionResult result,
         string sequenceId,
+        Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
         CancellationToken ct) {
       var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : step.CommandId;
 
@@ -538,6 +541,26 @@ namespace GameBot.Domain.Services {
         return false;
       }
 
+      // ── reschedule-self action dispatch (feature 065) ─────────────────
+      // A reschedule-self action step is dispatched through the injected callback before the
+      // command fallback. The action records its outcome as the step result and NEVER early-stops
+      // the sequence (FR-012). When no dispatcher is supplied it falls through (legacy no-op).
+      if (step.StepType == SequenceStepType.Action
+          && actionDispatcher is not null
+          && string.Equals(step.Action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
+        var dispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
+        result.AddStep(
+            stepKey,
+            appliedDelay,
+            "Succeeded",
+            conditionType: step.Condition is null ? null : step.Condition.Type,
+            conditionResult: step.Condition is null ? null : "true",
+            actionOutcome: dispatch.Outcome,
+            message: dispatch.Message);
+        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+        return false;
+      }
+
       if (_logger != null) LogCommandStart(_logger, step.CommandId, null);
       var cmdStart = DateTimeOffset.UtcNow;
       try {
@@ -677,6 +700,7 @@ namespace GameBot.Domain.Services {
           stepOutcomes: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
           result,
           sequenceId,
+          actionDispatcher: null,
           ct);
     }
 
@@ -1012,6 +1036,7 @@ namespace GameBot.Domain.Services {
             stepOutcomes,
             result,
             sequenceId,
+            actionDispatcher: null,
             ct).ConfigureAwait(false);
         stepsExecuted++;
 

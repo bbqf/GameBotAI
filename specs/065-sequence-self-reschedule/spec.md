@@ -2,7 +2,7 @@
 
 **Feature Branch**: `065-sequence-self-reschedule`  
 **Created**: 2026-06-22  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "As an author of a sequence I want to be able for a sequence to reschedule itself at the queue it was started from. I want to do it from UI, based on the if conditions during the sequence runs. I want to be able to use all the possible options when rescheduling the sequence. This rescheduling should only apply to the current queue run and must not be persisted, however it should be reflected in the execution logs later on. If the sequence wasn't started from a queue, this should be a no-op with a successful exit code."
 
 ## Context
