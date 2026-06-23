@@ -132,12 +132,19 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .edit-form .form-actions { display: flex; gap: var(--gb-space-2); margin-top: var(--gb-space-4); }
 .queue-section-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gb-color-text-muted, #888); white-space: nowrap; }
 
-/* Sequence Steps layout (feature 065 reorg): wait-image area, separators, inline add-rows */
+/* Sequence Steps layout (feature 065 reorg): separators + 3-column add area */
 .sequence-steps-separator { border: none; border-top: 1px solid var(--gb-color-border); margin: var(--gb-space-4) 0; }
-.sequence-inline-row { display: flex; gap: var(--gb-space-3); flex-wrap: wrap; align-items: flex-end; }
-.sequence-inline-row > .searchable-dropdown,
-.sequence-inline-row > div:first-child { flex: 1 1 16rem; min-width: 12rem; }
-.sequence-inline-row button { white-space: nowrap; }
+/* Breathing room after the section title + subtitle, before the steps list */
+#sequence-steps .form-section__description,
+#sequence-edit-steps .form-section__description { margin-bottom: var(--gb-space-4); }
+/* Three left-aligned columns (Command / Loop / Special steps), no separators */
+.sequence-add-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gb-space-4); align-items: start; }
+.sequence-add-col { display: flex; flex-direction: column; align-items: flex-start; gap: var(--gb-space-2); min-width: 0; }
+.sequence-add-col .searchable-dropdown { width: 100%; }
+.sequence-add-col__label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gb-color-text-muted, #888); }
+.sequence-add-col__buttons { display: flex; flex-direction: column; align-items: flex-start; gap: var(--gb-space-2); }
+/* The dropdown keeps an accessible "Add command" label, but the visible column header is "Command". */
+.sequence-add-col .dropdown-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* Queue sequence entries — keep the ordered list as-is; align the "Add sequence"
    row to list items (default <ol> indentation is 40px) and put the button inline. */

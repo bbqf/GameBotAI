@@ -137,10 +137,11 @@ describe('SequencesPage', () => {
 
     fireEvent.click(screen.getByText('Create Sequence'));
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Wait Seq' } });
+    // Wait steps are now added first, then configured inline on the step itself.
+    fireEvent.click(screen.getByText('Add wait step'));
     fireEvent.change(screen.getByLabelText('Wait image ID'), { target: { value: 'mail_icon' } });
     fireEvent.change(screen.getByLabelText('Wait confidence (0-1)'), { target: { value: '0.88' } });
     fireEvent.change(screen.getByLabelText('Wait timeout (ms)'), { target: { value: '2400' } });
-    fireEvent.click(screen.getByText('Add wait step'));
 
     createSequenceMock.mockResolvedValue({} as any);
     fireEvent.click(screen.getByText('Save'));
