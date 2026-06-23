@@ -146,6 +146,30 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 /* The dropdown keeps an accessible "Add command" label, but the visible column header is "Command". */
 .sequence-add-col .dropdown-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
+/* Compact single-row steps: name + inline condition/dropdown + delete on one line (wraps if needed) */
+.sortable-step-item { align-items: center; }
+.sortable-step-item .reorderable-list__content { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gb-space-2) var(--gb-space-3); flex: 1 1 auto; min-width: 0; }
+.sortable-step-item .reorderable-list__label { flex: 0 0 auto; }
+.sortable-step-item .reorderable-list__details { flex: 1 1 auto; align-items: center; flex-wrap: wrap; overflow-x: visible; }
+/* Condition fields render label-beside-control so a simple step is a single line; they wrap when a condition adds fields. */
+.sortable-step-item .reorderable-list__details .sequence-step-condition-field { flex-direction: row; align-items: center; gap: 6px; flex: 0 0 auto; }
+.sortable-step-item .reorderable-list__details .sequence-step-condition-field label { margin-bottom: 0; white-space: nowrap; }
+
+/* Loop header on one line: "Count × <n>  Remove Loop" (condition loops wrap their fields) */
+.loop-block__header-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gb-space-2); }
+.loop-block-header { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gb-space-2); }
+.loop-block-header__badge { font-weight: 600; }
+.loop-block-header__count-field,
+.loop-block-header__limit-field { display: inline-flex; align-items: center; gap: 4px; }
+.loop-block-header__condition-fields { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gb-space-2); }
+
+/* Break rows: header line + wrapped condition fields (≈2–3 lines) */
+.break-step-row__header { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gb-space-2); }
+.break-step-row__badge { font-weight: 600; }
+.break-step-row__condition { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--gb-space-2) var(--gb-space-3); margin-top: var(--gb-space-2); }
+.break-step-row__field { display: flex; flex-direction: column; min-width: 0; }
+.break-step-row__field label { display: inline-flex; align-items: center; gap: 4px; }
+
 /* Queue sequence entries — keep the ordered list as-is; align the "Add sequence"
    row to list items (default <ol> indentation is 40px) and put the button inline. */
 .queue-entries .queue-entry-add { margin-top: var(--gb-space-2); margin-left: 40px; display: inline-flex; align-items: center; gap: var(--gb-space-2); }

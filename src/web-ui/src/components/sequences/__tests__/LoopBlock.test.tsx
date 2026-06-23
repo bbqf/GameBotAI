@@ -43,12 +43,14 @@ const testCommands: CommandOption[] = [
 ];
 
 describe('LoopBlockHeader', () => {
-  it('renders count loop header with editable count input and iteration hint', () => {
+  it('renders count loop header with editable count input', () => {
     render(<LoopBlockHeader loopType="count" count={10} />);
     expect(screen.getByTestId('loop-type-badge')).toHaveTextContent('Count');
     const input = screen.getByTestId('loop-count-input') as HTMLInputElement;
     expect(input.value).toBe('10');
-    expect(screen.getByTestId('loop-iteration-hint')).toHaveTextContent('{{iteration}}');
+    // A count loop is bounded by its count: no separate Max field and no {{iteration}} hint.
+    expect(screen.queryByTestId('loop-iteration-hint')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('loop-max-iterations')).not.toBeInTheDocument();
   });
 
   it('fires onCountChange when count input is changed', () => {
@@ -68,7 +70,7 @@ describe('LoopBlockHeader', () => {
     expect(screen.getByTestId('loop-type-badge')).toHaveTextContent('While');
     expect(screen.getByTestId('loop-condition-type')).toHaveValue('imageVisible');
     expect(screen.getByTestId('loop-condition-imageId')).toHaveValue('my-img');
-    expect(screen.getByTestId('loop-iteration-hint')).toBeInTheDocument();
+    expect(screen.queryByTestId('loop-iteration-hint')).not.toBeInTheDocument();
   });
 
   it('renders repeatUntil loop header without iteration hint', () => {
@@ -82,9 +84,9 @@ describe('LoopBlockHeader', () => {
     expect(screen.queryByTestId('loop-iteration-hint')).not.toBeInTheDocument();
   });
 
-  it('renders editable max iterations input', () => {
+  it('renders editable max iterations input for while/repeat-until loops', () => {
     const onMaxChange = jest.fn();
-    render(<LoopBlockHeader loopType="count" count={5} maxIterations={100} onMaxIterationsChange={onMaxChange} />);
+    render(<LoopBlockHeader loopType="repeatUntil" condition={{ type: 'imageVisible', imageId: '', minSimilarity: null }} maxIterations={100} onMaxIterationsChange={onMaxChange} />);
     const input = screen.getByTestId('loop-max-iterations') as HTMLInputElement;
     expect(input.value).toBe('100');
     fireEvent.change(input, { target: { value: '50' } });
@@ -134,13 +136,13 @@ describe('LoopBlockHeader', () => {
 
   it('clears max iterations when input is emptied', () => {
     const onMaxChange = jest.fn();
-    render(<LoopBlockHeader loopType="count" count={5} maxIterations={100} onMaxIterationsChange={onMaxChange} />);
+    render(<LoopBlockHeader loopType="repeatUntil" condition={{ type: 'imageVisible', imageId: '', minSimilarity: null }} maxIterations={100} onMaxIterationsChange={onMaxChange} />);
     fireEvent.change(screen.getByTestId('loop-max-iterations'), { target: { value: '' } });
     expect(onMaxChange).toHaveBeenCalledWith(undefined);
   });
 
   it('shows empty max input when maxIterations is not set', () => {
-    render(<LoopBlockHeader loopType="count" count={5} />);
+    render(<LoopBlockHeader loopType="repeatUntil" condition={{ type: 'imageVisible', imageId: '', minSimilarity: null }} />);
     const input = screen.getByTestId('loop-max-iterations') as HTMLInputElement;
     expect(input.value).toBe('');
   });

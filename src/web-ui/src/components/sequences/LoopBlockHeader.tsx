@@ -115,25 +115,24 @@ export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
         </div>
       )}
 
-      <label className="loop-block-header__limit-field">
-        Max:{' '}
-        <input
-          type="number"
-          min={1}
-          data-testid="loop-max-iterations"
-          placeholder="∞"
-          value={maxIterations ?? ''}
-          disabled={disabled}
-          onChange={(e) => {
-            const val = parseInt(e.target.value, 10);
-            onMaxIterationsChange?.(isNaN(val) ? undefined : Math.max(1, val));
-          }}
-          style={{ width: '60px' }}
-        />
-      </label>
-
-      {(loopType === 'count' || loopType === 'while') && (
-        <span className="loop-block-header__hint" data-testid="loop-iteration-hint">{'{{iteration}}'}</span>
+      {/* A count loop is bounded by its count; the safety cap (Max) only applies to while/repeat-until. */}
+      {loopType !== 'count' && (
+        <label className="loop-block-header__limit-field">
+          Max:{' '}
+          <input
+            type="number"
+            min={1}
+            data-testid="loop-max-iterations"
+            placeholder="∞"
+            value={maxIterations ?? ''}
+            disabled={disabled}
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              onMaxIterationsChange?.(isNaN(val) ? undefined : Math.max(1, val));
+            }}
+            style={{ width: '60px' }}
+          />
+        </label>
       )}
     </div>
   );
