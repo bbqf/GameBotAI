@@ -11,7 +11,6 @@ import { SearchableDropdown, SearchableOption } from '../components/SearchableDr
 import type { ReorderableListItem } from '../components/ReorderableList';
 import { SortableSequenceStepList } from '../components/SortableSequenceStepList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
-import { navigateToUnified } from '../lib/navigation';
 import { validatePerStepConditions } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
@@ -1092,30 +1091,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     </div>
   ), [form.steps, submitting, loading]);
 
-  const handleAddTopLevelStep = () => {
-    const id = makeId();
-    const stepId = nextGeneratedStepId(form.steps);
-    const newStep: SequenceStep = {
-      id,
-      stepId,
-      stepType: 'Action',
-      actionType: 'command',
-      commandId: '',
-      commandReference: undefined,
-      waitReferenceImageId: '',
-      waitConfidence: '',
-      waitTimeoutMs: '1000',
-      conditionType: 'none',
-      conditionNegate: false,
-      imageId: '',
-      minSimilarity: '',
-      outcomeStepRef: '',
-      expectedState: 'success',
-    };
-    setForm((prev) => ({ ...prev, steps: [...prev.steps, newStep] }));
-    setDirty(true);
-  };
-
   const createLoopStep = (loopType: 'count' | 'while' | 'repeatUntil'): SequenceStep => {
     const id = makeId();
     const stepId = nextGeneratedStepId(form.steps);
@@ -1476,26 +1451,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           </FormSection>
 
           <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-steps">
-            <SearchableDropdown
-              id="sequence-step-dropdown"
-              label="Add command"
-              options={commandOptions}
-              value={pendingStepId}
-              onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
-              disabled={submitting || loading}
-              placeholder="Select a command"
-              onCreateNew={() => navigateToUnified('Commands', { create: true, newTab: true })}
-              createLabel="Create new command"
-            />
-            <div className="field">
-              <button type="button" onClick={() => {
-                if (!pendingStepId) return;
-                const next = [...form.steps, createDefaultStep(pendingStepId, nextGeneratedStepId(form.steps))];
-                setForm({ ...form, steps: next });
-                setPendingStepId(undefined);
-                setDirty(true);
-              }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
-            </div>
             <div className="field grid-3">
               <div>
                 <ImageSelectorDropdown
@@ -1529,43 +1484,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 />
               </div>
             </div>
-            <div className="field">
-              <button
-                type="button"
-                onClick={() => {
-                  const nextStep = createDefaultWaitStep(nextGeneratedStepId(form.steps));
-                  nextStep.waitReferenceImageId = pendingWaitReferenceImageId.trim();
-                  nextStep.waitConfidence = pendingWaitReferenceImageId.trim() ? pendingWaitConfidence : '';
-                  nextStep.waitTimeoutMs = pendingWaitTimeoutMs || '1000';
-                  setForm((prev) => ({ ...prev, steps: [...prev.steps, nextStep] }));
-                  setPendingWaitReferenceImageId('');
-                  setPendingWaitConfidence('');
-                  setPendingWaitTimeoutMs('1000');
-                  setDirty(true);
-                }}
-                disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
-              >
-                Add wait step
-              </button>
-            </div>
-            <div className="field" data-testid="add-reschedule-button">
-              <button
-                type="button"
-                onClick={() => {
-                  setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultRescheduleStep(nextGeneratedStepId(prev.steps))] }));
-                  setDirty(true);
-                }}
-                disabled={submitting || loading}
-              >
-                Add reschedule step
-              </button>
-            </div>
-            <div className="field" data-testid="add-loop-buttons">
-              <span>Add loop:</span>{' '}
-              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}
-              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>{' '}
-              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
-            </div>
+
+            <hr className="sequence-steps-separator" />
+
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenterToCursor}
@@ -1586,19 +1507,65 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 emptyMessage="No steps added yet."
               />
             </DndContext>
-            <div className="field">
+
+            <div className="field sequence-inline-row">
+              <SearchableDropdown
+                id="sequence-step-dropdown"
+                label="Add command"
+                options={commandOptions}
+                value={pendingStepId}
+                onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
+                disabled={submitting || loading}
+                placeholder="Select a command"
+              />
+              <button type="button" onClick={() => {
+                if (!pendingStepId) return;
+                const next = [...form.steps, createDefaultStep(pendingStepId, nextGeneratedStepId(form.steps))];
+                setForm({ ...form, steps: next });
+                setPendingStepId(undefined);
+                setDirty(true);
+              }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
+            </div>
+            <div className="field sequence-inline-row">
               <button
                 type="button"
-                data-testid="add-top-level-step"
-                onClick={handleAddTopLevelStep}
+                onClick={() => {
+                  const nextStep = createDefaultWaitStep(nextGeneratedStepId(form.steps));
+                  nextStep.waitReferenceImageId = pendingWaitReferenceImageId.trim();
+                  nextStep.waitConfidence = pendingWaitReferenceImageId.trim() ? pendingWaitConfidence : '';
+                  nextStep.waitTimeoutMs = pendingWaitTimeoutMs || '1000';
+                  setForm((prev) => ({ ...prev, steps: [...prev.steps, nextStep] }));
+                  setPendingWaitReferenceImageId('');
+                  setPendingWaitConfidence('');
+                  setPendingWaitTimeoutMs('1000');
+                  setDirty(true);
+                }}
+                disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
+              >
+                Add wait step
+              </button>
+              <button
+                type="button"
+                data-testid="add-reschedule-button"
+                onClick={() => {
+                  setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultRescheduleStep(nextGeneratedStepId(prev.steps))] }));
+                  setDirty(true);
+                }}
                 disabled={submitting || loading}
               >
-                Add step
+                Add reschedule step
               </button>
+            </div>
+            <div className="field" data-testid="add-loop-buttons">
+              <span>Add loop:</span>{' '}
+              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}
+              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>{' '}
+              <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
             </div>
             <div className="form-hint">Steps execute in listed order; drag to reorder within the same level.</div>
           </FormSection>
 
+          <hr className="sequence-steps-separator" />
 
           <FormActions submitting={submitting} onCancel={() => { if (!confirmNavigate()) return; setCreating(false); resetForm(); }}>
             {loading && <span className="form-hint">Loading…</span>}
@@ -1741,26 +1708,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
             </FormSection>
 
             <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-edit-steps">
-              <SearchableDropdown
-                id="sequence-edit-step-dropdown"
-                label="Add command"
-                options={commandOptions}
-                value={pendingStepId}
-                onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
-                disabled={submitting || loading}
-                placeholder="Select a command"
-                onCreateNew={() => navigateToUnified('Commands', { create: true, newTab: true })}
-                createLabel="Create new command"
-              />
-              <div className="field">
-                <button type="button" onClick={() => {
-                  if (!pendingStepId) return;
-                  const next = [...form.steps, createDefaultStep(pendingStepId, nextGeneratedStepId(form.steps))];
-                  setForm({ ...form, steps: next });
-                  setPendingStepId(undefined);
-                  setDirty(true);
-                }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
-              </div>
               <div className="field grid-3">
                 <div>
                   <ImageSelectorDropdown
@@ -1794,43 +1741,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   />
                 </div>
               </div>
-              <div className="field">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextStep = createDefaultWaitStep(nextGeneratedStepId(form.steps));
-                    nextStep.waitReferenceImageId = pendingWaitReferenceImageId.trim();
-                    nextStep.waitConfidence = pendingWaitReferenceImageId.trim() ? pendingWaitConfidence : '';
-                    nextStep.waitTimeoutMs = pendingWaitTimeoutMs || '1000';
-                    setForm((prev) => ({ ...prev, steps: [...prev.steps, nextStep] }));
-                    setPendingWaitReferenceImageId('');
-                    setPendingWaitConfidence('');
-                    setPendingWaitTimeoutMs('1000');
-                    setDirty(true);
-                  }}
-                  disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
-                >
-                  Add wait step
-                </button>
-              </div>
-              <div className="field" data-testid="edit-add-reschedule-button">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultRescheduleStep(nextGeneratedStepId(prev.steps))] }));
-                    setDirty(true);
-                  }}
-                  disabled={submitting || loading}
-                >
-                  Add reschedule step
-                </button>
-              </div>
-              <div className="field" data-testid="edit-add-loop-buttons">
-                <span>Add loop:</span>{' '}
-                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}
-                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>{' '}
-                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
-              </div>
+
+              <hr className="sequence-steps-separator" />
+
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenterToCursor}
@@ -1851,19 +1764,65 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   emptyMessage="No steps added yet."
                 />
               </DndContext>
-              <div className="field">
+
+              <div className="field sequence-inline-row">
+                <SearchableDropdown
+                  id="sequence-edit-step-dropdown"
+                  label="Add command"
+                  options={commandOptions}
+                  value={pendingStepId}
+                  onChange={(val) => { setPendingStepId(val); setErrors(undefined); }}
+                  disabled={submitting || loading}
+                  placeholder="Select a command"
+                />
+                <button type="button" onClick={() => {
+                  if (!pendingStepId) return;
+                  const next = [...form.steps, createDefaultStep(pendingStepId, nextGeneratedStepId(form.steps))];
+                  setForm({ ...form, steps: next });
+                  setPendingStepId(undefined);
+                  setDirty(true);
+                }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
+              </div>
+              <div className="field sequence-inline-row">
                 <button
                   type="button"
-                  data-testid="add-top-level-step"
-                  onClick={handleAddTopLevelStep}
+                  onClick={() => {
+                    const nextStep = createDefaultWaitStep(nextGeneratedStepId(form.steps));
+                    nextStep.waitReferenceImageId = pendingWaitReferenceImageId.trim();
+                    nextStep.waitConfidence = pendingWaitReferenceImageId.trim() ? pendingWaitConfidence : '';
+                    nextStep.waitTimeoutMs = pendingWaitTimeoutMs || '1000';
+                    setForm((prev) => ({ ...prev, steps: [...prev.steps, nextStep] }));
+                    setPendingWaitReferenceImageId('');
+                    setPendingWaitConfidence('');
+                    setPendingWaitTimeoutMs('1000');
+                    setDirty(true);
+                  }}
+                  disabled={submitting || loading || !pendingWaitTimeoutMs.trim()}
+                >
+                  Add wait step
+                </button>
+                <button
+                  type="button"
+                  data-testid="edit-add-reschedule-button"
+                  onClick={() => {
+                    setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultRescheduleStep(nextGeneratedStepId(prev.steps))] }));
+                    setDirty(true);
+                  }}
                   disabled={submitting || loading}
                 >
-                  Add step
+                  Add reschedule step
                 </button>
+              </div>
+              <div className="field" data-testid="edit-add-loop-buttons">
+                <span>Add loop:</span>{' '}
+                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}
+                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>{' '}
+                <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
               </div>
               <div className="form-hint">Steps execute in listed order; drag to reorder within the same level.</div>
             </FormSection>
 
+            <hr className="sequence-steps-separator" />
 
             <FormActions
               submitting={submitting}

@@ -132,6 +132,13 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .edit-form .form-actions { display: flex; gap: var(--gb-space-2); margin-top: var(--gb-space-4); }
 .queue-section-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gb-color-text-muted, #888); white-space: nowrap; }
 
+/* Sequence Steps layout (feature 065 reorg): wait-image area, separators, inline add-rows */
+.sequence-steps-separator { border: none; border-top: 1px solid var(--gb-color-border); margin: var(--gb-space-4) 0; }
+.sequence-inline-row { display: flex; gap: var(--gb-space-3); flex-wrap: wrap; align-items: flex-end; }
+.sequence-inline-row > .searchable-dropdown,
+.sequence-inline-row > div:first-child { flex: 1 1 16rem; min-width: 12rem; }
+.sequence-inline-row button { white-space: nowrap; }
+
 /* Queue sequence entries — keep the ordered list as-is; align the "Add sequence"
    row to list items (default <ol> indentation is 40px) and put the button inline. */
 .queue-entries .queue-entry-add { margin-top: var(--gb-space-2); margin-left: 40px; display: inline-flex; align-items: center; gap: var(--gb-space-2); }
