@@ -1813,6 +1813,18 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   Add wait step
                 </button>
               </div>
+              <div className="field" data-testid="edit-add-reschedule-button">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultRescheduleStep(nextGeneratedStepId(prev.steps))] }));
+                    setDirty(true);
+                  }}
+                  disabled={submitting || loading}
+                >
+                  Add reschedule step
+                </button>
+              </div>
               <div className="field" data-testid="edit-add-loop-buttons">
                 <span>Add loop:</span>{' '}
                 <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>{' '}

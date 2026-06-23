@@ -1,14 +1,26 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SequencesPage } from '../SequencesPage';
-import { createSequence, listSequences } from '../../services/sequences';
+import { createSequence, getSequence, listSequences } from '../../services/sequences';
 import { listCommands } from '../../services/commands';
 
 jest.mock('../../services/sequences');
 jest.mock('../../services/commands');
 
+jest.mock('../../components/images/ImageSelectorDropdown', () => ({
+  ImageSelectorDropdown: ({ id, label, value, onChange, disabled }: {
+    id?: string; label?: string; value: string; onChange: (v: string) => void; disabled?: boolean;
+  }) => (
+    <>
+      {label && <label htmlFor={id}>{label}</label>}
+      <input id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+    </>
+  ),
+}));
+
 const listSequencesMock = listSequences as jest.MockedFunction<typeof listSequences>;
 const createSequenceMock = createSequence as jest.MockedFunction<typeof createSequence>;
+const getSequenceMock = getSequence as jest.MockedFunction<typeof getSequence>;
 const listCommandsMock = listCommands as jest.MockedFunction<typeof listCommands>;
 
 describe('SequencesPage self-reschedule action (feature 065)', () => {
@@ -82,6 +94,35 @@ describe('SequencesPage self-reschedule action (feature 065)', () => {
     // Switching to time-of-day reveals the time input (mirrors the queue-template editor).
     fireEvent.change(screen.getByLabelText('Timer mode'), { target: { value: 'timeOfDay' } });
     expect(screen.getByLabelText('Time of day')).toBeInTheDocument();
+  });
+
+  it('edit mode also exposes "Add reschedule step" and round-trips an existing reschedule step', async () => {
+    listSequencesMock.mockResolvedValue([{ id: 'seq-1', name: 'Existing', steps: [] }] as any);
+    getSequenceMock.mockResolvedValue({
+      id: 'seq-1',
+      name: 'Existing',
+      version: 2,
+      steps: [
+        { stepId: 'step-1', label: 'Home', primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'cmd-home' } }, condition: null },
+        {
+          stepId: 'step-2',
+          stepType: 'Action',
+          primitiveAction: { type: 'reschedule-self', schemaVersion: '1', payload: { option: 'Timer', timerRelativeOffset: '00:15:00' } },
+          condition: { type: 'commandOutcome', stepRef: 'step-1', expectedState: 'success' }
+        }
+      ]
+    } as any);
+
+    render(<SequencesPage />);
+    await screen.findByText('Existing');
+    fireEvent.click(screen.getByText('Existing'));
+
+    // Regression: the edit form must offer the reschedule control too (not only the create form).
+    expect(await screen.findByText('Add reschedule step')).toBeInTheDocument();
+
+    // The existing reschedule step loaded its option and timer field back into the editor.
+    expect(screen.getByLabelText('Reschedule option')).toHaveValue('Timer');
+    expect(screen.getByLabelText('Relative offset (HH:mm:ss)')).toHaveValue('00:15:00');
   });
 
   it('T035: Timer relative offset serializes the single timer field', async () => {
