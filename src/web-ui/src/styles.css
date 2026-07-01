@@ -154,6 +154,16 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 /* Condition fields render label-beside-control so a simple step is a single line; they wrap when a condition adds fields. */
 .sortable-step-item .reorderable-list__details .sequence-step-condition-field { flex-direction: row; align-items: center; gap: 6px; flex: 0 0 auto; }
 .sortable-step-item .reorderable-list__details .sequence-step-condition-field label { margin-bottom: 0; white-space: nowrap; }
+/* Keep logical condition pairs together (image id + similarity, step ref + expected state):
+   the pair stays on one line and wraps to the next line as a single unit. */
+.sequence-step-condition-pair { display: flex; align-items: center; gap: var(--gb-space-3); flex: 0 0 auto; }
+
+/* Between-step separators — dashed + muted, to distinguish from the solid top/bottom section separators */
+#sequence-steps .reorderable-list__item:not(:last-child),
+#sequence-edit-steps .reorderable-list__item:not(:last-child) {
+  border-bottom: 1px dashed var(--gb-color-border);
+  padding-bottom: var(--gb-space-2);
+}
 
 /* Loop header on one line: "Count × <n>  Remove Loop" (condition loops wrap their fields) */
 .loop-block__header-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gb-space-2); }

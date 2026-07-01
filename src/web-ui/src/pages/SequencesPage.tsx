@@ -975,7 +975,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       )}
 
       {step.conditionType === 'imageVisible' && (
-        <>
+        <div className="sequence-step-condition-pair">
           <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
             <ImageSelectorDropdown
               id={`step-image-id-${step.id}`}
@@ -1033,11 +1033,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               disabled={submitting || loading}
             />
           </div>
-        </>
+        </div>
       )}
 
       {step.conditionType === 'commandOutcome' && (
-        <>
+        <div className="sequence-step-condition-pair">
           <div className="sequence-step-condition-field sequence-step-condition-field--step-ref">
             <label htmlFor={`step-step-ref-${step.id}`}>Step Ref</label>
             <select
@@ -1080,7 +1080,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               <option value="skipped">skipped</option>
             </select>
           </div>
-        </>
+        </div>
       )}
     </div>
   ), [form.steps, submitting, loading]);
