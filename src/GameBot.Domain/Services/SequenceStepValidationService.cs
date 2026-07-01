@@ -1,4 +1,5 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Actions;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -127,7 +128,11 @@ public sealed class SequenceStepValidationService {
       bool insideLoop) {
 
     if (step.Action is not null) {
-      if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
+      if (string.Equals(step.Action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
+        // feature 065: a self-reschedule action carries an option (+ optional Timer fields).
+        ValidateRescheduleSelfPayload(step.Action, stepLabel, errors);
+      }
+      else if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
         errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type.");
       }
       else if (string.Equals(step.Action.Type, PrimitiveActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)) {
@@ -173,6 +178,35 @@ public sealed class SequenceStepValidationService {
     if (step.Condition is ImageVisibleStepCondition imageVisible
         && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
+    }
+  }
+
+  // feature 065: validates a reschedule-self action payload, mirroring the queue-template timer rules.
+  private static readonly TimeSpan MaxRescheduleOffset = TimeSpan.FromHours(24);
+
+  private static void ValidateRescheduleSelfPayload(
+      SequenceActionPayload action,
+      string stepLabel,
+      List<string> errors) {
+    if (!SelfReschedulePayload.TryRead(action, out var payload, out var parseError) || payload is null) {
+      errors.Add($"Step '{stepLabel}' reschedule-self action is invalid: {parseError}");
+      return;
+    }
+
+    if (payload.Option == SelfRescheduleOption.Timer) {
+      if (payload.HasTimerTimeOfDay && payload.HasTimerRelativeOffset) {
+        errors.Add($"Step '{stepLabel}' reschedule-self Timer requires exactly one of timerTimeOfDay or timerRelativeOffset, not both.");
+      }
+      else if (!payload.HasTimerTimeOfDay && !payload.HasTimerRelativeOffset) {
+        errors.Add($"Step '{stepLabel}' reschedule-self Timer requires a timerTimeOfDay or timerRelativeOffset.");
+      }
+
+      if (payload.TimerRelativeOffset is { } offset && (offset < TimeSpan.Zero || offset > MaxRescheduleOffset)) {
+        errors.Add($"Step '{stepLabel}' reschedule-self timerRelativeOffset must be between 00:00:00 and 24:00:00.");
+      }
+    }
+    else if (payload.HasTimerTimeOfDay || payload.HasTimerRelativeOffset) {
+      errors.Add($"Step '{stepLabel}' reschedule-self timer fields are only valid when option is Timer.");
     }
   }
 

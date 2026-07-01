@@ -107,7 +107,8 @@ namespace GameBot.Domain.Commands {
                 ActionTypes.Swipe,
                 ActionTypes.Key,
                 ActionTypes.ConnectToGame,
-                ActionTypes.WaitForImage
+                ActionTypes.WaitForImage,
+                ActionTypes.RescheduleSelf
             };
 
       foreach (var step in sequence.Steps) {

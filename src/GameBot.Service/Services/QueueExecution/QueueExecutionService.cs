@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -43,9 +42,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   private readonly ILogger<QueueExecutionService> _logger;
   private readonly TimeProvider _timeProvider;
   private readonly CancellationToken _appStopping;
-
-  private readonly ConcurrentDictionary<string, QueueRunHandle> _runs =
-    new(StringComparer.Ordinal);
+  private readonly IQueueRunRegistry _registry;
 
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
@@ -60,6 +57,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     ISessionManager sessions,
     IExecutionLogService log,
     ILogger<QueueExecutionService> logger,
+    IQueueRunRegistry registry,
     IHostApplicationLifetime? lifetime = null,
     BackgroundScreenCaptureService? captureService = null,
     TimeProvider? timeProvider = null) {
@@ -71,14 +69,15 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _captureService = captureService;
     _log = log;
     _logger = logger;
+    _registry = registry;
     _timeProvider = timeProvider ?? TimeProvider.System;
     _appStopping = lifetime?.ApplicationStopping ?? CancellationToken.None;
   }
 
-  public bool IsRunning(string queueId) => _runs.ContainsKey(queueId);
+  public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
 
   public LiveScheduleResult ScheduleRelative(string queueId, string sequenceId, TimeSpan offset) {
-    if (!_runs.TryGetValue(queueId, out var handle))
+    if (!_registry.TryGet(queueId, out var handle))
       return new LiveScheduleResult(LiveScheduleOutcome.NotRunning, default);
 
     var fireAt = _timeProvider.GetLocalNow() + offset;
@@ -92,8 +91,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     if (queue is null) return QueueStartOutcome.NotFound;
 
     var cts = CancellationTokenSource.CreateLinkedTokenSource(_appStopping);
-    var handle = new QueueRunHandle { QueueId = queueId, Cts = cts };
-    if (!_runs.TryAdd(queueId, handle)) {
+    var handle = new QueueRunHandle { QueueId = queueId, Cts = cts, CycleExecution = queue.CycleExecution };
+    if (!_registry.TryAdd(queueId, handle)) {
       cts.Dispose();
       return QueueStartOutcome.AlreadyRunning;
     }
@@ -104,7 +103,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   }
 
   public async Task StopAsync(string queueId, CancellationToken ct = default) {
-    if (!_runs.TryGetValue(queueId, out var handle)) return; // not running → no-op (FR-022)
+    if (!_registry.TryGet(queueId, out var handle)) return; // not running → no-op (FR-022)
     try {
       await handle.Cts.CancelAsync().ConfigureAwait(false);
     }
@@ -174,7 +173,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             foreach (var startEntry in atQueueStartEntries) {
               ct.ThrowIfCancellationRequested();
               if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-              var startOk = await RunOneSequenceAsync(startEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+              var startOk = await RunOneSequenceAsync(startEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
               executed++;
               if (!startOk) failed++;
             }
@@ -201,12 +200,26 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 if (timerEntries[pi].TimerRelativeOffset is not null && !relativeTimerFired.Contains(pi))
                   return true;
               }
-              return !handle.PendingLiveSchedules.IsEmpty;
+              if (!handle.PendingLiveSchedules.IsEmpty) return true;
+              // feature 065: a self-reschedule Timer firing not yet due keeps a non-cyclic run alive
+              // until it lands (or the run is stopped), exactly like a relative/live schedule.
+              return handle.HasPendingTimerFirings;
             }
 
             if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
               do {
                 ct.ThrowIfCancellationRequested();
+
+                // (a0) Self-reschedule AtQueueStart firings (feature 065, FR-009): entries queued
+                // during the previous cycle fire at the top of the next cycle, before timers and the
+                // once-per-run pass. Count toward executed; a failed firing is non-fatal.
+                while (handle.PendingNextCycleStart.TryDequeue(out var nextCycleEntry)) {
+                  ct.ThrowIfCancellationRequested();
+                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  var nextOk = await RunOneSequenceAsync(nextCycleEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct, nextCycleEntry.Id).ConfigureAwait(false);
+                  executed++;
+                  if (!nextOk) failed++;
+                }
 
                 // (a) Evaluate timer entries at iteration boundary (FR-011/FR-012/FR-016).
                 for (var ti = 0; ti < timerEntries.Count; ti++) {
@@ -220,7 +233,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                       && (!timerFiredDate.TryGetValue(ti, out var lastFired) || lastFired != today)) {
                     ct.ThrowIfCancellationRequested();
                     if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                    var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                    var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                     if (!timerOk) failed++;
                     // Timer executions do not count toward `executed` (SC-002 analogue for timers)
                     timerFiredDate[ti] = today;
@@ -240,7 +253,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                  var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                  var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                   executed++;
                   if (!relOk) failed++;
                   relativeTimerFired.Add(ri);
@@ -258,9 +271,21 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (!handle.PendingLiveSchedules.TryRemove(due, out _)) continue;
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                  var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                  var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                   executed++;
                   if (!liveOk) failed++;
+                }
+
+                // (a4) Self-reschedule Timer firings (feature 065, FR-005/FR-006): fire those whose
+                // resolved instant is at/before now, once each, then remove. Count toward executed; a
+                // failed firing is non-fatal. Entries never due before the run ends are discarded with
+                // the handle and never fail the run (FR-015).
+                foreach (var timerFiring in handle.DrainDueTimerFirings(_timeProvider.GetLocalNow())) {
+                  ct.ThrowIfCancellationRequested();
+                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  var srTimerOk = await RunOneSequenceAsync(timerFiring.SequenceId, rootId, ++index, sessionId, queue.Id, ct, timerFiring.Id).ConfigureAwait(false);
+                  executed++;
+                  if (!srTimerOk) failed++;
                 }
 
                 // (b) OncePerRun steps, each followed by all EveryStep sequences (FR-006/FR-007/FR-016).
@@ -271,7 +296,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     foreach (var entry in oncePerRunEntries) {
                       ct.ThrowIfCancellationRequested();
                       if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                      var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                      var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                       executed++;
                       if (!ok) failed++;
 
@@ -279,9 +304,19 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                       foreach (var esEntry in everyStepEntries) {
                         ct.ThrowIfCancellationRequested();
                         if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                        var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                        var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                         if (!esOk) failed++;
                         // Every-step executions do not count toward `executed` (FR-008/SC-002).
+                      }
+
+                      // Self-reschedule EveryStep injections (feature 065, FR-008): fire after each
+                      // once-per-run step for the rest of the run. Snapshot first so a firing's own
+                      // re-registration cannot grow the pass (loop-safe). Not counted toward executed.
+                      foreach (var injection in handle.EveryStepInjections.Values.ToList()) {
+                        ct.ThrowIfCancellationRequested();
+                        if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                        var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, ct, injection.Id).ConfigureAwait(false);
+                        if (!injOk) failed++;
                       }
                     }
                   }
@@ -290,9 +325,24 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     foreach (var esEntry in everyStepEntries) {
                       ct.ThrowIfCancellationRequested();
                       if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                      var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, ct).ConfigureAwait(false);
+                      var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                       if (!esOk) failed++;
                     }
+                  }
+
+                  // OncePerRun self-reschedule firings (feature 065, FR-007), and the non-cycling
+                  // AtQueueStart fallback: drain a snapshot of those queued this cycle and fire each
+                  // before the cycle ends. Count toward executed; failures are non-fatal. Snapshotting
+                  // bounds a single drain so an always-true self-reschedule cannot spin within one cycle
+                  // (further generations fire next cycle / are abandoned at run end — FR-015).
+                  var oncePerRunReschedules = new List<SelfRescheduleEntry>();
+                  while (handle.PendingOncePerRun.TryDequeue(out var oprEntry)) oncePerRunReschedules.Add(oprEntry);
+                  foreach (var oprFiring in oncePerRunReschedules) {
+                    ct.ThrowIfCancellationRequested();
+                    if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                    var oprOk = await RunOneSequenceAsync(oprFiring.SequenceId, rootId, ++index, sessionId, queue.Id, ct, oprFiring.Id).ConfigureAwait(false);
+                    executed++;
+                    if (!oprOk) failed++;
                   }
 
                   oncePerRunDone = true;
@@ -350,7 +400,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       catch (Exception ex) { QueueExecutionLog.FinalizeFailed(_logger, queue.Id, ex); }
 
       _runtime.SetStatus(queue.Id, QueueExecutionStatus.Stopped);
-      _runs.TryRemove(queue.Id, out _);
+      _registry.Remove(queue.Id, out _);
       handle.Cts.Dispose();
     }
   }
@@ -359,13 +409,17 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// Runs one sequence as a child of the queue run. Per-sequence failures are non-fatal (FR-008):
   /// returns false on a failed/unresolved sequence so the run can continue.
   /// </summary>
-  private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, CancellationToken ct) {
+  private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, string queueId, CancellationToken ct, string? selfRescheduleOriginActionId = null) {
     try {
       var parentContext = new ExecutionLogContext {
         ParentExecutionId = rootId,
         RootExecutionId = rootId,
         Depth = 1,
-        SequenceIndex = index
+        SequenceIndex = index,
+        // Mark this firing as queue-originated so a self-reschedule action can target this run
+        // (FR-018); also carry the originating action id for attribution of self-reschedule firings.
+        OriginatingQueueId = queueId,
+        SelfRescheduleOriginActionId = selfRescheduleOriginActionId
       };
       var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, ct).ConfigureAwait(false);
       return string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);

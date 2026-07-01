@@ -131,6 +131,10 @@ builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new E
 builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLogService, GameBot.Service.Services.ExecutionLog.ExecutionLogService>();
 builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.ISequenceExecutionService, GameBot.Service.Services.SequenceExecution.SequenceExecutionService>();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+// Self-reschedule (feature 065): the run registry breaks the SequenceExecutionService ↔
+// QueueExecutionService DI cycle; the coordinator injects ephemeral run-scoped firings.
+builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueRunRegistry, GameBot.Service.Services.QueueExecution.QueueRunRegistry>();
+builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.ISelfRescheduleCoordinator, GameBot.Service.Services.QueueExecution.SelfRescheduleCoordinator>();
 builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueExecutionService, GameBot.Service.Services.QueueExecution.QueueExecutionService>();
 builder.Services.AddSingleton<SemanticVersionComparer>();
 builder.Services.AddSingleton<VersionSourceLoader>();

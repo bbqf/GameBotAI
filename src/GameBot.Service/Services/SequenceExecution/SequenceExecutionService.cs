@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Images;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Services;
 using GameBot.Service.Services.Conditions;
 using GameBot.Service.Services.ExecutionLog;
+using GameBot.Service.Services.QueueExecution;
 
 namespace GameBot.Service.Services.SequenceExecution;
 
@@ -25,6 +28,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private readonly ICommandRepository _commandRepository;
   private readonly ISequenceRepository _sequenceRepository;
   private readonly ICommandExecutor _commandExecutor;
+  private readonly ISelfRescheduleCoordinator _selfRescheduleCoordinator;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -34,7 +38,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     IExecutionLogService executionLogService,
     ICommandRepository commandRepository,
     ISequenceRepository sequenceRepository,
-    ICommandExecutor commandExecutor) {
+    ICommandExecutor commandExecutor,
+    ISelfRescheduleCoordinator selfRescheduleCoordinator) {
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -43,6 +48,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _commandRepository = commandRepository;
     _sequenceRepository = sequenceRepository;
     _commandExecutor = commandExecutor;
+    _selfRescheduleCoordinator = selfRescheduleCoordinator;
   }
 
   public async Task<SequenceExecutionResult> ExecuteAsync(
@@ -61,6 +67,12 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     var childRootExecutionId = string.IsNullOrWhiteSpace(parentContext?.RootExecutionId) ? rootExecutionId : parentContext!.RootExecutionId!;
     var childDepth = (parentContext?.Depth ?? 0) + 1;
     var childInvocationIndex = 0;
+    // Origin of this firing: the queue run that launched it, propagated through nesting (FR-018).
+    // Non-empty ⇒ a self-reschedule action can schedule into that run; empty ⇒ no-op success (FR-011).
+    var originatingQueueId = parentContext?.OriginatingQueueId;
+    // When this firing was itself produced by a self-reschedule, carry the originating action id so
+    // the extra firing is attributable in the execution log (feature 065, FR-014).
+    var selfRescheduleOriginActionId = parentContext?.SelfRescheduleOriginActionId;
 
     var res = await _runner.ExecuteAsync(
       sequenceId,
@@ -72,7 +84,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
             Depth = childDepth,
             SequenceIndex = ++childInvocationIndex,
             SequenceId = sequenceId,
-            SequenceLabel = startSequenceName
+            SequenceLabel = startSequenceName,
+            OriginatingQueueId = originatingQueueId
           };
           await _commandExecutor.ForceExecuteAsync(sessionId, commandId, childContext, ct).ConfigureAwait(false);
         }
@@ -121,7 +134,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         }
         return Task.FromResult(false);
       },
-      ct: ct
+      ct: ct,
+      actionDispatcher: (action, token) => Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId))
     ).ConfigureAwait(false);
 
     var sequence = await _sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
@@ -131,6 +145,11 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     var sequenceStepsByCommandId = flattenedSequenceSteps
       .Where(step => !string.IsNullOrWhiteSpace(step.CommandId))
       .GroupBy(step => step.CommandId, StringComparer.Ordinal)
+      .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+    // feature 065: reschedule-self steps have no commandId; index them by stepId for log enrichment.
+    var sequenceStepsByStepId = flattenedSequenceSteps
+      .Where(step => !string.IsNullOrWhiteSpace(step.StepId))
+      .GroupBy(step => step.StepId, StringComparer.Ordinal)
       .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
     var flowStepsByCommandRef = (sequence?.FlowSteps ?? Array.Empty<FlowStep>())
       .GroupBy(step => string.IsNullOrWhiteSpace(step.PayloadRef) ? step.StepId : step.PayloadRef!, StringComparer.Ordinal)
@@ -151,9 +170,24 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       new(
         "sequence",
         $"Executed commands: {string.Join(",", commandSteps.Select(s => s.CommandId).Take(10))}",
-        new Dictionary<string, object?> { ["executedCount"] = commandSteps.Count },
+        new Dictionary<string, object?> {
+          ["executedCount"] = commandSteps.Count,
+          // feature 065: mark firings produced by a self-reschedule so they are attributable (FR-014).
+          ["selfRescheduleOrigin"] = string.IsNullOrWhiteSpace(selfRescheduleOriginActionId) ? null : true,
+          ["selfRescheduleOriginActionId"] = selfRescheduleOriginActionId
+        },
         "normal")
     };
+    if (!string.IsNullOrWhiteSpace(selfRescheduleOriginActionId)) {
+      detailItems.Add(new ExecutionDetailItem(
+        "note",
+        $"Scheduled by self-reschedule (origin action {selfRescheduleOriginActionId}).",
+        new Dictionary<string, object?> {
+          ["selfRescheduleOrigin"] = true,
+          ["selfRescheduleOriginActionId"] = selfRescheduleOriginActionId
+        },
+        "normal"));
+    }
 
     var stepOrder = 1;
     foreach (var step in res.Steps) {
@@ -189,6 +223,45 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       var actionOutcome = string.IsNullOrWhiteSpace(step.ActionOutcome)
         ? (string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase) ? "skipped" : "executed")
         : step.ActionOutcome;
+
+      // feature 065: render a self-reschedule decision as its own log entry (option, resolved timing,
+      // current-run-only, outcome + reason). Outcomes "scheduled"/"noop" are unique to this action.
+      sequenceStepsByStepId.TryGetValue(step.CommandId, out var stepById);
+      var isRescheduleStep =
+        string.Equals(stepById?.Action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(actionOutcome, "scheduled", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(actionOutcome, "noop", StringComparison.OrdinalIgnoreCase);
+      if (isRescheduleStep) {
+        string? option = null;
+        if (stepById?.Action is not null
+            && SelfReschedulePayload.TryRead(stepById.Action, out var reschedulePayload, out _)
+            && reschedulePayload is not null) {
+          option = reschedulePayload.Option.ToString();
+        }
+        detailItems.Add(new ExecutionDetailItem(
+          "step",
+          !string.IsNullOrWhiteSpace(step.Message)
+            ? $"Self-reschedule '{stepLabel}' {actionOutcome}: {step.Message}"
+            : $"Self-reschedule '{stepLabel}' {actionOutcome}.",
+          new Dictionary<string, object?> {
+            ["stepOrder"] = stepOrder++,
+            ["stepType"] = "reschedule-self",
+            ["status"] = step.Status,
+            ["actionOutcome"] = actionOutcome,
+            ["reasonCode"] = actionOutcome,
+            ["option"] = option,
+            ["resolvedTiming"] = step.Message,
+            ["currentRunOnly"] = true,
+            ["message"] = step.Message,
+            ["sequenceId"] = sequenceId,
+            ["sequenceLabel"] = sequenceName,
+            ["stepId"] = stepId,
+            ["stepLabel"] = stepLabel
+          },
+          "normal"));
+        continue;
+      }
+
       var waitDetails = step.WaitForImageDetails;
       var waitConfig = sequenceStep?.WaitForImage;
       var isWaitForImageStep = waitDetails is not null
@@ -273,6 +346,40 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       details: detailItems,
       ct).ConfigureAwait(false);
     return res;
+  }
+
+  /// <summary>
+  /// Dispatches a <c>reschedule-self</c> action (feature 065). When the sequence was not started
+  /// from a queue (<paramref name="originatingQueueId"/> empty), it is a success no-op (FR-011).
+  /// Otherwise it asks the coordinator to inject one ephemeral firing into the originating run and
+  /// records the decision (option + resolved timing) for the execution log (FR-013).
+  /// </summary>
+  private ActionDispatchResult DispatchSelfReschedule(
+      SequenceActionPayload action,
+      string sequenceId,
+      string? originatingQueueId) {
+    if (string.IsNullOrWhiteSpace(originatingQueueId)) {
+      return new ActionDispatchResult("noop", "no originating queue, no reschedule performed");
+    }
+
+    if (!SelfReschedulePayload.TryRead(action, out var payload, out var parseError) || payload is null) {
+      return new ActionDispatchResult("noop", $"self-reschedule not performed: {parseError}");
+    }
+
+    var schedule = _selfRescheduleCoordinator.ScheduleSelf(
+      originatingQueueId!,
+      sequenceId,
+      payload.Option,
+      payload.TimerTimeOfDay,
+      payload.TimerRelativeOffset);
+
+    if (schedule.Outcome == SelfRescheduleOutcome.NotRunning) {
+      return new ActionDispatchResult("noop", "originating queue run no longer active; no reschedule performed");
+    }
+
+    return new ActionDispatchResult(
+      "scheduled",
+      $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); applies to the current run only");
   }
 
   private static async Task<bool> EvaluateImageConditionAsync(

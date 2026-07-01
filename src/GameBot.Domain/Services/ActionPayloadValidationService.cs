@@ -4,7 +4,8 @@ using GameBot.Domain.Commands;
 namespace GameBot.Domain.Services;
 
 public sealed class ActionPayloadValidationService {
-  private readonly HashSet<string> _supportedActionTypes = new(PrimitiveActionTypes.All, StringComparer.OrdinalIgnoreCase);
+  private readonly HashSet<string> _supportedActionTypes =
+    new(PrimitiveActionTypes.All, StringComparer.OrdinalIgnoreCase) { ActionTypes.RescheduleSelf };
 
   public IReadOnlyCollection<string> SupportedActionTypes => _supportedActionTypes;
 

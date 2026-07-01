@@ -100,6 +100,7 @@ Status vocabulary:
 | 062 | Queue Management Usability | Draft (active) |
 | 063 | Execution Logs Reflect What Was Actually Executed | Implemented (iterated by 050) — renumbered from 049 |
 | 064 | Command Editor Rework | Implemented (iterated by 054) — renumbered from 053 |
+| 065 | Sequence Self-Rescheduling into the Originating Queue Run | Implemented |
 
 ## Numbering notes
 

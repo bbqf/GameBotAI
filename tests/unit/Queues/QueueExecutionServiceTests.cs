@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
@@ -129,11 +130,14 @@ public sealed class QueueExecutionServiceTests {
     public RecordingExecutionLog Log { get; } = new();
     public QueueRuntimeStore Runtime { get; } = new();
     public FakeTimeProvider? Clock { get; }
+    public QueueRunRegistry Registry { get; } = new();
+    public SelfRescheduleCoordinator Coordinator { get; }
     public QueueExecutionService Service { get; }
 
     public Harness(FakeTimeProvider? clock = null) {
       Clock = clock;
-      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, timeProvider: clock);
+      Coordinator = new SelfRescheduleCoordinator(Registry, clock);
+      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock);
     }
 
     public ExecutionQueue AddQueue(string id, IReadOnlyList<string> sequenceIds, bool cycle = false, bool linkTemplate = true) {
@@ -221,7 +225,7 @@ public sealed class QueueExecutionServiceTests {
     var h = new Harness();
     h.AddQueue("q1", new[] { "A" });
     var sessions = new ThrowingDisconnectSessions();
-    var service = new QueueExecutionService(h.Queues, h.Runtime, h.Templates, h.Sequences, sessions, h.Log, NullLogger<QueueExecutionService>.Instance);
+    var service = new QueueExecutionService(h.Queues, h.Runtime, h.Templates, h.Sequences, sessions, h.Log, NullLogger<QueueExecutionService>.Instance, h.Registry);
 
     await service.StartAsync("q1");
     await WaitUntilStoppedAsync(service, "q1");
@@ -962,5 +966,148 @@ public sealed class QueueExecutionServiceTests {
     // Timer fires at the boundary, then OncePerRun steps in order; only the two steps are counted.
     h.Sequences.Executed.Should().Equal("T", "A", "B");
     h.Log.Summary.Should().Contain("2 sequence(s) executed");
+  }
+
+  // ── Feature 065: self-reschedule run-loop draining ───────────────────────
+
+  [Fact] // T022 — OncePerRun reschedule fires before the cycle ends and counts toward executed.
+  public async Task SelfRescheduleOncePerRunFiresWithinRunAndCountsExecuted() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }); // non-cycling → deterministic
+    var scheduled = false;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && !scheduled) {
+        scheduled = true;
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.OncePerRun, null, null);
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // A runs, schedules R, then R fires before the cycle ends (FR-007).
+    h.Sequences.Executed.Should().Equal("A", "R");
+    h.Log.Summary.Should().Contain("2 sequence(s) executed"); // both count
+  }
+
+  [Fact] // T022a — two accepted OncePerRun reschedules produce two independent firings.
+  public async Task TwoOncePerRunReschedulesProduceTwoFirings() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") });
+    var scheduled = false;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && !scheduled) {
+        scheduled = true;
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.OncePerRun, null, null);
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.OncePerRun, null, null);
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Count(id => id == "R").Should().Be(2);
+  }
+
+  [Fact] // T033/T041 — AtQueueStart (cycling) fires at the start of the next cycle.
+  public async Task SelfRescheduleAtQueueStartFiresAtNextCycleStart() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+    var scheduled = false;
+    h.Sequences.Handler = async (id, ct) => {
+      await Task.Delay(10, ct);
+      if (id == "A" && !scheduled) {
+        scheduled = true;
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.AtQueueStart, null, null);
+      }
+      return FakeSequenceExecution.Success(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("R"));
+    await h.Service.StopAsync("q1");
+
+    // R fires at the top of cycle 2, i.e. right after the first A and before the second A.
+    h.Sequences.Executed.Take(2).Should().Equal("A", "R");
+  }
+
+  [Fact] // T032/T040 — EveryStep injection fires after each subsequent step; idempotent (loop-safe).
+  public async Task SelfRescheduleEveryStepFiresAfterEachStepAndIsLoopSafe() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+    var scheduled = false;
+    h.Sequences.Handler = async (id, ct) => {
+      await Task.Delay(10, ct);
+      if (id == "A" && !scheduled) {
+        scheduled = true;
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.EveryStep, null, null);
+      }
+      return FakeSequenceExecution.Success(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "R") >= 2);
+    await h.Service.StopAsync("q1");
+
+    // R fires repeatedly (after each A), and the registration never stacked beyond one entry.
+    h.Sequences.Executed.Count(id => id == "R").Should().BeGreaterThanOrEqualTo(2);
+    h.Registry.TryGet("q1", out _).Should().BeFalse(); // run cleaned up
+  }
+
+  [Fact] // T039 — Timer reschedule does not fire before due, then fires once after the offset elapses.
+  public async Task SelfRescheduleTimerFiresOnceAfterOffsetElapses() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }); // non-cycling; stays alive for the timer
+    var scheduled = false;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && !scheduled) {
+        scheduled = true;
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    // Wait until the Timer firing is actually registered on the run handle before advancing the
+    // clock — otherwise, under load, "A" (and thus scheduling) could lag the advance and the
+    // resolved FireAt would be computed from the already-advanced clock (ordering race).
+    await WaitForAsync(() => h.Registry.TryGet("q1", out var handle) && handle.HasPendingTimerFirings, 10000);
+    // Not due yet: the run stays alive but R has not fired.
+    h.Service.IsRunning("q1").Should().BeTrue();
+    h.Sequences.Executed.Should().NotContain("R");
+
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Count(id => id == "R").Should().Be(1);
+    h.Log.Summary.Should().Contain("2 sequence(s) executed"); // A + R count
+  }
+
+  [Fact] // T049 — a Timer reschedule never due before stop is abandoned; the run is not failed.
+  public async Task SelfRescheduleTimerNeverDueIsAbandonedWithoutFailing() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") });
+    var scheduled = false;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && !scheduled) {
+        scheduled = true;
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.Timer, null, TimeSpan.FromHours(12));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    h.Service.IsRunning("q1").Should().BeTrue(); // stays alive waiting for the 12h timer
+
+    await h.Service.StopAsync("q1"); // stop before the timer becomes due
+
+    h.Sequences.Executed.Should().NotContain("R"); // abandoned, never fired (FR-015)
+    h.Log.FinalStatus.Should().Be("success"); // run not marked failed
+    h.Log.Summary.Should().Contain("stopped manually");
   }
 }
