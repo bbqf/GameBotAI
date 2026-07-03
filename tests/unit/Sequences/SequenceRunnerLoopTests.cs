@@ -397,8 +397,14 @@ public sealed class SequenceRunnerLoopTests {
         id => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
-    result.Status.Should().Be("Succeeded");
+    result.Status.Should().Be("Succeeded"); // T015 (US2): the non-firing break never taints the run
     executed.Should().HaveCount(5);
+
+    // T015 (US2): each non-firing break is a neutral no_break, never Skipped.
+    var breaks = result.Steps.Where(s => s.CommandId == "break").ToList();
+    breaks.Should().HaveCount(5);
+    breaks.Should().OnlyContain(s => s.ActionOutcome == "no_break");
+    breaks.Should().NotContain(s => s.Status == "Skipped");
   }
 
   [Fact]
@@ -430,32 +436,171 @@ public sealed class SequenceRunnerLoopTests {
     executed.Should().HaveCount(1);
   }
 
-  [Fact]
-  public async Task CountLoopBreakConditionThrowsLoopFails() {
+  [Fact] // T014 (US2) — reverses the old fail-on-error behavior (feature 066, FR-002a).
+  public async Task CountLoopBreakConditionErrorRecordedAsNoBreakLoopContinues() {
     var executed = new List<string>();
-    var loopStep = new SequenceStep {
-      Order = 0,
-      StepId = "loop",
-      StepType = SequenceStepType.Loop,
-      Loop = new CountLoopConfig { Count = 10 },
-      Body = new List<SequenceStep>
-        {
-                ActionBodyStep(0, "inner"),
-                new SequenceStep
-                {
-                    Order = 1,
-                    StepId = "break",
-                    StepType = SequenceStepType.Break,
-                    BreakCondition = new ImageVisibleStepCondition { ImageId = "img" }
-                }
-            }
-    };
+    var loopStep = CountLoopWithBreak(new ImageVisibleStepCondition { ImageId = "img" }, count: 4);
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
         id => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => throw new InvalidOperationException("eval error"));
 
-    result.Status.Should().Be("Failed");
+    // The break condition erroring is a neutral "no break": the loop runs to completion and the
+    // run stays Succeeded (result.Fail is never called).
+    result.Status.Should().Be("Succeeded");
+    executed.Should().HaveCount(4);
+
+    var breaks = result.Steps.Where(s => s.CommandId == "break").ToList();
+    breaks.Should().HaveCount(4);
+    breaks.Should().OnlyContain(s => s.ActionOutcome == "no_break");
+    breaks.Should().OnlyContain(s => s.ConditionResult == "error");
+    breaks.Should().NotContain(s => s.Status == "Failed");
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Feature 066: break outcome vocabulary (break / no_break)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  private static SequenceStep BreakBodyStep(int order, SequenceStepCondition? condition, string stepId = "break")
+      => new() {
+        Order = order,
+        StepId = stepId,
+        StepType = SequenceStepType.Break,
+        BreakCondition = condition
+      };
+
+  private static SequenceStep CountLoopWithBreak(SequenceStepCondition? breakCondition, int count) =>
+      new() {
+        Order = 0,
+        StepId = "loop",
+        StepType = SequenceStepType.Loop,
+        Loop = new CountLoopConfig { Count = count },
+        Body = new List<SequenceStep> { ActionBodyStep(0, "inner"), BreakBodyStep(1, breakCondition) }
+      };
+
+  [Fact] // T003 (US1)
+  public async Task ConditionalBreakConditionTrueRecordsBreakSuccessAndEndsIteration() {
+    var executed = new List<string>();
+    var loopStep = CountLoopWithBreak(new ImageVisibleStepCondition { ImageId = "img" }, count: 5);
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        id => { executed.Add(id); return Task.CompletedTask; },
+        conditionEvaluator: (_, _) => Task.FromResult(true));
+
+    result.Status.Should().Be("Succeeded");
+    executed.Should().HaveCount(1); // break fired on first iteration → loop ends
+
+    var brk = result.Steps.Single(s => s.CommandId == "break");
+    brk.Status.Should().Be("Succeeded");
+    brk.ActionOutcome.Should().Be("break");
+    brk.ConditionResult.Should().Be("true");
+  }
+
+  [Fact] // T004 (US1)
+  public async Task ConditionalBreakConditionFalseRecordsNoBreakAndLoopContinues() {
+    var executed = new List<string>();
+    var loopStep = CountLoopWithBreak(new ImageVisibleStepCondition { ImageId = "img" }, count: 3);
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        id => { executed.Add(id); return Task.CompletedTask; },
+        conditionEvaluator: (_, _) => Task.FromResult(false));
+
+    result.Status.Should().Be("Succeeded");
+    executed.Should().HaveCount(3); // never breaks → loop runs to completion
+
+    var breaks = result.Steps.Where(s => s.CommandId == "break").ToList();
+    breaks.Should().HaveCount(3);
+    breaks.Should().OnlyContain(s => s.ActionOutcome == "no_break");
+    breaks.Should().OnlyContain(s => s.ConditionResult == "false");
+    breaks.Should().NotContain(s => s.Status == "Skipped");
+    breaks.Should().NotContain(s => s.ActionOutcome == "continue");
+  }
+
+  [Fact] // T005 (US1)
+  public async Task UnconditionalBreakRecordsBreakSuccessAndEndsIteration() {
+    var executed = new List<string>();
+    var loopStep = CountLoopWithBreak(breakCondition: null, count: 10);
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        id => { executed.Add(id); return Task.CompletedTask; });
+
+    result.Status.Should().Be("Succeeded");
+    executed.Should().HaveCount(1);
+
+    var brk = result.Steps.Single(s => s.CommandId == "break");
+    brk.Status.Should().Be("Succeeded");
+    brk.ActionOutcome.Should().Be("break");
+  }
+
+  [Fact] // T026 (US1) — FR-009: a break in a while step-loop yields the same break/no_break outcomes
+  public async Task BreakInWhileStepLoopYieldsSameBreakAndNoBreakOutcomes() {
+    var executed = new List<string>();
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new WhileLoopConfig { Condition = new ImageVisibleStepCondition { ImageId = "loop" } },
+      Body = new List<SequenceStep> {
+        ActionBodyStep(0, "inner"),
+        BreakBodyStep(1, new ImageVisibleStepCondition { ImageId = "brk" })
+      }
+    };
+
+    var brkChecks = 0;
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        id => { executed.Add(id); return Task.CompletedTask; },
+        conditionEvaluator: (cond, _) => {
+          // While condition ("loop") stays true; break condition ("brk") fires on 2nd check.
+          if (cond.TargetId == "brk") return Task.FromResult(++brkChecks >= 2);
+          return Task.FromResult(true);
+        });
+
+    result.Status.Should().Be("Succeeded");
+
+    var breaks = result.Steps.Where(s => s.CommandId == "break").ToList();
+    breaks.Should().HaveCount(2);
+    breaks[0].ActionOutcome.Should().Be("no_break");
+    breaks[0].Status.Should().Be("Succeeded");
+    breaks[1].ActionOutcome.Should().Be("break");
+    breaks[1].Status.Should().Be("Succeeded");
+  }
+
+  [Fact] // T016 (US2) — a no_break on an inner break taints neither the inner loop, outer loop, nor run.
+  public async Task NestedLoopInnerNoBreakDoesNotFailAnyAncestor() {
+    var executed = new List<string>();
+    var innerLoop = new SequenceStep {
+      Order = 1,
+      StepId = "inner-loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new CountLoopConfig { Count = 2 },
+      Body = new List<SequenceStep> {
+        ActionBodyStep(0, "inner"),
+        BreakBodyStep(1, new ImageVisibleStepCondition { ImageId = "img" })
+      }
+    };
+    var outerLoop = new SequenceStep {
+      Order = 0,
+      StepId = "outer-loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new CountLoopConfig { Count = 3 },
+      Body = new List<SequenceStep> { innerLoop }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { outerLoop })));
+    var result = await runner.ExecuteAsync("s",
+        id => { executed.Add(id); return Task.CompletedTask; },
+        conditionEvaluator: (_, _) => Task.FromResult(false)); // break never fires
+
+    result.Status.Should().Be("Succeeded");
+    executed.Should().HaveCount(6); // 3 outer × 2 inner iterations
+
+    var breaks = result.Steps.Where(s => s.CommandId == "break").ToList();
+    breaks.Should().OnlyContain(s => s.ActionOutcome == "no_break");
+    result.Steps.Where(s => s.LoopIterations is not null).Should().OnlyContain(s => s.Status != "Failed");
   }
 }

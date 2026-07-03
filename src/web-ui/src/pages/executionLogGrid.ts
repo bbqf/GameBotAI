@@ -33,6 +33,11 @@ const NODE_TYPE_LABELS: Record<ExecutionTreeNodeKind, string> = {
 export const typeLabel = (nodeKind: string): string =>
   NODE_TYPE_LABELS[nodeKind as ExecutionTreeNodeKind] ?? nodeKind;
 
+// Human-readable label for a status token. Most statuses read fine as-is; the
+// neutral break outcome 'no_break' (feature 066) gets a friendlier "No break".
+export const statusLabel = (status: string): string =>
+  status === 'no_break' ? 'No break' : status;
+
 export const formatExitCondition = (exitCondition?: string): string => {
   switch (exitCondition) {
     case 'image_detected':

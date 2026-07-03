@@ -33,7 +33,7 @@ export type ExecutionTreeNodeKind =
   | 'wait'
   | 'tap';
 
-export type ExecutionTreeNodeStatus = ExecutionStatus | 'skipped' | 'not_executed';
+export type ExecutionTreeNodeStatus = ExecutionStatus | 'skipped' | 'not_executed' | 'no_break';
 
 export type ExecutionTreeNodeDto = {
   nodeKind: ExecutionTreeNodeKind;
