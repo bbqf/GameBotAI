@@ -472,9 +472,10 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       _ => "step"
     };
 
-  private static string MapStepStatus(string? outcome)
+  internal static string MapStepStatus(string? outcome)
     => (outcome ?? string.Empty).ToLowerInvariant() switch {
-      "executed" or "success" or "image_detected" or "true" => "success",
+      "executed" or "success" or "image_detected" or "true" or "break" => "success",
+      "no_break" => "no_break",
       "skipped" => "skipped",
       "not_executed" => "not_executed",
       "running" => "running",

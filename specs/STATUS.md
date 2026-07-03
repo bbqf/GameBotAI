@@ -69,7 +69,7 @@ Status vocabulary:
 | 031 | Visual Conditional Sequence Logic | Superseded by 032, 033 |
 | 032 | Per-Step Optional Conditions | Implemented |
 | 033 | Conditional Sequence Steps (Minimal) | Implemented |
-| 034 | Command Loop Structures | Implemented |
+| 034 | Command Loop Structures | Implemented (iterated by 066) |
 | 035 | Background Screenshot Service | Implemented |
 | 036 | UI Configuration Editor | Implemented |
 | 037 | Tap Wait-and-Retry Before Execution | Implemented |
@@ -77,7 +77,7 @@ Status vocabulary:
 | 039 | Primitive Actions Data Model Refactor | Implemented (removed the Action data model) |
 | 040 | Wait for Image Primitive Action | Implemented |
 | 041 | Preserve Sequence Step Command Names | Implemented |
-| 042 | Sequence Loop Step Management | Implemented |
+| 042 | Sequence Loop Step Management | Implemented (iterated by 066) |
 | 043 | Reorder Spec Folders | Meta (housekeeping) |
 | 044 | Drag and Drop for Command Steps | Implemented |
 | 045 | Image Selector Dropdown | Implemented |
@@ -101,6 +101,7 @@ Status vocabulary:
 | 063 | Execution Logs Reflect What Was Actually Executed | Implemented (iterated by 050) — renumbered from 049 |
 | 064 | Command Editor Rework | Implemented (iterated by 054) — renumbered from 053 |
 | 065 | Sequence Self-Rescheduling into the Originating Queue Run | Implemented |
+| 066 | Break Step Success/Failure Execution Statuses | Implemented |
 
 ## Numbering notes
 

@@ -14,6 +14,23 @@ using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Services {
   /// <summary>
+  /// Canonical break-outcome vocabulary (feature 066) shared by both break mechanisms —
+  /// the loop-body break step (<see cref="SequenceStepType.Break"/>) and the loop-level
+  /// <c>breakOn</c> end-state — and by the <c>GameBot.Service</c> execution-log mapping,
+  /// so no layer relies on magic strings.
+  /// </summary>
+  public static class BreakOutcomes {
+    /// <summary>The break fired (loop ended). Rendered as a success.</summary>
+    public const string Break = "break";
+
+    /// <summary>
+    /// The break did not fire (condition false, or condition/breakOn could not be evaluated).
+    /// A distinct, neutral "No break" — never a failure, never <c>Skipped</c>.
+    /// </summary>
+    public const string NoBreak = "no_break";
+  }
+
+  /// <summary>
   /// Minimal runner that executes a sequence by iterating steps and applying delays.
   /// Detection gating and retries will be added in later phases.
   /// </summary>
@@ -950,7 +967,8 @@ namespace GameBot.Domain.Services {
     /// <summary>
     /// Executes the body steps for one loop iteration.  Returns
     /// (<c>earlyStop</c>, <c>breakTriggered</c>, <c>stepsExecuted</c>).
-    /// A break step with a condition-evaluator error sets earlyStop=true.
+    /// A break step whose condition cannot be evaluated is recorded as a neutral "No break"
+    /// (feature 066, FR-002a) and the loop continues — it does not set earlyStop.
     /// </summary>
     private async Task<(bool EarlyStop, bool BreakTriggered, int StepCount)> ExecuteLoopBodyAsync(
         IReadOnlyList<SequenceStep> bodySteps,
@@ -974,11 +992,11 @@ namespace GameBot.Domain.Services {
           var brkKey = string.IsNullOrWhiteSpace(step.StepId) ? "break" : step.StepId;
 
           if (step.BreakCondition is null) {
-            // Unconditional break
+            // Unconditional break — fired.
             result.AddStep(brkKey, 0, "Succeeded",
                 conditionType: "unconditional",
                 conditionResult: "true",
-                actionOutcome: "break",
+                actionOutcome: BreakOutcomes.Break,
                 message: "Unconditional break triggered");
             return (false, true, stepsExecuted);
           }
@@ -987,34 +1005,42 @@ namespace GameBot.Domain.Services {
 
           // Conditional break
           bool breakCond;
+          var evalError = false;
           try {
             breakCond = await EvaluateLoopConditionAsync(
                 step.BreakCondition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
           }
-          catch {
-            result.AddStep(brkKey, 0, "Failed",
+          catch (Exception ex) {
+            // FR-002a: a break-condition evaluation error is treated exactly like a false
+            // condition — a neutral "No break". The loop continues and the run is not failed.
+            evalError = true;
+            breakCond = false;
+            result.AddStep(brkKey, 0, "Succeeded",
                 conditionType: condDesc.Type,
                 conditionResult: "error",
-                actionOutcome: "failed",
-                message: $"Break step '{brkKey}' condition evaluation failed ({condDesc.Detail}).");
-            result.Fail($"Break step '{brkKey}' condition evaluation failed.");
-            return (true, false, stepsExecuted);
+                actionOutcome: BreakOutcomes.NoBreak,
+                message: $"No break: {condDesc.Detail} could not be evaluated ({ex.Message})");
           }
 
           if (breakCond) {
+            // Conditional break — fired.
             result.AddStep(brkKey, 0, "Succeeded",
                 conditionType: condDesc.Type,
                 conditionResult: "true",
-                actionOutcome: "break",
+                actionOutcome: BreakOutcomes.Break,
                 message: $"Break triggered: {condDesc.Detail} evaluated to true");
             return (false, true, stepsExecuted);
           }
 
-          result.AddStep(brkKey, 0, "Skipped",
-              conditionType: condDesc.Type,
-              conditionResult: "false",
-              actionOutcome: "continue",
-              message: $"Break skipped: {condDesc.Detail} evaluated to false");
+          if (!evalError) {
+            // Conditional break — did not fire. A neutral "No break" (never Skipped), the loop
+            // continues, and the run is not influenced (feature 066, FR-003/FR-006).
+            result.AddStep(brkKey, 0, "Succeeded",
+                conditionType: condDesc.Type,
+                conditionResult: "false",
+                actionOutcome: BreakOutcomes.NoBreak,
+                message: $"No break: {condDesc.Detail} evaluated to false");
+          }
 
           if (bodyIndex < orderedBodySteps.Count - 1) {
             var delayMs = SampleInterStepDelay(interStepDelayRange);
@@ -1251,7 +1277,9 @@ namespace GameBot.Domain.Services {
       while (true) {
         ct.ThrowIfCancellationRequested();
         if (breakOn != null && conditionEvaluator != null) {
-          var brStart = await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
+          // FR-010: guard the breakOn evaluation — an error is treated as false (no break) rather
+          // than propagating out and failing the run.
+          var brStart = await TryEvaluateBreakOnAsync(conditionEvaluator, breakOn, ct).ConfigureAwait(false);
           evals++;
           if (_logger != null) LogBlockEvaluation(_logger, "while", "breakOn-start", brStart, null);
           if (brStart) {
@@ -1291,7 +1319,8 @@ namespace GameBot.Domain.Services {
               }
             }
             if (breakOn != null && conditionEvaluator != null) {
-              var brMid = await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
+              // FR-010: guard the breakOn evaluation — an error is treated as false (no break).
+              var brMid = await TryEvaluateBreakOnAsync(conditionEvaluator, breakOn, ct).ConfigureAwait(false);
               evals++;
               if (_logger != null) LogBlockEvaluation(_logger, "while", "breakOn-mid", brMid, null);
               if (brMid) {
@@ -1333,6 +1362,26 @@ namespace GameBot.Domain.Services {
           return;
         }
         await Task.Delay(cadenceMs, ct).ConfigureAwait(false);
+      }
+    }
+
+    /// <summary>
+    /// Evaluates a loop-level <c>breakOn</c> condition, treating an evaluation error as
+    /// <c>false</c> (no break) per feature 066 (FR-010) so a broken condition can never throw
+    /// out of the block and fail the run.  Cancellation is not swallowed.
+    /// </summary>
+    private static async Task<bool> TryEvaluateBreakOnAsync(
+        Func<Condition, CancellationToken, Task<bool>> conditionEvaluator,
+        Condition breakOn,
+        CancellationToken ct) {
+      try {
+        return await conditionEvaluator(breakOn, ct).ConfigureAwait(false);
+      }
+      catch (OperationCanceledException) {
+        throw;
+      }
+      catch {
+        return false;
       }
     }
 

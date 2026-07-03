@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-06-22._
+_Last reviewed: 2026-07-01._
 
 ## What GameBot is
 
@@ -86,6 +86,25 @@ not survive a service restart; queue *configuration* and templates are persisted
   runtime per-component logging level control, jitter/retry/delay parameters.
 - **Packaging**: standalone Windows installer (EXE/MSI) with semantic-version upgrade flow
   (build auto-versioning, downgrade prohibition).
+
+### Break & loop execution and the execution-log status vocabulary
+
+Loops (count / while / repeat-until step-loops, and while/repeat-until blocks) may end early via a
+**break** — either a discrete break step in the loop body (`SequenceStepType.Break`) or a loop-level
+`breakOn` condition on a while block. A break's *own* outcome (feature 066) is reported with a
+canonical two-token vocabulary (`GameBot.Domain.Services.BreakOutcomes`), carried in the existing
+`StepResult.ActionOutcome`:
+
+- `break` — the break **fired** (unconditional, or its condition/`breakOn` evaluated true). A
+  **success**; the loop ends at that point.
+- `no_break` — the break **did not fire** (condition false, or the condition/`breakOn` could not be
+  evaluated). A distinct, neutral **"No break"** — never `Skipped`, never the red `Failed`. Execution
+  continues unchanged and the run's health is not affected: a break-condition (or `breakOn`)
+  evaluation error is guarded and treated as `no_break`, so it never fails the run.
+
+`ExecutionLogService.MapStepStatus` maps these to node statuses (`break → success`,
+`no_break → no_break`); the web-ui renders `no_break` as a neutral "No break" badge distinct from
+`failure` and `skipped`.
 
 ## REST API surface
 

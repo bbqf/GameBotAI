@@ -11,6 +11,12 @@ All notable changes to this project will be documented in this file.
   - New configuration parameter `GAMEBOT_TAP_JITTER_RADIUS_PX` (default `5`): `0` disables jitter entirely (pixel-exact input); negative/invalid values fall back to the default. Follows the standard precedence (default → saved config file → environment variable), appears in the generic UI Configuration variables list, and is documented in `ENVIRONMENT.md`.
   - Execution logs and step outcomes now report both the pre-jitter target and the post-jitter executed coordinates: tap details read "Tap targeted (X,Y), executed at (X',Y')" and step outcome payloads gain additive `executedPoint`, `targetSwipe`, and `executedSwipe` fields alongside the existing `resolvedPoint`.
 
+### Changed
+- Break step success/failure execution statuses (066-break-step-status)
+  - A break that **does not fire** (its condition evaluated false) now shows a distinct, neutral **"No break"** state in the execution logs instead of the old `Skipped` label — clearly signalling that the loop simply continued, and never the alarming red "Failed".
+  - A break whose condition **cannot be evaluated** (a runtime error) is now treated exactly like a false condition — a non-influential "No break" — so execution continues and the run no longer fails. This reverses the previous behavior where a break-condition error aborted the run. The same guarantee applies to a loop-level `breakOn` condition on a while block, whose evaluation errors are now guarded.
+  - A break that **fires** is reported as a success (fixing a latent miscolor where a fired break could fall through to the red "failure" styling). A non-firing break never marks the enclosing loop, sequence, or run as failed and is excluded from failure counts. No change to break authoring, break firing behavior, or the persisted log format — only the reported *outcome* of a break changes.
+
 ## [0.7.0] - 2026-06-02
 
 ### Added

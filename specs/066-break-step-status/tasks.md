@@ -31,7 +31,7 @@ Web application, existing four-project layout: `src/GameBot.Domain/`, `src/GameB
 
 **Purpose**: Establish a known-green baseline before changing behavior (release-blocker gate).
 
-- [ ] T001 Establish baseline: run `dotnet test "C:\src\GameBot\GameBot.sln" --filter "FullyQualifiedName~SequenceRunnerLoopTests|FullyQualifiedName~ExecutionLog"` and `npm --prefix "C:\src\GameBot\src\web-ui" run build` + `npm --prefix "C:\src\GameBot\src\web-ui" test`; record that they pass (or note the pre-existing lint/`tsc` failures are excluded from the gate per project memory).
+- [X] T001 Establish baseline: run `dotnet test "C:\src\GameBot\GameBot.sln" --filter "FullyQualifiedName~SequenceRunnerLoopTests|FullyQualifiedName~ExecutionLog"` and `npm --prefix "C:\src\GameBot\src\web-ui" run build` + `npm --prefix "C:\src\GameBot\src\web-ui" test`; record that they pass (or note the pre-existing lint/`tsc` failures are excluded from the gate per project memory).
 
 ---
 
@@ -41,7 +41,7 @@ Web application, existing four-project layout: `src/GameBot.Domain/`, `src/GameB
 
 **⚠️ CRITICAL**: Both user stories depend on these tokens existing.
 
-- [ ] T002 Add canonical break outcome tokens `break` and `no_break` as a small internal/public static holder in `src/GameBot.Domain/Services/SequenceRunner.cs` (e.g. a `BreakOutcomes` static class alongside the runner) so the loop-body break step, the loop-level `breakOn` end-state, and `GameBot.Service` mapping all reference one source of truth instead of magic strings.
+- [X] T002 Add canonical break outcome tokens `break` and `no_break` as a small internal/public static holder in `src/GameBot.Domain/Services/SequenceRunner.cs` (e.g. a `BreakOutcomes` static class alongside the runner) so the loop-body break step, the loop-level `breakOn` end-state, and `GameBot.Service` mapping all reference one source of truth instead of magic strings.
 
 **Checkpoint**: Outcome tokens available — user story work can begin.
 
@@ -55,21 +55,21 @@ Web application, existing four-project layout: `src/GameBot.Domain/`, `src/GameB
 
 ### Tests for User Story 1 (write first, ensure they FAIL) ⚠️
 
-- [ ] T003 [P] [US1] Unit test: conditional break with condition TRUE records `StepResult.Status="Succeeded"`, `ActionOutcome="break"`, `ConditionResult="true"`, and ends the iteration — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
-- [ ] T004 [P] [US1] Unit test: conditional break with condition FALSE records `ActionOutcome="no_break"` (asserts it is NOT `Skipped`/`continue`) and the loop continues to the next iteration — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
-- [ ] T005 [P] [US1] Unit test: unconditional ("Always break") step records `ActionOutcome="break"` success and ends the iteration — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
-- [ ] T006 [P] [US1] Unit test: `ExecutionLogService.MapStepStatus` maps `"break" → "success"` and `"no_break" → "no_break"` — in `tests/unit/ExecutionLogs/ExecutionLogServiceMapStepStatusTests.cs` (new file, alongside the existing `tests/unit/ExecutionLogs/` suite)
-- [ ] T007 [P] [US1] web-ui Jest test: the execution-log grid renders a distinct neutral "No break" badge for a node whose status is `no_break` (asserts it is not the red `failure` styling and not `skipped`) — colocated in `src/web-ui/src/pages/__tests__/ExecutionLogs.noBreak.test.tsx` (new file)
-- [ ] T026 [P] [US1] Unit test for FR-009 (loop-construct consistency): a break step hosted in a **while / do-while** step-loop (not a count loop) yields the same `break`/`no_break` outcomes as the count-loop cases, confirming the shared `ExecuteLoopBodyAsync` path applies uniformly — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
+- [X] T003 [P] [US1] Unit test: conditional break with condition TRUE records `StepResult.Status="Succeeded"`, `ActionOutcome="break"`, `ConditionResult="true"`, and ends the iteration — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
+- [X] T004 [P] [US1] Unit test: conditional break with condition FALSE records `ActionOutcome="no_break"` (asserts it is NOT `Skipped`/`continue`) and the loop continues to the next iteration — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
+- [X] T005 [P] [US1] Unit test: unconditional ("Always break") step records `ActionOutcome="break"` success and ends the iteration — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
+- [X] T006 [P] [US1] Unit test: `ExecutionLogService.MapStepStatus` maps `"break" → "success"` and `"no_break" → "no_break"` — in `tests/unit/ExecutionLogs/ExecutionLogServiceMapStepStatusTests.cs` (new file, alongside the existing `tests/unit/ExecutionLogs/` suite)
+- [X] T007 [P] [US1] web-ui Jest test: the execution-log grid renders a distinct neutral "No break" badge for a node whose status is `no_break` (asserts it is not the red `failure` styling and not `skipped`) — colocated in `src/web-ui/src/pages/__tests__/ExecutionLogs.noBreak.test.tsx` (new file)
+- [X] T026 [P] [US1] Unit test for FR-009 (loop-construct consistency): a break step hosted in a **while / do-while** step-loop (not a count loop) yields the same `break`/`no_break` outcomes as the count-loop cases, confirming the shared `ExecuteLoopBodyAsync` path applies uniformly — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] In `ExecuteLoopBodyAsync` condition-FALSE branch, record the outcome as `no_break` (`Status="Succeeded"`, `ActionOutcome=no_break`, `ConditionResult="false"`, message retained per FR-007) instead of `Status="Skipped"`/`ActionOutcome="continue"`, keeping the fall-through to the next body step / iteration unchanged — in `src/GameBot.Domain/Services/SequenceRunner.cs` (~lines 1013-1017)
-- [ ] T009 [US1] In the fired branches of `ExecuteLoopBodyAsync` (unconditional and condition-true), confirm/normalize `ActionOutcome=break` and `Status="Succeeded"` using the `BreakOutcomes` tokens — in `src/GameBot.Domain/Services/SequenceRunner.cs` (~lines 978-1010)
-- [ ] T010 [US1] Extend `ExecutionLogService.MapStepStatus`: add cases `"break" => "success"` and `"no_break" => "no_break"` (fixes the current fall-through of `"break"` to `"failure"`) — in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs` (~lines 475-482)
-- [ ] T011 [US1] Verify the flat detail-item mapping in `SequenceExecutionService` passes `break`/`no_break` through unchanged (the `Skipped→"skipped"` fallback at ~lines 223-225 does not apply because break steps set `ActionOutcome` explicitly); adjust only if a break step would otherwise be mislabeled — in `src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs`
-- [ ] T012 [P] [US1] Extend `ExecutionTreeNodeStatus` with `'no_break'` — in `src/web-ui/src/services/executionLogsApi.ts` (line ~36)
-- [ ] T013 [US1] Render the `no_break` status in the log grid: surface the value in `src/web-ui/src/pages/executionLogGrid.ts`, give it a readable label/aria in `src/web-ui/src/pages/ExecutionLogs.tsx` (status cell, ~line 56), and add a distinct **neutral** badge style for the `execution-logs-row[data-status="no_break"]` / `execution-logs-cell-status` selectors in `src/web-ui/src/styles.css` (do not reuse the `failure`/red styling)
+- [X] T008 [US1] In `ExecuteLoopBodyAsync` condition-FALSE branch, record the outcome as `no_break` (`Status="Succeeded"`, `ActionOutcome=no_break`, `ConditionResult="false"`, message retained per FR-007) instead of `Status="Skipped"`/`ActionOutcome="continue"`, keeping the fall-through to the next body step / iteration unchanged — in `src/GameBot.Domain/Services/SequenceRunner.cs` (~lines 1013-1017)
+- [X] T009 [US1] In the fired branches of `ExecuteLoopBodyAsync` (unconditional and condition-true), confirm/normalize `ActionOutcome=break` and `Status="Succeeded"` using the `BreakOutcomes` tokens — in `src/GameBot.Domain/Services/SequenceRunner.cs` (~lines 978-1010)
+- [X] T010 [US1] Extend `ExecutionLogService.MapStepStatus`: add cases `"break" => "success"` and `"no_break" => "no_break"` (fixes the current fall-through of `"break"` to `"failure"`) — in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs` (~lines 475-482)
+- [X] T011 [US1] Verify the flat detail-item mapping in `SequenceExecutionService` passes `break`/`no_break` through unchanged (the `Skipped→"skipped"` fallback at ~lines 223-225 does not apply because break steps set `ActionOutcome` explicitly); adjust only if a break step would otherwise be mislabeled — in `src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs`
+- [X] T012 [P] [US1] Extend `ExecutionTreeNodeStatus` with `'no_break'` — in `src/web-ui/src/services/executionLogsApi.ts` (line ~36)
+- [X] T013 [US1] Render the `no_break` status in the log grid: surface the value in `src/web-ui/src/pages/executionLogGrid.ts`, give it a readable label/aria in `src/web-ui/src/pages/ExecutionLogs.tsx` (status cell, ~line 56), and add a distinct **neutral** badge style for the `execution-logs-row[data-status="no_break"]` / `execution-logs-cell-status` selectors in `src/web-ui/src/styles.css` (do not reuse the `failure`/red styling)
 
 **Checkpoint**: A fired break shows success; a non-firing conditional break shows a distinct "No break" badge. MVP is demoable.
 
@@ -83,17 +83,17 @@ Web application, existing four-project layout: `src/GameBot.Domain/`, `src/GameB
 
 ### Tests for User Story 2 (write first, ensure they FAIL) ⚠️
 
-- [ ] T014 [P] [US2] Rewrite `CountLoopBreakConditionThrowsLoopFails` → `CountLoopBreakConditionErrorRecordedAsNoBreakLoopContinues`: a break condition that throws is recorded as `no_break`, the loop continues, and the run/loop `Status` is `Succeeded` (asserts `result.Fail()` is NOT called) — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs` (~line 434)
-- [ ] T015 [P] [US2] Update `CountLoopConditionalBreakNeverTriggeredLoopRunsToCompletion` to also assert the run `Status="Succeeded"` and that each non-firing break is `no_break` (not `Skipped`) — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs` (~line 374)
-- [ ] T016 [P] [US2] Unit test: nested loops — a `no_break` on an inner break does not mark the inner loop, outer loop, or sequence as failed (run `Status="Succeeded"`) — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
-- [ ] T017 [P] [US2] Unit test for the loop-level `breakOn`: a `breakOn` whose evaluation throws does not propagate/fail the run and the loop continues; a `breakOn` that evaluates true ends the block with `Status="true"` — in `tests/unit/Sequences/SequenceRunnerWhileBreakOnTests.cs` (new file)
-- [ ] T018 [P] [US2] web-ui Jest test: a run whose only non-success break outcomes are `no_break` renders the run/loop row as Succeeded (not failed) — colocated in `src/web-ui/src/pages/__tests__/ExecutionLogs.noBreak.test.tsx`
+- [X] T014 [P] [US2] Rewrite `CountLoopBreakConditionThrowsLoopFails` → `CountLoopBreakConditionErrorRecordedAsNoBreakLoopContinues`: a break condition that throws is recorded as `no_break`, the loop continues, and the run/loop `Status` is `Succeeded` (asserts `result.Fail()` is NOT called) — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs` (~line 434)
+- [X] T015 [P] [US2] Update `CountLoopConditionalBreakNeverTriggeredLoopRunsToCompletion` to also assert the run `Status="Succeeded"` and that each non-firing break is `no_break` (not `Skipped`) — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs` (~line 374)
+- [X] T016 [P] [US2] Unit test: nested loops — a `no_break` on an inner break does not mark the inner loop, outer loop, or sequence as failed (run `Status="Succeeded"`) — in `tests/unit/Sequences/SequenceRunnerLoopTests.cs`
+- [X] T017 [P] [US2] Unit test for the loop-level `breakOn`: a `breakOn` whose evaluation throws does not propagate/fail the run and the loop continues; a `breakOn` that evaluates true ends the block with `Status="true"` — in `tests/unit/Sequences/SequenceRunnerWhileBreakOnTests.cs` (new file)
+- [X] T018 [P] [US2] web-ui Jest test: a run whose only non-success break outcomes are `no_break` renders the run/loop row as Succeeded (not failed) — colocated in `src/web-ui/src/pages/__tests__/ExecutionLogs.noBreak.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] In the `ExecuteLoopBodyAsync` break-condition `catch`, record `no_break` (`Status="Succeeded"`, `ConditionResult="error"`, message includes the condition detail + error per FR-007) and return `(false, false, stepsExecuted)` to continue the loop — remove the `result.Fail(...)` call and the `earlyStop=true` return — in `src/GameBot.Domain/Services/SequenceRunner.cs` (~lines 994-1002)
-- [ ] T020 [US2] Guard the loop-level `breakOn` evaluations: wrap the `breakOn-start` (~line 1254) and `breakOn-mid` (~line 1294) `conditionEvaluator` calls in `ExecuteWhileBlockAsync` so an exception is treated as `false` (no break) rather than propagating out and failing the run; a true result still ends the block with `Status="true"` — in `src/GameBot.Domain/Services/SequenceRunner.cs`
-- [ ] T021 [US2] Confirm FR-008: `no_break` outcomes are excluded from failure counts/health/alerts (they key on `Failed` status / `failure` node status, which `no_break` never sets). Add/extend an assertion covering this and change code only if a counter would otherwise include `no_break` — in `tests/unit/ExecutionLogs/ExecutionLogServiceMapStepStatusTests.cs` (and `src/GameBot.Service/Endpoints/MetricsEndpoints.cs` only if a change is actually needed)
+- [X] T019 [US2] In the `ExecuteLoopBodyAsync` break-condition `catch`, record `no_break` (`Status="Succeeded"`, `ConditionResult="error"`, message includes the condition detail + error per FR-007) and return `(false, false, stepsExecuted)` to continue the loop — remove the `result.Fail(...)` call and the `earlyStop=true` return — in `src/GameBot.Domain/Services/SequenceRunner.cs` (~lines 994-1002)
+- [X] T020 [US2] Guard the loop-level `breakOn` evaluations: wrap the `breakOn-start` (~line 1254) and `breakOn-mid` (~line 1294) `conditionEvaluator` calls in `ExecuteWhileBlockAsync` so an exception is treated as `false` (no break) rather than propagating out and failing the run; a true result still ends the block with `Status="true"` — in `src/GameBot.Domain/Services/SequenceRunner.cs`
+- [X] T021 [US2] Confirm FR-008: `no_break` outcomes are excluded from failure counts/health/alerts (they key on `Failed` status / `failure` node status, which `no_break` never sets). Add/extend an assertion covering this and change code only if a counter would otherwise include `no_break` — in `tests/unit/ExecutionLogs/ExecutionLogServiceMapStepStatusTests.cs` (and `src/GameBot.Service/Endpoints/MetricsEndpoints.cs` only if a change is actually needed)
 
 **Checkpoint**: Non-firing breaks (false + error) and unguarded `breakOn` errors leave the run green and the flow intact, across both break mechanisms.
 
@@ -101,10 +101,10 @@ Web application, existing four-project layout: `src/GameBot.Domain/`, `src/GameB
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T022 [P] Update `docs/architecture.md`: break/loop execution behavior and the execution-log status vocabulary (add `break`/`no_break`), and refresh the "Last reviewed" date (Constitution Principle V)
-- [ ] T023 [P] Add a `CHANGELOG.md` entry for the user-visible change (non-firing breaks now show a neutral "No break" state instead of `Skipped`, and a break-condition error no longer fails the run)
-- [ ] T024 Update `specs/066-break-step-status/spec.md` `Status` line to Implemented and reconcile `specs/STATUS.md`; add an "iterated by 066" note to the `Status` of the earlier break/loop specs (014, 034, 042) if their described behavior is now changed (Constitution Principle V)
-- [ ] T025 Run `specs/066-break-step-status/quickstart.md` validation end-to-end (backend `dotnet test` filters + `vite build` + `jest`, then the manual UI walkthrough)
+- [X] T022 [P] Update `docs/architecture.md`: break/loop execution behavior and the execution-log status vocabulary (add `break`/`no_break`), and refresh the "Last reviewed" date (Constitution Principle V)
+- [X] T023 [P] Add a `CHANGELOG.md` entry for the user-visible change (non-firing breaks now show a neutral "No break" state instead of `Skipped`, and a break-condition error no longer fails the run)
+- [X] T024 Update `specs/066-break-step-status/spec.md` `Status` line to Implemented and reconcile `specs/STATUS.md`; add an "iterated by 066" note to the `Status` of the earlier break/loop specs (014, 034, 042) if their described behavior is now changed (Constitution Principle V)
+- [X] T025 Run `specs/066-break-step-status/quickstart.md` validation end-to-end (backend `dotnet test` filters + `vite build` + `jest`, then the manual UI walkthrough)
 
 ---
 

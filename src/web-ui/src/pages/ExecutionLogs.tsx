@@ -8,7 +8,7 @@ import {
   getExecutionSubtree,
   listExecutionLogs
 } from '../services/executionLogsApi';
-import { GridRow, projectEntryRow, projectNodeRow } from './executionLogGrid';
+import { GridRow, projectEntryRow, projectNodeRow, statusLabel } from './executionLogGrid';
 
 const PAGE_SIZE = 50;
 const POLL_INTERVAL_MS = 2000;
@@ -53,7 +53,7 @@ const GridRowView: React.FC<{ row: GridRow; expanded: boolean; onToggle: () => v
       {row.name}
     </td>
     <td className="execution-logs-cell-type">{row.type}</td>
-    <td className="execution-logs-cell-status">{row.status}</td>
+    <td className="execution-logs-cell-status" aria-label={statusLabel(row.status)}>{statusLabel(row.status)}</td>
     <td className="execution-logs-cell-info">{row.info}</td>
   </tr>
 );

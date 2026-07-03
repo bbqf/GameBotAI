@@ -73,6 +73,19 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .execution-logs-cell-timestamp, .execution-logs-cell-type, .execution-logs-cell-status { white-space: nowrap; }
 .execution-logs-cell-name { min-width: 12rem; }
 .execution-logs-cell-info { min-width: 18rem; color: var(--gb-color-muted); }
+/* Feature 066: a break that did not fire is a distinct, neutral "No break" — never the alarming
+   red failure styling, never "skipped". A calm slate badge marks it as a normal, non-failing state. */
+.execution-logs-row[data-status="no_break"] .execution-logs-cell-status {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.03em;
+	background: #f1f5f9;
+	color: #64748b;
+}
 
 /* Mobile: single-column layout with full-width controls */
 @media (max-width: 480px) {
