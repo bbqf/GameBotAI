@@ -48,6 +48,11 @@ public sealed class SequenceStepValidationService {
         continue;
       }
 
+      if (step.StepType == SequenceStepType.If) {
+        ValidateIfStep(step, stepLabel, errors, insideLoop: false);
+        continue;
+      }
+
       if (step.Action is null) {
         errors.Add($"Step '{stepLabel}' requires action payload.");
       }
@@ -100,6 +105,12 @@ public sealed class SequenceStepValidationService {
         continue;
       }
 
+      // Feature 067: loop bodies may contain if steps (whose branches may then use breaks).
+      if (bodyStep.StepType == SequenceStepType.If) {
+        ValidateIfStep(bodyStep, bodyLabel, errors, insideLoop: true);
+        continue;
+      }
+
       if (bodyStep.StepType == SequenceStepType.Break) {
         if (bodyStep.BreakCondition is ImageVisibleStepCondition brkImgVis
             && string.IsNullOrWhiteSpace(brkImgVis.ImageId)) {
@@ -116,6 +127,94 @@ public sealed class SequenceStepValidationService {
       // validate that top-level steps do NOT contain placeholders (done in Validate()). Here
       // we just validate the body step's condition references.
       ValidateStepCondition(bodyStep, bodyLabel, step.Body, bi, errors, insideLoop: true);
+    }
+  }
+
+  // Feature 067: validates an if step and its then/else branches. Branches follow loop-body
+  // rules (flat: no loops, no nested ifs); breaks are only allowed when the if step itself
+  // sits inside a loop body.
+  private void ValidateIfStep(
+      SequenceStep step,
+      string stepLabel,
+      List<string> errors,
+      bool insideLoop) {
+
+    if (step.If is null) {
+      errors.Add($"If step '{stepLabel}' requires an if configuration with a condition.");
+    }
+    else {
+      ValidateIfCondition(step.If.Condition, stepLabel, errors);
+    }
+
+    ValidateIfBranch(step.Body, "then", stepLabel, errors, insideLoop);
+    if (step.ElseBody is not null) {
+      ValidateIfBranch(step.ElseBody, "else", stepLabel, errors, insideLoop);
+    }
+  }
+
+  private static void ValidateIfCondition(SequenceStepCondition condition, string stepLabel, List<string> errors) {
+    if (condition is ImageVisibleStepCondition imageVisible && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
+      errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
+    }
+
+    if (condition is CommandOutcomeStepCondition commandOutcome) {
+      if (string.IsNullOrWhiteSpace(commandOutcome.StepRef)) {
+        errors.Add($"Step '{stepLabel}' commandOutcome condition requires stepRef.");
+      }
+
+      if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
+          || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
+        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of success|failed|skipped.");
+      }
+    }
+  }
+
+  private void ValidateIfBranch(
+      IReadOnlyList<SequenceStep> branch,
+      string branchName,
+      string stepLabel,
+      List<string> errors,
+      bool insideLoop) {
+
+    var branchStepIds = new HashSet<string>(_stepIdComparer);
+    for (var bi = 0; bi < branch.Count; bi++) {
+      var branchStep = branch[bi];
+      var branchLabel = string.IsNullOrWhiteSpace(branchStep.StepId) ? $"{stepLabel}.{branchName}[{bi}]" : branchStep.StepId;
+
+      if (string.IsNullOrWhiteSpace(branchStep.StepId)) {
+        errors.Add($"Branch step at index {bi} inside if '{stepLabel}' ({branchName}) requires non-empty stepId.");
+      }
+      else if (!branchStepIds.Add(branchStep.StepId)) {
+        errors.Add($"Duplicate branch step id '{branchStep.StepId}' inside if '{stepLabel}' ({branchName}).");
+      }
+
+      // Branches are flat, mirroring the loop-body rule.
+      if (branchStep.StepType == SequenceStepType.Loop) {
+        errors.Add($"Branch step '{branchLabel}' inside if '{stepLabel}' must not itself be a loop step.");
+        continue;
+      }
+
+      if (branchStep.StepType == SequenceStepType.If) {
+        errors.Add($"Branch step '{branchLabel}' inside if '{stepLabel}' must not itself be an if step.");
+        continue;
+      }
+
+      if (branchStep.StepType == SequenceStepType.Break) {
+        if (!insideLoop) {
+          errors.Add($"Branch step '{branchLabel}' inside if '{stepLabel}' has stepType 'Break' which is only valid inside a loop body.");
+        }
+        else if (branchStep.BreakCondition is ImageVisibleStepCondition brkImgVis
+            && string.IsNullOrWhiteSpace(brkImgVis.ImageId)) {
+          errors.Add($"Break step '{branchLabel}' imageVisible breakCondition requires imageId.");
+        }
+        continue;
+      }
+
+      if (branchStep.Action is null) {
+        errors.Add($"Branch step '{branchLabel}' inside if '{stepLabel}' requires action payload.");
+      }
+
+      ValidateStepCondition(branchStep, branchLabel, branch, bi, errors, insideLoop: insideLoop);
     }
   }
 

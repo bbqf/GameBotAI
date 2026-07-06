@@ -95,6 +95,9 @@ export const StepPickerOverlay: React.FC<StepPickerOverlayProps> = ({
   return (
     <div
       className="step-picker-overlay"
+      role="button"
+      tabIndex={0}
+      aria-label="Emulator screenshot gesture surface"
       style={{ position: 'relative', display: 'inline-block', cursor: status === 'ready' ? 'crosshair' : 'default', userSelect: 'none' }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}

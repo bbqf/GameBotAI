@@ -102,6 +102,7 @@ Status vocabulary:
 | 064 | Command Editor Rework | Implemented (iterated by 054) — renumbered from 053 |
 | 065 | Sequence Self-Rescheduling into the Originating Queue Run | Implemented |
 | 066 | Break Step Success/Failure Execution Statuses | Implemented |
+| 067 | If-Then-Else Conditions in Sequences | Implemented |
 
 ## Numbering notes
 

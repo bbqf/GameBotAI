@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { CommandForm, CommandFormValue, StepEntry } from '../CommandForm';
 
 // ── DnD mocks ─────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ jest.mock('@dnd-kit/utilities', () => ({
 // ── ImageSelectorDropdown mock ────────────────────────────────────────────────
 
 jest.mock('../../images/ImageSelectorDropdown', () => ({
-  ImageSelectorDropdown: ({ value, onChange, onStaleChange, error, label, id }: any) => (
+  ImageSelectorDropdown: ({ value, onChange, onStaleChange: _onStaleChange, error, label, id }: any) => (
     <div>
       {label && <label htmlFor={id ?? 'mock-img'}>{label}</label>}
       <input

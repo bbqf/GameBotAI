@@ -26,6 +26,7 @@ const NODE_TYPE_LABELS: Record<ExecutionTreeNodeKind, string> = {
   condition: 'Condition',
   loop: 'Loop',
   loopIteration: 'Iteration',
+  if: 'If',
   wait: 'Wait',
   tap: 'Tap'
 };

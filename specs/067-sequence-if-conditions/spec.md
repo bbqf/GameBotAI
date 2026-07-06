@@ -2,7 +2,7 @@
 
 **Feature Branch**: `067-sequence-if-conditions`
 **Created**: 2026-07-06
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I need if-then-else conditions to be usable within sequences. The conditions themselves should be the same as in the definition of a while loop, both "then" and "else" parts should be optional. The contents of the "then" and "else" blocks should work exactly as the loop block contents. Visually definition of a conditional should be similar to loops as well. In fact, when defining a sequence, the part where currently only loops are listed should be renamed to "Loops and Conditions" and adding an "if" block should be put under the loops."
 
 ## Clarifications

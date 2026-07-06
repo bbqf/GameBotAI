@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { TapPanel } from '../TapPanel';
 
 jest.mock('../../images/ImageSelectorDropdown', () => ({
-  ImageSelectorDropdown: ({ value, onChange, onStaleChange, error, label, required }: any) => (
+  ImageSelectorDropdown: ({ value, onChange, onStaleChange, error, label, required: _required }: any) => (
     <div>
       {label && <label htmlFor="mock-image-input">{label}</label>}
       <input

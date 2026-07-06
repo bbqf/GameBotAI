@@ -1,8 +1,9 @@
 import React from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import type { LoopStepEntry, StepEntry, ActionStepEntry } from '../../types/stepEntry';
+import type { LoopStepEntry, IfStepEntry, StepEntry, ActionStepEntry } from '../../types/stepEntry';
 import type { SequenceStepCondition } from '../../types/sequenceFlow';
 import { LoopBlockHeader } from './LoopBlockHeader';
+import { IfBlock } from './IfBlock';
 import { BreakStepRow } from './BreakStepRow';
 import { SortableStepItem } from '../SortableStepItem';
 import { DropIndicator, dropIndicatorBefore } from '../DropIndicator';
@@ -62,6 +63,17 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({
     onChange({ ...loop, body: [...body, newStep] });
   };
 
+  const handleAddIfStep = () => {
+    const newStep: StepEntry = {
+      type: 'If',
+      id: makeId(),
+      stepId: `if-${body.length + 1}`,
+      condition: { type: 'imageVisible', imageId: '', minSimilarity: null },
+      body: [],
+    };
+    onChange({ ...loop, body: [...body, newStep] });
+  };
+
   return (
     <div className="loop-block" data-testid="loop-block" style={{ borderLeft: '3px solid #4a90d9', paddingLeft: '12px', marginBottom: '8px' }}>
       <div className="loop-block__header-row">
@@ -101,6 +113,21 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({
                         onRemove={() => handleBodyDelete(index)}
                         disabled={disabled}
                       />
+                    ) : step.type === 'If' ? (
+                      <IfBlock
+                        ifEntry={step as IfStepEntry}
+                        onChange={(updated) => {
+                          const updatedBody = body.map((s, i) => (i === index ? updated : s));
+                          onChange({ ...loop, body: updatedBody });
+                        }}
+                        onRemove={() => handleBodyDelete(index)}
+                        commandOptions={commandOptions}
+                        disabled={disabled}
+                        allowBreakSteps
+                        isDropInvalid={isDropInvalid}
+                        activeBodyStepId={activeBodyStepId}
+                        overBodyStepId={overBodyStepId}
+                      />
                     ) : (
                       <div className="loop-block__action-step" data-testid="loop-action-step">
                         <select
@@ -122,7 +149,7 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({
                       </div>
                     )}
                   </div>
-                  {step.type !== 'Break' && (
+                  {step.type !== 'Break' && step.type !== 'If' && (
                     <div className="loop-block__body-step-controls">
                       <button type="button" onClick={() => handleBodyDelete(index)} disabled={disabled}>Delete</button>
                     </div>
@@ -141,6 +168,9 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({
         </button>
         <button type="button" onClick={handleAddBreakStep} disabled={disabled} data-testid="add-break-step">
           Add break
+        </button>
+        <button type="button" onClick={handleAddIfStep} disabled={disabled} data-testid="add-if-step">
+          If
         </button>
       </div>
     </div>

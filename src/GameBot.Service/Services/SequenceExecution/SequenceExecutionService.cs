@@ -262,6 +262,36 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         continue;
       }
 
+      // feature 067: render an if-step branch decision as its own log entry. The runner records
+      // the decision (conditionType/result, actionOutcome then|else|none) before the branch steps.
+      var isIfStep = stepById?.StepType == SequenceStepType.If
+        || string.Equals(actionOutcome, "then", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(actionOutcome, "else", StringComparison.OrdinalIgnoreCase)
+        || (string.Equals(actionOutcome, "none", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(step.ConditionResult));
+      if (isIfStep) {
+        detailItems.Add(new ExecutionDetailItem(
+          "step",
+          !string.IsNullOrWhiteSpace(step.Message)
+            ? step.Message
+            : $"If '{stepLabel}' {actionOutcome}.",
+          new Dictionary<string, object?> {
+            ["stepOrder"] = stepOrder++,
+            ["stepType"] = "if",
+            ["status"] = step.Status,
+            ["actionOutcome"] = actionOutcome,
+            ["reasonCode"] = actionOutcome,
+            ["conditionType"] = step.ConditionType,
+            ["conditionResult"] = step.ConditionResult,
+            ["message"] = step.Message,
+            ["sequenceId"] = sequenceId,
+            ["sequenceLabel"] = sequenceName,
+            ["stepId"] = stepId,
+            ["stepLabel"] = stepLabel
+          },
+          "normal"));
+        continue;
+      }
+
       var waitDetails = step.WaitForImageDetails;
       var waitConfig = sequenceStep?.WaitForImage;
       var isWaitForImageStep = waitDetails is not null

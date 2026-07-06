@@ -467,6 +467,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       "waitforimage" => "wait",
       "condition" => "condition",
       "loop" => "loop",
+      "if" => "if",
       "primitivetap" or "tap" => "tap",
       "command" => "command",
       _ => "step"
@@ -475,6 +476,9 @@ internal sealed class ExecutionLogService : IExecutionLogService {
   internal static string MapStepStatus(string? outcome)
     => (outcome ?? string.Empty).ToLowerInvariant() switch {
       "executed" or "success" or "image_detected" or "true" or "break" => "success",
+      // feature 067: if-step branch decisions — a taken branch is a success, a no-op is skipped.
+      "then" or "else" => "success",
+      "none" => "skipped",
       "no_break" => "no_break",
       "skipped" => "skipped",
       "not_executed" => "not_executed",

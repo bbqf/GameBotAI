@@ -113,10 +113,12 @@ export type LoopConfigDto =
   | { loopType: 'while'; condition: SequenceStepCondition; maxIterations?: number | null }
   | { loopType: 'repeatUntil'; condition: SequenceStepCondition; maxIterations?: number | null };
 
+export type IfConfigDto = { condition: SequenceStepCondition };
+
 export type SequenceLinearStep = {
   stepId: string;
   label?: string;
-  stepType?: 'Action' | 'Loop' | 'Break';
+  stepType?: 'Action' | 'Loop' | 'Break' | 'If';
   action?: SequenceActionPayload | null;
   primitiveAction?: SequencePrimitiveActionPayload | null;
   commandReference?: SequenceCommandReference | null;
@@ -124,6 +126,8 @@ export type SequenceLinearStep = {
   loop?: LoopConfigDto | null;
   body?: SequenceLinearStep[] | null;
   breakCondition?: SequenceStepCondition | null;
+  if?: IfConfigDto | null;
+  elseBody?: SequenceLinearStep[] | null;
 };
 
 export type InterStepDelayRangeMs = {

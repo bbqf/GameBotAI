@@ -37,9 +37,9 @@ describe('queueTemplates service', () => {
     expect(mockGetJson).toHaveBeenCalledWith('/api/queue-templates/t1');
   });
 
-  it('saves a template via POST with name, sequenceIds and overwrite', async () => {
+  it('saves a template via POST with name, entries and overwrite', async () => {
     mockPostJson.mockResolvedValue({ id: 't1', entries: [] } as any);
-    const payload = { name: 'Daily Farm', sequenceIds: ['seq-a', 'seq-b'], overwrite: false };
+    const payload = { name: 'Daily Farm', entries: [{ sequenceId: 'seq-a' }, { sequenceId: 'seq-b' }], overwrite: false };
     await saveQueueTemplate(payload);
     expect(mockPostJson).toHaveBeenCalledWith('/api/queue-templates', payload);
   });
