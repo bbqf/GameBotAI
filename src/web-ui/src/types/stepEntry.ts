@@ -4,7 +4,8 @@ import type { SequenceCommandReference, SequenceStepCondition } from './sequence
 export type StepEntry =
   | ActionStepEntry
   | LoopStepEntry
-  | BreakStepEntry;
+  | BreakStepEntry
+  | IfStepEntry;
 
 export type ActionStepEntry = {
   type: 'Action';
@@ -35,6 +36,18 @@ export type BreakStepEntry = {
   id: string;
   stepId: string;
   breakCondition?: SequenceStepCondition;
+};
+
+export type IfStepEntry = {
+  type: 'If';
+  id: string;
+  stepId: string;
+  /** Same condition shape as while/repeat-until loop conditions. */
+  condition?: SequenceStepCondition;
+  /** Then branch; behaves like a loop body (no nested loops or ifs). */
+  body: StepEntry[];
+  /** Else branch; undefined = no else, [] = else present but empty. */
+  elseBody?: StepEntry[];
 };
 
 /** Metadata attached to each draggable step via useSortable data prop. */

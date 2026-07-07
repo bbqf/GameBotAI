@@ -37,6 +37,12 @@ internal sealed record SequenceStepContract {
   public LoopConfigContract? Loop { get; init; }
   public IReadOnlyList<SequenceStepContract>? Body { get; init; }
   public SequenceStepConditionContract? BreakCondition { get; init; }
+  public IfConfigContract? If { get; init; }
+  public IReadOnlyList<SequenceStepContract>? ElseBody { get; init; }
+}
+
+internal sealed record IfConfigContract {
+  public required SequenceStepConditionContract Condition { get; init; }
 }
 
 internal sealed record SequenceCommandReferenceContract {

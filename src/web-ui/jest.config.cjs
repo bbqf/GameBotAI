@@ -1,6 +1,7 @@
-import type { Config } from 'jest';
-
-const config: Config = {
+// CommonJS jest config: with "type": "module" in package.json, node >= 23 refuses jest's
+// require() of a jest.config.ts, so the config lives in .cjs form (identical options).
+/** @type {import('jest').Config} */
+const config = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
   roots: ['<rootDir>/src'],
@@ -27,4 +28,4 @@ const config: Config = {
   }
 };
 
-export default config;
+module.exports = config;

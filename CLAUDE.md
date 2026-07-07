@@ -3,5 +3,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/066-break-step-status/plan.md
+at specs/067-sequence-if-conditions/plan.md
 <!-- SPECKIT END -->

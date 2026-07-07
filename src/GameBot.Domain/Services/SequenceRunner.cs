@@ -430,6 +430,22 @@ namespace GameBot.Domain.Services {
             ct).ConfigureAwait(false);
       }
 
+      // ── If step dispatch (top level: no iteration context, break cannot occur) ──
+      if (step.StepType == SequenceStepType.If) {
+        var (ifEarlyStop, _) = await ExecuteIfStepAsync(
+            step,
+            executeCommandAsync,
+            gateEvaluator,
+            conditionEvaluator,
+            interStepDelayRange,
+            stepOutcomes,
+            result,
+            sequenceId,
+            EmptyIterContext,
+            ct).ConfigureAwait(false);
+        return ifEarlyStop;
+      }
+
       if (step.Condition is ImageVisibleStepCondition imageCondition) {
         if (conditionEvaluator is null) {
           result.AddStep(
@@ -964,6 +980,86 @@ namespace GameBot.Domain.Services {
       return false;
     }
 
+    /// <summary>Empty substitution context for if branches executed outside any loop.</summary>
+    private static readonly Dictionary<string, string> EmptyIterContext = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Executes a <see cref="SequenceStepType.If"/> step: evaluates the condition exactly once
+    /// (same semantics as a while-loop condition, including failure on evaluation errors), then
+    /// runs the then branch (<see cref="SequenceStep.Body"/>) or else branch
+    /// (<see cref="SequenceStep.ElseBody"/>) with loop-body semantics. Returns
+    /// (<c>earlyStop</c>, <c>breakTriggered</c>); a break inside a branch propagates to the
+    /// enclosing loop.
+    /// </summary>
+    private async Task<(bool EarlyStop, bool BreakTriggered)> ExecuteIfStepAsync(
+        SequenceStep step,
+        Func<string, Task> executeCommandAsync,
+        Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+        Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+        DelayRangeMs interStepDelayRange,
+        Dictionary<string, string> stepOutcomes,
+        SequenceExecutionResult result,
+        string sequenceId,
+        IReadOnlyDictionary<string, string> iterContext,
+        CancellationToken ct) {
+      var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"if@{step.Order}";
+
+      if (step.If is null) {
+        result.AddStep(stepKey, 0, "Failed", message: $"If step '{stepKey}' has missing if configuration.");
+        result.Fail($"If step '{stepKey}' has missing if configuration.");
+        stepOutcomes[stepKey] = "failed";
+        return (true, false);
+      }
+
+      var condDesc = DescribeBreakCondition(step.If.Condition);
+
+      bool condResult;
+      try {
+        condResult = await EvaluateLoopConditionAsync(
+            step.If.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+      }
+      catch {
+        result.AddStep(stepKey, 0, "Failed",
+            conditionType: condDesc.Type,
+            conditionResult: "error",
+            actionOutcome: "failed",
+            message: $"If '{stepKey}' condition evaluation failed.");
+        result.Fail($"If '{stepKey}' condition evaluation failed.");
+        stepOutcomes[stepKey] = "failed";
+        return (true, false);
+      }
+
+      var branch = condResult ? step.Body : step.ElseBody ?? Array.Empty<SequenceStep>();
+      var branchName = condResult ? "then" : "else";
+      var hasBranchSteps = branch.Count > 0;
+
+      // Record the branch decision before the branch steps so the log reads causally.
+      result.AddStep(stepKey, 0, "Succeeded",
+          conditionType: condDesc.Type,
+          conditionResult: condResult ? "true" : "false",
+          actionOutcome: hasBranchSteps ? branchName : "none",
+          message: hasBranchSteps
+            ? $"If '{stepKey}': {condDesc.Detail} evaluated to {(condResult ? "true" : "false")} → {branchName} branch"
+            : $"If '{stepKey}': {condDesc.Detail} evaluated to {(condResult ? "true" : "false")} → no {branchName} branch (no-op)");
+
+      if (!hasBranchSteps) {
+        stepOutcomes[stepKey] = "skipped";
+        return (false, false);
+      }
+
+      var (earlyStop, breakTriggered, _) = await ExecuteLoopBodyAsync(
+          branch, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
+          stepOutcomes, result, sequenceId, iterContext, ct).ConfigureAwait(false);
+
+      if (earlyStop) {
+        stepOutcomes[stepKey] = "failed";
+        return (true, false);
+      }
+
+      stepOutcomes[stepKey] = "success";
+      return (false, breakTriggered);
+    }
+
     /// <summary>
     /// Executes the body steps for one loop iteration.  Returns
     /// (<c>earlyStop</c>, <c>breakTriggered</c>, <c>stepsExecuted</c>).
@@ -1048,6 +1144,25 @@ namespace GameBot.Domain.Services {
             result.SetInterStepDelayForLatestStep(delayMs);
           }
           continue; // condition false → keep executing body
+        }
+
+        if (step.StepType == SequenceStepType.If) {
+          // Nested if: executed with the current iteration context so branch steps keep
+          // {{iteration}} substitution, and a break inside a branch exits the enclosing loop.
+          var (ifEarlyStop, ifBreakTriggered) = await ExecuteIfStepAsync(
+              step, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
+              stepOutcomes, result, sequenceId, iterContext, ct).ConfigureAwait(false);
+          stepsExecuted++;
+
+          if (ifEarlyStop) return (true, false, stepsExecuted);
+          if (ifBreakTriggered) return (false, true, stepsExecuted);
+
+          if (bodyIndex < orderedBodySteps.Count - 1) {
+            var ifDelayMs = SampleInterStepDelay(interStepDelayRange);
+            await Task.Delay(ifDelayMs, ct).ConfigureAwait(false);
+            result.SetInterStepDelayForLatestStep(ifDelayMs);
+          }
+          continue;
         }
 
         // Apply template substitution to the body step before execution

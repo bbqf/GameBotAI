@@ -8,12 +8,13 @@ jest.mock('../../services/sequences');
 jest.mock('../../services/commands');
 
 jest.mock('../../components/images/ImageSelectorDropdown', () => ({
-  ImageSelectorDropdown: ({ id, label, value, onChange, disabled }: {
+  ImageSelectorDropdown: ({ id, label, value, onChange, disabled, 'data-testid': testId }: {
     id?: string; label?: string; value: string; onChange: (v: string) => void; disabled?: boolean;
+    'data-testid'?: string;
   }) => (
     <>
       {label && <label htmlFor={id}>{label}</label>}
-      <input id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      <input id={id} data-testid={testId} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
     </>
   ),
 }));
@@ -300,6 +301,154 @@ describe('SequencesPage', () => {
                 }
               },
               condition: null
+            }
+          ]
+        }
+      ]
+    }));
+  });
+
+  it('labels the add-step group "Loops and Conditions" and lists If after the loop buttons', async () => {
+    render(<SequencesPage />);
+    await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Sequence'));
+
+    expect(screen.getByText('Loops and Conditions')).toBeInTheDocument();
+    const buttonGroup = screen.getByTestId('add-loop-buttons');
+    const labels = within(buttonGroup).getAllByRole('button').map((b) => b.textContent);
+    expect(labels).toEqual(['Count', 'While', 'Repeat‑Until', 'If']);
+
+    fireEvent.click(within(buttonGroup).getByText('If'));
+    expect(screen.getByTestId('if-block')).toBeInTheDocument();
+    expect(screen.getByTestId('if-then-empty')).toBeInTheDocument();
+  });
+
+  it('creates a sequence with an if step carrying then and else branches', async () => {
+    render(<SequencesPage />);
+    await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'If Seq' } });
+
+    fireEvent.click(within(screen.getByTestId('add-loop-buttons')).getByText('If'));
+
+    // Configure the condition image.
+    fireEvent.change(screen.getByTestId('if-condition-imageId'), { target: { value: 'img-9' } });
+
+    // Then branch: one command step.
+    fireEvent.click(screen.getByTestId('if-then-add-step'));
+    fireEvent.change(screen.getByTestId('if-then-command-select'), { target: { value: 'c1' } });
+
+    // Else branch: reveal and add one command step.
+    fireEvent.click(screen.getByTestId('if-add-else'));
+    fireEvent.click(screen.getByTestId('if-else-add-step'));
+    fireEvent.change(screen.getByTestId('if-else-command-select'), { target: { value: 'c2' } });
+
+    createSequenceMock.mockResolvedValue({} as any);
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(createSequenceMock).toHaveBeenCalledWith({
+      name: 'If Seq',
+      version: 1,
+      interStepDelayRangeMs: null,
+      steps: [
+        {
+          stepId: 'step-1',
+          stepType: 'If',
+          if: { condition: { type: 'imageVisible', imageId: 'img-9', minSimilarity: null } },
+          body: [
+            {
+              stepId: 'then-step-1',
+              stepType: 'Action',
+              primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c1' } },
+              condition: null
+            }
+          ],
+          elseBody: [
+            {
+              stepId: 'else-step-1',
+              stepType: 'Action',
+              primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c2' } },
+              condition: null
+            }
+          ]
+        }
+      ]
+    }));
+  });
+
+  it('round-trips an if step nested inside a loop body', async () => {
+    listSequencesMock.mockResolvedValue([{ id: 'seq-if', name: 'If In Loop', steps: [] }] as any);
+    getSequenceMock.mockResolvedValue({
+      id: 'seq-if',
+      name: 'If In Loop',
+      version: 2,
+      steps: [
+        {
+          stepId: 'loop-1',
+          stepType: 'Loop',
+          loop: { loopType: 'count', count: 2, maxIterations: 2 },
+          body: [
+            {
+              stepId: 'if-1',
+              stepType: 'If',
+              if: { condition: { type: 'imageVisible', imageId: 'img-p', minSimilarity: null, negate: false } },
+              body: [
+                {
+                  stepId: 'then-1',
+                  stepType: 'Action',
+                  primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c2' } },
+                  condition: null
+                }
+              ],
+              elseBody: null
+            }
+          ]
+        }
+      ]
+    } as any);
+    updateSequenceMock.mockResolvedValue({} as any);
+
+    render(<SequencesPage />);
+
+    await screen.findByText('If In Loop');
+    fireEvent.click(screen.getByText('If In Loop'));
+
+    await screen.findByText('Edit Sequence');
+
+    // The nested if renders inside the loop block with its then step.
+    expect(screen.getByTestId('if-block')).toBeInTheDocument();
+    const thenSelect = screen.getByTestId('if-then-command-select') as HTMLSelectElement;
+    expect(thenSelect.value).toBe('c2');
+    // Nested inside a loop, branches may add break steps.
+    expect(screen.getByTestId('if-then-add-break')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('seq-if', {
+      name: 'If In Loop',
+      version: 2,
+      interStepDelayRangeMs: null,
+      steps: [
+        {
+          stepId: 'loop-1',
+          stepType: 'Loop',
+          loop: { loopType: 'count', count: 2, maxIterations: 2 },
+          body: [
+            {
+              stepId: 'if-1',
+              stepType: 'If',
+              if: { condition: { type: 'imageVisible', imageId: 'img-p', minSimilarity: null, negate: false } },
+              body: [
+                {
+                  stepId: 'then-1',
+                  stepType: 'Action',
+                  primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: 'c2' } },
+                  condition: null
+                }
+              ],
+              elseBody: null
             }
           ]
         }

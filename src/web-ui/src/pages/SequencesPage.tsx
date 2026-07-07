@@ -14,8 +14,9 @@ import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { validatePerStepConditions } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
-import type { LoopStepEntry, BreakStepEntry, StepEntry } from '../types/stepEntry';
-import type { SequenceLinearStep, LoopConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
+import { IfBlock } from '../components/sequences/IfBlock';
+import type { LoopStepEntry, BreakStepEntry, IfStepEntry, StepEntry } from '../types/stepEntry';
+import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
 import { ImageSelectorDropdown } from '../components/images/ImageSelectorDropdown';
 
 type RescheduleOption = 'AtQueueStart' | 'OncePerRun' | 'Timer' | 'EveryStep';
@@ -23,7 +24,7 @@ type RescheduleOption = 'AtQueueStart' | 'OncePerRun' | 'Timer' | 'EveryStep';
 type SequenceStep = {
   id: string;
   stepId: string;
-  stepType: 'Action' | 'Loop' | 'Break';
+  stepType: 'Action' | 'Loop' | 'Break' | 'If';
   actionType: 'command' | 'WaitForImage' | 'reschedule-self';
   commandId: string;
   commandReference?: SequenceCommandReference;
@@ -37,6 +38,7 @@ type SequenceStep = {
   outcomeStepRef: string;
   expectedState: 'success' | 'failed' | 'skipped';
   loopEntry?: LoopStepEntry;
+  ifEntry?: IfStepEntry;
   // Self-reschedule action fields (feature 065); only meaningful when actionType === 'reschedule-self'.
   rescheduleOption?: RescheduleOption;
   rescheduleTimerMode?: 'relative' | 'timeOfDay';
@@ -191,6 +193,12 @@ const collectLoopBodyCommandOptions = (optionsByValue: Map<string, SearchableOpt
 
     if (entry.type === 'Loop') {
       collectLoopBodyCommandOptions(optionsByValue, entry.body);
+      continue;
+    }
+
+    if (entry.type === 'If') {
+      collectLoopBodyCommandOptions(optionsByValue, entry.body);
+      collectLoopBodyCommandOptions(optionsByValue, entry.elseBody);
     }
   }
 };
@@ -205,11 +213,22 @@ const mergeCommandOptionsWithUnresolved = (liveOptions: SearchableOption[], step
 
     if (step.stepType === 'Loop' && step.loopEntry) {
       collectLoopBodyCommandOptions(optionsByValue, step.loopEntry.body);
+      continue;
+    }
+
+    if (step.stepType === 'If' && step.ifEntry) {
+      collectLoopBodyCommandOptions(optionsByValue, step.ifEntry.body);
+      collectLoopBodyCommandOptions(optionsByValue, step.ifEntry.elseBody);
     }
   }
 
   return Array.from(optionsByValue.values());
 };
+
+// Collects draggable ids in a loop/if body, including steps inside nested if branches, so
+// drag indicators reach nested branches (feature 067).
+const collectBodyStepIds = (body: StepEntry[]): string[] =>
+  body.flatMap((b) => (b.type === 'If' ? [b.id, ...collectBodyStepIds(b.body), ...collectBodyStepIds(b.elseBody ?? [])] : [b.id]));
 
 const nextGeneratedStepId = (steps: SequenceStep[]): string => {
   const highest = steps.reduce((max, step) => {
@@ -256,6 +275,9 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
         breakCondition: child.breakCondition ?? undefined
       } satisfies BreakStepEntry;
     }
+    if (child.stepType === 'If') {
+      return ifDtoToEntry(child);
+    }
     const primitiveAction = getPrimitiveAction(child);
     const cmdId = typeof primitiveAction?.payload?.commandId === 'string'
       ? primitiveAction.payload.commandId
@@ -278,6 +300,15 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
     };
   });
 };
+
+const ifDtoToEntry = (step: SequenceLinearStep): IfStepEntry => ({
+  type: 'If',
+  id: makeId(),
+  stepId: step.stepId,
+  condition: step.if?.condition,
+  body: linearBodyToStepEntries(step.body ?? []),
+  elseBody: step.elseBody == null ? undefined : linearBodyToStepEntries(step.elseBody)
+});
 
 const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
   const loop = step.loop!;
@@ -333,6 +364,28 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         minSimilarity: '',
         outcomeStepRef: '',
         expectedState: 'success' as const
+      };
+    }
+
+    if (step.stepType === 'If') {
+      const ifEntry = ifDtoToEntry(step);
+      return {
+        id: makeId(),
+        stepId: step.stepId,
+        stepType: 'If' as const,
+        actionType: 'command' as const,
+        commandId: '',
+        commandReference: undefined,
+        waitReferenceImageId: '',
+        waitConfidence: '',
+        waitTimeoutMs: '1000',
+        conditionType: 'none' as const,
+        conditionNegate: false,
+        imageId: '',
+        minSimilarity: '',
+        outcomeStepRef: '',
+        expectedState: 'success' as const,
+        ifEntry
       };
     }
 
@@ -513,6 +566,17 @@ const buildLoopConfigPayload = (loop: LoopStepEntry): LoopConfigDto | null => {
   return null;
 };
 
+const buildIfConfigPayload = (ifEntry: IfStepEntry): IfConfigDto | null =>
+  ifEntry.condition ? { condition: ifEntry.condition } : null;
+
+const ifEntryToPayloadStep = (ifEntry: IfStepEntry, stepId: string): SequenceLinearStep => ({
+  stepId: stepId.trim(),
+  stepType: 'If',
+  if: buildIfConfigPayload(ifEntry),
+  body: ifEntry.body.map(bodyEntryToPayloadStep),
+  elseBody: ifEntry.elseBody === undefined ? null : ifEntry.elseBody.map(bodyEntryToPayloadStep)
+});
+
 const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
   if (entry.type === 'Break') {
     const br = entry as BreakStepEntry;
@@ -521,6 +585,9 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
       stepType: 'Break',
       breakCondition: br.breakCondition ?? null
     };
+  }
+  if (entry.type === 'If') {
+    return ifEntryToPayloadStep(entry, entry.stepId);
   }
   // Action body step
   const a = entry as unknown as { stepId: string; commandId: string; commandReference?: SequenceCommandReference; conditionType: string; conditionNegate: boolean; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
@@ -547,6 +614,10 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
         loop: buildLoopConfigPayload(step.loopEntry),
         body: step.loopEntry.body.map(bodyEntryToPayloadStep)
       };
+    }
+
+    if (step.stepType === 'If' && step.ifEntry) {
+      return ifEntryToPayloadStep(step.ifEntry, step.stepId);
     }
 
     if (step.stepType === 'Break') {
@@ -674,18 +745,60 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     } else {
       setForm((prev) => {
         const loopStep = prev.steps.find((s) => s.stepType === 'Loop' && s.loopEntry?.id === activeScope);
-        if (!loopStep?.loopEntry) return prev;
-        const body = loopStep.loopEntry.body;
-        const oldIndex = body.findIndex((s) => s.id === active.id);
-        const newIndex = body.findIndex((s) => s.id === over.id);
-        if (oldIndex === -1 || newIndex === -1) return prev;
-        const newBody = arrayMove(body, oldIndex, newIndex);
-        return {
-          ...prev,
-          steps: prev.steps.map((s) =>
-            s.id === loopStep.id ? { ...s, loopEntry: { ...s.loopEntry!, body: newBody } } : s
-          ),
+        if (loopStep?.loopEntry) {
+          const body = loopStep.loopEntry.body;
+          const oldIndex = body.findIndex((s) => s.id === active.id);
+          const newIndex = body.findIndex((s) => s.id === over.id);
+          if (oldIndex === -1 || newIndex === -1) return prev;
+          const newBody = arrayMove(body, oldIndex, newIndex);
+          return {
+            ...prev,
+            steps: prev.steps.map((s) =>
+              s.id === loopStep.id ? { ...s, loopEntry: { ...s.loopEntry!, body: newBody } } : s
+            ),
+          };
+        }
+
+        // If-branch scopes are "<ifEntryId>:then" / "<ifEntryId>:else" (feature 067).
+        const separatorIndex = activeScope.lastIndexOf(':');
+        if (separatorIndex <= 0) return prev;
+        const ifId = activeScope.slice(0, separatorIndex);
+        const branchName = activeScope.slice(separatorIndex + 1);
+        if (branchName !== 'then' && branchName !== 'else') return prev;
+
+        const reorderBranch = (entry: IfStepEntry): IfStepEntry | null => {
+          if (entry.id !== ifId) return null;
+          const branch = branchName === 'then' ? entry.body : entry.elseBody;
+          if (!branch) return null;
+          const oldIndex = branch.findIndex((s) => s.id === active.id);
+          const newIndex = branch.findIndex((s) => s.id === over.id);
+          if (oldIndex === -1 || newIndex === -1) return null;
+          const newBranch = arrayMove(branch, oldIndex, newIndex);
+          return branchName === 'then' ? { ...entry, body: newBranch } : { ...entry, elseBody: newBranch };
         };
+
+        for (const s of prev.steps) {
+          if (s.stepType === 'If' && s.ifEntry) {
+            const updated = reorderBranch(s.ifEntry);
+            if (updated) {
+              return { ...prev, steps: prev.steps.map((c) => (c.id === s.id ? { ...c, ifEntry: updated } : c)) };
+            }
+          }
+          if (s.stepType === 'Loop' && s.loopEntry) {
+            let changed = false;
+            const newBody = s.loopEntry.body.map((b) => {
+              if (b.type === 'If') {
+                const updated = reorderBranch(b);
+                if (updated) { changed = true; return updated; }
+              }
+              return b;
+            });
+            if (changed) {
+              return { ...prev, steps: prev.steps.map((c) => (c.id === s.id ? { ...c, loopEntry: { ...c.loopEntry!, body: newBody } } : c)) };
+            }
+          }
+        }
+        return prev;
       });
       setDirty(true);
     }
@@ -1116,8 +1229,68 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     };
   };
 
+  const createIfStep = (): SequenceStep => {
+    const id = makeId();
+    const stepId = nextGeneratedStepId(form.steps);
+    const ifEntry: IfStepEntry = {
+      type: 'If',
+      id,
+      stepId,
+      // Same default condition as a newly added while loop.
+      condition: { type: 'imageVisible', imageId: '', minSimilarity: null },
+      body: [],
+    };
+    return {
+      id,
+      stepId,
+      stepType: 'If',
+      actionType: 'command',
+      commandId: '',
+      waitReferenceImageId: '',
+      waitConfidence: '',
+      waitTimeoutMs: '1000',
+      conditionType: 'none',
+      conditionNegate: false,
+      imageId: '',
+      minSimilarity: '',
+      outcomeStepRef: '',
+      expectedState: 'success',
+      ifEntry,
+    };
+  };
+
   const stepItems = useMemo<ReorderableListItem[]>(() => {
     return form.steps.map((s, idx) => {
+      if (s.stepType === 'If' && s.ifEntry) {
+        const branchStepIds = [...s.ifEntry.body, ...(s.ifEntry.elseBody ?? [])].map((b) => b.id);
+        return {
+          id: s.id,
+          label: 'If (condition)',
+          details: (
+            <IfBlock
+              ifEntry={s.ifEntry}
+              onChange={(updated) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((step) =>
+                    step.id === s.id ? { ...step, ifEntry: updated } : step
+                  ),
+                }));
+                setDirty(true);
+              }}
+              onRemove={() => {
+                setForm((prev) => ({ ...prev, steps: prev.steps.filter((step) => step.id !== s.id) }));
+                setDirty(true);
+              }}
+              commandOptions={editorCommandOptions}
+              disabled={submitting || loading}
+              isDropInvalid={isDragInvalid}
+              activeBodyStepId={branchStepIds.includes(activeStepId ?? '') ? activeStepId : null}
+              overBodyStepId={branchStepIds.includes(overId ?? '') ? overId : null}
+            />
+          ),
+        };
+      }
       if (s.stepType === 'Loop' && s.loopEntry) {
         return {
           id: s.id,
@@ -1141,8 +1314,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               commandOptions={editorCommandOptions}
               disabled={submitting || loading}
               isDropInvalid={isDragInvalid}
-              activeBodyStepId={s.loopEntry.body.some(b => b.id === activeStepId) ? activeStepId : null}
-              overBodyStepId={s.loopEntry.body.some(b => b.id === overId) ? overId : null}
+              activeBodyStepId={collectBodyStepIds(s.loopEntry.body).includes(activeStepId ?? '') ? activeStepId : null}
+              overBodyStepId={collectBodyStepIds(s.loopEntry.body).includes(overId ?? '') ? overId : null}
             />
           ),
         };
@@ -1489,11 +1662,12 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
               </div>
               <div className="sequence-add-col">
-                <div className="sequence-add-col__label">Loop</div>
+                <div className="sequence-add-col__label">Loops and Conditions</div>
                 <div className="sequence-add-col__buttons" data-testid="add-loop-buttons">
                   <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>
                   <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>
                   <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
+                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createIfStep()] })); setDirty(true); }} disabled={submitting || loading}>If</button>
                 </div>
               </div>
               <div className="sequence-add-col">
@@ -1713,11 +1887,12 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   }} disabled={submitting || loading || !pendingStepId}>Add to steps</button>
                 </div>
                 <div className="sequence-add-col">
-                  <div className="sequence-add-col__label">Loop</div>
+                  <div className="sequence-add-col__label">Loops and Conditions</div>
                   <div className="sequence-add-col__buttons" data-testid="edit-add-loop-buttons">
                     <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('count')] })); setDirty(true); }} disabled={submitting || loading}>Count</button>
                     <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('while')] })); setDirty(true); }} disabled={submitting || loading}>While</button>
                     <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createLoopStep('repeatUntil')] })); setDirty(true); }} disabled={submitting || loading}>Repeat‑Until</button>
+                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, steps: [...prev.steps, createIfStep()] })); setDirty(true); }} disabled={submitting || loading}>If</button>
                   </div>
                 </div>
                 <div className="sequence-add-col">

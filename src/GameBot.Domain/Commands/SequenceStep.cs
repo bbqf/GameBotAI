@@ -9,7 +9,9 @@ namespace GameBot.Domain.Commands {
     /// <summary>Executes a loop (count, while, or repeat-until) over its <see cref="SequenceStep.Body"/>.</summary>
     Loop,
     /// <summary>Exits the enclosing loop immediately, optionally only when a condition is true.</summary>
-    Break
+    Break,
+    /// <summary>Evaluates a condition once and executes the then branch (<see cref="SequenceStep.Body"/>) or the else branch (<see cref="SequenceStep.ElseBody"/>).</summary>
+    If
   }
 
   public sealed class SequenceActionPayload {
@@ -47,8 +49,20 @@ namespace GameBot.Domain.Commands {
     // Loop-step properties (StepType == Loop)
     /// <summary>Loop configuration (count, while, or repeat-until). Required when <see cref="StepType"/> is <see cref="SequenceStepType.Loop"/>.</summary>
     public LoopConfig? Loop { get; set; }
-    /// <summary>Child steps executed on each loop iteration. Empty list is valid (zero-body loop).</summary>
+    /// <summary>
+    /// Child steps executed on each loop iteration (StepType == Loop) or as the then branch
+    /// (StepType == If). Empty list is valid (zero-body loop / no-op then branch).
+    /// </summary>
     public IReadOnlyList<SequenceStep> Body { get; init; } = Array.Empty<SequenceStep>();
+
+    // If-step properties (StepType == If)
+    /// <summary>If configuration (branch condition). Required when <see cref="StepType"/> is <see cref="SequenceStepType.If"/>.</summary>
+    public IfConfig? If { get; set; }
+    /// <summary>
+    /// Else-branch steps for if steps. <c>null</c> means the else branch is absent; an empty
+    /// list means an else branch exists but has no steps. Both execute as a no-op.
+    /// </summary>
+    public IReadOnlyList<SequenceStep>? ElseBody { get; init; }
 
     // Break-step property (StepType == Break)
     /// <summary>Optional condition for a conditional break. When <c>null</c> the break is unconditional.</summary>

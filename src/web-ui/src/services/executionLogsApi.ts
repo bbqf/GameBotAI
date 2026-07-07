@@ -30,6 +30,7 @@ export type ExecutionTreeNodeKind =
   | 'condition'
   | 'loop'
   | 'loopIteration'
+  | 'if'
   | 'wait'
   | 'tap';
 

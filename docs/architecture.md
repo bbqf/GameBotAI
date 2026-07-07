@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-07-01._
+_Last reviewed: 2026-07-06._
 
 ## What GameBot is
 
@@ -45,7 +45,14 @@ not survive a service restart; queue *configuration* and templates are persisted
   old first-class "Action" object — see *Legacy/removed* below.) Taps/swipes resolve coordinates
   from image detection + offset, with wait-and-retry and tap-point jitter applied automatically.
 - **Sequence** — an ordered list of steps that run **commands**, with random inter-step delays,
-  conditional steps, and loop/flow blocks (`SequenceFlowGraph`, `Blocks/`).
+  conditional steps, loop/flow blocks (`SequenceFlowGraph`, `Blocks/`), and **if blocks**
+  (`SequenceStepType.If`, feature 067): a condition (same model as while-loop conditions —
+  `imageVisible`/`commandOutcome` with negation, `IfConfig`), a then branch (reuses
+  `SequenceStep.Body`), and an optional else branch (`SequenceStep.ElseBody`; `null` = absent).
+  If blocks may sit at the sequence top level or inside loop bodies; branches are flat (no loops,
+  no nested ifs; breaks only when the if is inside a loop, where a branch break exits the
+  enclosing loop). The condition is evaluated once per encounter; a condition error fails the
+  step and sequence exactly like a while-loop condition error.
 - **Queue** — bound to exactly one emulator; holds ordered **entries** (sequences) and a
   cycle-execution flag. Runs entries against the emulator; can cycle.
 - **Queue Template** — a named, persisted snapshot of a queue's ordered entries and their
@@ -105,6 +112,18 @@ canonical two-token vocabulary (`GameBot.Domain.Services.BreakOutcomes`), carrie
 `ExecutionLogService.MapStepStatus` maps these to node statuses (`break → success`,
 `no_break → no_break`); the web-ui renders `no_break` as a neutral "No break" badge distinct from
 `failure` and `skipped`.
+
+**If steps** (feature 067) record their branch decision *before* the branch steps run:
+`StepResult.ActionOutcome` is `then` / `else` (branch taken → node status `success`) or `none`
+(no-op → `skipped`), with `ConditionResult` `true`/`false`/`error`. The step-outcome map records
+the if step as `success` (branch completed), `skipped` (no branch steps ran), or `failed`
+(condition error or branch failure). Detail items carry `stepType: "if"`, mapped to the execution
+tree node kind `if` (web-ui grid label "If"). Branch steps log themselves like loop-body steps.
+
+**Sequence step API schema** (`POST/PATCH /api/sequences`): if steps use
+`stepType: "If"` with `if: { condition: {...} }`, `body: [...]` (then branch), and optional
+`elseBody: [...]` (null/absent = no else; `[]` = present but empty). See
+`specs/067-sequence-if-conditions/contracts/sequences-api.md`.
 
 ## REST API surface
 

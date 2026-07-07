@@ -68,6 +68,8 @@ export const VisualStepPicker: React.FC<VisualStepPickerProps> = ({ onConfirm, o
       <div
         className="visual-step-picker"
         ref={focusRef}
+        role="button"
+        aria-label="Step recorder keyboard capture"
         tabIndex={0}
         onKeyDown={handleKeyDown}
         style={{ outline: 'none' }}

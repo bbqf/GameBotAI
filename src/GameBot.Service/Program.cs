@@ -1008,6 +1008,7 @@ static object MapStepToDto(SequenceStep step, IReadOnlyDictionary<string, string
   var stepType = step.StepType switch {
     SequenceStepType.Loop => "Loop",
     SequenceStepType.Break => "Break",
+    SequenceStepType.If => "If",
     _ => "Action"
   };
 
@@ -1026,7 +1027,9 @@ static object MapStepToDto(SequenceStep step, IReadOnlyDictionary<string, string
     condition = MapPerStepConditionToDto(step.Condition),
     loop = MapLoopConfigToDto(step.Loop),
     body = step.Body.Count > 0 ? step.Body.Select(child => MapStepToDto(child, commandLookup)).ToArray() : null,
-    breakCondition = MapPerStepConditionToDto(step.BreakCondition)
+    breakCondition = MapPerStepConditionToDto(step.BreakCondition),
+    @if = step.If is null ? null : new { condition = MapPerStepConditionToDto(step.If.Condition) },
+    elseBody = step.ElseBody?.Select(child => MapStepToDto(child, commandLookup)).ToArray()
   };
 }
 
@@ -1124,7 +1127,7 @@ bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsert
 
     var hasStepType = stepElement.TryGetProperty("stepType", out var stepTypeProp) && stepTypeProp.ValueKind == JsonValueKind.String;
     var stepTypeValue = hasStepType ? stepTypeProp.GetString()?.Trim().ToLowerInvariant() : null;
-    var isLoopOrBreak = stepTypeValue is "loop" or "break";
+    var isLoopOrBreak = stepTypeValue is "loop" or "break" or "if";
 
     if (!isLoopOrBreak && (!stepElement.TryGetProperty("primitiveAction", out var primitiveActionProp) || primitiveActionProp.ValueKind != JsonValueKind.Object)) {
       error = "each action step must include primitiveAction object.";
@@ -1318,6 +1321,20 @@ static List<SequenceStep> MapToLinearSteps(SequenceUpsertContract request) {
       continue;
     }
 
+    if (parsedStepType == SequenceStepType.If) {
+      var mapped = new SequenceStep {
+        Order = index,
+        StepId = step.StepId,
+        Label = step.Label,
+        StepType = SequenceStepType.If,
+        If = MapIfConfig(step.If),
+        Body = MapBodySteps(step.Body),
+        ElseBody = step.ElseBody is null ? null : MapBodySteps(step.ElseBody)
+      };
+      result.Add(mapped);
+      continue;
+    }
+
     {
       var mapped = new SequenceStep {
         Order = index,
@@ -1357,10 +1374,16 @@ static SequenceStepType ParseStepType(string? stepType) {
   return stepType.Trim().ToLowerInvariant() switch {
     "loop" => SequenceStepType.Loop,
     "break" => SequenceStepType.Break,
+    "if" => SequenceStepType.If,
     "action" => SequenceStepType.Action,
     "command" => SequenceStepType.Command,
     _ => SequenceStepType.Action
   };
+}
+
+static IfConfig? MapIfConfig(IfConfigContract? contract) {
+  var condition = contract is null ? null : MapPerStepCondition(contract.Condition);
+  return condition is null ? null : new IfConfig { Condition = condition };
 }
 
 static LoopConfig? MapLoopConfig(LoopConfigContract? contract) {
@@ -1386,6 +1409,18 @@ static IReadOnlyList<SequenceStep> MapBodySteps(IReadOnlyList<SequenceStepContra
         Label = child.Label,
         StepType = SequenceStepType.Break,
         BreakCondition = MapPerStepCondition(child.BreakCondition)
+      });
+    }
+    else if (childType == SequenceStepType.If) {
+      // Loop bodies may contain if steps; validation rejects ifs nested inside if branches.
+      result.Add(new SequenceStep {
+        Order = i,
+        StepId = child.StepId,
+        Label = child.Label,
+        StepType = SequenceStepType.If,
+        If = MapIfConfig(child.If),
+        Body = MapBodySteps(child.Body),
+        ElseBody = child.ElseBody is null ? null : MapBodySteps(child.ElseBody)
       });
     }
     else {
@@ -1422,12 +1457,16 @@ static IEnumerable<GameBot.Domain.Commands.SequenceStep> FlattenSequenceSteps(IE
   foreach (var step in steps) {
     yield return step;
 
-    if (step.Body.Count == 0) {
-      continue;
+    if (step.Body.Count > 0) {
+      foreach (var child in FlattenSequenceSteps(step.Body)) {
+        yield return child;
+      }
     }
 
-    foreach (var child in FlattenSequenceSteps(step.Body)) {
-      yield return child;
+    if (step.ElseBody is { Count: > 0 }) {
+      foreach (var child in FlattenSequenceSteps(step.ElseBody)) {
+        yield return child;
+      }
     }
   }
 }
