@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Actions;
@@ -9,9 +11,11 @@ using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Images;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Services;
+using GameBot.Emulator.Session;
 using GameBot.Service.Services.Conditions;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.QueueExecution;
+using EmulatorInputAction = GameBot.Emulator.Session.InputAction;
 
 namespace GameBot.Service.Services.SequenceExecution;
 
@@ -29,6 +33,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private readonly ISequenceRepository _sequenceRepository;
   private readonly ICommandExecutor _commandExecutor;
   private readonly ISelfRescheduleCoordinator _selfRescheduleCoordinator;
+  private readonly ISessionManager _sessionManager;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -39,7 +44,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     ICommandRepository commandRepository,
     ISequenceRepository sequenceRepository,
     ICommandExecutor commandExecutor,
-    ISelfRescheduleCoordinator selfRescheduleCoordinator) {
+    ISelfRescheduleCoordinator selfRescheduleCoordinator,
+    ISessionManager sessionManager) {
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -49,6 +55,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _sequenceRepository = sequenceRepository;
     _commandExecutor = commandExecutor;
     _selfRescheduleCoordinator = selfRescheduleCoordinator;
+    _sessionManager = sessionManager;
   }
 
   public async Task<SequenceExecutionResult> ExecuteAsync(
@@ -96,8 +103,11 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
           throw new InvalidOperationException($"No session available for command '{commandId}'. Start a session or pass a sessionId.");
         }
         catch (KeyNotFoundException) {
-          // Command not found in repository — step uses a primitive action type (e.g. tap)
-          // or references a non-existent command; treat as completed.
+          // Command not found in repository. Primitive input steps (tap/swipe/key) no longer
+          // reach this path — they are dispatched to the session input pipeline via the
+          // action dispatcher below. This swallow remains only for action types without a
+          // dispatch implementation (connect-to-game, ensure-game-running) and for dangling
+          // command references; treat as completed.
         }
       },
       gateEvaluator: (step, token) => {
@@ -135,7 +145,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         return Task.FromResult(false);
       },
       ct: ct,
-      actionDispatcher: (action, token) => Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId))
+      actionDispatcher: (action, token) => DispatchActionAsync(action, sequenceId, originatingQueueId, sessionId, token)
     ).ConfigureAwait(false);
 
     var sequence = await _sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
@@ -410,6 +420,145 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     return new ActionDispatchResult(
       "scheduled",
       $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); applies to the current run only");
+  }
+
+  /// <summary>
+  /// Routes a non-command sequence action to its handler: <c>reschedule-self</c> to the
+  /// coordinator (feature 065), primitive inputs (tap/swipe/key) to the session input pipeline.
+  /// </summary>
+  private Task<ActionDispatchResult> DispatchActionAsync(
+      SequenceActionPayload action,
+      string sequenceId,
+      string? originatingQueueId,
+      string? sessionId,
+      CancellationToken ct) {
+    if (string.Equals(action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
+      return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId));
+    }
+
+    return DispatchPrimitiveInputAsync(action, sessionId, ct);
+  }
+
+  /// <summary>
+  /// Sends a primitive tap/swipe/key sequence step to the emulator session input pipeline.
+  /// Returns a <c>failed</c> outcome — which fails the step and the sequence — when the payload
+  /// is incomplete, no running session can be resolved, or the device rejects the input.
+  /// </summary>
+  private async Task<ActionDispatchResult> DispatchPrimitiveInputAsync(
+      SequenceActionPayload action,
+      string? sessionId,
+      CancellationToken ct) {
+    if (!TryBuildInputAction(action, out var input, out var error)) {
+      return new ActionDispatchResult("failed", error);
+    }
+
+    var resolvedSessionId = sessionId;
+    if (string.IsNullOrWhiteSpace(resolvedSessionId)) {
+      var runningSessions = _sessionManager.ListSessions()
+        .Where(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
+        .ToList();
+      if (runningSessions.Count != 1) {
+        return new ActionDispatchResult(
+          "failed",
+          $"no session available for '{action.Type}' step; start a session or pass a sessionId");
+      }
+      resolvedSessionId = runningSessions[0].Id;
+    }
+
+    var accepted = await _sessionManager.SendInputsAsync(resolvedSessionId!, new[] { input! }, ct).ConfigureAwait(false);
+    if (accepted == 0) {
+      return new ActionDispatchResult(
+        "failed",
+        $"'{action.Type}' input was not accepted by session '{resolvedSessionId}'");
+    }
+
+    // Describe after sending: the session manager applies tap-point jitter by mutating the
+    // args in place, so the message reflects the coordinates actually sent to the device.
+    return new ActionDispatchResult("executed", DescribeInput(input!));
+  }
+
+  private static bool TryBuildInputAction(SequenceActionPayload action, out EmulatorInputAction? input, out string? error) {
+    input = null;
+    error = null;
+
+    if (string.Equals(action.Type, ActionTypes.Tap, StringComparison.OrdinalIgnoreCase)) {
+      if (!TryGetInt(action.Parameters, "x", out var x) || !TryGetInt(action.Parameters, "y", out var y)) {
+        error = "tap step requires numeric 'x' and 'y' parameters";
+        return false;
+      }
+      input = new EmulatorInputAction("tap", new Dictionary<string, object> { ["x"] = x, ["y"] = y });
+      return true;
+    }
+
+    if (string.Equals(action.Type, ActionTypes.Swipe, StringComparison.OrdinalIgnoreCase)) {
+      if (!TryGetInt(action.Parameters, "x1", out var x1) || !TryGetInt(action.Parameters, "y1", out var y1)
+          || !TryGetInt(action.Parameters, "x2", out var x2) || !TryGetInt(action.Parameters, "y2", out var y2)) {
+        error = "swipe step requires numeric 'x1', 'y1', 'x2' and 'y2' parameters";
+        return false;
+      }
+      var swipeArgs = new Dictionary<string, object> { ["x1"] = x1, ["y1"] = y1, ["x2"] = x2, ["y2"] = y2 };
+      var durationMs = TryGetInt(action.Parameters, "durationMs", out var duration) ? duration : (int?)null;
+      input = new EmulatorInputAction("swipe", swipeArgs, null, durationMs);
+      return true;
+    }
+
+    if (string.Equals(action.Type, ActionTypes.Key, StringComparison.OrdinalIgnoreCase)) {
+      if (TryGetInt(action.Parameters, "keyCode", out var keyCode)) {
+        input = new EmulatorInputAction("key", new Dictionary<string, object> { ["keyCode"] = keyCode });
+        return true;
+      }
+      if (TryGetString(action.Parameters, "key", out var key)) {
+        input = new EmulatorInputAction("key", new Dictionary<string, object> { ["key"] = key! });
+        return true;
+      }
+      error = "key step requires a 'key' or 'keyCode' parameter";
+      return false;
+    }
+
+    error = $"action type '{action.Type}' has no input dispatch";
+    return false;
+  }
+
+  // Parameters arrive as JsonElement from persisted sequences, as CLR primitives from in-process
+  // callers, and as strings after {{iteration}} template substitution in loop bodies.
+  private static bool TryGetInt(Dictionary<string, object?> parameters, string key, out int value) {
+    value = 0;
+    if (!parameters.TryGetValue(key, out var raw) || raw is null) return false;
+    switch (raw) {
+      case JsonElement je when je.ValueKind == JsonValueKind.Number:
+        return je.TryGetInt32(out value);
+      case JsonElement je when je.ValueKind == JsonValueKind.String:
+        return int.TryParse(je.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+      case JsonElement:
+        return false;
+      case string s:
+        return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+      default:
+        try {
+          value = Convert.ToInt32(raw, CultureInfo.InvariantCulture);
+          return true;
+        }
+        catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException) {
+          return false;
+        }
+    }
+  }
+
+  private static bool TryGetString(Dictionary<string, object?> parameters, string key, out string? value) {
+    value = null;
+    if (!parameters.TryGetValue(key, out var raw) || raw is null) return false;
+    value = raw is JsonElement je
+      ? (je.ValueKind == JsonValueKind.String ? je.GetString() : je.ToString())
+      : raw.ToString();
+    return !string.IsNullOrWhiteSpace(value);
+  }
+
+  private static string DescribeInput(EmulatorInputAction input) {
+    return input.Type switch {
+      "tap" => $"tap({input.Args["x"]},{input.Args["y"]}) sent to emulator",
+      "swipe" => $"swipe({input.Args["x1"]},{input.Args["y1"]} -> {input.Args["x2"]},{input.Args["y2"]}) sent to emulator",
+      _ => "key input sent to emulator"
+    };
   }
 
   private static async Task<bool> EvaluateImageConditionAsync(
