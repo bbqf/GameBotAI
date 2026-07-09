@@ -107,6 +107,7 @@ namespace GameBot.Domain.Commands {
                 ActionTypes.Swipe,
                 ActionTypes.Key,
                 ActionTypes.ConnectToGame,
+                ActionTypes.EnsureGameRunning,
                 ActionTypes.WaitForImage,
                 ActionTypes.RescheduleSelf
             };

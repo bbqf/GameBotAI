@@ -44,7 +44,15 @@ public sealed class SelfRescheduleStandaloneIntegrationTests {
           Parameters = { ["option"] = "OncePerRun" }
         }
       },
-      new SequenceStep { Order = 1, StepId = "after", CommandId = "cmd-after", StepType = SequenceStepType.Command }
+      // A wait-for-image step with no detection target and a zero timeout: an
+      // infrastructure-free step that genuinely succeeds, proving the sequence continued
+      // past the reschedule action. (A dangling command reference would now fail the run.)
+      new SequenceStep {
+        Order = 1,
+        StepId = "after",
+        StepType = SequenceStepType.Action,
+        WaitForImage = new WaitForImageConfig { TimeoutMs = 0 }
+      }
     });
     await services.GetRequiredService<ISequenceRepository>().CreateAsync(sequence).ConfigureAwait(false);
 

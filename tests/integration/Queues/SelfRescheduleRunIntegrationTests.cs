@@ -29,17 +29,22 @@ public sealed class SelfRescheduleRunIntegrationTests {
     TestEnvironment.PrepareCleanDataDir();
   }
 
-  // Builds sequence S = [ marker command (always succeeds in stub mode), reschedule-self OncePerRun
+  // Builds sequence S = [ marker step (always succeeds), reschedule-self OncePerRun
   // gated on the marker's outcome ]. expectedState selects whether the IF branch fires.
+  // The marker is a wait-for-image step with no detection target and a zero timeout — an
+  // infrastructure-free step that records a "success" outcome. (It used to be a dangling
+  // command reference, which now fails the run loudly instead of fake-succeeding.)
+  private static SequenceStep MarkerStep() => new() {
+    Order = 0,
+    StepId = "marker",
+    StepType = SequenceStepType.Action,
+    WaitForImage = new WaitForImageConfig { TimeoutMs = 0 }
+  };
+
   private static CommandSequence BuildSelfReschedulingSequence(string id, string name, string expectedMarkerState) {
     var sequence = new CommandSequence { Id = id, Name = name };
     sequence.SetSteps(new[] {
-      new SequenceStep {
-        Order = 0,
-        StepId = "marker",
-        CommandId = "cmd-marker",
-        StepType = SequenceStepType.Command
-      },
+      MarkerStep(),
       new SequenceStep {
         Order = 1,
         StepId = "reschedule",
@@ -123,7 +128,7 @@ public sealed class SelfRescheduleRunIntegrationTests {
     // A sequence that reschedules itself twice (two action steps, both forced true).
     var sequence = new CommandSequence { Id = "seq-twice", Name = "Twice" };
     sequence.SetSteps(new[] {
-      new SequenceStep { Order = 0, StepId = "marker", CommandId = "cmd-marker", StepType = SequenceStepType.Command },
+      MarkerStep(),
       new SequenceStep {
         Order = 1, StepId = "r1", StepType = SequenceStepType.Action,
         Action = new SequenceActionPayload { Type = ActionTypes.RescheduleSelf, Parameters = { ["option"] = "OncePerRun" } },
