@@ -596,14 +596,15 @@ namespace GameBot.Domain.Services {
         return false;
       }
 
-      // ── Primitive input action dispatch (tap / swipe / key) ───────────────
-      // Dispatched through the injected callback to the session input pipeline. A failed
+      // ── Primitive action dispatch (tap / swipe / key / connect-to-game /
+      //    ensure-game-running) ──────────────────────────────────────────────
+      // Dispatched through the injected callback to the session/game pipeline. A failed
       // dispatch fails the step and stops the sequence — a primitive step must never report
-      // success when no input reached the device. Without a dispatcher the step falls through
+      // success when nothing reached the device. Without a dispatcher the step falls through
       // to the command path (callers that execute primitives via executeCommandAsync).
       if (step.StepType == SequenceStepType.Action
           && actionDispatcher is not null
-          && IsPrimitiveInputAction(step.Action)) {
+          && IsDispatchedPrimitiveAction(step.Action)) {
         var inputDispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
         if (string.Equals(inputDispatch.Outcome, "failed", StringComparison.OrdinalIgnoreCase)) {
           var reason = !string.IsNullOrWhiteSpace(inputDispatch.Message)
@@ -666,10 +667,12 @@ namespace GameBot.Domain.Services {
       return false;
     }
 
-    private static bool IsPrimitiveInputAction(SequenceActionPayload? action) {
+    private static bool IsDispatchedPrimitiveAction(SequenceActionPayload? action) {
       return string.Equals(action?.Type, ActionTypes.Tap, StringComparison.OrdinalIgnoreCase)
           || string.Equals(action?.Type, ActionTypes.Swipe, StringComparison.OrdinalIgnoreCase)
-          || string.Equals(action?.Type, ActionTypes.Key, StringComparison.OrdinalIgnoreCase);
+          || string.Equals(action?.Type, ActionTypes.Key, StringComparison.OrdinalIgnoreCase)
+          || string.Equals(action?.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)
+          || string.Equals(action?.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsWaitForImageStep(SequenceStep step) {

@@ -13,6 +13,7 @@ using GameBot.Domain.Logging;
 using GameBot.Domain.Services;
 using GameBot.Emulator.Session;
 using GameBot.Service.Services.Conditions;
+using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.QueueExecution;
 using EmulatorInputAction = GameBot.Emulator.Session.InputAction;
@@ -34,6 +35,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private readonly ICommandExecutor _commandExecutor;
   private readonly ISelfRescheduleCoordinator _selfRescheduleCoordinator;
   private readonly ISessionManager _sessionManager;
+  private readonly IEnsureGameRunningActionHandler _ensureGameRunning;
+  private readonly ISessionService _sessionService;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -45,7 +48,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     ISequenceRepository sequenceRepository,
     ICommandExecutor commandExecutor,
     ISelfRescheduleCoordinator selfRescheduleCoordinator,
-    ISessionManager sessionManager) {
+    ISessionManager sessionManager,
+    IEnsureGameRunningActionHandler ensureGameRunning,
+    ISessionService sessionService) {
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -56,6 +61,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _commandExecutor = commandExecutor;
     _selfRescheduleCoordinator = selfRescheduleCoordinator;
     _sessionManager = sessionManager;
+    _ensureGameRunning = ensureGameRunning;
+    _sessionService = sessionService;
   }
 
   public async Task<SequenceExecutionResult> ExecuteAsync(
@@ -102,12 +109,15 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         catch (InvalidOperationException ex) when (ex.Message == "missing_session_context") {
           throw new InvalidOperationException($"No session available for command '{commandId}'. Start a session or pass a sessionId.");
         }
-        catch (KeyNotFoundException) {
-          // Command not found in repository. Primitive input steps (tap/swipe/key) no longer
-          // reach this path — they are dispatched to the session input pipeline via the
-          // action dispatcher below. This swallow remains only for action types without a
-          // dispatch implementation (connect-to-game, ensure-game-running) and for dangling
-          // command references; treat as completed.
+        catch (KeyNotFoundException ex) {
+          // Primitive action steps (tap/swipe/key/connect-to-game/ensure-game-running) never
+          // reach this path — they are dispatched via the action dispatcher below. What lands
+          // here is a dangling reference (missing command or session); it must fail the step
+          // loudly instead of reporting a fake success.
+          var reason = ex.Message == "Command not found"
+            ? $"Command '{commandId}' was not found; the sequence step references a missing command."
+            : $"Command '{commandId}' could not be executed: {ex.Message}.";
+          throw new InvalidOperationException(reason);
         }
       },
       gateEvaluator: (step, token) => {
@@ -424,7 +434,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
 
   /// <summary>
   /// Routes a non-command sequence action to its handler: <c>reschedule-self</c> to the
-  /// coordinator (feature 065), primitive inputs (tap/swipe/key) to the session input pipeline.
+  /// coordinator (feature 065), <c>connect-to-game</c> to the session service,
+  /// <c>ensure-game-running</c> to its action handler, and primitive inputs (tap/swipe/key)
+  /// to the session input pipeline.
   /// </summary>
   private Task<ActionDispatchResult> DispatchActionAsync(
       SequenceActionPayload action,
@@ -436,7 +448,71 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId));
     }
 
+    if (string.Equals(action.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)) {
+      return Task.FromResult(DispatchConnectToGame(action));
+    }
+
+    if (string.Equals(action.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase)) {
+      return DispatchEnsureGameRunningAsync(sessionId, ct);
+    }
+
     return DispatchPrimitiveInputAsync(action, sessionId, ct);
+  }
+
+  /// <summary>
+  /// Handles a <c>connect-to-game</c> sequence step by starting (or restarting) a session for
+  /// the game/device named in the step parameters — the same operation as the
+  /// <c>/api/sessions/start</c> endpoint. Returns a <c>failed</c> outcome — which fails the
+  /// step and the sequence — when parameters are missing or the session cannot be started.
+  /// </summary>
+  private ActionDispatchResult DispatchConnectToGame(SequenceActionPayload action) {
+    if (!TryGetString(action.Parameters, "gameId", out var gameId)
+        || !TryGetString(action.Parameters, "adbSerial", out var adbSerial)) {
+      return new ActionDispatchResult(
+        "failed",
+        "connect-to-game step requires 'gameId' and 'adbSerial' parameters");
+    }
+
+    try {
+      var started = _sessionService.StartSession(gameId!, adbSerial!);
+      return new ActionDispatchResult(
+        "executed",
+        $"connected to game '{gameId}' on device '{adbSerial}' (session {started.SessionId})");
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or ArgumentException) {
+      return new ActionDispatchResult(
+        "failed",
+        $"connect-to-game failed for game '{gameId}' on device '{adbSerial}': {ex.Message}");
+    }
+  }
+
+  /// <summary>
+  /// Handles an <c>ensure-game-running</c> sequence step through the same handler the command
+  /// executor uses for its command-step equivalent. Success means the linked game is the
+  /// foreground app; anything else (game not running — a launch is attempted, missing
+  /// context/config, unsupported platform) is a <c>failed</c> outcome that fails the step
+  /// and stops the sequence.
+  /// </summary>
+  private async Task<ActionDispatchResult> DispatchEnsureGameRunningAsync(
+      string? sessionId,
+      CancellationToken ct) {
+    var resolvedSessionId = sessionId;
+    if (string.IsNullOrWhiteSpace(resolvedSessionId)) {
+      var runningSessions = _sessionManager.ListSessions()
+        .Where(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
+        .ToList();
+      if (runningSessions.Count != 1) {
+        return new ActionDispatchResult(
+          "failed",
+          "no session available for 'ensure-game-running' step; start a session or pass a sessionId");
+      }
+      resolvedSessionId = runningSessions[0].Id;
+    }
+
+    var result = await _ensureGameRunning.ExecuteAsync(resolvedSessionId!, ct).ConfigureAwait(false);
+    return result.IsSuccess
+      ? new ActionDispatchResult("executed", "game is running in the foreground (game_running)")
+      : new ActionDispatchResult("failed", $"ensure-game-running failed: {result.ReasonCode}");
   }
 
   /// <summary>

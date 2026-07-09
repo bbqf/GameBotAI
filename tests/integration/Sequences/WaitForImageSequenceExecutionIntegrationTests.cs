@@ -64,11 +64,14 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     executeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     var execution = await executeResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
 
-    execution.GetProperty("status").GetString().Should().Be("Succeeded");
+    // The wait step completed and the sequence continued to the next step. That step
+    // references a command that does not exist, which now fails loudly instead of
+    // fake-reporting "executed".
+    execution.GetProperty("status").GetString().Should().Be("Failed");
     var steps = execution.GetProperty("steps");
     steps.GetArrayLength().Should().Be(2);
     steps[0].GetProperty("actionOutcome").GetString().Should().Be("image_detected");
-    steps[1].GetProperty("actionOutcome").GetString().Should().Be("executed");
+    steps[1].GetProperty("actionOutcome").GetString().Should().Be("failed");
   }
 
   [Fact]
@@ -85,10 +88,12 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     executeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     var execution = await executeResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
 
-    execution.GetProperty("status").GetString().Should().Be("Succeeded");
+    // Continuation past the wait step is proven by the second step being attempted; it fails
+    // honestly because its command reference does not exist.
+    execution.GetProperty("status").GetString().Should().Be("Failed");
     var steps = execution.GetProperty("steps");
     steps[0].GetProperty("actionOutcome").GetString().Should().Be("timeout_elapsed");
-    steps[1].GetProperty("actionOutcome").GetString().Should().Be("executed");
+    steps[1].GetProperty("actionOutcome").GetString().Should().Be("failed");
   }
 
   [Fact]
@@ -109,10 +114,12 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     executeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     var execution = await executeResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
 
-    execution.GetProperty("status").GetString().Should().Be("Succeeded");
+    // Continuation past the wait step is proven by the second step being attempted; it fails
+    // honestly because its command reference does not exist.
+    execution.GetProperty("status").GetString().Should().Be("Failed");
     var steps = execution.GetProperty("steps");
     steps[0].GetProperty("actionOutcome").GetString().Should().Be("image_unavailable");
-    steps[1].GetProperty("actionOutcome").GetString().Should().Be("executed");
+    steps[1].GetProperty("actionOutcome").GetString().Should().Be("failed");
   }
 
   private static async Task<string> CreateSequenceAsync(HttpClient client, object waitPayload) {

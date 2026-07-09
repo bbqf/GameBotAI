@@ -45,10 +45,14 @@ public sealed class LegacySequenceCompatibilityIntegrationTests {
     steps[0].Should().Be("cmd-legacy-a");
     steps[1].Should().Be("cmd-legacy-b");
 
+    // Executing still works through the legacy shape, but the referenced commands do not
+    // exist — a dangling command reference now fails the run loudly (at the first step)
+    // instead of fake-reporting every step as executed.
     var executeResponse = await client.PostAsync(new Uri($"/api/sequences/{sequenceId}/execute", UriKind.Relative), null).ConfigureAwait(false);
     executeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     var execution = await executeResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
-    execution.GetProperty("status").GetString().Should().Be("Succeeded");
-    execution.GetProperty("steps").GetArrayLength().Should().Be(2);
+    execution.GetProperty("status").GetString().Should().Be("Failed");
+    execution.GetProperty("steps").GetArrayLength().Should().Be(1);
+    execution.GetProperty("steps")[0].GetProperty("message").GetString().Should().Contain("cmd-legacy-a");
   }
 }
