@@ -10,8 +10,11 @@ using Xunit;
 namespace GameBot.IntegrationTests.Sequences;
 
 public sealed class EmptyStateExecuteSequenceIntegrationTests {
+  // A primitive tap step must reach the emulator to succeed. With no session running the
+  // execute call still returns 200 with the run result, but the run fails on the first tap
+  // step instead of fake-reporting every step as executed.
   [Fact]
-  public async Task FirstSequenceExecuteSucceedsFromEmptyRepository() {
+  public async Task FirstSequenceExecuteWithoutSessionFailsFastFromEmptyRepository() {
     TestEnvironment.PrepareCleanDataDir();
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
 
@@ -56,7 +59,10 @@ public sealed class EmptyStateExecuteSequenceIntegrationTests {
     executeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     var execution = await executeResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
 
-    execution.GetProperty("status").GetString().Should().Be("Succeeded");
-    execution.GetProperty("steps").GetArrayLength().Should().Be(3);
+    execution.GetProperty("status").GetString().Should().Be("Failed");
+    var steps = execution.GetProperty("steps");
+    steps.GetArrayLength().Should().Be(1); // the run stops at the first undeliverable tap
+    steps[0].GetProperty("status").GetString().Should().Be("Failed");
+    steps[0].GetProperty("message").GetString().Should().Contain("no session available");
   }
 }
