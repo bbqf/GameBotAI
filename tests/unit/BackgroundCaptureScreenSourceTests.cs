@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -50,6 +51,26 @@ public sealed class BackgroundCaptureScreenSourceTests : IDisposable {
     bitmap!.Width.Should().BeGreaterThan(0);
     bitmap.Height.Should().BeGreaterThan(0);
     bitmap.Dispose();
+  }
+
+  [Fact]
+  public async Task ConcurrentGetLatestScreenshotWhileFramesSwapDoesNotThrow() {
+    _sessions.AddSession("sess-1", "game-1", "device-1", SessionStatus.Running);
+    _captureService.StartCapture("sess-1", "device-1");
+    await Task.Delay(200);
+
+    // Regression: cloning frame.Bitmap while the capture loop disposed it threw
+    // InvalidOperationException/ArgumentException; decoding from PngBytes must not.
+    using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+    var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(() => {
+      while (!stop.IsCancellationRequested) {
+        using var bmp = _source.GetLatestScreenshot();
+        if (bmp is not null) bmp.Width.Should().BeGreaterThan(0);
+      }
+    })).ToArray();
+
+    var whenAll = () => Task.WhenAll(readers);
+    await whenAll.Should().NotThrowAsync();
   }
 
   [Fact]
