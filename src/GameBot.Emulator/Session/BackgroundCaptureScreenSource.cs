@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.IO;
 using System.Runtime.Versioning;
 using GameBot.Domain.Sessions;
 using GameBot.Domain.Triggers.Evaluators;
@@ -28,7 +29,11 @@ public sealed class BackgroundCaptureScreenSource : IScreenSource {
     var frame = _captureService.GetCachedFrame(sess.Id);
     if (frame is null) return null;
 
-    // Return a clone so the caller can dispose it independently
-    return new Bitmap(frame.Bitmap);
+    // Decode from the immutable PNG snapshot instead of cloning frame.Bitmap:
+    // the capture loop disposes the cached Bitmap when it swaps in a new frame,
+    // and reading a GDI+ Bitmap concurrently with its disposal throws.
+    using var ms = new MemoryStream(frame.PngBytes, writable: false);
+    using var tmp = new Bitmap(ms);
+    return new Bitmap(tmp); // detach from stream so the caller can dispose it independently
   }
 }

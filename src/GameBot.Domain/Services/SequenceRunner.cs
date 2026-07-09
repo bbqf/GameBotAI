@@ -472,7 +472,7 @@ namespace GameBot.Domain.Services {
             ConfidenceThreshold = imageCondition.MinSimilarity
           }, ct).ConfigureAwait(false);
         }
-        catch {
+        catch (Exception ex) {
           result.AddStep(
               step.CommandId,
               0,
@@ -480,8 +480,8 @@ namespace GameBot.Domain.Services {
               conditionType: "imageVisible",
               conditionResult: "error",
               actionOutcome: "failed",
-              message: $"Step '{stepKey}' condition evaluation failed");
-          result.Fail($"Step '{stepKey}' condition evaluation failed");
+              message: $"Step '{stepKey}' condition evaluation failed: {ex.Message}");
+          result.Fail($"Step '{stepKey}' condition evaluation failed: {ex.Message}");
           if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
           return true;
         }
@@ -910,9 +910,9 @@ namespace GameBot.Domain.Services {
           condResult = await EvaluateLoopConditionAsync(
               cfg.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
         }
-        catch {
-          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' condition evaluation failed.");
-          result.Fail($"Loop '{stepKey}' condition evaluation failed.");
+        catch (Exception ex) {
+          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' condition evaluation failed: {ex.Message}");
+          result.Fail($"Loop '{stepKey}' condition evaluation failed: {ex.Message}");
           stepOutcomes[stepKey] = "failed";
           return true;
         }
@@ -1018,9 +1018,9 @@ namespace GameBot.Domain.Services {
           exitCond = await EvaluateLoopConditionAsync(
               cfg.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
         }
-        catch {
-          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exit condition evaluation failed.");
-          result.Fail($"Loop '{stepKey}' exit condition evaluation failed.");
+        catch (Exception ex) {
+          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exit condition evaluation failed: {ex.Message}");
+          result.Fail($"Loop '{stepKey}' exit condition evaluation failed: {ex.Message}");
           stepOutcomes[stepKey] = "failed";
           return true;
         }
@@ -1072,13 +1072,13 @@ namespace GameBot.Domain.Services {
         condResult = await EvaluateLoopConditionAsync(
             step.If.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
       }
-      catch {
+      catch (Exception ex) {
         result.AddStep(stepKey, 0, "Failed",
             conditionType: condDesc.Type,
             conditionResult: "error",
             actionOutcome: "failed",
-            message: $"If '{stepKey}' condition evaluation failed.");
-        result.Fail($"If '{stepKey}' condition evaluation failed.");
+            message: $"If '{stepKey}' condition evaluation failed: {ex.Message}");
+        result.Fail($"If '{stepKey}' condition evaluation failed: {ex.Message}");
         stepOutcomes[stepKey] = "failed";
         return (true, false);
       }
@@ -1398,9 +1398,9 @@ namespace GameBot.Domain.Services {
       try {
         takeIf = await conditionEvaluator(cond, ct).ConfigureAwait(false);
       }
-      catch {
+      catch (Exception ex) {
         result.AddBlock(new BlockResult { BlockType = "ifElse", Iterations = 0, DurationMs = 0, Status = "Failed" });
-        result.Fail("ifElse condition evaluation failed");
+        result.Fail($"ifElse condition evaluation failed: {ex.Message}");
         if (_logger != null) LogBlockEnd(_logger, "ifElse", "Failed", 0, 0, null);
         return;
       }
