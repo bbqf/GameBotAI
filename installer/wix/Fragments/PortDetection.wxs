@@ -1,6 +1,9 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
-    <Binary Id="PortResolverScript" SourceFile="Scripts\PortResolver.js" />
+    <!-- .jscript extension keeps CodeQL's ECMAScript parser away from MSI-only
+         JScript syntax (e.g. Session.Property("X") = "value"); the script engine
+         is selected by JScriptCall below, not by the file extension. -->
+    <Binary Id="PortResolverScript" SourceFile="Scripts\PortResolver.jscript" />
 
     <CustomAction
       Id="DetectAvailablePorts"
