@@ -9,7 +9,7 @@ public class PortSelectionRulesTests {
     var repoRoot = FindRepoRoot();
     var propertiesPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "InstallerProperties.wxs");
     var detectionPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "PortDetection.wxs");
-    var resolverScriptPath = Path.Combine(repoRoot, "installer", "wix", "Scripts", "PortResolver.js");
+    var resolverScriptPath = Path.Combine(repoRoot, "installer", "wix", "Scripts", "PortResolver.jscript");
 
     File.Exists(propertiesPath).Should().BeTrue();
     File.Exists(detectionPath).Should().BeTrue();
