@@ -186,7 +186,13 @@ namespace GameBot.Service.Endpoints {
         return Results.Ok(new DetectAllResponse());
       }
 
+      // CA2025 false positive: Task.WhenAll below completes every task (even when
+      // some fault) before either Dispose site runs, so no task can observe a
+      // disposed screenshotMat. The rule doesn't model WhenAll and fires on any
+      // disposable passed into a task that is not awaited at the call site.
+#pragma warning disable CA2025
       var matchTasks = ids.Select(id => MatchTemplateAsync(id, imageRepo, matcher, screenshotMat, cfg, ct)).ToList();
+#pragma warning restore CA2025
 
       (string id, TemplateMatchResult? result)[] allResults;
       try {
