@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gamebot": {
+      "command": "node",
+      "args": ["src/mcp-server/dist/index.js"],
+      "env": {
+        "GAMEBOT_API_URL": "http://localhost:8080"
+      }
+    }
+  }
+}
