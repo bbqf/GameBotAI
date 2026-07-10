@@ -31,10 +31,16 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
+      # The secret scan and the -warnaserror flag replace the former
+      # ci-installer workflow, which existed only to run these two gates and
+      # spent ~9 minutes recompiling the whole solution for them.
+      - name: Security and secret scans
+        shell: pwsh
+        run: ./scripts/installer/run-security-scans.ps1
       - name: Restore
         run: dotnet restore GameBot.sln
       - name: Build
-        run: dotnet build GameBot.sln --no-restore -c Release
+        run: dotnet build GameBot.sln --no-restore -c Release -warnaserror
       # Single full-suite run collects coverage for every gated area at once;
       # per-area thresholds are enforced afterwards by the script, so the test
       # suite never has to be re-executed per coverage gate.
