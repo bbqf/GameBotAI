@@ -243,12 +243,10 @@ This section documents the current installer CI/release behavior and operational
 
 ### Required checks / PR gate
 
-- PRs should wait for `release-installer / build-release-installer` plus normal CI checks to complete before merge.
+- PRs should wait for `release-installer / build-release-installer` (installer-path changes only) plus normal CI checks to complete before merge.
 - Typical check set includes:
-  - `.NET CI` (`build`, `web-ui-tests`)
-  - `ci-installer-fast`
-  - `ci-installer-logic`
-  - `release-installer` (`build-release-installer`)
+  - `.NET CI` (`build`, `web-ui-tests`) - `build` also enforces `-warnaserror` and the installer secret scan
+  - `release-installer` (`build-release-installer`) - runs only when installer-related paths change; use `workflow_dispatch` to build from any branch on demand
   - `CodeQL`
 
 ### Conflict resolution runbook
