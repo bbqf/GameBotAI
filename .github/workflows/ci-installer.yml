@@ -1,0 +1,41 @@
+name: ci-installer
+
+on:
+  pull_request:
+    paths:
+      - "installer/**"
+      - "scripts/installer/**"
+      - "specs/025-standalone-windows-installer/**"
+      - "tests/**/Installer/**"
+      - ".github/workflows/ci-installer.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer-checks:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Build
+        run: dotnet build -c Debug
+      - name: Security and secret scans
+        shell: pwsh
+        run: ./scripts/installer/run-security-scans.ps1
+      - name: Installer-focused tests
+        shell: pwsh
+        run: dotnet test -c Debug --no-build --filter "Installer"
+      - name: Static analysis enforcement
+        shell: pwsh
+        run: ./scripts/installer/run-static-analysis.ps1

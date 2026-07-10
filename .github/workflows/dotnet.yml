@@ -3,11 +3,18 @@ name: .NET CI
 permissions:
   contents: read
 
+# pull_request is intentionally not a trigger: every branch is built on push
+# (the speckit pipeline waits for that run before opening a PR), and GitHub
+# surfaces the push run's checks on the PR for the same head commit. A
+# pull_request trigger would rebuild the identical SHA a second time.
 on:
   push:
     branches: [ "**" ]
-  pull_request:
-    branches: [ "**" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -17,17 +24,25 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.x'
+          dotnet-version: '9.0.x'
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - name: Restore
         run: dotnet restore GameBot.sln
       - name: Build
         run: dotnet build GameBot.sln --no-restore -c Release
-      - name: Test
-        run: dotnet test GameBot.sln --no-build --no-restore -c Release
-      - name: Coverage gate (installer endpoints)
-        run: dotnet test GameBot.sln --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:Include="[GameBot.Service]GameBot.Service.Endpoints.EmulatorImageEndpoints*" /p:Threshold=80 /p:ThresholdType=line /p:ThresholdStat=total
-      - name: Coverage gate (execution logs touched area)
-        run: dotnet test tests/unit/GameBot.UnitTests.csproj --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:Include="[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository" /p:Threshold=80 /p:ThresholdType=line%2cbranch /p:ThresholdStat=total
+      # Single full-suite run collects coverage for every gated area at once;
+      # per-area thresholds are enforced afterwards by the script, so the test
+      # suite never has to be re-executed per coverage gate.
+      - name: Test (with coverage collection)
+        run: dotnet test GameBot.sln --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=json /p:Include="[GameBot.Service]GameBot.Service.Endpoints.EmulatorImageEndpoints*%2c[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository"
+      - name: Coverage gates (installer endpoints, execution logs)
+        shell: pwsh
+        run: ./scripts/check-coverage-thresholds.ps1
       - name: Performance gate (execution logs ci profile)
         env:
           GAMEBOT_PERF_PROFILE: ci
@@ -44,7 +59,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'src/web-ui/package-lock.json'
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         working-directory: src/web-ui
       - name: Run frontend tests
         run: npm test -- --coverage --silent

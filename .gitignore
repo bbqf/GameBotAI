@@ -21,6 +21,7 @@ x86/
 
 # Test results & coverage
 TestResults/
+coverage.json
 *.trx
 *.coverage
 *.coveragexml
