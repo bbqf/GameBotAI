@@ -7,7 +7,7 @@ public sealed class SameBuildInteractiveDecisionTests {
   [Fact]
   public void ProgramContainsInteractiveSameBuildDecisionFlow() {
     var repoRoot = FindRepoRoot();
-    var programPath = Path.Combine(repoRoot, "src", "GameBot.Service", "Program.cs");
+    var programPath = Path.Combine(repoRoot, "src", "GameBot.Service", "Endpoints", "VersioningEndpoints.cs");
 
     var content = File.ReadAllText(programPath);
     content.Should().Contain("/installer/same-build/decision");

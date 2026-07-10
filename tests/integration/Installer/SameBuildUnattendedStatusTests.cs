@@ -7,7 +7,7 @@ public sealed class SameBuildUnattendedStatusTests {
   [Fact]
   public void UnattendedSameBuildFlowUsesDedicatedStatusCode() {
     var repoRoot = FindRepoRoot();
-    var programPath = Path.Combine(repoRoot, "src", "GameBot.Service", "Program.cs");
+    var programPath = Path.Combine(repoRoot, "src", "GameBot.Service", "Endpoints", "VersioningEndpoints.cs");
     var silentScriptPath = Path.Combine(repoRoot, "scripts", "installer", "silent-install-examples.ps1");
 
     var program = File.ReadAllText(programPath);

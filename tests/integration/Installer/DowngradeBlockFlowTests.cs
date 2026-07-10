@@ -8,7 +8,7 @@ public sealed class DowngradeBlockFlowTests {
   public void ProductDefinitionAndServiceCompareEndpointContainDowngradeFlowSignals() {
     var repoRoot = FindRepoRoot();
     var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
-    var programPath = Path.Combine(repoRoot, "src", "GameBot.Service", "Program.cs");
+    var programPath = Path.Combine(repoRoot, "src", "GameBot.Service", "Endpoints", "VersioningEndpoints.cs");
 
     var product = File.ReadAllText(productPath);
     var program = File.ReadAllText(programPath);
