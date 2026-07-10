@@ -12,7 +12,9 @@
     <NoWarn>$(NoWarn);CA1038</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="*" PrivateAssets="all" />
+    <!-- Pinned (was floating "*"): floating analyzer versions change rule behavior
+         silently and defeat the CI NuGet cache key, which hashes csproj files. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.301" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Metrics" Version="3.3.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
