@@ -28,14 +28,13 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
-      - name: Build
-        run: dotnet build -c Debug
       - name: Security and secret scans
         shell: pwsh
         run: ./scripts/installer/run-security-scans.ps1
-      - name: Installer-focused tests
-        shell: pwsh
-        run: dotnet test -c Debug --no-build --filter "Installer"
+      # No separate build or test steps here: the static-analysis script
+      # already compiles the full solution (Debug, -warnaserror), and the
+      # installer-filtered tests are a strict subset of the suite that the
+      # .NET CI workflow runs for every push of the same commit.
       - name: Static analysis enforcement
         shell: pwsh
         run: ./scripts/installer/run-static-analysis.ps1
