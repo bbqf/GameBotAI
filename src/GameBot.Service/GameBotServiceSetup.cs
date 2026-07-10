@@ -22,7 +22,8 @@ namespace GameBot.Service;
 
 // Startup composition: service registrations and web-host URL binding extracted
 // from Program.cs so the implicit top-level Main stays small (huge top-level
-// method bodies make Roslyn dataflow analyzers pathologically slow).
+// method bodies make Roslyn dataflow analyzers pathologically slow). The same
+// applies to registration factory lambdas, so the bigger ones are named methods.
 internal static class GameBotServiceSetup {
   // Registers all GameBot services and configures logging and Kestrel URLs.
   // Returns the resolved data storage root, which endpoint mapping needs later.
@@ -41,7 +42,26 @@ internal static class GameBotServiceSetup {
 
     var loggingGate = new LoggingPolicyGate();
 
-    // Services
+    // Data storage configuration (env: GAMEBOT_DATA_DIR or config Service:Storage:Root)
+    var storageRoot = builder.Configuration["Service:Storage:Root"]
+                      ?? Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
+                      ?? Path.Combine(AppContext.BaseDirectory, "data");
+    Directory.CreateDirectory(storageRoot);
+
+    ConfigureLogging(builder, loggingGate);
+    RegisterWebPipelineServices(builder);
+    RegisterSessionServices(builder);
+    RegisterRepositories(builder, storageRoot);
+    RegisterSequenceAndQueueServices(builder);
+    RegisterLoggingPolicyServices(builder, storageRoot, loggingGate, loggingComponentCatalog);
+    RegisterTriggerAndImageServices(builder, storageRoot);
+    RegisterHostedServices(builder);
+    ConfigureWebHostUrls(builder);
+
+    return storageRoot;
+  }
+
+  private static void ConfigureLogging(WebApplicationBuilder builder, LoggingPolicyGate loggingGate) {
     // Console logging with timestamps + scopes; ensure no duplicate console providers
     builder.Logging.ClearProviders();
     builder.Logging.SetMinimumLevel(LogLevel.Trace);
@@ -56,6 +76,22 @@ internal static class GameBotServiceSetup {
     });
     builder.Logging.AddRuntimeLoggingGate(loggingGate);
 
+    // Reduce chatty HTTP logs by default; allow dynamic override via GAMEBOT_HTTP_LOG_LEVEL_MINIMUM applied on refresh
+    var httpMinLevelEnv = Environment.GetEnvironmentVariable("GAMEBOT_HTTP_LOG_LEVEL_MINIMUM");
+    GameBot.Service.Services.DynamicLogFilters.HttpMinLevel = httpMinLevelEnv?.Trim().ToLowerInvariant() switch {
+      "trace" => LogLevel.Trace,
+      "debug" => LogLevel.Debug,
+      "information" => LogLevel.Information,
+      "info" => LogLevel.Information,
+      "warning" => LogLevel.Warning,
+      "warn" => LogLevel.Warning,
+      "error" => LogLevel.Error,
+      "critical" => LogLevel.Critical,
+      _ => LogLevel.Warning
+    };
+  }
+
+  private static void RegisterWebPipelineServices(WebApplicationBuilder builder) {
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerDocs();
     builder.Services.AddSwaggerGen(options => {
@@ -81,6 +117,11 @@ internal static class GameBotServiceSetup {
     builder.Services.ConfigureHttpJsonOptions(options => {
       options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+    builder.Services.AddTransient<ErrorHandlingMiddleware>();
+    builder.Services.AddTransient<CorrelationIdMiddleware>();
+  }
+
+  private static void RegisterSessionServices(WebApplicationBuilder builder) {
     builder.Services.Configure<GameBot.Emulator.Session.SessionOptions>(builder.Configuration.GetSection("Service:Sessions"));
     builder.Services.Configure<GameBot.Service.Models.SessionCreationOptions>(options => {
       var envTimeout = Environment.GetEnvironmentVariable("GAMEBOT_SESSION_CREATE_TIMEOUT_SECONDS");
@@ -97,19 +138,13 @@ internal static class GameBotServiceSetup {
       var captureService = sp.GetService<GameBot.Emulator.Session.BackgroundScreenCaptureService>();
       return new SessionService(sessions, cache, captureService);
     });
-    builder.Services.AddTransient<ErrorHandlingMiddleware>();
-    builder.Services.AddTransient<CorrelationIdMiddleware>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IAdbGameOperations, GameBot.Service.Services.EnsureGameRunning.AdbGameOperations>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IEnsureGameRunningActionHandler, GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionHandler>();
     builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();
     builder.Services.AddSingleton<GameBot.Service.Services.BackupService>();
+  }
 
-    // Data storage configuration (env: GAMEBOT_DATA_DIR or config Service:Storage:Root)
-    var storageRoot = builder.Configuration["Service:Storage:Root"]
-                      ?? Environment.GetEnvironmentVariable("GAMEBOT_DATA_DIR")
-                      ?? Path.Combine(AppContext.BaseDirectory, "data");
-    Directory.CreateDirectory(storageRoot);
-
+  private static void RegisterRepositories(WebApplicationBuilder builder, string storageRoot) {
     builder.Services.AddSingleton<IGameRepository>(_ => new FileGameRepository(storageRoot));
     builder.Services.AddSingleton<ITriggerRepository>(_ => new FileTriggerRepository(storageRoot));
     builder.Services.AddSingleton<ICommandRepository>(_ => new FileCommandRepository(storageRoot));
@@ -119,6 +154,11 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>(_ => new GameBot.Domain.QueueTemplates.FileQueueTemplateRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
+    builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
+    builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummaryService(storageRoot, sp.GetRequiredService<ILogger<CoverageSummaryService>>()));
+  }
+
+  private static void RegisterSequenceAndQueueServices(WebApplicationBuilder builder) {
     builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLogService, GameBot.Service.Services.ExecutionLog.ExecutionLogService>();
     builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.ISequenceExecutionService, GameBot.Service.Services.SequenceExecution.SequenceExecutionService>();
     builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
@@ -138,39 +178,50 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<ICommandOutcomeConditionAdapter, CommandOutcomeConditionAdapter>();
     builder.Services.AddSingleton<IImageDetectionConditionAdapter, ImageDetectionConditionAdapter>();
     builder.Services.AddSingleton<IImageVisibleConditionAdapter, ImageVisibleConditionAdapter>();
-    builder.Services.AddSingleton(_ => {
-      var loopMaxEnv = Environment.GetEnvironmentVariable("GAMEBOT_LOOP_MAX_ITERATIONS");
-      var loopMax = int.TryParse(loopMaxEnv, out var parsed) && parsed > 0 ? parsed : 1000;
-
-      var captureIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS");
-      var captureInterval = int.TryParse(captureIntervalEnv, out var ciParsed) && ciParsed > 0 ? Math.Max(ciParsed, 50) : 500;
-
-      var retryCountEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT");
-      var retryCount = int.TryParse(retryCountEnv, out var rcParsed) && rcParsed >= 0 ? rcParsed : 3;
-
-      var retryProgressionEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_PROGRESSION");
-      var retryProgression = double.TryParse(retryProgressionEnv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rpParsed) && rpParsed > 0 ? rpParsed : 1.0;
-
-      var tapJitterEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_JITTER_RADIUS_PX");
-      var tapJitterRadius = int.TryParse(tapJitterEnv, out var tjParsed) && tjParsed >= 0 ? tjParsed : 5;
-
-      var adbRetriesEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES");
-      var adbRetries = int.TryParse(adbRetriesEnv, out var arParsed) && arParsed >= 0 ? arParsed : 2;
-
-      var adbRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS");
-      var adbRetryDelay = int.TryParse(adbRetryDelayEnv, out var ardParsed) && ardParsed >= 0 ? ardParsed : 100;
-
-      return new GameBot.Domain.Config.AppConfig {
-        LoopMaxIterations = loopMax,
-        CaptureIntervalMs = captureInterval,
-        TapRetryCount = retryCount,
-        TapRetryProgression = retryProgression,
-        TapJitterRadiusPx = tapJitterRadius,
-        AdbRetries = adbRetries,
-        AdbRetryDelayMs = adbRetryDelay,
-      };
-    });
+    builder.Services.AddSingleton(_ => BuildAppConfigFromEnvironment());
     builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
+    // Config snapshot service (for /config endpoints and persisted snapshot generation)
+    builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier>(sp =>
+        new GameBot.Service.Services.ConfigApplier(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitorCache<GameBot.Service.Hosted.TriggerWorkerOptions>>(),
+            sp.GetRequiredService<GameBot.Domain.Config.AppConfig>(),
+            sp.GetService<GameBot.Emulator.Session.BackgroundScreenCaptureService>()));
+  }
+
+  private static GameBot.Domain.Config.AppConfig BuildAppConfigFromEnvironment() {
+    var loopMaxEnv = Environment.GetEnvironmentVariable("GAMEBOT_LOOP_MAX_ITERATIONS");
+    var loopMax = int.TryParse(loopMaxEnv, out var parsed) && parsed > 0 ? parsed : 1000;
+
+    var captureIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_CAPTURE_INTERVAL_MS");
+    var captureInterval = int.TryParse(captureIntervalEnv, out var ciParsed) && ciParsed > 0 ? Math.Max(ciParsed, 50) : 500;
+
+    var retryCountEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_COUNT");
+    var retryCount = int.TryParse(retryCountEnv, out var rcParsed) && rcParsed >= 0 ? rcParsed : 3;
+
+    var retryProgressionEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_RETRY_PROGRESSION");
+    var retryProgression = double.TryParse(retryProgressionEnv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rpParsed) && rpParsed > 0 ? rpParsed : 1.0;
+
+    var tapJitterEnv = Environment.GetEnvironmentVariable("GAMEBOT_TAP_JITTER_RADIUS_PX");
+    var tapJitterRadius = int.TryParse(tapJitterEnv, out var tjParsed) && tjParsed >= 0 ? tjParsed : 5;
+
+    var adbRetriesEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRIES");
+    var adbRetries = int.TryParse(adbRetriesEnv, out var arParsed) && arParsed >= 0 ? arParsed : 2;
+
+    var adbRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS");
+    var adbRetryDelay = int.TryParse(adbRetryDelayEnv, out var ardParsed) && ardParsed >= 0 ? ardParsed : 100;
+
+    return new GameBot.Domain.Config.AppConfig {
+      LoopMaxIterations = loopMax,
+      CaptureIntervalMs = captureInterval,
+      TapRetryCount = retryCount,
+      TapRetryProgression = retryProgression,
+      TapJitterRadiusPx = tapJitterRadius,
+      AdbRetries = adbRetries,
+      AdbRetryDelayMs = adbRetryDelay,
+    };
+  }
+
+  private static void RegisterLoggingPolicyServices(WebApplicationBuilder builder, string storageRoot, LoggingPolicyGate loggingGate, string[] loggingComponentCatalog) {
     builder.Services.AddSingleton(loggingGate);
     builder.Services.AddSingleton<ILoggingPolicyApplier>(sp => sp.GetRequiredService<LoggingPolicyGate>());
     builder.Services.AddSingleton<ILoggingPolicyRepository>(sp => {
@@ -184,19 +235,14 @@ internal static class GameBotServiceSetup {
       return new RuntimeLoggingPolicyService(repo, loggingComponentCatalog, logger, applier);
     });
     builder.Services.AddSingleton<IRuntimeLoggingPolicyService>(sp => sp.GetRequiredService<RuntimeLoggingPolicyService>());
-    // Config snapshot service (for /config endpoints and persisted snapshot generation)
-    builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier>(sp =>
-        new GameBot.Service.Services.ConfigApplier(
-            sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitorCache<GameBot.Service.Hosted.TriggerWorkerOptions>>(),
-            sp.GetRequiredService<GameBot.Domain.Config.AppConfig>(),
-            sp.GetService<GameBot.Emulator.Session.BackgroundScreenCaptureService>()));
-    builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
+  }
+
+  private static void RegisterTriggerAndImageServices(WebApplicationBuilder builder, string storageRoot) {
     builder.Services.AddSingleton<TriggerEvaluationService>();
     builder.Services.AddSingleton<ITriggerEvaluationCoordinator, TriggerEvaluationCoordinator>();
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.DelayTriggerEvaluator>();
     builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ScheduleTriggerEvaluator>();
     builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITesseractInvocationLogger, TesseractInvocationLogger>();
-    builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummaryService(storageRoot, sp.GetRequiredService<ILogger<CoverageSummaryService>>()));
     // Image match evaluator dependencies (disk-backed store + screen source placeholder)
     var imagesRoot = builder.Configuration["Service:Storage:Images"]
                       ?? Environment.GetEnvironmentVariable("GAMEBOT_IMAGES_DIR")
@@ -211,49 +257,7 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<ImageCropper>();
     builder.Services.AddSingleton<IImageReferenceRepository>(sp => new TriggerImageReferenceRepository(sp.GetRequiredService<ITriggerRepository>()));
     if (OperatingSystem.IsWindows()) {
-      var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
-      var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
-      if (useAdb) {
-        // Background capture service: per-session ADB capture loops with configurable interval
-        builder.Services.AddSingleton<GameBot.Emulator.Session.BackgroundScreenCaptureService>(sp => {
-          var appConfig = sp.GetRequiredService<GameBot.Domain.Config.AppConfig>();
-          var adbLogger = sp.GetRequiredService<ILogger<GameBot.Emulator.Adb.AdbClient>>();
-          Func<string, GameBot.Emulator.Session.IAdbScreenCaptureProvider> factory = serial =>
-            new GameBot.Emulator.Session.AdbScreenCaptureProvider(serial, adbLogger);
-          return new GameBot.Emulator.Session.BackgroundScreenCaptureService(
-            factory, appConfig.CaptureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>());
-        });
-        // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain)
-        builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(sp => {
-          var captureService = sp.GetRequiredService<GameBot.Emulator.Session.BackgroundScreenCaptureService>();
-          var sessions = sp.GetRequiredService<ISessionManager>();
-          return new GameBot.Emulator.Session.BackgroundCaptureScreenSource(captureService, sessions);
-        });
-        // Keep AdbScreenSource registered for any legacy/direct consumers
-        builder.Services.AddSingleton<GameBot.Emulator.Session.AdbScreenSource>();
-      }
-      else {
-        // Test/stub mode: optional fixed bitmap via env variable
-        builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(_ => {
-          var b64 = Environment.GetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64");
-          if (!string.IsNullOrWhiteSpace(b64)) {
-            try {
-              var data = b64;
-              var comma = data.IndexOf(',', System.StringComparison.Ordinal);
-              if (comma >= 0) data = data[(comma + 1)..];
-              var bytes = Convert.FromBase64String(data);
-              return new GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource(() => {
-                // Important: detach bitmap from stream to avoid disposed-stream issues
-                using var ms = new MemoryStream(bytes, writable: false);
-                using var tmp = new System.Drawing.Bitmap(ms);
-                return new System.Drawing.Bitmap(tmp);
-              });
-            }
-            catch { }
-          }
-          return new GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource(() => null);
-        });
-      }
+      RegisterWindowsScreenCapture(builder);
       builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ImageMatchEvaluator>();
       // Text match evaluator (OCR): dynamic backend selection based on refreshed configuration
       builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITextOcr, GameBot.Service.Services.DynamicTextOcr>();
@@ -261,31 +265,64 @@ internal static class GameBotServiceSetup {
     }
     // Register template matcher (no endpoint yet; foundational only in Phase 2)
     builder.Services.AddSingleton<GameBot.Domain.Vision.ITemplateMatcher, GameBot.Domain.Vision.TemplateMatcher>();
-    // Reduce chatty HTTP logs by default; allow dynamic override via GAMEBOT_HTTP_LOG_LEVEL_MINIMUM applied on refresh
-    var httpMinLevelEnv = Environment.GetEnvironmentVariable("GAMEBOT_HTTP_LOG_LEVEL_MINIMUM");
-    GameBot.Service.Services.DynamicLogFilters.HttpMinLevel = httpMinLevelEnv?.Trim().ToLowerInvariant() switch {
-      "trace" => LogLevel.Trace,
-      "debug" => LogLevel.Debug,
-      "information" => LogLevel.Information,
-      "info" => LogLevel.Information,
-      "warning" => LogLevel.Warning,
-      "warn" => LogLevel.Warning,
-      "error" => LogLevel.Error,
-      "critical" => LogLevel.Critical,
-      _ => LogLevel.Warning
-    };
+    // Bind detection options (threshold, max results, timeout, overlap)
+    builder.Services.Configure<DetectionOptions>(builder.Configuration.GetSection(DetectionOptions.SectionName));
+  }
+
+  private static void RegisterWindowsScreenCapture(WebApplicationBuilder builder) {
+    var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+    var useAdb = !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
+    if (useAdb) {
+      // Background capture service: per-session ADB capture loops with configurable interval
+      builder.Services.AddSingleton<GameBot.Emulator.Session.BackgroundScreenCaptureService>(sp => {
+        var appConfig = sp.GetRequiredService<GameBot.Domain.Config.AppConfig>();
+        var adbLogger = sp.GetRequiredService<ILogger<GameBot.Emulator.Adb.AdbClient>>();
+        Func<string, GameBot.Emulator.Session.IAdbScreenCaptureProvider> factory = serial =>
+          new GameBot.Emulator.Session.AdbScreenCaptureProvider(serial, adbLogger);
+        return new GameBot.Emulator.Session.BackgroundScreenCaptureService(
+          factory, appConfig.CaptureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>());
+      });
+      // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain)
+      builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(sp => {
+        var captureService = sp.GetRequiredService<GameBot.Emulator.Session.BackgroundScreenCaptureService>();
+        var sessions = sp.GetRequiredService<ISessionManager>();
+        return new GameBot.Emulator.Session.BackgroundCaptureScreenSource(captureService, sessions);
+      });
+      // Keep AdbScreenSource registered for any legacy/direct consumers
+      builder.Services.AddSingleton<GameBot.Emulator.Session.AdbScreenSource>();
+    }
+    else {
+      // Test/stub mode: optional fixed bitmap via env variable
+      builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(_ => CreateTestScreenSource());
+    }
+  }
+
+  private static GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource CreateTestScreenSource() {
+    var b64 = Environment.GetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64");
+    if (!string.IsNullOrWhiteSpace(b64)) {
+      try {
+        var data = b64;
+        var comma = data.IndexOf(',', System.StringComparison.Ordinal);
+        if (comma >= 0) data = data[(comma + 1)..];
+        var bytes = Convert.FromBase64String(data);
+        return new GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource(() => {
+          // Important: detach bitmap from stream to avoid disposed-stream issues
+          using var ms = new MemoryStream(bytes, writable: false);
+          using var tmp = new System.Drawing.Bitmap(ms);
+          return new System.Drawing.Bitmap(tmp);
+        });
+      }
+      catch { }
+    }
+    return new GameBot.Domain.Triggers.Evaluators.SingleBitmapScreenSource(() => null);
+  }
+
+  private static void RegisterHostedServices(WebApplicationBuilder builder) {
     // Expose trigger evaluation metrics (no background evaluation in refactor)
     builder.Services.AddSingleton<GameBot.Service.Hosted.ITriggerEvaluationMetrics, GameBot.Service.Hosted.TriggerEvaluationMetrics>();
     builder.Services.AddHostedService<GameBot.Service.Hosted.ConfigSnapshotStartupInitializer>();
     builder.Services.AddHostedService<LoggingPolicyStartupInitializer>();
     builder.Services.AddHostedService<GameBot.Service.Hosted.ExecutionLogRetentionCleanupService>();
-
-    // Bind detection options (threshold, max results, timeout, overlap)
-    builder.Services.Configure<DetectionOptions>(builder.Configuration.GetSection(DetectionOptions.SectionName));
-
-    ConfigureWebHostUrls(builder);
-
-    return storageRoot;
   }
 
   // In CI/tests (or when explicitly requested), avoid fixed ports to prevent socket bind conflicts

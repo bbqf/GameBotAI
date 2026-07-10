@@ -9,6 +9,9 @@ using GameBot.Service.Models;
 
 namespace GameBot.Service.Endpoints;
 
+// Handlers are named methods rather than inline lambdas: the Roslyn taint
+// analyzers (CA3xxx) analyze lambdas as part of the containing method, and
+// their cost grows super-linearly with method body size.
 internal static class SequencesEndpoints {
   private static readonly JsonSerializerOptions PerStepRequestJsonOptions = new() { PropertyNameCaseInsensitive = true };
   private static readonly string[] LegacyBranchingErrors = { "entryStepId and links are no longer supported. Use per-step conditions on steps[].condition." };
@@ -16,265 +19,274 @@ internal static class SequencesEndpoints {
   public static IEndpointRouteBuilder MapSequenceEndpoints(this IEndpointRouteBuilder app) {
     var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
 
-    sequences.MapPost("", async (HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, CancellationToken ct) => {
-      using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
-      var root = doc.RootElement;
-      if (HasLegacyBranchingFields(root)) {
-        return Results.BadRequest(new {
-          message = "Invalid sequence payload",
-          errors = LegacyBranchingErrors
-        });
-      }
-
-      var isPerStepCandidate = IsPerStepRequestCandidate(root);
-      if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
-        var perStepSequence = new GameBot.Domain.Commands.CommandSequence {
-          Id = string.Empty,
-          Name = perStepRequest.Name.Trim(),
-          Version = perStepRequest.Version > 0 ? perStepRequest.Version : 1,
-          CreatedAt = DateTimeOffset.UtcNow,
-          UpdatedAt = DateTimeOffset.UtcNow
-        };
-
-        var linearSteps = MapToLinearSteps(perStepRequest);
-        await EnrichCommandReferencesAsync(linearSteps, commandRepository, existingSteps: null, ct).ConfigureAwait(false);
-        var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
-        if (perStepValidationErrors.Count > 0) {
-          return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
-        }
-
-        var existingSequences = await repo.ListAsync().ConfigureAwait(false);
-        if (existingSequences.Count == 0) {
-          perStepSequence.Version = 1;
-        }
-
-        perStepSequence.SetFlowGraph(null);
-        perStepSequence.SetSteps(linearSteps);
-        perStepSequence.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
-        var createdPerStep = await repo.CreateAsync(perStepSequence).ConfigureAwait(false);
-        return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), await ToSequenceResponseAsync(createdPerStep, commandRepository, ct).ConfigureAwait(false));
-      }
-
-      if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
-        return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
-      }
-
-      // Authoring shape: { name: string, steps?: string[] }
-      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
-        var name = nameProp.GetString()!.Trim();
-        var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
-        if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
-          var order = 0;
-          var steps = new List<GameBot.Domain.Commands.SequenceStep>();
-          foreach (var el in stepsProp.EnumerateArray()) {
-            if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
-              steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
-            }
-          }
-          seq.SetSteps(steps);
-        }
-        var created = await repo.CreateAsync(seq).ConfigureAwait(false);
-        return Results.Created(new Uri($"{ApiRoutes.Sequences}/{created.Id}", UriKind.Relative), await ToSequenceResponseAsync(created, commandRepository, ct).ConfigureAwait(false));
-      }
-      // Fallback to domain shape
-      var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
-      if (seqDomain is null) return Results.BadRequest(new { message = "Invalid sequence payload" });
-      var errors = ValidateSequence(seqDomain);
-      if (errors.Count > 0) return Results.BadRequest(new { message = "Invalid sequence", errors });
-      seqDomain.CreatedAt = DateTimeOffset.UtcNow;
-      seqDomain.UpdatedAt = seqDomain.CreatedAt;
-      var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
-      return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
-    }).Accepts<System.Text.Json.JsonElement>("application/json").WithName("CreateSequence");
-
-    sequences.MapGet("{sequenceId}", async (ISequenceRepository repo, ICommandRepository commandRepository, string sequenceId, CancellationToken ct) => {
-      var found = await repo.GetAsync(sequenceId).ConfigureAwait(false);
-      if (found is null) return Results.NotFound();
-      return Results.Ok(await ToSequenceResponseAsync(found, commandRepository, ct).ConfigureAwait(false));
-    }).WithName("GetSequence");
-
-    sequences.MapPut("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
-      var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
-      if (existing is null) return Results.NotFound();
-      using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
-      var root = doc.RootElement;
-      if (HasLegacyBranchingFields(root)) {
-        return Results.BadRequest(new {
-          message = "Invalid sequence payload",
-          errors = LegacyBranchingErrors
-        });
-      }
-
-      if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
-        var requestedVersion = versionProp.GetInt32();
-        if (requestedVersion != existing.Version) {
-          return Results.Conflict(new SequenceSaveConflictDto {
-            SequenceId = existing.Id,
-            CurrentVersion = existing.Version,
-            Message = "Sequence has changed. Reload and retry your save."
-          });
-        }
-      }
-      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
-        var name = nameProp.GetString()!.Trim();
-        if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
-      }
-      var isPerStepCandidate = IsPerStepRequestCandidate(root);
-      if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
-        existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
-        var linearSteps = MapToLinearSteps(perStepRequest);
-        await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
-        var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
-        if (perStepValidationErrors.Count > 0) {
-          return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
-        }
-
-        existing.SetFlowGraph(null);
-        existing.SetSteps(linearSteps);
-        existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
-      }
-      else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
-        return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
-      }
-      if (root.TryGetProperty("steps", out var stepsProp)
-          && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array
-          && stepsProp.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String)) {
-        var order = 0;
-        var steps = new List<GameBot.Domain.Commands.SequenceStep>();
-        foreach (var el in stepsProp.EnumerateArray()) {
-          if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
-            steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
-          }
-        }
-        existing.SetSteps(steps);
-      }
-      if (root.TryGetProperty("interStepDelayRangeMs", out var delayrProp) && delayrProp.ValueKind == System.Text.Json.JsonValueKind.Object) {
-        var delayContract = JsonSerializer.Deserialize<DelayRangeMsContract>(delayrProp.GetRawText(), PerStepRequestJsonOptions);
-        existing.InterStepDelayRangeMs = MapDelayRangeMs(delayContract);
-      }
-      existing.Version += 1;
-      existing.UpdatedAt = DateTimeOffset.UtcNow;
-      var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-      return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct).ConfigureAwait(false));
-    }).WithName("UpdateSequence");
-
-    sequences.MapPatch("{sequenceId}", async (HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) => {
-      var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
-      if (existing is null) return Results.NotFound();
-      using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
-      var root = doc.RootElement;
-      if (HasLegacyBranchingFields(root)) {
-        return Results.BadRequest(new {
-          message = "Invalid sequence payload",
-          errors = LegacyBranchingErrors
-        });
-      }
-
-      if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
-        var requestedVersion = versionProp.GetInt32();
-        if (requestedVersion != existing.Version) {
-          return Results.Conflict(new SequenceSaveConflictDto {
-            SequenceId = existing.Id,
-            CurrentVersion = existing.Version,
-            Message = "Sequence has changed. Reload and retry your save."
-          });
-        }
-      }
-      if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
-        var name = nameProp.GetString()!.Trim();
-        if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
-      }
-      var isPerStepCandidate = IsPerStepRequestCandidate(root);
-      if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
-        existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
-        var linearSteps = MapToLinearSteps(perStepRequest);
-        await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
-        var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
-        if (perStepValidationErrors.Count > 0) {
-          return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
-        }
-
-        existing.SetFlowGraph(null);
-        existing.SetSteps(linearSteps);
-        existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
-      }
-      else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
-        return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
-      }
-      if (root.TryGetProperty("steps", out var stepsProp)
-          && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array
-          && stepsProp.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String)) {
-        var order = 0;
-        var steps = new List<GameBot.Domain.Commands.SequenceStep>();
-        foreach (var el in stepsProp.EnumerateArray()) {
-          if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
-            steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
-          }
-        }
-        existing.SetSteps(steps);
-      }
-      if (root.TryGetProperty("interStepDelayRangeMs", out var delayProp) && delayProp.ValueKind == System.Text.Json.JsonValueKind.Object) {
-        var delayContract = JsonSerializer.Deserialize<DelayRangeMsContract>(delayProp.GetRawText(), PerStepRequestJsonOptions);
-        existing.InterStepDelayRangeMs = MapDelayRangeMs(delayContract);
-      }
-      existing.Version += 1;
-      existing.UpdatedAt = DateTimeOffset.UtcNow;
-      var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-      return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct).ConfigureAwait(false));
-    }).WithName("PatchSequence");
-
-    sequences.MapPost("{sequenceId}/validate", async (string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator, ISequenceRepository repo, SequenceStepValidationService stepValidationService) => {
-      var graph = MapToFlowGraph(sequenceId, request);
-      var flowResult = validator.Validate(graph);
-
-      // Also run step-level validation (includes loop rules) on persisted steps
-      var stepErrors = new List<string>();
-      var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
-      if (existing is not null) {
-        stepErrors.AddRange(stepValidationService.Validate(existing.Steps));
-      }
-
-      var allErrors = flowResult.Errors.Concat(stepErrors).ToArray();
-      if (allErrors.Length > 0) {
-        return Results.BadRequest(new { valid = false, errors = allErrors });
-      }
-
-      return Results.Ok(new { valid = true, errors = Array.Empty<string>() });
-    }).WithName("ValidateSequence");
-
-    sequences.MapGet("", async (ISequenceRepository repo) => {
-      var list = await repo.ListAsync().ConfigureAwait(false);
-      var resp = list.Select(s => new { id = s.Id, name = s.Name, steps = s.Steps.Select(x => x.CommandId).ToArray() });
-      return Results.Ok(resp);
-    }).WithName("ListSequences");
-
-    sequences.MapDelete("{sequenceId}", async (ISequenceRepository repo, string sequenceId) => {
-      var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
-      if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
-      var ok = await repo.DeleteAsync(sequenceId).ConfigureAwait(false);
-      return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
-    }).WithName("DeleteSequence");
-
-    sequences.MapPost("{sequenceId}/execute", async (
-      GameBot.Service.Services.SequenceExecution.ISequenceExecutionService sequenceExecution,
-      string sequenceId,
-      HttpContext httpContext,
-      CancellationToken ct) => {
-        // Read optional sessionId from request body
-        string? sessionId = null;
-        try {
-          var body = await httpContext.Request.ReadFromJsonAsync<SequenceExecuteRequest>(ct).ConfigureAwait(false);
-          sessionId = body?.SessionId;
-        }
-        catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
-          // empty body, malformed JSON, or missing content-type — no sessionId override
-        }
-
-        var res = await sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext: null, ct).ConfigureAwait(false);
-        return Results.Ok(res);
-      }).WithName("ExecuteSequence").WithTags("Sequences");
+    sequences.MapPost("", CreateSequenceAsync).Accepts<System.Text.Json.JsonElement>("application/json").WithName("CreateSequence");
+    sequences.MapGet("{sequenceId}", GetSequenceAsync).WithName("GetSequence");
+    sequences.MapPut("{sequenceId}", UpdateSequenceAsync).WithName("UpdateSequence");
+    sequences.MapPatch("{sequenceId}", PatchSequenceAsync).WithName("PatchSequence");
+    sequences.MapPost("{sequenceId}/validate", ValidateSequenceFlowAsync).WithName("ValidateSequence");
+    sequences.MapGet("", ListSequencesAsync).WithName("ListSequences");
+    sequences.MapDelete("{sequenceId}", DeleteSequenceAsync).WithName("DeleteSequence");
+    sequences.MapPost("{sequenceId}/execute", ExecuteSequenceAsync).WithName("ExecuteSequence").WithTags("Sequences");
 
     return app;
+  }
+
+  private static async Task<IResult> CreateSequenceAsync(HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, CancellationToken ct) {
+    using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
+    var root = doc.RootElement;
+    if (HasLegacyBranchingFields(root)) {
+      return Results.BadRequest(new {
+        message = "Invalid sequence payload",
+        errors = LegacyBranchingErrors
+      });
+    }
+
+    var isPerStepCandidate = IsPerStepRequestCandidate(root);
+    if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
+      var perStepSequence = new GameBot.Domain.Commands.CommandSequence {
+        Id = string.Empty,
+        Name = perStepRequest.Name.Trim(),
+        Version = perStepRequest.Version > 0 ? perStepRequest.Version : 1,
+        CreatedAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow
+      };
+
+      var linearSteps = MapToLinearSteps(perStepRequest);
+      await EnrichCommandReferencesAsync(linearSteps, commandRepository, existingSteps: null, ct).ConfigureAwait(false);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+      if (perStepValidationErrors.Count > 0) {
+        return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
+      }
+
+      var existingSequences = await repo.ListAsync().ConfigureAwait(false);
+      if (existingSequences.Count == 0) {
+        perStepSequence.Version = 1;
+      }
+
+      perStepSequence.SetFlowGraph(null);
+      perStepSequence.SetSteps(linearSteps);
+      perStepSequence.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+      var createdPerStep = await repo.CreateAsync(perStepSequence).ConfigureAwait(false);
+      return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), await ToSequenceResponseAsync(createdPerStep, commandRepository, ct).ConfigureAwait(false));
+    }
+
+    if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
+    }
+
+    // Authoring shape: { name: string, steps?: string[] }
+    if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
+      var name = nameProp.GetString()!.Trim();
+      var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+      if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
+        var order = 0;
+        var steps = new List<GameBot.Domain.Commands.SequenceStep>();
+        foreach (var el in stepsProp.EnumerateArray()) {
+          if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
+            steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
+          }
+        }
+        seq.SetSteps(steps);
+      }
+      var created = await repo.CreateAsync(seq).ConfigureAwait(false);
+      return Results.Created(new Uri($"{ApiRoutes.Sequences}/{created.Id}", UriKind.Relative), await ToSequenceResponseAsync(created, commandRepository, ct).ConfigureAwait(false));
+    }
+    // Fallback to domain shape
+    var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
+    if (seqDomain is null) return Results.BadRequest(new { message = "Invalid sequence payload" });
+    var errors = ValidateSequence(seqDomain);
+    if (errors.Count > 0) return Results.BadRequest(new { message = "Invalid sequence", errors });
+    seqDomain.CreatedAt = DateTimeOffset.UtcNow;
+    seqDomain.UpdatedAt = seqDomain.CreatedAt;
+    var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
+    return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
+  }
+
+  private static async Task<IResult> GetSequenceAsync(ISequenceRepository repo, ICommandRepository commandRepository, string sequenceId, CancellationToken ct) {
+    var found = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+    if (found is null) return Results.NotFound();
+    return Results.Ok(await ToSequenceResponseAsync(found, commandRepository, ct).ConfigureAwait(false));
+  }
+
+  private static async Task<IResult> UpdateSequenceAsync(HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) {
+    var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+    if (existing is null) return Results.NotFound();
+    using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
+    var root = doc.RootElement;
+    if (HasLegacyBranchingFields(root)) {
+      return Results.BadRequest(new {
+        message = "Invalid sequence payload",
+        errors = LegacyBranchingErrors
+      });
+    }
+
+    if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
+      var requestedVersion = versionProp.GetInt32();
+      if (requestedVersion != existing.Version) {
+        return Results.Conflict(new SequenceSaveConflictDto {
+          SequenceId = existing.Id,
+          CurrentVersion = existing.Version,
+          Message = "Sequence has changed. Reload and retry your save."
+        });
+      }
+    }
+    if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
+      var name = nameProp.GetString()!.Trim();
+      if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
+    }
+    var isPerStepCandidate = IsPerStepRequestCandidate(root);
+    if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
+      existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
+      var linearSteps = MapToLinearSteps(perStepRequest);
+      await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+      if (perStepValidationErrors.Count > 0) {
+        return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
+      }
+
+      existing.SetFlowGraph(null);
+      existing.SetSteps(linearSteps);
+      existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+    }
+    else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
+    }
+    if (root.TryGetProperty("steps", out var stepsProp)
+        && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array
+        && stepsProp.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String)) {
+      var order = 0;
+      var steps = new List<GameBot.Domain.Commands.SequenceStep>();
+      foreach (var el in stepsProp.EnumerateArray()) {
+        if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
+          steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
+        }
+      }
+      existing.SetSteps(steps);
+    }
+    if (root.TryGetProperty("interStepDelayRangeMs", out var delayrProp) && delayrProp.ValueKind == System.Text.Json.JsonValueKind.Object) {
+      var delayContract = JsonSerializer.Deserialize<DelayRangeMsContract>(delayrProp.GetRawText(), PerStepRequestJsonOptions);
+      existing.InterStepDelayRangeMs = MapDelayRangeMs(delayContract);
+    }
+    existing.Version += 1;
+    existing.UpdatedAt = DateTimeOffset.UtcNow;
+    var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
+    return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct).ConfigureAwait(false));
+  }
+
+  private static async Task<IResult> PatchSequenceAsync(HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) {
+    var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+    if (existing is null) return Results.NotFound();
+    using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
+    var root = doc.RootElement;
+    if (HasLegacyBranchingFields(root)) {
+      return Results.BadRequest(new {
+        message = "Invalid sequence payload",
+        errors = LegacyBranchingErrors
+      });
+    }
+
+    if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.Number) {
+      var requestedVersion = versionProp.GetInt32();
+      if (requestedVersion != existing.Version) {
+        return Results.Conflict(new SequenceSaveConflictDto {
+          SequenceId = existing.Id,
+          CurrentVersion = existing.Version,
+          Message = "Sequence has changed. Reload and retry your save."
+        });
+      }
+    }
+    if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String) {
+      var name = nameProp.GetString()!.Trim();
+      if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
+    }
+    var isPerStepCandidate = IsPerStepRequestCandidate(root);
+    if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
+      existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
+      var linearSteps = MapToLinearSteps(perStepRequest);
+      await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+      if (perStepValidationErrors.Count > 0) {
+        return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
+      }
+
+      existing.SetFlowGraph(null);
+      existing.SetSteps(linearSteps);
+      existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+    }
+    else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
+    }
+    if (root.TryGetProperty("steps", out var stepsProp)
+        && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array
+        && stepsProp.EnumerateArray().All(element => element.ValueKind == JsonValueKind.String)) {
+      var order = 0;
+      var steps = new List<GameBot.Domain.Commands.SequenceStep>();
+      foreach (var el in stepsProp.EnumerateArray()) {
+        if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
+          steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
+        }
+      }
+      existing.SetSteps(steps);
+    }
+    if (root.TryGetProperty("interStepDelayRangeMs", out var delayProp) && delayProp.ValueKind == System.Text.Json.JsonValueKind.Object) {
+      var delayContract = JsonSerializer.Deserialize<DelayRangeMsContract>(delayProp.GetRawText(), PerStepRequestJsonOptions);
+      existing.InterStepDelayRangeMs = MapDelayRangeMs(delayContract);
+    }
+    existing.Version += 1;
+    existing.UpdatedAt = DateTimeOffset.UtcNow;
+    var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
+    return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct).ConfigureAwait(false));
+  }
+
+  private static async Task<IResult> ValidateSequenceFlowAsync(string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator, ISequenceRepository repo, SequenceStepValidationService stepValidationService) {
+    var graph = MapToFlowGraph(sequenceId, request);
+    var flowResult = validator.Validate(graph);
+
+    // Also run step-level validation (includes loop rules) on persisted steps
+    var stepErrors = new List<string>();
+    var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+    if (existing is not null) {
+      stepErrors.AddRange(stepValidationService.Validate(existing.Steps));
+    }
+
+    var allErrors = flowResult.Errors.Concat(stepErrors).ToArray();
+    if (allErrors.Length > 0) {
+      return Results.BadRequest(new { valid = false, errors = allErrors });
+    }
+
+    return Results.Ok(new { valid = true, errors = Array.Empty<string>() });
+  }
+
+  private static async Task<IResult> ListSequencesAsync(ISequenceRepository repo) {
+    var list = await repo.ListAsync().ConfigureAwait(false);
+    var resp = list.Select(s => new { id = s.Id, name = s.Name, steps = s.Steps.Select(x => x.CommandId).ToArray() });
+    return Results.Ok(resp);
+  }
+
+  private static async Task<IResult> DeleteSequenceAsync(ISequenceRepository repo, string sequenceId) {
+    var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+    if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
+    var ok = await repo.DeleteAsync(sequenceId).ConfigureAwait(false);
+    return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
+  }
+
+  private static async Task<IResult> ExecuteSequenceAsync(
+    GameBot.Service.Services.SequenceExecution.ISequenceExecutionService sequenceExecution,
+    string sequenceId,
+    HttpContext httpContext,
+    CancellationToken ct) {
+    // Read optional sessionId from request body
+    string? sessionId = null;
+    try {
+      var body = await httpContext.Request.ReadFromJsonAsync<SequenceExecuteRequest>(ct).ConfigureAwait(false);
+      sessionId = body?.SessionId;
+    }
+    catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
+      // empty body, malformed JSON, or missing content-type — no sessionId override
+    }
+
+    var res = await sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext: null, ct).ConfigureAwait(false);
+    return Results.Ok(res);
   }
 
   private static async Task<object> ToSequenceResponseAsync(GameBot.Domain.Commands.CommandSequence sequence, ICommandRepository commandRepository, CancellationToken ct) {
