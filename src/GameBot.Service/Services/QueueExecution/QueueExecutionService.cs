@@ -97,8 +97,20 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       return QueueStartOutcome.AlreadyRunning;
     }
 
+    // Resolve the linked template once and materialize its entries into the runtime store so the
+    // entries shown by GET match what the run executes. The run reuses this same snapshot; the
+    // display layer instead reads the runtime store, and auto-load on display is suppressed once
+    // the queue is Running (see QueuesEndpoints.MaybeAutoLoadAsync). Without this, a queue started
+    // before it was ever displayed reports zero entries despite a populated linked template.
+    var template = string.IsNullOrEmpty(queue.LinkedTemplateId)
+      ? null
+      : await _templates.GetAsync(queue.LinkedTemplateId).ConfigureAwait(false);
+    if (template is not null) {
+      _runtime.SetEntries(queueId, template.Entries.Select(e => e.SequenceId));
+    }
+
     _runtime.SetStatus(queueId, QueueExecutionStatus.Running);
-    handle.RunTask = Task.Run(() => RunAsync(queue, handle, cts.Token), CancellationToken.None);
+    handle.RunTask = Task.Run(() => RunAsync(queue, template, handle, cts.Token), CancellationToken.None);
     return QueueStartOutcome.Started;
   }
 
@@ -118,7 +130,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     }
   }
 
-  private async Task RunAsync(ExecutionQueue queue, QueueRunHandle handle, CancellationToken ct) {
+  private async Task RunAsync(ExecutionQueue queue, QueueTemplate? template, QueueRunHandle handle, CancellationToken ct) {
     var rootId = await _log.LogQueueStartAsync(queue.Id, queue.Name, CancellationToken.None).ConfigureAwait(false);
     handle.RootExecutionId = rootId;
 
@@ -130,10 +142,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     string? sessionId = null;
 
     try {
-      // 1. Load the linked template server-side (FR-002).
-      var template = string.IsNullOrEmpty(queue.LinkedTemplateId)
-        ? null
-        : await _templates.GetAsync(queue.LinkedTemplateId).ConfigureAwait(false);
+      // 1. Template was resolved once by StartAsync (FR-002) and reused here for the whole run.
       if (template is null) {
         reason = QueueStopReason.Failure;
         failureReason = "no template to run (the queue has no linked template, or it could not be resolved)";
