@@ -179,6 +179,24 @@ public sealed class QueueExecutionServiceTests {
     h.Sequences.Executed.Should().Equal("A", "B", "C");
   }
 
+  [Fact] // Regression: a started queue's runtime entries mirror its linked template so GET (and the UI) show them
+  public async Task StartMaterializesLinkedTemplateEntriesIntoRuntimeStore() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A", "B", "C" });
+    // Block the first sequence so the queue stays running while we inspect its runtime entries.
+    h.Sequences.Handler = async (id, ct) => {
+      if (id == "A") { await Task.Delay(Timeout.Infinite, ct); }
+      return FakeSequenceExecution.Success(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 1);
+
+    h.Runtime.GetEntries("q1").Select(e => e.SequenceId).Should().Equal("A", "B", "C");
+
+    await h.Service.StopAsync("q1");
+  }
+
   [Fact] // T013
   public async Task CompletedFullRunWritesOneSuccessEntryAndDisconnects() {
     var h = new Harness();
