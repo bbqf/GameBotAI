@@ -256,12 +256,27 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<CaptureSessionStore>();
     builder.Services.AddSingleton<ImageCropper>();
     builder.Services.AddSingleton<IImageReferenceRepository>(sp => new TriggerImageReferenceRepository(sp.GetRequiredService<ITriggerRepository>()));
+    var useAdbForOcrOffset =
+      !string.Equals(Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB"), "false", StringComparison.OrdinalIgnoreCase);
     if (OperatingSystem.IsWindows()) {
       RegisterWindowsScreenCapture(builder);
       builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.ImageMatchEvaluator>();
       // Text match evaluator (OCR): dynamic backend selection based on refreshed configuration
       builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITextOcr, GameBot.Service.Services.DynamicTextOcr>();
       builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator>();
+    }
+    // feature 068: OCR-offset resolver for reschedule-self. The real resolver needs the background
+    // capture service (ADB) + OCR; when either is unavailable (non-Windows or ADB-disabled test
+    // hosts) fall back to a static resolver so a self-rescheduling sequence still reschedules.
+    if (OperatingSystem.IsWindows() && useAdbForOcrOffset) {
+      builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.ISessionFrameSource,
+        GameBot.Service.Services.SequenceExecution.BackgroundCaptureSessionFrameSource>();
+      builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.IOcrOffsetResolver,
+        GameBot.Service.Services.SequenceExecution.OcrOffsetResolver>();
+    }
+    else {
+      builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.IOcrOffsetResolver,
+        GameBot.Service.Services.SequenceExecution.StaticFallbackOcrOffsetResolver>();
     }
     // Register template matcher (no endpoint yet; foundational only in Phase 2)
     builder.Services.AddSingleton<GameBot.Domain.Vision.ITemplateMatcher, GameBot.Domain.Vision.TemplateMatcher>();
