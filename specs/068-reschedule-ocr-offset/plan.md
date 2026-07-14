@@ -88,6 +88,31 @@ No external HTTP contract change (action `parameters` is a free-form dict alread
 
 - [x] Spec written & validated
 - [x] Plan written
-- [ ] data-model.md, quickstart.md
-- [ ] tasks.md (via `/speckit-tasks`)
-- [ ] Implementation (TDD) + green build/tests
+- [~] data-model.md, quickstart.md — folded into this plan's Design section; not authored as separate files (payload shape + parser semantics captured above)
+- [x] tasks.md (implemented directly following plan.md; see tasks.md for the task list)
+- [x] Implementation (TDD) + green build/tests
+
+### Implementation notes (2026-07-14)
+
+Done, TDD-first. `dotnet build GameBot.sln` clean (0 warnings/errors); tests: Unit 605, Contract 91,
+Integration 287 — all pass.
+
+Files added (production):
+- `src/GameBot.Domain/Commands/SelfReschedule/CooldownDurationParser.cs` — pure tolerant duration parser.
+- `src/GameBot.Domain/Commands/SelfReschedule/SelfRescheduleOcrOffset.cs` — typed spec + `OcrOffsetRegion`.
+- `src/GameBot.Service/Services/SequenceExecution/IOcrOffsetResolver.cs` — resolver interface + `OcrOffsetResolution` + `OcrOffsetSource`.
+- `src/GameBot.Service/Services/SequenceExecution/OcrOffsetResolver.cs` — real Windows resolver (capture→crop→OCR→parse→bounds).
+- `src/GameBot.Service/Services/SequenceExecution/StaticFallbackOcrOffsetResolver.cs` — always-fallback resolver for non-Windows / ADB-disabled hosts.
+- `src/GameBot.Service/Services/SequenceExecution/ISessionFrameSource.cs` + `BackgroundCaptureSessionFrameSource.cs` — per-session frame capture seam.
+
+Files changed (production):
+- `SelfReschedulePayload.cs` — parse nullable `OcrOffset` (+`HasOcrOffset`) via a JsonElement/dict `NestedReader`.
+- `SequenceStepValidationService.cs` — ocrOffset cross-field rules (Timer-only, positive region, min<max, fallback bounds); Timer+ocrOffset no longer requires a static timer field.
+- `SequenceExecutionService.cs` — `DispatchSelfReschedule` takes `sessionId`; OCR path resolves the offset and encodes source/text/duration into the log message (FR-007).
+- `GameBotServiceSetup.cs` — DI wiring: real resolver on Windows+ADB, static fallback otherwise.
+
+Deviation from plan: the plan named `ActionPayloadValidationService` for cross-field rules, but the
+real reschedule-self payload validation lives in `SequenceStepValidationService.ValidateRescheduleSelfPayload`
+(that is the path the authoring API and `FileSequenceRepository` reach). Rules were added there.
+`FileSequenceRepository.ValidateActionPayloads` already accepts `reschedule-self` by action-type
+allow-list and does no deep field validation, so no change was needed there.

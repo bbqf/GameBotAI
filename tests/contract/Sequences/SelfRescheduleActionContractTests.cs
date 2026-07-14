@@ -102,6 +102,110 @@ public sealed class SelfRescheduleActionContractTests {
     payload.GetProperty("timerRelativeOffset").GetString().Should().Be("00:10:00");
   }
 
+  // ── feature 068: ocrOffset round-trip + validation ────────────────────────
+
+  [Fact]
+  public async Task TimerRescheduleWithOcrOffsetRoundTrips() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var createPayload = new {
+      name = "self-reschedule-ocr-contract",
+      version = 1,
+      steps = new object[] {
+        new {
+          stepId = "reschedule",
+          stepType = "Action",
+          primitiveAction = new {
+            type = "reschedule-self",
+            schemaVersion = "1",
+            payload = new {
+              option = "Timer",
+              ocrOffset = new {
+                region = new { x = 10, y = 20, width = 120, height = 40 },
+                fallback = "00:06:00",
+                min = "00:00:05",
+                max = "01:00:00"
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var createResponse = await client.PostAsJsonAsync("/api/sequences", createPayload).ConfigureAwait(false);
+    createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var sequenceId = created.GetProperty("id").GetString();
+
+    var getResponse = await client.GetAsync(new Uri($"/api/sequences/{sequenceId}", UriKind.Relative)).ConfigureAwait(false);
+    var fetched = await getResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var payload = fetched.GetProperty("steps")[0].GetProperty("primitiveAction").GetProperty("payload");
+    payload.GetProperty("option").GetString().Should().Be("Timer");
+    var ocr = payload.GetProperty("ocrOffset");
+    ocr.GetProperty("region").GetProperty("width").GetInt32().Should().Be(120);
+    ocr.GetProperty("fallback").GetString().Should().Be("00:06:00");
+  }
+
+  [Fact]
+  public async Task OcrOffsetOnNonTimerOptionIsRejected() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var createPayload = new {
+      name = "self-reschedule-ocr-invalid",
+      version = 1,
+      steps = new object[] {
+        new {
+          stepId = "reschedule",
+          stepType = "Action",
+          primitiveAction = new {
+            type = "reschedule-self",
+            schemaVersion = "1",
+            payload = new {
+              option = "OncePerRun",
+              ocrOffset = new {
+                region = new { x = 10, y = 20, width = 120, height = 40 },
+                fallback = "00:06:00"
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var response = await client.PostAsJsonAsync("/api/sequences", createPayload).ConfigureAwait(false);
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+  }
+
+  [Fact]
+  public async Task OcrOffsetMissingFallbackIsRejected() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var createPayload = new {
+      name = "self-reschedule-ocr-nofallback",
+      version = 1,
+      steps = new object[] {
+        new {
+          stepId = "reschedule",
+          stepType = "Action",
+          primitiveAction = new {
+            type = "reschedule-self",
+            schemaVersion = "1",
+            payload = new {
+              option = "Timer",
+              ocrOffset = new { region = new { x = 10, y = 20, width = 120, height = 40 } }
+            }
+          }
+        }
+      }
+    };
+
+    var response = await client.PostAsJsonAsync("/api/sequences", createPayload).ConfigureAwait(false);
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+  }
+
   // ── T034 (US2): validation rejects malformed option/timer combinations ────
 
   [Theory]

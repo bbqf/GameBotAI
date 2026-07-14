@@ -37,6 +37,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private readonly ISessionManager _sessionManager;
   private readonly IEnsureGameRunningActionHandler _ensureGameRunning;
   private readonly ISessionService _sessionService;
+  private readonly IOcrOffsetResolver _ocrOffsetResolver;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -50,7 +51,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     ISelfRescheduleCoordinator selfRescheduleCoordinator,
     ISessionManager sessionManager,
     IEnsureGameRunningActionHandler ensureGameRunning,
-    ISessionService sessionService) {
+    ISessionService sessionService,
+    IOcrOffsetResolver ocrOffsetResolver) {
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -63,6 +65,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _sessionManager = sessionManager;
     _ensureGameRunning = ensureGameRunning;
     _sessionService = sessionService;
+    _ocrOffsetResolver = ocrOffsetResolver;
   }
 
   public async Task<SequenceExecutionResult> ExecuteAsync(
@@ -407,7 +410,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private ActionDispatchResult DispatchSelfReschedule(
       SequenceActionPayload action,
       string sequenceId,
-      string? originatingQueueId) {
+      string? originatingQueueId,
+      string? sessionId) {
     if (string.IsNullOrWhiteSpace(originatingQueueId)) {
       return new ActionDispatchResult("noop", "no originating queue, no reschedule performed");
     }
@@ -416,21 +420,50 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       return new ActionDispatchResult("noop", $"self-reschedule not performed: {parseError}");
     }
 
+    // feature 068: when an ocrOffset spec is present (Timer), derive the relative offset at runtime
+    // by OCR-reading the on-screen countdown, falling back to the static offset on any failure.
+    var timerTimeOfDay = payload.TimerTimeOfDay;
+    var timerRelativeOffset = payload.TimerRelativeOffset;
+    OcrOffsetResolution? ocrResolution = null;
+    if (payload.HasOcrOffset && payload.Option == SelfRescheduleOption.Timer) {
+      ocrResolution = _ocrOffsetResolver.Resolve(sessionId, payload.OcrOffset!);
+      timerTimeOfDay = null;
+      timerRelativeOffset = ocrResolution.EffectiveOffset;
+    }
+
     var schedule = _selfRescheduleCoordinator.ScheduleSelf(
       originatingQueueId!,
       sequenceId,
       payload.Option,
-      payload.TimerTimeOfDay,
-      payload.TimerRelativeOffset);
+      timerTimeOfDay,
+      timerRelativeOffset);
 
     if (schedule.Outcome == SelfRescheduleOutcome.NotRunning) {
       return new ActionDispatchResult("noop", "originating queue run no longer active; no reschedule performed");
     }
 
-    return new ActionDispatchResult(
-      "scheduled",
-      $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); applies to the current run only");
+    var message = ocrResolution is null
+      ? $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); applies to the current run only"
+      : $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); {DescribeOcrOffset(ocrResolution)}; applies to the current run only";
+
+    return new ActionDispatchResult("scheduled", message);
   }
+
+  // feature 068: renders the offset-source detail for the execution log (FR-007).
+  // internal for unit testing the log-message content (SC-004).
+  internal static string DescribeOcrOffset(OcrOffsetResolution resolution) {
+    if (string.Equals(resolution.Source, OcrOffsetSource.Ocr, StringComparison.Ordinal)) {
+      return $"offset source ocr (read '{resolution.RecognizedText}' -> {FormatOffset(resolution.EffectiveOffset)})";
+    }
+
+    var readSuffix = string.IsNullOrEmpty(resolution.RecognizedText)
+      ? string.Empty
+      : $", read '{resolution.RecognizedText}'";
+    return $"offset source fallback (reason {resolution.Reason}{readSuffix}, using {FormatOffset(resolution.EffectiveOffset)})";
+  }
+
+  private static string FormatOffset(TimeSpan offset) =>
+    offset.ToString("c", CultureInfo.InvariantCulture);
 
   /// <summary>
   /// Routes a non-command sequence action to its handler: <c>reschedule-self</c> to the
@@ -445,7 +478,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       string? sessionId,
       CancellationToken ct) {
     if (string.Equals(action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
-      return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId));
+      return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId, sessionId));
     }
 
     if (string.Equals(action.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)) {

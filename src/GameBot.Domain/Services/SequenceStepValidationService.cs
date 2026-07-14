@@ -293,7 +293,12 @@ public sealed class SequenceStepValidationService {
     }
 
     if (payload.Option == SelfRescheduleOption.Timer) {
-      if (payload.HasTimerTimeOfDay && payload.HasTimerRelativeOffset) {
+      if (payload.HasOcrOffset) {
+        // feature 068: the ocrOffset spec supplies the offset at runtime (with a required static
+        // fallback), so the static timerTimeOfDay/timerRelativeOffset fields are optional here.
+        ValidateOcrOffset(payload.OcrOffset!, stepLabel, errors);
+      }
+      else if (payload.HasTimerTimeOfDay && payload.HasTimerRelativeOffset) {
         errors.Add($"Step '{stepLabel}' reschedule-self Timer requires exactly one of timerTimeOfDay or timerRelativeOffset, not both.");
       }
       else if (!payload.HasTimerTimeOfDay && !payload.HasTimerRelativeOffset) {
@@ -306,6 +311,28 @@ public sealed class SequenceStepValidationService {
     }
     else if (payload.HasTimerTimeOfDay || payload.HasTimerRelativeOffset) {
       errors.Add($"Step '{stepLabel}' reschedule-self timer fields are only valid when option is Timer.");
+    }
+    else if (payload.HasOcrOffset) {
+      errors.Add($"Step '{stepLabel}' reschedule-self ocrOffset is only valid when option is Timer.");
+    }
+  }
+
+  // feature 068: cross-field rules for an ocrOffset spec (region present positive; min < max). The
+  // fallback presence/format is enforced at parse time in SelfReschedulePayload.TryRead.
+  private static void ValidateOcrOffset(
+      SelfRescheduleOcrOffset ocrOffset,
+      string stepLabel,
+      List<string> errors) {
+    if (ocrOffset.Region.Width <= 0 || ocrOffset.Region.Height <= 0) {
+      errors.Add($"Step '{stepLabel}' reschedule-self ocrOffset.region must have positive width and height.");
+    }
+
+    if (ocrOffset.Min >= ocrOffset.Max) {
+      errors.Add($"Step '{stepLabel}' reschedule-self ocrOffset.min must be less than ocrOffset.max.");
+    }
+
+    if (ocrOffset.Fallback < TimeSpan.Zero || ocrOffset.Fallback > MaxRescheduleOffset) {
+      errors.Add($"Step '{stepLabel}' reschedule-self ocrOffset.fallback must be between 00:00:00 and 24:00:00.");
     }
   }
 
