@@ -109,6 +109,7 @@ namespace GameBot.Domain.Commands {
                 ActionTypes.ConnectToGame,
                 ActionTypes.EnsureGameRunning,
                 ActionTypes.GoToHomeScreen,
+                ActionTypes.EnsureEmulatorRunning,
                 ActionTypes.WaitForImage,
                 ActionTypes.RescheduleSelf
             };

@@ -41,7 +41,8 @@ not survive a service restart; queue *configuration* and templates are persisted
 - **Command** — an ordered list of **steps**. Steps are **primitive actions** plus control
   structures (loops, per-step conditions). A command may carry a vestigial `TriggerId`.
 - **Primitive Action** — the unit of input/effect. Current variants: **Tap**, **Swipe**,
-  **Key**, **Wait for Image**, **Connect to Game**, **Ensure Game Running**, **Go to Home Screen**.
+  **Key**, **Wait for Image**, **Connect to Game**, **Ensure Game Running**, **Go to Home Screen**,
+  **Ensure Emulator Running**.
   (These replaced the old first-class "Action" object — see *Legacy/removed* below.) Taps/swipes
   resolve coordinates from image detection + offset, with wait-and-retry and tap-point jitter
   applied automatically. **Go to Home Screen** (`go-to-home-screen`, feature 069) is a parameterless
@@ -49,6 +50,17 @@ not survive a service restart; queue *configuration* and templates are persisted
   leaving the game running in the background — the leave-game counterpart to Connect to Game. It is
   usable both as a sequence action (dispatched through the session input pipeline) and a command
   step, and degrades to a stub success on non-Windows/non-ADB sessions.
+  **Ensure Emulator Running** (`ensure-emulator-running`, feature 070) verifies a target **LDPlayer**
+  instance is running AND responsive (not hanging) and starts a stopped instance or restarts a hung
+  one, waiting for boot-complete before succeeding. It is parameterized (an instance name or index
+  plus the adbSerial used for the probe) and is the emulator-lifecycle sibling of the app-lifecycle
+  Ensure Game Running. Emulator control uses LDPlayer's `ldconsole` CLI (`GameBot.Emulator/Adb/LdConsoleClient`
+  + `LdConsoleResolver`, mirroring `AdbClient`/`AdbResolver`), fronted by fakeable `IEmulatorControl`/
+  `IEmulatorDeviceProbe` seams and orchestrated by `EnsureEmulatorRunningActionHandler`. Health = `isrunning`
+  + device state `device` + `sys.boot_completed=1`. Timeouts are configurable via `GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS`
+  (10s), `GAMEBOT_EMULATOR_BOOT_WAIT_MS` (120s), `GAMEBOT_EMULATOR_POLL_INTERVAL_MS` (3s). It degrades to a
+  neutral no-op on non-Windows hosts or when ldconsole/ADB is unavailable, and fails the step for a
+  nonexistent instance or a recovery timeout.
 - **Sequence** — an ordered list of steps that run **commands**, with random inter-step delays,
   conditional steps, loop/flow blocks (`SequenceFlowGraph`, `Blocks/`), and **if blocks**
   (`SequenceStepType.If`, feature 067): a condition (same model as while-loop conditions —

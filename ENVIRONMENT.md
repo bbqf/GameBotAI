@@ -170,6 +170,32 @@ Examples:
   - Used in: `SessionManager`
   - Default: `100`
 
+- GAMEBOT_LDCONSOLE_PATH
+  - Purpose: Override path to LDPlayer's `ldconsole.exe` (a.k.a. `dnconsole.exe`), used by the
+    `ensure-emulator-running` action (feature 070) to query/start/restart instances.
+  - Used in: `LdConsoleResolver`
+  - Default: Resolver logic (LDPlayer env hints `LDPLAYER_HOME`/`LDP_HOME`, known install paths,
+    registry). When it cannot be located, the action degrades to a neutral "control unavailable"
+    outcome.
+
+- GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS
+  - Purpose: Timeout (ms) for a single emulator responsiveness probe (`getprop sys.boot_completed`)
+    in the `ensure-emulator-running` action.
+  - Used in: `AdbEmulatorDeviceProbe` (via `AppConfig`); bound in `GameBotServiceSetup` and
+    runtime-mutable via the config endpoints.
+  - Default: `10000`. Non-numeric/invalid values fall back to the default; clamped to a small minimum.
+
+- GAMEBOT_EMULATOR_BOOT_WAIT_MS
+  - Purpose: Maximum time (ms) to wait for an instance to reach boot-complete after a start/restart.
+  - Used in: `EnsureEmulatorRunningActionHandler` (via `AppConfig`).
+  - Default: `120000`. Clamped to be at least `GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS`; invalid values
+    fall back to the default.
+
+- GAMEBOT_EMULATOR_POLL_INTERVAL_MS
+  - Purpose: Interval (ms) between health polls while waiting for an instance to become healthy.
+  - Used in: `EnsureEmulatorRunningActionHandler` (via `AppConfig`).
+  - Default: `3000`. Clamped to a minimum of `100`; invalid values fall back to the default.
+
 - GAMEBOT_TAP_JITTER_RADIUS_PX
   - Purpose: Maximum random per-axis offset (pixels) applied independently to the X and Y coordinate of every tap and swipe endpoint immediately before dispatch, so repeated executions don't always land on the exact same pixel. Each axis offset is drawn uniformly from `[-radius, +radius]`; results are clamped to be non-negative.
   - Used in: `SessionManager` (applies to all dispatch paths — command steps, image-detection taps, recorder replays, and the raw `POST /sessions/{id}/inputs` API; set to `0` for pixel-exact input, e.g. calibration)

@@ -20,6 +20,13 @@ public static class ActionTypes {
   public const string GoToHomeScreen = "go-to-home-screen";
 
   /// <summary>
+  /// Ensure-emulator-running action (feature 070): verifies the target LDPlayer emulator instance is
+  /// running and responsive (not hanging) and starts/restarts it when it is not. The
+  /// emulator-lifecycle sibling of the app-lifecycle <see cref="EnsureGameRunning"/> action.
+  /// </summary>
+  public const string EnsureEmulatorRunning = "ensure-emulator-running";
+
+  /// <summary>
   /// Self-reschedule action (feature 065): schedules one additional firing of the current
   /// sequence into its originating queue run. No-op success when not started from a queue.
   /// </summary>

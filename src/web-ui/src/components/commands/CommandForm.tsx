@@ -10,6 +10,7 @@ import { ActionTypeSelector, PrimitiveActionType } from './ActionTypeSelector';
 import { TapPanel } from './TapPanel';
 import { WaitForImagePanel } from './WaitForImagePanel';
 import { EnsureGameRunningPanel } from './EnsureGameRunningPanel';
+import { EnsureEmulatorRunningPanel } from './EnsureEmulatorRunningPanel';
 import { GoToHomeScreenPanel } from './GoToHomeScreenPanel';
 import { KeyInputPanel } from './KeyInputPanel';
 import { SwipePanel } from './SwipePanel';
@@ -18,7 +19,7 @@ import './CommandForm.css';
 
 export type StepEntry = {
   id: string;
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe' | 'EnsureEmulatorRunning';
   targetId?: string;
   primitiveTap?: {
     detectionTarget: DetectionTargetForm;
@@ -29,6 +30,7 @@ export type StepEntry = {
   };
   keyInput?: { key: string };
   swipe?: { startX: string; startY: string; endX: string; endY: string; durationMs?: string };
+  ensureEmulatorRunning?: { instanceName?: string; instanceIndex?: string; adbSerial: string };
 };
 
 export type DetectionTargetForm = {
@@ -98,6 +100,16 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
       };
     }
 
+    if (step.type === 'EnsureEmulatorRunning') {
+      const target = step.ensureEmulatorRunning?.instanceName?.trim()
+        || (step.ensureEmulatorRunning?.instanceIndex?.trim() ? `index ${step.ensureEmulatorRunning.instanceIndex}` : '(instance?)');
+      return {
+        id: step.id,
+        label: 'Ensure emulator running',
+        description: `${target} · ${step.ensureEmulatorRunning?.adbSerial ?? ''}`.trim(),
+      };
+    }
+
     if (step.type === 'KeyInput') {
       return {
         id: step.id,
@@ -124,7 +136,7 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
   });
 };
 
-const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning', 'GoToHomeScreen', 'KeyInput', 'Swipe']);
+const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning', 'GoToHomeScreen', 'KeyInput', 'Swipe', 'EnsureEmulatorRunning']);
 
 export const CommandForm: React.FC<CommandFormProps> = ({
   value,
@@ -347,6 +359,24 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         {pendingActionType === 'GoToHomeScreen' && (
           <GoToHomeScreenPanel
             onConfirm={() => handlePanelConfirm({ type: 'GoToHomeScreen' })}
+            onCancel={handlePanelCancel}
+            disabled={submitting}
+          />
+        )}
+
+        {pendingActionType === 'EnsureEmulatorRunning' && (
+          <EnsureEmulatorRunningPanel
+            initialValue={editingStep?.ensureEmulatorRunning}
+            onConfirm={(v) =>
+              handlePanelConfirm({
+                type: 'EnsureEmulatorRunning',
+                ensureEmulatorRunning: {
+                  instanceName: v.instanceName,
+                  instanceIndex: v.instanceIndex,
+                  adbSerial: v.adbSerial,
+                },
+              })
+            }
             onCancel={handlePanelCancel}
             disabled={submitting}
           />

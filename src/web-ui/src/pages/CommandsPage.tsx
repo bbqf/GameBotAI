@@ -55,6 +55,13 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
             durationMs: s.swipe.durationMs !== undefined ? String(s.swipe.durationMs) : undefined,
           }
           : undefined,
+        ensureEmulatorRunning: s.ensureEmulatorRunning
+          ? {
+            instanceName: s.ensureEmulatorRunning.instanceName,
+            instanceIndex: s.ensureEmulatorRunning.instanceIndex !== undefined ? String(s.ensureEmulatorRunning.instanceIndex) : undefined,
+            adbSerial: s.ensureEmulatorRunning.adbSerial,
+          }
+          : undefined,
       }));
   }
   return [];
@@ -116,6 +123,20 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
 
   if (s.type === 'GoToHomeScreen') {
     return { type: 'GoToHomeScreen', order: idx };
+  }
+
+  if (s.type === 'EnsureEmulatorRunning') {
+    return {
+      type: 'EnsureEmulatorRunning',
+      order: idx,
+      ensureEmulatorRunning: {
+        instanceName: s.ensureEmulatorRunning?.instanceName?.trim() || undefined,
+        instanceIndex: s.ensureEmulatorRunning?.instanceIndex !== undefined && s.ensureEmulatorRunning.instanceIndex !== ''
+          ? Number(s.ensureEmulatorRunning.instanceIndex)
+          : undefined,
+        adbSerial: s.ensureEmulatorRunning?.adbSerial?.trim() ?? '',
+      },
+    };
   }
 
   if (s.type === 'KeyInput') {

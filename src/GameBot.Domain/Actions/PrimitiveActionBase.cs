@@ -14,6 +14,9 @@ public static class PrimitiveActionTypes {
   /// <summary>Feature 069: presses the Android HOME button (leaves the game running).</summary>
   public const string GoToHomeScreen = "go-to-home-screen";
 
+  /// <summary>Feature 070: ensures the target LDPlayer emulator instance is running and responsive.</summary>
+  public const string EnsureEmulatorRunning = "ensure-emulator-running";
+
   public static IReadOnlyCollection<string> All { get; } = new ReadOnlyCollection<string>(new[] {
     Tap,
     Swipe,
@@ -22,7 +25,8 @@ public static class PrimitiveActionTypes {
     ConnectToGame,
     WaitForImage,
     EnsureGameRunning,
-    GoToHomeScreen
+    GoToHomeScreen,
+    EnsureEmulatorRunning
   });
 }
 

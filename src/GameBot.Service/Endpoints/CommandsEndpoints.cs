@@ -29,6 +29,7 @@ internal static class CommandsEndpoints {
     CommandStepTypeDto.GoToHomeScreen => CommandStepType.GoToHomeScreen,
     CommandStepTypeDto.KeyInput => CommandStepType.KeyInput,
     CommandStepTypeDto.Swipe => CommandStepType.Swipe,
+    CommandStepTypeDto.EnsureEmulatorRunning => CommandStepType.EnsureEmulatorRunning,
     _ => CommandStepType.PrimitiveTap
   };
 
@@ -39,6 +40,7 @@ internal static class CommandsEndpoints {
     CommandStepType.GoToHomeScreen => CommandStepTypeDto.GoToHomeScreen,
     CommandStepType.KeyInput => CommandStepTypeDto.KeyInput,
     CommandStepType.Swipe => CommandStepTypeDto.Swipe,
+    CommandStepType.EnsureEmulatorRunning => CommandStepTypeDto.EnsureEmulatorRunning,
     _ => CommandStepTypeDto.PrimitiveTap
   };
 
@@ -128,6 +130,19 @@ internal static class CommandsEndpoints {
       return null;
     }
 
+    if (step.Type == CommandStepTypeDto.EnsureEmulatorRunning) {
+      if (step.EnsureEmulatorRunning is null || string.IsNullOrWhiteSpace(step.EnsureEmulatorRunning.AdbSerial)) {
+        return "ensureEmulatorRunning.adbSerial is required for EnsureEmulatorRunning steps";
+      }
+      if (string.IsNullOrWhiteSpace(step.EnsureEmulatorRunning.InstanceName) && step.EnsureEmulatorRunning.InstanceIndex is null) {
+        return "ensureEmulatorRunning requires an instanceName or instanceIndex";
+      }
+      if (step.EnsureEmulatorRunning.InstanceIndex is < 0) {
+        return "ensureEmulatorRunning.instanceIndex must be greater than or equal to zero";
+      }
+      return null;
+    }
+
     if (step.Type == CommandStepTypeDto.KeyInput) {
       if (step.KeyInput is null || string.IsNullOrWhiteSpace(step.KeyInput.Key)) {
         return "keyInput.key is required for KeyInput steps";
@@ -158,6 +173,7 @@ internal static class CommandsEndpoints {
     WaitForImage = s.Type == CommandStepTypeDto.WaitForImage ? ToDomainWaitForImage(s.WaitForImage) : null,
     KeyInput = s.Type == CommandStepTypeDto.KeyInput ? ToDomainKeyInput(s.KeyInput) : null,
     Swipe = s.Type == CommandStepTypeDto.Swipe ? ToDomainSwipe(s.Swipe) : null,
+    EnsureEmulatorRunning = s.Type == CommandStepTypeDto.EnsureEmulatorRunning ? ToDomainEnsureEmulator(s.EnsureEmulatorRunning) : null,
     Order = s.Order
   };
 
@@ -168,8 +184,23 @@ internal static class CommandsEndpoints {
     WaitForImage = s.Type == CommandStepType.WaitForImage ? ToResponseWaitForImage(s.WaitForImage) : null,
     KeyInput = s.Type == CommandStepType.KeyInput ? ToResponseKeyInput(s.KeyInput) : null,
     Swipe = s.Type == CommandStepType.Swipe ? ToResponseSwipe(s.Swipe) : null,
+    EnsureEmulatorRunning = s.Type == CommandStepType.EnsureEmulatorRunning ? ToResponseEnsureEmulator(s.EnsureEmulatorRunning) : null,
     Order = s.Order
   };
+
+  private static EnsureEmulatorRunningConfig? ToDomainEnsureEmulator(EnsureEmulatorRunningConfigDto? dto) =>
+    dto is null ? null : new EnsureEmulatorRunningConfig {
+      InstanceName = dto.InstanceName,
+      InstanceIndex = dto.InstanceIndex,
+      AdbSerial = dto.AdbSerial
+    };
+
+  private static EnsureEmulatorRunningConfigDto? ToResponseEnsureEmulator(EnsureEmulatorRunningConfig? config) =>
+    config is null ? null : new EnsureEmulatorRunningConfigDto {
+      InstanceName = config.InstanceName,
+      InstanceIndex = config.InstanceIndex,
+      AdbSerial = config.AdbSerial
+    };
 
   private static StepExecutionOutcomeDto ToResponseOutcome(PrimitiveTapStepOutcome outcome) => new() {
     StepOrder = outcome.StepOrder,
