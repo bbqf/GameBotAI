@@ -64,6 +64,13 @@ public sealed class PrimitiveConnectToGameAction : PrimitiveActionBase {
   public string? GameId { get; set; }
   public string? AdbSerial { get; set; }
 
+  /// <summary>
+  /// Optional LDPlayer instance identifier (feature 071). When supplied (name or index), connect-to-game
+  /// first ensures that emulator instance is running/responsive before attaching the session.
+  /// </summary>
+  public string? InstanceName { get; set; }
+  public int? InstanceIndex { get; set; }
+
   public PrimitiveConnectToGameAction() : base(PrimitiveActionTypes.ConnectToGame) { }
 
   public ConnectToGameArgs? ToConnectToGameArgs() {
@@ -73,7 +80,9 @@ public sealed class PrimitiveConnectToGameAction : PrimitiveActionBase {
 
     return new ConnectToGameArgs {
       GameId = GameId,
-      AdbSerial = AdbSerial
+      AdbSerial = AdbSerial,
+      InstanceName = InstanceName,
+      InstanceIndex = InstanceIndex
     };
   }
 }

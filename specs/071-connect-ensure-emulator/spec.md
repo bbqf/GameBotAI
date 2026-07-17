@@ -2,7 +2,7 @@
 
 **Feature Branch**: `071-connect-ensure-emulator`
 **Created**: 2026-07-17
-**Status**: Draft
+**Status**: Implemented
 **Input**: User request: make the connect-to-game action bring up the emulator automatically if it's not running — "will the connect action launch the emulator if it's not running automatically? … do it."
 
 ## Clarifications

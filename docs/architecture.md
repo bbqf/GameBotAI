@@ -61,6 +61,15 @@ not survive a service restart; queue *configuration* and templates are persisted
   (10s), `GAMEBOT_EMULATOR_BOOT_WAIT_MS` (120s), `GAMEBOT_EMULATOR_POLL_INTERVAL_MS` (3s). It degrades to a
   neutral no-op on non-Windows hosts or when ldconsole/ADB is unavailable, and fails the step for a
   nonexistent instance or a recovery timeout.
+  **Connect to Game** (`connect-to-game`, feature 021) starts/attaches a session for a game on a device
+  (`gameId` + `adbSerial`) and then runs Ensure Game Running to foreground/launch the app. Feature 071
+  added an OPTIONAL emulator pre-heal: when the connect action also carries an LDPlayer instance
+  identifier (`instanceName`/`instanceIndex`), `DispatchConnectToGameAsync` first runs the feature-070
+  `EnsureEmulatorRunningActionHandler` against that instance + the same `adbSerial` before attaching —
+  a genuine emulator failure (recovery timeout / instance-not-found) fails the connect before any
+  session start, while success or a neutral unsupported outcome proceeds; with no instance identifier
+  the connect behaves exactly as before. (The separate interactive `/api/sessions/start` endpoint /
+  MCP `start_session` is unchanged.)
 - **Sequence** — an ordered list of steps that run **commands**, with random inter-step delays,
   conditional steps, loop/flow blocks (`SequenceFlowGraph`, `Blocks/`), and **if blocks**
   (`SequenceStepType.If`, feature 067): a condition (same model as while-loop conditions —

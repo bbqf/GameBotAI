@@ -527,6 +527,16 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         "connect-to-game step requires 'gameId' and 'adbSerial' parameters");
     }
 
+    // Feature 071: when the connect action carries an LDPlayer instance identifier, ensure that
+    // emulator instance is running/responsive first. A genuine emulator failure (recovery timeout /
+    // instance not found) fails the step before any session is started; success or a neutral
+    // unsupported outcome proceeds. Absent an instance identifier, no emulator work happens.
+    var emu = await PreheatEmulatorAsync(action, ct).ConfigureAwait(false);
+    var preheatFailure = ConnectEmulatorPreheat.FailFastReason(emu);
+    if (preheatFailure is not null) {
+      return new ActionDispatchResult("failed", preheatFailure);
+    }
+
     string startedSessionId;
     try {
       var started = _sessionService.StartSession(gameId!, adbSerial!, ct);
@@ -542,9 +552,22 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     // actually brings it up. Best-effort: a launch (game_not_running) or unsupported platform
     // does not fail the connect step.
     var launch = await _ensureGameRunning.ExecuteAsync(startedSessionId, ct).ConfigureAwait(false);
+    var emulatorNote = ConnectEmulatorPreheat.MessageClause(emu);
     return new ActionDispatchResult(
       "executed",
-      $"connected to game '{gameId}' on device '{adbSerial}' (session {startedSessionId}); game launch: {launch.ReasonCode}");
+      $"connected to game '{gameId}' on device '{adbSerial}' (session {startedSessionId}); {emulatorNote}game launch: {launch.ReasonCode}");
+  }
+
+  /// <summary>
+  /// Runs the feature-070 emulator health-and-recover handler when the connect action carries an
+  /// LDPlayer instance identifier (name or index); returns <c>null</c> when none is supplied, so the
+  /// connect proceeds unchanged.
+  /// </summary>
+  private async Task<EnsureEmulatorRunningActionResult?> PreheatEmulatorAsync(
+      SequenceActionPayload action,
+      CancellationToken ct) {
+    if (!EnsureEmulatorRunningArgs.TryFrom(action.Parameters, out var emuArgs)) return null;
+    return await _ensureEmulatorRunning.ExecuteAsync(emuArgs, ct).ConfigureAwait(false);
   }
 
   /// <summary>
