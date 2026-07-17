@@ -482,7 +482,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     }
 
     if (string.Equals(action.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)) {
-      return Task.FromResult(DispatchConnectToGame(action));
+      return DispatchConnectToGameAsync(action, ct);
     }
 
     if (string.Equals(action.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase)) {
@@ -498,11 +498,20 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
 
   /// <summary>
   /// Handles a <c>connect-to-game</c> sequence step by starting (or restarting) a session for
-  /// the game/device named in the step parameters — the same operation as the
-  /// <c>/api/sessions/start</c> endpoint. Returns a <c>failed</c> outcome — which fails the
-  /// step and the sequence — when parameters are missing or the session cannot be started.
+  /// the game/device named in the step parameters — the same session operation as the
+  /// <c>/api/sessions/start</c> endpoint — and then bringing the game to the foreground.
+  /// Starting a session only attaches ADB/screen capture; it does not launch the app, so a
+  /// connect against a device where the game process is not running would otherwise leave
+  /// nothing on screen. After the session is up we reuse the <c>ensure-game-running</c> handler
+  /// for its foreground check + best-effort launch. The launch is best-effort: whether the game
+  /// was already running or had to be launched (and on non-Windows, where ADB is unavailable),
+  /// the connect step still succeeds — the session is attached either way. Returns a
+  /// <c>failed</c> outcome — which fails the step and the sequence — only when parameters are
+  /// missing or the session itself cannot be started.
   /// </summary>
-  private ActionDispatchResult DispatchConnectToGame(SequenceActionPayload action) {
+  private async Task<ActionDispatchResult> DispatchConnectToGameAsync(
+      SequenceActionPayload action,
+      CancellationToken ct) {
     if (!TryGetString(action.Parameters, "gameId", out var gameId)
         || !TryGetString(action.Parameters, "adbSerial", out var adbSerial)) {
       return new ActionDispatchResult(
@@ -510,17 +519,24 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         "connect-to-game step requires 'gameId' and 'adbSerial' parameters");
     }
 
+    string startedSessionId;
     try {
-      var started = _sessionService.StartSession(gameId!, adbSerial!);
-      return new ActionDispatchResult(
-        "executed",
-        $"connected to game '{gameId}' on device '{adbSerial}' (session {started.SessionId})");
+      var started = _sessionService.StartSession(gameId!, adbSerial!, ct);
+      startedSessionId = started.SessionId;
     }
     catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or ArgumentException) {
       return new ActionDispatchResult(
         "failed",
         $"connect-to-game failed for game '{gameId}' on device '{adbSerial}': {ex.Message}");
     }
+
+    // Launch the game after connecting so a connect on a device where the game is not running
+    // actually brings it up. Best-effort: a launch (game_not_running) or unsupported platform
+    // does not fail the connect step.
+    var launch = await _ensureGameRunning.ExecuteAsync(startedSessionId, ct).ConfigureAwait(false);
+    return new ActionDispatchResult(
+      "executed",
+      $"connected to game '{gameId}' on device '{adbSerial}' (session {startedSessionId}); game launch: {launch.ReasonCode}");
   }
 
   /// <summary>
