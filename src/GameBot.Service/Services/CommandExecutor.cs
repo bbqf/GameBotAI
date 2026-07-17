@@ -220,6 +220,19 @@ internal sealed class CommandExecutor : ICommandExecutor {
         : (0, new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
     }
 
+    if (step.Type == CommandStepType.GoToHomeScreen) {
+      // Feature 069: press Android HOME (keycode 3) so the device returns to the home/main screen.
+      // The game is left running in the background (HOME does not force-stop it). Reuses the key
+      // input path, which stubs success on non-Windows/non-ADB sessions.
+      const int androidKeyCodeHome = 3;
+      var homeArgs = new Dictionary<string, object> { ["keyCode"] = androidKeyCodeHome };
+      var homeAction = new GameBot.Emulator.Session.InputAction("key", homeArgs, null, null);
+      var homeAccepted = await _sessions.SendInputsAsync(sessionId, new[] { homeAction }, ct).ConfigureAwait(false);
+      return homeAccepted > 0
+        ? (homeAccepted, new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "go-to-home-screen"))
+        : (0, new PrimitiveTapStepOutcome(step.Order, "not_accepted", "go_to_home_screen_not_accepted", null, null, StepType: "go-to-home-screen"));
+    }
+
     if (step.Type == CommandStepType.KeyInput) {
       if (step.KeyInput is null) {
         return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "key_input_missing_config", null, null, StepType: "key"));

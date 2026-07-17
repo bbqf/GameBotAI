@@ -36,6 +36,14 @@ public sealed class PrimitiveEnsureGameRunningAction : PrimitiveActionBase {
   public PrimitiveEnsureGameRunningAction() : base(PrimitiveActionTypes.EnsureGameRunning) { }
 }
 
+/// <summary>
+/// Feature 069: parameterless action that presses the Android HOME button so the device returns to
+/// its home/main screen, leaving the game running in the background.
+/// </summary>
+public sealed class PrimitiveGoToHomeScreenAction : PrimitiveActionBase {
+  public PrimitiveGoToHomeScreenAction() : base(PrimitiveActionTypes.GoToHomeScreen) { }
+}
+
 public sealed class PrimitiveConnectToGameAction : PrimitiveActionBase {
   public string? GameId { get; set; }
   public string? AdbSerial { get; set; }

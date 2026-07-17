@@ -2,7 +2,7 @@
 
 **Feature Branch**: `069-go-home-screen`  
 **Created**: 2026-07-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "the game should be switched off - android goes to main screen. this feature should be available same as connect to game." (Clarified: press the Android HOME button so the device returns to its main/home screen, leaving the game running in the background — the game is NOT force-stopped or closed.)
 
 ## User Scenarios & Testing *(mandatory)*

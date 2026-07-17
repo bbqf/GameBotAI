@@ -489,6 +489,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       return DispatchEnsureGameRunningAsync(sessionId, ct);
     }
 
+    if (string.Equals(action.Type, ActionTypes.GoToHomeScreen, StringComparison.OrdinalIgnoreCase)) {
+      return DispatchGoToHomeScreenAsync(sessionId, ct);
+    }
+
     return DispatchPrimitiveInputAsync(action, sessionId, ct);
   }
 
@@ -546,6 +550,41 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     return result.IsSuccess
       ? new ActionDispatchResult("executed", "game is running in the foreground (game_running)")
       : new ActionDispatchResult("failed", $"ensure-game-running failed: {result.ReasonCode}");
+  }
+
+  // Android KEYCODE_HOME. Pressing it returns the device to the home/main screen without stopping
+  // the foreground app, so the game keeps running in the background (feature 069).
+  private const int AndroidKeyCodeHome = 3;
+
+  /// <summary>
+  /// Handles a <c>go-to-home-screen</c> sequence step by sending the Android HOME key to the session
+  /// (feature 069). The game is left running in the background — HOME does not force-stop it. Reuses
+  /// the session input pipeline, which retries on Windows/ADB and returns a stub success on
+  /// non-Windows or non-ADB sessions (graceful degradation). Returns a <c>failed</c> outcome — which
+  /// fails the step and the sequence — when no running session can be resolved or the device rejects
+  /// the input.
+  /// </summary>
+  private async Task<ActionDispatchResult> DispatchGoToHomeScreenAsync(
+      string? sessionId,
+      CancellationToken ct) {
+    var resolvedSessionId = sessionId;
+    if (string.IsNullOrWhiteSpace(resolvedSessionId)) {
+      var runningSessions = _sessionManager.ListSessions()
+        .Where(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
+        .ToList();
+      if (runningSessions.Count != 1) {
+        return new ActionDispatchResult(
+          "failed",
+          "no session available for 'go-to-home-screen' step; start a session or pass a sessionId");
+      }
+      resolvedSessionId = runningSessions[0].Id;
+    }
+
+    var input = new EmulatorInputAction("key", new Dictionary<string, object> { ["keyCode"] = AndroidKeyCodeHome });
+    var accepted = await _sessionManager.SendInputsAsync(resolvedSessionId!, new[] { input }, ct).ConfigureAwait(false);
+    return accepted > 0
+      ? new ActionDispatchResult("executed", "pressed HOME; device returned to the home screen (game left running)")
+      : new ActionDispatchResult("failed", $"'go-to-home-screen' input was not accepted by session '{resolvedSessionId}'");
   }
 
   /// <summary>

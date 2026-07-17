@@ -114,6 +114,10 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
     return { type: 'EnsureGameRunning', order: idx };
   }
 
+  if (s.type === 'GoToHomeScreen') {
+    return { type: 'GoToHomeScreen', order: idx };
+  }
+
   if (s.type === 'KeyInput') {
     return { type: 'KeyInput', order: idx, keyInput: { key: s.keyInput?.key ?? '' } };
   }

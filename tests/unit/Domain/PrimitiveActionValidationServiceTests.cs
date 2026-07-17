@@ -30,6 +30,15 @@ public sealed class PrimitiveActionValidationServiceTests {
   }
 
   [Fact]
+  public void ValidateReturnsNoErrorsForGoToHomeScreenPrimitive() {
+    var primitiveAction = new PrimitiveGoToHomeScreenAction();
+
+    var errors = PrimitiveActionValidationService.Validate(primitiveAction);
+
+    errors.Should().BeEmpty();
+  }
+
+  [Fact]
   public void ValidateRejectsMissingRequiredFields() {
     var primitiveAction = new PrimitiveCommandAction();
 
@@ -47,7 +56,8 @@ public sealed class PrimitiveActionValidationServiceTests {
       PrimitiveActionTypes.Command,
       PrimitiveActionTypes.ConnectToGame,
       PrimitiveActionTypes.WaitForImage,
-      PrimitiveActionTypes.EnsureGameRunning
+      PrimitiveActionTypes.EnsureGameRunning,
+      PrimitiveActionTypes.GoToHomeScreen
     });
   }
 }

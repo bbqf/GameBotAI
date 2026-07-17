@@ -10,6 +10,7 @@ import { ActionTypeSelector, PrimitiveActionType } from './ActionTypeSelector';
 import { TapPanel } from './TapPanel';
 import { WaitForImagePanel } from './WaitForImagePanel';
 import { EnsureGameRunningPanel } from './EnsureGameRunningPanel';
+import { GoToHomeScreenPanel } from './GoToHomeScreenPanel';
 import { KeyInputPanel } from './KeyInputPanel';
 import { SwipePanel } from './SwipePanel';
 import { VisualStepPicker } from './VisualStepPicker/VisualStepPicker';
@@ -17,7 +18,7 @@ import './CommandForm.css';
 
 export type StepEntry = {
   id: string;
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'KeyInput' | 'Swipe';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe';
   targetId?: string;
   primitiveTap?: {
     detectionTarget: DetectionTargetForm;
@@ -89,6 +90,14 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
       };
     }
 
+    if (step.type === 'GoToHomeScreen') {
+      return {
+        id: step.id,
+        label: 'Go to home screen',
+        description: 'Presses HOME; leaves the game running in the background',
+      };
+    }
+
     if (step.type === 'KeyInput') {
       return {
         id: step.id,
@@ -115,7 +124,7 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
   });
 };
 
-const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning', 'KeyInput', 'Swipe']);
+const EDITABLE_TYPES = new Set<string>(['PrimitiveTap', 'WaitForImage', 'EnsureGameRunning', 'GoToHomeScreen', 'KeyInput', 'Swipe']);
 
 export const CommandForm: React.FC<CommandFormProps> = ({
   value,
@@ -330,6 +339,14 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         {pendingActionType === 'EnsureGameRunning' && (
           <EnsureGameRunningPanel
             onConfirm={() => handlePanelConfirm({ type: 'EnsureGameRunning' })}
+            onCancel={handlePanelCancel}
+            disabled={submitting}
+          />
+        )}
+
+        {pendingActionType === 'GoToHomeScreen' && (
+          <GoToHomeScreenPanel
+            onConfirm={() => handlePanelConfirm({ type: 'GoToHomeScreen' })}
             onCancel={handlePanelCancel}
             disabled={submitting}
           />

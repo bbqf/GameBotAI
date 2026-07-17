@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-07-06._
+_Last reviewed: 2026-07-17._
 
 ## What GameBot is
 
@@ -41,9 +41,14 @@ not survive a service restart; queue *configuration* and templates are persisted
 - **Command** — an ordered list of **steps**. Steps are **primitive actions** plus control
   structures (loops, per-step conditions). A command may carry a vestigial `TriggerId`.
 - **Primitive Action** — the unit of input/effect. Current variants: **Tap**, **Swipe**,
-  **Key**, **Wait for Image**, **Connect to Game**, **Ensure Game Running**. (These replaced the
-  old first-class "Action" object — see *Legacy/removed* below.) Taps/swipes resolve coordinates
-  from image detection + offset, with wait-and-retry and tap-point jitter applied automatically.
+  **Key**, **Wait for Image**, **Connect to Game**, **Ensure Game Running**, **Go to Home Screen**.
+  (These replaced the old first-class "Action" object — see *Legacy/removed* below.) Taps/swipes
+  resolve coordinates from image detection + offset, with wait-and-retry and tap-point jitter
+  applied automatically. **Go to Home Screen** (`go-to-home-screen`, feature 069) is a parameterless
+  action that presses Android HOME (keycode 3) so the device returns to its home/main screen,
+  leaving the game running in the background — the leave-game counterpart to Connect to Game. It is
+  usable both as a sequence action (dispatched through the session input pipeline) and a command
+  step, and degrades to a stub success on non-Windows/non-ADB sessions.
 - **Sequence** — an ordered list of steps that run **commands**, with random inter-step delays,
   conditional steps, loop/flow blocks (`SequenceFlowGraph`, `Blocks/`), and **if blocks**
   (`SequenceStepType.If`, feature 067): a condition (same model as while-loop conditions —

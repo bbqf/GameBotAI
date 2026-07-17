@@ -11,7 +11,7 @@ describe('ActionTypeSelector', () => {
     expect(options[0].value).toBe('');
   });
 
-  it('renders exactly Tap, Wait for Image, Ensure Game Running, Key Input, Swipe options', () => {
+  it('renders exactly Tap, Wait for Image, Ensure Game Running, Go to Home Screen, Key Input, Swipe options', () => {
     render(<ActionTypeSelector value="" onChange={() => {}} />);
     const select = screen.getByRole('combobox', { name: /action type/i });
     const options = Array.from((select as HTMLSelectElement).options).map((o) => ({
@@ -23,10 +23,11 @@ describe('ActionTypeSelector', () => {
       { value: 'PrimitiveTap', text: 'Tap' },
       { value: 'WaitForImage', text: 'Wait for Image' },
       { value: 'EnsureGameRunning', text: 'Ensure Game Running' },
+      { value: 'GoToHomeScreen', text: 'Go to Home Screen' },
       { value: 'KeyInput', text: 'Key Input' },
       { value: 'Swipe', text: 'Swipe' },
     ]);
-    expect(options).toHaveLength(6);
+    expect(options).toHaveLength(7);
   });
 
   it('onChange fires with PrimitiveTap when Tap is selected', () => {
@@ -54,6 +55,15 @@ describe('ActionTypeSelector', () => {
       target: { value: 'EnsureGameRunning' },
     });
     expect(onChange).toHaveBeenCalledWith('EnsureGameRunning');
+  });
+
+  it('onChange fires with GoToHomeScreen when Go to Home Screen is selected', () => {
+    const onChange = jest.fn();
+    render(<ActionTypeSelector value="" onChange={onChange} />);
+    fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), {
+      target: { value: 'GoToHomeScreen' },
+    });
+    expect(onChange).toHaveBeenCalledWith('GoToHomeScreen');
   });
 
   it('onChange fires with empty string when blank option is selected', () => {
