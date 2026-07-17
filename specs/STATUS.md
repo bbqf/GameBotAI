@@ -106,6 +106,7 @@ Status vocabulary:
 | 068 | OCR-Parsed Dynamic Offset for Reschedule-Self | Implemented |
 | 069 | Go To Home Screen Action | Implemented |
 | 070 | Ensure Emulator Running Action | Implemented |
+| 071 | Connect-to-Game Emulator Pre-heal | Implemented |
 
 ## Numbering notes
 
