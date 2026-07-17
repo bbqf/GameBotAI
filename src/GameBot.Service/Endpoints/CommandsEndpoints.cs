@@ -26,6 +26,7 @@ internal static class CommandsEndpoints {
     CommandStepTypeDto.Command => CommandStepType.Command,
     CommandStepTypeDto.WaitForImage => CommandStepType.WaitForImage,
     CommandStepTypeDto.EnsureGameRunning => CommandStepType.EnsureGameRunning,
+    CommandStepTypeDto.GoToHomeScreen => CommandStepType.GoToHomeScreen,
     CommandStepTypeDto.KeyInput => CommandStepType.KeyInput,
     CommandStepTypeDto.Swipe => CommandStepType.Swipe,
     _ => CommandStepType.PrimitiveTap
@@ -35,6 +36,7 @@ internal static class CommandsEndpoints {
     CommandStepType.Command => CommandStepTypeDto.Command,
     CommandStepType.WaitForImage => CommandStepTypeDto.WaitForImage,
     CommandStepType.EnsureGameRunning => CommandStepTypeDto.EnsureGameRunning,
+    CommandStepType.GoToHomeScreen => CommandStepTypeDto.GoToHomeScreen,
     CommandStepType.KeyInput => CommandStepTypeDto.KeyInput,
     CommandStepType.Swipe => CommandStepTypeDto.Swipe,
     _ => CommandStepTypeDto.PrimitiveTap
@@ -119,6 +121,10 @@ internal static class CommandsEndpoints {
     }
 
     if (step.Type == CommandStepTypeDto.EnsureGameRunning) {
+      return null;
+    }
+
+    if (step.Type == CommandStepTypeDto.GoToHomeScreen) {
       return null;
     }
 

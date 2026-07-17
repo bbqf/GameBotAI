@@ -43,7 +43,8 @@ internal enum CommandStepTypeDto {
   WaitForImage,
   EnsureGameRunning,
   KeyInput,
-  Swipe
+  Swipe,
+  GoToHomeScreen
 }
 
 internal sealed class KeyInputConfigDto {

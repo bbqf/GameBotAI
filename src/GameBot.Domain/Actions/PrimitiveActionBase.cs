@@ -11,6 +11,9 @@ public static class PrimitiveActionTypes {
   public const string WaitForImage = "WaitForImage";
   public const string EnsureGameRunning = "ensure-game-running";
 
+  /// <summary>Feature 069: presses the Android HOME button (leaves the game running).</summary>
+  public const string GoToHomeScreen = "go-to-home-screen";
+
   public static IReadOnlyCollection<string> All { get; } = new ReadOnlyCollection<string>(new[] {
     Tap,
     Swipe,
@@ -18,7 +21,8 @@ public static class PrimitiveActionTypes {
     Command,
     ConnectToGame,
     WaitForImage,
-    EnsureGameRunning
+    EnsureGameRunning,
+    GoToHomeScreen
   });
 }
 

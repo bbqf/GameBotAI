@@ -103,6 +103,51 @@ public sealed class SequenceRunnerGameActionDispatchTests {
   }
 
   [Fact]
+  public async Task GoToHomeScreenStepIsDispatchedAndRecordedWithDispatchOutcome() {
+    var executedCommands = new List<string>();
+    var dispatched = new List<SequenceActionPayload>();
+    var sequence = Sequence(
+      ActionStep(0, "home-step", ActionTypes.GoToHomeScreen),
+      new SequenceStep { Order = 1, StepId = "after", CommandId = "cmd-after", StepType = SequenceStepType.Command });
+    var runner = new SequenceRunner(new StubRepo(sequence));
+
+    var result = await runner.ExecuteAsync(
+      "game-action-seq",
+      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      actionDispatcher: (action, _) => {
+        dispatched.Add(action);
+        return Task.FromResult(new ActionDispatchResult("executed", "pressed HOME; device returned to the home screen (game left running)"));
+      },
+      ct: CancellationToken.None);
+
+    result.Status.Should().Be("Succeeded");
+    dispatched.Should().ContainSingle();
+    dispatched[0].Type.Should().Be(ActionTypes.GoToHomeScreen);
+    result.Steps.Should().Contain(s => s.CommandId == "home-step" && s.ActionOutcome == "executed");
+    // The action step performed no command I/O; the following command step still ran.
+    executedCommands.Should().Equal("cmd-after");
+  }
+
+  [Fact]
+  public async Task FailedGoToHomeScreenDispatchFailsTheStepAndStopsTheSequence() {
+    var executedCommands = new List<string>();
+    var sequence = Sequence(
+      ActionStep(0, "home-step", ActionTypes.GoToHomeScreen),
+      new SequenceStep { Order = 1, StepId = "after", CommandId = "cmd-after", StepType = SequenceStepType.Command });
+    var runner = new SequenceRunner(new StubRepo(sequence));
+
+    var result = await runner.ExecuteAsync(
+      "game-action-seq",
+      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      actionDispatcher: (_, _) => Task.FromResult(new ActionDispatchResult("failed", "no session available for 'go-to-home-screen' step; start a session or pass a sessionId")),
+      ct: CancellationToken.None);
+
+    result.Status.Should().Be("Failed");
+    result.Steps.Should().Contain(s => s.CommandId == "home-step" && s.Status == "Failed" && s.ActionOutcome == "failed");
+    executedCommands.Should().BeEmpty();
+  }
+
+  [Fact]
   public async Task FailedEnsureGameRunningDispatchFailsTheStepAndStopsTheSequence() {
     var executedCommands = new List<string>();
     var sequence = Sequence(

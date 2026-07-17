@@ -340,6 +340,17 @@ describe('CommandForm — US4: Ensure Game Running panel add', () => {
     expect(getSelector()).toHaveValue('');
   });
 
+  it('adding GoToHomeScreen step calls onChange with correct type and resets selector', () => {
+    const onChange = jest.fn();
+    render(<CommandForm value={emptyForm} commandOptions={[]} onChange={onChange} />);
+    fireEvent.change(getSelector(), { target: { value: 'GoToHomeScreen' } });
+    expect(screen.getByText(/presses the android home button/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    const updated: CommandFormValue = onChange.mock.calls[0][0];
+    expect(updated.steps[0].type).toBe('GoToHomeScreen');
+    expect(getSelector()).toHaveValue('');
+  });
+
   it('clicking Edit on an EnsureGameRunning step opens the panel', () => {
     render(
       <CommandForm

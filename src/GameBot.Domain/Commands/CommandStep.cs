@@ -6,7 +6,8 @@ public enum CommandStepType {
   WaitForImage,
   EnsureGameRunning,
   KeyInput,
-  Swipe
+  Swipe,
+  GoToHomeScreen
 }
 
 public sealed class PrimitiveTapConfig {

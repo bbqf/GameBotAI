@@ -18,7 +18,7 @@ export type CommandCreate = {
 export type CommandUpdate = CommandCreate;
 
 export type CommandStepDto = {
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'KeyInput' | 'Swipe';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe';
   targetId?: string;
   order: number;
   primitiveTap?: PrimitiveTapConfigDto;

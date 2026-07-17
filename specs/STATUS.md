@@ -103,6 +103,8 @@ Status vocabulary:
 | 065 | Sequence Self-Rescheduling into the Originating Queue Run | Implemented |
 | 066 | Break Step Success/Failure Execution Statuses | Implemented |
 | 067 | If-Then-Else Conditions in Sequences | Implemented |
+| 068 | OCR-Parsed Dynamic Offset for Reschedule-Self | Implemented |
+| 069 | Go To Home Screen Action | Implemented |
 
 ## Numbering notes
 

@@ -44,6 +44,33 @@ public sealed class SequenceActionPayloadValidationContractTests {
   }
 
   [Fact]
+  public async Task CreateSequenceAcceptsGoToHomeScreenActionType() {
+    using var app = CreateFactory();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var payload = new {
+      name = "go-to-home-screen-accepted",
+      version = 1,
+      steps = new object[] {
+        new {
+          stepId = "leave-game",
+          label = "Leave game",
+          primitiveAction = new {
+            type = "go-to-home-screen",
+            schemaVersion = "v1",
+            payload = new { }
+          }
+        }
+      }
+    };
+
+    var response = await client.PostAsJsonAsync("/api/sequences", payload).ConfigureAwait(false);
+    response.IsSuccessStatusCode.Should().BeTrue(
+      "go-to-home-screen is a supported primitive action type and must pass sequence validation and persistence");
+  }
+
+  [Fact]
   public async Task CreateSequenceRejectsMalformedActionPayloadReference() {
     using var app = CreateFactory();
     var client = app.CreateClient();
