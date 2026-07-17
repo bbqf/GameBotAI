@@ -7,7 +7,9 @@ using GameBot.Emulator.Session;
 using Microsoft.Extensions.Logging;
 using GameBot.Service.Services;
 using GameBot.Service.Services.EnsureGameRunning;
+using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.ExecutionLog;
+using GameBot.Domain.Actions;
 using System.Globalization;
 
 namespace GameBot.Service.Services;
@@ -25,8 +27,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly IExecutionLogService? _executionLogService;
   private readonly AppConfig _appConfig;
   private readonly IEnsureGameRunningActionHandler? _ensureGameRunning;
+  private readonly IEnsureEmulatorRunningActionHandler? _ensureEmulatorRunning;
 
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -39,10 +42,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _appConfig = appConfig;
     _executionLogService = executionLogService;
     _ensureGameRunning = ensureGameRunning;
+    _ensureEmulatorRunning = ensureEmulatorRunning;
   }
 
   // Fallback constructor for environments without detection services registered (non-Windows or tests)
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -55,6 +59,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _appConfig = new AppConfig();
     _executionLogService = executionLogService;
     _ensureGameRunning = ensureGameRunning;
+    _ensureEmulatorRunning = ensureEmulatorRunning;
   }
 
   public Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default)
@@ -218,6 +223,25 @@ internal sealed class CommandExecutor : ICommandExecutor {
       return result.IsSuccess
         ? (1, new PrimitiveTapStepOutcome(step.Order, "executed", result.ReasonCode, null, null, StepType: "ensure-game-running"))
         : (0, new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
+    }
+
+    if (step.Type == CommandStepType.EnsureEmulatorRunning) {
+      var cfg = step.EnsureEmulatorRunning;
+      if (cfg is null || string.IsNullOrWhiteSpace(cfg.AdbSerial)
+          || (string.IsNullOrWhiteSpace(cfg.InstanceName) && cfg.InstanceIndex is null)) {
+        return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "ensure_emulator_running_missing_config", null, null, StepType: "ensure-emulator-running"));
+      }
+      var emulatorArgs = new EnsureEmulatorRunningArgs {
+        InstanceName = cfg.InstanceName,
+        InstanceIndex = cfg.InstanceIndex,
+        AdbSerial = cfg.AdbSerial
+      };
+      var emulatorResult = _ensureEmulatorRunning is not null
+        ? await _ensureEmulatorRunning.ExecuteAsync(emulatorArgs, ct).ConfigureAwait(false)
+        : new EnsureEmulatorRunningActionResult(EnsureEmulatorRunningOutcome.PlatformUnsupported);
+      return emulatorResult.IsSuccess || emulatorResult.IsUnsupported
+        ? (1, new PrimitiveTapStepOutcome(step.Order, "executed", emulatorResult.ReasonCode, null, null, StepType: "ensure-emulator-running"))
+        : (0, new PrimitiveTapStepOutcome(step.Order, emulatorResult.ReasonCode, emulatorResult.ReasonCode, null, null, StepType: "ensure-emulator-running"));
     }
 
     if (step.Type == CommandStepType.GoToHomeScreen) {

@@ -44,6 +44,22 @@ public sealed class PrimitiveGoToHomeScreenAction : PrimitiveActionBase {
   public PrimitiveGoToHomeScreenAction() : base(PrimitiveActionTypes.GoToHomeScreen) { }
 }
 
+/// <summary>
+/// Feature 070: ensures the target LDPlayer emulator instance is running and responsive, starting or
+/// restarting it when it is not. Parameterized (like <see cref="PrimitiveConnectToGameAction"/>): the
+/// author supplies an instance identifier (name or index) plus the adbSerial used for the probe.
+/// </summary>
+public sealed class PrimitiveEnsureEmulatorRunningAction : PrimitiveActionBase {
+  public string? InstanceName { get; set; }
+  public int? InstanceIndex { get; set; }
+  public string? AdbSerial { get; set; }
+
+  public PrimitiveEnsureEmulatorRunningAction() : base(PrimitiveActionTypes.EnsureEmulatorRunning) { }
+
+  public EnsureEmulatorRunningArgs? ToEnsureEmulatorRunningArgs() =>
+    EnsureEmulatorRunningArgs.TryFrom(this, out var args) ? args : null;
+}
+
 public sealed class PrimitiveConnectToGameAction : PrimitiveActionBase {
   public string? GameId { get; set; }
   public string? AdbSerial { get; set; }

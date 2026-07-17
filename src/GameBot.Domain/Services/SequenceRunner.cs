@@ -673,7 +673,8 @@ namespace GameBot.Domain.Services {
           || string.Equals(action?.Type, ActionTypes.Key, StringComparison.OrdinalIgnoreCase)
           || string.Equals(action?.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)
           || string.Equals(action?.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase)
-          || string.Equals(action?.Type, ActionTypes.GoToHomeScreen, StringComparison.OrdinalIgnoreCase);
+          || string.Equals(action?.Type, ActionTypes.GoToHomeScreen, StringComparison.OrdinalIgnoreCase)
+          || string.Equals(action?.Type, ActionTypes.EnsureEmulatorRunning, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsWaitForImageStep(SequenceStep step) {

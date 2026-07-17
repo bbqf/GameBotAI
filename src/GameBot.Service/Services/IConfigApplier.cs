@@ -55,6 +55,9 @@ internal sealed class ConfigApplier : IConfigApplier {
     _appConfig.TapJitterRadiusPx = GetInt(snapshot, "GAMEBOT_TAP_JITTER_RADIUS_PX", 5) is var jitter && jitter >= 0 ? jitter : 5;
     _appConfig.AdbRetries = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRIES", 2));
     _appConfig.AdbRetryDelayMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRY_DELAY_MS", 100));
+    _appConfig.EmulatorProbeTimeoutMs = Math.Max(1, GetInt(snapshot, "GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS", 10000));
+    _appConfig.EmulatorBootWaitMs = Math.Max(_appConfig.EmulatorProbeTimeoutMs, GetInt(snapshot, "GAMEBOT_EMULATOR_BOOT_WAIT_MS", 120000));
+    _appConfig.EmulatorPollIntervalMs = Math.Max(100, GetInt(snapshot, "GAMEBOT_EMULATOR_POLL_INTERVAL_MS", 3000));
 
     // Propagate capture interval to active background capture loops
     _captureService?.UpdateCaptureInterval(_appConfig.CaptureIntervalMs);

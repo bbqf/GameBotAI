@@ -105,6 +105,7 @@ Status vocabulary:
 | 067 | If-Then-Else Conditions in Sequences | Implemented |
 | 068 | OCR-Parsed Dynamic Offset for Reschedule-Self | Implemented |
 | 069 | Go To Home Screen Action | Implemented |
+| 070 | Ensure Emulator Running Action | Implemented |
 
 ## Numbering notes
 

@@ -57,7 +57,8 @@ public sealed class PrimitiveActionValidationServiceTests {
       PrimitiveActionTypes.ConnectToGame,
       PrimitiveActionTypes.WaitForImage,
       PrimitiveActionTypes.EnsureGameRunning,
-      PrimitiveActionTypes.GoToHomeScreen
+      PrimitiveActionTypes.GoToHomeScreen,
+      PrimitiveActionTypes.EnsureEmulatorRunning
     });
   }
 }

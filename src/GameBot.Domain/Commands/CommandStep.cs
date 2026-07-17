@@ -7,7 +7,18 @@ public enum CommandStepType {
   EnsureGameRunning,
   KeyInput,
   Swipe,
-  GoToHomeScreen
+  GoToHomeScreen,
+  EnsureEmulatorRunning
+}
+
+/// <summary>
+/// Config for the ensure-emulator-running command step (feature 070): identifies the LDPlayer
+/// instance (by name or index) and the device serial used for the responsiveness probe.
+/// </summary>
+public sealed class EnsureEmulatorRunningConfig {
+  public string? InstanceName { get; init; }
+  public int? InstanceIndex { get; init; }
+  public required string AdbSerial { get; init; }
 }
 
 public sealed class PrimitiveTapConfig {
@@ -33,5 +44,6 @@ public sealed class CommandStep {
   public WaitForImageConfig? WaitForImage { get; init; }
   public KeyInputConfig? KeyInput { get; init; }
   public SwipeConfig? Swipe { get; init; }
+  public EnsureEmulatorRunningConfig? EnsureEmulatorRunning { get; init; }
   public int Order { get; init; }
 }

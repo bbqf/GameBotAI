@@ -59,4 +59,27 @@ public sealed class AppConfig {
   /// Maps to <c>GAMEBOT_ADB_RETRY_DELAY_MS</c> environment variable. Default 100.
   /// </summary>
   public int AdbRetryDelayMs { get; set; } = 100;
+
+  /// <summary>
+  /// Timeout in milliseconds for a single emulator responsiveness probe
+  /// (<c>getprop sys.boot_completed</c>) used by the ensure-emulator-running action (feature 070).
+  /// Maps to <c>GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS</c>. Default 10000. Binders clamp to a small minimum
+  /// and fall back to the default on invalid/non-numeric values.
+  /// </summary>
+  public int EmulatorProbeTimeoutMs { get; set; } = 10000;
+
+  /// <summary>
+  /// Maximum time in milliseconds to wait for an emulator instance to reach boot-complete after a
+  /// start or restart (feature 070). Maps to <c>GAMEBOT_EMULATOR_BOOT_WAIT_MS</c>. Default 120000.
+  /// Binders clamp this to be at least <see cref="EmulatorProbeTimeoutMs"/> and fall back to the
+  /// default on invalid values.
+  /// </summary>
+  public int EmulatorBootWaitMs { get; set; } = 120000;
+
+  /// <summary>
+  /// Interval in milliseconds between health polls while waiting for an emulator to become healthy
+  /// after a (re)start (feature 070). Maps to <c>GAMEBOT_EMULATOR_POLL_INTERVAL_MS</c>. Default 3000.
+  /// Binders clamp to a minimum of 100 and fall back to the default on invalid values.
+  /// </summary>
+  public int EmulatorPollIntervalMs { get; set; } = 3000;
 }

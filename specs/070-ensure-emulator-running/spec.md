@@ -2,7 +2,7 @@
 
 **Feature Branch**: `070-ensure-emulator-running`
 **Created**: 2026-07-17
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "check if the emulator itself is running (and not hanging) and start/restart it if needed" — delivered as a new sequence action type `ensure-emulator-running`, available the same way the existing `ensure-game-running` action is.
 
 ## User Scenarios & Testing *(mandatory)*

@@ -7,7 +7,7 @@ import { jsonResult } from "../results.js";
 const commandBody = z
   .record(z.unknown())
   .describe(
-    "Full command JSON: ordered steps of primitive actions (PrimitiveTap, WaitForImage, KeyInput, Swipe, EnsureGameRunning, GoToHomeScreen, ...), optionally gated by triggers. GoToHomeScreen presses the Android HOME button so the device returns to the home screen, leaving the game running in the background. In any polymorphic step object, put the \"type\" property FIRST - the service's JSON deserializer requires the discriminator before other fields. Fetch an existing command with get_command to copy the exact shape.",
+    "Full command JSON: ordered steps of primitive actions (PrimitiveTap, WaitForImage, KeyInput, Swipe, EnsureGameRunning, GoToHomeScreen, EnsureEmulatorRunning, ...), optionally gated by triggers. GoToHomeScreen presses the Android HOME button so the device returns to the home screen, leaving the game running in the background. EnsureEmulatorRunning verifies the target LDPlayer instance is running and responsive (starting/restarting it if needed); it takes an ensureEmulatorRunning config with instanceName or instanceIndex plus adbSerial. In any polymorphic step object, put the \"type\" property FIRST - the service's JSON deserializer requires the discriminator before other fields. Fetch an existing command with get_command to copy the exact shape.",
   );
 
 export function registerCommandTools(server: McpServer, client: GameBotClient): void {
@@ -87,7 +87,7 @@ export function registerCommandTools(server: McpServer, client: GameBotClient): 
   apiTool(
     server,
     "execute_step",
-    "Execute a single ad-hoc command step (PrimitiveTap, WaitForImage, KeyInput, Swipe, EnsureGameRunning, GoToHomeScreen) without saving it. 10 second execution timeout. Command-type steps are not allowed here.",
+    "Execute a single ad-hoc command step (PrimitiveTap, WaitForImage, KeyInput, Swipe, EnsureGameRunning, GoToHomeScreen, EnsureEmulatorRunning) without saving it. 10 second execution timeout. Command-type steps are not allowed here.",
     {
       step: z
         .record(z.unknown())

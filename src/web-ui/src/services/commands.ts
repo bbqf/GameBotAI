@@ -18,13 +18,20 @@ export type CommandCreate = {
 export type CommandUpdate = CommandCreate;
 
 export type CommandStepDto = {
-  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe';
+  type: 'Command' | 'PrimitiveTap' | 'WaitForImage' | 'EnsureGameRunning' | 'GoToHomeScreen' | 'KeyInput' | 'Swipe' | 'EnsureEmulatorRunning';
   targetId?: string;
   order: number;
   primitiveTap?: PrimitiveTapConfigDto;
   waitForImage?: WaitForImageConfigDto;
   keyInput?: KeyInputConfigDto;
   swipe?: SwipeConfigDto;
+  ensureEmulatorRunning?: EnsureEmulatorRunningConfigDto;
+};
+
+export type EnsureEmulatorRunningConfigDto = {
+  instanceName?: string;
+  instanceIndex?: number;
+  adbSerial: string;
 };
 
 export type KeyInputConfigDto = {

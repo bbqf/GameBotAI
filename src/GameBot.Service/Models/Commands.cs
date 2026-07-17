@@ -44,7 +44,14 @@ internal enum CommandStepTypeDto {
   EnsureGameRunning,
   KeyInput,
   Swipe,
-  GoToHomeScreen
+  GoToHomeScreen,
+  EnsureEmulatorRunning
+}
+
+internal sealed class EnsureEmulatorRunningConfigDto {
+  public string? InstanceName { get; init; }
+  public int? InstanceIndex { get; init; }
+  public required string AdbSerial { get; init; }
 }
 
 internal sealed class KeyInputConfigDto {
@@ -75,6 +82,7 @@ internal sealed class CommandStepDto {
   public WaitForImageConfigDto? WaitForImage { get; init; }
   public KeyInputConfigDto? KeyInput { get; init; }
   public SwipeConfigDto? Swipe { get; init; }
+  public EnsureEmulatorRunningConfigDto? EnsureEmulatorRunning { get; init; }
   public int Order { get; init; }
 }
 

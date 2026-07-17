@@ -14,6 +14,7 @@ using GameBot.Domain.Services;
 using GameBot.Emulator.Session;
 using GameBot.Service.Services.Conditions;
 using GameBot.Service.Services.EnsureGameRunning;
+using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.QueueExecution;
 using EmulatorInputAction = GameBot.Emulator.Session.InputAction;
@@ -36,6 +37,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private readonly ISelfRescheduleCoordinator _selfRescheduleCoordinator;
   private readonly ISessionManager _sessionManager;
   private readonly IEnsureGameRunningActionHandler _ensureGameRunning;
+  private readonly IEnsureEmulatorRunningActionHandler _ensureEmulatorRunning;
   private readonly ISessionService _sessionService;
   private readonly IOcrOffsetResolver _ocrOffsetResolver;
 
@@ -51,6 +53,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     ISelfRescheduleCoordinator selfRescheduleCoordinator,
     ISessionManager sessionManager,
     IEnsureGameRunningActionHandler ensureGameRunning,
+    IEnsureEmulatorRunningActionHandler ensureEmulatorRunning,
     ISessionService sessionService,
     IOcrOffsetResolver ocrOffsetResolver) {
     _runner = runner;
@@ -64,6 +67,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _selfRescheduleCoordinator = selfRescheduleCoordinator;
     _sessionManager = sessionManager;
     _ensureGameRunning = ensureGameRunning;
+    _ensureEmulatorRunning = ensureEmulatorRunning;
     _sessionService = sessionService;
     _ocrOffsetResolver = ocrOffsetResolver;
   }
@@ -493,6 +497,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       return DispatchGoToHomeScreenAsync(sessionId, ct);
     }
 
+    if (string.Equals(action.Type, ActionTypes.EnsureEmulatorRunning, StringComparison.OrdinalIgnoreCase)) {
+      return DispatchEnsureEmulatorRunningAsync(action, ct);
+    }
+
     return DispatchPrimitiveInputAsync(action, sessionId, ct);
   }
 
@@ -566,6 +574,28 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     return result.IsSuccess
       ? new ActionDispatchResult("executed", "game is running in the foreground (game_running)")
       : new ActionDispatchResult("failed", $"ensure-game-running failed: {result.ReasonCode}");
+  }
+
+  /// <summary>
+  /// Handles an <c>ensure-emulator-running</c> sequence step (feature 070) by verifying the target
+  /// LDPlayer instance is running and responsive, starting/restarting it via the handler when it is
+  /// not. Reads the instance identifier (name or index) and adbSerial from the step parameters.
+  /// A healthy/started/restarted outcome — and the neutral unsupported outcomes on hosts that cannot
+  /// drive the emulator — succeed the step; a recovery timeout or nonexistent instance fails it.
+  /// </summary>
+  private async Task<ActionDispatchResult> DispatchEnsureEmulatorRunningAsync(
+      SequenceActionPayload action,
+      CancellationToken ct) {
+    if (!EnsureEmulatorRunningArgs.TryFrom(action.Parameters, out var args)) {
+      return new ActionDispatchResult(
+        "failed",
+        "ensure-emulator-running step requires 'adbSerial' and an instance 'instanceName' or 'instanceIndex'");
+    }
+
+    var result = await _ensureEmulatorRunning.ExecuteAsync(args, ct).ConfigureAwait(false);
+    return result.IsSuccess || result.IsUnsupported
+      ? new ActionDispatchResult("executed", result.Message)
+      : new ActionDispatchResult("failed", $"ensure-emulator-running failed: {result.Message}");
   }
 
   // Android KEYCODE_HOME. Pressing it returns the device to the home/main screen without stopping

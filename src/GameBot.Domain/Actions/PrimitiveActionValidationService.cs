@@ -63,6 +63,17 @@ public sealed class PrimitiveActionValidationService {
           errors.Add("Connect-to-game primitive actions require adbSerial.");
         }
         break;
+      case PrimitiveEnsureEmulatorRunningAction emulator:
+        if (string.IsNullOrWhiteSpace(emulator.AdbSerial)) {
+          errors.Add("Ensure-emulator-running primitive actions require adbSerial.");
+        }
+        if (string.IsNullOrWhiteSpace(emulator.InstanceName) && emulator.InstanceIndex is null) {
+          errors.Add("Ensure-emulator-running primitive actions require an instanceName or instanceIndex.");
+        }
+        if (emulator.InstanceIndex is < 0) {
+          errors.Add("Ensure-emulator-running primitive action instanceIndex must be greater than or equal to zero.");
+        }
+        break;
     }
 
     return errors;

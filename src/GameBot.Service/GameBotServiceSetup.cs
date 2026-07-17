@@ -140,6 +140,9 @@ internal static class GameBotServiceSetup {
     });
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IAdbGameOperations, GameBot.Service.Services.EnsureGameRunning.AdbGameOperations>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IEnsureGameRunningActionHandler, GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionHandler>();
+    builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorControl, GameBot.Service.Services.EnsureEmulatorRunning.LdConsoleEmulatorControl>();
+    builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorDeviceProbe, GameBot.Service.Services.EnsureEmulatorRunning.AdbEmulatorDeviceProbe>();
+    builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEnsureEmulatorRunningActionHandler, GameBot.Service.Services.EnsureEmulatorRunning.EnsureEmulatorRunningActionHandler>();
     builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();
     builder.Services.AddSingleton<GameBot.Service.Services.BackupService>();
   }
@@ -210,6 +213,15 @@ internal static class GameBotServiceSetup {
     var adbRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_ADB_RETRY_DELAY_MS");
     var adbRetryDelay = int.TryParse(adbRetryDelayEnv, out var ardParsed) && ardParsed >= 0 ? ardParsed : 100;
 
+    var probeTimeoutEnv = Environment.GetEnvironmentVariable("GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS");
+    var probeTimeout = int.TryParse(probeTimeoutEnv, out var ptParsed) && ptParsed > 0 ? ptParsed : 10000;
+
+    var bootWaitEnv = Environment.GetEnvironmentVariable("GAMEBOT_EMULATOR_BOOT_WAIT_MS");
+    var bootWait = int.TryParse(bootWaitEnv, out var bwParsed) && bwParsed > 0 ? Math.Max(bwParsed, probeTimeout) : 120000;
+
+    var pollIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_EMULATOR_POLL_INTERVAL_MS");
+    var pollInterval = int.TryParse(pollIntervalEnv, out var piParsed) && piParsed >= 100 ? piParsed : 3000;
+
     return new GameBot.Domain.Config.AppConfig {
       LoopMaxIterations = loopMax,
       CaptureIntervalMs = captureInterval,
@@ -218,6 +230,9 @@ internal static class GameBotServiceSetup {
       TapJitterRadiusPx = tapJitterRadius,
       AdbRetries = adbRetries,
       AdbRetryDelayMs = adbRetryDelay,
+      EmulatorProbeTimeoutMs = probeTimeout,
+      EmulatorBootWaitMs = bootWait,
+      EmulatorPollIntervalMs = pollInterval,
     };
   }
 
