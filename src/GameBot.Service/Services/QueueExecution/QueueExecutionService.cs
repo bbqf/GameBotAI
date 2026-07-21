@@ -49,6 +49,14 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // enough to avoid a busy-wait. (feature 059)
   private static readonly TimeSpan RelativeTimerPollInterval = TimeSpan.FromMilliseconds(250);
 
+  // Per-sequence watchdog: the queue runs one sequence at a time on a single emulator, so a single
+  // sequence stuck in a step that never returns (e.g. a WaitForImage whose target never appears, or a
+  // lost ADB connection that does not surface as an exception) would otherwise freeze the entire queue
+  // indefinitely — starving every timer-scheduled sequence behind it. A firing that exceeds this bound
+  // is cancelled and treated as a non-fatal per-sequence failure so the run continues. Generous enough
+  // that any legitimate tap/wait sequence completes well within it.
+  private static readonly TimeSpan SequenceWatchdogTimeout = TimeSpan.FromMinutes(4);
+
   public QueueExecutionService(
     IQueueRepository queues,
     IQueueRuntimeStore runtime,
@@ -419,6 +427,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// returns false on a failed/unresolved sequence so the run can continue.
   /// </summary>
   private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, string queueId, CancellationToken ct, string? selfRescheduleOriginActionId = null) {
+    // Watchdog: cancel a firing that overruns SequenceWatchdogTimeout so one stuck sequence cannot
+    // freeze the whole queue. Linked to ct so a real stop request still cancels immediately.
+    using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(ct);
+    watchdog.CancelAfter(SequenceWatchdogTimeout);
     try {
       var parentContext = new ExecutionLogContext {
         ParentExecutionId = rootId,
@@ -430,11 +442,17 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         OriginatingQueueId = queueId,
         SelfRescheduleOriginActionId = selfRescheduleOriginActionId
       };
-      var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, ct).ConfigureAwait(false);
+      var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, watchdog.Token).ConfigureAwait(false);
       return string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
     }
-    catch (OperationCanceledException) {
+    catch (OperationCanceledException) when (ct.IsCancellationRequested) {
       throw; // a stop request must propagate to abort the run
+    }
+    catch (OperationCanceledException) {
+      // Watchdog fired: the sequence overran its bound. Non-fatal — record it and let the run continue
+      // so the timeout releases the queue instead of hanging it (FR-008/008b analogue).
+      QueueExecutionLog.SequenceWatchdogTimedOut(_logger, sequenceId, (int)SequenceWatchdogTimeout.TotalSeconds);
+      return false;
     }
     catch (Exception ex) {
       // Unexpected per-sequence error (e.g. a stale/unresolved reference): non-fatal (FR-008/008b).
@@ -476,4 +494,7 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1113, Level = LogLevel.Warning, Message = "Sequence {SequenceId} faulted during queue run; treated as a non-fatal failure")]
   public static partial void SequenceFaulted(ILogger logger, string SequenceId, Exception ex);
+
+  [LoggerMessage(EventId = 1114, Level = LogLevel.Warning, Message = "Sequence {SequenceId} exceeded the {TimeoutSeconds}s per-sequence watchdog and was cancelled; treated as a non-fatal failure so the queue continues")]
+  public static partial void SequenceWatchdogTimedOut(ILogger logger, string SequenceId, int TimeoutSeconds);
 }
