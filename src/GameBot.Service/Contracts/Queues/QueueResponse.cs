@@ -7,6 +7,13 @@ namespace GameBot.Service.Contracts.Queues {
     public string Name { get; set; } = string.Empty;
     public string EmulatorSerial { get; set; } = string.Empty;
     public bool CycleExecution { get; set; }
+
+    /// <summary>Whether idle-pause is enabled for this queue (feature 073).</summary>
+    public bool PauseWhenIdle { get; set; }
+
+    /// <summary>Idle-detection threshold in seconds (default 30).</summary>
+    public int IdleThresholdSeconds { get; set; } = 30;
+
     public QueueExecutionStatus Status { get; set; } = QueueExecutionStatus.Stopped;
     public int EntryCount { get; set; }
 

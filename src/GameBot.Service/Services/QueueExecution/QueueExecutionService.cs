@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Emulator.Session;
+using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.SequenceExecution;
 using Microsoft.Extensions.Hosting;
@@ -43,6 +44,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   private readonly TimeProvider _timeProvider;
   private readonly CancellationToken _appStopping;
   private readonly IQueueRunRegistry _registry;
+  // Foregrounds the game when an idle pause resumes (feature 073). Same handler the
+  // ensure-game-running sequence step uses; reused directly here so the scheduler can bring the game
+  // back without routing through a watchdog-subject sequence. Null only in tests that omit it.
+  private readonly IEnsureGameRunningActionHandler? _ensureGameRunning;
 
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
@@ -57,6 +62,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // that any legitimate tap/wait sequence completes well within it.
   private static readonly TimeSpan SequenceWatchdogTimeout = TimeSpan.FromMinutes(4);
 
+  // Android KEYCODE_HOME. Sent to back the game out to the device home screen during an idle pause
+  // (feature 073); HOME leaves the game running in the background, mirroring the go-to-home-screen
+  // sequence step.
+  private const int AndroidKeyCodeHome = 3;
+
   public QueueExecutionService(
     IQueueRepository queues,
     IQueueRuntimeStore runtime,
@@ -68,7 +78,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IQueueRunRegistry registry,
     IHostApplicationLifetime? lifetime = null,
     BackgroundScreenCaptureService? captureService = null,
-    TimeProvider? timeProvider = null) {
+    TimeProvider? timeProvider = null,
+    IEnsureGameRunningActionHandler? ensureGameRunning = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -80,6 +91,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _registry = registry;
     _timeProvider = timeProvider ?? TimeProvider.System;
     _appStopping = lifetime?.ApplicationStopping ?? CancellationToken.None;
+    _ensureGameRunning = ensureGameRunning;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -221,6 +233,48 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               // feature 065: a self-reschedule Timer firing not yet due keeps a non-cyclic run alive
               // until it lands (or the run is stopped), exactly like a relative/live schedule.
               return handle.HasPendingTimerFirings;
+            }
+
+            // Earliest upcoming firing across every pending schedule source, used by idle-pause
+            // (feature 073) to decide whether the gap is worth pausing for and when to resume. Pure
+            // read of the same state the loop fires from; never mutates. Returns null when nothing is
+            // pending. Recomputed each poll tick so an earlier-arriving firing shortens the pause.
+            DateTimeOffset? ComputeNextDue(DateTimeOffset now) {
+              DateTimeOffset? earliest = null;
+              void Consider(DateTimeOffset candidate) {
+                if (earliest is null || candidate < earliest) earliest = candidate;
+              }
+
+              var today = DateOnly.FromDateTime(now.DateTime);
+              var nowTime = TimeOnly.FromDateTime(now.DateTime);
+              for (var ti = 0; ti < timerEntries.Count; ti++) {
+                var te = timerEntries[ti];
+                if (te.TimerTimeOfDay is { } tod) {
+                  var firedToday = timerFiredDate.TryGetValue(ti, out var last) && last == today;
+                  if (!firedToday) {
+                    // Due today at tod; if that instant is already past (overdue, not yet fired) it is
+                    // effectively due now.
+                    var todayAt = new DateTimeOffset(today.ToDateTime(tod), now.Offset);
+                    Consider(nowTime <= tod ? todayAt : now);
+                  }
+                  else {
+                    // Already fired today → next eligibility is tomorrow at the same wall-clock time.
+                    Consider(new DateTimeOffset(today.AddDays(1).ToDateTime(tod), now.Offset));
+                  }
+                }
+                if (te.TimerRelativeOffset is { } off && !relativeTimerFired.Contains(ti)) {
+                  Consider(runStartedAt + off);
+                }
+              }
+
+              foreach (var firing in handle.SnapshotPendingTimerFirings()) {
+                if (firing.FireAt is { } fireAt) Consider(fireAt);
+              }
+              foreach (var liveAt in handle.PendingLiveSchedules.Values) Consider(liveAt);
+              // Any queued self-reschedule work that would drain this cycle is effectively due now.
+              if (!handle.PendingOncePerRun.IsEmpty || !handle.PendingNextCycleStart.IsEmpty) Consider(now);
+
+              return earliest;
             }
 
             if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
@@ -373,7 +427,23 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // live schedule) would never become due (feature 059 fix).
                 if (queue.CycleExecution) continue;
                 if (!HasPendingRelativeOrLive()) break;
-                await Task.Delay(RelativeTimerPollInterval, ct).ConfigureAwait(false);
+
+                // Idle-pause (feature 073): when the queue opts in and the gap to the next firing
+                // exceeds the configured idle-detection threshold, back the game out to the home
+                // screen for the gap and foreground it when the firing is due — instead of a bare
+                // poll delay. Watchdog-exempt and log-silent because it runs inline here, never via
+                // RunOneSequenceAsync. Otherwise fall back to the existing one-tick poll delay.
+                var pollNow = _timeProvider.GetLocalNow();
+                var nextDue = ComputeNextDue(pollNow);
+                var thresholdSeconds = Math.Max(1, queue.IdleThresholdSeconds);
+                if (queue.PauseWhenIdle
+                    && nextDue is { } dueAt
+                    && dueAt - pollNow > TimeSpan.FromSeconds(thresholdSeconds)) {
+                  await IdlePauseHoldAsync(dueAt, sessionId!, handle, ComputeNextDue, ct).ConfigureAwait(false);
+                }
+                else {
+                  await Task.Delay(RelativeTimerPollInterval, ct).ConfigureAwait(false);
+                }
               } while (true);
             }
             else {
@@ -470,6 +540,59 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     }
   }
 
+  /// <summary>
+  /// Holds an idle pause (feature 073): backs the game out to the device home screen, marks the run
+  /// idle-paused until <paramref name="resumeAt"/> (surfaced by the monitor), and waits — recomputing
+  /// the next-due firing each poll tick so an earlier-arriving firing shortens the pause — then brings
+  /// the game back to the foreground. Runs inline (NOT via <see cref="RunOneSequenceAsync"/>), so it is
+  /// exempt from the per-sequence watchdog (FR-006) and writes no execution-log entries (FR-007a). Both
+  /// the background and foreground are best-effort/non-fatal (FR-011); a stop request cancels the hold
+  /// within one poll interval (FR-012) and never foregrounds. The idle-pause state is always cleared in
+  /// the finally so a cancellation cannot leave the run marked paused (T010).
+  /// </summary>
+  private async Task IdlePauseHoldAsync(
+      DateTimeOffset resumeAt,
+      string sessionId,
+      QueueRunHandle handle,
+      Func<DateTimeOffset, DateTimeOffset?> computeNextDue,
+      CancellationToken ct) {
+    handle.EnterIdlePause(resumeAt);
+    try {
+      // Background the game (best-effort): send HOME once. A failure is non-fatal — the run keeps
+      // going and scheduled tasks still fire.
+      try {
+        var home = new InputAction("key", new Dictionary<string, object> { ["keyCode"] = AndroidKeyCodeHome });
+        await _sessions.SendInputsAsync(sessionId, new[] { home }, ct).ConfigureAwait(false);
+      }
+      catch (OperationCanceledException) { throw; }
+      catch (Exception ex) { QueueExecutionLog.IdlePauseBackgroundFailed(_logger, handle.QueueId, ex); }
+
+      // Hold until the next firing is due (or an earlier one arrives), or the run is stopped.
+      while (true) {
+        ct.ThrowIfCancellationRequested();
+        var now = _timeProvider.GetLocalNow();
+        var nextDue = computeNextDue(now);
+        if (nextDue is not { } due || due <= now) break;
+        // Reflect an earlier-arriving firing in the monitor's resume time.
+        handle.EnterIdlePause(due);
+        await Task.Delay(RelativeTimerPollInterval, ct).ConfigureAwait(false);
+      }
+
+      // Resume: foreground the game (best-effort). A failure is non-fatal — the due sequence's own
+      // connect/recovery steps handle a game that is not in front (FR-011).
+      try {
+        if (_ensureGameRunning is not null) {
+          await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false);
+        }
+      }
+      catch (OperationCanceledException) { throw; }
+      catch (Exception ex) { QueueExecutionLog.IdlePauseForegroundFailed(_logger, handle.QueueId, ex); }
+    }
+    finally {
+      handle.ClearIdlePause();
+    }
+  }
+
   private static string BuildSummary(string queueName, QueueRunResult r) {
     var failedNote = r.SequencesFailed > 0 ? $", {r.SequencesFailed} failed" : string.Empty;
     var cycleNote = r.Cycles > 1 ? $" across {r.Cycles} cycles" : string.Empty;
@@ -506,4 +629,10 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1114, Level = LogLevel.Warning, Message = "Sequence {SequenceId} exceeded the {TimeoutSeconds}s per-sequence watchdog and was cancelled; treated as a non-fatal failure so the queue continues")]
   public static partial void SequenceWatchdogTimedOut(ILogger logger, string SequenceId, int TimeoutSeconds);
+
+  [LoggerMessage(EventId = 1115, Level = LogLevel.Warning, Message = "Queue {QueueId} idle-pause could not background the game (HOME); continuing without pausing the game")]
+  public static partial void IdlePauseBackgroundFailed(ILogger logger, string QueueId, Exception ex);
+
+  [LoggerMessage(EventId = 1116, Level = LogLevel.Warning, Message = "Queue {QueueId} idle-pause could not foreground the game on resume; the due sequence will still run")]
+  public static partial void IdlePauseForegroundFailed(ILogger logger, string QueueId, Exception ex);
 }

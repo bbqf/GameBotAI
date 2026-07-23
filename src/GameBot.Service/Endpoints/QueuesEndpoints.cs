@@ -26,7 +26,9 @@ internal static class QueuesEndpoints {
       var created = await repo.CreateAsync(new ExecutionQueue {
         Name = name,
         EmulatorSerial = serial,
-        CycleExecution = req!.CycleExecution
+        CycleExecution = req!.CycleExecution,
+        PauseWhenIdle = req.PauseWhenIdle,
+        IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds)
       }).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("CreateQueue");
@@ -63,6 +65,8 @@ internal static class QueuesEndpoints {
       if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
       queue.Name = name;
       queue.CycleExecution = req!.CycleExecution;
+      queue.PauseWhenIdle = req.PauseWhenIdle;
+      queue.IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds);
       var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
       return Results.Ok(BuildResponse(saved, runtime));
     }).WithName("UpdateQueue");
@@ -200,6 +204,8 @@ internal static class QueuesEndpoints {
     Name = queue.Name,
     EmulatorSerial = queue.EmulatorSerial,
     CycleExecution = queue.CycleExecution,
+    PauseWhenIdle = queue.PauseWhenIdle,
+    IdleThresholdSeconds = queue.IdleThresholdSeconds,
     Status = runtime.GetStatus(queue.Id),
     EntryCount = runtime.GetEntries(queue.Id).Count,
     LinkedTemplateId = queue.LinkedTemplateId,
@@ -215,6 +221,8 @@ internal static class QueuesEndpoints {
       Name = queue.Name,
       EmulatorSerial = queue.EmulatorSerial,
       CycleExecution = queue.CycleExecution,
+      PauseWhenIdle = queue.PauseWhenIdle,
+      IdleThresholdSeconds = queue.IdleThresholdSeconds,
       Status = runtime.GetStatus(queue.Id),
       EntryCount = entries.Count,
       LinkedTemplateId = queue.LinkedTemplateId,
@@ -276,6 +284,10 @@ internal static class QueuesEndpoints {
     SequenceName = sequenceName,
     Stale = sequenceName is null
   };
+
+  // Idle-detection threshold must be at least 1 second; absent (0) or non-positive coerces to the
+  // default 30 (feature 073, FR-010).
+  private static int CoerceThreshold(int seconds) => seconds < 1 ? 30 : seconds;
 
   private static IResult NotFound() => Error(404, "not_found", "Queue not found");
 

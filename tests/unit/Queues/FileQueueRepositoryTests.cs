@@ -109,6 +109,36 @@ public sealed class FileQueueRepositoryTests : IDisposable {
     loaded!.LinkedTemplateId.Should().BeNull();
   }
 
+  [Fact] // T019 — feature 073: idle-pause config round-trips through persistence
+  public async Task UpdatePersistsIdlePauseConfig() {
+    var repo = NewRepo();
+    var created = await repo.CreateAsync(new ExecutionQueue { Name = "A", EmulatorSerial = "emu-1" }).ConfigureAwait(true);
+
+    created.PauseWhenIdle = true;
+    created.IdleThresholdSeconds = 45;
+    await repo.UpdateAsync(created).ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync(created.Id).ConfigureAwait(true);
+    loaded!.PauseWhenIdle.Should().BeTrue();
+    loaded.IdleThresholdSeconds.Should().Be(45);
+  }
+
+  [Fact] // T019 — a queue JSON written before feature 073 reads as disabled with the default threshold
+  public async Task LegacyQueueJsonWithoutIdlePauseFieldsLoadsAsDisabledWithDefaultThreshold() {
+    var repo = NewRepo();
+    var dir = Path.Combine(_root, "queues");
+    Directory.CreateDirectory(dir);
+    // A queue document written before feature 073: no PauseWhenIdle/IdleThresholdSeconds properties.
+    await File.WriteAllTextAsync(Path.Combine(dir, "legacy2.json"),
+      "{\"Id\":\"legacy2\",\"Name\":\"Old\",\"EmulatorSerial\":\"emu-1\",\"CycleExecution\":false}").ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync("legacy2").ConfigureAwait(true);
+
+    loaded.Should().NotBeNull();
+    loaded!.PauseWhenIdle.Should().BeFalse();         // absent bool → false
+    loaded.IdleThresholdSeconds.Should().Be(30);      // initializer default preserved (back-compat)
+  }
+
   [Fact]
   public async Task GetWithUnsafeIdReturnsNull() {
     var repo = NewRepo();

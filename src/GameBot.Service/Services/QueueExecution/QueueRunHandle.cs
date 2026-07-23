@@ -91,6 +91,35 @@ internal sealed class QueueRunHandle {
     lock (_currentLock) { _currentSequenceStartedAt = null; }
   }
 
+  // ── Idle-pause tracking (feature 073) ────────────────────────────────────────────────────────
+  // Transient run state set by the run loop while the game is backed out during an idle gap, so the
+  // monitor can surface an explicit "Idle Pause" current item (with a resume time) instead of a
+  // blank/hung-looking state. Never persisted; never written to the execution log. Read by the
+  // monitor on a different thread than the run loop that writes it, so it is lock-guarded.
+
+  private DateTimeOffset? _idlePausedUntil;
+  private readonly object _idleLock = new();
+
+  /// <summary>Resume instant while the run is idle-paused; <c>null</c> when not paused. Concurrency-safe.</summary>
+  public DateTimeOffset? IdlePausedUntil {
+    get { lock (_idleLock) { return _idlePausedUntil; } }
+  }
+
+  /// <summary>True while the run is in an idle pause (<see cref="IdlePausedUntil"/> is set).</summary>
+  public bool IsIdlePaused {
+    get { lock (_idleLock) { return _idlePausedUntil is not null; } }
+  }
+
+  /// <summary>Marks the run as idle-paused until <paramref name="resumeAt"/> (set when the hold begins).</summary>
+  public void EnterIdlePause(DateTimeOffset resumeAt) {
+    lock (_idleLock) { _idlePausedUntil = resumeAt; }
+  }
+
+  /// <summary>Clears the idle-pause indicator (when the hold ends or is cancelled).</summary>
+  public void ClearIdlePause() {
+    lock (_idleLock) { _idlePausedUntil = null; }
+  }
+
   private readonly List<SelfRescheduleEntry> _pendingTimerFirings = new();
   private readonly object _timerLock = new();
 

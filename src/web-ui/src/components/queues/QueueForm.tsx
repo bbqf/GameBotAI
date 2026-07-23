@@ -6,6 +6,10 @@ export type QueueFormValue = {
   name: string;
   emulatorSerial: string;
   cycleExecution: boolean;
+  /** Opt-in idle-pause: back the game out during idle gaps over the threshold (feature 073). */
+  pauseWhenIdle: boolean;
+  /** Idle-detection threshold in seconds (default 30). */
+  idleThresholdSeconds: number;
 };
 
 type QueueFormProps = {
@@ -110,6 +114,34 @@ export const QueueForm: React.FC<QueueFormProps> = ({
           {' '}Cycle execution
         </label>
       </div>
+
+      {/* Row 2b: Idle-pause (feature 073) */}
+      <div className="field">
+        <label>
+          <input
+            type="checkbox"
+            checked={value.pauseWhenIdle}
+            onChange={(e) => onChange({ ...value, pauseWhenIdle: e.target.checked })}
+            disabled={submitting}
+            aria-label="Pause game when idle"
+          />
+          {' '}Pause game when idle
+        </label>
+      </div>
+      {value.pauseWhenIdle && (
+        <div className="field">
+          <label htmlFor="queue-idle-threshold">Idle threshold (seconds)</label>
+          <input
+            id="queue-idle-threshold"
+            type="number"
+            min={1}
+            value={value.idleThresholdSeconds}
+            onChange={(e) => onChange({ ...value, idleThresholdSeconds: Number(e.target.value) })}
+            disabled={submitting}
+            aria-label="Idle threshold seconds"
+          />
+        </div>
+      )}
 
       {/* Row 3: Game controls (edit only) */}
       {isEdit && gameControls}

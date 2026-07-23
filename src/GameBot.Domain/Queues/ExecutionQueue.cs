@@ -27,6 +27,22 @@ namespace GameBot.Domain.Queues {
     public bool CycleExecution { get; set; }
 
     /// <summary>
+    /// When true, the run backs the game out to the device home screen during idle gaps that
+    /// exceed <see cref="IdleThresholdSeconds"/> and foregrounds it again when the next firing is
+    /// due (feature 073). Opt-in; <c>false</c> preserves today's behavior (game left untouched
+    /// between firings). Read once per run at run start.
+    /// </summary>
+    public bool PauseWhenIdle { get; set; }
+
+    /// <summary>
+    /// Minimum gap in seconds to the next scheduled firing that triggers an idle pause when
+    /// <see cref="PauseWhenIdle"/> is enabled. Defaults to 30; the initializer default also gives
+    /// JSON back-compat for queues stored before this field existed. Values below 1 are coerced to
+    /// the default at the API boundary. Ignored while <see cref="PauseWhenIdle"/> is false.
+    /// </summary>
+    public int IdleThresholdSeconds { get; set; } = 30;
+
+    /// <summary>
     /// Optional link to a single queue template by its stable template ID
     /// (0..1). Persisted. References by ID, so renaming the template keeps the link intact;
     /// only deleting the template makes it unresolvable. Null when the queue is unlinked.

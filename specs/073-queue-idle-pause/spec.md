@@ -2,7 +2,7 @@
 
 **Feature Branch**: `073-queue-idle-pause`
 **Created**: 2026-07-23
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Idle-pause the game during queue gaps, visibly. When a running queue has no sequence due, back the game out to the device home screen instead of leaving it running, and bring it back exactly when the next sequence is due — with the pause clearly visible in the live monitor so an idle queue is never mistaken for a hung one."
 
 **Additional Input (2026-07-23 update)**: "Make the idle-detection interval — when to put the queue on pause — configurable, defaulting to 30 seconds, and keep the queue paused for the time until the next scheduled sequence. Furthermore, an unrelated change that it is time to do: remove the MCP completely."

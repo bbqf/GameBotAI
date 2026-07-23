@@ -93,6 +93,28 @@ describe('QueueMonitor', () => {
     expect(screen.getByTestId('monitor-nothing')).toBeInTheDocument();
   });
 
+  // ── Feature 073: idle-pause current state ────────────────────────────────
+
+  it('renders an idle-pause current state with the resume time, distinct from a running sequence', async () => {
+    getQueueMonitorMock.mockResolvedValue(snapshot({
+      current: item({
+        sequenceId: '', sequenceName: 'Idle Pause', scheduleKind: 'IdlePause',
+        reason: 'Game paused — resumes at 11:52', expectedAt: '2026-01-01T11:52:00+00:00',
+        relativeLabel: 'paused',
+      }),
+      upcoming: [item({ sequenceId: 'A', sequenceName: 'Alpha', relativeLabel: 'next' })],
+    }));
+
+    render(<QueueMonitor queueId="q1" />);
+    await flush();
+
+    const paused = screen.getByTestId('monitor-idle-paused');
+    expect(paused).toHaveTextContent(/Idle Pause/i);
+    expect(paused).toHaveTextContent(/resumes at/i);
+    // Distinct from a running sequence: the "now" row shows the paused element, not a running seq name.
+    expect(screen.getByTestId('monitor-now')).toHaveTextContent(/Idle Pause/i);
+  });
+
   it('renders the ended state with the last outcome and stops polling', async () => {
     getQueueMonitorMock.mockResolvedValue(snapshot({
       running: false, current: null,

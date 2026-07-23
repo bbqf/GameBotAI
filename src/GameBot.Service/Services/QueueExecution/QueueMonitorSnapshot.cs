@@ -28,7 +28,14 @@ internal enum ScheduleKind {
   LiveSchedule,
 
   /// <summary>Ephemeral self-reschedule Timer firing (feature 065) — fires at an exact instant.</summary>
-  SelfReschedule
+  SelfReschedule,
+
+  /// <summary>
+  /// Transient idle-pause state (feature 073) — the game is backed out while the run waits for the
+  /// next firing. Not a real sequence and never written to the execution log; surfaced only as the
+  /// monitor's current item, with <c>ExpectedAt</c> = the resume instant.
+  /// </summary>
+  IdlePause
 }
 
 /// <summary>

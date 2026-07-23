@@ -68,8 +68,8 @@ not survive a service restart; queue *configuration* and templates are persisted
   `EnsureEmulatorRunningActionHandler` against that instance + the same `adbSerial` before attaching —
   a genuine emulator failure (recovery timeout / instance-not-found) fails the connect before any
   session start, while success or a neutral unsupported outcome proceeds; with no instance identifier
-  the connect behaves exactly as before. (The separate interactive `/api/sessions/start` endpoint /
-  MCP `start_session` is unchanged.)
+  the connect behaves exactly as before. (The separate interactive `/api/sessions/start` endpoint is
+  unchanged.)
 - **Sequence** — an ordered list of steps that run **commands**, with random inter-step delays,
   conditional steps, loop/flow blocks (`SequenceFlowGraph`, `Blocks/`), and **if blocks**
   (`SequenceStepType.If`, feature 067): a condition (same model as while-loop conditions —
@@ -102,6 +102,18 @@ not survive a service restart; queue *configuration* and templates are persisted
   snapshot is computed per request. When the queue is not running the endpoint returns
   `running:false` with the best-effort last outcome from the execution log. The web UI opens this
   monitor (polling ~2.5s) in place of the entry editor while a queue is Running (feature 072).
+- **Idle-pause** (feature 073) — an opt-in per-queue behavior (`ExecutionQueue.PauseWhenIdle` +
+  `IdleThresholdSeconds`, default 30s; exposed via the REST API and web-ui, not MCP). When a
+  non-cyclic run has no sequence due and the gap to the next scheduled firing exceeds the threshold,
+  the run loop backs the game out to the device home screen (Android HOME) and foregrounds it again
+  (`IEnsureGameRunningActionHandler`) when the firing becomes due — re-checking the next-due instant
+  each poll tick so an earlier-arriving live/self-reschedule firing shortens the pause. The pause runs
+  **inline** in the wait tail, not as a scheduled sequence, so it is exempt from the 4-minute
+  per-sequence watchdog and writes **no** execution-log entries; backgrounding/foregrounding are
+  best-effort (a failure is non-fatal) and a stop takes effect within one poll interval. While paused,
+  the `QueueRunHandle` carries an idle-pause register that the monitor projects as a synthetic current
+  item (`ScheduleKind.IdlePause`, `SequenceName` "Idle Pause", with the resume time), so an idle queue
+  never reads as hung. Disabled queues are byte-for-byte unchanged.
 - **Trigger** — an evaluation construct (image-visible / text-match / time / delay / schedule),
   used internally to decide whether a step executes. Still present in the domain and on the API,
   but **no longer authored as a standalone object in the UI**.
