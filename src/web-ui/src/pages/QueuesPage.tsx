@@ -18,6 +18,7 @@ import {
 } from '../services/queues';
 import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
+import { QueueMonitor } from '../components/queues/QueueMonitor';
 import { EntrySchedule } from '../components/queues/QueueEntryList';
 import { QueueSchedulingAreas } from '../components/queues/QueueSchedulingAreas';
 import { SchedulingAreasState } from '../components/queues/schedulingAreas';
@@ -462,7 +463,22 @@ export const QueuesPage: React.FC = () => {
         </section>
       )}
 
-      {detail && !creating && (
+      {detail && !creating && detail.status === 'Running' && (
+        <section>
+          <h3>Monitor: {detail.name}</h3>
+          <QueueMonitor
+            queueId={detail.id}
+            onReturnToEditor={async () => {
+              // The run has ended (or the operator chose to leave the monitor): reload the queue so
+              // the panel flips back to the editor and the overview row reflects the stopped status.
+              await refresh();
+              await openEdit(detail.id);
+            }}
+          />
+        </section>
+      )}
+
+      {detail && !creating && detail.status !== 'Running' && (
         <section>
           <h3>Edit Queue</h3>
           <QueueForm

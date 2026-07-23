@@ -107,6 +107,7 @@ Status vocabulary:
 | 069 | Go To Home Screen Action | Implemented |
 | 070 | Ensure Emulator Running Action | Implemented |
 | 071 | Connect-to-Game Emulator Pre-heal | Implemented |
+| 072 | Live Queue Monitor View | Implemented |
 
 ## Numbering notes
 

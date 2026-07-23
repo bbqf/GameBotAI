@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-07-17._
+_Last reviewed: 2026-07-23._
 
 ## What GameBot is
 
@@ -93,6 +93,15 @@ not survive a service restart; queue *configuration* and templates are persisted
   only, never persisted) and a **success no-op** when the sequence was not started from a queue. The
   run's active-run state lives in a singleton `IQueueRunRegistry`; an `ISelfRescheduleCoordinator`
   injects the ephemeral firing, which the queue run loop drains at the matching boundary.
+- **Queue monitor** — a read-only "live plan" view of a *running* queue. `GET /api/queues/{id}/monitor`
+  returns a pure projection (`IQueueMonitorService`) that folds the active `QueueRunHandle` (the
+  sequence-level "now" indicator plus pending live schedules and self-reschedule firings) and the
+  linked template with the current local clock into the sequence running **now** and the ordered
+  **up-next** list — each with a schedule reason and a best-effort expected time (exact for
+  live/self-reschedule/relative; next-eligible for time-of-day timers). Nothing is persisted; the
+  snapshot is computed per request. When the queue is not running the endpoint returns
+  `running:false` with the best-effort last outcome from the execution log. The web UI opens this
+  monitor (polling ~2.5s) in place of the entry editor while a queue is Running (feature 072).
 - **Trigger** — an evaluation construct (image-visible / text-match / time / delay / schedule),
   used internally to decide whether a step executes. Still present in the domain and on the API,
   but **no longer authored as a standalone object in the UI**.
@@ -110,8 +119,9 @@ not survive a service restart; queue *configuration* and templates are persisted
 - **Execution**: per-emulator queues with start/stop, cycle execution, scheduling areas
   (start / once-per-run / after-every-step / scheduled), live relative scheduling against a running
   queue, sequences that can **self-reschedule** into their originating queue run (ephemeral, any
-  schedule option, IF-gated), a background screen-capture service reporting FPS, and "ensure game
-  running" handling.
+  schedule option, IF-gated), a **live monitor** that shows a running queue's now/up-next plan
+  (read-only, auto-refreshing) in place of the editor, a background screen-capture service reporting
+  FPS, and "ensure game running" handling.
 - **Execution Logs** (separate tab): filterable/sortable grid, expandable hierarchy reflecting
   what actually executed, deep links into authoring, snapshots and step outcomes; non-technical
   presentation (no raw JSON).

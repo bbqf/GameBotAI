@@ -44,6 +44,16 @@ internal static class QueuesEndpoints {
       return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games).ConfigureAwait(false));
     }).WithName("GetQueue");
 
+    // Live monitor (feature 072): read-only snapshot of what a running queue is doing now and next.
+    // Returns 200 with running:false (not 404/409) when the queue exists but is not running, so the
+    // client can render the "not running / run ended" state and the last outcome. Safe to poll.
+    group.MapGet("{id}/monitor", async (string id, IQueueRepository repo, IQueueMonitorService monitor) => {
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+      var snapshot = await monitor.BuildAsync(id).ConfigureAwait(false);
+      return Results.Ok(ProjectMonitor(snapshot));
+    }).WithName("GetQueueMonitor");
+
     group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
@@ -230,6 +240,35 @@ internal static class QueuesEndpoints {
     var game = await games.GetAsync(gameId).ConfigureAwait(false);
     return game?.Name;
   }
+
+  private static QueueMonitorResponse ProjectMonitor(QueueMonitorSnapshot snapshot) {
+    var resp = new QueueMonitorResponse {
+      QueueId = snapshot.QueueId,
+      Name = snapshot.Name,
+      Running = snapshot.Running,
+      CycleExecution = snapshot.CycleExecution,
+      RunStartedAt = snapshot.RunStartedAt,
+      Current = snapshot.Current is null ? null : ProjectMonitorItem(snapshot.Current),
+      NothingScheduled = snapshot.NothingScheduled,
+      LastOutcome = snapshot.LastOutcome is null
+        ? null
+        : new RunOutcomeResponse { Status = snapshot.LastOutcome.Status, Summary = snapshot.LastOutcome.Summary }
+    };
+    foreach (var item in snapshot.Upcoming) resp.Upcoming.Add(ProjectMonitorItem(item));
+    return resp;
+  }
+
+  private static QueueMonitorItemResponse ProjectMonitorItem(QueueMonitorItem item) => new() {
+    SequenceId = item.SequenceId,
+    SequenceName = item.SequenceName,
+    Stale = item.Stale,
+    ScheduleKind = item.ScheduleKind.ToString(),
+    Reason = item.Reason,
+    ExpectedAt = item.ExpectedAt,
+    RelativeLabel = item.RelativeLabel,
+    Repeats = item.Repeats,
+    Order = item.Order
+  };
 
   private static QueueEntryResponse ProjectEntry(QueueEntry entry, string? sequenceName) => new() {
     EntryId = entry.EntryId,

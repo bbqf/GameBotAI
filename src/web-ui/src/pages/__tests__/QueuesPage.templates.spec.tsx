@@ -277,15 +277,16 @@ describe('QueuesPage template load wiring', () => {
     expect(within(area).getByLabelText('Template name')).toHaveValue('Daily Farm');
   });
 
-  it('disables the Load action while the queue is running', async () => {
+  it('shows the read-only monitor (not the editable template controls) while the queue is running', async () => {
+    // Feature 072: opening a Running queue routes to the live monitor instead of the editor, so the
+    // template Load control is not reachable at all (a stronger guarantee than the old disabled-Load state).
     getQueueMock.mockResolvedValue({ ...detailWithEntries(), status: 'Running' } as any);
     render(<QueuesPage />);
     await screen.findByText('Daily');
     fireEvent.click(screen.getByText('Daily'));
-    await screen.findByText('Edit Queue');
-    fireEvent.click(screen.getByText('(no template)'));
-    const picker = await screen.findByRole('region', { name: 'Load template' });
-    expect(within(picker).getByText('Load')).toBeDisabled();
+    await screen.findByTestId('queue-monitor');
+    expect(screen.queryByText('Edit Queue')).not.toBeInTheDocument();
+    expect(screen.queryByText('(no template)')).not.toBeInTheDocument();
   });
 
   it('loads the same template independently into two different queues (FR-016)', async () => {

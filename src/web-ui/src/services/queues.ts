@@ -75,3 +75,52 @@ export type LiveScheduleResult = {
  */
 export const liveScheduleSequence = (queueId: string, sequenceId: string, offset: string) =>
   postJson<LiveScheduleResult>(`${base}/${queueId}/live-schedule`, { sequenceId, offset });
+
+// ── Live monitor (feature 072) ────────────────────────────────────────────────────────────────
+
+/** Why a monitor item is scheduled, mirroring the run loop's schedule semantics. */
+export type ScheduleKind =
+  | 'AtQueueStart'
+  | 'OncePerRun'
+  | 'EveryStep'
+  | 'TimerTimeOfDay'
+  | 'TimerRelative'
+  | 'LiveSchedule'
+  | 'SelfReschedule';
+
+/** One now/up-next item in the live monitor plan. */
+export type QueueMonitorItemDto = {
+  sequenceId: string;
+  sequenceName: string | null;
+  stale: boolean;
+  scheduleKind: ScheduleKind;
+  reason: string;
+  /** Absolute expected time (ISO-8601 with offset) when known; null for spine steps. */
+  expectedAt: string | null;
+  /** Hint when there is no absolute time: now / next / up next / waiting / due. */
+  relativeLabel: string | null;
+  repeats: boolean;
+  order: number;
+};
+
+/** Best-effort last finalized run outcome (shown when the queue is not running). */
+export type RunOutcomeDto = {
+  status: string;
+  summary: string;
+};
+
+/** Read-only snapshot of a queue's live run plan. */
+export type QueueMonitorDto = {
+  queueId: string;
+  name: string;
+  running: boolean;
+  cycleExecution: boolean;
+  runStartedAt: string | null;
+  current: QueueMonitorItemDto | null;
+  upcoming: QueueMonitorItemDto[];
+  nothingScheduled: boolean;
+  lastOutcome: RunOutcomeDto | null;
+};
+
+/** Fetch the live monitor snapshot for a queue. Safe to poll; no side effects. */
+export const getQueueMonitor = (id: string) => getJson<QueueMonitorDto>(`${base}/${id}/monitor`);

@@ -61,8 +61,47 @@ internal sealed class QueueRunHandle {
   public ConcurrentDictionary<string, SelfRescheduleEntry> EveryStepInjections { get; } =
     new(StringComparer.Ordinal);
 
+  // ── Current-sequence tracking (feature 072) ──────────────────────────────────────────────────
+  // The sequence-level "now" indicator for the live monitor. Set at the top of every firing in
+  // RunOneSequenceAsync and cleared in its finally, so the monitor can read which sequence is
+  // executing right now (across ALL schedule kinds) without touching scheduling behavior. A
+  // concurrent monitor read is lock-free for the id (volatile) and lock-guarded for the instant.
+
+  private volatile string? _currentSequenceId;
+  private DateTimeOffset? _currentSequenceStartedAt;
+  private readonly object _currentLock = new();
+
+  /// <summary>Sequence id currently executing; <c>null</c> between firings. Safe to read concurrently.</summary>
+  public string? CurrentSequenceId => _currentSequenceId;
+
+  /// <summary>When the current firing started (local clock); <c>null</c> between firings.</summary>
+  public DateTimeOffset? CurrentSequenceStartedAt {
+    get { lock (_currentLock) { return _currentSequenceStartedAt; } }
+  }
+
+  /// <summary>Marks <paramref name="sequenceId"/> as the sequence executing now (set at firing start).</summary>
+  public void SetCurrentSequence(string sequenceId, DateTimeOffset startedAt) {
+    lock (_currentLock) { _currentSequenceStartedAt = startedAt; }
+    _currentSequenceId = sequenceId;
+  }
+
+  /// <summary>Clears the current-sequence indicator (in the firing's finally).</summary>
+  public void ClearCurrentSequence() {
+    _currentSequenceId = null;
+    lock (_currentLock) { _currentSequenceStartedAt = null; }
+  }
+
   private readonly List<SelfRescheduleEntry> _pendingTimerFirings = new();
   private readonly object _timerLock = new();
+
+  /// <summary>
+  /// Returns a copy of the pending self-reschedule Timer firings (each with <c>SequenceId</c> +
+  /// <c>FireAt</c>) under the same lock that guards the list. Used by the monitor projection to show
+  /// upcoming self-reschedule firings without mutating the queue (unlike <see cref="DrainDueTimerFirings"/>).
+  /// </summary>
+  public IReadOnlyList<SelfRescheduleEntry> SnapshotPendingTimerFirings() {
+    lock (_timerLock) { return _pendingTimerFirings.ToArray(); }
+  }
 
   /// <summary>Adds a resolved Timer firing (fires once at/after its <see cref="SelfRescheduleEntry.FireAt"/>).</summary>
   public void AddTimerFiring(SelfRescheduleEntry entry) {
