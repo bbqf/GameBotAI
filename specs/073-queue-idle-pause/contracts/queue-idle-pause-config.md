@@ -77,10 +77,12 @@ Applies to queue **create** (`POST /api/queues`), **update** (`PUT /api/queues/{
 - Emitted **only** while paused; when a sequence is actually executing, `current` is that sequence as
   today. The idle-pause item is never written to the execution log (transient only).
 
-## 3. mcp-server (`queues.ts`) & web-ui (`queues.ts`)
+## 3. web-ui (`queues.ts`) — REST/web-ui surface only
 
-- mcp-server queue create/update/get tool schemas gain optional `pauseWhenIdle` (boolean) and
-  `idleThresholdSeconds` (number, default 30), passed through to the API.
+> **No MCP arm.** Unlike the historical `cycleExecution` plumbing, these fields are **not** added to any
+> MCP tool schema: the project's MCP server is being deleted in this same branch (FR-020, research R8).
+> The config surface stops at the REST API + web-ui.
+
 - web-ui queue types gain the two fields; the queue editor exposes a "Pause game when idle" toggle and a
   threshold input; `QueueMonitor` renders `scheduleKind === "IdlePause"` as a distinct paused state with
   the resume time.

@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Idle-Pause the Game During Queue Gaps
+# Specification Quality Checklist: Idle-Pause the Game During Queue Gaps; Retire the MCP Server
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-07-23
@@ -36,3 +36,12 @@
   mechanism, monitor surfacing, and pause implementation at the behavioral level (WHAT), leaving
   the "how" (queue setting shape, runtime idle branch, watchdog exemption, monitor field) to
   `/speckit-plan`. Known implementation anchors are recorded in the originating request, not the spec.
+- 2026-07-23 update: spec re-scoped to add (a) explicit configurable idle-detection threshold wording
+  (FR-003/FR-010) and (b) an independent second scope — full retirement of the project's MCP server
+  (User Story 5, FR-017–FR-022, SC-008/SC-009). Re-validated: all items still pass. Named repository
+  artifacts (`src/mcp-server`, `.mcp.json`) are scope boundaries for the removal, not solution-design
+  detail, consistent with the spec's existing convention of naming concrete artifacts (e.g. the
+  "PNS Queue Pause 15m" template entry, `cycleExecution`).
+- IMPORTANT: `plan.md`, `research.md`, `data-model.md`, `contracts/`, and `tasks.md` are now STALE
+  with respect to the MCP removal and the "no MCP config threading" decision (FR-020). Re-run
+  `/speckit-plan` and `/speckit-tasks` before `/speckit-implement`.

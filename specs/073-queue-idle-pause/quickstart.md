@@ -1,4 +1,9 @@
-# Quickstart: Idle-Pause the Game During Queue Gaps
+# Quickstart: Idle-Pause the Game During Queue Gaps; Retire the MCP Server
+
+> This branch ships two independent changes. Part A (below) is the idle-pause feature. Part B is the
+> full removal of the project's MCP server — see the last section.
+
+## Part A — Idle-pause
 
 ## What it does
 
@@ -47,3 +52,33 @@ queue. Keep the sequence definition in the library (no delete).
 - **Stop is prompt**: stopping the queue during a pause takes effect within one poll interval; the game
   is left backgrounded (as any stop leaves the device where the last action left it).
 - **Disabled queues**: unchanged behavior — game left as-is during gaps, no pause state shown.
+
+## Part B — Retire the MCP server
+
+The project's own MCP server (`src/mcp-server`, registered in `.mcp.json`) is removed completely. It was
+a thin client over the REST API, so every capability remains reachable via `/api/*` and the web-ui.
+
+### What to remove
+
+```bash
+# From the repo root:
+git rm -r src/mcp-server        # entire component (source, dist, manifests, vendored deps)
+git rm .mcp.json                # root MCP registration
+# Then edit docs/architecture.md: drop the incidental "/ MCP start_session" phrase (~line 72).
+```
+
+### What NOT to touch
+
+- `.github/agents/speckit.taskstoissues.agent.md` → references the **external** `github/github-mcp-server`
+  (unrelated tooling MCP). Leave it.
+- Prior specs (069/070/071) mentioning `src/mcp-server/src/tools/*` are immutable history — do not edit.
+- `.claude/settings.local.json` local allow-rules mentioning `mcp-server` are developer-only/untracked;
+  optional to clean, not required.
+
+### Verify
+
+1. `src/mcp-server/` and `.mcp.json` no longer exist.
+2. Repo-wide search for `mcp-server` / `gamebot-mcp` returns only spec-history hits and the external
+   GitHub-MCP agent file.
+3. Full build + test gate is green: `dotnet build` + `dotnet test`, and web-ui `vite build` + `jest`.
+4. REST API and web-ui behave exactly as before (the MCP only wrapped existing endpoints).
