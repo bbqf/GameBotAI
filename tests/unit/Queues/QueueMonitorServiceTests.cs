@@ -120,6 +120,17 @@ public sealed class QueueMonitorServiceTests {
       Sequences.Add(sequenceId, name);
       Template.Entries.Add(new QueueTemplateEntry { SequenceId = sequenceId, ScheduleType = type, TimerTimeOfDay = tod, TimerRelativeOffset = rel });
     }
+
+    /// <summary>
+    /// Publishes the schedule state a real run loop would, so a test can mark work as consumed
+    /// (fired timers, completed once-per-run pass) and assert the projection reflects it. Call after
+    /// every <see cref="Entry"/> — the schedule snapshots the entry list, exactly as the run does.
+    /// </summary>
+    public QueueRunSchedule PublishSchedule(QueueRunHandle handle) {
+      var schedule = new QueueRunSchedule(Template.Entries.ToArray(), handle.RunStartedAt, handle.CycleExecution);
+      handle.Schedule = schedule;
+      return schedule;
+    }
   }
 
   // ── T011: OncePerRun spine ─────────────────────────────────────────────
@@ -160,11 +171,11 @@ public sealed class QueueMonitorServiceTests {
   }
 
   [Fact]
-  public async Task TimerTimeOfDayResolvesNextEligibleTodayOrTomorrow() {
+  public async Task TimerTimeOfDayResolvesTodayWhenAheadAndDueNowWhenOverdue() {
     var h = new Harness();
     h.AddQueue();
     h.Entry("Ahead", "Later today", ScheduleType.Timer, tod: new TimeOnly(15, 0));   // now 12:00 → today 15:00
-    h.Entry("Passed", "Tomorrow", ScheduleType.Timer, tod: new TimeOnly(9, 0));      // now 12:00 → tomorrow 09:00
+    h.Entry("Passed", "Overdue", ScheduleType.Timer, tod: new TimeOnly(9, 0));       // now 12:00, never fired → due now
     h.StartHandle();
 
     var snap = await h.Service.BuildAsync("q1");
@@ -172,8 +183,26 @@ public sealed class QueueMonitorServiceTests {
     var ahead = snap.Upcoming.Single(i => i.SequenceId == "Ahead");
     ahead.ExpectedAt.Should().Be(new DateTimeOffset(2026, 1, 1, 15, 0, 0, TimeSpan.Zero));
     ahead.Reason.Should().Be("At 15:00");
+    // A time-of-day timer that has not fired today fires on the run loop's very next iteration
+    // (catch-up), so the monitor must read "due now" — not "tomorrow", which would hide imminent work.
     var passed = snap.Upcoming.Single(i => i.SequenceId == "Passed");
-    passed.ExpectedAt.Should().Be(new DateTimeOffset(2026, 1, 2, 9, 0, 0, TimeSpan.Zero));
+    passed.ExpectedAt.Should().Be(Now);
+    passed.RelativeLabel.Should().Be("due");
+  }
+
+  [Fact]
+  public async Task TimerTimeOfDayAlreadyFiredTodayResolvesToTomorrow() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("T", "Daily", ScheduleType.Timer, tod: new TimeOnly(9, 0));
+    var handle = h.StartHandle();
+    var schedule = h.PublishSchedule(handle);
+    schedule.MarkTimeOfDayFired(0, new DateOnly(2026, 1, 1));
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Upcoming.Single(i => i.SequenceId == "T").ExpectedAt
+      .Should().Be(new DateTimeOffset(2026, 1, 2, 9, 0, 0, TimeSpan.Zero));
   }
 
   [Fact]
@@ -422,5 +451,126 @@ public sealed class QueueMonitorServiceTests {
   [Fact] // T014 — the idle-pause schedule kind serializes to the exact wire string "IdlePause"
   public void IdlePauseScheduleKindWireStringIsExact() {
     ScheduleKind.IdlePause.ToString().Should().Be("IdlePause");
+  }
+
+  // ── Consumed work must not be listed as upcoming ──────────────────────────
+  // Regression guards for the misleading "Up next" list: a non-cycling run that has finished its
+  // once-per-run pass and is only waiting on timers was still showing the finished steps first, its
+  // spent one-shot relative timer in the middle, and the one thing that would actually run last.
+
+  [Fact]
+  public async Task CompletedOncePerRunStepsAreNotListedAgainOnANonCyclingRun() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("A", "Alpha");
+    h.Entry("B", "Bravo");
+    var handle = h.StartHandle();
+    var schedule = h.PublishSchedule(handle);
+    schedule.BeginCycle();
+    schedule.MarkOncePerRunCompleted(0);
+    schedule.MarkOncePerRunCompleted(1);
+    schedule.MarkOncePerRunPassDone();
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Upcoming.Should().BeEmpty();
+    snap.NothingScheduled.Should().BeTrue();
+  }
+
+  [Fact]
+  public async Task PartiallyCompletedOncePerRunPassListsOnlyTheRemainingSteps() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("A", "Alpha");
+    h.Entry("B", "Bravo");
+    h.Entry("C", "Charlie");
+    var handle = h.StartHandle();
+    var schedule = h.PublishSchedule(handle);
+    schedule.BeginCycle();
+    schedule.MarkOncePerRunCompleted(0);
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Upcoming.Select(i => i.SequenceId).Should().Equal("B", "C");
+    snap.Upcoming[0].RelativeLabel.Should().Be("next");
+  }
+
+  [Fact]
+  public async Task CyclingRunWithAFinishedCycleListsTheNextCyclesSpine() {
+    var h = new Harness();
+    h.AddQueue(cycle: true);
+    h.Entry("A", "Alpha");
+    h.Entry("B", "Bravo");
+    var handle = h.StartHandle(cycle: true);
+    var schedule = h.PublishSchedule(handle);
+    schedule.BeginCycle();
+    schedule.MarkOncePerRunCompleted(0);
+    schedule.MarkOncePerRunCompleted(1);
+    schedule.MarkOncePerRunPassDone();
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Upcoming.Select(i => i.SequenceId).Should().Equal("A", "B"); // the cycle comes round again
+  }
+
+  [Fact]
+  public async Task AlreadyFiredRelativeTimerIsDropped() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("R", "Relative", ScheduleType.Timer, rel: TimeSpan.FromSeconds(30));
+    h.Entry("T", "Daily", ScheduleType.Timer, tod: new TimeOnly(22, 30));
+    var handle = h.StartHandle();
+    var schedule = h.PublishSchedule(handle);
+    schedule.MarkRelativeFired(0);
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Upcoming.Should().NotContain(i => i.SequenceId == "R"); // fires once per run; already spent
+    snap.Upcoming.Should().ContainSingle(i => i.SequenceId == "T");
+  }
+
+  [Fact]
+  public async Task EveryStepIsDroppedOnceItsOncePerRunPassCanNoLongerRun() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("A", "Alpha");
+    h.Entry("G", "Guard", ScheduleType.EveryStep);
+    h.Entry("T", "Daily", ScheduleType.Timer, tod: new TimeOnly(22, 30));
+    var handle = h.StartHandle();
+    var schedule = h.PublishSchedule(handle);
+    schedule.BeginCycle();
+    schedule.MarkOncePerRunCompleted(0);
+    schedule.MarkOncePerRunPassDone();
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    // Every-step firings only follow a once-per-run step; with the pass done, none can happen again.
+    snap.Upcoming.Select(i => i.SequenceId).Should().Equal("T");
+  }
+
+  [Fact] // The reported case, end to end: only the 22:30 timer is really left, so it must lead the list.
+  public async Task IdlePausedRunListsTheResumingTimerFirstAndNothingElse() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("Help", "PNS Alliance Help All");
+    h.Entry("Guard", "PNS Update Popup Guard", ScheduleType.EveryStep);
+    h.Entry("Tavern", "PNS Tavern Free Recruits", ScheduleType.Timer, rel: TimeSpan.FromSeconds(30));
+    h.Entry("Chests", "PNS Daily Quest Chests", ScheduleType.Timer, tod: new TimeOnly(22, 30));
+    var handle = h.StartHandle();
+    var schedule = h.PublishSchedule(handle);
+    schedule.BeginCycle();
+    schedule.MarkOncePerRunCompleted(0);   // Help All ran
+    schedule.MarkOncePerRunPassDone();
+    schedule.MarkRelativeFired(2);         // Tavern's +30s one-shot already fired
+    var resumeAt = new DateTimeOffset(2026, 1, 1, 22, 30, 0, TimeSpan.Zero);
+    handle.EnterIdlePause(resumeAt);
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Upcoming.Select(i => i.SequenceId).Should().Equal("Chests");
+    snap.Upcoming[0].ExpectedAt.Should().Be(resumeAt);
+    // The pause's resume time and the first up-next item now agree — they are the same firing.
+    snap.Current!.ScheduleKind.Should().Be(ScheduleKind.IdlePause);
+    snap.Current.ExpectedAt.Should().Be(resumeAt);
   }
 }

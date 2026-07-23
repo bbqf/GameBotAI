@@ -35,6 +35,14 @@ internal sealed class QueueRunHandle {
   public DateTimeOffset RunStartedAt { get; set; }
 
   /// <summary>
+  /// This run's live scheduling state — the entry snapshot it executes plus the work it has already
+  /// consumed. Assigned by the run loop once the entries are resolved; null only in the brief window
+  /// before that (and in tests that hand-build a handle), where the monitor falls back to projecting
+  /// a fresh, nothing-consumed schedule from the linked template.
+  /// </summary>
+  public QueueRunSchedule? Schedule { get; set; }
+
+  /// <summary>
   /// Live, ephemeral relative schedules requested against this run via the live-schedule endpoint.
   /// Key = sequence id; value = expected fire instant (call time + offset, local clock). Upserts are
   /// most-recent-wins per sequence (FR-011); an entry is removed once fired (fires once, FR-009).
