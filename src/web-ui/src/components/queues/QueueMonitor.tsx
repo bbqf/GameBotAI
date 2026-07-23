@@ -106,10 +106,21 @@ export const QueueMonitor: React.FC<QueueMonitorProps> = ({ queueId, onReturnToE
       <div className="queue-monitor-now" data-testid="monitor-now">
         <span className="monitor-label">Now</span>
         {snapshot.current ? (
-          <span className="monitor-current">
-            <strong>{itemName(snapshot.current)}</strong>
-            <span className="monitor-reason">{snapshot.current.reason}</span>
-          </span>
+          snapshot.current.scheduleKind === 'IdlePause' ? (
+            // Idle-pause (feature 073): the game is intentionally backed out; show it as a distinct
+            // paused state with the resume time so an idle queue never reads as hung.
+            <span className="monitor-current monitor-idle-paused" data-testid="monitor-idle-paused">
+              <strong>Idle Pause</strong>
+              <span className="monitor-reason">
+                Game paused{snapshot.current.expectedAt ? ` — resumes at ${formatTime(snapshot.current.expectedAt)}` : ''}
+              </span>
+            </span>
+          ) : (
+            <span className="monitor-current">
+              <strong>{itemName(snapshot.current)}</strong>
+              <span className="monitor-reason">{snapshot.current.reason}</span>
+            </span>
+          )
         ) : waiting ? (
           <span className="monitor-current monitor-idle">Running — waiting until {formatTime(waiting.expectedAt)}</span>
         ) : snapshot.nothingScheduled ? (

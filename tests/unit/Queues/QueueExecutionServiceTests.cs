@@ -13,6 +13,7 @@ using GameBot.Domain.Services;
 using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
 using GameBot.Service.Services;
+using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.QueueExecution;
 using GameBot.Service.Services.SequenceExecution;
@@ -69,6 +70,19 @@ public sealed class QueueExecutionServiceTests {
     public bool Connected { get; set; }
     public Exception? CreateThrows { get; set; }
     public List<string> Stopped { get; } = new();
+    // Inputs sent via SendInputsAsync, recorded so idle-pause tests can assert a HOME key was sent.
+    public List<InputAction> Inputs { get; } = new();
+    // When set, SendInputsAsync throws — used to prove backgrounding failure is non-fatal (FR-011).
+    public Exception? SendThrows { get; set; }
+
+    public int HomeCount {
+      get {
+        lock (Inputs) {
+          return Inputs.Count(a => a.Type == "key"
+            && a.Args.TryGetValue("keyCode", out var v) && v is int k && k == 3);
+        }
+      }
+    }
 
     public int ActiveCount => _session is null ? 0 : 1;
     public bool CanCreateSession => true;
@@ -83,8 +97,33 @@ public sealed class QueueExecutionServiceTests {
     public EmulatorSession? GetSession(string id) => Connected && _session is not null && _session.Id == id ? _session : null;
     public IReadOnlyCollection<EmulatorSession> ListSessions() => _session is null ? Array.Empty<EmulatorSession>() : new[] { _session };
     public bool StopSession(string id) { Stopped.Add(id); Connected = false; return true; }
-    public Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) => Task.FromResult(0);
+    public Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) {
+      var list = actions.ToList();
+      lock (Inputs) { Inputs.AddRange(list); }
+      if (SendThrows is not null) throw SendThrows;
+      return Task.FromResult(list.Count);
+    }
     public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
+  }
+
+  // Records foreground (resume) calls so idle-pause tests can assert the game is brought back, and
+  // captures how many sequences had executed at the first call to prove the foreground precedes the
+  // due sequence. Optionally throws to prove foregrounding failure is non-fatal (FR-011).
+  private sealed class FakeEnsureGameRunning : IEnsureGameRunningActionHandler {
+    private int _calls;
+    public int Calls => Volatile.Read(ref _calls);
+    public Exception? Throws { get; set; }
+    public Func<int>? ExecutedCountProvider { get; set; }
+    public int ExecutedCountAtFirstCall { get; private set; } = -1;
+
+    public Task<EnsureGameRunningActionResult> ExecuteAsync(string sessionId, CancellationToken ct = default) {
+      if (ExecutedCountAtFirstCall < 0 && ExecutedCountProvider is not null) {
+        ExecutedCountAtFirstCall = ExecutedCountProvider();
+      }
+      Interlocked.Increment(ref _calls);
+      if (Throws is not null) throw Throws;
+      return Task.FromResult(new EnsureGameRunningActionResult(EnsureGameRunningOutcome.GameRunning));
+    }
   }
 
   private sealed class RecordingExecutionLog : IExecutionLogService {
@@ -92,6 +131,8 @@ public sealed class QueueExecutionServiceTests {
     public string? FinalStatus { get; private set; }
     public string? Summary { get; private set; }
     public int QueueFinalizes { get; private set; }
+    // Any sequence/command-level log write. Idle-pause must add none (FR-007a/SC-007).
+    public int SequenceOrCommandLogCalls { get; private set; }
 
     public Task<string> LogQueueStartAsync(string queueId, string queueName, CancellationToken ct = default) {
       QueueStarts++;
@@ -105,13 +146,13 @@ public sealed class QueueExecutionServiceTests {
     }
 
     // Unused by the queue engine in these tests.
-    public Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default) => Task.CompletedTask;
-    public Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default) => Task.CompletedTask;
-    public Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) => Task.CompletedTask;
-    public Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) => Task.CompletedTask;
-    public Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, CancellationToken ct = default) => Task.FromResult(Guid.NewGuid().ToString("N"));
-    public Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, ExecutionLogContext parentContext, CancellationToken ct = default) => Task.FromResult(Guid.NewGuid().ToString("N"));
-    public Task LogSequenceFinalizeAsync(string executionId, string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) => Task.CompletedTask;
+    public Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default) { SequenceOrCommandLogCalls++; return Task.CompletedTask; }
+    public Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default) { SequenceOrCommandLogCalls++; return Task.CompletedTask; }
+    public Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) { SequenceOrCommandLogCalls++; return Task.CompletedTask; }
+    public Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) { SequenceOrCommandLogCalls++; return Task.CompletedTask; }
+    public Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, CancellationToken ct = default) { SequenceOrCommandLogCalls++; return Task.FromResult(Guid.NewGuid().ToString("N")); }
+    public Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, ExecutionLogContext parentContext, CancellationToken ct = default) { SequenceOrCommandLogCalls++; return Task.FromResult(Guid.NewGuid().ToString("N")); }
+    public Task LogSequenceFinalizeAsync(string executionId, string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) { SequenceOrCommandLogCalls++; return Task.CompletedTask; }
     public Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default) => Task.FromResult<ExecutionSubtreeProjection?>(null);
     public Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default) => Task.FromResult(new ExecutionLogPage(Array.Empty<ExecutionLogEntry>(), null));
     public Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult<ExecutionLogEntry?>(null);
@@ -131,13 +172,14 @@ public sealed class QueueExecutionServiceTests {
     public QueueRuntimeStore Runtime { get; } = new();
     public FakeTimeProvider? Clock { get; }
     public QueueRunRegistry Registry { get; } = new();
+    public FakeEnsureGameRunning EnsureGame { get; } = new();
     public SelfRescheduleCoordinator Coordinator { get; }
     public QueueExecutionService Service { get; }
 
     public Harness(FakeTimeProvider? clock = null) {
       Clock = clock;
       Coordinator = new SelfRescheduleCoordinator(Registry, clock);
-      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock);
+      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame);
     }
 
     public ExecutionQueue AddQueue(string id, IReadOnlyList<string> sequenceIds, bool cycle = false, bool linkTemplate = true) {
@@ -423,12 +465,12 @@ public sealed class QueueExecutionServiceTests {
 
   // ── US2 (spec): EveryStep scheduling ─────────────────────────────────────
 
-  private static ExecutionQueue AddQueueWithEntries(Harness h, string id, QueueTemplateEntry[] entries, bool cycle = false) {
+  private static ExecutionQueue AddQueueWithEntries(Harness h, string id, QueueTemplateEntry[] entries, bool cycle = false, bool pauseWhenIdle = false, int idleThresholdSeconds = 30) {
     var templateId = $"tpl-{id}";
     var template = new QueueTemplate { Id = templateId, Name = $"T-{id}" };
     foreach (var e in entries) template.Entries.Add(e);
     h.Templates.Add(template);
-    var queue = new ExecutionQueue { Id = id, Name = $"Q-{id}", EmulatorSerial = "emu-1", CycleExecution = cycle, LinkedTemplateId = templateId };
+    var queue = new ExecutionQueue { Id = id, Name = $"Q-{id}", EmulatorSerial = "emu-1", CycleExecution = cycle, LinkedTemplateId = templateId, PauseWhenIdle = pauseWhenIdle, IdleThresholdSeconds = idleThresholdSeconds };
     h.Queues.Add(queue);
     return queue;
   }
@@ -1127,5 +1169,162 @@ public sealed class QueueExecutionServiceTests {
     h.Sequences.Executed.Should().NotContain("R"); // abandoned, never fired (FR-015)
     h.Log.FinalStatus.Should().Be("success"); // run not marked failed
     h.Log.Summary.Should().Contain("stopped manually");
+  }
+
+  // ── Feature 073: idle-pause the game during queue gaps (US1) ──────────────
+  // Setup pattern: a non-cyclic queue with one OncePerRun step and a distant relative timer. The
+  // step runs immediately; the run then stays alive waiting for the timer, which is exactly the idle
+  // gap. The fake clock controls when the timer becomes due, so the pause/resume boundary is
+  // deterministic while the poll loop itself runs in real time.
+
+  [Fact] // T006(a) — enabled + gap > threshold: HOME sent once, game foregrounded before the due sequence
+  public async Task IdlePauseEnabledBacksGameOutThenForegroundsBeforeDueSequence() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    h.EnsureGame.ExecutedCountProvider = () => h.Sequences.Executed.Count;
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)) }, pauseWhenIdle: true);
+
+    await h.Service.StartAsync("q1");
+    // A runs, then the run idle-pauses toward the 10-min relative timer: HOME is sent.
+    await WaitForAsync(() => h.Sessions.HomeCount >= 1);
+    h.Registry.TryGet("q1", out var handle).Should().BeTrue();
+    handle.IsIdlePaused.Should().BeTrue();
+    handle.IdlePausedUntil.Should().Be(FakeStart + TimeSpan.FromMinutes(10));
+    h.EnsureGame.Calls.Should().Be(0); // not resumed yet
+
+    // Advance to the due time → the pause ends, the game is foregrounded, then T fires.
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sessions.HomeCount.Should().Be(1);                   // backed out exactly once
+    h.EnsureGame.Calls.Should().Be(1);                     // foregrounded on resume
+    h.EnsureGame.ExecutedCountAtFirstCall.Should().Be(1);  // only A had run → foreground precedes T
+    h.Sequences.Executed.Should().Equal("A", "T");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact] // T006(b) — gap at or under the threshold: no background/foreground (FR-014)
+  public async Task IdlePauseSkippedWhenGapAtOrUnderThreshold() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    // 10s gap vs 30s threshold → too short to pause.
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromSeconds(10)) }, pauseWhenIdle: true, idleThresholdSeconds: 30);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    await Task.Delay(300); // let several poll cycles run; none should pause
+    h.Sessions.HomeCount.Should().Be(0);
+    h.EnsureGame.Calls.Should().Be(0);
+
+    clock.Advance(TimeSpan.FromSeconds(10));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+    h.Sequences.Executed.Should().Equal("A", "T");
+    h.Sessions.HomeCount.Should().Be(0);
+  }
+
+  [Fact] // T006(c) — PauseWhenIdle false: game untouched during a long gap (FR-009/SC-004)
+  public async Task IdlePauseDisabledLeavesGameUntouched() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)) }, pauseWhenIdle: false);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    await Task.Delay(300);
+    h.Sessions.HomeCount.Should().Be(0);
+    h.EnsureGame.Calls.Should().Be(0);
+
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+    h.Sessions.HomeCount.Should().Be(0);
+    h.Sequences.Executed.Should().Equal("A", "T");
+  }
+
+  [Fact] // T006(d) — a pause longer than the 4-min watchdog is not cancelled or failed (SC-005)
+  public async Task IdlePauseLongerThanWatchdogIsNotCancelled() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    // 25-minute gap, far beyond the 4-min per-sequence watchdog.
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(25)) }, pauseWhenIdle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sessions.HomeCount >= 1);
+    clock.Advance(TimeSpan.FromMinutes(25));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "T");
+    h.Log.FinalStatus.Should().Be("success"); // never a watchdog failure
+  }
+
+  [Fact] // T006(e) — backgrounding and foregrounding failures are non-fatal (FR-011)
+  public async Task IdlePauseBackgroundAndForegroundFailuresAreNonFatal() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    h.Sessions.SendThrows = new InvalidOperationException("home boom");
+    h.EnsureGame.Throws = new InvalidOperationException("foreground boom");
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)) }, pauseWhenIdle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sessions.HomeCount >= 1); // HOME attempted (recorded, then threw)
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.EnsureGame.Calls.Should().Be(1);              // foreground attempted (threw) but non-fatal
+    h.Sequences.Executed.Should().Equal("A", "T");  // the due sequence still ran
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact] // T006(f) — stopping during a pause aborts promptly and never foregrounds (SC-006/FR-012)
+  public async Task StopDuringIdlePauseAbortsPromptlyWithoutForegrounding() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)) }, pauseWhenIdle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sessions.HomeCount >= 1);
+    h.Registry.TryGet("q1", out var handle).Should().BeTrue();
+    handle.IsIdlePaused.Should().BeTrue();
+
+    await h.Service.StopAsync("q1"); // stop mid-pause
+
+    h.Service.IsRunning("q1").Should().BeFalse();
+    h.EnsureGame.Calls.Should().Be(0);   // never foregrounded on stop
+    h.Sequences.Executed.Should().Equal("A");
+    h.Log.FinalStatus.Should().Be("success");
+    h.Log.Summary.Should().Contain("stopped manually");
+  }
+
+  [Fact] // T006(g) — an idle-pause cycle writes no sequence/command execution-log entries (FR-007a/SC-007)
+  public async Task IdlePauseWritesNoExecutionLogEntries() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)) }, pauseWhenIdle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sessions.HomeCount >= 1);
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // Exactly one queue-start + one finalize; entering/holding/leaving the pause logged nothing.
+    h.Log.QueueStarts.Should().Be(1);
+    h.Log.QueueFinalizes.Should().Be(1);
+    h.Log.SequenceOrCommandLogCalls.Should().Be(0);
+  }
+
+  [Fact] // T006(h) — resume is decided within one poll interval of the due instant (SC-002)
+  public async Task IdlePauseResumesWithinOnePollIntervalOfDueTime() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)) }, pauseWhenIdle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sessions.HomeCount >= 1);
+
+    clock.Advance(TimeSpan.FromMinutes(10)); // now due
+    // Poll interval is 250 ms; the resume decision (foreground) must land well within a second.
+    await WaitForAsync(() => h.EnsureGame.Calls >= 1, 2000);
+    h.EnsureGame.Calls.Should().BeGreaterThanOrEqualTo(1);
+
+    await WaitUntilStoppedAsync(h.Service, "q1");
   }
 }

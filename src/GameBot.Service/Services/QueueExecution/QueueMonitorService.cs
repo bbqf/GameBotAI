@@ -83,7 +83,25 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
   private static QueueMonitorItem? BuildCurrent(
     QueueRunHandle handle, QueueTemplate? template, IReadOnlyDictionary<string, string> names, bool cycling) {
     var sequenceId = handle.CurrentSequenceId;
-    if (string.IsNullOrEmpty(sequenceId)) return null;
+    if (string.IsNullOrEmpty(sequenceId)) {
+      // Idle-pause (feature 073): no sequence is executing, but the run is intentionally backed out
+      // waiting for the next firing. Surface a synthetic "Idle Pause" current item with the resume
+      // time so an idle queue never reads as hung. A real CurrentSequenceId always wins (above);
+      // by invariant it is null while idle-paused.
+      if (handle.IdlePausedUntil is { } resumeAt) {
+        return new QueueMonitorItem(
+          SequenceId: string.Empty,
+          SequenceName: "Idle Pause",
+          Stale: false,
+          ScheduleKind: ScheduleKind.IdlePause,
+          Reason: $"Game paused — resumes at {resumeAt:HH:mm}",
+          ExpectedAt: resumeAt,
+          RelativeLabel: "paused",
+          Repeats: false,
+          Order: 0);
+      }
+      return null;
+    }
 
     // Best-effort schedule kind: the first template entry referencing this sequence, else OncePerRun.
     var entry = template?.Entries.FirstOrDefault(e => string.Equals(e.SequenceId, sequenceId, StringComparison.Ordinal));

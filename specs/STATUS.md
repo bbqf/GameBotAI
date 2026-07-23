@@ -108,6 +108,7 @@ Status vocabulary:
 | 070 | Ensure Emulator Running Action | Implemented |
 | 071 | Connect-to-Game Emulator Pre-heal | Implemented |
 | 072 | Live Queue Monitor View | Implemented |
+| 073 | Idle-Pause the Game During Queue Gaps; Retire the MCP Server | Implemented |
 
 ## Numbering notes
 

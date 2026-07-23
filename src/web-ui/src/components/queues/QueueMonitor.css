@@ -42,6 +42,12 @@
   color: var(--muted-color, #777);
 }
 
+/* Idle-pause (feature 073): distinct from a running sequence — the game is intentionally backed out. */
+.monitor-idle-paused strong {
+  margin-right: 8px;
+  color: var(--warning-color, #b8860b);
+}
+
 .queue-monitor-upcoming {
   display: flex;
   gap: 10px;

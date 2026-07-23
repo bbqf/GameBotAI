@@ -77,4 +77,45 @@ public sealed class QueuesApiContractTests : IDisposable {
     // Delete -> 204
     (await client.DeleteAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
   }
+
+  [Fact] // T018 — feature 073: idle-pause config round-trips via create/update, with defaults and coercion
+  public async Task IdlePauseConfigRoundTripsWithDefaultsAndCoercion() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    // Create WITHOUT the idle-pause fields → defaults (false / 30).
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative),
+      new { name = "IdleA", emulatorSerial = "emu-1" }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    foreach (var field in new[] { "pauseWhenIdle", "idleThresholdSeconds" }) {
+      created.TryGetProperty(field, out _).Should().BeTrue($"QueueResponse must expose '{field}'");
+    }
+    created.GetProperty("pauseWhenIdle").GetBoolean().Should().BeFalse();
+    created.GetProperty("idleThresholdSeconds").GetInt32().Should().Be(30);
+    var id = created.GetProperty("id").GetString();
+
+    // Update enabling idle-pause with an explicit threshold → response echoes both.
+    var updateResp = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}", UriKind.Relative),
+      new { name = "IdleA", cycleExecution = false, pauseWhenIdle = true, idleThresholdSeconds = 45 }).ConfigureAwait(true);
+    updateResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var updated = JsonDocument.Parse(await updateResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    updated.GetProperty("pauseWhenIdle").GetBoolean().Should().BeTrue();
+    updated.GetProperty("idleThresholdSeconds").GetInt32().Should().Be(45);
+
+    // Re-read (detail) persists both.
+    var detail = JsonDocument.Parse(await (await client.GetAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    detail.GetProperty("pauseWhenIdle").GetBoolean().Should().BeTrue();
+    detail.GetProperty("idleThresholdSeconds").GetInt32().Should().Be(45);
+
+    // Update with idleThresholdSeconds:0 → coerced back to the default 30.
+    var coerceResp = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}", UriKind.Relative),
+      new { name = "IdleA", cycleExecution = false, pauseWhenIdle = true, idleThresholdSeconds = 0 }).ConfigureAwait(true);
+    coerceResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var coerced = JsonDocument.Parse(await coerceResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    coerced.GetProperty("idleThresholdSeconds").GetInt32().Should().Be(30);
+
+    (await client.DeleteAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+  }
 }

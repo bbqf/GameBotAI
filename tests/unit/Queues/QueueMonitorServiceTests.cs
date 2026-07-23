@@ -377,4 +377,50 @@ public sealed class QueueMonitorServiceTests {
     snap.Running.Should().BeFalse();
     snap.LastOutcome.Should().BeNull();
   }
+
+  // ── Feature 073: idle-pause current item ──────────────────────────────────
+
+  [Fact] // T011 — an idle-paused handle projects a synthetic "Idle Pause" current item with the resume time
+  public async Task IdlePausedHandleProjectsSyntheticCurrentItem() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("A", "Alpha");
+    var handle = h.StartHandle();
+    var resumeAt = Now + TimeSpan.FromMinutes(20);
+    handle.EnterIdlePause(resumeAt);
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Current.Should().NotBeNull();
+    snap.Current!.SequenceId.Should().BeEmpty();
+    snap.Current.SequenceName.Should().Be("Idle Pause");
+    snap.Current.ScheduleKind.Should().Be(ScheduleKind.IdlePause);
+    snap.Current.ExpectedAt.Should().Be(resumeAt);
+    snap.Current.RelativeLabel.Should().Be("paused");
+    snap.Current.Stale.Should().BeFalse();
+    snap.Current.Reason.Should().Contain("resumes at");
+    // The spine entry still appears as upcoming — the pause is the current item, not the plan.
+    snap.Upcoming.Select(i => i.SequenceId).Should().Contain("A");
+  }
+
+  [Fact] // T011 — a real executing sequence wins over the idle-pause projection (invariant)
+  public async Task RealCurrentSequenceWinsOverIdlePause() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("A", "Alpha");
+    var handle = h.StartHandle();
+    handle.SetCurrentSequence("A", Now);
+    handle.EnterIdlePause(Now + TimeSpan.FromMinutes(20)); // ignored while a sequence is executing
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Current.Should().NotBeNull();
+    snap.Current!.SequenceId.Should().Be("A");
+    snap.Current.ScheduleKind.Should().NotBe(ScheduleKind.IdlePause);
+  }
+
+  [Fact] // T014 — the idle-pause schedule kind serializes to the exact wire string "IdlePause"
+  public void IdlePauseScheduleKindWireStringIsExact() {
+    ScheduleKind.IdlePause.ToString().Should().Be("IdlePause");
+  }
 }

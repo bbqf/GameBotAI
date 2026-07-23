@@ -6,7 +6,7 @@ jest.mock('../../../services/useAdbDevices', () => ({
   useAdbDevices: () => ({ devices: [{ serial: 'emu-1' }, { serial: 'emu-2' }], loading: false, error: undefined, refresh: () => {} }),
 }));
 
-const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false };
+const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 };
 
 const renderForm = (overrides: Partial<React.ComponentProps<typeof QueueForm>> = {}) => {
   const onChange = jest.fn();
@@ -37,7 +37,7 @@ describe('QueueForm', () => {
   });
 
   it('shows the emulator read-only in edit mode without the "cannot be changed" hint', () => {
-    renderForm({ mode: 'edit', value: { name: 'Farm', emulatorSerial: 'emu-9', cycleExecution: false } });
+    renderForm({ mode: 'edit', value: { name: 'Farm', emulatorSerial: 'emu-9', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 } });
     const emulator = screen.getByLabelText('Emulator *') as HTMLInputElement;
     expect(emulator.tagName).toBe('INPUT');
     expect(emulator).toHaveValue('emu-9');
@@ -48,7 +48,7 @@ describe('QueueForm', () => {
   it('renders slots in the new order: emulator → cycle → game → Save → separator → template section', () => {
     renderForm({
       mode: 'edit',
-      value: { name: 'Farm', emulatorSerial: 'emu-9', cycleExecution: false },
+      value: { name: 'Farm', emulatorSerial: 'emu-9', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 },
       gameControls: <div data-testid="slot-game" />,
       templateControls: <div data-testid="slot-templates" />,
     });
@@ -83,7 +83,7 @@ describe('QueueForm', () => {
   });
 
   it('calls onSubmit when the form is submitted', () => {
-    const { onSubmit } = renderForm({ value: { name: 'Farm', emulatorSerial: 'emu-1', cycleExecution: false } });
+    const { onSubmit } = renderForm({ value: { name: 'Farm', emulatorSerial: 'emu-1', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 } });
     fireEvent.click(screen.getByText('Save'));
     expect(onSubmit).toHaveBeenCalled();
   });
@@ -92,5 +92,26 @@ describe('QueueForm', () => {
     const { onChange } = renderForm();
     fireEvent.click(screen.getByLabelText('Cycle execution'));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cycleExecution: true }));
+  });
+
+  // ── Feature 073: idle-pause config controls ────────────────────────────────
+
+  it('emits pause-when-idle toggle changes', () => {
+    const { onChange } = renderForm();
+    fireEvent.click(screen.getByLabelText('Pause game when idle'));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ pauseWhenIdle: true }));
+  });
+
+  it('hides the threshold input while idle-pause is disabled', () => {
+    renderForm({ value: { ...baseValue, pauseWhenIdle: false } });
+    expect(screen.queryByLabelText('Idle threshold seconds')).not.toBeInTheDocument();
+  });
+
+  it('shows and edits the threshold input when idle-pause is enabled', () => {
+    const { onChange } = renderForm({ value: { ...baseValue, pauseWhenIdle: true, idleThresholdSeconds: 30 } });
+    const threshold = screen.getByLabelText('Idle threshold seconds') as HTMLInputElement;
+    expect(threshold).toHaveValue(30);
+    fireEvent.change(threshold, { target: { value: '45' } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ idleThresholdSeconds: 45 }));
   });
 });

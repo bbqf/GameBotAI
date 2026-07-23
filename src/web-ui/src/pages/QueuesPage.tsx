@@ -30,7 +30,7 @@ import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, ScheduleType, 
 import { sameSequenceOrder } from '../lib/sequenceOrder';
 import { ApiError } from '../lib/api';
 
-const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false };
+const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 };
 
 export const QueuesPage: React.FC = () => {
   const [queues, setQueues] = useState<QueueDto[]>([]);
@@ -108,7 +108,7 @@ export const QueuesPage: React.FC = () => {
     const q = await getQueue(id);
     setDetail(q);
     setAssociatedTemplateName(q.linkedTemplateName ?? undefined);
-    setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution });
+    setForm({ name: q.name, emulatorSerial: q.emulatorSerial, cycleExecution: q.cycleExecution, pauseWhenIdle: q.pauseWhenIdle, idleThresholdSeconds: q.idleThresholdSeconds });
 
     // Restore per-entry schedule state from the linked template so that the editor
     // reflects previously saved schedule types and saving doesn't overwrite them with OncePerRun.
@@ -167,10 +167,10 @@ export const QueuesPage: React.FC = () => {
     setQueueSaveResult(undefined);
     try {
       if (creating) {
-        await createQueue({ name: form.name.trim(), emulatorSerial: form.emulatorSerial.trim(), cycleExecution: form.cycleExecution });
+        await createQueue({ name: form.name.trim(), emulatorSerial: form.emulatorSerial.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds });
         setQueueSaveResult({ kind: 'success', message: 'Queue created successfully.' });
       } else if (detail) {
-        await updateQueue(detail.id, { name: form.name.trim(), cycleExecution: form.cycleExecution });
+        await updateQueue(detail.id, { name: form.name.trim(), cycleExecution: form.cycleExecution, pauseWhenIdle: form.pauseWhenIdle, idleThresholdSeconds: form.idleThresholdSeconds });
         setQueueSaveResult({ kind: 'success', message: 'Queue updated successfully.' });
       }
       // Keep the form open so the confirmation is visible at the Save action (FR-006); just

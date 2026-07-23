@@ -7,6 +7,10 @@ export type QueueDto = {
   name: string;
   emulatorSerial: string;
   cycleExecution: boolean;
+  /** When true, the game is backed out during idle gaps over the threshold (feature 073). */
+  pauseWhenIdle: boolean;
+  /** Idle-detection threshold in seconds (default 30). */
+  idleThresholdSeconds: number;
   status: QueueStatus;
   entryCount: number;
   linkedTemplateId: string | null;
@@ -31,11 +35,15 @@ export type QueueCreate = {
   name: string;
   emulatorSerial: string;
   cycleExecution: boolean;
+  pauseWhenIdle?: boolean;
+  idleThresholdSeconds?: number;
 };
 
 export type QueueUpdate = {
   name: string;
   cycleExecution: boolean;
+  pauseWhenIdle?: boolean;
+  idleThresholdSeconds?: number;
 };
 
 const base = '/api/queues';
@@ -86,7 +94,8 @@ export type ScheduleKind =
   | 'TimerTimeOfDay'
   | 'TimerRelative'
   | 'LiveSchedule'
-  | 'SelfReschedule';
+  | 'SelfReschedule'
+  | 'IdlePause';
 
 /** One now/up-next item in the live monitor plan. */
 export type QueueMonitorItemDto = {
