@@ -20,7 +20,9 @@
     "react-dom": "^18.3.1"
   },
   "overrides": {
-    "js-yaml": "^4.2.0"
+    "js-yaml": "^4.3.0",
+    "brace-expansion@1": "^1.1.16",
+    "brace-expansion@2": "^2.1.2"
   },
   "devDependencies": {
     "@eslint/js": "^8.57.0",
