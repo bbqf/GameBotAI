@@ -431,6 +431,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     // freeze the whole queue. Linked to ct so a real stop request still cancels immediately.
     using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(ct);
     watchdog.CancelAfter(SequenceWatchdogTimeout);
+    // Sequence-level "now" tracking for the live monitor (feature 072): every firing — at-start,
+    // once-per-run, every-step, timer, relative, live, self-reschedule — flows through here, so
+    // set the current sequence at the top and clear it in the finally. This is purely observational
+    // and does not change scheduling behavior.
+    var trackedHandle = _registry.TryGet(queueId, out var handle) ? handle : null;
+    trackedHandle?.SetCurrentSequence(sequenceId, _timeProvider.GetLocalNow());
     try {
       var parentContext = new ExecutionLogContext {
         ParentExecutionId = rootId,
@@ -458,6 +464,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // Unexpected per-sequence error (e.g. a stale/unresolved reference): non-fatal (FR-008/008b).
       QueueExecutionLog.SequenceFaulted(_logger, sequenceId, ex);
       return false;
+    }
+    finally {
+      trackedHandle?.ClearCurrentSequence();
     }
   }
 

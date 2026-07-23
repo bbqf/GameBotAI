@@ -170,6 +170,8 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueRunRegistry, GameBot.Service.Services.QueueExecution.QueueRunRegistry>();
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.ISelfRescheduleCoordinator, GameBot.Service.Services.QueueExecution.SelfRescheduleCoordinator>();
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueExecutionService, GameBot.Service.Services.QueueExecution.QueueExecutionService>();
+    // Read-only live monitor projection (feature 072): pure fold of run handle + linked template + now.
+    builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueMonitorService, GameBot.Service.Services.QueueExecution.QueueMonitorService>();
     builder.Services.AddSingleton<SemanticVersionComparer>();
     builder.Services.AddSingleton<VersionSourceLoader>();
     builder.Services.AddSingleton<VersionResolutionService>();
