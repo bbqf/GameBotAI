@@ -10,7 +10,6 @@ import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
 import { ReorderableList, ReorderableListItem } from '../components/ReorderableList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
-import { useScrollIntoViewOnOpen } from '../hooks/useScrollIntoViewOnOpen';
 import { navigateToUnified } from '../lib/navigation';
 
 type TriggerFormValue = {
@@ -88,7 +87,7 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
   }, []);
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
-  const editorRef = useScrollIntoViewOnOpen<HTMLElement>(editingId);
+  const editorOpen = creating || Boolean(editingId);
 
   const commandItems = useMemo(() => toListItems(form.commands, commandOptions), [form.commands, commandOptions]);
 
@@ -302,6 +301,7 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
       {creating && (
         renderForm('create')
       )}
+      {!editorOpen && (
       <List
         items={items}
         emptyMessage="No triggers found."
@@ -325,8 +325,9 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
           }
         }}
       />
+      )}
       {editingId && (
-        <section ref={editorRef}>
+        <section>
           <h3>Edit Trigger</h3>
           {renderForm('edit')}
         </section>

@@ -3,7 +3,6 @@ import { ApiError } from '../../lib/api';
 import { ImageDetailPage } from './ImageDetailPage';
 import { listImages, uploadImage } from '../../services/images';
 import { EmulatorCaptureCropper } from '../../components/images/EmulatorCaptureCropper';
-import { useScrollIntoViewOnOpen } from '../../hooks/useScrollIntoViewOnOpen';
 
 export const ImagesListPage: React.FC = () => {
   const [ids, setIds] = useState<string[]>([]);
@@ -32,11 +31,12 @@ export const ImagesListPage: React.FC = () => {
   }, []);
 
   const sortedIds = useMemo(() => [...ids].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [ids]);
-  const detailRef = useScrollIntoViewOnOpen<HTMLDivElement>(selectedId);
 
   return (
     <section>
       <h2>Images</h2>
+      {!selectedId && (
+      <>
       <EmulatorCaptureCropper />
       <div className="images-header">
         <button type="button" onClick={() => { void load(); }} disabled={loading}>Refresh</button>
@@ -104,9 +104,14 @@ export const ImagesListPage: React.FC = () => {
           ))}
         </tbody>
       </table>
+      </>
+      )}
 
       {selectedId && (
-        <div ref={detailRef}>
+        <div>
+          <div className="images-header">
+            <button type="button" onClick={() => { setSelectedId(null); }}>← Back to list</button>
+          </div>
           <ImageDetailPage
             imageId={selectedId}
             onUploaded={async () => { await load(); }}

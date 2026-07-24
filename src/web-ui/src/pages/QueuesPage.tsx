@@ -29,7 +29,6 @@ import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, ScheduleType, QueueTemplateEntryDto } from '../services/queueTemplates';
 import { sameSequenceOrder } from '../lib/sequenceOrder';
 import { ApiError } from '../lib/api';
-import { useScrollIntoViewOnOpen } from '../hooks/useScrollIntoViewOnOpen';
 
 const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 };
 
@@ -51,7 +50,6 @@ export const QueuesPage: React.FC = () => {
   const [templateSaveResult, setTemplateSaveResult] = useState<{ kind: 'success' | 'error'; message: string } | undefined>(undefined);
 
   const [detail, setDetail] = useState<QueueDetailDto | undefined>(undefined);
-  const panelRef = useScrollIntoViewOnOpen<HTMLDivElement>(creating ? 'create' : detail?.id);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [associatedTemplateName, setAssociatedTemplateName] = useState<string | undefined>(undefined);
   const [pendingLoad, setPendingLoad] = useState<{ name: string; sequenceIds: string[]; templateId: string; templateEntries?: QueueTemplateEntryDto[] } | undefined>(undefined);
@@ -370,11 +368,15 @@ export const QueuesPage: React.FC = () => {
         }
       : undefined;
 
+  const panelOpen = creating || Boolean(detail);
+
   return (
     <section>
       <h2>Queues</h2>
       {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
       {tableError && <div className="form-error" role="alert">{tableError}</div>}
+      {!panelOpen && (
+      <>
       <div className="actions-header">
         <button onClick={openCreate}>Create Queue</button>
       </div>
@@ -447,8 +449,9 @@ export const QueuesPage: React.FC = () => {
           })}
         </tbody>
       </table>
+      </>
+      )}
 
-      <div ref={panelRef}>
       {creating && (
         <section>
           <h3>Create Queue</h3>
@@ -530,7 +533,6 @@ export const QueuesPage: React.FC = () => {
           />
         </section>
       )}
-      </div>
 
       <ConfirmDeleteModal
         open={deleteOpen}

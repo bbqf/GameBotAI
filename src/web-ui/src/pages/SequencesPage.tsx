@@ -11,7 +11,6 @@ import { SearchableDropdown, SearchableOption } from '../components/SearchableDr
 import type { ReorderableListItem } from '../components/ReorderableList';
 import { SortableSequenceStepList } from '../components/SortableSequenceStepList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
-import { useScrollIntoViewOnOpen } from '../hooks/useScrollIntoViewOnOpen';
 import { validatePerStepConditions } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
@@ -840,7 +839,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   }, []);
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
-  const editorRef = useScrollIntoViewOnOpen<HTMLDivElement>(editingId ?? (creating ? 'create' : undefined));
+  const editorOpen = creating || Boolean(editingId);
 
   const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
   const editorCommandOptions = useMemo(() => mergeCommandOptionsWithUnresolved(commandOptions, form.steps), [commandOptions, form.steps]);
@@ -1428,6 +1427,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       <h2>Sequences</h2>
       {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
       {tableError && <div className="form-error" role="alert">{tableError}</div>}
+      {!editorOpen && (
+      <>
       <div className="actions-header">
         <button
           onClick={() => {
@@ -1492,8 +1493,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           ))}
         </tbody>
       </table>
+      </>
+      )}
 
-      <div ref={editorRef}>
       {creating && (
         <form
           className="edit-form"
@@ -1945,7 +1947,6 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           </form>
         </section>
       )}
-      </div>
       <ConfirmDeleteModal
         open={deleteOpen}
         itemName={form.name}

@@ -302,7 +302,9 @@ describe('QueuesPage template load wiring', () => {
     fireEvent.click(within(await screen.findByRole('region', { name: 'Load template' })).getByText('Load'));
     await waitFor(() => expect(replaceEntriesMock).toHaveBeenCalledWith('q1', ['seq-x']));
 
-    fireEvent.click(screen.getByText('Arena'));
+    // The editor replaces the overview list; return to it before selecting the second queue.
+    fireEvent.click(screen.getByText('Cancel'));
+    fireEvent.click(await screen.findByText('Arena'));
     await waitFor(() => expect(getQueueMock).toHaveBeenLastCalledWith('q2'));
     fireEvent.click(screen.getByText('(no template)'));
     fireEvent.click(within(await screen.findByRole('region', { name: 'Load template' })).getByText('Load'));
