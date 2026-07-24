@@ -87,6 +87,7 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
   }, []);
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
+  const editorOpen = creating || Boolean(editingId);
 
   const commandItems = useMemo(() => toListItems(form.commands, commandOptions), [form.commands, commandOptions]);
 
@@ -128,6 +129,13 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
     setPendingCommandId(undefined);
     setErrors(undefined);
     setDirty(false);
+  };
+
+  const backToList = () => {
+    if (!confirmNavigate()) return;
+    setCreating(false);
+    setEditingId(undefined);
+    resetForm();
   };
 
   const validate = (v: TriggerFormValue): Record<string, string> | undefined => {
@@ -297,9 +305,15 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
           Create Trigger
         </button>
       </div>
+      {editorOpen && (
+        <div className="actions-header">
+          <button type="button" onClick={backToList}>← Back to list</button>
+        </div>
+      )}
       {creating && (
         renderForm('create')
       )}
+      {!editorOpen && (
       <List
         items={items}
         emptyMessage="No triggers found."
@@ -323,6 +337,7 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
           }
         }}
       />
+      )}
       {editingId && (
         <section>
           <h3>Edit Trigger</h3>

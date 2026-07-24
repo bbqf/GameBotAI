@@ -29,10 +29,15 @@ import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, ScheduleType, QueueTemplateEntryDto } from '../services/queueTemplates';
 import { sameSequenceOrder } from '../lib/sequenceOrder';
 import { ApiError } from '../lib/api';
+import { useResetSignal } from '../hooks/useResetSignal';
+
+type QueuesPageProps = {
+  navResetSignal?: number;
+};
 
 const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 };
 
-export const QueuesPage: React.FC = () => {
+export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
   const [queues, setQueues] = useState<QueueDto[]>([]);
   const [sequences, setSequences] = useState<SequenceDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -368,11 +373,17 @@ export const QueuesPage: React.FC = () => {
         }
       : undefined;
 
+  const panelOpen = creating || Boolean(detail);
+
+  useResetSignal(navResetSignal, () => { if (panelOpen) closeForms(); });
+
   return (
     <section>
       <h2>Queues</h2>
       {tableMessage && <div className="form-hint" role="status">{tableMessage}</div>}
       {tableError && <div className="form-error" role="alert">{tableError}</div>}
+      {!panelOpen && (
+      <>
       <div className="actions-header">
         <button onClick={openCreate}>Create Queue</button>
       </div>
@@ -445,6 +456,14 @@ export const QueuesPage: React.FC = () => {
           })}
         </tbody>
       </table>
+      </>
+      )}
+
+      {panelOpen && (
+        <div className="actions-header">
+          <button type="button" onClick={closeForms}>← Back to list</button>
+        </div>
+      )}
 
       {creating && (
         <section>

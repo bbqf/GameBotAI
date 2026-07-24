@@ -3,8 +3,13 @@ import { ApiError } from '../../lib/api';
 import { ImageDetailPage } from './ImageDetailPage';
 import { listImages, uploadImage } from '../../services/images';
 import { EmulatorCaptureCropper } from '../../components/images/EmulatorCaptureCropper';
+import { useResetSignal } from '../../hooks/useResetSignal';
 
-export const ImagesListPage: React.FC = () => {
+type ImagesListPageProps = {
+  navResetSignal?: number;
+};
+
+export const ImagesListPage: React.FC<ImagesListPageProps> = ({ navResetSignal }) => {
   const [ids, setIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -32,9 +37,13 @@ export const ImagesListPage: React.FC = () => {
 
   const sortedIds = useMemo(() => [...ids].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [ids]);
 
+  useResetSignal(navResetSignal, () => setSelectedId(null));
+
   return (
     <section>
       <h2>Images</h2>
+      {!selectedId && (
+      <>
       <EmulatorCaptureCropper />
       <div className="images-header">
         <button type="button" onClick={() => { void load(); }} disabled={loading}>Refresh</button>
@@ -102,13 +111,20 @@ export const ImagesListPage: React.FC = () => {
           ))}
         </tbody>
       </table>
+      </>
+      )}
 
       {selectedId && (
-        <ImageDetailPage
-          imageId={selectedId}
-          onUploaded={async () => { await load(); }}
-          onDeleted={async () => { setSelectedId(null); await load(); }}
-        />
+        <div>
+          <div className="images-header">
+            <button type="button" onClick={() => { setSelectedId(null); }}>← Back to list</button>
+          </div>
+          <ImageDetailPage
+            imageId={selectedId}
+            onUploaded={async () => { await load(); }}
+            onDeleted={async () => { setSelectedId(null); await load(); }}
+          />
+        </div>
       )}
     </section>
   );
