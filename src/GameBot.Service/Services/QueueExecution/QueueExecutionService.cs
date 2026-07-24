@@ -169,11 +169,15 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       }
       else {
         // Pre-partition entries by schedule type (FR-001). Snapshots taken once at run start.
+        // Once-per-run and timer partitions carry each entry's index in `allEntries`: that index is the
+        // stable key the run's QueueRunSchedule records consumed work under, so the monitor can project
+        // exactly what is left instead of re-deriving an idealized plan from the template.
         var allEntries = template.Entries.ToList();
+        var indexed = allEntries.Select((Entry, Index) => (Entry, Index)).ToList();
         var atQueueStartEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.AtQueueStart).ToList();
-        var oncePerRunEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.OncePerRun).ToList();
+        var oncePerRunEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.OncePerRun).ToList();
         var everyStepEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.EveryStep).ToList();
-        var timerEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.Timer).ToList();
+        var timerEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.Timer).ToList();
 
         // 2. Connect to the bound emulator (FR-003/FR-004).
         try {
@@ -207,74 +211,26 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               if (!startOk) failed++;
             }
 
-            // Per-run timer state: maps timer-entry index → last-fired calendar date (FR-003/FR-012).
-            // Declared OUTSIDE the do-while loop so it persists across all cycles of this run.
-            var timerFiredDate = new Dictionary<int, DateOnly>();
-
-            // Relative-offset timer state (feature 059): the run-start anchor and the set of
-            // relative-timer indices already fired this run (fire-once-per-run, FR-005). Both live
-            // outside the loop so they survive cycles. Recomputed fresh on every run.
+            // Per-run scheduling state (FR-003/FR-012, feature 059 FR-005): the relative-offset anchor
+            // plus every "already consumed" register — time-of-day timers fired today, relative timers
+            // fired this run, once-per-run steps completed this cycle, and whether the once-per-run
+            // pass has run at all (a non-cyclic run does it once; later loop iterations exist only to
+            // wait for pending relative/live timers and must not re-run those steps). Lives outside the
+            // do-while so it survives cycles, and is published on the handle so the monitor projects the
+            // run's real remaining plan rather than an idealized one (feature 072/073 fix).
             var runStartedAt = _timeProvider.GetLocalNow();
             handle.RunStartedAt = runStartedAt;
-            var relativeTimerFired = new HashSet<int>();
-            // Tracks whether the once-per-run/every-step pass has executed. For a non-cyclic run the
-            // pass runs once; later loop iterations exist only to wait for pending relative/live
-            // timers and must not re-run those steps (feature 059).
-            var oncePerRunDone = false;
+            var schedule = new QueueRunSchedule(allEntries, runStartedAt, queue.CycleExecution);
+            handle.Schedule = schedule;
 
             // True while a relative-offset timer (template) or a live schedule is still pending and
             // could yet fire — keeps a non-cyclic run alive until its scheduled firings land.
             bool HasPendingRelativeOrLive() {
-              for (var pi = 0; pi < timerEntries.Count; pi++) {
-                if (timerEntries[pi].TimerRelativeOffset is not null && !relativeTimerFired.Contains(pi))
-                  return true;
-              }
+              if (schedule.HasUnfiredRelativeTimers) return true;
               if (!handle.PendingLiveSchedules.IsEmpty) return true;
               // feature 065: a self-reschedule Timer firing not yet due keeps a non-cyclic run alive
               // until it lands (or the run is stopped), exactly like a relative/live schedule.
               return handle.HasPendingTimerFirings;
-            }
-
-            // Earliest upcoming firing across every pending schedule source, used by idle-pause
-            // (feature 073) to decide whether the gap is worth pausing for and when to resume. Pure
-            // read of the same state the loop fires from; never mutates. Returns null when nothing is
-            // pending. Recomputed each poll tick so an earlier-arriving firing shortens the pause.
-            DateTimeOffset? ComputeNextDue(DateTimeOffset now) {
-              DateTimeOffset? earliest = null;
-              void Consider(DateTimeOffset candidate) {
-                if (earliest is null || candidate < earliest) earliest = candidate;
-              }
-
-              var today = DateOnly.FromDateTime(now.DateTime);
-              var nowTime = TimeOnly.FromDateTime(now.DateTime);
-              for (var ti = 0; ti < timerEntries.Count; ti++) {
-                var te = timerEntries[ti];
-                if (te.TimerTimeOfDay is { } tod) {
-                  var firedToday = timerFiredDate.TryGetValue(ti, out var last) && last == today;
-                  if (!firedToday) {
-                    // Due today at tod; if that instant is already past (overdue, not yet fired) it is
-                    // effectively due now.
-                    var todayAt = new DateTimeOffset(today.ToDateTime(tod), now.Offset);
-                    Consider(nowTime <= tod ? todayAt : now);
-                  }
-                  else {
-                    // Already fired today → next eligibility is tomorrow at the same wall-clock time.
-                    Consider(new DateTimeOffset(today.AddDays(1).ToDateTime(tod), now.Offset));
-                  }
-                }
-                if (te.TimerRelativeOffset is { } off && !relativeTimerFired.Contains(ti)) {
-                  Consider(runStartedAt + off);
-                }
-              }
-
-              foreach (var firing in handle.SnapshotPendingTimerFirings()) {
-                if (firing.FireAt is { } fireAt) Consider(fireAt);
-              }
-              foreach (var liveAt in handle.PendingLiveSchedules.Values) Consider(liveAt);
-              // Any queued self-reschedule work that would drain this cycle is effectively due now.
-              if (!handle.PendingOncePerRun.IsEmpty || !handle.PendingNextCycleStart.IsEmpty) Consider(now);
-
-              return earliest;
             }
 
             if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
@@ -293,21 +249,19 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 }
 
                 // (a) Evaluate timer entries at iteration boundary (FR-011/FR-012/FR-016).
-                for (var ti = 0; ti < timerEntries.Count; ti++) {
-                  var timerEntry = timerEntries[ti];
+                foreach (var (timerEntry, timerIndex) in timerEntries) {
                   if (timerEntry.TimerTimeOfDay is null) continue;
 
                   var localNow = _timeProvider.GetLocalNow();
                   var today = DateOnly.FromDateTime(localNow.DateTime);
                   var now = TimeOnly.FromDateTime(localNow.DateTime);
-                  if (now >= timerEntry.TimerTimeOfDay.Value
-                      && (!timerFiredDate.TryGetValue(ti, out var lastFired) || lastFired != today)) {
+                  if (now >= timerEntry.TimerTimeOfDay.Value && !schedule.TimeOfDayFiredOn(timerIndex, today)) {
                     ct.ThrowIfCancellationRequested();
                     if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                     var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                     if (!timerOk) failed++;
                     // Timer executions do not count toward `executed` (SC-002 analogue for timers)
-                    timerFiredDate[ti] = today;
+                    schedule.MarkTimeOfDayFired(timerIndex, today);
                   }
                 }
 
@@ -316,10 +270,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // COUNT toward `executed` (FR-016a), unlike time-of-day timers. A failed firing is
                 // non-fatal: recorded in `failed`, run continues (FR-016).
                 var elapsedSinceStart = _timeProvider.GetLocalNow() - runStartedAt;
-                for (var ri = 0; ri < timerEntries.Count; ri++) {
-                  var relEntry = timerEntries[ri];
+                foreach (var (relEntry, relIndex) in timerEntries) {
                   if (relEntry.TimerRelativeOffset is not { } relOffset) continue;
-                  if (relativeTimerFired.Contains(ri)) continue;
+                  if (schedule.RelativeFired(relIndex)) continue;
                   if (elapsedSinceStart < relOffset) continue;
 
                   ct.ThrowIfCancellationRequested();
@@ -327,7 +280,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                   executed++;
                   if (!relOk) failed++;
-                  relativeTimerFired.Add(ri);
+                  schedule.MarkRelativeFired(relIndex);
                 }
 
                 // (a3) Evaluate live relative schedules at the iteration boundary (feature 059).
@@ -362,14 +315,16 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // (b) OncePerRun steps, each followed by all EveryStep sequences (FR-006/FR-007/FR-016).
                 // A cycling run executes these every cycle; a non-cyclic run executes them once, so the
                 // relative/live timer-wait passes below never re-run the once-per-run steps.
-                if (queue.CycleExecution || !oncePerRunDone) {
+                if (queue.CycleExecution || !schedule.OncePerRunPassDone) {
+                  schedule.BeginCycle();
                   if (oncePerRunEntries.Count > 0) {
-                    foreach (var entry in oncePerRunEntries) {
+                    foreach (var (entry, entryIndex) in oncePerRunEntries) {
                       ct.ThrowIfCancellationRequested();
                       if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                       var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
                       executed++;
                       if (!ok) failed++;
+                      schedule.MarkOncePerRunCompleted(entryIndex);
 
                       // Run every-step sequences after each OncePerRun step (FR-006).
                       foreach (var esEntry in everyStepEntries) {
@@ -416,7 +371,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     if (!oprOk) failed++;
                   }
 
-                  oncePerRunDone = true;
+                  schedule.MarkOncePerRunPassDone();
                   cycles++;
                 }
 
@@ -434,12 +389,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // poll delay. Watchdog-exempt and log-silent because it runs inline here, never via
                 // RunOneSequenceAsync. Otherwise fall back to the existing one-tick poll delay.
                 var pollNow = _timeProvider.GetLocalNow();
-                var nextDue = ComputeNextDue(pollNow);
+                var nextDue = schedule.ComputeNextDue(handle, pollNow);
                 var thresholdSeconds = Math.Max(1, queue.IdleThresholdSeconds);
                 if (queue.PauseWhenIdle
                     && nextDue is { } dueAt
                     && dueAt - pollNow > TimeSpan.FromSeconds(thresholdSeconds)) {
-                  await IdlePauseHoldAsync(dueAt, sessionId!, handle, ComputeNextDue, ct).ConfigureAwait(false);
+                  await IdlePauseHoldAsync(dueAt, sessionId!, handle, now => schedule.ComputeNextDue(handle, now), ct).ConfigureAwait(false);
                 }
                 else {
                   await Task.Delay(RelativeTimerPollInterval, ct).ConfigureAwait(false);
