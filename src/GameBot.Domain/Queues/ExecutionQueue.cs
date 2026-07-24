@@ -43,6 +43,22 @@ namespace GameBot.Domain.Queues {
     public int IdleThresholdSeconds { get; set; } = 30;
 
     /// <summary>
+    /// Optional LDPlayer instance name to cold-start at queue run start (feature 074). When set (or
+    /// <see cref="EmulatorInstanceIndex"/> is set), the queue verifies/starts this emulator instance —
+    /// reusing the feature-070 ensure-emulator-running capability with <see cref="EmulatorSerial"/> as
+    /// the responsiveness probe — BEFORE it binds its device session, so a queue can self-start from a
+    /// backend-only cold state. Null/blank ⇒ no emulator management (behaves exactly as before).
+    /// When both name and index are supplied, the name takes precedence.
+    /// </summary>
+    public string? EmulatorInstanceName { get; set; }
+
+    /// <summary>
+    /// Optional LDPlayer instance index for the feature-074 pre-session cold-start (see
+    /// <see cref="EmulatorInstanceName"/>). Null ⇒ not used; when supplied it MUST be ≥ 0.
+    /// </summary>
+    public int? EmulatorInstanceIndex { get; set; }
+
+    /// <summary>
     /// Optional link to a single queue template by its stable template ID
     /// (0..1). Persisted. References by ID, so renaming the template keeps the link intact;
     /// only deleting the template makes it unresolvable. Null when the queue is unlinked.

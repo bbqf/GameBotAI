@@ -13,6 +13,7 @@ using GameBot.Domain.Services;
 using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
 using GameBot.Service.Services;
+using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.QueueExecution;
@@ -126,6 +127,24 @@ public sealed class QueueExecutionServiceTests {
     }
   }
 
+  // Feature 074: fake pre-session emulator cold-start handler. Records the call count, the args it was
+  // given, and how many sessions existed at the moment it ran (to prove the ensure precedes
+  // CreateSession). The returned outcome is configurable to drive the behavior matrix.
+  private sealed class FakeEnsureEmulatorRunning : IEnsureEmulatorRunningActionHandler {
+    public int Calls { get; private set; }
+    public GameBot.Domain.Actions.EnsureEmulatorRunningArgs? LastArgs { get; private set; }
+    public EnsureEmulatorRunningOutcome Outcome { get; set; } = EnsureEmulatorRunningOutcome.AlreadyHealthy;
+    public Func<int>? SessionCountProvider { get; set; }
+    public int SessionCountAtCall { get; private set; } = -1;
+
+    public Task<EnsureEmulatorRunningActionResult> ExecuteAsync(GameBot.Domain.Actions.EnsureEmulatorRunningArgs args, CancellationToken ct = default) {
+      if (SessionCountAtCall < 0 && SessionCountProvider is not null) SessionCountAtCall = SessionCountProvider();
+      Calls++;
+      LastArgs = args;
+      return Task.FromResult(new EnsureEmulatorRunningActionResult(Outcome));
+    }
+  }
+
   private sealed class RecordingExecutionLog : IExecutionLogService {
     public int QueueStarts { get; private set; }
     public string? FinalStatus { get; private set; }
@@ -173,13 +192,15 @@ public sealed class QueueExecutionServiceTests {
     public FakeTimeProvider? Clock { get; }
     public QueueRunRegistry Registry { get; } = new();
     public FakeEnsureGameRunning EnsureGame { get; } = new();
+    public FakeEnsureEmulatorRunning EnsureEmulator { get; } = new();
     public SelfRescheduleCoordinator Coordinator { get; }
     public QueueExecutionService Service { get; }
 
     public Harness(FakeTimeProvider? clock = null) {
       Clock = clock;
       Coordinator = new SelfRescheduleCoordinator(Registry, clock);
-      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame);
+      EnsureEmulator.SessionCountProvider = () => Sessions.ActiveCount;
+      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame, ensureEmulatorRunning: EnsureEmulator);
     }
 
     public ExecutionQueue AddQueue(string id, IReadOnlyList<string> sequenceIds, bool cycle = false, bool linkTemplate = true) {
@@ -351,6 +372,110 @@ public sealed class QueueExecutionServiceTests {
   public async Task StartUnknownQueueReturnsNotFound() {
     var h = new Harness();
     (await h.Service.StartAsync("nope")).Should().Be(QueueStartOutcome.NotFound);
+  }
+
+  // ── Feature 074: pre-session emulator cold-start ────────────────────────
+
+  [Fact] // T006 — cold path: the emulator ensure runs BEFORE the session is created
+  public async Task ConfiguredInstanceEnsuresEmulatorBeforeCreatingSession() {
+    var h = new Harness();
+    var queue = h.AddQueue("q1", new[] { "A" });
+    queue.EmulatorInstanceName = "PNS";
+    h.EnsureEmulator.Outcome = EnsureEmulatorRunningOutcome.Started;
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.EnsureEmulator.Calls.Should().Be(1);
+    h.EnsureEmulator.SessionCountAtCall.Should().Be(0); // no session existed when the ensure ran
+    h.EnsureEmulator.LastArgs!.InstanceName.Should().Be("PNS");
+    h.EnsureEmulator.LastArgs!.AdbSerial.Should().Be("emu-1");
+    h.Sessions.Stopped.Should().HaveCount(1); // a session was created (then torn down in teardown)             // session created after the ensure
+    h.Sequences.Executed.Should().Equal("A");           // run proceeded normally
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact] // T007 — unset fields: no emulator work at all (backward compatible)
+  public async Task UnsetInstanceFieldsSkipEmulatorEnsureEntirely() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" }); // no instance identifier
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.EnsureEmulator.Calls.Should().Be(0);
+    h.Sessions.Stopped.Should().HaveCount(1); // a session was created (then torn down in teardown)
+    h.Sequences.Executed.Should().Equal("A");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  // T007 — healthy/started/restarted all proceed to a session and run. (Separate Facts rather than a
+  // Theory because the outcome enum is internal and cannot be a public test-method parameter.)
+  [Fact]
+  public Task AlreadyHealthyEnsureProceedsToSessionAndRun() => AssertSuccessfulEnsureProceeds(EnsureEmulatorRunningOutcome.AlreadyHealthy);
+  [Fact]
+  public Task StartedEnsureProceedsToSessionAndRun() => AssertSuccessfulEnsureProceeds(EnsureEmulatorRunningOutcome.Started);
+  [Fact]
+  public Task RestartedEnsureProceedsToSessionAndRun() => AssertSuccessfulEnsureProceeds(EnsureEmulatorRunningOutcome.Restarted);
+
+  private static async Task AssertSuccessfulEnsureProceeds(EnsureEmulatorRunningOutcome outcome) {
+    var h = new Harness();
+    var queue = h.AddQueue("q1", new[] { "A" });
+    queue.EmulatorInstanceIndex = 0;
+    h.EnsureEmulator.Outcome = outcome;
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.EnsureEmulator.Calls.Should().Be(1);
+    h.EnsureEmulator.LastArgs!.InstanceIndex.Should().Be(0);
+    h.Sessions.Stopped.Should().HaveCount(1); // a session was created (then torn down in teardown)
+    h.Sequences.Executed.Should().Equal("A");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  // T007 — unsupported host is neutral: proceed to the session exactly as today.
+  [Fact]
+  public Task PlatformUnsupportedEnsureProceedsToSession() => AssertUnsupportedEnsureProceeds(EnsureEmulatorRunningOutcome.PlatformUnsupported);
+  [Fact]
+  public Task ControlUnavailableEnsureProceedsToSession() => AssertUnsupportedEnsureProceeds(EnsureEmulatorRunningOutcome.ControlUnavailable);
+
+  private static async Task AssertUnsupportedEnsureProceeds(EnsureEmulatorRunningOutcome outcome) {
+    var h = new Harness();
+    var queue = h.AddQueue("q1", new[] { "A" });
+    queue.EmulatorInstanceName = "PNS";
+    h.EnsureEmulator.Outcome = outcome;
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.EnsureEmulator.Calls.Should().Be(1);
+    h.Sessions.Stopped.Should().HaveCount(1); // a session was created (then torn down in teardown)
+    h.Sequences.Executed.Should().Equal("A");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  // T007 — genuine failure fails the run and creates NO session.
+  [Fact]
+  public Task RecoveryTimedOutEnsureFailsRunWithoutCreatingSession() => AssertGenuineEnsureFailure(EnsureEmulatorRunningOutcome.RecoveryTimedOut);
+  [Fact]
+  public Task InstanceNotFoundEnsureFailsRunWithoutCreatingSession() => AssertGenuineEnsureFailure(EnsureEmulatorRunningOutcome.InstanceNotFound);
+
+  private static async Task AssertGenuineEnsureFailure(EnsureEmulatorRunningOutcome outcome) {
+    var h = new Harness();
+    var queue = h.AddQueue("q1", new[] { "A" });
+    queue.EmulatorInstanceName = "PNS";
+    h.EnsureEmulator.Outcome = outcome;
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.EnsureEmulator.Calls.Should().Be(1);
+    h.Sessions.Connected.Should().BeFalse();   // never created a session
+    h.Sessions.Stopped.Should().BeEmpty();     // and never tore one down
+    h.Sequences.Executed.Should().BeEmpty();   // no sequence ran
+    h.Log.FinalStatus.Should().Be("failure");
+    h.Log.Summary.Should().Contain("could not be started");
   }
 
   // ── US3: cycle ──────────────────────────────────────────────────────────

@@ -71,7 +71,7 @@ describe('QueuesPage edit layout', () => {
     fireEvent.click(screen.getByLabelText('Cycle execution'));
     fireEvent.click(screen.getByText('Save'));
     await waitFor(() =>
-      expect(updateQueueMock).toHaveBeenCalledWith('q1', { name: 'Daily Renamed', cycleExecution: true })
+      expect(updateQueueMock).toHaveBeenCalledWith('q1', { name: 'Daily Renamed', cycleExecution: true, emulatorInstanceName: null, emulatorInstanceIndex: null })
     );
   });
 

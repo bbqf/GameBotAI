@@ -6,7 +6,7 @@ jest.mock('../../../services/useAdbDevices', () => ({
   useAdbDevices: () => ({ devices: [{ serial: 'emu-1' }, { serial: 'emu-2' }], loading: false, error: undefined, refresh: () => {} }),
 }));
 
-const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 };
+const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null };
 
 const renderForm = (overrides: Partial<React.ComponentProps<typeof QueueForm>> = {}) => {
   const onChange = jest.fn();
@@ -37,7 +37,7 @@ describe('QueueForm', () => {
   });
 
   it('shows the emulator read-only in edit mode without the "cannot be changed" hint', () => {
-    renderForm({ mode: 'edit', value: { name: 'Farm', emulatorSerial: 'emu-9', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 } });
+    renderForm({ mode: 'edit', value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
     const emulator = screen.getByLabelText('Emulator *') as HTMLInputElement;
     expect(emulator.tagName).toBe('INPUT');
     expect(emulator).toHaveValue('emu-9');
@@ -48,7 +48,7 @@ describe('QueueForm', () => {
   it('renders slots in the new order: emulator → cycle → game → Save → separator → template section', () => {
     renderForm({
       mode: 'edit',
-      value: { name: 'Farm', emulatorSerial: 'emu-9', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 },
+      value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' },
       gameControls: <div data-testid="slot-game" />,
       templateControls: <div data-testid="slot-templates" />,
     });
@@ -83,7 +83,7 @@ describe('QueueForm', () => {
   });
 
   it('calls onSubmit when the form is submitted', () => {
-    const { onSubmit } = renderForm({ value: { name: 'Farm', emulatorSerial: 'emu-1', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 } });
+    const { onSubmit } = renderForm({ value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-1' } });
     fireEvent.click(screen.getByText('Save'));
     expect(onSubmit).toHaveBeenCalled();
   });
@@ -113,5 +113,29 @@ describe('QueueForm', () => {
     expect(threshold).toHaveValue(30);
     fireEvent.change(threshold, { target: { value: '45' } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ idleThresholdSeconds: 45 }));
+  });
+
+  // ── Feature 074: emulator-instance cold-start config controls ───────────────
+
+  it('renders the emulator instance name and index inputs', () => {
+    renderForm();
+    expect(screen.getByLabelText('Emulator instance name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Emulator instance index')).toBeInTheDocument();
+  });
+
+  it('emits emulator instance name changes', () => {
+    const { onChange } = renderForm();
+    fireEvent.change(screen.getByLabelText('Emulator instance name'), { target: { value: 'PNS' } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ emulatorInstanceName: 'PNS' }));
+  });
+
+  it('emits emulator instance index as a number, and null when cleared', () => {
+    const { onChange } = renderForm({ value: { ...baseValue, emulatorInstanceIndex: 2 } });
+    const index = screen.getByLabelText('Emulator instance index') as HTMLInputElement;
+    expect(index).toHaveValue(2);
+    fireEvent.change(index, { target: { value: '5' } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ emulatorInstanceIndex: 5 }));
+    fireEvent.change(index, { target: { value: '' } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ emulatorInstanceIndex: null }));
   });
 });

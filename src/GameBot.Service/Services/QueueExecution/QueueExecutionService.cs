@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Emulator.Session;
+using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.SequenceExecution;
@@ -48,6 +49,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // ensure-game-running sequence step uses; reused directly here so the scheduler can bring the game
   // back without routing through a watchdog-subject sequence. Null only in tests that omit it.
   private readonly IEnsureGameRunningActionHandler? _ensureGameRunning;
+  // Cold-start the queue's LDPlayer instance before binding the device session (feature 074). Reuses
+  // the feature-070 ensure-emulator-running handler. Null only in tests that omit it (and when null the
+  // pre-session cold-start is skipped, degrading to the pre-074 behavior).
+  private readonly IEnsureEmulatorRunningActionHandler? _ensureEmulatorRunning;
 
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
@@ -79,7 +84,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IHostApplicationLifetime? lifetime = null,
     BackgroundScreenCaptureService? captureService = null,
     TimeProvider? timeProvider = null,
-    IEnsureGameRunningActionHandler? ensureGameRunning = null) {
+    IEnsureGameRunningActionHandler? ensureGameRunning = null,
+    IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -92,6 +98,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _timeProvider = timeProvider ?? TimeProvider.System;
     _appStopping = lifetime?.ApplicationStopping ?? CancellationToken.None;
     _ensureGameRunning = ensureGameRunning;
+    _ensureEmulatorRunning = ensureEmulatorRunning;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -179,18 +186,30 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         var everyStepEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.EveryStep).ToList();
         var timerEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.Timer).ToList();
 
-        // 2. Connect to the bound emulator (FR-003/FR-004).
-        try {
-          var session = _sessions.CreateSession($"queue:{queue.Id}", queue.EmulatorSerial);
-          sessionId = session.Id;
-          handle.SessionId = sessionId;
-          if (_captureService is not null && !string.IsNullOrWhiteSpace(session.DeviceSerial)) {
-            _captureService.StartCapture(session.Id, session.DeviceSerial);
-          }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) {
+        // 1.5 Feature 074: when the queue is configured with an emulator instance identifier, bring that
+        // instance up BEFORE binding the device session, so a queue can self-start from a backend-only
+        // cold state (the emulator being closed would otherwise fail CreateSession below). A genuine
+        // failure (recovery timeout / instance not found) fails the run here and skips session creation;
+        // success or a neutral unsupported outcome proceeds exactly as today.
+        var emulatorFailure = await EnsureEmulatorBeforeSessionAsync(queue, ct).ConfigureAwait(false);
+        if (emulatorFailure is not null) {
           reason = QueueStopReason.Failure;
-          failureReason = $"emulator could not be reached ('{queue.EmulatorSerial}'): {ex.Message}";
+          failureReason = emulatorFailure;
+        }
+        else {
+          // 2. Connect to the bound emulator (FR-003/FR-004).
+          try {
+            var session = _sessions.CreateSession($"queue:{queue.Id}", queue.EmulatorSerial);
+            sessionId = session.Id;
+            handle.SessionId = sessionId;
+            if (_captureService is not null && !string.IsNullOrWhiteSpace(session.DeviceSerial)) {
+              _captureService.StartCapture(session.Id, session.DeviceSerial);
+            }
+          }
+          catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) {
+            reason = QueueStopReason.Failure;
+            failureReason = $"emulator could not be reached ('{queue.EmulatorSerial}'): {ex.Message}";
+          }
         }
 
         // 3. Run sequences in order, respecting schedule types, optionally cycling.
@@ -451,6 +470,34 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// Runs one sequence as a child of the queue run. Per-sequence failures are non-fatal (FR-008):
   /// returns false on a failed/unresolved sequence so the run can continue.
   /// </summary>
+  /// <summary>
+  /// Feature 074: pre-session emulator cold-start. Returns <c>null</c> when no emulator work is needed
+  /// (no instance identifier configured, or no handler injected) or when the instance ends up healthy
+  /// (already-healthy / started / restarted) or the host cannot drive the emulator (neutral
+  /// unsupported). Returns an actionable failure reason string ONLY when the instance genuinely could
+  /// not be brought up (recovery timeout / instance not found) — in which case the caller must not
+  /// create the session and fails the run. Runs before <see cref="ISessionManager.CreateSession"/> so a
+  /// closed emulator no longer fails session creation.
+  /// </summary>
+  private async Task<string?> EnsureEmulatorBeforeSessionAsync(ExecutionQueue queue, CancellationToken ct) {
+    if (_ensureEmulatorRunning is null) return null;
+    if (string.IsNullOrWhiteSpace(queue.EmulatorInstanceName) && queue.EmulatorInstanceIndex is null) return null;
+
+    var args = new GameBot.Domain.Actions.EnsureEmulatorRunningArgs {
+      InstanceName = string.IsNullOrWhiteSpace(queue.EmulatorInstanceName) ? null : queue.EmulatorInstanceName,
+      InstanceIndex = queue.EmulatorInstanceIndex,
+      AdbSerial = queue.EmulatorSerial
+    };
+    var target = queue.EmulatorInstanceName ?? $"#{queue.EmulatorInstanceIndex}";
+    var result = await _ensureEmulatorRunning.ExecuteAsync(args, ct).ConfigureAwait(false);
+    if (result.IsSuccess || result.IsUnsupported) {
+      QueueExecutionLog.PreSessionEmulatorEnsured(_logger, queue.Id, target, result.ReasonCode);
+      return null;
+    }
+    QueueExecutionLog.PreSessionEmulatorFailed(_logger, queue.Id, target, result.ReasonCode);
+    return $"emulator instance ('{target}') could not be started: {result.ReasonCode}";
+  }
+
   private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, string queueId, CancellationToken ct, string? selfRescheduleOriginActionId = null) {
     // Watchdog: cancel a firing that overruns SequenceWatchdogTimeout so one stuck sequence cannot
     // freeze the whole queue. Linked to ct so a real stop request still cancels immediately.
@@ -590,4 +637,10 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1116, Level = LogLevel.Warning, Message = "Queue {QueueId} idle-pause could not foreground the game on resume; the due sequence will still run")]
   public static partial void IdlePauseForegroundFailed(ILogger logger, string QueueId, Exception ex);
+
+  [LoggerMessage(EventId = 1117, Level = LogLevel.Information, Message = "Queue {QueueId} pre-session emulator ensure for instance {Instance}: {ReasonCode}")]
+  public static partial void PreSessionEmulatorEnsured(ILogger logger, string QueueId, string Instance, string ReasonCode);
+
+  [LoggerMessage(EventId = 1118, Level = LogLevel.Warning, Message = "Queue {QueueId} pre-session emulator ensure for instance {Instance} failed ({ReasonCode}); the run will not create a session")]
+  public static partial void PreSessionEmulatorFailed(ILogger logger, string QueueId, string Instance, string ReasonCode);
 }

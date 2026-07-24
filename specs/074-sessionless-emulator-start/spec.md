@@ -2,7 +2,7 @@
 
 **Feature Branch**: `074-sessionless-emulator-start`
 **Created**: 2026-07-24
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I need a way to start the emulator when NO session is started. Make sure an emulator can be started where there's nothing but the backend service running. This behaviour has to be integrated into the current commands/sequences that make sure the game is running"
 
 ## Overview
