@@ -131,6 +131,13 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
     setDirty(false);
   };
 
+  const backToList = () => {
+    if (!confirmNavigate()) return;
+    setCreating(false);
+    setEditingId(undefined);
+    resetForm();
+  };
+
   const validate = (v: TriggerFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};
     if (!v.name.trim()) next.name = 'Name is required';
@@ -298,6 +305,11 @@ export const TriggersPage: React.FC<TriggersPageProps> = ({ initialCreate, initi
           Create Trigger
         </button>
       </div>
+      {editorOpen && (
+        <div className="actions-header">
+          <button type="button" onClick={backToList}>← Back to list</button>
+        </div>
+      )}
       {creating && (
         renderForm('create')
       )}

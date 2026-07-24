@@ -5,6 +5,7 @@ import { ApiError } from '../lib/api';
 import { FormError } from '../components/Form';
 import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
+import { useResetSignal } from '../hooks/useResetSignal';
 
 type GameFormValue = {
   name: string;
@@ -16,9 +17,10 @@ const emptyForm: GameFormValue = { name: '', packageName: '' };
 type GamesPageProps = {
   initialCreate?: boolean;
   initialEditId?: string;
+  navResetSignal?: number;
 };
 
-export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEditId }) => {
+export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEditId, navResetSignal }) => {
   const [games, setGames] = useState<GameDto[]>([]);
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [form, setForm] = useState<GameFormValue>(emptyForm);
@@ -77,6 +79,15 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
     setErrors(undefined);
     setDirty(false);
   };
+
+  const backToList = () => {
+    if (!confirmNavigate()) return;
+    setCreating(false);
+    setEditingId(undefined);
+    resetForm();
+  };
+
+  useResetSignal(navResetSignal, () => { if (editorOpen) backToList(); });
 
   const displayedGames = useMemo(() => {
     const query = filterName.trim().toLowerCase();
@@ -139,6 +150,11 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
         </tbody>
       </table>
       </>
+      )}
+      {editorOpen && (
+        <div className="actions-header">
+          <button type="button" onClick={backToList}>← Back to list</button>
+        </div>
       )}
       {creating && (
         <form

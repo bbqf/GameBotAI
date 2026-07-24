@@ -11,6 +11,7 @@ import { SearchableDropdown, SearchableOption } from '../components/SearchableDr
 import type { ReorderableListItem } from '../components/ReorderableList';
 import { SortableSequenceStepList } from '../components/SortableSequenceStepList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
+import { useResetSignal } from '../hooks/useResetSignal';
 import { validatePerStepConditions } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
@@ -689,9 +690,10 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
 type SequencesPageProps = {
   initialCreate?: boolean;
   initialEditId?: string;
+  navResetSignal?: number;
 };
 
-export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, initialEditId }) => {
+export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, initialEditId, navResetSignal }) => {
   const [sequences, setSequences] = useState<SequenceDto[]>([]);
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
@@ -893,6 +895,15 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     setErrors(undefined);
     setDirty(false);
   };
+
+  const backToList = () => {
+    if (!confirmNavigate()) return;
+    setCreating(false);
+    setEditingId(undefined);
+    resetForm();
+  };
+
+  useResetSignal(navResetSignal, () => { if (editorOpen) backToList(); });
 
   const renderStepConditionEditor = useCallback((step: SequenceStep, index: number): React.ReactNode => (
     <div className="sequence-step-condition-editor">
@@ -1494,6 +1505,12 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         </tbody>
       </table>
       </>
+      )}
+
+      {editorOpen && (
+        <div className="actions-header">
+          <button type="button" onClick={backToList}>← Back to list</button>
+        </div>
       )}
 
       {creating && (

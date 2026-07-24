@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CommandForm, CommandFormValue, DetectionTargetForm, StepEntry } from '../components/commands/CommandForm';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
+import { useResetSignal } from '../hooks/useResetSignal';
 import { ApiError } from '../lib/api';
 import { SearchableOption } from '../components/SearchableDropdown';
 import { listCommands, getCommand, createCommand, updateCommand, deleteCommand, CommandDto, CommandStepDto } from '../services/commands';
@@ -190,6 +191,7 @@ const detectionToDto = (form?: DetectionTargetForm) => {
 type CommandsPageProps = {
   initialCreate?: boolean;
   initialEditId?: string;
+  navResetSignal?: number;
 };
 
 type CommandRow = {
@@ -198,7 +200,7 @@ type CommandRow = {
   stepCount: number;
 };
 
-export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initialEditId }) => {
+export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initialEditId, navResetSignal }) => {
   const [commands, setCommands] = useState<CommandDto[]>([]);
   const [games, setGames] = useState<GameDto[]>([]);
   const [creating, setCreating] = useState(Boolean(initialCreate));
@@ -282,6 +284,17 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
   const editorOpen = creating || Boolean(editingId);
+
+  const backToList = () => {
+    if (!confirmNavigate()) return;
+    setCreating(false);
+    setEditingId(undefined);
+    setForm(emptyForm);
+    setErrors(undefined);
+    setDirty(false);
+  };
+
+  useResetSignal(navResetSignal, () => { if (editorOpen) backToList(); });
 
   useEffect(() => {
     if (!initialEditId) return;
@@ -395,6 +408,12 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
         </tbody>
       </table>
       </>
+      )}
+
+      {editorOpen && (
+        <div className="actions-header">
+          <button type="button" onClick={backToList}>← Back to list</button>
+        </div>
       )}
 
       {creating && (

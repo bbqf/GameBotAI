@@ -70,6 +70,24 @@ export const App: React.FC = () => {
 
   const [activeArea, setActiveArea] = useState<NavigationAreaId>(getInitialArea());
   const [tab, setTab] = useState<AuthoringTab>(initialLocation.tab);
+  // Bumped when the user re-clicks the already-active tab/area, signalling the
+  // mounted page to return to its list view (honoring unsaved changes).
+  const [authoringResetSignal, setAuthoringResetSignal] = useState(0);
+  const [queuesResetSignal, setQueuesResetSignal] = useState(0);
+
+  const handleTabChange = (next: AuthoringTab) => {
+    if (next === tab) { setAuthoringResetSignal((s) => s + 1); return; }
+    setTab(next);
+  };
+
+  const handleAreaChange = (next: NavigationAreaId) => {
+    if (next === activeArea) {
+      if (next === 'authoring') setAuthoringResetSignal((s) => s + 1);
+      else if (next === 'queues') setQueuesResetSignal((s) => s + 1);
+      return;
+    }
+    setActiveArea(next);
+  };
   const creationTarget = initialLocation.creationTarget;
   const requestedTab = initialLocation.tab;
   const initialId = initialLocation.initialId;
@@ -99,12 +117,12 @@ export const App: React.FC = () => {
   const renderAuthoring = () => (
     <section id="authoring-panel" className="authoring">
       <h1>Authoring</h1>
-      <Nav active={tab} onChange={setTab} />
+      <Nav active={tab} onChange={handleTabChange} />
       <ErrorBoundary>
-        {tab === 'Commands' && <CommandsPage initialCreate={creationTarget === 'commands'} initialEditId={requestedTab === 'Commands' ? initialId : undefined} />}
-        {tab === 'Games' && <GamesPage initialCreate={creationTarget === 'games'} initialEditId={requestedTab === 'Games' ? initialId : undefined} />}
-        {tab === 'Sequences' && <SequencesPage initialCreate={creationTarget === 'sequences'} initialEditId={requestedTab === 'Sequences' ? initialId : undefined} />}
-        {tab === 'Images' && <ImagesListPage />}
+        {tab === 'Commands' && <CommandsPage initialCreate={creationTarget === 'commands'} initialEditId={requestedTab === 'Commands' ? initialId : undefined} navResetSignal={authoringResetSignal} />}
+        {tab === 'Games' && <GamesPage initialCreate={creationTarget === 'games'} initialEditId={requestedTab === 'Games' ? initialId : undefined} navResetSignal={authoringResetSignal} />}
+        {tab === 'Sequences' && <SequencesPage initialCreate={creationTarget === 'sequences'} initialEditId={requestedTab === 'Sequences' ? initialId : undefined} navResetSignal={authoringResetSignal} />}
+        {tab === 'Images' && <ImagesListPage navResetSignal={authoringResetSignal} />}
         {tab === 'Backup & Restore' && <BackupRestorePage />}
       </ErrorBoundary>
     </section>
@@ -114,7 +132,7 @@ export const App: React.FC = () => {
     <section id="queues-panel" className="queues">
       <h1>Queues</h1>
       <ErrorBoundary>
-        <QueuesPage />
+        <QueuesPage navResetSignal={queuesResetSignal} />
       </ErrorBoundary>
     </section>
   );
@@ -169,7 +187,7 @@ export const App: React.FC = () => {
       <Navigation
         areas={navigationAreas}
         activeArea={activeArea}
-        onChange={setActiveArea}
+        onChange={handleAreaChange}
         isCollapsed={isCollapsed}
         isAreaVisible={isAreaVisible}
       />
