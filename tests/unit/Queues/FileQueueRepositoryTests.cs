@@ -139,6 +139,36 @@ public sealed class FileQueueRepositoryTests : IDisposable {
     loaded.IdleThresholdSeconds.Should().Be(30);      // initializer default preserved (back-compat)
   }
 
+  [Fact] // T013 — feature 074: emulator-instance config round-trips through persistence
+  public async Task UpdatePersistsEmulatorInstanceConfig() {
+    var repo = NewRepo();
+    var created = await repo.CreateAsync(new ExecutionQueue { Name = "A", EmulatorSerial = "emu-1" }).ConfigureAwait(true);
+
+    created.EmulatorInstanceName = "PNS";
+    created.EmulatorInstanceIndex = 3;
+    await repo.UpdateAsync(created).ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync(created.Id).ConfigureAwait(true);
+    loaded!.EmulatorInstanceName.Should().Be("PNS");
+    loaded.EmulatorInstanceIndex.Should().Be(3);
+  }
+
+  [Fact] // T013 — a queue JSON written before feature 074 reads with both instance fields null
+  public async Task LegacyQueueJsonWithoutEmulatorInstanceFieldsLoadsAsNull() {
+    var repo = NewRepo();
+    var dir = Path.Combine(_root, "queues");
+    Directory.CreateDirectory(dir);
+    // A queue document written before feature 074: no EmulatorInstanceName/EmulatorInstanceIndex.
+    await File.WriteAllTextAsync(Path.Combine(dir, "legacy3.json"),
+      "{\"Id\":\"legacy3\",\"Name\":\"Old\",\"EmulatorSerial\":\"emu-1\",\"CycleExecution\":false}").ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync("legacy3").ConfigureAwait(true);
+
+    loaded.Should().NotBeNull();
+    loaded!.EmulatorInstanceName.Should().BeNull();
+    loaded.EmulatorInstanceIndex.Should().BeNull();
+  }
+
   [Fact]
   public async Task GetWithUnsafeIdReturnsNull() {
     var repo = NewRepo();

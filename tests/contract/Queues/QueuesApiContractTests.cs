@@ -118,4 +118,48 @@ public sealed class QueuesApiContractTests : IDisposable {
 
     (await client.DeleteAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
   }
+
+  [Fact] // T012 — feature 074: emulator-instance fields round-trip; negative index rejected; default null
+  public async Task EmulatorInstanceConfigRoundTripsAndValidatesIndex() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    // Create WITHOUT the emulator-instance fields → exposed and null (back-compat default).
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative),
+      new { name = "ColdA", emulatorSerial = "emu-1" }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    foreach (var field in new[] { "emulatorInstanceName", "emulatorInstanceIndex" }) {
+      created.TryGetProperty(field, out _).Should().BeTrue($"QueueResponse must expose '{field}'");
+    }
+    created.GetProperty("emulatorInstanceName").ValueKind.Should().Be(JsonValueKind.Null);
+    created.GetProperty("emulatorInstanceIndex").ValueKind.Should().Be(JsonValueKind.Null);
+    var id = created.GetProperty("id").GetString();
+
+    // Update setting an instance name → response echoes it.
+    var updateResp = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}", UriKind.Relative),
+      new { name = "ColdA", cycleExecution = false, emulatorInstanceName = "PNS", emulatorInstanceIndex = 2 }).ConfigureAwait(true);
+    updateResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var updated = JsonDocument.Parse(await updateResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    updated.GetProperty("emulatorInstanceName").GetString().Should().Be("PNS");
+    updated.GetProperty("emulatorInstanceIndex").GetInt32().Should().Be(2);
+
+    // Re-read (detail) persists both.
+    var detail = JsonDocument.Parse(await (await client.GetAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    detail.GetProperty("emulatorInstanceName").GetString().Should().Be("PNS");
+    detail.GetProperty("emulatorInstanceIndex").GetInt32().Should().Be(2);
+
+    // Negative index → 400 Bad Request.
+    var badResp = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}", UriKind.Relative),
+      new { name = "ColdA", cycleExecution = false, emulatorInstanceIndex = -1 }).ConfigureAwait(true);
+    badResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+    // Negative index on create → 400 Bad Request.
+    var badCreate = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative),
+      new { name = "ColdB", emulatorSerial = "emu-1", emulatorInstanceIndex = -5 }).ConfigureAwait(true);
+    badCreate.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+    (await client.DeleteAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+  }
 }

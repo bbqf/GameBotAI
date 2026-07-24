@@ -22,13 +22,16 @@ internal static class QueuesEndpoints {
       if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
       var serial = req?.EmulatorSerial?.Trim();
       if (string.IsNullOrWhiteSpace(serial)) return Error(400, "invalid_request", "emulatorSerial is required");
+      if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
 
       var created = await repo.CreateAsync(new ExecutionQueue {
         Name = name,
         EmulatorSerial = serial,
-        CycleExecution = req!.CycleExecution,
+        CycleExecution = req.CycleExecution,
         PauseWhenIdle = req.PauseWhenIdle,
-        IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds)
+        IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds),
+        EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName),
+        EmulatorInstanceIndex = req.EmulatorInstanceIndex
       }).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("CreateQueue");
@@ -63,10 +66,13 @@ internal static class QueuesEndpoints {
         return Error(409, "queue_running", "Stop the queue before editing.");
       var name = req?.Name?.Trim();
       if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
+      if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
       queue.Name = name;
-      queue.CycleExecution = req!.CycleExecution;
+      queue.CycleExecution = req.CycleExecution;
       queue.PauseWhenIdle = req.PauseWhenIdle;
       queue.IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds);
+      queue.EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName);
+      queue.EmulatorInstanceIndex = req.EmulatorInstanceIndex;
       var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
       return Results.Ok(BuildResponse(saved, runtime));
     }).WithName("UpdateQueue");
@@ -206,6 +212,8 @@ internal static class QueuesEndpoints {
     CycleExecution = queue.CycleExecution,
     PauseWhenIdle = queue.PauseWhenIdle,
     IdleThresholdSeconds = queue.IdleThresholdSeconds,
+    EmulatorInstanceName = queue.EmulatorInstanceName,
+    EmulatorInstanceIndex = queue.EmulatorInstanceIndex,
     Status = runtime.GetStatus(queue.Id),
     EntryCount = runtime.GetEntries(queue.Id).Count,
     LinkedTemplateId = queue.LinkedTemplateId,
@@ -223,6 +231,8 @@ internal static class QueuesEndpoints {
       CycleExecution = queue.CycleExecution,
       PauseWhenIdle = queue.PauseWhenIdle,
       IdleThresholdSeconds = queue.IdleThresholdSeconds,
+      EmulatorInstanceName = queue.EmulatorInstanceName,
+      EmulatorInstanceIndex = queue.EmulatorInstanceIndex,
       Status = runtime.GetStatus(queue.Id),
       EntryCount = entries.Count,
       LinkedTemplateId = queue.LinkedTemplateId,
@@ -288,6 +298,11 @@ internal static class QueuesEndpoints {
   // Idle-detection threshold must be at least 1 second; absent (0) or non-positive coerces to the
   // default 30 (feature 073, FR-010).
   private static int CoerceThreshold(int seconds) => seconds < 1 ? 30 : seconds;
+
+  // Trim the optional emulator instance name to null when blank so an empty string in the request
+  // means "unset" (feature 074), matching how the runtime treats a missing identifier.
+  private static string? NormalizeInstanceName(string? name) =>
+    string.IsNullOrWhiteSpace(name) ? null : name.Trim();
 
   private static IResult NotFound() => Error(404, "not_found", "Queue not found");
 

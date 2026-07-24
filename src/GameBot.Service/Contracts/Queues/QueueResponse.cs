@@ -14,6 +14,12 @@ namespace GameBot.Service.Contracts.Queues {
     /// <summary>Idle-detection threshold in seconds (default 30).</summary>
     public int IdleThresholdSeconds { get; set; } = 30;
 
+    /// <summary>Optional LDPlayer instance name cold-started before session creation (feature 074); null when unset.</summary>
+    public string? EmulatorInstanceName { get; set; }
+
+    /// <summary>Optional LDPlayer instance index for the pre-session cold-start (feature 074); null when unset.</summary>
+    public int? EmulatorInstanceIndex { get; set; }
+
     public QueueExecutionStatus Status { get; set; } = QueueExecutionStatus.Stopped;
     public int EntryCount { get; set; }
 

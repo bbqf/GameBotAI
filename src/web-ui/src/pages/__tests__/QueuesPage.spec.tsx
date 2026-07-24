@@ -53,7 +53,7 @@ describe('QueuesPage CRUD', () => {
     createQueueMock.mockResolvedValue({} as any);
 
     fireEvent.click(screen.getByText('Save'));
-    await waitFor(() => expect(createQueueMock).toHaveBeenCalledWith({ name: 'Daily', emulatorSerial: 'emu-1', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 }));
+    await waitFor(() => expect(createQueueMock).toHaveBeenCalledWith({ name: 'Daily', emulatorSerial: 'emu-1', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: null, emulatorInstanceIndex: null }));
   });
 
   it('opens edit and updates a queue', async () => {
@@ -69,7 +69,7 @@ describe('QueuesPage CRUD', () => {
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Daily 2' } });
     fireEvent.click(screen.getByText('Save'));
 
-    await waitFor(() => expect(updateQueueMock).toHaveBeenCalledWith('q1', { name: 'Daily 2', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30 }));
+    await waitFor(() => expect(updateQueueMock).toHaveBeenCalledWith('q1', { name: 'Daily 2', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: null, emulatorInstanceIndex: null }));
   });
 
   it('deletes a queue after confirmation', async () => {

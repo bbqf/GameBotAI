@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-07-23._
+_Last reviewed: 2026-07-24._
 
 ## What GameBot is
 
@@ -114,6 +114,17 @@ not survive a service restart; queue *configuration* and templates are persisted
   the `QueueRunHandle` carries an idle-pause register that the monitor projects as a synthetic current
   item (`ScheduleKind.IdlePause`, `SequenceName` "Idle Pause", with the resume time), so an idle queue
   never reads as hung. Disabled queues are byte-for-byte unchanged.
+- **Pre-session emulator cold-start** (feature 074) — an opt-in per-queue behavior
+  (`ExecutionQueue.EmulatorInstanceName` / `EmulatorInstanceIndex`, both optional/null by default;
+  exposed via the REST API and web-ui). When set, the queue run brings the target **LDPlayer**
+  instance up **before** it binds its device session — reusing the feature-070
+  `ensure-emulator-running` capability (`IEnsureEmulatorRunningActionHandler`) with the queue's
+  `EmulatorSerial` as the responsiveness probe — so a queue can self-start from a backend-only cold
+  state (a closed emulator would otherwise fail `CreateSession`). An already-healthy / started /
+  restarted or neutral unsupported outcome proceeds to create the session as before; a genuine failure
+  (recovery timeout / instance-not-found) fails the run with an actionable reason and creates **no**
+  session. No new emulator-tuning configuration is introduced (feature-070 timeouts apply). Queues
+  with the fields unset perform no emulator management (byte-for-byte unchanged).
 - **Trigger** — an evaluation construct (image-visible / text-match / time / delay / schedule),
   used internally to decide whether a step executes. Still present in the domain and on the API,
   but **no longer authored as a standalone object in the UI**.

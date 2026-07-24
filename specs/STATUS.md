@@ -109,6 +109,7 @@ Status vocabulary:
 | 071 | Connect-to-Game Emulator Pre-heal | Implemented |
 | 072 | Live Queue Monitor View | Implemented |
 | 073 | Idle-Pause the Game During Queue Gaps; Retire the MCP Server | Implemented |
+| 074 | Start the Emulator From a Backend-Only, Session-Less State | Implemented |
 
 ## Numbering notes
 

@@ -3,5 +3,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/073-queue-idle-pause/plan.md
+at specs/074-sessionless-emulator-start/plan.md
 <!-- SPECKIT END -->

@@ -10,6 +10,10 @@ export type QueueFormValue = {
   pauseWhenIdle: boolean;
   /** Idle-detection threshold in seconds (default 30). */
   idleThresholdSeconds: number;
+  /** Optional LDPlayer instance name to cold-start before the session (feature 074); '' means unset. */
+  emulatorInstanceName: string;
+  /** Optional LDPlayer instance index for the pre-session cold-start (feature 074); null means unset. */
+  emulatorInstanceIndex: number | null;
 };
 
 type QueueFormProps = {
@@ -142,6 +146,37 @@ export const QueueForm: React.FC<QueueFormProps> = ({
           />
         </div>
       )}
+
+      {/* Row 2c: Emulator cold-start (feature 074). Optional instance identifier; when set, the queue
+          starts this LDPlayer instance before binding its session, so it can self-start from cold. */}
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="queue-emulator-instance-name">Emulator instance name</label>
+          <input
+            id="queue-emulator-instance-name"
+            value={value.emulatorInstanceName}
+            onChange={(e) => onChange({ ...value, emulatorInstanceName: e.target.value })}
+            placeholder="e.g. PNS (optional — cold-start this instance)"
+            disabled={submitting}
+            aria-label="Emulator instance name"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="queue-emulator-instance-index">Emulator instance index</label>
+          <input
+            id="queue-emulator-instance-index"
+            type="number"
+            min={0}
+            value={value.emulatorInstanceIndex ?? ''}
+            onChange={(e) =>
+              onChange({ ...value, emulatorInstanceIndex: e.target.value === '' ? null : Number(e.target.value) })
+            }
+            placeholder="optional"
+            disabled={submitting}
+            aria-label="Emulator instance index"
+          />
+        </div>
+      </div>
 
       {/* Row 3: Game controls (edit only) */}
       {isEdit && gameControls}

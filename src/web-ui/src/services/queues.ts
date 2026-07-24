@@ -11,6 +11,10 @@ export type QueueDto = {
   pauseWhenIdle: boolean;
   /** Idle-detection threshold in seconds (default 30). */
   idleThresholdSeconds: number;
+  /** Optional LDPlayer instance name cold-started before session creation (feature 074); null when unset. */
+  emulatorInstanceName?: string | null;
+  /** Optional LDPlayer instance index for the pre-session cold-start (feature 074); null when unset. */
+  emulatorInstanceIndex?: number | null;
   status: QueueStatus;
   entryCount: number;
   linkedTemplateId: string | null;
@@ -37,6 +41,8 @@ export type QueueCreate = {
   cycleExecution: boolean;
   pauseWhenIdle?: boolean;
   idleThresholdSeconds?: number;
+  emulatorInstanceName?: string | null;
+  emulatorInstanceIndex?: number | null;
 };
 
 export type QueueUpdate = {
@@ -44,6 +50,8 @@ export type QueueUpdate = {
   cycleExecution: boolean;
   pauseWhenIdle?: boolean;
   idleThresholdSeconds?: number;
+  emulatorInstanceName?: string | null;
+  emulatorInstanceIndex?: number | null;
 };
 
 const base = '/api/queues';
