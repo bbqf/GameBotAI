@@ -5,6 +5,7 @@ import { ApiError } from '../lib/api';
 import { FormError } from '../components/Form';
 import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
+import { useScrollIntoViewOnOpen } from '../hooks/useScrollIntoViewOnOpen';
 
 type GameFormValue = {
   name: string;
@@ -70,6 +71,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
   }, [initialEditId]);
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
+  const editorRef = useScrollIntoViewOnOpen<HTMLDivElement>(editingId ?? (creating ? 'create' : undefined));
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -135,6 +137,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
           ))}
         </tbody>
       </table>
+      <div ref={editorRef}>
       {creating && (
         <form
           className="edit-form"
@@ -258,6 +261,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ initialCreate, initialEdit
           </form>
         </section>
       )}
+      </div>
       <ConfirmDeleteModal
         open={deleteOpen}
         itemName={form.name}

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CommandForm, CommandFormValue, DetectionTargetForm, StepEntry } from '../components/commands/CommandForm';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
+import { useScrollIntoViewOnOpen } from '../hooks/useScrollIntoViewOnOpen';
 import { ApiError } from '../lib/api';
 import { SearchableOption } from '../components/SearchableDropdown';
 import { listCommands, getCommand, createCommand, updateCommand, deleteCommand, CommandDto, CommandStepDto } from '../services/commands';
@@ -281,6 +282,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   }, [commandRows, filterName]);
 
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
+  const editorRef = useScrollIntoViewOnOpen<HTMLDivElement>(editingId ?? (creating ? 'create' : undefined));
 
   useEffect(() => {
     if (!initialEditId) return;
@@ -392,6 +394,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
         </tbody>
       </table>
 
+      <div ref={editorRef}>
       {creating && (
         <CommandForm
           value={form}
@@ -480,6 +483,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           </div>
         </section>
       )}
+      </div>
 
       <ConfirmDeleteModal
         open={deleteOpen}

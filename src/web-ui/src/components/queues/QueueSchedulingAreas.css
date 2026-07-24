@@ -11,17 +11,23 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--gb-space-3);
-  align-items: stretch;
+  /* Size each area to its content instead of stretching every area to match the
+     tallest one — a sparse area should not inflate to fill dead space. */
+  align-items: start;
 }
 
 .scheduling-areas__left {
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  /* Rows size to content so "Once per run" and "Scheduled" no longer split the
+     column into two equal (mostly empty) halves. */
+  grid-template-rows: auto auto;
   gap: var(--gb-space-3);
+  align-content: start;
 }
 
 .scheduling-areas__right {
   display: grid;
+  align-content: start;
 }
 
 .scheduling-area {
@@ -29,7 +35,8 @@
   border-radius: var(--gb-radius-lg);
   background: var(--gb-color-surface);
   padding: var(--gb-space-3);
-  min-height: 96px;
+  /* Compact when empty (heading + a small drop target); grows with its cards. */
+  min-height: 0;
 }
 
 .scheduling-area--over {
@@ -47,7 +54,7 @@
 }
 
 .scheduling-area__list {
-  min-height: 48px;
+  min-height: 32px;
 }
 
 .scheduling-card {

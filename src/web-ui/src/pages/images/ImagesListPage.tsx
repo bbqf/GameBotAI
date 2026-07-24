@@ -3,6 +3,7 @@ import { ApiError } from '../../lib/api';
 import { ImageDetailPage } from './ImageDetailPage';
 import { listImages, uploadImage } from '../../services/images';
 import { EmulatorCaptureCropper } from '../../components/images/EmulatorCaptureCropper';
+import { useScrollIntoViewOnOpen } from '../../hooks/useScrollIntoViewOnOpen';
 
 export const ImagesListPage: React.FC = () => {
   const [ids, setIds] = useState<string[]>([]);
@@ -31,6 +32,7 @@ export const ImagesListPage: React.FC = () => {
   }, []);
 
   const sortedIds = useMemo(() => [...ids].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })), [ids]);
+  const detailRef = useScrollIntoViewOnOpen<HTMLDivElement>(selectedId);
 
   return (
     <section>
@@ -104,11 +106,13 @@ export const ImagesListPage: React.FC = () => {
       </table>
 
       {selectedId && (
-        <ImageDetailPage
-          imageId={selectedId}
-          onUploaded={async () => { await load(); }}
-          onDeleted={async () => { setSelectedId(null); await load(); }}
-        />
+        <div ref={detailRef}>
+          <ImageDetailPage
+            imageId={selectedId}
+            onUploaded={async () => { await load(); }}
+            onDeleted={async () => { setSelectedId(null); await load(); }}
+          />
+        </div>
       )}
     </section>
   );
