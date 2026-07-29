@@ -100,7 +100,7 @@ Status vocabulary:
 | 062 | Queue Management Usability | Draft (active) |
 | 063 | Execution Logs Reflect What Was Actually Executed | Implemented (iterated by 050) — renumbered from 049 |
 | 064 | Command Editor Rework | Implemented (iterated by 054) — renumbered from 053 |
-| 065 | Sequence Self-Rescheduling into the Originating Queue Run | Implemented |
+| 065 | Sequence Self-Rescheduling into the Originating Queue Run | Implemented (iterated by 075) |
 | 066 | Break Step Success/Failure Execution Statuses | Implemented |
 | 067 | If-Then-Else Conditions in Sequences | Implemented |
 | 068 | OCR-Parsed Dynamic Offset for Reschedule-Self | Implemented |
@@ -110,6 +110,7 @@ Status vocabulary:
 | 072 | Live Queue Monitor View | Implemented |
 | 073 | Idle-Pause the Game During Queue Gaps; Retire the MCP Server | Implemented |
 | 074 | Start the Emulator From a Backend-Only, Session-Less State | Implemented |
+| 075 | Deduplicate Self-Rescheduled Sequence Firings | Implemented |
 
 ## Numbering notes
 

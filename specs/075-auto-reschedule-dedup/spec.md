@@ -2,7 +2,7 @@
 
 **Feature Branch**: `075-auto-reschedule-dedup`
 **Created**: 2026-07-29
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "We need to make sure auto-rescheduling of the sequences doesn't create duplicates: i.e. if a sequence wants to reschedule itself and there's another auto-rescheduled entry in the queue already, the old one should be deleted and the new one scheduled. This behaviour does not affect other types of scheduled sequences."
 
 ## Clarifications

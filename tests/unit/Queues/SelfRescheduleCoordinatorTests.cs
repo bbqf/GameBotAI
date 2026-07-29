@@ -109,6 +109,36 @@ public sealed class SelfRescheduleCoordinatorTests {
     handle.DrainDueTimerFirings(result.FireAt!.Value).Should().ContainSingle();
   }
 
+  [Fact] // T003 (feature 075) — two Timer reschedules of the same sequence: the latest replaces the earlier.
+  public void TwoTimerReschedulesReplacePreviousBySequence() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var (_, handle, coordinator) = Setup(clock: clock);
+
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10));
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(30));
+
+    // The earlier (10-min) firing was replaced, so nothing is due at +10min...
+    handle.DrainDueTimerFirings(clock.GetLocalNow() + TimeSpan.FromMinutes(10)).Should().BeEmpty();
+    // ...and exactly the later (30-min) firing drains at +30min.
+    var due = handle.DrainDueTimerFirings(clock.GetLocalNow() + TimeSpan.FromMinutes(30));
+    due.Should().ContainSingle();
+    due[0].SequenceId.Should().Be("seq-A");
+  }
+
+  [Fact] // T008 (feature 075) — Timer dedup does NOT touch the OncePerRun register (FR-004).
+  public void TimerRescheduleDoesNotAffectOncePerRunRegister() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var (_, handle, coordinator) = Setup(clock: clock);
+
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.OncePerRun, null, null);
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10));
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(30));
+
+    // The Timer dedup collapsed the two Timer firings to one, but the OncePerRun entry is untouched.
+    handle.PendingOncePerRun.Should().ContainSingle();
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle();
+  }
+
   // ── US2: EveryStep ──────────────────────────────────────────────────────────
 
   [Fact] // T032 — EveryStep is idempotent per sequence (no unbounded self-chain).

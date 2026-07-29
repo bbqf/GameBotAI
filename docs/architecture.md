@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-07-24._
+_Last reviewed: 2026-07-29._
 
 ## What GameBot is
 
@@ -92,7 +92,11 @@ not survive a service restart; queue *configuration* and templates are persisted
   above (At Queue Start / Once Per Run / Timer / After Every Step). It is **ephemeral** (current run
   only, never persisted) and a **success no-op** when the sequence was not started from a queue. The
   run's active-run state lives in a singleton `IQueueRunRegistry`; an `ISelfRescheduleCoordinator`
-  injects the ephemeral firing, which the queue run loop drains at the matching boundary.
+  injects the ephemeral firing, which the queue run loop drains at the matching boundary. The **Timer**
+  option is **most-recent-wins per sequence** (feature 075): a new Timer firing replaces any pending
+  Timer firing already queued for the same sequence in that run, so a self-rescheduling sequence never
+  stacks duplicate future firings. The other options are unchanged — *Once Per Run* / *At Queue Start*
+  accumulate, and *After Every Step* is idempotent per sequence.
 - **Queue monitor** — a read-only "live plan" view of a *running* queue. `GET /api/queues/{id}/monitor`
   returns a pure projection (`IQueueMonitorService`) that folds the active `QueueRunHandle` (the
   sequence-level "now" indicator plus pending live schedules and self-reschedule firings) and the
