@@ -140,9 +140,17 @@ internal sealed class QueueRunHandle {
     lock (_timerLock) { return _pendingTimerFirings.ToArray(); }
   }
 
-  /// <summary>Adds a resolved Timer firing (fires once at/after its <see cref="SelfRescheduleEntry.FireAt"/>).</summary>
+  /// <summary>
+  /// Adds a resolved Timer firing (fires once at/after its <see cref="SelfRescheduleEntry.FireAt"/>).
+  /// Most-recent-wins per sequence: any pending Timer firing already queued for the same
+  /// <see cref="SelfRescheduleEntry.SequenceId"/> is replaced, so a self-rescheduling sequence never
+  /// stacks duplicate future firings (feature 075). Mirrors <see cref="PendingLiveSchedules"/>; the
+  /// other self-reschedule registers (<see cref="PendingOncePerRun"/>/<see cref="PendingNextCycleStart"/>)
+  /// still accumulate, and <see cref="EveryStepInjections"/> stays idempotent per sequence.
+  /// </summary>
   public void AddTimerFiring(SelfRescheduleEntry entry) {
     lock (_timerLock) {
+      _pendingTimerFirings.RemoveAll(x => string.Equals(x.SequenceId, entry.SequenceId, StringComparison.Ordinal));
       _pendingTimerFirings.Add(entry);
     }
   }

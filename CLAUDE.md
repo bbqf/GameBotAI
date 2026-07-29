@@ -3,5 +3,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/074-sessionless-emulator-start/plan.md
+at specs/075-auto-reschedule-dedup/plan.md
 <!-- SPECKIT END -->
