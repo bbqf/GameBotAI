@@ -64,6 +64,16 @@ public sealed class CommandExecutorEnsureGameRunningTests {
     public Task<EnsureGameRunningActionResult> ExecuteAsync(string sessionId, CancellationToken ct = default) => Task.FromResult(_result);
   }
 
+  private sealed class StubReadinessProbe : IGameReadinessProbe {
+    private readonly GameReadinessResult _result;
+    public StubReadinessProbe(bool ready, string loadStatus = "loaded") => _result = new GameReadinessResult(ready, loadStatus);
+    public int CallCount { get; private set; }
+    public Task<GameReadinessResult> WaitUntilReadyAsync(DetectionTarget readinessImage, int timeoutMs, CancellationToken ct = default) {
+      CallCount++;
+      return Task.FromResult(_result);
+    }
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private static EmulatorSession RunningSession(string id = "session1") =>
@@ -78,12 +88,30 @@ public sealed class CommandExecutorEnsureGameRunningTests {
     }
   };
 
-  private static CommandExecutor BuildExecutor(IEnsureGameRunningActionHandler? handler, FakeCommandRepository cmds, ISessionManager sessions) =>
+  private static Command EnsureRunningCommandWithReadiness(string imageId = "city-sentinel", int timeoutMs = 90_000, string id = "cmd1") => new() {
+    Id = id,
+    Name = "EnsureGameRunning",
+    TriggerId = null,
+    Steps = new Collection<CommandStep> {
+      new() {
+        Type = CommandStepType.EnsureGameRunning,
+        TargetId = string.Empty,
+        Order = 1,
+        EnsureGameRunning = new EnsureGameRunningConfig {
+          ReadinessImage = new DetectionTarget(imageId),
+          ReadinessTimeoutMs = timeoutMs
+        }
+      }
+    }
+  };
+
+  private static CommandExecutor BuildExecutor(IEnsureGameRunningActionHandler? handler, FakeCommandRepository cmds, ISessionManager sessions, IGameReadinessProbe? readiness = null) =>
     new(cmds, sessions, new FakeTriggerRepository(),
         new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
         NullLogger<CommandExecutor>.Instance,
         new FakeSessionContextCache(),
-        ensureGameRunning: handler);
+        ensureGameRunning: handler,
+        gameReadiness: readiness);
 
   // ── Tests ─────────────────────────────────────────────────────────────────
 
@@ -140,5 +168,77 @@ public sealed class CommandExecutorEnsureGameRunningTests {
     var act = async () => await executor.ForceExecuteDetailedAsync("session1", "cmd1");
 
     await act.Should().NotThrowAsync();
+  }
+
+  // ── Readiness gate ──────────────────────────────────────────────────────────
+
+  [Fact]
+  public async Task ReadinessGateWaitsPastLaunchAndSucceedsWhenImageDetected() {
+    // Handler reports GameNotRunning (it just launched the game), but the readiness probe
+    // detects the ready screen — the step must succeed with "game_ready", not fail on the launch.
+    var cmds = new FakeCommandRepository();
+    cmds.Seed(EnsureRunningCommandWithReadiness());
+    var probe = new StubReadinessProbe(ready: true);
+    var executor = BuildExecutor(
+      new StubHandler(new EnsureGameRunningActionResult(EnsureGameRunningOutcome.GameNotRunning)),
+      cmds, new FakeSessionManager(RunningSession()), probe);
+
+    var result = await executor.ForceExecuteDetailedAsync("session1", "cmd1");
+
+    result.Accepted.Should().Be(1);
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.Status.Should().Be("executed");
+    outcome.Reason.Should().Be("game_ready");
+    probe.CallCount.Should().Be(1);
+  }
+
+  [Fact]
+  public async Task ReadinessGateFailsWithReadinessTimeoutWhenImageNeverAppears() {
+    var cmds = new FakeCommandRepository();
+    cmds.Seed(EnsureRunningCommandWithReadiness());
+    var probe = new StubReadinessProbe(ready: false);
+    var executor = BuildExecutor(
+      new StubHandler(new EnsureGameRunningActionResult(EnsureGameRunningOutcome.GameNotRunning)),
+      cmds, new FakeSessionManager(RunningSession()), probe);
+
+    var result = await executor.ForceExecuteDetailedAsync("session1", "cmd1");
+
+    result.Accepted.Should().Be(0);
+    result.StepOutcomes.Should().ContainSingle().Which.Status.Should().Be("readiness_timeout");
+    probe.CallCount.Should().Be(1);
+  }
+
+  [Fact]
+  public async Task ReadinessGateShortCircuitsWithoutProbingWhenGameCannotBeResolved() {
+    // No linked game means there is nothing to wait for — surface the handler failure and never
+    // spin the readiness probe.
+    var cmds = new FakeCommandRepository();
+    cmds.Seed(EnsureRunningCommandWithReadiness());
+    var probe = new StubReadinessProbe(ready: true);
+    var executor = BuildExecutor(
+      new StubHandler(new EnsureGameRunningActionResult(EnsureGameRunningOutcome.NoLinkedGame)),
+      cmds, new FakeSessionManager(RunningSession()), probe);
+
+    var result = await executor.ForceExecuteDetailedAsync("session1", "cmd1");
+
+    result.Accepted.Should().Be(0);
+    result.StepOutcomes.Should().ContainSingle().Which.Status.Should().Be("no_linked_game");
+    probe.CallCount.Should().Be(0);
+  }
+
+  [Fact]
+  public async Task ReadinessImageConfiguredButNoProbeFallsBackToLegacyForegroundBehavior() {
+    // Without a probe registered (e.g. non-Windows), a configured readiness image cannot be
+    // verified, so the step keeps its legacy success-iff-foreground semantics.
+    var cmds = new FakeCommandRepository();
+    cmds.Seed(EnsureRunningCommandWithReadiness());
+    var executor = BuildExecutor(
+      new StubHandler(new EnsureGameRunningActionResult(EnsureGameRunningOutcome.GameRunning)),
+      cmds, new FakeSessionManager(RunningSession()), readiness: null);
+
+    var result = await executor.ForceExecuteDetailedAsync("session1", "cmd1");
+
+    result.Accepted.Should().Be(1);
+    result.StepOutcomes.Should().ContainSingle().Which.Status.Should().Be("executed");
   }
 }

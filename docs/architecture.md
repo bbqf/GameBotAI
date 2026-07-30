@@ -70,6 +70,16 @@ not survive a service restart; queue *configuration* and templates are persisted
   session start, while success or a neutral unsupported outcome proceeds; with no instance identifier
   the connect behaves exactly as before. (The separate interactive `/api/sessions/start` endpoint is
   unchanged.)
+  The `ensure-game-running` **command step** has an OPTIONAL readiness gate: with no config it reports
+  success as soon as the game package is foreground (legacy behavior), but when its
+  `EnsureGameRunningConfig.ReadinessImage` is set the step, after best-effort launching the game, polls
+  the live screen for that image (via `IGameReadinessProbe` → `ImageDetectionHelper`, the same
+  template-match cycle as `waitForImage`) for up to `ReadinessTimeoutMs` (default 90s) before reporting
+  `game_ready`; on timeout it fails the step with `readiness_timeout`. This prevents a cold-launched
+  game that is still on its splash/loading screen from letting the queue's startup sweep run daily
+  sequences prematurely. If the game/session cannot be resolved the step short-circuits to the handler
+  failure without polling; the probe is Windows-only (the vision stack), so off Windows the step keeps
+  its foreground-only behavior.
 - **Sequence** — an ordered list of steps that run **commands**, with random inter-step delays,
   conditional steps, loop/flow blocks (`SequenceFlowGraph`, `Blocks/`), and **if blocks**
   (`SequenceStepType.If`, feature 067): a condition (same model as while-loop conditions —

@@ -75,6 +75,11 @@ internal sealed class WaitForImageConfigDto {
   public int? TimeoutMs { get; init; }
 }
 
+internal sealed class EnsureGameRunningConfigDto {
+  public DetectionTargetDto? ReadinessImage { get; init; }
+  public int? ReadinessTimeoutMs { get; init; }
+}
+
 internal sealed class CommandStepDto {
   public required CommandStepTypeDto Type { get; init; }
   public string? TargetId { get; init; }
@@ -83,6 +88,7 @@ internal sealed class CommandStepDto {
   public KeyInputConfigDto? KeyInput { get; init; }
   public SwipeConfigDto? Swipe { get; init; }
   public EnsureEmulatorRunningConfigDto? EnsureEmulatorRunning { get; init; }
+  public EnsureGameRunningConfigDto? EnsureGameRunning { get; init; }
   public int Order { get; init; }
 }
 
