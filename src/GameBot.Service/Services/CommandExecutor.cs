@@ -28,8 +28,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly AppConfig _appConfig;
   private readonly IEnsureGameRunningActionHandler? _ensureGameRunning;
   private readonly IEnsureEmulatorRunningActionHandler? _ensureEmulatorRunning;
+  private readonly IGameReadinessProbe? _gameReadiness;
 
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -43,10 +44,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _executionLogService = executionLogService;
     _ensureGameRunning = ensureGameRunning;
     _ensureEmulatorRunning = ensureEmulatorRunning;
+    _gameReadiness = gameReadiness;
   }
 
   // Fallback constructor for environments without detection services registered (non-Windows or tests)
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -60,6 +62,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _executionLogService = executionLogService;
     _ensureGameRunning = ensureGameRunning;
     _ensureEmulatorRunning = ensureEmulatorRunning;
+    _gameReadiness = gameReadiness;
   }
 
   public Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default)
@@ -220,9 +223,35 @@ internal sealed class CommandExecutor : ICommandExecutor {
         ? await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false)
         : new EnsureGameRunningActionResult(EnsureGameRunningOutcome.PlatformUnsupported);
 
-      return result.IsSuccess
-        ? (1, new PrimitiveTapStepOutcome(step.Order, "executed", result.ReasonCode, null, null, StepType: "ensure-game-running"))
-        : (0, new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
+      var readiness = step.EnsureGameRunning?.ReadinessImage;
+      var hasReadinessGate = _gameReadiness is not null
+        && readiness is not null
+        && !string.IsNullOrWhiteSpace(readiness.ReferenceImageId);
+
+      // Without a readiness image (or a probe to run it), preserve the legacy behavior:
+      // success iff the game was already the foreground app.
+      if (!hasReadinessGate) {
+        return result.IsSuccess
+          ? (1, new PrimitiveTapStepOutcome(step.Order, "executed", result.ReasonCode, null, null, StepType: "ensure-game-running"))
+          : (0, new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
+      }
+
+      // The game/session could not be resolved (or the platform is unsupported) — there is nothing
+      // to wait for, so surface the handler failure directly instead of spinning on the screen.
+      if (result.Outcome is EnsureGameRunningOutcome.NoQueueContext
+          or EnsureGameRunningOutcome.NoLinkedGame
+          or EnsureGameRunningOutcome.NoPackageName
+          or EnsureGameRunningOutcome.PlatformUnsupported) {
+        return (0, new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
+      }
+
+      // Handler has (best-effort) launched the game if it was not foreground. Now wait for it to
+      // actually reach the ready screen before letting the queue proceed.
+      var readinessTimeoutMs = Math.Max(0, step.EnsureGameRunning!.ReadinessTimeoutMs);
+      var readinessResult = await _gameReadiness!.WaitUntilReadyAsync(readiness!, readinessTimeoutMs, ct).ConfigureAwait(false);
+      return readinessResult.Ready
+        ? (1, new PrimitiveTapStepOutcome(step.Order, "executed", "game_ready", null, null, StepType: "ensure-game-running", TimeoutMs: readinessTimeoutMs, EffectiveTimeoutMs: readinessTimeoutMs, ReferenceImageId: readiness!.ReferenceImageId, ImageLoadStatus: readinessResult.ImageLoadStatus))
+        : (0, new PrimitiveTapStepOutcome(step.Order, "readiness_timeout", "readiness_timeout", null, null, StepType: "ensure-game-running", TimeoutMs: readinessTimeoutMs, EffectiveTimeoutMs: readinessTimeoutMs, ReferenceImageId: readiness!.ReferenceImageId, ImageLoadStatus: readinessResult.ImageLoadStatus));
     }
 
     if (step.Type == CommandStepType.EnsureEmulatorRunning) {
@@ -515,58 +544,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
     DetectionTarget detectionTarget,
     GameBot.Domain.Vision.ITemplateMatcher matcher,
     out PrimitiveTapResolvedPoint? resolvedPoint,
-    out double? detectionConfidence) {
-    resolvedPoint = null;
-    detectionConfidence = null;
-
-    var screenshotBmp = screenSrc.GetLatestScreenshot();
-    if (screenshotBmp is null) {
-      return false;
-    }
-
-    using var template = new System.Drawing.Bitmap(templateBmp);
-    using var screenMs = new System.IO.MemoryStream();
-    using var templateMs = new System.IO.MemoryStream();
-    screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
-    template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
-    using var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
-    using var templateMat = OpenCvSharp.Mat.FromImageData(templateMs.ToArray(), OpenCvSharp.ImreadModes.Color);
-
-    var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
-    var primitiveAction = new GameBot.Domain.Actions.InputAction {
-      Type = "tap",
-      Args = new Dictionary<string, object> { ["x"] = 0, ["y"] = 0 }
-    };
-
-    var ok = adapter.TryApplyDetectionCoordinates(
-      primitiveAction,
-      detectionTarget,
-      screenMat,
-      templateMat,
-      detectionTarget.Confidence,
-      out var err,
-      DetectionSelectionStrategy.HighestConfidence);
-
-    if (!ok || err is not null) {
-      return false;
-    }
-
-    if (!primitiveAction.Args.TryGetValue("x", out var xVal) || !primitiveAction.Args.TryGetValue("y", out var yVal)) {
-      return false;
-    }
-
-    var x = Convert.ToInt32(xVal, CultureInfo.InvariantCulture);
-    var y = Convert.ToInt32(yVal, CultureInfo.InvariantCulture);
-    if (x < 0 || y < 0 || x >= screenshotBmp.Width || y >= screenshotBmp.Height) {
-      return false;
-    }
-
-    detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
-      ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
-      : (double?)null;
-    resolvedPoint = new PrimitiveTapResolvedPoint(x, y);
-    return true;
-  }
+    out double? detectionConfidence)
+    => ImageDetectionHelper.TryDetect(screenSrc, templateBmp, detectionTarget, matcher, out resolvedPoint, out detectionConfidence);
 
   /// <summary>
   /// Attempts a single screenshot-fetch → template-match → coordinate-resolve → tap cycle.

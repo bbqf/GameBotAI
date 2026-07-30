@@ -21,6 +21,19 @@ public sealed class EnsureEmulatorRunningConfig {
   public required string AdbSerial { get; init; }
 }
 
+/// <summary>
+/// Config for the ensure-game-running command step. When <see cref="ReadinessImage"/> is set, the
+/// step does not report success as soon as the game package is foreground; instead, after launching
+/// the game it polls the screen for the readiness image (e.g. the city-view sentinel) for up to
+/// <see cref="ReadinessTimeoutMs"/> milliseconds, so a cold-launched game that is still on its
+/// splash/loading screen does not let the queue proceed prematurely. When null the step keeps its
+/// legacy behavior (success iff the game is already foreground).
+/// </summary>
+public sealed class EnsureGameRunningConfig {
+  public DetectionTarget? ReadinessImage { get; init; }
+  public int ReadinessTimeoutMs { get; init; } = 90_000;
+}
+
 public sealed class PrimitiveTapConfig {
   public required DetectionTarget DetectionTarget { get; init; }
 }
@@ -45,5 +58,6 @@ public sealed class CommandStep {
   public KeyInputConfig? KeyInput { get; init; }
   public SwipeConfig? Swipe { get; init; }
   public EnsureEmulatorRunningConfig? EnsureEmulatorRunning { get; init; }
+  public EnsureGameRunningConfig? EnsureGameRunning { get; init; }
   public int Order { get; init; }
 }

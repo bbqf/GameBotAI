@@ -123,6 +123,13 @@ internal static class CommandsEndpoints {
     }
 
     if (step.Type == CommandStepTypeDto.EnsureGameRunning) {
+      var cfg = step.EnsureGameRunning;
+      if (cfg?.ReadinessImage is not null && string.IsNullOrWhiteSpace(cfg.ReadinessImage.ReferenceImageId)) {
+        return "ensureGameRunning.readinessImage.referenceImageId must not be empty when readinessImage is provided";
+      }
+      if (cfg?.ReadinessTimeoutMs is < 0) {
+        return "ensureGameRunning.readinessTimeoutMs must be greater than or equal to zero";
+      }
       return null;
     }
 
@@ -174,6 +181,7 @@ internal static class CommandsEndpoints {
     KeyInput = s.Type == CommandStepTypeDto.KeyInput ? ToDomainKeyInput(s.KeyInput) : null,
     Swipe = s.Type == CommandStepTypeDto.Swipe ? ToDomainSwipe(s.Swipe) : null,
     EnsureEmulatorRunning = s.Type == CommandStepTypeDto.EnsureEmulatorRunning ? ToDomainEnsureEmulator(s.EnsureEmulatorRunning) : null,
+    EnsureGameRunning = s.Type == CommandStepTypeDto.EnsureGameRunning ? ToDomainEnsureGame(s.EnsureGameRunning) : null,
     Order = s.Order
   };
 
@@ -185,6 +193,7 @@ internal static class CommandsEndpoints {
     KeyInput = s.Type == CommandStepType.KeyInput ? ToResponseKeyInput(s.KeyInput) : null,
     Swipe = s.Type == CommandStepType.Swipe ? ToResponseSwipe(s.Swipe) : null,
     EnsureEmulatorRunning = s.Type == CommandStepType.EnsureEmulatorRunning ? ToResponseEnsureEmulator(s.EnsureEmulatorRunning) : null,
+    EnsureGameRunning = s.Type == CommandStepType.EnsureGameRunning ? ToResponseEnsureGame(s.EnsureGameRunning) : null,
     Order = s.Order
   };
 
@@ -200,6 +209,27 @@ internal static class CommandsEndpoints {
       InstanceName = config.InstanceName,
       InstanceIndex = config.InstanceIndex,
       AdbSerial = config.AdbSerial
+    };
+
+  private static EnsureGameRunningConfig? ToDomainEnsureGame(EnsureGameRunningConfigDto? dto) {
+    if (dto is null) return null;
+    var readiness = ToDomainDetection(dto.ReadinessImage);
+    // No readiness image configured → represent as legacy behavior (null config).
+    if (readiness is null) return null;
+    var timeoutMs = dto.ReadinessTimeoutMs ?? 90_000;
+    if (timeoutMs < 0) {
+      timeoutMs = 90_000;
+    }
+    return new EnsureGameRunningConfig {
+      ReadinessImage = readiness,
+      ReadinessTimeoutMs = timeoutMs
+    };
+  }
+
+  private static EnsureGameRunningConfigDto? ToResponseEnsureGame(EnsureGameRunningConfig? config) =>
+    config is null ? null : new EnsureGameRunningConfigDto {
+      ReadinessImage = ToResponseDetection(config.ReadinessImage),
+      ReadinessTimeoutMs = config.ReadinessTimeoutMs
     };
 
   private static StepExecutionOutcomeDto ToResponseOutcome(PrimitiveTapStepOutcome outcome) => new() {

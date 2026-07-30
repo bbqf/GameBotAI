@@ -140,6 +140,16 @@ internal static class GameBotServiceSetup {
     });
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IAdbGameOperations, GameBot.Service.Services.EnsureGameRunning.AdbGameOperations>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IEnsureGameRunningActionHandler, GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionHandler>();
+    // Readiness probe needs the vision stack (IScreenSource is Windows-only). Off Windows it stays
+    // unregistered and the ensure-game-running step falls back to its foreground-only behavior.
+    if (OperatingSystem.IsWindows()) {
+      builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IGameReadinessProbe>(sp =>
+        new GameBot.Service.Services.EnsureGameRunning.GameReadinessProbe(
+          sp.GetRequiredService<GameBot.Domain.Triggers.Evaluators.IScreenSource>(),
+          sp.GetRequiredService<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(),
+          sp.GetRequiredService<GameBot.Domain.Vision.ITemplateMatcher>(),
+          sp.GetRequiredService<GameBot.Domain.Config.AppConfig>()));
+    }
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorControl, GameBot.Service.Services.EnsureEmulatorRunning.LdConsoleEmulatorControl>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorDeviceProbe, GameBot.Service.Services.EnsureEmulatorRunning.AdbEmulatorDeviceProbe>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEnsureEmulatorRunningActionHandler, GameBot.Service.Services.EnsureEmulatorRunning.EnsureEmulatorRunningActionHandler>();
