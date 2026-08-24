@@ -38,6 +38,7 @@ export type QueueSchedulingAreasProps = {
   onTimerTimeChange?: (entryId: string, timerTimeOfDay: string) => void;
   onTimerModeChange?: (entryId: string, mode: TimerMode) => void;
   onTimerRelativeOffsetChange?: (entryId: string, offset: string) => void;
+  onToggleEnabled?: (entryId: string, enabled: boolean) => void;
   disabled?: boolean;
 };
 
@@ -68,6 +69,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
   onTimerTimeChange,
   onTimerModeChange,
   onTimerRelativeOffsetChange,
+  onToggleEnabled,
   disabled,
 }) => {
   const [selected, setSelected] = useState<string | undefined>(undefined);
@@ -164,6 +166,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
               onTimerTimeChange={onTimerTimeChange}
               onTimerModeChange={onTimerModeChange}
               onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
+              onToggleEnabled={onToggleEnabled}
             />
           </div>
           <div className="scheduling-areas__body">
@@ -179,6 +182,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerTimeChange={onTimerTimeChange}
                 onTimerModeChange={onTimerModeChange}
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
+                onToggleEnabled={onToggleEnabled}
               />
               <SchedulingArea
                 areaId="scheduled"
@@ -191,6 +195,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerTimeChange={onTimerTimeChange}
                 onTimerModeChange={onTimerModeChange}
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
+                onToggleEnabled={onToggleEnabled}
               />
             </div>
             <div className="scheduling-areas__right">
@@ -205,6 +210,7 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerTimeChange={onTimerTimeChange}
                 onTimerModeChange={onTimerModeChange}
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
+                onToggleEnabled={onToggleEnabled}
               />
             </div>
           </div>

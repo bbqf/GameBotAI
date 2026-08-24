@@ -18,6 +18,7 @@ type SchedulingAreaProps = {
   onTimerTimeChange?: (entryId: string, timerTimeOfDay: string) => void;
   onTimerModeChange?: (entryId: string, mode: TimerMode) => void;
   onTimerRelativeOffsetChange?: (entryId: string, offset: string) => void;
+  onToggleEnabled?: (entryId: string, enabled: boolean) => void;
 };
 
 const EMPTY_HINT = 'Drop sequences here.';
@@ -33,6 +34,7 @@ export const SchedulingArea: React.FC<SchedulingAreaProps> = ({
   onTimerTimeChange,
   onTimerModeChange,
   onTimerRelativeOffsetChange,
+  onToggleEnabled,
 }) => {
   const label = AREA_LABELS[areaId];
   // The area itself is a droppable so empty areas can receive a dragged card.
@@ -66,6 +68,7 @@ export const SchedulingArea: React.FC<SchedulingAreaProps> = ({
                     onTimerTimeChange={onTimerTimeChange}
                     onTimerModeChange={onTimerModeChange}
                     onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
+                    onToggleEnabled={onToggleEnabled}
                   />
                 </div>
               </React.Fragment>

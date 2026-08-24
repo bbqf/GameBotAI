@@ -60,6 +60,8 @@ export type SchedulingCard = {
   label: string;
   stale: boolean;
   schedule: EntrySchedule;
+  /** Whether the entry runs during a queue run. Defaults to true when unset. */
+  enabled: boolean;
 };
 
 export type SchedulingAreasState = {
@@ -122,6 +124,7 @@ export const groupEntriesIntoAreas = (
       label: entry.sequenceName ?? entry.sequenceId,
       stale: entry.stale,
       schedule: sched,
+      enabled: sched.enabled ?? true,
     });
   }
   return areas;

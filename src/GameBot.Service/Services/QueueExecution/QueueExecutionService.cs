@@ -133,6 +133,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       ? null
       : await _templates.GetAsync(queue.LinkedTemplateId).ConfigureAwait(false);
     if (template is not null) {
+      // Materialize ALL entries (including disabled ones) into the runtime store: the template
+      // editor renders from these runtime entries and merges each entry's schedule/enabled state
+      // from the template detail BY POSITION, so disabled entries must stay present and in order
+      // for the operator to see and re-enable them. Execution excludes disabled entries in RunAsync,
+      // where the template is read directly (077).
       _runtime.SetEntries(queueId, template.Entries.Select(e => e.SequenceId));
     }
 
@@ -179,7 +184,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         // Once-per-run and timer partitions carry each entry's index in `allEntries`: that index is the
         // stable key the run's QueueRunSchedule records consumed work under, so the monitor can project
         // exactly what is left instead of re-deriving an idealized plan from the template.
-        var allEntries = template.Entries.ToList();
+        // Disabled entries (Enabled == false) are excluded once here, so every schedule partition
+        // (AtQueueStart/OncePerRun/EveryStep/Timer) and the monitor projection all skip them (077).
+        var allEntries = template.Entries.Where(e => e.Enabled).ToList();
         var indexed = allEntries.Select((Entry, Index) => (Entry, Index)).ToList();
         var atQueueStartEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.AtQueueStart).ToList();
         var oncePerRunEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.OncePerRun).ToList();

@@ -111,6 +111,7 @@ Status vocabulary:
 | 073 | Idle-Pause the Game During Queue Gaps; Retire the MCP Server | Implemented |
 | 074 | Start the Emulator From a Backend-Only, Session-Less State | Implemented |
 | 075 | Deduplicate Self-Rescheduled Sequence Firings | Implemented |
+| 077 | Enable/Disable Template Sequences | Implemented |
 
 ## Numbering notes
 

@@ -456,6 +456,51 @@ describe('QueuesPage scheduling areas round-trip (feature 061)', () => {
     );
   });
 
+  it('I5: toggling a sequence off emits enabled:false in the save payload; the other stays clean (077)', async () => {
+    wireDynamicEntries([{ sequenceId: 'seq-a', sequenceName: 'A' }, { sequenceId: 'seq-b', sequenceName: 'B' }]);
+    saveTemplateMock.mockResolvedValue({ id: 't1' } as any);
+    await openEditor();
+
+    // Turn entry A off via its switch, then save.
+    fireEvent.click(screen.getByRole('switch', { name: 'Disable A' }));
+    await saveTemplateAs('Toggled');
+
+    await waitFor(() =>
+      expect(saveTemplateMock).toHaveBeenCalledWith({
+        name: 'Toggled',
+        entries: [
+          { sequenceId: 'seq-a', scheduleType: 'OncePerRun', enabled: false },
+          { sequenceId: 'seq-b', scheduleType: 'OncePerRun' },
+        ],
+        overwrite: false,
+      })
+    );
+  });
+
+  it('I6: a template loaded with a disabled entry renders it off (round-trip load, 077)', async () => {
+    getQueueMock.mockResolvedValue({
+      ...queue({ entryCount: 2 }),
+      linkedTemplateId: 't1',
+      linkedTemplateName: 'HasDisabled',
+      entries: [
+        { entryId: 'e1', sequenceId: 'seq-a', sequenceName: 'A', stale: false },
+        { entryId: 'e2', sequenceId: 'seq-b', sequenceName: 'B', stale: false },
+      ],
+    } as any);
+    getTemplateMock.mockResolvedValue({
+      id: 't1', name: 'HasDisabled', entryCount: 2, createdAt: null, updatedAt: null,
+      entries: [
+        { sequenceId: 'seq-a', sequenceName: 'A', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null, timerRelativeOffset: null, enabled: false },
+        { sequenceId: 'seq-b', sequenceName: 'B', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null, timerRelativeOffset: null, enabled: true },
+      ],
+    } as any);
+    await openEditor();
+
+    // A loads disabled: its switch offers "Enable A" (unchecked); B offers "Disable B" (checked).
+    expect((await screen.findByRole('switch', { name: 'Enable A' })) as HTMLInputElement).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Disable B' })).toBeChecked();
+  });
+
   it('I4: a card moved out of "Scheduled" before save is emitted with the destination type and no timer fields', async () => {
     // Open a queue linked to a template whose first entry is a Timer with a time-of-day.
     getQueueMock.mockResolvedValue({

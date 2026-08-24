@@ -90,6 +90,40 @@ describe('QueueSchedulingAreas', () => {
     expect(within(oncePerRun).queryByLabelText('Timer')).not.toBeInTheDocument();
   });
 
+  it('C5b: a disabled entry renders an unchecked switch, an Off badge, and the disabled style (077)', () => {
+    const entries = [entry('a'), entry('b')];
+    const entrySchedule: Record<string, EntrySchedule> = {
+      a: { scheduleType: 'OncePerRun', timerTimeOfDay: '', enabled: false },
+      b: { scheduleType: 'OncePerRun', timerTimeOfDay: '', enabled: true },
+    };
+    const { container } = render(
+      <QueueSchedulingAreas entries={entries} entrySchedule={entrySchedule} {...baseProps()} onToggleEnabled={jest.fn()} />
+    );
+
+    // A is off: switch unchecked (labeled "Enable A"), Off badge present, disabled style applied.
+    const enableA = screen.getByRole('switch', { name: 'Enable A' }) as HTMLInputElement;
+    expect(enableA.checked).toBe(false);
+    expect(screen.getByLabelText('Disabled')).toBeInTheDocument();
+    expect(container.querySelector('.scheduling-card--disabled')).toBeInTheDocument();
+    // B is on: switch checked (labeled "Disable B").
+    const disableB = screen.getByRole('switch', { name: 'Disable B' }) as HTMLInputElement;
+    expect(disableB.checked).toBe(true);
+  });
+
+  it('C5c: toggling the switch calls onToggleEnabled with the entry id and the new state (077)', () => {
+    const entries = [entry('b')];
+    const entrySchedule: Record<string, EntrySchedule> = {
+      b: { scheduleType: 'OncePerRun', timerTimeOfDay: '', enabled: true },
+    };
+    const onToggleEnabled = jest.fn();
+    render(
+      <QueueSchedulingAreas entries={entries} entrySchedule={entrySchedule} {...baseProps()} onToggleEnabled={onToggleEnabled} />
+    );
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Disable B' }));
+    expect(onToggleEnabled).toHaveBeenCalledWith('b', false);
+  });
+
   it('C6: only the Scheduled area exposes timer controls', () => {
     const entries = [entry('c'), entry('b')];
     const entrySchedule: Record<string, EntrySchedule> = {

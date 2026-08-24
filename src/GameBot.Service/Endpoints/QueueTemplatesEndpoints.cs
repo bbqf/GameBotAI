@@ -84,7 +84,9 @@ internal static class QueueTemplatesEndpoints {
           SequenceId = entry.SequenceId!,
           ScheduleType = scheduleType,
           TimerTimeOfDay = timerTime,
-          TimerRelativeOffset = timerOffset
+          TimerRelativeOffset = timerOffset,
+          // Null (omitted by older clients) means enabled; only an explicit false disables.
+          Enabled = entry.Enabled ?? true
         });
       }
 
@@ -154,7 +156,8 @@ internal static class QueueTemplatesEndpoints {
         Stale = !found,
         ScheduleType = entry.ScheduleType.ToString(),
         TimerTimeOfDay = entry.TimerTimeOfDay?.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture),
-        TimerRelativeOffset = entry.TimerRelativeOffset is { } offset ? RelativeOffsetParser.Format(offset) : null
+        TimerRelativeOffset = entry.TimerRelativeOffset is { } offset ? RelativeOffsetParser.Format(offset) : null,
+        Enabled = entry.Enabled
       });
     }
     return detail;

@@ -149,6 +149,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
           timerTimeOfDay: tplEntry.timerTimeOfDay ?? '',
           timerMode: tplEntry.timerRelativeOffset ? 'relative' : 'timeOfDay',
           timerRelativeOffset: tplEntry.timerRelativeOffset ?? '',
+          enabled: tplEntry.enabled ?? true,
         };
       } else {
         schedule[entryId] = { scheduleType: 'OncePerRun', timerTimeOfDay: '' };
@@ -260,6 +261,8 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
         scheduleType: sched.scheduleType,
         ...(sched.scheduleType === 'Timer' && !isRelative && sched.timerTimeOfDay ? { timerTimeOfDay: sched.timerTimeOfDay } : {}),
         ...(isRelative && sched.timerRelativeOffset ? { timerRelativeOffset: sched.timerRelativeOffset } : {}),
+        // Only emit when disabled; omission means enabled (backend treats null/absent as true).
+        ...(sched.enabled === false ? { enabled: false } : {}),
       };
     });
     const saved = await saveQueueTemplate({ name, entries, overwrite });
@@ -530,6 +533,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
                   onTimerTimeChange={(eid, t) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerTimeOfDay: t } }))}
                   onTimerModeChange={(eid, mode) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: mode } }))}
                   onTimerRelativeOffsetChange={(eid, offset) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: 'relative', timerRelativeOffset: offset } }))}
+                  onToggleEnabled={(eid, en) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }, enabled: en } }))}
                   disabled={detail.status === 'Running'}
                 />
               </QueueTemplateControls>
