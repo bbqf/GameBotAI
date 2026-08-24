@@ -534,7 +534,9 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
                   onTimerModeChange={(eid, mode) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: mode } }))}
                   onTimerRelativeOffsetChange={(eid, offset) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: 'relative', timerRelativeOffset: offset } }))}
                   onToggleEnabled={(eid, en) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }, enabled: en } }))}
-                  disabled={detail.status === 'Running'}
+                  // No `disabled` prop: this whole section is already gated on
+                  // `detail.status !== 'Running'` above, so a `status === 'Running'` test here was
+                  // provably always false (TS2367) and disabled nothing.
                 />
               </QueueTemplateControls>
             }
