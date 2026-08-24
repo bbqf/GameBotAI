@@ -70,6 +70,8 @@ describe('SequencesPage unresolved commands', () => {
       steps: [
         {
           stepId: 'step-1',
+          // The authored label survives a save; it used to be stripped by any edit made here.
+          label: 'Deleted command step',
           stepType: 'Action',
           primitiveAction: {
             type: 'command',

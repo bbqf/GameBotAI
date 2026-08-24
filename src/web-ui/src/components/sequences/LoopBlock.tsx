@@ -7,6 +7,8 @@ import { IfBlock } from './IfBlock';
 import { BreakStepRow } from './BreakStepRow';
 import { SortableStepItem } from '../SortableStepItem';
 import { DropIndicator, dropIndicatorBefore } from '../DropIndicator';
+import { PrimitiveActionFields } from './PrimitiveActionFields';
+import type { ParameterScopeEntry } from '../parameters/types';
 
 export type CommandOption = { value: string; label: string };
 
@@ -15,6 +17,8 @@ export type LoopBlockProps = {
   onChange: (updated: LoopStepEntry) => void;
   onRemove: () => void;
   commandOptions?: CommandOption[];
+  /** Names the `{ }` picker may offer inside an inline action's fields. */
+  parameterScope?: ParameterScopeEntry[];
   disabled?: boolean;
   isDropInvalid?: boolean;
   activeBodyStepId?: string | null;
@@ -27,7 +31,7 @@ const makeId = () =>
     : Math.random().toString(36).slice(2);
 
 export const LoopBlock: React.FC<LoopBlockProps> = ({
-  loop, onChange, onRemove, commandOptions = [], disabled, isDropInvalid,
+  loop, onChange, onRemove, commandOptions = [], parameterScope = [], disabled, isDropInvalid,
   activeBodyStepId, overBodyStepId,
 }) => {
   const body = loop.body;
@@ -122,12 +126,28 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({
                         }}
                         onRemove={() => handleBodyDelete(index)}
                         commandOptions={commandOptions}
+                        parameterScope={parameterScope}
                         disabled={disabled}
                         allowBreakSteps
                         isDropInvalid={isDropInvalid}
                         activeBodyStepId={activeBodyStepId}
                         overBodyStepId={overBodyStepId}
                       />
+                    ) : (step as ActionStepEntry).primitiveAction ? (
+                      <div className="loop-block__action-step" data-testid="loop-action-step">
+                        <PrimitiveActionFields
+                          idPrefix={`loop-action-${step.id}`}
+                          action={(step as ActionStepEntry).primitiveAction!}
+                          scope={parameterScope}
+                          disabled={disabled}
+                          onChange={(action) => {
+                            const updated = body.map((s, i) =>
+                              i === index ? { ...s, primitiveAction: action } as StepEntry : s
+                            );
+                            onChange({ ...loop, body: updated });
+                          }}
+                        />
+                      </div>
                     ) : (
                       <div className="loop-block__action-step" data-testid="loop-action-step">
                         <select

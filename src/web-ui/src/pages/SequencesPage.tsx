@@ -8,6 +8,7 @@ import { listCommands, CommandDto } from '../services/commands';
 import { ParameterDeclarationList } from '../components/parameters/ParameterDeclarationList';
 import { ParameterBindingForm } from '../components/parameters/ParameterBindingForm';
 import type { ParameterBinding, ParameterDeclaration } from '../components/parameters/types';
+import { buildEditorScope } from '../components/parameters/types';
 import { FormError } from '../components/Form';
 import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
@@ -19,7 +20,8 @@ import { validatePerStepConditions, parseParameterErrors, parameterErrorSummary 
 import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
 import { IfBlock } from '../components/sequences/IfBlock';
-import type { LoopStepEntry, BreakStepEntry, IfStepEntry, StepEntry } from '../types/stepEntry';
+import { PrimitiveActionFields, summarizePrimitiveAction } from '../components/sequences/PrimitiveActionFields';
+import type { ActionStepEntry, LoopStepEntry, BreakStepEntry, IfStepEntry, StepEntry } from '../types/stepEntry';
 import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
 import { ImageSelectorDropdown } from '../components/images/ImageSelectorDropdown';
 
@@ -28,10 +30,17 @@ type RescheduleOption = 'AtQueueStart' | 'OncePerRun' | 'Timer' | 'EveryStep';
 type SequenceStep = {
   id: string;
   stepId: string;
+  /** Authored display name; preserved verbatim so editing a step here does not strip other labels. */
+  label?: string;
   stepType: 'Action' | 'Loop' | 'Break' | 'If';
-  actionType: 'command' | 'WaitForImage' | 'reschedule-self';
+  actionType: 'command' | 'WaitForImage' | 'reschedule-self' | 'primitive';
   commandId: string;
   commandReference?: SequenceCommandReference;
+  /**
+   * The action dispatched inline, for a step that is not a command invocation and has no dedicated
+   * editor of its own (feature 078). Carried through untouched apart from the slots edited here.
+   */
+  primitiveAction?: SequencePrimitiveActionPayload;
   waitReferenceImageId: string;
   waitConfidence: string;
   waitTimeoutMs: string;
@@ -282,6 +291,16 @@ const getPrimitiveAction = (step: SequenceLinearStep): SequencePrimitiveActionPa
   return null;
 };
 
+/**
+ * True for an action that dispatches inline rather than invoking a command.
+ *
+ * Everything the editor cannot render as a command step used to be coerced into one, which rewrote
+ * the step to point at a command id that had never existed. Recognising these instead lets them
+ * round-trip and be parametrized.
+ */
+const isInlineAction = (action: SequencePrimitiveActionPayload | null): boolean =>
+  action != null && action.type.trim().length > 0 && action.type !== 'command';
+
 const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
   return body.map<StepEntry>((child) => {
     if (child.stepType === 'Break') {
@@ -289,6 +308,7 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
         type: 'Break',
         id: makeId(),
         stepId: child.stepId,
+        label: child.label,
         breakCondition: child.breakCondition ?? undefined
       } satisfies BreakStepEntry;
     }
@@ -296,17 +316,22 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
       return ifDtoToEntry(child);
     }
     const primitiveAction = getPrimitiveAction(child);
-    const cmdId = typeof primitiveAction?.payload?.commandId === 'string'
-      ? primitiveAction.payload.commandId
-      : typeof child.action?.parameters?.commandId === 'string'
-        ? child.action.parameters.commandId
-      : child.stepId;
+    const inline = isInlineAction(primitiveAction);
+    const cmdId = inline
+      ? ''
+      : typeof primitiveAction?.payload?.commandId === 'string'
+        ? primitiveAction.payload.commandId
+        : typeof child.action?.parameters?.commandId === 'string'
+          ? child.action.parameters.commandId
+          : child.stepId;
     return {
       type: 'Action',
       id: makeId(),
       stepId: child.stepId,
+      label: child.label,
       commandId: cmdId,
-      commandReference: child.commandReference ?? undefined,
+      commandReference: inline ? undefined : child.commandReference ?? undefined,
+      primitiveAction: inline ? primitiveAction! : undefined,
       conditionType: child.condition?.type === 'imageVisible' ? 'imageVisible'
         : child.condition?.type === 'commandOutcome' ? 'commandOutcome' : 'none',
       conditionNegate: child.condition?.negate ?? false,
@@ -322,6 +347,7 @@ const ifDtoToEntry = (step: SequenceLinearStep): IfStepEntry => ({
   type: 'If',
   id: makeId(),
   stepId: step.stepId,
+  label: step.label,
   condition: step.if?.condition,
   body: linearBodyToStepEntries(step.body ?? []),
   elseBody: step.elseBody == null ? undefined : linearBodyToStepEntries(step.elseBody)
@@ -329,7 +355,7 @@ const ifDtoToEntry = (step: SequenceLinearStep): IfStepEntry => ({
 
 const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
   const loop = step.loop!;
-  const base: Pick<LoopStepEntry, 'type' | 'id' | 'stepId'> = { type: 'Loop', id: makeId(), stepId: step.stepId };
+  const base: Pick<LoopStepEntry, 'type' | 'id' | 'stepId' | 'label'> = { type: 'Loop', id: makeId(), stepId: step.stepId, label: step.label };
   const body = linearBodyToStepEntries(step.body ?? []);
   if (loop.loopType === 'count') {
     return { ...base, loopType: 'count', count: loop.count, maxIterations: loop.maxIterations ?? undefined, body };
@@ -341,8 +367,12 @@ const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
   return { ...base, loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, body };
 };
 
-const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] => {
-  return steps.map((step) => {
+const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
+  // The label is attached here rather than in each branch below so no future branch can forget it.
+  steps.map((step) => ({ ...linearStepToFormStep(step), label: step.label }));
+
+const linearStepToFormStep = (step: SequenceLinearStep): SequenceStep => {
+  {
     if (step.stepType === 'Loop' && step.loop) {
       const loopEntry = loopDtoToEntry(step);
       return {
@@ -480,6 +510,17 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
       };
     }
 
+    // Any other inline action — a tap, a swipe, a key press. Rendered from its own payload rather
+    // than coerced into a command step, which is what used to corrupt it on save.
+    if (isInlineAction(primitiveAction)) {
+      return {
+        ...createDefaultStep('', step.stepId),
+        actionType: 'primitive' as const,
+        primitiveAction: primitiveAction!,
+        ...conditionFieldsFrom(step),
+      };
+    }
+
     const commandId = typeof primitiveAction?.payload?.commandId === 'string'
       ? primitiveAction.payload.commandId
       : typeof step.action?.parameters?.commandId === 'string'
@@ -533,7 +574,41 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
       stepId: step.stepId,
       parameterBindings: step.parameterBindings ?? undefined
     };
-  });
+  }
+};
+
+/** The condition half of a form step, shared by branches that differ only in their action fields. */
+const conditionFieldsFrom = (step: SequenceLinearStep): Pick<
+  SequenceStep, 'conditionType' | 'conditionNegate' | 'imageId' | 'minSimilarity' | 'outcomeStepRef' | 'expectedState'
+> => {
+  if (step.condition?.type === 'imageVisible') {
+    return {
+      conditionType: 'imageVisible',
+      conditionNegate: step.condition.negate ?? false,
+      imageId: step.condition.imageId,
+      minSimilarity: step.condition.minSimilarity == null ? '' : String(step.condition.minSimilarity),
+      outcomeStepRef: '',
+      expectedState: 'success',
+    };
+  }
+  if (step.condition?.type === 'commandOutcome') {
+    return {
+      conditionType: 'commandOutcome',
+      conditionNegate: step.condition.negate ?? false,
+      imageId: '',
+      minSimilarity: '',
+      outcomeStepRef: step.condition.stepRef,
+      expectedState: step.condition.expectedState,
+    };
+  }
+  return {
+    conditionType: 'none',
+    conditionNegate: false,
+    imageId: '',
+    minSimilarity: '',
+    outcomeStepRef: '',
+    expectedState: 'success',
+  };
 };
 
 const buildCommandReferencePayload = (commandId: string, commandReference: SequenceCommandReference | undefined) => {
@@ -591,6 +666,7 @@ const buildIfConfigPayload = (ifEntry: IfStepEntry): IfConfigDto | null =>
 
 const ifEntryToPayloadStep = (ifEntry: IfStepEntry, stepId: string): SequenceLinearStep => ({
   stepId: stepId.trim(),
+  label: ifEntry.label,
   stepType: 'If',
   if: buildIfConfigPayload(ifEntry),
   body: ifEntry.body.map(bodyEntryToPayloadStep),
@@ -602,6 +678,7 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
     const br = entry as BreakStepEntry;
     return {
       stepId: br.stepId.trim(),
+      label: br.label,
       stepType: 'Break',
       breakCondition: br.breakCondition ?? null
     };
@@ -610,14 +687,27 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
     return ifEntryToPayloadStep(entry, entry.stepId);
   }
   // Action body step
-  const a = entry as unknown as { stepId: string; commandId: string; commandReference?: SequenceCommandReference; conditionType: string; conditionNegate: boolean; imageId: string; minSimilarity: string; outcomeStepRef: string; expectedState: 'success' | 'failed' | 'skipped' };
+  const a = entry as ActionStepEntry;
   const cond = a.conditionType === 'imageVisible'
     ? { type: 'imageVisible' as const, imageId: a.imageId.trim(), minSimilarity: a.minSimilarity.trim() === '' ? null : Number(a.minSimilarity), negate: a.conditionNegate || undefined }
     : a.conditionType === 'commandOutcome'
       ? { type: 'commandOutcome' as const, stepRef: a.outcomeStepRef.trim(), expectedState: a.expectedState, negate: a.conditionNegate || undefined }
       : null;
+
+  // An inline action goes back exactly as it came in, apart from the slots edited in the form.
+  if (a.primitiveAction) {
+    return {
+      stepId: entry.stepId.trim(),
+      label: a.label,
+      stepType: 'Action',
+      primitiveAction: a.primitiveAction,
+      condition: cond
+    };
+  }
+
   return {
     stepId: entry.stepId.trim(),
+    label: a.label,
     stepType: 'Action',
     primitiveAction: { type: 'command', schemaVersion: 'v1', payload: { commandId: a.commandId } },
     commandReference: buildCommandReferencePayload(a.commandId, a.commandReference),
@@ -630,6 +720,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
     if (step.stepType === 'Loop' && step.loopEntry) {
       return {
         stepId: step.stepId.trim(),
+        label: step.label,
         stepType: 'Loop' as const,
         loop: buildLoopConfigPayload(step.loopEntry),
         body: step.loopEntry.body.map(bodyEntryToPayloadStep)
@@ -637,14 +728,25 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
     }
 
     if (step.stepType === 'If' && step.ifEntry) {
-      return ifEntryToPayloadStep(step.ifEntry, step.stepId);
+      return { ...ifEntryToPayloadStep(step.ifEntry, step.stepId), label: step.label };
     }
 
     if (step.stepType === 'Break') {
       return {
         stepId: step.stepId.trim(),
+        label: step.label,
         stepType: 'Break' as const,
         breakCondition: null // top-level breaks are unconditional
+      };
+    }
+
+    if (step.actionType === 'primitive' && step.primitiveAction) {
+      return {
+        stepId: step.stepId.trim(),
+        label: step.label,
+        stepType: 'Action' as const,
+        primitiveAction: step.primitiveAction,
+        condition: buildConditionPayload(step)
       };
     }
 
@@ -661,6 +763,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
       }
       return {
         stepId: step.stepId.trim(),
+        label: step.label,
         stepType: 'Action' as const,
         primitiveAction: { type: 'reschedule-self', schemaVersion: '1', payload },
         condition: buildConditionPayload(step)
@@ -677,6 +780,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
 
       return {
         stepId: step.stepId.trim(),
+        label: step.label,
         stepType: 'Action' as const,
         primitiveAction: {
           type: 'WaitForImage',
@@ -692,6 +796,7 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
 
     return {
       stepId: step.stepId.trim(),
+      label: step.label,
       stepType: 'Action' as const,
       primitiveAction: {
         type: 'command',
@@ -745,6 +850,13 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [isDragInvalid, setIsDragInvalid] = useState(false);
+
+  /**
+   * What the `{ }` picker offers inside this editor: the sequence's own declarations plus the queue
+   * built-ins. Derived from the live form rather than the saved sequence, so a parameter declared a
+   * moment ago is immediately insertable into a step.
+   */
+  const editorParameterScope = useMemo(() => buildEditorScope(form.parameters), [form.parameters]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -964,6 +1076,26 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 ...prev,
                 steps: prev.steps.map((candidate) => candidate.id === step.id
                   ? { ...candidate, parameterBindings: bindings }
+                  : candidate)
+              }));
+              setDirty(true);
+            }}
+          />
+        </div>
+      )}
+
+      {step.stepType === 'Action' && step.actionType === 'primitive' && step.primitiveAction && (
+        <div className="sequence-step-condition-field sequence-step-condition-field--primitive-action">
+          <PrimitiveActionFields
+            idPrefix={`step-action-${step.id}`}
+            action={step.primitiveAction}
+            scope={editorParameterScope}
+            disabled={submitting || loading}
+            onChange={(action) => {
+              setForm((prev) => ({
+                ...prev,
+                steps: prev.steps.map((candidate) => candidate.id === step.id
+                  ? { ...candidate, primitiveAction: action }
                   : candidate)
               }));
               setDirty(true);
@@ -1273,7 +1405,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         </div>
       )}
     </div>
-  ), [form.steps, submitting, loading, commandParameters]);
+  ), [form.steps, submitting, loading, commandParameters, editorParameterScope]);
 
   const createLoopStep = (loopType: 'count' | 'while' | 'repeatUntil'): SequenceStep => {
     const id = makeId();
@@ -1360,6 +1492,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 setDirty(true);
               }}
               commandOptions={editorCommandOptions}
+              parameterScope={editorParameterScope}
               disabled={submitting || loading}
               isDropInvalid={isDragInvalid}
               activeBodyStepId={branchStepIds.includes(activeStepId ?? '') ? activeStepId : null}
@@ -1389,6 +1522,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 setDirty(true);
               }}
               commandOptions={editorCommandOptions}
+              parameterScope={editorParameterScope}
               disabled={submitting || loading}
               isDropInvalid={isDragInvalid}
               activeBodyStepId={collectBodyStepIds(s.loopEntry.body).includes(activeStepId ?? '') ? activeStepId : null}
@@ -1403,11 +1537,13 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           ? `Wait for image: ${s.waitReferenceImageId.trim() || 'any image'}`
           : s.actionType === 'reschedule-self'
             ? `Reschedule this sequence (${RESCHEDULE_OPTIONS.find((o) => o.value === (s.rescheduleOption ?? 'OncePerRun'))?.label})`
-            : getDisplayCommandLabel(s.commandId, s.commandReference, commandLookup),
+            : s.actionType === 'primitive' && s.primitiveAction
+              ? summarizePrimitiveAction(s.primitiveAction)
+              : getDisplayCommandLabel(s.commandId, s.commandReference, commandLookup),
         details: renderStepConditionEditor(s, idx),
       };
     });
-  }, [form.steps, editorCommandOptions, commandLookup, submitting, loading, renderStepConditionEditor, isDragInvalid, activeStepId, overId]);
+  }, [form.steps, editorCommandOptions, commandLookup, submitting, loading, renderStepConditionEditor, editorParameterScope, isDragInvalid, activeStepId, overId]);
 
   const validate = (v: SequenceFormValue): Record<string, string> | undefined => {
     const next: Record<string, string> = {};

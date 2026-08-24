@@ -6,6 +6,8 @@ import { IfBlockHeader } from './IfBlockHeader';
 import { BreakStepRow } from './BreakStepRow';
 import { SortableStepItem } from '../SortableStepItem';
 import { DropIndicator, dropIndicatorBefore } from '../DropIndicator';
+import { PrimitiveActionFields } from './PrimitiveActionFields';
+import type { ParameterScopeEntry } from '../parameters/types';
 
 export type CommandOption = { value: string; label: string };
 
@@ -14,6 +16,8 @@ export type IfBlockProps = {
   onChange: (updated: IfStepEntry) => void;
   onRemove: () => void;
   commandOptions?: CommandOption[];
+  /** Names the `{ }` picker may offer inside an inline action's fields. */
+  parameterScope?: ParameterScopeEntry[];
   disabled?: boolean;
   /** True when the if block sits inside a loop body; enables break steps in branches. */
   allowBreakSteps?: boolean;
@@ -35,7 +39,7 @@ type BranchName = 'then' | 'else';
  * loop-body rules (no nested loops or ifs; breaks only when the if sits inside a loop body).
  */
 export const IfBlock: React.FC<IfBlockProps> = ({
-  ifEntry, onChange, onRemove, commandOptions = [], disabled, allowBreakSteps,
+  ifEntry, onChange, onRemove, commandOptions = [], parameterScope = [], disabled, allowBreakSteps,
   isDropInvalid, activeBodyStepId, overBodyStepId,
 }) => {
   const updateBranch = (branch: BranchName, steps: StepEntry[]) => {
@@ -99,6 +103,21 @@ export const IfBlock: React.FC<IfBlockProps> = ({
                         onRemove={() => updateBranch(branch, steps.filter((_, i) => i !== index))}
                         disabled={disabled}
                       />
+                    ) : (step as ActionStepEntry).primitiveAction ? (
+                      <div className="loop-block__action-step" data-testid={`if-${branch}-action-step`}>
+                        <PrimitiveActionFields
+                          idPrefix={`if-${branch}-action-${step.id}`}
+                          action={(step as ActionStepEntry).primitiveAction!}
+                          scope={parameterScope}
+                          disabled={disabled}
+                          onChange={(action) => {
+                            const updated = steps.map((s, i) =>
+                              i === index ? { ...s, primitiveAction: action } as StepEntry : s
+                            );
+                            updateBranch(branch, updated);
+                          }}
+                        />
+                      </div>
                     ) : (
                       <div className="loop-block__action-step" data-testid={`if-${branch}-action-step`}>
                         <select
