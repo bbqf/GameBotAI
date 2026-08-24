@@ -40,7 +40,9 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     /// </summary>
     public string? TimerRelativeOffset { get; set; }
 
-    /// <summary>Values this entry supplies (feature 078); null when it supplies none.</summary>
+    /// <summary>Values this entry supplies (feature 078); omitted when it supplies none.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Collection<GameBot.Service.Models.ParameterBindingDto>? ParameterValues { get; set; }
 
     /// <summary>
@@ -52,8 +54,10 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     /// <summary>
     /// Per-parameter effective value and originating scope for this entry (feature 078, FR-028),
     /// computed against the queue currently linked to this template when exactly one is linked.
-    /// Null when the referenced sequence declares nothing and the entry supplies nothing.
+    /// Omitted when the referenced sequence declares nothing and the entry supplies nothing.
     /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Collection<GameBot.Service.Models.ParameterScopeEntryDto>? EffectiveParameters { get; set; }
   }
 }

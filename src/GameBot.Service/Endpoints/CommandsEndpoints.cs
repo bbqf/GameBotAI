@@ -388,7 +388,10 @@ internal static class CommandsEndpoints {
         Name = c.Name,
         TriggerId = c.TriggerId,
         Steps = new Collection<CommandStepDto>(c.Steps.Select(ToResponseStep).ToList()),
-        Detection = ToResponseDetection(c.Detection)
+        Detection = ToResponseDetection(c.Detection),
+        // Feature 078: the sequence editor renders a binding form per command step, so it needs each
+        // command's declarations up front — without this it would refetch every command one by one.
+        Parameters = ParameterDtoMapper.ToResponseDeclarations(c.Parameters)
       });
       return Results.Ok(resp);
     })

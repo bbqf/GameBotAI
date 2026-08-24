@@ -157,8 +157,8 @@ that exist solely to feed the US3 authoring UI.
 - [X] T054 [P] [US3] Add `GET /api/sequences/{id}/parameter-scope` to `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, returning scope entries plus a `stepCallees` array of each `Command` step's referenced command declarations so the binding form needs no N+1 fetches (depends on T052)
 - [X] T055 [US3] Accept an optional `parameters` body on `POST /api/sequences/{id}/execute` in `src/GameBot.Service/Endpoints/SequencesEndpoints.cs` and return `409 missing_required_parameters` when a required parameter has neither a supplied value nor a default (FR-031) (depends on T052)
 - [X] T056 [US2] Project entry warnings (`unused_parameter_value`, `stale_parameter_binding`, `unsatisfied_required_parameter`) and `effectiveParameters` in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs`; only `invalid_parameter_value_name` blocks with 400 (depends on T043, T050)
-- [ ] T057 [P] [US2] Write `tests/contract/Sequences/ParameterContractTests.cs` and `tests/contract/QueueTemplates/ParameterEntryContractTests.cs` covering the new members and every error code in contracts/api.md
-- [ ] T058 [US2] Regenerate the affected snapshots in `tests/contract/ApiContractSnapshots/` for the additive members and review the diff for unintended changes (depends on T048–T056)
+- [X] T057 [P] [US2] Write `tests/contract/Sequences/ParameterContractTests.cs` and `tests/contract/QueueTemplates/ParameterEntryContractTests.cs` covering the new members and every error code in contracts/api.md
+- [X] T058 [US2] Regenerate the affected snapshots in `tests/contract/ApiContractSnapshots/` for the additive members and review the diff for unintended changes (depends on T048–T056)
 
 ---
 
@@ -176,7 +176,7 @@ and template entry.
 - [X] T059 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterizableField.test.tsx`: the picker lists in-scope names with descriptions and inserts a valid reference on selection, in at most three interactions from the field (SC-004)
 - [X] T060 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterBindingForm.test.tsx`: every row defaults to "inherit"; an explicit value overrides; the effective value and its origin layer are shown
 - [X] T061 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterDeclarationList.test.tsx`: add, edit, reorder and remove declarations; invalid and reserved names are rejected inline
-- [ ] T061a [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/inlineParameterValidation.test.tsx`: a server-reported `unresolvable_parameter_reference` renders as an error anchored at the offending field rather than only as a form-level message, and a `static_check_skipped` warning renders as a non-blocking notice at its field (FR-029)
+- [X] T061a [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/inlineParameterValidation.test.tsx`: a server-reported `unresolvable_parameter_reference` renders as an error anchored at the offending field rather than only as a form-level message, and a `static_check_skipped` warning renders as a non-blocking notice at its field (FR-029)
 
 ### Implementation for User Story 3
 
@@ -186,11 +186,11 @@ and template entry.
 - [X] T065 [US3] Create `src/web-ui/src/components/parameters/ParameterBindingForm.tsx` — renders a callee's declarations as rows pre-set to "inherit", with effective value and origin preview, and an "Add value" affordance for ad-hoc names used only in the template-entry context (FR-027, FR-028) (depends on T062)
 - [X] T066 [P] [US3] Update `src/web-ui/src/services/commands.ts`, `sequences.ts` and `queueTemplates.ts` with the new types, the `/parameter-scope` calls, and the execute-with-parameters body
 - [X] T067 [US3] Add the Parameters section to `src/web-ui/src/components/commands/CommandForm.tsx` and wrap the parametrizable fields in `src/web-ui/src/components/commands/EnsureEmulatorRunningPanel.tsx`, `EnsureGameRunningPanel.tsx`, `KeyInputPanel.tsx`, `SwipePanel.tsx`, `TapPanel.tsx` and `WaitForImagePanel.tsx` in `ParameterizableField`, writing numeric placeholders to `fieldTemplates` and string placeholders inline (depends on T063, T064, T066)
-- [ ] T068 [US3] Add the Parameters section to the sequence editor and a per-step `ParameterBindingForm` in `src/web-ui/src/components/SortableSequenceStepList.tsx` (depends on T065, T066)
+- [X] T068 [US3] Add the Parameters section to the sequence editor and a per-step `ParameterBindingForm` in `src/web-ui/src/components/SortableSequenceStepList.tsx` (depends on T065, T066)
 - [X] T069 [US3] Add the entry parameter form with effective-value preview to `src/web-ui/src/components/queues/SchedulingSequenceCard.tsx` (depends on T065, T066)
 - [X] T070 [P] [US3] Add the parameter-override badge to `src/web-ui/src/components/queues/QueueEntryList.tsx` so overridden entries are identifiable without opening them (FR-030) (depends on T066)
-- [ ] T071 [US3] Surface parameter validation errors and warnings inline at the offending field in `src/web-ui/src/lib/validation.ts` and its consumers (FR-029) (depends on T066)
-- [ ] T072 [US3] Add the ad-hoc run parameter form to the sequence run action in `src/web-ui/src/pages/SequencesPage.tsx`, pre-filled with declared defaults and refusing to start while a required parameter is empty, sending the values as the `parameters` body added in T055 (FR-031) (depends on T055, T065, T066)
+- [X] T071 [US3] Surface parameter validation errors and warnings inline at the offending field in `src/web-ui/src/lib/validation.ts` and its consumers (FR-029) (depends on T066)
+- [X] T072 [US3] Add the ad-hoc run parameter form to the sequence run action in `src/web-ui/src/pages/SequencesPage.tsx`, pre-filled with declared defaults and refusing to start while a required parameter is empty, sending the values as the `parameters` body added in T055 (FR-031) (depends on T055, T065, T066)
 
 **Checkpoint**: All three behavioural stories are independently functional.
 
@@ -204,8 +204,8 @@ migration path, since no migration code is written.
 **Independent Test**: A reader who has never used the feature follows the guide end to end on the
 ensure-game-running / ADB-serial case and reaches a working single-command, single-sequence setup.
 
-- [ ] T073 [US4] Review [quickstart.md](./quickstart.md) against the shipped UI and correct every control name, field label and menu path so the steps match what an operator actually sees (the guide was written from the design, not the built UI) (depends on Phase 6)
-- [ ] T074 [US4] Verify the guide's Step 7 verification instructions against a real execution-log payload — confirm the "Resolved parameters" display name and content match what T037 actually emits (depends on T037, T073)
+- [X] T073 [US4] Review [quickstart.md](./quickstart.md) against the shipped UI and correct every control name, field label and menu path so the steps match what an operator actually sees (the guide was written from the design, not the built UI) (depends on Phase 6)
+- [X] T074 [US4] Verify the guide's Step 7 verification instructions against a real execution-log payload — confirm the "Resolved parameters" display name and content match what T037 actually emits (depends on T037, T073)
 - [ ] T075 [US4] Walk the full guide once end to end against the live service and record the elapsed time, confirming the SC-008 target of under 20 minutes for a three-instance conversion; adjust the guide wherever a step proved ambiguous (depends on T073, T074)
 
 ---
@@ -296,19 +296,19 @@ Each increment leaves every previously stored command, sequence and template run
 
 ---
 
-## Deferred (not implemented in this change)
+## Deferred
 
-The feature is complete and usable end to end without these; each is an additive convenience or an
-extra layer of test coverage on top of behaviour that is already covered elsewhere.
+Everything originally deferred was completed in the follow-up pass, except the one item that needs
+hardware this environment does not have.
 
-| Task | Why deferred | Impact today |
+| Task | Status | Note |
 |---|---|---|
-| T057, T058 | Contract tests + snapshot regeneration for the additive DTO members | The members are covered by the 9 end-to-end tests in `tests/integration/Queues/ParameterPropagationIntegrationTests.cs`, which exercise the real endpoints. The existing 94 contract tests still pass, confirming nothing pre-existing changed shape. |
-| T061a | A UI test for field-anchored validation rendering | `ParameterizableField` already renders and tests an inline `error`; what is untested is the page-level plumbing from a save response into that prop (T071). |
-| T068 | Parameters section + per-step binding form in the sequence editor (`SequencesPage.tsx`, 2000 lines) | **No workflow is blocked**: unbound parameters inherit automatically, which is the intended path for a value that varies per instance. Only an explicit per-step override is unavailable, and such a value belongs on the queue or template entry anyway. Sequence-level declarations remain settable through the API. |
-| T071 | Surfacing save-time parameter errors inline on the page | The backend returns them with `fieldPath`/`parameterName`, and they surface through the editor's existing error display; they are simply not yet anchored to the individual field. |
-| T072 | Ad-hoc run parameter form on the Sequences page | The API supports it (`POST /api/sequences/{id}/execute` with `parameters`, and the 409 refusal), so the behaviour exists; only the form is missing. |
-| T075 | Timed end-to-end walkthrough of the guide against a live emulator | Requires a real LDPlayer instance and a running service, which this environment does not have. T073/T074 corrected the guide against the shipped UI and the real log format instead. |
+| T057, T058 | **Done** (follow-up) | 21 contract tests across `tests/contract/Sequences/ParameterContractTests.cs` and `tests/contract/QueueTemplates/ParameterEntryContractTests.cs`. Writing them found a real contract bug: responses emitted `"parameters": null` instead of omitting the member. The route snapshot gained the two `parameter-scope` endpoints. |
+| T061a | **Done** (follow-up) | `inlineParameterValidation.test.tsx`, plus `lib/__tests__/parameterValidation.spec.ts` for the parser that feeds it. |
+| T068 | **Done** (follow-up) | Parameters section on both sequence forms, and a per-step binding form on command steps. Needed the commands **list** endpoint to return `parameters` too, otherwise the editor would refetch every command one by one. |
+| T071 | **Done** (follow-up) | `parseParameterErrors` / `parameterErrorFor` / `parameterErrorSummary` in `lib/validation.ts`, wired into both editors' save paths. |
+| T072 | **Done** (follow-up) | Ad-hoc run form on the Execution page — which is where the run action actually lives; this task's text said `SequencesPage.tsx`, which was wrong. |
+| T075 | **Blocked** | A timed walkthrough against a live emulator. Needs a running LDPlayer instance and service; T073/T074 verified the guide against the shipped UI and the real log format instead. |
 
 The picker (`ParameterizableField`) is wired into the ensure-emulator-running **ADB serial** field —
 the exact field the motivating scenario varies. Other fields accept a typed reference and are

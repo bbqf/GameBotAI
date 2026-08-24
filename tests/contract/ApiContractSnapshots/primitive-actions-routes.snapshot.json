@@ -1,13 +1,15 @@
 {
-  "version": "2026-05-27",
+  "version": "2026-08-24",
   "routes": [
     "/api/commands",
     "/api/commands/{id}",
     "/api/commands/{id}/force-execute",
     "/api/commands/{id}/evaluate-and-execute",
+    "/api/commands/{id}/parameter-scope",
     "/api/sequences",
     "/api/sequences/{sequenceId}",
     "/api/sequences/{sequenceId}/execute",
+    "/api/sequences/{sequenceId}/parameter-scope",
     "/api/sessions/start",
     "/api/sessions/running",
     "/api/sessions/stop"

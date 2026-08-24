@@ -99,6 +99,8 @@ describe('CommandsPage detection persistence', () => {
       name: 'DetectCmd',
       steps: [{ type: 'Command', targetId: 'nested1', order: 0 }],
       detection: { referenceImageId: 'tpl2', confidence: 0.9, offsetX: -4, offsetY: 7 },
+      // Feature 078: update always sends the full declaration list so clearing the last one persists.
+      parameters: [],
     }));
   });
 

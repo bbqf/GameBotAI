@@ -55,6 +55,93 @@ export const parseFromError = (err: unknown): ParsedValidation | null => {
   return parseValidationErrors(errs);
 };
 
+/** One parameter problem the backend reported, already anchored to a field (feature 078). */
+export type ParameterFieldIssue = {
+  code: string;
+  message: string;
+  fieldPath?: string;
+  parameterName?: string;
+};
+
+/** Parameter problems from a save, keyed by the dotted field path they belong to. */
+export type ParsedParameterErrors = {
+  /** Keyed by `fieldPath`; a field with no path lands in {@link general} instead. */
+  byFieldPath: Record<string, ParameterFieldIssue[]>;
+  /** Problems that name no field, e.g. a malformed declaration. */
+  general: ParameterFieldIssue[];
+  /** The top-level error code, e.g. `unresolvable_parameter_reference`. */
+  code?: string;
+};
+
+/**
+ * Extracts the parameter validation `details` a 400 carries (feature 078, FR-029), so an editor can
+ * render each message at the field it concerns rather than as one form-level banner.
+ *
+ * Returns `null` for anything that is not a parameter error, so callers can fall through to their
+ * existing error handling untouched.
+ *
+ * @param err The rejection from a save call.
+ */
+export const parseParameterErrors = (err: unknown): ParsedParameterErrors | null => {
+  if (!(err instanceof ApiError)) return null;
+  const payload = err.payload;
+  if (!payload || typeof payload !== 'object') return null;
+
+  const details = (payload as { details?: unknown }).details;
+  if (!Array.isArray(details) || details.length === 0) return null;
+
+  const result: ParsedParameterErrors = {
+    byFieldPath: {},
+    general: [],
+    code: typeof (payload as { error?: unknown }).error === 'string'
+      ? (payload as { error: string }).error
+      : undefined,
+  };
+
+  for (const raw of details) {
+    if (!raw || typeof raw !== 'object') continue;
+    const detail = raw as Record<string, unknown>;
+    const message = typeof detail.message === 'string' ? detail.message : undefined;
+    if (!message) continue;
+
+    const issue: ParameterFieldIssue = {
+      code: typeof detail.code === 'string' ? detail.code : (result.code ?? 'parameter_error'),
+      message,
+      fieldPath: typeof detail.fieldPath === 'string' ? detail.fieldPath : undefined,
+      parameterName: typeof detail.parameterName === 'string' ? detail.parameterName : undefined,
+    };
+
+    if (issue.fieldPath) {
+      (result.byFieldPath[issue.fieldPath] ??= []).push(issue);
+    } else {
+      result.general.push(issue);
+    }
+  }
+
+  // Only a payload that actually carried a parameter issue counts as a parameter error.
+  return Object.keys(result.byFieldPath).length > 0 || result.general.length > 0 ? result : null;
+};
+
+/**
+ * The message to show at one field, or undefined when that field is clean.
+ *
+ * @param parsed Result of {@link parseParameterErrors}; `null` yields undefined.
+ * @param fieldPath Dotted path of the field being rendered, e.g. `ensureEmulatorRunning.adbSerial`.
+ */
+export const parameterErrorFor = (
+  parsed: ParsedParameterErrors | null,
+  fieldPath: string,
+): string | undefined => parsed?.byFieldPath[fieldPath]?.[0]?.message;
+
+/** A single combined message for form-level display, or undefined when there is nothing to show. */
+export const parameterErrorSummary = (
+  parsed: ParsedParameterErrors | null,
+): string | undefined => {
+  if (!parsed) return undefined;
+  const all = [...parsed.general, ...Object.values(parsed.byFieldPath).flat()];
+  return all.length > 0 ? all.map((i) => i.message).join(' ') : undefined;
+};
+
 export const validateConditionalFlow = (flow: Pick<SequenceFlowUpsertRequest, 'entryStepId' | 'steps' | 'links'>): string[] => {
   const errors: string[] = [];
   const stepIds = new Set(flow.steps.map((step) => step.stepId));

@@ -144,6 +144,8 @@ describe('CommandsPage', () => {
       name: 'Cmd Updated',
       steps: [{ type: 'Command', targetId: 'nested1', order: 0 }],
       detection: undefined,
+      // Feature 078: update always sends the full declaration list so clearing the last one persists.
+      parameters: [],
     }));
   });
 
@@ -187,6 +189,7 @@ describe('CommandsPage', () => {
         { type: 'Command', targetId: 'nested1', order: 1 },
       ],
       detection: undefined,
+      parameters: [],
     }));
 
     uuidSpy.mockRestore();
@@ -320,6 +323,7 @@ describe('CommandsPage', () => {
         }
       }],
       detection: undefined,
+      parameters: [],
     }));
   });
 });

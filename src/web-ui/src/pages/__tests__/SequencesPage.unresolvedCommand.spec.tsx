@@ -64,6 +64,8 @@ describe('SequencesPage unresolved commands', () => {
     await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('seq-missing', {
       name: 'Missing Command Sequence',
       version: 7,
+      // Feature 078: update always sends the full declaration list so clearing the last one persists.
+      parameters: [],
       interStepDelayRangeMs: null,
       steps: [
         {

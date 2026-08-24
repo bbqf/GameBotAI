@@ -4,6 +4,7 @@ import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { useResetSignal } from '../hooks/useResetSignal';
 import { ApiError } from '../lib/api';
+import { parseParameterErrors, parameterErrorSummary } from '../lib/validation';
 import { SearchableOption } from '../components/SearchableDropdown';
 import { listCommands, getCommand, createCommand, updateCommand, deleteCommand, CommandDto, CommandStepDto } from '../services/commands';
 import { listGames, GameDto } from '../services/games';
@@ -11,7 +12,7 @@ import './CommandsPage.css';
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
-const emptyForm: CommandFormValue = { name: '', steps: [], detection: undefined };
+const emptyForm: CommandFormValue = { name: '', steps: [], detection: undefined, parameters: [] };
 
 const stepsFromDto = (dto: CommandDto): StepEntry[] => {
   if (dto.steps && dto.steps.length > 0) {
@@ -258,9 +259,22 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     setForm({
       name: c.name,
       steps: stepsFromDto(c),
-      detection: detectionFromDto(c.detection)
+      detection: detectionFromDto(c.detection),
+      parameters: c.parameters ?? []
     });
     setDirty(false);
+  };
+
+  /**
+   * Turns a save rejection into the editor's field-error map (feature 078, FR-029). A parameter
+   * rejection carries `details` naming the offending field and parameter, so those are surfaced
+   * instead of a generic message; anything else falls back to the message as before.
+   */
+  const toSaveErrors = (err: unknown, fallback: string): Record<string, string> => {
+    const parameterErrors = parseParameterErrors(err);
+    const summary = parameterErrorSummary(parameterErrors);
+    if (summary) return { form: summary };
+    return { form: (err as { message?: string })?.message ?? fallback };
   };
 
   const filteredCommandOptions = useMemo(() => {
@@ -442,6 +456,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
                 name: form.name.trim(),
                 steps: stepsToDto(form.steps),
                 detection: detectionResult?.value ?? undefined,
+                ...(form.parameters && form.parameters.length > 0 ? { parameters: form.parameters } : {}),
               });
               setCreating(false);
               setForm(emptyForm);
@@ -449,7 +464,9 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
               setTableMessage('Command created successfully.');
               await reloadCommands();
             } catch (err: any) {
-              setErrors({ form: err?.message ?? 'Failed to create command' });
+              // Feature 078 (FR-029): a parameter rejection carries the offending field and name, so
+              // show that rather than a bare "Failed to create command".
+              setErrors(toSaveErrors(err, 'Failed to create command'));
             } finally {
               setSubmitting(false);
             }
@@ -486,6 +503,8 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
                   name: form.name.trim(),
                   steps: stepsToDto(form.steps),
                   detection: detectionResult?.value ?? undefined,
+                  // Always sent on update so clearing the last declaration actually persists.
+                  parameters: form.parameters ?? [],
                 });
                 await reloadCommands();
                 setEditingId(undefined);
@@ -493,7 +512,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
                 setDirty(false);
                 setTableMessage('Command updated successfully.');
               } catch (err: any) {
-                setErrors({ form: err?.message ?? 'Failed to update command' });
+                setErrors(toSaveErrors(err, 'Failed to update command'));
               } finally {
                 setSubmitting(false);
               }
