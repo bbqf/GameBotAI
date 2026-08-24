@@ -242,6 +242,39 @@ public sealed class QueueExecutionServiceTests {
     h.Sequences.Executed.Should().Equal("A", "B", "C");
   }
 
+  [Fact] // 077: disabled template entries are excluded from the run; enabled ones run in order
+  public async Task DisabledTemplateEntriesAreSkippedDuringRun() {
+    var h = new Harness();
+    var template = new QueueTemplate { Id = "tpl-q1", Name = "T-q1" };
+    template.Entries.Add(new QueueTemplateEntry { SequenceId = "A" });
+    template.Entries.Add(new QueueTemplateEntry { SequenceId = "B", Enabled = false });
+    template.Entries.Add(new QueueTemplateEntry { SequenceId = "C" });
+    h.Templates.Add(template);
+    h.Queues.Add(new ExecutionQueue { Id = "q1", Name = "Q-q1", EmulatorSerial = "emu-1", LinkedTemplateId = "tpl-q1" });
+
+    var outcome = await h.Service.StartAsync("q1");
+    outcome.Should().Be(QueueStartOutcome.Started);
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "C"); // B skipped, order preserved
+  }
+
+  [Fact] // 077: a template with every entry disabled starts and completes idle without error
+  public async Task AllDisabledTemplateStartsAndRunsNothing() {
+    var h = new Harness();
+    var template = new QueueTemplate { Id = "tpl-q1", Name = "T-q1" };
+    template.Entries.Add(new QueueTemplateEntry { SequenceId = "A", Enabled = false });
+    template.Entries.Add(new QueueTemplateEntry { SequenceId = "B", Enabled = false });
+    h.Templates.Add(template);
+    h.Queues.Add(new ExecutionQueue { Id = "q1", Name = "Q-q1", EmulatorSerial = "emu-1", LinkedTemplateId = "tpl-q1" });
+
+    var outcome = await h.Service.StartAsync("q1");
+    outcome.Should().Be(QueueStartOutcome.Started);
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().BeEmpty();
+  }
+
   [Fact] // Regression: a started queue's runtime entries mirror its linked template so GET (and the UI) show them
   public async Task StartMaterializesLinkedTemplateEntriesIntoRuntimeStore() {
     var h = new Harness();

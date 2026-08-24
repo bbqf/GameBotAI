@@ -16,6 +16,13 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public bool Stale { get; set; }
 
     /// <summary>
+    /// Whether this entry participates in queue runs. Always populated from the stored entry;
+    /// entries with no stored value are reported as <c>true</c> (enabled). The detail response
+    /// returns all entries, including disabled ones, so the template editor can render and toggle them.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
     /// Schedule type of this entry: "OncePerRun", "EveryStep", "Timer", or "AtQueueStart".
     /// ("EveryStep" is displayed to operators as "After Every Step"; the returned value is unchanged.)
     /// </summary>

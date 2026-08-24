@@ -25,7 +25,8 @@ Ordered collection of `QueueTemplateEntry`. No structural change; entries now ea
 
 ## Derived / runtime view (behavioral, not persisted)
 
-- **Queue run entry set**: When a run is built from the template, only entries with `Enabled == true` are materialized into the run's schedule partitions and into the runtime store used by `GET /queues/{id}`. Disabled entries are absent from execution and from schedule accounting for that run (FR-005/FR-006). A change to `Enabled` takes effect at the next run build (queue start), not mid-run.
+- **Queue run entry set**: When a run is built from the template (`RunAsync`, reading `template.Entries` directly), only entries with `Enabled == true` are materialized into the run's schedule partitions. Disabled entries are absent from execution and from schedule accounting for that run (FR-005/FR-006); the queue monitor projects from this filtered schedule and so excludes them too. A change to `Enabled` takes effect at the next run build (queue start), not mid-run.
+- **Runtime store / loaded-entries display**: The runtime store (backing `GET /queues/{id}`) retains ALL entries in template order — the template editor renders from these and merges each entry's schedule/`enabled` from the template detail by position, so disabled entries must remain visible and correctly aligned to be re-enabled. Only the run (above) filters.
 
 ## Contract DTO deltas
 

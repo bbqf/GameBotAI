@@ -18,6 +18,8 @@ export type QueueTemplateEntryDto = {
   timerTimeOfDay: string | null;
   /** Relative-mode offset ("HH:mm:ss") for a Timer entry; null in time-of-day mode. */
   timerRelativeOffset: string | null;
+  /** Whether the entry runs during a queue run. Disabled entries stay in the template but are skipped. */
+  enabled: boolean;
 };
 
 export type QueueTemplateDetail = QueueTemplateSummary & { entries: QueueTemplateEntryDto[] };
@@ -29,6 +31,8 @@ export type TemplateEntrySaveDto = {
   timerTimeOfDay?: string;
   /** Relative-mode offset ("HH:mm:ss"); mutually exclusive with timerTimeOfDay. */
   timerRelativeOffset?: string;
+  /** Whether the entry runs during a queue run. Omit or true = enabled; false = disabled. */
+  enabled?: boolean;
 };
 
 export type SaveQueueTemplate = {

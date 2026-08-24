@@ -13,6 +13,8 @@ export type EntrySchedule = {
   timerMode?: TimerMode;
   /** Relative-mode offset as "HH:mm:ss". */
   timerRelativeOffset?: string;
+  /** Whether the entry runs during a queue run. Undefined or true = enabled; false = disabled. */
+  enabled?: boolean;
 };
 
 type QueueEntryListProps = {

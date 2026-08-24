@@ -2,7 +2,7 @@
 
 **Feature Branch**: `077-template-sequence-toggle`
 **Created**: 2026-07-30
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I want to be able to edit template and to turn the sequences on and off, so that when they're turned off, they don't disappear from the template, but are ignored during the queue run. The feature has to be available on the UI with a on/off switch and this has to be persisted to the template."
 
 ## Clarifications

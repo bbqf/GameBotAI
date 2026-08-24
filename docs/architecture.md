@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-07-29._
+_Last reviewed: 2026-07-30._
 
 ## What GameBot is
 
@@ -96,6 +96,15 @@ not survive a service restart; queue *configuration* and templates are persisted
   be shared across queues.
 - **Sequence schedule** (within a template) — how/when an entry runs in a queue cycle:
   *Once per run*, *At queue start*, *After every step*, and *Scheduled* (absolute or relative time).
+- **Entry enabled/disabled** (within a template, spec 077) — each `QueueTemplateEntry` carries an
+  `Enabled` flag (bool, default `true`; absent in legacy JSON ⇒ enabled). A disabled entry stays in
+  the template (position/schedule/reference intact) but is **excluded when a run is built**: the run
+  reads `template.Entries.Where(e => e.Enabled)` in `QueueExecutionService.RunAsync`, so a disabled
+  entry never fires and is absent from all schedule partitions and the monitor projection. The
+  runtime store / `GET /queues/{id}` retains **all** entries (the template editor renders from them
+  and merges each entry's schedule+enabled from the template detail by position), so disabled entries
+  stay visible and re-enableable. Toggling takes effect on the next run start. Exposed as an on/off
+  switch per card in the template editor; persisted via the normal template save.
 - **Self-reschedule action** (within a sequence) — an authorable sequence action (`reschedule-self`,
   placeable under IF/conditional flow) that, when reached during a queue-driven run, schedules **one
   additional firing of the same sequence into the current run** using any of the schedule options

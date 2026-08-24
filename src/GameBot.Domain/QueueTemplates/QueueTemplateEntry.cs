@@ -12,6 +12,16 @@ namespace GameBot.Domain.QueueTemplates {
     public string SequenceId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Whether this entry participates in queue runs. When <c>false</c>, the entry is retained in
+    /// the template (position, schedule, and sequence reference preserved) but is excluded when a
+    /// run is built from the template, so it never fires and never affects scheduling.
+    /// Defaults to <c>true</c>; templates persisted before this field existed omit it in JSON and
+    /// therefore deserialize as enabled, preserving pre-feature behaviour. Independent per entry,
+    /// including duplicate references to the same sequence.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
     /// Controls when this entry's sequence is executed during a queue run.
     /// Defaults to <see cref="ScheduleType.OncePerRun"/>, preserving pre-feature behaviour for
     /// entries that were persisted before schedule types were introduced.

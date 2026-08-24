@@ -8,6 +8,13 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public string? SequenceId { get; set; }
 
     /// <summary>
+    /// Whether the entry participates in queue runs. When null (older clients that omit it) the
+    /// entry is treated as enabled. When <c>false</c>, the entry is retained in the template but
+    /// excluded from runs.
+    /// </summary>
+    public bool? Enabled { get; set; }
+
+    /// <summary>
     /// Schedule type string: "OncePerRun", "EveryStep", "Timer", or "AtQueueStart".
     /// When absent or null, defaults to "OncePerRun". ("EveryStep" is displayed to operators as
     /// "After Every Step"; the wire value is unchanged.)

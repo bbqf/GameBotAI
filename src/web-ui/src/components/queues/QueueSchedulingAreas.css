@@ -68,6 +68,25 @@
   background: var(--gb-color-surface-alt, #fafafa);
 }
 
+/* Disabled entry: retained in place but visibly "off" at a glance (FR-010). The toggle
+   itself stays fully interactive so it can be switched back on. */
+.scheduling-card--disabled {
+  opacity: 0.55;
+  background: var(--gb-color-surface, #f1f1f1);
+  border-style: dashed;
+}
+
+.scheduling-card__toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.badge-muted {
+  background: var(--gb-color-border, #d0d0d0);
+  color: var(--gb-color-text-muted, #555);
+}
+
 .scheduling-card__handle {
   flex-shrink: 0;
   line-height: 1;

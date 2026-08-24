@@ -15,6 +15,8 @@ type SchedulingSequenceCardProps = {
   onTimerTimeChange?: (entryId: string, timerTimeOfDay: string) => void;
   onTimerModeChange?: (entryId: string, mode: TimerMode) => void;
   onTimerRelativeOffsetChange?: (entryId: string, offset: string) => void;
+  /** Toggle whether this entry runs during a queue run (persisted to the template on save). */
+  onToggleEnabled?: (entryId: string, enabled: boolean) => void;
 };
 
 const SCHEDULE_LABELS: Record<ScheduleType, string> = {
@@ -47,6 +49,7 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
   onTimerTimeChange,
   onTimerModeChange,
   onTimerRelativeOffsetChange,
+  onToggleEnabled,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.entryId,
@@ -63,6 +66,7 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
 
   const schedule = card.schedule;
   const label = card.label;
+  const enabled = card.enabled;
   const isScheduled = areaId === 'scheduled';
   const timerMode: TimerMode = schedule.timerMode ?? (schedule.timerRelativeOffset ? 'relative' : 'timeOfDay');
   const isRelative = isScheduled && timerMode === 'relative';
@@ -75,7 +79,13 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="scheduling-card" data-testid="queue-entry">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`scheduling-card${enabled ? '' : ' scheduling-card--disabled'}`}
+      data-testid="queue-entry"
+      data-enabled={enabled}
+    >
       <span
         className="scheduling-card__handle"
         aria-label="Drag to reorder"
@@ -87,8 +97,23 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
         ⠿
       </span>
 
+      <label
+        className="scheduling-card__toggle"
+        title={enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+      >
+        <input
+          type="checkbox"
+          role="switch"
+          checked={enabled}
+          disabled={disabled || !onToggleEnabled}
+          aria-label={`${enabled ? 'Disable' : 'Enable'} ${label}`}
+          onChange={(e) => onToggleEnabled?.(card.entryId, e.target.checked)}
+        />
+      </label>
+
       <span className="scheduling-card__name">
         {label}
+        {!enabled && <span className="badge badge-muted" role="status" aria-label="Disabled"> Off</span>}
         {card.stale && <span className="badge badge-warning" role="status"> (stale)</span>}
         {areaId === 'startOfExecution' && <span className="badge badge-info" role="status" aria-label="At Queue Start"> At Queue Start</span>}
         {areaId === 'afterEveryStep' && <span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
