@@ -67,10 +67,10 @@ automatically, so the queue's serial reaches the command with no configuration o
 all. That is the whole point of the inheritance rule — a sequence never has to re-declare a value
 merely to pass it through.
 
-> Explicitly overriding a parameter *at a particular sequence step* (rather than per queue or per
-> template entry) is not yet editable in the sequence editor. It is rarely what you want — a value
-> that differs per instance belongs on the queue or the template entry, which is what the rest of
-> this guide uses.
+If the command you pointed at declares parameters, the step shows a **Parameters** panel listing
+them, every row on **Inherit**. Leave them alone: inherit is what lets the queue's value flow down.
+Only clear **Inherit** when the value is a property of *that step* rather than of the instance — a
+value that differs per instance belongs on the queue or the template entry instead.
 
 ### Step 5 — Point one template at the shared sequence, and test it
 
@@ -144,8 +144,12 @@ Then put the reference into the field and save.
 
 ### 3b. Supply the value where it differs
 
-Queue templates → open the template → click **Parameters** on the entry → clear **Inherit** on the
-row and type the value. Use this whenever the value is a property of *that instance*.
+Two places, depending on what the value belongs to:
+
+- **Per instance** — Queue templates → open the template → click **Parameters** on the entry → clear
+  **Inherit** on the row and type the value. This is the usual case.
+- **Per step** — Sequences → open the sequence → expand the command step → clear **Inherit** in its
+  **Parameters** panel. Use this only when the value is a property of that step, not of the instance.
 
 The row shows the effective value and where it came from — `set on this entry`, `from the queue`, or
 `declared default` — so you can confirm the result without running anything. An entry that supplies

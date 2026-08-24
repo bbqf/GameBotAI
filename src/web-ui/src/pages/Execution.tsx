@@ -7,6 +7,8 @@ import { listSequences, executeSequence, SequenceDto } from '../services/sequenc
 import { ApiError } from '../lib/api';
 import { StatusChip } from '../features/execution/StatusChip';
 import { RunDetails } from '../features/execution/RunDetails';
+import { ParameterBindingForm } from '../components/parameters/ParameterBindingForm';
+import type { ParameterBinding } from '../components/parameters/types';
 
 export const EXECUTION_AREA_PATH = '/execution';
 export const EXECUTION_LOGS_AREA_PATH = '/execution-logs';
@@ -40,6 +42,9 @@ export const ExecutionPage: React.FC = () => {
   const [selectedSequenceId, setSelectedSequenceId] = useState<string | undefined>(undefined);
   const [sequenceMessage, setSequenceMessage] = useState<string | undefined>(undefined);
   const [sequenceError, setSequenceError] = useState<string | undefined>(undefined);
+  /** Ad-hoc parameter values, keyed by sequence id so switching selection keeps each one's entries. */
+  const [sequenceParameterValues, setSequenceParameterValues] =
+    useState<Record<string, ParameterBinding[]>>({});
   const [executingSequence, setExecutingSequence] = useState(false);
 
   const gameLookup = useMemo(() => {
@@ -138,6 +143,18 @@ export const ExecutionPage: React.FC = () => {
   // diverge: a controlled <select> would otherwise default its DOM value to the first option
   // while state lags behind a separate auto-select effect, leaving the handler reading undefined.
   const effectiveSequenceId = selectedSequenceId ?? sequences[0]?.id;
+
+  // Feature 078: the selected sequence's declarations, and the values supplied for this ad-hoc run.
+  const selectedSequence = sequences.find((s) => s.id === effectiveSequenceId);
+  const sequenceParameters = useMemo(() => selectedSequence?.parameters ?? [], [selectedSequence]);
+  const suppliedParameters = sequenceParameterValues[effectiveSequenceId ?? ''] ?? [];
+  const missingRequiredParameters = sequenceParameters
+    .filter((p) => p.required && (p.default ?? null) === null)
+    .filter((p) => {
+      const bound = suppliedParameters.find((b) => b.name === p.name);
+      return bound?.value === null || bound?.value === undefined;
+    })
+    .map((p) => p.name);
 
   const selectedRunningSession = useMemo(() => {
     if (!selectedGameId || !selectedAdbSerial) return undefined;
@@ -244,12 +261,28 @@ export const ExecutionPage: React.FC = () => {
       return;
     }
 
+    // Feature 078 (FR-031): an ad-hoc run has no queue, so nothing supplies the built-ins. Refuse
+    // locally when a required parameter has neither a value nor a default, matching the backend's
+    // 409 — better to say so before the run than to fail a step mid-way.
+    if (missingRequiredParameters.length > 0) {
+      setSequenceError(
+        `Supply a value for ${missingRequiredParameters.join(', ')} before running this sequence.`,
+      );
+      return;
+    }
+
     setExecutingSequence(true);
     setSequenceMessage(undefined);
     setSequenceError(undefined);
 
     try {
-      await executeSequence(effectiveSequenceId, cachedSession?.sessionId);
+      // Omit the argument entirely when nothing is supplied, so an unparametrized run makes exactly
+      // the call it always did — passing an explicit `undefined` would still change the arity.
+      if (suppliedParameters.length > 0) {
+        await executeSequence(effectiveSequenceId, cachedSession?.sessionId, suppliedParameters);
+      } else {
+        await executeSequence(effectiveSequenceId, cachedSession?.sessionId);
+      }
       setSequenceMessage('Sequence executed successfully.');
     } catch (err: any) {
       if (err instanceof ApiError) {
@@ -443,8 +476,38 @@ export const ExecutionPage: React.FC = () => {
           {!loadingSequences && sequences.length === 0 && <div className="form-hint">No sequences available.</div>}
         </div>
 
+        {/*
+          Feature 078 (FR-031): a run started here has no queue behind it, so the queue built-ins are
+          not in scope. Anything the sequence declares must be supplied (or defaulted) up front.
+        */}
+        {sequenceParameters.length > 0 && (
+          <div className="field">
+            <ParameterBindingForm
+              declarations={sequenceParameters}
+              bindings={suppliedParameters}
+              disabled={executingSequence || loadingSequences}
+              onChange={(bindings) => {
+                setSequenceParameterValues((prev) => ({ ...prev, [effectiveSequenceId ?? '']: bindings }));
+                setSequenceError(undefined);
+              }}
+            />
+            <div className="form-hint">
+              This run is not attached to a queue, so <code>queue.…</code> values are unavailable here.
+            </div>
+          </div>
+        )}
+
         <div className="form-actions">
-          <button type="button" onClick={handleExecuteSequence} disabled={executingSequence || loadingSequences || sequences.length === 0}>Execute sequence</button>
+          <button
+            type="button"
+            onClick={handleExecuteSequence}
+            disabled={executingSequence || loadingSequences || sequences.length === 0 || missingRequiredParameters.length > 0}
+            title={missingRequiredParameters.length > 0
+              ? `Supply a value for ${missingRequiredParameters.join(', ')} first`
+              : undefined}
+          >
+            Execute sequence
+          </button>
         </div>
       </section>
     </div>

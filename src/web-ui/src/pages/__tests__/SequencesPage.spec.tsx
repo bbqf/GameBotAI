@@ -118,6 +118,8 @@ describe('SequencesPage', () => {
     await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('s1', {
       name: 'Sequence 1',
       version: 1,
+      // Feature 078: update always sends the full declaration list so clearing the last one persists.
+      parameters: [],
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -208,6 +210,7 @@ describe('SequencesPage', () => {
     await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('seq-wait', {
       name: 'Wait Sequence',
       version: 4,
+      parameters: [],
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -279,6 +282,7 @@ describe('SequencesPage', () => {
     await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('seq-loop', {
       name: 'Loop Sequence',
       version: 3,
+      parameters: [],
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -429,6 +433,7 @@ describe('SequencesPage', () => {
     await waitFor(() => expect(updateSequenceMock).toHaveBeenCalledWith('seq-if', {
       name: 'If In Loop',
       version: 2,
+      parameters: [],
       interStepDelayRangeMs: null,
       steps: [
         {

@@ -5,6 +5,9 @@ import { listSequences, SequenceDto, createSequence, getSequence, updateSequence
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { ApiError } from '../lib/api';
 import { listCommands, CommandDto } from '../services/commands';
+import { ParameterDeclarationList } from '../components/parameters/ParameterDeclarationList';
+import { ParameterBindingForm } from '../components/parameters/ParameterBindingForm';
+import type { ParameterBinding, ParameterDeclaration } from '../components/parameters/types';
 import { FormError } from '../components/Form';
 import { FormActions, FormSection } from '../components/unified/FormLayout';
 import { SearchableDropdown, SearchableOption } from '../components/SearchableDropdown';
@@ -12,7 +15,7 @@ import type { ReorderableListItem } from '../components/ReorderableList';
 import { SortableSequenceStepList } from '../components/SortableSequenceStepList';
 import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { useResetSignal } from '../hooks/useResetSignal';
-import { validatePerStepConditions } from '../lib/validation';
+import { validatePerStepConditions, parseParameterErrors, parameterErrorSummary } from '../lib/validation';
 import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSteps } from '../lib/sequenceMapping';
 import { LoopBlock } from '../components/sequences/LoopBlock';
 import { IfBlock } from '../components/sequences/IfBlock';
@@ -40,6 +43,12 @@ type SequenceStep = {
   expectedState: 'success' | 'failed' | 'skipped';
   loopEntry?: LoopStepEntry;
   ifEntry?: IfStepEntry;
+  /**
+   * Values bound for the invoked command's parameters (feature 078); meaningful only when
+   * `actionType === 'command'`. A binding with a null value means "inherit", which is the default
+   * for every row, so the common case needs no configuration at all.
+   */
+  parameterBindings?: ParameterBinding[];
   // Self-reschedule action fields (feature 065); only meaningful when actionType === 'reschedule-self'.
   rescheduleOption?: RescheduleOption;
   rescheduleTimerMode?: 'relative' | 'timeOfDay';
@@ -82,6 +91,12 @@ type SequenceFormValue = {
   useCustomDelayRange: boolean;
   delayMin: string;
   delayMax: string;
+  /**
+   * Parameters this sequence accepts (feature 078). A sequence need not declare a parameter merely
+   * to pass one through to a nested command — unbound names inherit from the enclosing run scope —
+   * so this is for values the sequence itself wants named and defaulted.
+   */
+  parameters: ParameterDeclaration[];
 };
 
 // Collision detection that uses the cursor position rather than the dragged item's
@@ -110,7 +125,8 @@ const emptyForm: SequenceFormValue = {
   steps: [],
   useCustomDelayRange: false,
   delayMin: '',
-  delayMax: ''
+  delayMax: '',
+  parameters: []
 };
 
 const createDefaultStep = (commandId: string, stepId: string, commandReference?: SequenceCommandReference): SequenceStep => ({
@@ -487,6 +503,7 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         minSimilarity: step.condition.minSimilarity == null ? '' : String(step.condition.minSimilarity),
         outcomeStepRef: '',
         expectedState: 'success' as const,
+        parameterBindings: step.parameterBindings ?? undefined,
       };
     }
 
@@ -507,12 +524,14 @@ const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
         minSimilarity: '',
         outcomeStepRef: step.condition.stepRef,
         expectedState: step.condition.expectedState,
+        parameterBindings: step.parameterBindings ?? undefined,
       };
     }
 
     return {
       ...createDefaultStep(commandId, step.stepId, step.commandReference ?? undefined),
-      stepId: step.stepId
+      stepId: step.stepId,
+      parameterBindings: step.parameterBindings ?? undefined
     };
   });
 };
@@ -682,9 +701,24 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
         }
       },
       commandReference: buildCommandReferencePayload(step.commandId, step.commandReference),
-      condition: buildConditionPayload(step)
+      condition: buildConditionPayload(step),
+      // Feature 078: only send rows that actually bind something. A row left on "inherit" carries a
+      // null value and is dropped here, so an unparametrized step stays byte-identical on the wire.
+      ...buildParameterBindingsPayload(step.parameterBindings)
     };
   });
+};
+
+/**
+ * Projects a step's bindings for the wire, omitting the member entirely when every row is left on
+ * "inherit" (feature 078). Keeping the omission here rather than server-side means an unparametrized
+ * sequence round-trips without gaining an empty array.
+ */
+const buildParameterBindingsPayload = (
+  bindings: ParameterBinding[] | undefined,
+): { parameterBindings?: ParameterBinding[] } => {
+  const bound = (bindings ?? []).filter((b) => b.value !== null && b.value !== undefined);
+  return bound.length > 0 ? { parameterBindings: bound } : {};
 };
 
 type SequencesPageProps = {
@@ -697,6 +731,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [sequences, setSequences] = useState<SequenceDto[]>([]);
   const [creating, setCreating] = useState(Boolean(initialCreate));
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
+  const [commandParameters, setCommandParameters] = useState<Map<string, ParameterDeclaration[]>>(new Map());
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [form, setForm] = useState<SequenceFormValue>(emptyForm);
@@ -824,12 +859,16 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         if (!mounted) return;
         setSequences(seqs);
         setCommandOptions(cmds.map((c) => ({ value: c.id, label: c.name })));
+        // Feature 078: each command's declarations, so a step's binding form renders without an
+        // extra fetch per step.
+        setCommandParameters(new Map(cmds.map((c) => [c.id, c.parameters ?? []])));
         setTableError(undefined);
       })
       .catch((err: any) => {
         if (!mounted) return;
         setSequences([]);
         setCommandOptions([]);
+        setCommandParameters(new Map());
         setTableError(err?.message ?? 'Failed to load sequences');
       })
       .finally(() => {
@@ -882,7 +921,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       steps: hasPerStep ? toStepEntriesFromLinear(linearSteps) : toStepEntries(commandIds),
       useCustomDelayRange: delayRange !== null,
       delayMin: delayRange ? String(delayRange.min) : '',
-      delayMax: delayRange ? String(delayRange.max) : ''
+      delayMax: delayRange ? String(delayRange.max) : '',
+      parameters: s.parameters ?? []
     });
     setLoadedVersion(s.version ?? 1);
     setDirty(false);
@@ -907,6 +947,31 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
 
   const renderStepConditionEditor = useCallback((step: SequenceStep, index: number): React.ReactNode => (
     <div className="sequence-step-condition-editor">
+      {/*
+        Feature 078: the invoked command's parameters, every row defaulting to "inherit" so a value
+        already in scope (a queue built-in, or a template-entry value) flows down untouched. Only
+        override here when the value is a property of THIS step rather than of the instance.
+      */}
+      {step.stepType === 'Action' && step.actionType === 'command'
+        && (commandParameters.get(step.commandId)?.length ?? 0) > 0 && (
+        <div className="sequence-step-condition-field sequence-step-condition-field--parameters">
+          <ParameterBindingForm
+            declarations={commandParameters.get(step.commandId) ?? []}
+            bindings={step.parameterBindings ?? []}
+            disabled={submitting || loading}
+            onChange={(bindings) => {
+              setForm((prev) => ({
+                ...prev,
+                steps: prev.steps.map((candidate) => candidate.id === step.id
+                  ? { ...candidate, parameterBindings: bindings }
+                  : candidate)
+              }));
+              setDirty(true);
+            }}
+          />
+        </div>
+      )}
+
       {step.stepType === 'Action' && step.actionType === 'WaitForImage' && (
         <>
           <div className="sequence-step-condition-field sequence-step-condition-field--image-id">
@@ -1208,7 +1273,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         </div>
       )}
     </div>
-  ), [form.steps, submitting, loading]);
+  ), [form.steps, submitting, loading, commandParameters]);
 
   const createLoopStep = (loopType: 'count' | 'while' | 'repeatUntil'): SequenceStep => {
     const id = makeId();
@@ -1548,7 +1613,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   name: linearPayload.name,
                   version: linearPayload.version,
                   steps: linearPayload.steps,
-                  interStepDelayRangeMs: linearPayload.interStepDelayRangeMs
+                  interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
+                  ...(form.parameters.length > 0 ? { parameters: form.parameters } : {})
                 }
               );
               setCreating(false);
@@ -1558,7 +1624,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               setTableMessage('Sequence created successfully.');
               await reloadSequences();
             } catch (err: any) {
-              setErrors({ form: err?.message ?? 'Failed to create sequence' });
+              // Feature 078 (FR-029): surface the offending field/parameter, not a generic message.
+              setErrors({ form: parameterErrorSummary(parseParameterErrors(err)) ?? err?.message ?? 'Failed to create sequence' });
             } finally {
               setSubmitting(false);
             }
@@ -1637,6 +1704,19 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 </div>
               </>
             )}
+          </FormSection>
+
+          <FormSection
+            title="Parameters"
+            description="Values a caller supplies. A value only needs declaring here if this sequence itself names it — one passed straight through to a command is inherited automatically."
+            id="sequence-parameters"
+          >
+            <ParameterDeclarationList
+              parameters={form.parameters}
+              disabled={submitting || loading}
+              ownerLabel="This sequence"
+              onChange={(parameters) => { setForm((prev) => ({ ...prev, parameters })); setDirty(true); }}
+            />
           </FormSection>
 
           <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-steps">
@@ -1769,7 +1849,10 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                     name: linearPayload.name,
                     version: linearPayload.version,
                     steps: linearPayload.steps,
-                    interStepDelayRangeMs: linearPayload.interStepDelayRangeMs
+                    interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
+                    // Always sent on update (even when empty) so clearing the last declaration
+                    // actually persists — an absent member means "leave unchanged" server-side.
+                    parameters: form.parameters
                   }
                 );
                 await reloadSequences();
@@ -1782,7 +1865,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   setErrors({ form: `Sequence has changed on the server (version ${err.payload.currentVersion}). Reloaded latest version.` });
                   await loadSequenceIntoForm(editingId);
                 } else {
-                  setErrors({ form: err?.message ?? 'Failed to update sequence' });
+                  setErrors({ form: parameterErrorSummary(parseParameterErrors(err)) ?? err?.message ?? 'Failed to update sequence' });
                 }
               } finally {
                 setSubmitting(false);
@@ -1862,6 +1945,19 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   </div>
                 </>
               )}
+            </FormSection>
+
+            <FormSection
+              title="Parameters"
+              description="Values a caller supplies. A value only needs declaring here if this sequence itself names it — one passed straight through to a command is inherited automatically."
+              id="sequence-edit-parameters"
+            >
+              <ParameterDeclarationList
+                parameters={form.parameters}
+                disabled={submitting || loading}
+                ownerLabel="This sequence"
+                onChange={(parameters) => { setForm((prev) => ({ ...prev, parameters })); setDirty(true); }}
+              />
             </FormSection>
 
             <FormSection title="Steps" description="Add commands in the order they should run and configure conditions inline." id="sequence-edit-steps">

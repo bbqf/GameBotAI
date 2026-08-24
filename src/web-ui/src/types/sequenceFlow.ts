@@ -1,3 +1,5 @@
+import type { ParameterBinding } from '../components/parameters/types';
+
 export type FlowStepType = 'action' | 'command' | 'condition' | 'terminal';
 export type BranchType = 'next' | 'true' | 'false';
 export type ConditionNodeType = 'and' | 'or' | 'not' | 'operand';
@@ -128,6 +130,12 @@ export type SequenceLinearStep = {
   breakCondition?: SequenceStepCondition | null;
   if?: IfConfigDto | null;
   elseBody?: SequenceLinearStep[] | null;
+  /**
+   * Values bound for the invoked command's parameters (feature 078). Present only on a command step
+   * that binds something; a row left on "inherit" is omitted, so unparametrized steps stay unchanged
+   * on the wire.
+   */
+  parameterBindings?: ParameterBinding[] | null;
 };
 
 export type InterStepDelayRangeMs = {

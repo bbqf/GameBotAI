@@ -85,10 +85,15 @@ internal sealed class CommandResponse {
   public Collection<CommandStepDto> Steps { get; init; } = new();
   public DetectionTargetDto? Detection { get; init; }
 
-  /// <summary>Parameters this command declares (feature 078); null when unparametrized.</summary>
+  /// <summary>
+  /// Parameters this command declares (feature 078). Omitted from the response entirely when the
+  /// command is unparametrized, so a pre-feature client sees exactly the payload it always saw.
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Collection<ParameterDeclarationDto>? Parameters { get; init; }
 
-  /// <summary>Non-blocking parameter advisories; null when there are none.</summary>
+  /// <summary>Non-blocking parameter advisories; omitted when there are none.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Collection<ParameterWarningDto>? Warnings { get; init; }
 }
 
@@ -150,9 +155,11 @@ internal sealed class CommandStepDto {
   /// Placeholders for this step's numeric fields, keyed by dotted path (feature 078). String fields
   /// carry their placeholder inline instead and never appear here.
   /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Dictionary<string, string>? FieldTemplates { get; init; }
 
   /// <summary>Values bound for the invoked command's parameters; only meaningful for Command steps.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Collection<ParameterBindingDto>? ParameterBindings { get; init; }
 }
 
