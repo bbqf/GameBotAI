@@ -136,8 +136,9 @@ Commands → open → **Parameters** → **Add**:
 
 Then put the reference into the field and save.
 
-- On the **ADB serial** field of an ensure-emulator-running step, use the **{ }** picker — it lists
-  every name in scope with its description and inserts a valid reference, so you never type braces.
+- On the **ADB serial** field of an ensure-emulator-running step, and on every field of an inline
+  action step (see 3d), use the **{ }** picker — it lists every name in scope with its description
+  and inserts a valid reference, so you never type braces.
 - Other fields are plain inputs for now: type the reference yourself, exactly `{{waitMs}}`. Spelling
   matters — names are case-sensitive, and a name nothing can supply is rejected when you save, naming
   the field and the parameter.
@@ -164,6 +165,33 @@ depth.
 
 If you mistype the name, the entry saves with a warning: *"value 'adbSeril' is not used by anything
 in this entry"*. That warning is the typo detector — do not ignore it.
+
+### 3d. Parametrizing a value that lives in the sequence itself
+
+Some values are not on a command at all. A step that taps a fixed coordinate holds that coordinate in
+the sequence, in what the editor labels **Inline action**. Declare the parameter on the **sequence**
+rather than on a command, because the sequence is what consumes it.
+
+Worked example — *PNS Pit Ensure Mining* enters a fixed field row, and the row is the tap's `y`:
+
+1. Sequences → open the sequence → **Parameters** → **Add**: name `sectionRowY`, type Number,
+   default `569`, description *"Y of the Enter Field row. Row 7 = 569."*
+2. Expand the step labelled `tap (x: 448, y: 569)` — it sits inside an **If** branch — and use the
+   **{ }** picker on the **y** field to insert `{{sectionRowY}}`.
+3. Queue templates → the entry for this sequence → **Parameters** → clear **Inherit** and give each
+   entry its own row. Entries left alone keep the declared default.
+
+Two limits worth knowing before you start:
+
+- **There is no arithmetic in a reference.** You parametrize the coordinate, not the section number:
+  `sectionRowY = 569`, not `section = 7`. If you want to name the row itself, the workable variant is
+  a *string* field that embeds the reference — a detection image id `pit-row-{{section}}` resolves to
+  `pit-row-7` — which needs one reference image per row.
+- **A step's condition is not parametrizable.** Only the action's own fields are substituted, so an
+  `imageVisible` condition on the surrounding If keeps its literal image id.
+
+Fields holding a structured value — an OCR region, say — are shown read-only. They round-trip
+untouched; change them through the API if you need to.
 
 ---
 
@@ -201,6 +229,8 @@ unknown name, rather than resolving to nothing.
 
 - Which command a step runs, and which sequence a template entry runs. These stay literal so the
   "this reference is dangling" check keeps working.
+- A step's **condition** — the image id or step ref it tests. Only action fields are substituted.
+- Arithmetic of any kind inside a reference; a reference resolves to a value, nothing more.
 - `{{iteration}}` outside a loop — it has no meaning there and is rejected at save time.
 
 ### Rolling back
