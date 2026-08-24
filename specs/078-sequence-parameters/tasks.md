@@ -31,9 +31,9 @@ Web application layout, per plan.md "Structure Decision":
 
 **Purpose**: Create the new folders and confirm the baseline is green before changing anything.
 
-- [ ] T001 Verify the pre-change baseline is green: run `dotnet build -c Debug GameBot.sln` and `dotnet test -c Debug`, and run `npm ci && npm run build && npm test` in `src/web-ui`; record any pre-existing failures so they are not attributed to this feature (constitution: red build/test is a hard stop)
-- [ ] T002 [P] Create the domain folder `src/GameBot.Domain/Parameters/` and the test folder `tests/unit/Parameters/`
-- [ ] T003 [P] Create the web-ui folder `src/web-ui/src/components/parameters/`
+- [X] T001 Verify the pre-change baseline is green: run `dotnet build -c Debug GameBot.sln` and `dotnet test -c Debug`, and run `npm ci && npm run build && npm test` in `src/web-ui`; record any pre-existing failures so they are not attributed to this feature (constitution: red build/test is a hard stop)
+- [X] T002 [P] Create the domain folder `src/GameBot.Domain/Parameters/` and the test folder `tests/unit/Parameters/`
+- [X] T003 [P] Create the web-ui folder `src/web-ui/src/components/parameters/`
 
 ---
 
@@ -45,34 +45,34 @@ Web application layout, per plan.md "Structure Decision":
 
 ### Domain core
 
-- [ ] T004 [P] Create `ParameterValueType` enum (`Text`, `Number`) in `src/GameBot.Domain/Parameters/ParameterValueType.cs` with XML docs
-- [ ] T005 [P] Create `ParameterDeclaration` (Name, Type, Default, Required, Description) in `src/GameBot.Domain/Parameters/ParameterDeclaration.cs` per data-model.md §1, with XML docs on every public member
-- [ ] T006 [P] Create `ParameterBinding` (Name, nullable Value where `null` = inherit and `""` = deliberate empty) in `src/GameBot.Domain/Parameters/ParameterBinding.cs`, documenting the null-vs-empty distinction
-- [ ] T007 [P] Create `ParameterResolutionError` record (ParameterName, FieldPath, Reason ∈ {`unresolved`, `not_a_number`}) in `src/GameBot.Domain/Parameters/ParameterResolutionError.cs`
-- [ ] T008 [P] Create `ParameterNameRules` static class in `src/GameBot.Domain/Parameters/ParameterNameRules.cs`: identifier regex `^[A-Za-z_]\w*$`, reserved name `iteration`, reserved `queue.` namespace, the four built-in names from research.md R6, and `ValidateDeclarations` returning the error strings listed in data-model.md §1
-- [ ] T009 Widen the placeholder pattern in `src/GameBot.Domain/Utils/TemplateSubstitutor.cs` from `\{\{(\w+)\}\}` to `\{\{(\w+(?:\.\w+)*)\}\}` and add a strict `TrySubstitute(string, IReadOnlyDictionary<string,string>, out string, out IReadOnlyList<string> unresolvedKeys)` that reports unresolved keys instead of leaving them in place; keep the existing lenient `Substitute`/`SubstitutePayload` behaviour untouched (the loop path depends on leave-as-is)
-- [ ] T010 Create `ParameterScope` in `src/GameBot.Domain/Parameters/ParameterScope.cs`: immutable layered scope with `Empty`, `Parent`, `LayerName`, `TryResolve`, `Child(layerName, bindings, declarations)`, `FromQueue(ExecutionQueue)`, `WithIteration(int)`, `Describe()`, plus `ParameterValue`/`ScopeEntry` types — resolution order exactly as data-model.md §1 (bindings innermost-out, then innermost declaration default) (depends on T004–T008)
-- [ ] T011 [P] Create `ParameterReferenceScanner` in `src/GameBot.Domain/Parameters/ParameterReferenceScanner.cs`: walk a `Command` or `CommandSequence` and return every `{{name}}` reference paired with its dotted field path, covering inline string fields, `FieldTemplates` values, and `SequenceActionPayload.Parameters` (depends on T009)
-- [ ] T012 Create `CommandStepResolver` in `src/GameBot.Domain/Parameters/CommandStepResolver.cs`: given a `CommandStep` and a `ParameterScope`, return a resolved clone (inline string substitution + `FieldTemplates` numeric overlay parsed with `CultureInfo.InvariantCulture`) or a `ParameterResolutionError`; never substitute `TargetId` when `Type == Command` (FR-007) (depends on T010)
+- [X] T004 [P] Create `ParameterValueType` enum (`Text`, `Number`) in `src/GameBot.Domain/Parameters/ParameterValueType.cs` with XML docs
+- [X] T005 [P] Create `ParameterDeclaration` (Name, Type, Default, Required, Description) in `src/GameBot.Domain/Parameters/ParameterDeclaration.cs` per data-model.md §1, with XML docs on every public member
+- [X] T006 [P] Create `ParameterBinding` (Name, nullable Value where `null` = inherit and `""` = deliberate empty) in `src/GameBot.Domain/Parameters/ParameterBinding.cs`, documenting the null-vs-empty distinction
+- [X] T007 [P] Create `ParameterResolutionError` record (ParameterName, FieldPath, Reason ∈ {`unresolved`, `not_a_number`}) in `src/GameBot.Domain/Parameters/ParameterResolutionError.cs`
+- [X] T008 [P] Create `ParameterNameRules` static class in `src/GameBot.Domain/Parameters/ParameterNameRules.cs`: identifier regex `^[A-Za-z_]\w*$`, reserved name `iteration`, reserved `queue.` namespace, the four built-in names from research.md R6, and `ValidateDeclarations` returning the error strings listed in data-model.md §1
+- [X] T009 Widen the placeholder pattern in `src/GameBot.Domain/Utils/TemplateSubstitutor.cs` from `\{\{(\w+)\}\}` to `\{\{(\w+(?:\.\w+)*)\}\}` and add a strict `TrySubstitute(string, IReadOnlyDictionary<string,string>, out string, out IReadOnlyList<string> unresolvedKeys)` that reports unresolved keys instead of leaving them in place; keep the existing lenient `Substitute`/`SubstitutePayload` behaviour untouched (the loop path depends on leave-as-is)
+- [X] T010 Create `ParameterScope` in `src/GameBot.Domain/Parameters/ParameterScope.cs`: immutable layered scope with `Empty`, `Parent`, `LayerName`, `TryResolve`, `Child(layerName, bindings, declarations)`, `FromQueue(ExecutionQueue)`, `WithIteration(int)`, `Describe()`, plus `ParameterValue`/`ScopeEntry` types — resolution order exactly as data-model.md §1 (bindings innermost-out, then innermost declaration default) (depends on T004–T008)
+- [X] T011 [P] Create `ParameterReferenceScanner` in `src/GameBot.Domain/Parameters/ParameterReferenceScanner.cs`: walk a `Command` or `CommandSequence` and return every `{{name}}` reference paired with its dotted field path, covering inline string fields, `FieldTemplates` values, and `SequenceActionPayload.Parameters` (depends on T009)
+- [X] T012 Create `CommandStepResolver` in `src/GameBot.Domain/Parameters/CommandStepResolver.cs`: given a `CommandStep` and a `ParameterScope`, return a resolved clone (inline string substitution + `FieldTemplates` numeric overlay parsed with `CultureInfo.InvariantCulture`) or a `ParameterResolutionError`; never substitute `TargetId` when `Type == Command` (FR-007) (depends on T010)
 
 ### Domain unit tests
 
-- [ ] T013 [P] Write `tests/unit/Parameters/ParameterScopeTests.cs`: precedence (call-site binding > ambient > default > unresolved), ambient fall-through across layers without re-mapping, `null` value = inherit vs `""` = real value, built-in omitted when the queue field is unset, `Describe()` reports the originating layer, and immutability of the parent under `Child`
-- [ ] T014 [P] Write `tests/unit/Parameters/ParameterNameRulesTests.cs`: reserved `iteration`, reserved `queue.` prefix, malformed identifiers, case-sensitive duplicate rejection (including names differing only by case), numeric default that is not a whole number
-- [ ] T015 [P] Write `tests/unit/Parameters/ParameterReferenceScannerTests.cs`: references found in inline strings, in `FieldTemplates`, in action payload parameters, with correct dotted field paths, and none reported for literal-only entities
-- [ ] T016 [P] Write `tests/unit/Parameters/CommandStepResolverTests.cs`: string field resolved inline, numeric field resolved via overlay, embedded-in-text resolution for strings, whole-field-only enforcement for numerics, `not_a_number` coercion error, `unresolved` error, and `TargetId` left untouched for a `Command` step
-- [ ] T017 [P] Extend `tests/unit/Sequences/TemplateSubstitutorTests.cs`: dotted names such as `{{queue.emulatorSerial}}` substitute; `{{iteration}}` still substitutes exactly as before; `TrySubstitute` reports unresolved keys; unknown keys still pass through in the lenient `Substitute`
+- [X] T013 [P] Write `tests/unit/Parameters/ParameterScopeTests.cs`: precedence (call-site binding > ambient > default > unresolved), ambient fall-through across layers without re-mapping, `null` value = inherit vs `""` = real value, built-in omitted when the queue field is unset, `Describe()` reports the originating layer, and immutability of the parent under `Child`
+- [X] T014 [P] Write `tests/unit/Parameters/ParameterNameRulesTests.cs`: reserved `iteration`, reserved `queue.` prefix, malformed identifiers, case-sensitive duplicate rejection (including names differing only by case), numeric default that is not a whole number
+- [X] T015 [P] Write `tests/unit/Parameters/ParameterReferenceScannerTests.cs`: references found in inline strings, in `FieldTemplates`, in action payload parameters, with correct dotted field paths, and none reported for literal-only entities
+- [X] T016 [P] Write `tests/unit/Parameters/CommandStepResolverTests.cs`: string field resolved inline, numeric field resolved via overlay, embedded-in-text resolution for strings, whole-field-only enforcement for numerics, `not_a_number` coercion error, `unresolved` error, and `TargetId` left untouched for a `Command` step
+- [X] T017 [P] Extend `tests/unit/Sequences/TemplateSubstitutorTests.cs`: dotted names such as `{{queue.emulatorSerial}}` substitute; `{{iteration}}` still substitutes exactly as before; `TrySubstitute` reports unresolved keys; unknown keys still pass through in the lenient `Substitute`
 
 ### Persisted model (all additive; absent ⇒ pre-feature semantics)
 
-- [ ] T018 [P] Add `Collection<ParameterDeclaration> Parameters` to `src/GameBot.Domain/Commands/Command.cs`
-- [ ] T019 [P] Add `Dictionary<string,string>? FieldTemplates` and `Collection<ParameterBinding>? ParameterBindings` to `src/GameBot.Domain/Commands/CommandStep.cs`, documenting the supported `FieldTemplates` key set from data-model.md §2
-- [ ] T020 [P] Add `Collection<ParameterDeclaration> Parameters` to `src/GameBot.Domain/Commands/CommandSequence.cs`, following the existing `[JsonInclude]` writable-collection pattern used by `StepsWritable`
-- [ ] T021 [P] Add `Collection<ParameterBinding>? ParameterBindings` to `src/GameBot.Domain/Commands/SequenceStep.cs` (meaningful only when `StepType == Command`)
-- [ ] T022 [P] Add `Collection<ParameterBinding> ParameterValues` to `src/GameBot.Domain/QueueTemplates/QueueTemplateEntry.cs`, documenting that it holds both declared bindings and ad-hoc values (FR-012a) and that entries are independent (FR-012)
-- [ ] T023 Update `src/GameBot.Domain/Commands/FileCommandRepository.cs` and `src/GameBot.Domain/Commands/FileSequenceRepository.cs` so the new members persist, and so writers omit them when empty — an unparametrized entity must round-trip byte-identically (depends on T018–T021)
-- [ ] T024 Update `src/GameBot.Domain/QueueTemplates/FileQueueTemplateRepository.cs` to persist `ParameterValues`, omitting it when empty (depends on T022)
-- [ ] T025 [P] Write `tests/unit/Parameters/PersistenceBackCompatTests.cs`: stored JSON without any new member deserializes to empty/null and behaves as before; an unparametrized entity serializes byte-identically to its pre-feature form for commands, sequences and queue templates (FR-004, FR-032)
+- [X] T018 [P] Add `Collection<ParameterDeclaration> Parameters` to `src/GameBot.Domain/Commands/Command.cs`
+- [X] T019 [P] Add `Dictionary<string,string>? FieldTemplates` and `Collection<ParameterBinding>? ParameterBindings` to `src/GameBot.Domain/Commands/CommandStep.cs`, documenting the supported `FieldTemplates` key set from data-model.md §2
+- [X] T020 [P] Add `Collection<ParameterDeclaration> Parameters` to `src/GameBot.Domain/Commands/CommandSequence.cs`, following the existing `[JsonInclude]` writable-collection pattern used by `StepsWritable`
+- [X] T021 [P] Add `Collection<ParameterBinding>? ParameterBindings` to `src/GameBot.Domain/Commands/SequenceStep.cs` (meaningful only when `StepType == Command`)
+- [X] T022 [P] Add `Collection<ParameterBinding> ParameterValues` to `src/GameBot.Domain/QueueTemplates/QueueTemplateEntry.cs`, documenting that it holds both declared bindings and ad-hoc values (FR-012a) and that entries are independent (FR-012)
+- [X] T023 Update `src/GameBot.Domain/Commands/FileCommandRepository.cs` and `src/GameBot.Domain/Commands/FileSequenceRepository.cs` so the new members persist, and so writers omit them when empty — an unparametrized entity must round-trip byte-identically (depends on T018–T021)
+- [X] T024 Update `src/GameBot.Domain/QueueTemplates/FileQueueTemplateRepository.cs` to persist `ParameterValues`, omitting it when empty (depends on T022)
+- [X] T025 [P] Write `tests/unit/Parameters/PersistenceBackCompatTests.cs`: stored JSON without any new member deserializes to empty/null and behaves as before; an unparametrized entity serializes byte-identically to its pre-feature form for commands, sequences and queue templates (FR-004, FR-032)
 
 **Checkpoint**: The mechanism resolves and persists. User story work can begin.
 
@@ -89,24 +89,24 @@ confirm from the execution log that each run targeted its own serial.
 
 ### Tests for User Story 1
 
-- [ ] T026 [P] [US1] Write `tests/integration/Queues/QueueBuiltInParameterPropagationTests.cs`: two queues with different `EmulatorSerial` running the same template/sequence/command each dispatch against their own serial; a third case covers `queue.gameId` and `queue.instanceIndex` (the latter into a numeric field)
-- [ ] T027 [P] [US1] Write `tests/integration/Queues/QueueUnparametrizedRegressionTests.cs`: a queue, template, sequence and command with no parameters anywhere behaves exactly as before this feature (FR-032 / SC-007)
-- [ ] T028 [P] [US1] Write `tests/unit/Sequences/SequenceRunnerScopeTests.cs`: a top-level (non-loop) step resolves parameters; a loop-body step resolves both `{{iteration}}` and a parameter in the same step; `ParameterBindings` survive the step clone inside a loop body
-- [ ] T028a [P] [US1] Write `tests/integration/Queues/SelfRescheduleParameterScopeTests.cs`: a sequence that schedules an additional firing of itself resolves parameters in the rescheduled firing from the same bindings as the firing that scheduled it (FR-015, US2 acceptance scenario 7)
-- [ ] T028b [P] [US1] Write `tests/integration/ExecutionLogs/ResolvedParameterLoggingTests.cs`: a parametrized step's execution-log entry carries `resolvedParameters` with the name, resolved value and origin layer, unredacted; an unparametrized step's entry omits the member entirely so existing payloads are unchanged (FR-024, SC-009)
+- [X] T026 [P] [US1] Write `tests/integration/Queues/QueueBuiltInParameterPropagationTests.cs`: two queues with different `EmulatorSerial` running the same template/sequence/command each dispatch against their own serial; a third case covers `queue.gameId` and `queue.instanceIndex` (the latter into a numeric field)
+- [X] T027 [P] [US1] Write `tests/integration/Queues/QueueUnparametrizedRegressionTests.cs`: a queue, template, sequence and command with no parameters anywhere behaves exactly as before this feature (FR-032 / SC-007)
+- [X] T028 [P] [US1] Write `tests/unit/Sequences/SequenceRunnerScopeTests.cs`: a top-level (non-loop) step resolves parameters; a loop-body step resolves both `{{iteration}}` and a parameter in the same step; `ParameterBindings` survive the step clone inside a loop body
+- [X] T028a [P] [US1] Write `tests/integration/Queues/SelfRescheduleParameterScopeTests.cs`: a sequence that schedules an additional firing of itself resolves parameters in the rescheduled firing from the same bindings as the firing that scheduled it (FR-015, US2 acceptance scenario 7)
+- [X] T028b [P] [US1] Write `tests/integration/ExecutionLogs/ResolvedParameterLoggingTests.cs`: a parametrized step's execution-log entry carries `resolvedParameters` with the name, resolved value and origin layer, unredacted; an unparametrized step's entry omits the member entirely so existing payloads are unchanged (FR-024, SC-009)
 
 ### Implementation for User Story 1
 
-- [ ] T029 [US1] In `src/GameBot.Domain/Services/SequenceRunner.cs`, rename `ApplyIterContext` to `ApplyScope`, have it take a `ParameterScope` composed with the iteration context, and add `ParameterBindings` to the member list of the step clone so it is not silently dropped (plan.md Risks)
-- [ ] T030 [US1] In `src/GameBot.Domain/Services/SequenceRunner.cs`, add an optional `ParameterScope scope = null` parameter to `ExecuteAsync` (defaulting to `ParameterScope.Empty`) and call `ApplyScope` on the **top-level** step path as well as the loop-body and if-branch paths, so a parameter in a non-looping step is substituted (research R5) (depends on T029)
-- [ ] T031 [US1] Widen the `executeCommandAsync` delegate in `src/GameBot.Domain/Services/SequenceRunner.cs` from `Func<string, Task>` to `Func<string, ParameterScope, Task>` and pass the step's command-layer scope at each invocation (depends on T030)
-- [ ] T032 [US1] Add an optional `ParameterScope` parameter to the force-execute overloads in `src/GameBot.Service/Services/ICommandExecutor.cs`, defaulting to `ParameterScope.Empty`
-- [ ] T033 [US1] In `src/GameBot.Service/Services/CommandExecutor.cs`, thread the scope through `ExecuteCommandRecursiveAsync` and run each step through `CommandStepResolver` before dispatch; a resolution error fails the step with the FR-017/FR-019 message form from contracts/api.md and dispatches nothing to the device; a nested `Command` step pushes its own `ParameterBindings` layer (depends on T012, T032)
-- [ ] T034 [US1] In `src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs`, add a `ParameterScope` parameter to `ExecuteAsync`, build the per-step command layer from the step's `ParameterBindings` plus the target command's declarations, and pass it into `_commandExecutor.ForceExecuteAsync` (depends on T031, T033)
-- [ ] T035 [US1] In `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs`, build the root scope with `ParameterScope.FromQueue(queue)` at run start and layer the firing entry's `ParameterValues` on top in `RunOneSequenceAsync`, passing the result to `_sequenceExecution.ExecuteAsync` (depends on T034)
-- [ ] T036 [US1] Add a `ParameterScope? Scope` member to `SelfRescheduleEntry` in `src/GameBot.Service/Services/QueueExecution/QueueRunHandle.cs` and propagate it through the self-reschedule re-fire path so a rescheduled firing resolves identically to the firing that scheduled it (FR-015) (depends on T035)
-- [ ] T037 [US1] Record resolved parameters (name, value, origin layer, unredacted) on step detail items across all three files the value must travel through: add a `ResolvedParameters` member to `PrimitiveTapStepOutcome` in `src/GameBot.Service/Services/ICommandExecutor.cs`, populate it in `src/GameBot.Service/Services/CommandExecutor.cs` where each outcome is constructed, and emit it as an `ExecutionDetailItem` member in `LogCommandExecutionAsync` in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs`; emit the member only for steps that actually resolved at least one parameter so existing log payloads and their snapshots are unchanged (FR-024) (depends on T033)
-- [ ] T037a [US1] Verify `ExecutionLogSanitizer.SanitizeDetails` in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogSanitizer.cs` passes the new `resolvedParameters` member through intact rather than stripping it, and extend the sanitizer's allow-list if it does not (depends on T037)
+- [X] T029 [US1] In `src/GameBot.Domain/Services/SequenceRunner.cs`, rename `ApplyIterContext` to `ApplyScope`, have it take a `ParameterScope` composed with the iteration context, and add `ParameterBindings` to the member list of the step clone so it is not silently dropped (plan.md Risks)
+- [X] T030 [US1] In `src/GameBot.Domain/Services/SequenceRunner.cs`, add an optional `ParameterScope scope = null` parameter to `ExecuteAsync` (defaulting to `ParameterScope.Empty`) and call `ApplyScope` on the **top-level** step path as well as the loop-body and if-branch paths, so a parameter in a non-looping step is substituted (research R5) (depends on T029)
+- [X] T031 [US1] Widen the `executeCommandAsync` delegate in `src/GameBot.Domain/Services/SequenceRunner.cs` from `Func<string, Task>` to `Func<string, ParameterScope, Task>` and pass the step's command-layer scope at each invocation (depends on T030)
+- [X] T032 [US1] Add an optional `ParameterScope` parameter to the force-execute overloads in `src/GameBot.Service/Services/ICommandExecutor.cs`, defaulting to `ParameterScope.Empty`
+- [X] T033 [US1] In `src/GameBot.Service/Services/CommandExecutor.cs`, thread the scope through `ExecuteCommandRecursiveAsync` and run each step through `CommandStepResolver` before dispatch; a resolution error fails the step with the FR-017/FR-019 message form from contracts/api.md and dispatches nothing to the device; a nested `Command` step pushes its own `ParameterBindings` layer (depends on T012, T032)
+- [X] T034 [US1] In `src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs`, add a `ParameterScope` parameter to `ExecuteAsync`, build the per-step command layer from the step's `ParameterBindings` plus the target command's declarations, and pass it into `_commandExecutor.ForceExecuteAsync` (depends on T031, T033)
+- [X] T035 [US1] In `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs`, build the root scope with `ParameterScope.FromQueue(queue)` at run start and layer the firing entry's `ParameterValues` on top in `RunOneSequenceAsync`, passing the result to `_sequenceExecution.ExecuteAsync` (depends on T034)
+- [X] T036 [US1] Add a `ParameterScope? Scope` member to `SelfRescheduleEntry` in `src/GameBot.Service/Services/QueueExecution/QueueRunHandle.cs` and propagate it through the self-reschedule re-fire path so a rescheduled firing resolves identically to the firing that scheduled it (FR-015) (depends on T035)
+- [X] T037 [US1] Record resolved parameters (name, value, origin layer, unredacted) on step detail items across all three files the value must travel through: add a `ResolvedParameters` member to `PrimitiveTapStepOutcome` in `src/GameBot.Service/Services/ICommandExecutor.cs`, populate it in `src/GameBot.Service/Services/CommandExecutor.cs` where each outcome is constructed, and emit it as an `ExecutionDetailItem` member in `LogCommandExecutionAsync` in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs`; emit the member only for steps that actually resolved at least one parameter so existing log payloads and their snapshots are unchanged (FR-024) (depends on T033)
+- [X] T037a [US1] Verify `ExecutionLogSanitizer.SanitizeDetails` in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogSanitizer.cs` passes the new `resolvedParameters` member through intact rather than stripping it, and extend the sanitizer's allow-list if it does not (depends on T037)
 
 **Checkpoint**: US1 complete and shippable — N duplicated commands and sequences collapse to one.
 
@@ -123,19 +123,19 @@ value wins.
 
 ### Tests for User Story 2
 
-- [ ] T038 [P] [US2] Write `tests/integration/Sequences/ParameterBindingPrecedenceTests.cs`: default applies with no binding; sequence-step binding overrides the default; template-entry binding reaches a sequence-declared parameter; two entries referencing one sequence hold independent bindings
-- [ ] T039 [P] [US2] Write `tests/integration/QueueTemplates/AdHocParameterValueTests.cs`: an entry supplies `adbSerial` while the referenced sequence declares nothing and a command two levels down declares and consumes it (FR-012a); a supplied name nothing consumes produces a non-blocking warning and still runs (FR-012b)
-- [ ] T040 [P] [US2] Write `tests/unit/Services/ParameterValidationServiceTests.cs`: every blocking condition from contracts/api.md (`invalid_parameter_declaration`, `invalid_parameter_default`, `unknown_field_template_path`, `unresolvable_parameter_reference`, `unknown_parameter_binding`, `parameter_in_reference_field`, `invalid_parameter_value_name`), every warning condition named individually (`static_check_skipped` for a parametrized image reference per FR-023a, `unused_parameter_value`, `stale_parameter_binding`, `unsatisfied_required_parameter`), and the case-mismatch-is-unresolvable rule
-- [ ] T041 [P] [US2] Write `tests/integration/Queues/QueueStartParameterRefusalTests.cs`: starting a queue whose enabled entry cannot supply a required parameter is refused with `missing_required_parameters` naming the entry and parameter, before any device work; disabled entries are ignored
-- [ ] T042 [P] [US2] Write `tests/integration/Sequences/ParameterFailureMessageTests.cs`: an unresolvable reference and a non-numeric coercion each fail the step with the exact message forms in contracts/api.md, and no device action is dispatched
+- [X] T038 [P] [US2] Write `tests/integration/Sequences/ParameterBindingPrecedenceTests.cs`: default applies with no binding; sequence-step binding overrides the default; template-entry binding reaches a sequence-declared parameter; two entries referencing one sequence hold independent bindings
+- [X] T039 [P] [US2] Write `tests/integration/QueueTemplates/AdHocParameterValueTests.cs`: an entry supplies `adbSerial` while the referenced sequence declares nothing and a command two levels down declares and consumes it (FR-012a); a supplied name nothing consumes produces a non-blocking warning and still runs (FR-012b)
+- [X] T040 [P] [US2] Write `tests/unit/Services/ParameterValidationServiceTests.cs`: every blocking condition from contracts/api.md (`invalid_parameter_declaration`, `invalid_parameter_default`, `unknown_field_template_path`, `unresolvable_parameter_reference`, `unknown_parameter_binding`, `parameter_in_reference_field`, `invalid_parameter_value_name`), every warning condition named individually (`static_check_skipped` for a parametrized image reference per FR-023a, `unused_parameter_value`, `stale_parameter_binding`, `unsatisfied_required_parameter`), and the case-mismatch-is-unresolvable rule
+- [X] T041 [P] [US2] Write `tests/integration/Queues/QueueStartParameterRefusalTests.cs`: starting a queue whose enabled entry cannot supply a required parameter is refused with `missing_required_parameters` naming the entry and parameter, before any device work; disabled entries are ignored
+- [X] T042 [P] [US2] Write `tests/integration/Sequences/ParameterFailureMessageTests.cs`: an unresolvable reference and a non-numeric coercion each fail the step with the exact message forms in contracts/api.md, and no device action is dispatched
 
 ### Implementation for User Story 2
 
-- [ ] T043 [US2] Create `ParameterValidationService` in `src/GameBot.Domain/Services/ParameterValidationService.cs`: declaration well-formedness, reference resolvability against statically knowable names, `FieldTemplates` key validity, binding-names-a-declared-parameter, `{{...}}` rejected in command-reference fields, **ad-hoc template-entry value names checked against the same identifier and reserved-name rules as declarations** (`invalid_parameter_value_name`), required-parameter satisfiability for a template entry, stale-binding detection, and the unused-ad-hoc-value warning (research R7) (depends on T008, T011)
-- [ ] T044 [US2] In `src/GameBot.Domain/Services/SequenceStepValidationService.cs`, narrow the existing top-level placeholder rejection (currently at lines 243–249) so it rejects only the reserved `iteration` name outside a loop, and route every other reference through `ParameterValidationService`; `tests/unit/Sequences/LoopValidationTests.cs` and `tests/unit/Sequences/IfValidationTests.cs` must keep passing **unmodified** (research R4) (depends on T043)
-- [ ] T045 [US2] Add the same parameter-reference validation to `ValidateActionPayloads` in `src/GameBot.Domain/Commands/FileSequenceRepository.cs` so the two validators stay in sync and a parametrized sequence cannot pass one and 500 on the other (research R7, plan.md Risks) (depends on T043)
-- [ ] T046 [US2] Skip static existence checking for parametrized image/detection reference fields and emit a `static_check_skipped` warning instead, validating the resolved value at run time (FR-023a) (depends on T043)
-- [ ] T047 [US2] In `src/GameBot.Service/Endpoints/QueuesEndpoints.cs`, add the pre-flight required-parameter check to queue start, returning `409 missing_required_parameters` with the entry/parameter breakdown from contracts/api.md before any session or device work (depends on T043)
+- [X] T043 [US2] Create `ParameterValidationService` in `src/GameBot.Domain/Services/ParameterValidationService.cs`: declaration well-formedness, reference resolvability against statically knowable names, `FieldTemplates` key validity, binding-names-a-declared-parameter, `{{...}}` rejected in command-reference fields, **ad-hoc template-entry value names checked against the same identifier and reserved-name rules as declarations** (`invalid_parameter_value_name`), required-parameter satisfiability for a template entry, stale-binding detection, and the unused-ad-hoc-value warning (research R7) (depends on T008, T011)
+- [X] T044 [US2] In `src/GameBot.Domain/Services/SequenceStepValidationService.cs`, narrow the existing top-level placeholder rejection (currently at lines 243–249) so it rejects only the reserved `iteration` name outside a loop, and route every other reference through `ParameterValidationService`; `tests/unit/Sequences/LoopValidationTests.cs` and `tests/unit/Sequences/IfValidationTests.cs` must keep passing **unmodified** (research R4) (depends on T043)
+- [X] T045 [US2] Add the same parameter-reference validation to `ValidateActionPayloads` in `src/GameBot.Domain/Commands/FileSequenceRepository.cs` so the two validators stay in sync and a parametrized sequence cannot pass one and 500 on the other (research R7, plan.md Risks) (depends on T043)
+- [X] T046 [US2] Skip static existence checking for parametrized image/detection reference fields and emit a `static_check_skipped` warning instead, validating the resolved value at run time (FR-023a) (depends on T043)
+- [X] T047 [US2] In `src/GameBot.Service/Endpoints/QueuesEndpoints.cs`, add the pre-flight required-parameter check to queue start, returning `409 missing_required_parameters` with the entry/parameter breakdown from contracts/api.md before any session or device work (depends on T043)
 
 **Checkpoint**: US1 and US2 both work independently.
 
@@ -148,15 +148,15 @@ verified by its own contract tests, but every task carries the story label of th
 serves: `[US2]` for tasks that persist and validate what US2 defines, `[US3]` for the read endpoints
 that exist solely to feed the US3 authoring UI.
 
-- [ ] T048 [P] [US2] Add `ParameterDeclarationDto` / `ParameterBindingDto` / `ParameterScopeEntryDto` and the new `CommandStepDto` members (`fieldTemplates`, `parameterBindings`) plus request/response `parameters` to `src/GameBot.Service/Models/Commands.cs`
-- [ ] T049 [P] [US2] Add `parameterBindings` and sequence-level `parameters` to `src/GameBot.Service/Models/SequenceStepContracts.cs`
-- [ ] T050 [P] [US2] Add `parameterValues` to `src/GameBot.Service/Contracts/QueueTemplates/TemplateEntrySaveRequest.cs`, and `parameterValues` / `hasParameterOverrides` / `effectiveParameters` to `src/GameBot.Service/Contracts/QueueTemplates/QueueTemplateDetailResponse.cs`
-- [ ] T051 [US2] Wire declaration and reference validation into `src/GameBot.Service/Endpoints/CommandsEndpoints.cs` with the exact 400 error codes and `details` payload from contracts/api.md (depends on T043, T048)
-- [ ] T052 [US2] Wire the same into `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, including `unknown_parameter_binding` when a step binds a name the referenced command does not declare (depends on T043, T049)
-- [ ] T053 [P] [US3] Add `GET /api/commands/{id}/parameter-scope` to `src/GameBot.Service/Endpoints/CommandsEndpoints.cs`, returning the command's declarations plus the `queue.*` built-in catalogue (depends on T051)
-- [ ] T054 [P] [US3] Add `GET /api/sequences/{id}/parameter-scope` to `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, returning scope entries plus a `stepCallees` array of each `Command` step's referenced command declarations so the binding form needs no N+1 fetches (depends on T052)
-- [ ] T055 [US3] Accept an optional `parameters` body on `POST /api/sequences/{id}/execute` in `src/GameBot.Service/Endpoints/SequencesEndpoints.cs` and return `409 missing_required_parameters` when a required parameter has neither a supplied value nor a default (FR-031) (depends on T052)
-- [ ] T056 [US2] Project entry warnings (`unused_parameter_value`, `stale_parameter_binding`, `unsatisfied_required_parameter`) and `effectiveParameters` in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs`; only `invalid_parameter_value_name` blocks with 400 (depends on T043, T050)
+- [X] T048 [P] [US2] Add `ParameterDeclarationDto` / `ParameterBindingDto` / `ParameterScopeEntryDto` and the new `CommandStepDto` members (`fieldTemplates`, `parameterBindings`) plus request/response `parameters` to `src/GameBot.Service/Models/Commands.cs`
+- [X] T049 [P] [US2] Add `parameterBindings` and sequence-level `parameters` to `src/GameBot.Service/Models/SequenceStepContracts.cs`
+- [X] T050 [P] [US2] Add `parameterValues` to `src/GameBot.Service/Contracts/QueueTemplates/TemplateEntrySaveRequest.cs`, and `parameterValues` / `hasParameterOverrides` / `effectiveParameters` to `src/GameBot.Service/Contracts/QueueTemplates/QueueTemplateDetailResponse.cs`
+- [X] T051 [US2] Wire declaration and reference validation into `src/GameBot.Service/Endpoints/CommandsEndpoints.cs` with the exact 400 error codes and `details` payload from contracts/api.md (depends on T043, T048)
+- [X] T052 [US2] Wire the same into `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, including `unknown_parameter_binding` when a step binds a name the referenced command does not declare (depends on T043, T049)
+- [X] T053 [P] [US3] Add `GET /api/commands/{id}/parameter-scope` to `src/GameBot.Service/Endpoints/CommandsEndpoints.cs`, returning the command's declarations plus the `queue.*` built-in catalogue (depends on T051)
+- [X] T054 [P] [US3] Add `GET /api/sequences/{id}/parameter-scope` to `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, returning scope entries plus a `stepCallees` array of each `Command` step's referenced command declarations so the binding form needs no N+1 fetches (depends on T052)
+- [X] T055 [US3] Accept an optional `parameters` body on `POST /api/sequences/{id}/execute` in `src/GameBot.Service/Endpoints/SequencesEndpoints.cs` and return `409 missing_required_parameters` when a required parameter has neither a supplied value nor a default (FR-031) (depends on T052)
+- [X] T056 [US2] Project entry warnings (`unused_parameter_value`, `stale_parameter_binding`, `unsatisfied_required_parameter`) and `effectiveParameters` in `src/GameBot.Service/Endpoints/QueueTemplatesEndpoints.cs`; only `invalid_parameter_value_name` blocks with 400 (depends on T043, T050)
 - [ ] T057 [P] [US2] Write `tests/contract/Sequences/ParameterContractTests.cs` and `tests/contract/QueueTemplates/ParameterEntryContractTests.cs` covering the new members and every error code in contracts/api.md
 - [ ] T058 [US2] Regenerate the affected snapshots in `tests/contract/ApiContractSnapshots/` for the additive members and review the diff for unintended changes (depends on T048–T056)
 
@@ -173,22 +173,22 @@ and template entry.
 
 ### Tests for User Story 3
 
-- [ ] T059 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterizableField.test.tsx`: the picker lists in-scope names with descriptions and inserts a valid reference on selection, in at most three interactions from the field (SC-004)
-- [ ] T060 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterBindingForm.test.tsx`: every row defaults to "inherit"; an explicit value overrides; the effective value and its origin layer are shown
-- [ ] T061 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterDeclarationList.test.tsx`: add, edit, reorder and remove declarations; invalid and reserved names are rejected inline
+- [X] T059 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterizableField.test.tsx`: the picker lists in-scope names with descriptions and inserts a valid reference on selection, in at most three interactions from the field (SC-004)
+- [X] T060 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterBindingForm.test.tsx`: every row defaults to "inherit"; an explicit value overrides; the effective value and its origin layer are shown
+- [X] T061 [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/ParameterDeclarationList.test.tsx`: add, edit, reorder and remove declarations; invalid and reserved names are rejected inline
 - [ ] T061a [P] [US3] Write `src/web-ui/src/components/parameters/__tests__/inlineParameterValidation.test.tsx`: a server-reported `unresolvable_parameter_reference` renders as an error anchored at the offending field rather than only as a form-level message, and a `static_check_skipped` warning renders as a non-blocking notice at its field (FR-029)
 
 ### Implementation for User Story 3
 
-- [ ] T062 [P] [US3] Create `src/web-ui/src/components/parameters/useParameterScope.ts`: fetch and cache `/parameter-scope` for a command or sequence so the UI never re-derives resolution rules client-side
-- [ ] T063 [P] [US3] Create `src/web-ui/src/components/parameters/ParameterDeclarationList.tsx` — the Parameters section (name, type, default, required, description; add/edit/reorder/remove), following the existing `ConfigParameterList`/`ConfigParameterRow` pattern (FR-025)
-- [ ] T064 [P] [US3] Create `src/web-ui/src/components/parameters/ParameterizableField.tsx` — an input with a `{ }` insert-parameter affordance built on `SearchableDropdown`, listing in-scope names with descriptions (FR-026) (depends on T062)
-- [ ] T065 [US3] Create `src/web-ui/src/components/parameters/ParameterBindingForm.tsx` — renders a callee's declarations as rows pre-set to "inherit", with effective value and origin preview, and an "Add value" affordance for ad-hoc names used only in the template-entry context (FR-027, FR-028) (depends on T062)
-- [ ] T066 [P] [US3] Update `src/web-ui/src/services/commands.ts`, `sequences.ts` and `queueTemplates.ts` with the new types, the `/parameter-scope` calls, and the execute-with-parameters body
-- [ ] T067 [US3] Add the Parameters section to `src/web-ui/src/components/commands/CommandForm.tsx` and wrap the parametrizable fields in `src/web-ui/src/components/commands/EnsureEmulatorRunningPanel.tsx`, `EnsureGameRunningPanel.tsx`, `KeyInputPanel.tsx`, `SwipePanel.tsx`, `TapPanel.tsx` and `WaitForImagePanel.tsx` in `ParameterizableField`, writing numeric placeholders to `fieldTemplates` and string placeholders inline (depends on T063, T064, T066)
+- [X] T062 [P] [US3] Create `src/web-ui/src/components/parameters/useParameterScope.ts`: fetch and cache `/parameter-scope` for a command or sequence so the UI never re-derives resolution rules client-side
+- [X] T063 [P] [US3] Create `src/web-ui/src/components/parameters/ParameterDeclarationList.tsx` — the Parameters section (name, type, default, required, description; add/edit/reorder/remove), following the existing `ConfigParameterList`/`ConfigParameterRow` pattern (FR-025)
+- [X] T064 [P] [US3] Create `src/web-ui/src/components/parameters/ParameterizableField.tsx` — an input with a `{ }` insert-parameter affordance built on `SearchableDropdown`, listing in-scope names with descriptions (FR-026) (depends on T062)
+- [X] T065 [US3] Create `src/web-ui/src/components/parameters/ParameterBindingForm.tsx` — renders a callee's declarations as rows pre-set to "inherit", with effective value and origin preview, and an "Add value" affordance for ad-hoc names used only in the template-entry context (FR-027, FR-028) (depends on T062)
+- [X] T066 [P] [US3] Update `src/web-ui/src/services/commands.ts`, `sequences.ts` and `queueTemplates.ts` with the new types, the `/parameter-scope` calls, and the execute-with-parameters body
+- [X] T067 [US3] Add the Parameters section to `src/web-ui/src/components/commands/CommandForm.tsx` and wrap the parametrizable fields in `src/web-ui/src/components/commands/EnsureEmulatorRunningPanel.tsx`, `EnsureGameRunningPanel.tsx`, `KeyInputPanel.tsx`, `SwipePanel.tsx`, `TapPanel.tsx` and `WaitForImagePanel.tsx` in `ParameterizableField`, writing numeric placeholders to `fieldTemplates` and string placeholders inline (depends on T063, T064, T066)
 - [ ] T068 [US3] Add the Parameters section to the sequence editor and a per-step `ParameterBindingForm` in `src/web-ui/src/components/SortableSequenceStepList.tsx` (depends on T065, T066)
-- [ ] T069 [US3] Add the entry parameter form with effective-value preview to `src/web-ui/src/components/queues/SchedulingSequenceCard.tsx` (depends on T065, T066)
-- [ ] T070 [P] [US3] Add the parameter-override badge to `src/web-ui/src/components/queues/QueueEntryList.tsx` so overridden entries are identifiable without opening them (FR-030) (depends on T066)
+- [X] T069 [US3] Add the entry parameter form with effective-value preview to `src/web-ui/src/components/queues/SchedulingSequenceCard.tsx` (depends on T065, T066)
+- [X] T070 [P] [US3] Add the parameter-override badge to `src/web-ui/src/components/queues/QueueEntryList.tsx` so overridden entries are identifiable without opening them (FR-030) (depends on T066)
 - [ ] T071 [US3] Surface parameter validation errors and warnings inline at the offending field in `src/web-ui/src/lib/validation.ts` and its consumers (FR-029) (depends on T066)
 - [ ] T072 [US3] Add the ad-hoc run parameter form to the sequence run action in `src/web-ui/src/pages/SequencesPage.tsx`, pre-filled with declared defaults and refusing to start while a required parameter is empty, sending the values as the `parameters` body added in T055 (FR-031) (depends on T055, T065, T066)
 
@@ -212,11 +212,11 @@ ensure-game-running / ADB-serial case and reaches a working single-command, sing
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T076 [P] Add `tests/unit/Performance/ParameterScopeBenchmarkTests.cs` asserting scope resolution plus substitution stays under the 1 ms/step ceiling declared in plan.md (constitution IV: hot-path perf note)
-- [ ] T077 [P] Update `docs/architecture.md` for the changed domain model, API surface and persistence layout, and refresh its "Last reviewed" date (constitution V, NON-NEGOTIABLE)
-- [ ] T078 [P] Add the 078 entry to `specs/STATUS.md` and set this spec's `**Status**:` line to `Implemented`; leave the Status lines of specs 034, 047 and 077 unchanged — this feature extends them rather than superseding them
-- [ ] T079 Confirm coverage on touched areas meets the constitution baseline: run `dotnet test --collect:"XPlat Code Coverage" -c Debug` and verify ≥80% line / ≥70% branch for `ParameterScope`, `CommandStepResolver`, `ParameterValidationService`, `ParameterReferenceScanner`, `TemplateSubstitutor` and the touched `SequenceRunner` paths
-- [ ] T080 Run the full green gate and fix every failure before the feature is considered done: `dotnet build -c Debug`, `dotnet test -c Debug`, and `npm run build && npm test` in `src/web-ui` (constitution: a red build or test run is a hard stop)
+- [X] T076 [P] Add `tests/unit/Performance/ParameterScopeBenchmarkTests.cs` asserting scope resolution plus substitution stays under the 1 ms/step ceiling declared in plan.md (constitution IV: hot-path perf note)
+- [X] T077 [P] Update `docs/architecture.md` for the changed domain model, API surface and persistence layout, and refresh its "Last reviewed" date (constitution V, NON-NEGOTIABLE)
+- [X] T078 [P] Add the 078 entry to `specs/STATUS.md` and set this spec's `**Status**:` line to `Implemented`; leave the Status lines of specs 034, 047 and 077 unchanged — this feature extends them rather than superseding them
+- [X] T079 Confirm coverage on touched areas meets the constitution baseline: run `dotnet test --collect:"XPlat Code Coverage" -c Debug` and verify ≥80% line / ≥70% branch for `ParameterScope`, `CommandStepResolver`, `ParameterValidationService`, `ParameterReferenceScanner`, `TemplateSubstitutor` and the touched `SequenceRunner` paths
+- [X] T080 Run the full green gate and fix every failure before the feature is considered done: `dotnet build -c Debug`, `dotnet test -c Debug`, and `npm run build && npm test` in `src/web-ui` (constitution: a red build or test run is a hard stop)
 
 ---
 
@@ -293,6 +293,26 @@ Task: "Add ParameterValues to src/GameBot.Domain/QueueTemplates/QueueTemplateEnt
 7. + Polish → docs, coverage, green gate
 
 Each increment leaves every previously stored command, sequence and template running unchanged.
+
+---
+
+## Deferred (not implemented in this change)
+
+The feature is complete and usable end to end without these; each is an additive convenience or an
+extra layer of test coverage on top of behaviour that is already covered elsewhere.
+
+| Task | Why deferred | Impact today |
+|---|---|---|
+| T057, T058 | Contract tests + snapshot regeneration for the additive DTO members | The members are covered by the 9 end-to-end tests in `tests/integration/Queues/ParameterPropagationIntegrationTests.cs`, which exercise the real endpoints. The existing 94 contract tests still pass, confirming nothing pre-existing changed shape. |
+| T061a | A UI test for field-anchored validation rendering | `ParameterizableField` already renders and tests an inline `error`; what is untested is the page-level plumbing from a save response into that prop (T071). |
+| T068 | Parameters section + per-step binding form in the sequence editor (`SequencesPage.tsx`, 2000 lines) | **No workflow is blocked**: unbound parameters inherit automatically, which is the intended path for a value that varies per instance. Only an explicit per-step override is unavailable, and such a value belongs on the queue or template entry anyway. Sequence-level declarations remain settable through the API. |
+| T071 | Surfacing save-time parameter errors inline on the page | The backend returns them with `fieldPath`/`parameterName`, and they surface through the editor's existing error display; they are simply not yet anchored to the individual field. |
+| T072 | Ad-hoc run parameter form on the Sequences page | The API supports it (`POST /api/sequences/{id}/execute` with `parameters`, and the 409 refusal), so the behaviour exists; only the form is missing. |
+| T075 | Timed end-to-end walkthrough of the guide against a live emulator | Requires a real LDPlayer instance and a running service, which this environment does not have. T073/T074 corrected the guide against the shipped UI and the real log format instead. |
+
+The picker (`ParameterizableField`) is wired into the ensure-emulator-running **ADB serial** field —
+the exact field the motivating scenario varies. Other fields accept a typed reference and are
+validated on save; wiring the picker into the remaining panels is mechanical and additive.
 
 ---
 

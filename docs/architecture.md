@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-07-30._
+_Last reviewed: 2026-08-24._
 
 ## What GameBot is
 
@@ -35,6 +35,41 @@ not survive a service restart; queue *configuration* and templates are persisted
 
 ## Domain model (current)
 
+- **Parameter** (feature 078) — a named, typed value a **Command** or **Sequence** accepts, so one
+  entity can serve N emulator instances that differ only by a value. Lives in
+  `GameBot.Domain/Parameters/`.
+  - A **declaration** (`ParameterDeclaration`: name, type `text`/`number`, optional default, required
+    flag, description) is what makes a parameter discoverable — the authoring UI renders it as a
+    binding form on every call site and offers it in the insert-parameter picker.
+  - A **binding** (`ParameterBinding`) supplies a value at one call site: a queue-template entry binds
+    a sequence's parameters, and a sequence's command step binds a command's. `Value == null` means
+    *inherit*; the empty string is a deliberate real value.
+  - A **`ParameterScope`** is the immutable, layered set of names visible to a step when it is
+    dispatched: queue built-ins → template entry → sequence → command → loop iteration. Resolution
+    walks innermost-first and takes the first match, so an explicit binding beats an inherited value,
+    which beats a declared default; nothing supplying the name fails the step rather than
+    substituting anything. Not persisted — it exists only for the duration of a firing.
+  - **Queue built-ins** are read-only names derived from the executing queue's own configuration and
+    exposed under the reserved `queue.` namespace: `queue.emulatorSerial`, `queue.instanceName`,
+    `queue.instanceIndex`, `queue.gameId`. A field the queue has not set is *absent* from scope, not
+    empty. Because a queue already stores its serial, N queues driving one shared sequence need no
+    parameter configuration at all.
+  - A queue-template entry may also supply **ad-hoc** names the referenced sequence does not declare;
+    they reach any command beneath the entry at any depth, so an intermediate sequence never
+    re-declares a pass-through value. A supplied name nothing consumes is a warning, never an error.
+  - **Where placeholders may appear**: any string leaf field carries `{{name}}` inline (and may embed
+    it in surrounding text); numeric fields are supplied through `CommandStep.FieldTemplates`, a
+    dotted-path overlay (e.g. `swipe.startX`), because a placeholder cannot live in an `int`, and must
+    be a whole-field reference so the result parses. Command and sequence **references** are
+    deliberately NOT substitutable, which keeps the dangling-reference validation exact.
+  - **Validation** splits three ways (`ParameterValidationService`): declaration well-formedness and
+    statically-unresolvable references block a save (400); unsatisfied required parameters and unused
+    ad-hoc values are reported as warnings on a template save; starting a queue is refused with
+    `409 missing_required_parameters` before any device work. Resolution failures at dispatch fail the
+    step and dispatch nothing.
+  - Everything is additive and omitted from JSON when empty, so commands, sequences and templates
+    stored before the feature load and re-serialize byte-identically. **No automatic migration
+    exists** — conversion is manual, documented in `specs/078-sequence-parameters/quickstart.md`.
 - **Game** — a target app (package) the bot can connect to.
 - **Image (reference image)** — a stored bitmap used as a template for on-screen detection;
   disk-backed under `data/`.
@@ -216,6 +251,22 @@ sessions, steps, triggers. Plus `SessionsController`. Swagger groups these into 
 
 > Note: `TriggersEndpoints` still exists on the backend even though the Triggers authoring UI was
 > removed (spec 020). Treat the API as broader than the current UI.
+
+Feature 078 added, all additively (absent members mean pre-feature behaviour):
+
+- `parameters` on command create/update/response and on sequence upsert/patch/response.
+- `fieldTemplates` and `parameterBindings` on a command step; `parameterBindings` on a sequence step.
+- `parameterValues` on a queue-template entry save; `parameterValues`, `hasParameterOverrides` and
+  `effectiveParameters` on the entry in the template detail response.
+- `GET /api/commands/{id}/parameter-scope` and `GET /api/sequences/{id}/parameter-scope` — read-only,
+  serving the names an editor may offer (plus, for sequences, each command step's callee
+  declarations). Served from the backend so the resolution rules have exactly one implementation.
+- `POST /api/sequences/{id}/execute` accepts an optional `parameters` body for an ad-hoc run and
+  answers `409 missing_required_parameters` when a required parameter has no value and no default.
+- `POST /api/queues/{id}/start` answers `409 missing_required_parameters`, listing the offending
+  entries and parameter names, before any session or device work.
+- Execution-log step details gain a `parameters` item recording each resolved value and the scope
+  layer it came from; a parameter whose *name* looks like a secret has its value masked.
 
 ## Legacy / removed (don't be misled by old specs)
 

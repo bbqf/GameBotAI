@@ -1,4 +1,9 @@
 import { deleteJson, getJson, postJson, patchJson } from '../lib/api';
+import type {
+  ParameterBinding,
+  ParameterDeclaration,
+  ParameterWarning,
+} from '../components/parameters/types';
 
 export type CommandDto = {
   id: string;
@@ -6,6 +11,10 @@ export type CommandDto = {
   triggerId?: string;
   steps?: CommandStepDto[];
   detection?: DetectionTargetDto;
+  /** Parameters this command declares (feature 078); absent when unparametrized. */
+  parameters?: ParameterDeclaration[];
+  /** Non-blocking parameter advisories returned by the last save. */
+  warnings?: ParameterWarning[];
 };
 
 export type CommandCreate = {
@@ -13,6 +22,7 @@ export type CommandCreate = {
   triggerId?: string;
   steps?: CommandStepDto[];
   detection?: DetectionTargetDto;
+  parameters?: ParameterDeclaration[];
 };
 
 export type CommandUpdate = CommandCreate;
@@ -26,6 +36,13 @@ export type CommandStepDto = {
   keyInput?: KeyInputConfigDto;
   swipe?: SwipeConfigDto;
   ensureEmulatorRunning?: EnsureEmulatorRunningConfigDto;
+  /**
+   * Placeholders for this step's numeric fields, keyed by dotted path (feature 078), e.g.
+   * `{ 'swipe.startX': '{{originX}}' }`. String fields carry their placeholder inline instead.
+   */
+  fieldTemplates?: Record<string, string>;
+  /** Values bound for the invoked command's parameters; only meaningful on a Command step. */
+  parameterBindings?: ParameterBinding[];
 };
 
 export type EnsureEmulatorRunningConfigDto = {

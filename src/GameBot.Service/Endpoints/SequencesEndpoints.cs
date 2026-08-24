@@ -27,6 +27,8 @@ internal static class SequencesEndpoints {
     sequences.MapGet("", ListSequencesAsync).WithName("ListSequences");
     sequences.MapDelete("{sequenceId}", DeleteSequenceAsync).WithName("DeleteSequence");
     sequences.MapPost("{sequenceId}/execute", ExecuteSequenceAsync).WithName("ExecuteSequence").WithTags("Sequences");
+    sequences.MapGet("{sequenceId}/parameter-scope", GetSequenceParameterScopeAsync)
+      .WithName("GetSequenceParameterScope").WithTags("Sequences");
 
     return app;
   }
@@ -66,6 +68,17 @@ internal static class SequencesEndpoints {
       perStepSequence.SetFlowGraph(null);
       perStepSequence.SetSteps(linearSteps);
       perStepSequence.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+      foreach (var declaration in ParameterDtoMapper.ToDomainDeclarations(perStepRequest.Parameters)) {
+        perStepSequence.Parameters.Add(declaration);
+      }
+
+      // Feature 078 (FR-003, FR-020, unknown_parameter_binding): reject bad declarations, references
+      // nothing could supply, and bindings naming a parameter the target command does not declare.
+      var parameterCheck = await ValidateSequenceParametersAsync(perStepSequence, commandRepository, ct).ConfigureAwait(false);
+      if (!parameterCheck.IsValid) {
+        return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
+      }
+
       var createdPerStep = await repo.CreateAsync(perStepSequence).ConfigureAwait(false);
       return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), await ToSequenceResponseAsync(createdPerStep, commandRepository, ct).ConfigureAwait(false));
     }
@@ -147,6 +160,17 @@ internal static class SequencesEndpoints {
       existing.SetFlowGraph(null);
       existing.SetSteps(linearSteps);
       existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+      if (perStepRequest.Parameters is not null) {
+        existing.Parameters.Clear();
+        foreach (var declaration in ParameterDtoMapper.ToDomainDeclarations(perStepRequest.Parameters)) {
+          existing.Parameters.Add(declaration);
+        }
+      }
+
+      var parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, ct).ConfigureAwait(false);
+      if (!parameterCheck.IsValid) {
+        return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
+      }
     }
     else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
       return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
@@ -212,6 +236,17 @@ internal static class SequencesEndpoints {
       existing.SetFlowGraph(null);
       existing.SetSteps(linearSteps);
       existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+      if (perStepRequest.Parameters is not null) {
+        existing.Parameters.Clear();
+        foreach (var declaration in ParameterDtoMapper.ToDomainDeclarations(perStepRequest.Parameters)) {
+          existing.Parameters.Add(declaration);
+        }
+      }
+
+      var parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, ct).ConfigureAwait(false);
+      if (!parameterCheck.IsValid) {
+        return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
+      }
     }
     else if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
       return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { perStepRequestError } });
@@ -272,21 +307,80 @@ internal static class SequencesEndpoints {
 
   private static async Task<IResult> ExecuteSequenceAsync(
     GameBot.Service.Services.SequenceExecution.ISequenceExecutionService sequenceExecution,
+    ISequenceRepository repo,
     string sequenceId,
     HttpContext httpContext,
     CancellationToken ct) {
-    // Read optional sessionId from request body
+    // Read optional sessionId and, since feature 078, optional parameter values from the body.
     string? sessionId = null;
+    IReadOnlyList<GameBot.Service.Models.ParameterBindingDto>? suppliedParameters = null;
     try {
-      var body = await httpContext.Request.ReadFromJsonAsync<SequenceExecuteRequest>(ct).ConfigureAwait(false);
+      var body = await httpContext.Request.ReadFromJsonAsync<SequenceExecuteContract>(ct).ConfigureAwait(false);
       sessionId = body?.SessionId;
+      suppliedParameters = body?.Parameters;
     }
     catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
-      // empty body, malformed JSON, or missing content-type — no sessionId override
+      // empty body, malformed JSON, or missing content-type — no sessionId or parameter override
     }
 
-    var res = await sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext: null, ct).ConfigureAwait(false);
+    // FR-031: an ad-hoc run has no queue to inherit from, so a required parameter with no supplied
+    // value and no default must refuse the run rather than fail mid-way through it.
+    var sequence = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+    var scope = GameBot.Domain.Parameters.ParameterScope.Empty;
+    if (sequence is not null) {
+      var bindings = ParameterDtoMapper.ToDomainBindings(suppliedParameters);
+      var suppliedNames = bindings.Where(b => b.Value is not null).Select(b => b.Name)
+          .ToHashSet(StringComparer.Ordinal);
+      var missing = sequence.Parameters
+          .Where(p => p.Required && p.Default is null && !suppliedNames.Contains(p.Name))
+          .Select(p => p.Name)
+          .ToList();
+      if (missing.Count > 0) {
+        return Results.Json(new {
+          error = "missing_required_parameters",
+          message = "The sequence declares required parameters that were not supplied.",
+          parameters = missing
+        }, statusCode: 409);
+      }
+
+      scope = scope.Child(
+          GameBot.Domain.Parameters.ParameterScopeLayers.Entry, bindings, null);
+    }
+
+    var res = await sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext: null, scope, ct).ConfigureAwait(false);
     return Results.Ok(res);
+  }
+
+  /// <summary>
+  /// The names an editor may offer while editing this sequence, plus each command step's callee
+  /// declarations so the binding form renders without an extra fetch per step (feature 078, FR-027).
+  /// </summary>
+  private static async Task<IResult> GetSequenceParameterScopeAsync(
+      ISequenceRepository repo,
+      ICommandRepository commandRepository,
+      string sequenceId,
+      CancellationToken ct) {
+    var sequence = await repo.GetAsync(sequenceId).ConfigureAwait(false);
+    if (sequence is null) return Results.NotFound();
+
+    var callees = new List<object>();
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var step in FlattenStepsForParameters(sequence.Steps)) {
+      if (string.IsNullOrWhiteSpace(step.CommandId) || !seen.Add(step.CommandId)) continue;
+      var command = await commandRepository.GetAsync(step.CommandId, ct).ConfigureAwait(false);
+      if (command is null || command.Parameters.Count == 0) continue;
+      callees.Add(new {
+        stepId = step.StepId,
+        commandId = command.Id,
+        commandName = command.Name,
+        parameters = ParameterDtoMapper.ToResponseDeclarations(command.Parameters)
+      });
+    }
+
+    return Results.Ok(new {
+      entries = ParameterDtoMapper.BuildEditorScope(sequence.Parameters),
+      stepCallees = callees
+    });
   }
 
   private static async Task<object> ToSequenceResponseAsync(GameBot.Domain.Commands.CommandSequence sequence, ICommandRepository commandRepository, CancellationToken ct) {
@@ -333,7 +427,8 @@ internal static class SequencesEndpoints {
         steps = sequence.Steps.Select(step => MapStepToDto(step, commandLookup)).ToArray(),
         interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
           ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
-          : null
+          : null,
+        parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters)
       };
     }
 
@@ -344,8 +439,43 @@ internal static class SequencesEndpoints {
       steps = sequence.Steps.Select(step => step.CommandId).ToArray(),
       interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
         ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
-        : null
+        : null,
+      parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters)
     };
+  }
+
+  /// <summary>
+  /// Runs parameter validation for a sequence, resolving each command step's callee so a binding that
+  /// names an undeclared parameter is caught (feature 078).
+  /// </summary>
+  /// <param name="sequence">Sequence to validate.</param>
+  /// <param name="commandRepository">Used to look up each invoked command's declarations.</param>
+  /// <param name="ct">Cancellation token.</param>
+  private static async Task<GameBot.Domain.Services.ParameterValidationResult> ValidateSequenceParametersAsync(
+      GameBot.Domain.Commands.CommandSequence sequence,
+      ICommandRepository commandRepository,
+      CancellationToken ct) {
+    var declarationsById = new Dictionary<string, IReadOnlyList<GameBot.Domain.Parameters.ParameterDeclaration>?>(
+        StringComparer.OrdinalIgnoreCase);
+    foreach (var step in FlattenStepsForParameters(sequence.Steps)) {
+      if (string.IsNullOrWhiteSpace(step.CommandId) || declarationsById.ContainsKey(step.CommandId)) continue;
+      var command = await commandRepository.GetAsync(step.CommandId, ct).ConfigureAwait(false);
+      declarationsById[step.CommandId] = command?.Parameters;
+    }
+
+    return GameBot.Domain.Services.ParameterValidationService.ValidateSequence(
+        sequence,
+        commandId => declarationsById.TryGetValue(commandId ?? string.Empty, out var found) ? found : null);
+  }
+
+  private static IEnumerable<GameBot.Domain.Commands.SequenceStep> FlattenStepsForParameters(
+      IEnumerable<GameBot.Domain.Commands.SequenceStep> steps) {
+    foreach (var step in steps) {
+      yield return step;
+      foreach (var child in FlattenStepsForParameters(step.Body)) yield return child;
+      if (step.ElseBody is null) continue;
+      foreach (var child in FlattenStepsForParameters(step.ElseBody)) yield return child;
+    }
   }
 
   private static object? MapConditionToDto(ConditionExpression? expression) {
@@ -401,6 +531,7 @@ internal static class SequencesEndpoints {
       label = step.Label,
       stepType,
       commandReference = MapCommandReferenceToDto(step, commandLookup),
+      parameterBindings = ParameterDtoMapper.ToResponseBindings(step.ParameterBindings),
       primitiveAction = step.Action is null
         ? null
         : new {
@@ -729,7 +860,12 @@ internal static class SequencesEndpoints {
           StepType = SequenceStepType.Action,
           Action = step.PrimitiveAction is not null ? new SequenceActionPayload { Type = step.PrimitiveAction.Type, SchemaVersion = step.PrimitiveAction.SchemaVersion } : null,
           WaitForImage = MapWaitForImageConfig(step.PrimitiveAction),
-          Condition = MapPerStepCondition(step.Condition)
+          Condition = MapPerStepCondition(step.Condition),
+          // Feature 078: normalize an empty list to null so unparametrized steps stay byte-identical.
+          ParameterBindings = step.ParameterBindings is { Count: > 0 }
+            ? new System.Collections.ObjectModel.Collection<GameBot.Domain.Parameters.ParameterBinding>(
+                ParameterDtoMapper.ToDomainBindings(step.ParameterBindings))
+            : null
         };
 
         if (step.PrimitiveAction is not null) {

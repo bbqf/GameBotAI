@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ScheduleType } from '../../services/queueTemplates';
 import { TimerMode } from './QueueEntryList';
 import { SchedulingAreaId, SchedulingCard } from './schedulingAreas';
+import { ParameterBindingForm } from '../parameters/ParameterBindingForm';
+import type { ParameterBinding, ParameterDeclaration } from '../parameters/types';
 
 type SchedulingSequenceCardProps = {
   card: SchedulingCard;
@@ -17,6 +19,14 @@ type SchedulingSequenceCardProps = {
   onTimerRelativeOffsetChange?: (entryId: string, offset: string) => void;
   /** Toggle whether this entry runs during a queue run (persisted to the template on save). */
   onToggleEnabled?: (entryId: string, enabled: boolean) => void;
+  /**
+   * Parameters the referenced sequence declares (feature 078). Rendered as a binding form so the
+   * operator can supply a per-entry value — the mechanism that lets several entries share one
+   * sequence and differ only by a value.
+   */
+  sequenceParameters?: ParameterDeclaration[];
+  /** Persist this entry's supplied values (declared bindings and ad-hoc names alike). */
+  onParameterValuesChange?: (entryId: string, values: ParameterBinding[]) => void;
 };
 
 const SCHEDULE_LABELS: Record<ScheduleType, string> = {
@@ -50,7 +60,10 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
   onTimerModeChange,
   onTimerRelativeOffsetChange,
   onToggleEnabled,
+  sequenceParameters,
+  onParameterValuesChange,
 }) => {
+  const [parametersOpen, setParametersOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.entryId,
     data: { areaId },
@@ -118,6 +131,9 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
         {areaId === 'startOfExecution' && <span className="badge badge-info" role="status" aria-label="At Queue Start"> At Queue Start</span>}
         {areaId === 'afterEveryStep' && <span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
         {isScheduled && !isRelative && <span className="badge badge-info" role="status" aria-label="Timer"> Timer</span>}
+        {(schedule.parameterValues?.length ?? 0) > 0 && (
+          <span className="badge badge-param" role="status" aria-label="Has parameter overrides"> Parameters</span>
+        )}
         {isRelative && <span className="badge badge-info" role="status" aria-label="Relative timer"> Timer · relative</span>}
       </span>
 
@@ -188,6 +204,19 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
         </span>
       )}
 
+      {onParameterValuesChange && (
+        <button
+          type="button"
+          className="scheduling-card__parameters-toggle"
+          aria-expanded={parametersOpen}
+          aria-label={`Parameters for ${label}`}
+          disabled={disabled}
+          onClick={() => setParametersOpen((open) => !open)}
+        >
+          Parameters
+        </button>
+      )}
+
       <button
         type="button"
         onClick={() => onRemove(card.entryId)}
@@ -196,6 +225,21 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
       >
         Remove
       </button>
+
+      {parametersOpen && onParameterValuesChange && (
+        <div className="scheduling-card__parameters">
+          <ParameterBindingForm
+            declarations={sequenceParameters ?? []}
+            bindings={schedule.parameterValues ?? []}
+            effective={schedule.effectiveParameters}
+            // A queue-template entry is the outermost call site, so an ad-hoc name here reaches any
+            // command underneath at any depth (FR-012a).
+            allowAdHoc
+            disabled={disabled}
+            onChange={(values) => onParameterValuesChange(card.entryId, values)}
+          />
+        </div>
+      )}
     </div>
   );
 };

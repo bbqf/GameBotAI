@@ -18,6 +18,9 @@ internal sealed record SequenceUpsertContract {
   public int Version { get; init; }
   public required IReadOnlyList<SequenceStepContract> Steps { get; init; }
   public DelayRangeMsContract? InterStepDelayRangeMs { get; init; }
+
+  /// <summary>Parameters this sequence accepts (feature 078); absent means unparametrized.</summary>
+  public IReadOnlyList<ParameterDeclarationDto>? Parameters { get; init; }
 }
 
 internal sealed record SequencePatchContract {
@@ -25,6 +28,9 @@ internal sealed record SequencePatchContract {
   public int? Version { get; init; }
   public IReadOnlyList<SequenceStepContract>? Steps { get; init; }
   public DelayRangeMsContract? InterStepDelayRangeMs { get; init; }
+
+  /// <summary>Parameters this sequence accepts (feature 078); absent leaves them unchanged.</summary>
+  public IReadOnlyList<ParameterDeclarationDto>? Parameters { get; init; }
 }
 
 internal sealed record SequenceStepContract {
@@ -39,6 +45,21 @@ internal sealed record SequenceStepContract {
   public SequenceStepConditionContract? BreakCondition { get; init; }
   public IfConfigContract? If { get; init; }
   public IReadOnlyList<SequenceStepContract>? ElseBody { get; init; }
+
+  /// <summary>
+  /// Values bound for the invoked command's parameters (feature 078). Only meaningful on a command
+  /// step; a binding with a null value means "inherit", which is the default for every row.
+  /// </summary>
+  public IReadOnlyList<ParameterBindingDto>? ParameterBindings { get; init; }
+}
+
+/// <summary>
+/// Optional body for <c>POST /api/sequences/{id}/execute</c> (feature 078, FR-031): values supplied
+/// for an ad-hoc run that has no queue to inherit from.
+/// </summary>
+internal sealed record SequenceExecuteContract {
+  public string? SessionId { get; init; }
+  public IReadOnlyList<ParameterBindingDto>? Parameters { get; init; }
 }
 
 internal sealed record IfConfigContract {

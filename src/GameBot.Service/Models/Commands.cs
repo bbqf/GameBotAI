@@ -3,17 +3,66 @@ using System.Text.Json.Serialization;
 
 namespace GameBot.Service.Models;
 
+/// <summary>
+/// A parameter a command or sequence declares (feature 078). Wire shape of
+/// <see cref="GameBot.Domain.Parameters.ParameterDeclaration"/>.
+/// </summary>
+internal sealed class ParameterDeclarationDto {
+  public string? Name { get; init; }
+  /// <summary>"text" or "number"; defaults to "text" when omitted.</summary>
+  public string? Type { get; init; }
+  public string? Default { get; init; }
+  public bool? Required { get; init; }
+  public string? Description { get; init; }
+}
+
+/// <summary>
+/// A value supplied for a parameter at one call site (feature 078). A null/absent
+/// <see cref="Value"/> means "inherit from the enclosing scope".
+/// </summary>
+internal sealed class ParameterBindingDto {
+  public string? Name { get; init; }
+  public string? Value { get; init; }
+}
+
+/// <summary>
+/// One name visible in a scope, with its effective value and the layer that supplied it (feature 078).
+/// Read-only; feeds the insert-parameter picker and the effective-value preview.
+/// </summary>
+internal sealed class ParameterScopeEntryDto {
+  public string? Name { get; init; }
+  public string? Value { get; init; }
+  public string? OriginLayer { get; init; }
+  public bool Declared { get; init; }
+  public string? Description { get; init; }
+}
+
+/// <summary>Non-blocking parameter advisory returned alongside a successful save (feature 078).</summary>
+internal sealed class ParameterWarningDto {
+  public string? Code { get; init; }
+  public string? Message { get; init; }
+  public string? FieldPath { get; init; }
+  public string? ParameterName { get; init; }
+  public int? EntryIndex { get; init; }
+}
+
 internal sealed class CreateCommandRequest {
   public required string Name { get; set; }
   public string? TriggerId { get; set; }
   public Collection<CommandStepDto> Steps { get; init; } = new();
   public DetectionTargetDto? Detection { get; init; }
+
+  /// <summary>Parameters this command accepts (feature 078); absent means unparametrized.</summary>
+  public Collection<ParameterDeclarationDto>? Parameters { get; init; }
 }
 
 internal sealed class UpdateCommandRequest {
   public string? Name { get; set; }
   public string? TriggerId { get; set; }
   public Collection<CommandStepDto>? Steps { get; init; }
+
+  /// <summary>Parameters this command accepts (feature 078); absent leaves them unchanged.</summary>
+  public Collection<ParameterDeclarationDto>? Parameters { get; init; }
 
   private DetectionTargetDto? _detection;
 
@@ -35,6 +84,12 @@ internal sealed class CommandResponse {
   public string? TriggerId { get; init; }
   public Collection<CommandStepDto> Steps { get; init; } = new();
   public DetectionTargetDto? Detection { get; init; }
+
+  /// <summary>Parameters this command declares (feature 078); null when unparametrized.</summary>
+  public Collection<ParameterDeclarationDto>? Parameters { get; init; }
+
+  /// <summary>Non-blocking parameter advisories; null when there are none.</summary>
+  public Collection<ParameterWarningDto>? Warnings { get; init; }
 }
 
 internal enum CommandStepTypeDto {
@@ -90,6 +145,15 @@ internal sealed class CommandStepDto {
   public EnsureEmulatorRunningConfigDto? EnsureEmulatorRunning { get; init; }
   public EnsureGameRunningConfigDto? EnsureGameRunning { get; init; }
   public int Order { get; init; }
+
+  /// <summary>
+  /// Placeholders for this step's numeric fields, keyed by dotted path (feature 078). String fields
+  /// carry their placeholder inline instead and never appear here.
+  /// </summary>
+  public Dictionary<string, string>? FieldTemplates { get; init; }
+
+  /// <summary>Values bound for the invoked command's parameters; only meaningful for Command steps.</summary>
+  public Collection<ParameterBindingDto>? ParameterBindings { get; init; }
 }
 
 internal sealed class ResolvedPointDto {

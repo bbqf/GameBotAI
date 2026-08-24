@@ -52,17 +52,25 @@ For each one: click the **{ }** button at the right of the field, and choose
 **`queue.emulatorSerial`** from the list. The field becomes `{{queue.emulatorSerial}}`.
 
 > Use the picker rather than typing the braces. It only offers names that are actually in scope, so
-> it cannot produce a name that fails to resolve.
+> it cannot produce a name that fails to resolve. (The picker is available on the ensure-emulator
+> ADB-serial field; elsewhere, type the reference exactly — see Part 3a.)
 
 Save. If the save is rejected, the message names the field and the problem — fix it and save again.
 
 ### Step 4 — Do the same for the sequence
 
 Sequences → duplicate `Daily 5558` → rename to `Daily`. Open its command steps and repoint each one
-that referenced `Ensure Game 5558` at the new shared `Ensure Game Running`.
+that referenced `Ensure Game 5558` at the new shared `Ensure Game Running`. Save.
 
-Each command step now shows a **Parameters** panel listing what that command needs. Leave every row
-on **Inherit** — that is what makes the value flow down from the queue. Save.
+**Nothing else to do here.** A value the sequence does not bind is inherited from the enclosing scope
+automatically, so the queue's serial reaches the command with no configuration on the sequence at
+all. That is the whole point of the inheritance rule — a sequence never has to re-declare a value
+merely to pass it through.
+
+> Explicitly overriding a parameter *at a particular sequence step* (rather than per queue or per
+> template entry) is not yet editable in the sequence editor. It is rarely what you want — a value
+> that differs per instance belongs on the queue or the template entry, which is what the rest of
+> this guide uses.
 
 ### Step 5 — Point one template at the shared sequence, and test it
 
@@ -78,12 +86,17 @@ supplies its own serial.
 
 ### Step 7 — Verify, on every instance, before deleting anything
 
-Execution logs → open the run → open the step that used the parameter. Confirm:
+Execution logs → open the run → open the **command** entry, and look at its detail lines. Confirm:
 
-- the step's **Resolved parameters** shows `adbSerial = emulator-5558` (matching *that* queue), with
-  origin `queue`;
-- the step outcome is `executed`, not `skipped_invalid_config` or a resolution failure;
+- a line reading `Step 0 resolved 1 parameter(s): queue.emulatorSerial=emulator-5558` — the value must
+  match *that* queue's serial. (Each such line also records which scope supplied the value: `queue`
+  for a built-in, `entry` for a template-entry value, `default` for a declared default.)
+- the step outcome is `executed`, not `skipped_parameter_unresolved` or `skipped_invalid_config`;
 - the action landed on the right instance — the emulator you expected actually reacted.
+
+> If a parameter could not be resolved you will instead see
+> `Step 0 was not executed: Step '0': parameter 'x' used by field '…' could not be resolved from any
+> scope.` — nothing was sent to the device, so this is safe to fix and re-run.
 
 Repeat for 5560 and 5562. **All three must pass.** A wrong serial here means a queue is driving
 another instance, which is exactly the failure this conversion is meant to prevent.
@@ -121,17 +134,23 @@ Commands → open → **Parameters** → **Add**:
 | Required | off | on = the queue refuses to start until every entry can supply it |
 | Description | `Poll interval before giving up.` | shown in the picker; write it for your future self |
 
-Then insert `{{waitMs}}` into the field via the **{ }** picker, and save.
+Then put the reference into the field and save.
+
+- On the **ADB serial** field of an ensure-emulator-running step, use the **{ }** picker — it lists
+  every name in scope with its description and inserts a valid reference, so you never type braces.
+- Other fields are plain inputs for now: type the reference yourself, exactly `{{waitMs}}`. Spelling
+  matters — names are case-sensitive, and a name nothing can supply is rejected when you save, naming
+  the field and the parameter.
 
 ### 3b. Supply the value where it differs
 
-Two places, depending on how far the value has to travel:
+Queue templates → open the template → click **Parameters** on the entry → clear **Inherit** on the
+row and type the value. Use this whenever the value is a property of *that instance*.
 
-- **From the sequence step** — open the command step, find `waitMs` in its Parameters panel, switch
-  it from **Inherit** to a value. Use this when the value is a property of *that step*.
-- **From the queue-template entry** — Queue templates → open the entry → **Parameters** → set the
-  value. Use this when the value is a property of *that instance*. The entry shows each parameter's
-  effective value and where it came from, so you can confirm without running anything.
+The row shows the effective value and where it came from — `set on this entry`, `from the queue`, or
+`declared default` — so you can confirm the result without running anything. An entry that supplies
+any value is badged **Parameters** in the template list, so overridden entries are visible at a
+glance.
 
 ### 3c. Passing a value straight through to a nested command
 

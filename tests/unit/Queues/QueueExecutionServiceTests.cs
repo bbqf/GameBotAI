@@ -27,7 +27,7 @@ using Xunit;
 
 namespace GameBot.UnitTests.Queues;
 
-public sealed class QueueExecutionServiceTests {
+public sealed partial class QueueExecutionServiceTests {
   // ── Fakes ─────────────────────────────────────────────────────────────
 
   private sealed class FakeQueueRepository : IQueueRepository {

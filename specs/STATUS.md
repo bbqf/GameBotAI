@@ -112,6 +112,7 @@ Status vocabulary:
 | 074 | Start the Emulator From a Backend-Only, Session-Less State | Implemented |
 | 075 | Deduplicate Self-Rescheduled Sequence Firings | Implemented |
 | 077 | Enable/Disable Template Sequences | Implemented |
+| 078 | Sequence & Command Parameters | Implemented |
 
 ## Numbering notes
 

@@ -1,4 +1,5 @@
 import { deleteJson, getJson, postJson } from '../lib/api';
+import type { ParameterBinding, ParameterScopeEntry } from '../components/parameters/types';
 
 export type QueueTemplateSummary = {
   id: string;
@@ -20,6 +21,12 @@ export type QueueTemplateEntryDto = {
   timerRelativeOffset: string | null;
   /** Whether the entry runs during a queue run. Disabled entries stay in the template but are skipped. */
   enabled: boolean;
+  /** Values this entry supplies to its sequence's run scope (feature 078). */
+  parameterValues?: ParameterBinding[] | null;
+  /** True when the entry carries any value, so the list can badge it without being opened (FR-030). */
+  hasParameterOverrides?: boolean;
+  /** Effective value and originating scope per parameter, for the entry's preview (FR-028). */
+  effectiveParameters?: ParameterScopeEntry[] | null;
 };
 
 export type QueueTemplateDetail = QueueTemplateSummary & { entries: QueueTemplateEntryDto[] };
@@ -33,6 +40,11 @@ export type TemplateEntrySaveDto = {
   timerRelativeOffset?: string;
   /** Whether the entry runs during a queue run. Omit or true = enabled; false = disabled. */
   enabled?: boolean;
+  /**
+   * Values this entry supplies (feature 078). Holds both declared bindings and ad-hoc names; an
+   * ad-hoc name reaches any command beneath the entry at any depth.
+   */
+  parameterValues?: ParameterBinding[];
 };
 
 export type SaveQueueTemplate = {

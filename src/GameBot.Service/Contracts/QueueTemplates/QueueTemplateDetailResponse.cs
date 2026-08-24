@@ -39,5 +39,21 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     /// null otherwise.
     /// </summary>
     public string? TimerRelativeOffset { get; set; }
+
+    /// <summary>Values this entry supplies (feature 078); null when it supplies none.</summary>
+    public Collection<GameBot.Service.Models.ParameterBindingDto>? ParameterValues { get; set; }
+
+    /// <summary>
+    /// True when this entry carries any parameter value, so the template list can badge it as
+    /// overridden without the operator opening it (feature 078, FR-030).
+    /// </summary>
+    public bool HasParameterOverrides { get; set; }
+
+    /// <summary>
+    /// Per-parameter effective value and originating scope for this entry (feature 078, FR-028),
+    /// computed against the queue currently linked to this template when exactly one is linked.
+    /// Null when the referenced sequence declares nothing and the entry supplies nothing.
+    /// </summary>
+    public Collection<GameBot.Service.Models.ParameterScopeEntryDto>? EffectiveParameters { get; set; }
   }
 }

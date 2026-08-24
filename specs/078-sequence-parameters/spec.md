@@ -2,7 +2,7 @@
 
 **Feature Branch**: `078-sequence-parameters`
 **Created**: 2026-08-24
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I need to be able to parametrize the commands from the sequences and sequences from the queue templates. Example: if I want to ensure the game is running, I need to specify the emulator, however if I have 3 instances, the only difference is the port number, so I don't need 3 different commands and 3 different sequences, I just have to specify the parameter 3 ports in 3 different templates and these will be propagated via one sequence to one command. Analyze how to implement it in the most efficient way, as there will be many commands that will need this kind of parametrization. Consider also the user-friendliness of the implementation in the UI, migration effort is less of a priority, make sure a migration path is available, but don't build any code for automatic migration, rather provide a clear path how to convert the commands and sequences to being parametrized in the UI and let the user do it manually. Ask questions before taking decisions that influence the behaviour."
 
 ## Overview
@@ -52,9 +52,12 @@ differing value supplied by whichever queue or queue-template entry drives the r
   reference is parametrized? → **A: Existence checking is skipped for that field and a warning is
   shown**; the reference is validated at run time instead. *Rationale: the target is unknown until
   resolution, and silently passing an unknown reference would defeat FR-017.*
-- Q (auto-resolved): Are resolved parameter values redacted in execution logs? → **A: No, they are
-  logged in full.** *Rationale: the values are device serials, instance names and timings — no
-  credentials are in scope — and diagnosability is a stated success criterion.*
+- Q (auto-resolved): Are resolved parameter values redacted in execution logs? → **A: Logged in full,
+  except when the parameter's own name matches the existing secret-name pattern.** *Rationale: the
+  values are device serials, instance names and timings, and diagnosability is a stated success
+  criterion — but nothing stops an operator declaring a parameter called `password`, and the
+  constitution makes "do not leak sensitive data" a MUST, so name-based masking reuses the sanitizer
+  rule the codebase already applies elsewhere.*
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -324,8 +327,12 @@ ensure-game-running / ADB-serial case and reach a working single-command, single
   detection reference — is parametrized, that static check MUST be skipped for the field and replaced
   by a non-blocking warning at save time; the resolved value MUST still be validated at run time and
   fail the step under FR-017 when it does not exist.
-- **FR-024**: Execution logs MUST record the resolved values used for a step's parameters, unredacted,
-  so a run can be diagnosed after the fact.
+- **FR-024**: Execution logs MUST record the resolved values used for a step's parameters, together
+  with the scope each came from, so a run can be diagnosed after the fact. Values are recorded
+  verbatim — they are device serials, instance names and timings — with one exception: when the
+  *parameter name* matches the existing secret-name pattern (token, password, secret, api key,
+  authorization) the value MUST be masked, because an operator is free to declare such a parameter and
+  logs must not leak it.
 
 #### Authoring experience
 

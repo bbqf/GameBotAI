@@ -1,8 +1,10 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Services;
 using GameBot.Service;
 using GameBot.Service.Models;
 using GameBot.Service.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using Microsoft.AspNetCore.OpenApi;
@@ -182,7 +184,14 @@ internal static class CommandsEndpoints {
     Swipe = s.Type == CommandStepTypeDto.Swipe ? ToDomainSwipe(s.Swipe) : null,
     EnsureEmulatorRunning = s.Type == CommandStepTypeDto.EnsureEmulatorRunning ? ToDomainEnsureEmulator(s.EnsureEmulatorRunning) : null,
     EnsureGameRunning = s.Type == CommandStepTypeDto.EnsureGameRunning ? ToDomainEnsureGame(s.EnsureGameRunning) : null,
-    Order = s.Order
+    Order = s.Order,
+    // Feature 078: normalize an empty map/list to null so an unparametrized step round-trips
+    // byte-identically to its pre-feature JSON.
+    FieldTemplates = s.FieldTemplates is { Count: > 0 } ? new Dictionary<string, string>(s.FieldTemplates) : null,
+    ParameterBindings = s.ParameterBindings is { Count: > 0 }
+        ? new Collection<GameBot.Domain.Parameters.ParameterBinding>(
+            ParameterDtoMapper.ToDomainBindings(s.ParameterBindings))
+        : null
   };
 
   private static CommandStepDto ToResponseStep(CommandStep s) => new() {
@@ -194,7 +203,9 @@ internal static class CommandsEndpoints {
     Swipe = s.Type == CommandStepType.Swipe ? ToResponseSwipe(s.Swipe) : null,
     EnsureEmulatorRunning = s.Type == CommandStepType.EnsureEmulatorRunning ? ToResponseEnsureEmulator(s.EnsureEmulatorRunning) : null,
     EnsureGameRunning = s.Type == CommandStepType.EnsureGameRunning ? ToResponseEnsureGame(s.EnsureGameRunning) : null,
-    Order = s.Order
+    Order = s.Order,
+    FieldTemplates = s.FieldTemplates is { Count: > 0 } ? new Dictionary<string, string>(s.FieldTemplates) : null,
+    ParameterBindings = ParameterDtoMapper.ToResponseBindings(s.ParameterBindings)
   };
 
   private static EnsureEmulatorRunningConfig? ToDomainEnsureEmulator(EnsureEmulatorRunningConfigDto? dto) =>
@@ -318,6 +329,16 @@ internal static class CommandsEndpoints {
         Steps = new Collection<CommandStep>(req.Steps.Select(ToDomainStep).ToList()),
         Detection = ToDomainDetection(detectionDto)
       };
+      foreach (var declaration in ParameterDtoMapper.ToDomainDeclarations(req.Parameters)) {
+        command.Parameters.Add(declaration);
+      }
+
+      // Feature 078 (FR-003, FR-020): reject malformed declarations and references that nothing in
+      // scope could ever supply, before anything is persisted.
+      var parameterCheck = ParameterValidationService.ValidateCommand(command);
+      if (!parameterCheck.IsValid) {
+        return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
+      }
 
       var createdDomain = await repo.AddAsync(command, ct).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Commands}/{createdDomain.Id}", new CommandResponse {
@@ -325,7 +346,9 @@ internal static class CommandsEndpoints {
         Name = createdDomain.Name,
         TriggerId = createdDomain.TriggerId,
         Steps = new Collection<CommandStepDto>(createdDomain.Steps.Select(ToResponseStep).ToList()),
-        Detection = ToResponseDetection(createdDomain.Detection)
+        Detection = ToResponseDetection(createdDomain.Detection),
+        Parameters = ParameterDtoMapper.ToResponseDeclarations(createdDomain.Parameters),
+        Warnings = ParameterDtoMapper.ToResponseWarnings(parameterCheck.Warnings)
       });
     })
     .WithName("CreateCommand")
@@ -340,10 +363,22 @@ internal static class CommandsEndpoints {
             Name = c.Name,
             TriggerId = c.TriggerId,
             Steps = new Collection<CommandStepDto>(c.Steps.Select(ToResponseStep).ToList()),
-            Detection = ToResponseDetection(c.Detection)
+            Detection = ToResponseDetection(c.Detection),
+            Parameters = ParameterDtoMapper.ToResponseDeclarations(c.Parameters)
           });
     })
     .WithName("GetCommand")
+    .WithTags("Commands");
+
+    // Feature 078 (FR-026): the names an editor may offer when inserting a parameter into a field.
+    // Served from the backend so the resolution rules have exactly one implementation.
+    app.MapGet($"{ApiRoutes.Commands}/{{id}}/parameter-scope", async (string id, ICommandRepository repo, CancellationToken ct) => {
+      var c = await repo.GetAsync(id, ct).ConfigureAwait(false);
+      return c is null
+          ? Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } })
+          : Results.Ok(new { entries = ParameterDtoMapper.BuildEditorScope(c.Parameters) });
+    })
+    .WithName("GetCommandParameterScope")
     .WithTags("Commands");
 
     app.MapGet(ApiRoutes.Commands, async (ICommandRepository repo, CancellationToken ct) => {
@@ -380,6 +415,18 @@ internal static class CommandsEndpoints {
       if (req.DetectionSpecified) {
         existing.Detection = ToDomainDetection(req.Detection);
       }
+      if (req.Parameters is not null) {
+        existing.Parameters.Clear();
+        foreach (var declaration in ParameterDtoMapper.ToDomainDeclarations(req.Parameters)) {
+          existing.Parameters.Add(declaration);
+        }
+      }
+
+      var parameterCheck = ParameterValidationService.ValidateCommand(existing);
+      if (!parameterCheck.IsValid) {
+        return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
+      }
+
       var updated = await repo.UpdateAsync(existing, ct).ConfigureAwait(false);
       if (updated is null) return Results.NotFound();
       return Results.Ok(new CommandResponse {
@@ -387,7 +434,9 @@ internal static class CommandsEndpoints {
         Name = updated.Name,
         TriggerId = updated.TriggerId,
         Steps = new Collection<CommandStepDto>(updated.Steps.Select(ToResponseStep).ToList()),
-        Detection = ToResponseDetection(updated.Detection)
+        Detection = ToResponseDetection(updated.Detection),
+        Parameters = ParameterDtoMapper.ToResponseDeclarations(updated.Parameters),
+        Warnings = ParameterDtoMapper.ToResponseWarnings(parameterCheck.Warnings)
       });
     })
     .WithName("UpdateCommand")
