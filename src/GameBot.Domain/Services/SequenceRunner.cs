@@ -10,6 +10,7 @@ using GameBot.Domain.Commands.Blocks;
 using GameBot.Domain.Config;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Actions;
+using GameBot.Domain.Parameters;
 using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Services {
@@ -61,18 +62,41 @@ namespace GameBot.Domain.Services {
       _config = config;
     }
 
+    /// <summary>
+    /// Executes a sequence.
+    /// </summary>
+    /// <param name="sequenceId">Id of the sequence to run.</param>
+    /// <param name="executeCommandAsync">
+    /// Invoked for each command step with the command id and the scope in effect at that point, so the
+    /// command executor can resolve the command's own parameters (feature 078).
+    /// </param>
+    /// <param name="gateEvaluator">Optional per-step gate evaluator.</param>
+    /// <param name="conditionEvaluator">Optional condition evaluator.</param>
+    /// <param name="actionDispatcher">Optional primitive-action dispatcher.</param>
+    /// <param name="scope">
+    /// Parameter scope supplied by the caller — for a queue run, the queue built-ins layered with the
+    /// firing entry's values. Defaults to <see cref="ParameterScope.Empty"/>, which reproduces the
+    /// pre-feature behaviour exactly for every existing call site.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
     public async Task<SequenceExecutionResult> ExecuteAsync(
         string sequenceId,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator = null,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator = null,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher = null,
+        ParameterScope? scope = null,
         CancellationToken ct = default) {
       ArgumentNullException.ThrowIfNull(executeCommandAsync);
       var sequence = await _repository.GetAsync(sequenceId).ConfigureAwait(false);
       if (sequence == null) {
         return SequenceExecutionResult.NotFound(sequenceId);
       }
+
+      // The sequence's own declarations join the scope so their defaults apply to any name no caller
+      // supplied. Bindings still outrank defaults regardless of layer depth (see ParameterScope).
+      var runScope = (scope ?? ParameterScope.Empty)
+          .Child(ParameterScopeLayers.Sequence, null, sequence.Parameters);
 
       var result = SequenceExecutionResult.Start(sequenceId);
       if (_logger != null) LogSequenceStart(_logger, sequenceId, null);
@@ -100,6 +124,7 @@ namespace GameBot.Domain.Services {
             result,
             sequenceId,
             actionDispatcher,
+            runScope,
             ct).ConfigureAwait(false);
         if (earlyStop) {
           if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
@@ -125,7 +150,7 @@ namespace GameBot.Domain.Services {
 
     private async Task ExecuteFlowGraphAsync(
         CommandSequence sequence,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         SequenceExecutionResult result,
         CancellationToken ct) {
@@ -221,7 +246,8 @@ namespace GameBot.Domain.Services {
             : currentStep.PayloadRef!;
 
         try {
-          await executeCommandAsync(commandId).ConfigureAwait(false);
+          // Legacy flow-graph path: no parameter scope is threaded here, matching pre-feature behaviour.
+      await executeCommandAsync(commandId, ParameterScope.Empty).ConfigureAwait(false);
         }
         catch {
           result.Fail($"step '{currentStep.StepId}' command execution failed");
@@ -403,8 +429,8 @@ namespace GameBot.Domain.Services {
     }
 
     private async Task<bool> ExecuteSingleStepAsync(
-        SequenceStep step,
-        Func<string, Task> executeCommandAsync,
+        SequenceStep originalStep,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         DelayRangeMs interStepDelayRange,
@@ -412,7 +438,14 @@ namespace GameBot.Domain.Services {
         SequenceExecutionResult result,
         string sequenceId,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        ParameterScope scope,
         CancellationToken ct) {
+      // Substitution happens here and only here, so a parameter resolves identically whether the step
+      // sits at the top level, in a loop body, or in an if branch (feature 078, FR-016). Loop and if
+      // steps are dispatched from the untouched original, since their bodies substitute per iteration.
+      var step = originalStep.StepType is SequenceStepType.Loop or SequenceStepType.If
+          ? originalStep
+          : ApplyScope(originalStep, scope);
       var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : step.CommandId;
 
       // ── Loop step dispatch ────────────────────────────────────────────
@@ -428,6 +461,7 @@ namespace GameBot.Domain.Services {
             sequenceId,
             _config.LoopMaxIterations,
             actionDispatcher,
+            scope,
             ct).ConfigureAwait(false);
       }
 
@@ -442,7 +476,7 @@ namespace GameBot.Domain.Services {
             stepOutcomes,
             result,
             sequenceId,
-            EmptyIterContext,
+            scope,
             actionDispatcher,
             ct).ConfigureAwait(false);
         return ifEarlyStop;
@@ -638,7 +672,13 @@ namespace GameBot.Domain.Services {
       if (_logger != null) LogCommandStart(_logger, step.CommandId, null);
       var cmdStart = DateTimeOffset.UtcNow;
       try {
-        await executeCommandAsync(step.CommandId).ConfigureAwait(false);
+        // The step's bindings become an inner layer, so the invoked command sees them ahead of
+        // anything inherited. The command's own declarations are layered on by the caller, which is
+        // the only place that can load them (feature 078).
+        var commandScope = originalStep.ParameterBindings is { Count: > 0 }
+            ? scope.Child(ParameterScopeLayers.Command, originalStep.ParameterBindings, null)
+            : scope;
+        await executeCommandAsync(step.CommandId, commandScope).ConfigureAwait(false);
       }
       catch (Exception ex) {
         var reason = !string.IsNullOrWhiteSpace(ex.Message) ? ex.Message : $"step '{stepKey}' command execution failed";
@@ -770,7 +810,7 @@ namespace GameBot.Domain.Services {
 
     private Task<bool> ExecuteSingleStepAsync(
         SequenceStep step,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         SequenceExecutionResult result,
         string sequenceId,
@@ -785,6 +825,8 @@ namespace GameBot.Domain.Services {
           result,
           sequenceId,
           actionDispatcher: null,
+          // Legacy blocks path: no parameter scope, matching pre-feature behaviour.
+          ParameterScope.Empty,
           ct);
     }
 
@@ -800,7 +842,7 @@ namespace GameBot.Domain.Services {
     /// </summary>
     private async Task<bool> ExecuteLoopStepAsync(
         SequenceStep step,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         DelayRangeMs interStepDelayRange,
@@ -809,6 +851,7 @@ namespace GameBot.Domain.Services {
         string sequenceId,
         int globalMaxIterations,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        ParameterScope scope,
         CancellationToken ct) {
       var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"loop@{step.Order}";
       var maxIterations = step.Loop?.MaxIterations ?? globalMaxIterations;
@@ -817,17 +860,17 @@ namespace GameBot.Domain.Services {
         case CountLoopConfig countCfg:
           return await ExecuteCountLoopAsync(step, stepKey, countCfg,
               executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
-              stepOutcomes, result, sequenceId, actionDispatcher, ct).ConfigureAwait(false);
+              stepOutcomes, result, sequenceId, actionDispatcher, scope, ct).ConfigureAwait(false);
 
         case WhileLoopConfig whileCfg:
           return await ExecuteWhileLoopAsync(step, stepKey, whileCfg, maxIterations,
               executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
-              stepOutcomes, result, sequenceId, actionDispatcher, ct).ConfigureAwait(false);
+              stepOutcomes, result, sequenceId, actionDispatcher, scope, ct).ConfigureAwait(false);
 
         case RepeatUntilLoopConfig ruCfg:
           return await ExecuteRepeatUntilLoopAsync(step, stepKey, ruCfg, maxIterations,
               executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
-              stepOutcomes, result, sequenceId, actionDispatcher, ct).ConfigureAwait(false);
+              stepOutcomes, result, sequenceId, actionDispatcher, scope, ct).ConfigureAwait(false);
 
         default:
           result.AddStep(stepKey, 0, "Failed", message: $"Loop step '{stepKey}' has missing or unknown loop configuration.");
@@ -842,7 +885,7 @@ namespace GameBot.Domain.Services {
         SequenceStep step,
         string stepKey,
         CountLoopConfig cfg,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         DelayRangeMs interStepDelayRange,
@@ -850,6 +893,7 @@ namespace GameBot.Domain.Services {
         SequenceExecutionResult result,
         string sequenceId,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        ParameterScope scope,
         CancellationToken ct) {
       var iterResults = new List<LoopIterResult>();
       var priorIterationExecutedSteps = false;
@@ -864,7 +908,7 @@ namespace GameBot.Domain.Services {
           result.SetInterStepDelayForLatestStep(interStepDelay);
         }
 
-        var iterCtx = ImmutableIterContext(i + 1);
+        var iterCtx = scope.WithIteration(i + 1);
         var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
             stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
@@ -891,7 +935,7 @@ namespace GameBot.Domain.Services {
         string stepKey,
         WhileLoopConfig cfg,
         int maxIterations,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         DelayRangeMs interStepDelayRange,
@@ -899,6 +943,7 @@ namespace GameBot.Domain.Services {
         SequenceExecutionResult result,
         string sequenceId,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        ParameterScope scope,
         CancellationToken ct) {
       var iterResults = new List<LoopIterResult>();
       var iterations = 0;
@@ -941,7 +986,7 @@ namespace GameBot.Domain.Services {
           return true;
         }
 
-        var iterCtx = ImmutableIterContext(iterations);
+        var iterCtx = scope.WithIteration(iterations);
         var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
             stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
@@ -968,7 +1013,7 @@ namespace GameBot.Domain.Services {
         string stepKey,
         RepeatUntilLoopConfig cfg,
         int maxIterations,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         DelayRangeMs interStepDelayRange,
@@ -976,6 +1021,7 @@ namespace GameBot.Domain.Services {
         SequenceExecutionResult result,
         string sequenceId,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        ParameterScope scope,
         CancellationToken ct) {
       var iterResults = new List<LoopIterResult>();
       var iterations = 0;
@@ -992,7 +1038,7 @@ namespace GameBot.Domain.Services {
 
         iterations++;
 
-        var iterCtx = ImmutableIterContext(iterations);
+        var iterCtx = scope.WithIteration(iterations);
         var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
             stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
@@ -1035,8 +1081,6 @@ namespace GameBot.Domain.Services {
       return false;
     }
 
-    /// <summary>Empty substitution context for if branches executed outside any loop.</summary>
-    private static readonly Dictionary<string, string> EmptyIterContext = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Executes a <see cref="SequenceStepType.If"/> step: evaluates the condition exactly once
@@ -1048,14 +1092,14 @@ namespace GameBot.Domain.Services {
     /// </summary>
     private async Task<(bool EarlyStop, bool BreakTriggered)> ExecuteIfStepAsync(
         SequenceStep step,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         DelayRangeMs interStepDelayRange,
         Dictionary<string, string> stepOutcomes,
         SequenceExecutionResult result,
         string sequenceId,
-        IReadOnlyDictionary<string, string> iterContext,
+        ParameterScope iterScope,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
         CancellationToken ct) {
       var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"if@{step.Order}";
@@ -1105,7 +1149,7 @@ namespace GameBot.Domain.Services {
 
       var (earlyStop, breakTriggered, _) = await ExecuteLoopBodyAsync(
           branch, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
-          stepOutcomes, result, sequenceId, iterContext, actionDispatcher, ct).ConfigureAwait(false);
+          stepOutcomes, result, sequenceId, iterScope, actionDispatcher, ct).ConfigureAwait(false);
 
       if (earlyStop) {
         stepOutcomes[stepKey] = "failed";
@@ -1124,14 +1168,14 @@ namespace GameBot.Domain.Services {
     /// </summary>
     private async Task<(bool EarlyStop, bool BreakTriggered, int StepCount)> ExecuteLoopBodyAsync(
         IReadOnlyList<SequenceStep> bodySteps,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         DelayRangeMs interStepDelayRange,
         Dictionary<string, string> stepOutcomes,
         SequenceExecutionResult result,
         string sequenceId,
-        IReadOnlyDictionary<string, string> iterContext,
+        ParameterScope iterScope,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
         CancellationToken ct) {
       var stepsExecuted = 0;
@@ -1208,7 +1252,7 @@ namespace GameBot.Domain.Services {
           // {{iteration}} substitution, and a break inside a branch exits the enclosing loop.
           var (ifEarlyStop, ifBreakTriggered) = await ExecuteIfStepAsync(
               step, executeCommandAsync, gateEvaluator, conditionEvaluator, interStepDelayRange,
-              stepOutcomes, result, sequenceId, iterContext, actionDispatcher, ct).ConfigureAwait(false);
+              stepOutcomes, result, sequenceId, iterScope, actionDispatcher, ct).ConfigureAwait(false);
           stepsExecuted++;
 
           if (ifEarlyStop) return (true, false, stepsExecuted);
@@ -1222,11 +1266,10 @@ namespace GameBot.Domain.Services {
           continue;
         }
 
-        // Apply template substitution to the body step before execution
-        SequenceStep effectiveStep = ApplyIterContext(step, iterContext);
-
+        // Substitution is performed inside ExecuteSingleStepAsync against the iteration scope, so the
+        // body step is passed through untouched here.
         var earlyStop = await ExecuteSingleStepAsync(
-            effectiveStep,
+            step,
             executeCommandAsync,
             gateEvaluator,
             conditionEvaluator,
@@ -1235,6 +1278,7 @@ namespace GameBot.Domain.Services {
             result,
             sequenceId,
             actionDispatcher,
+            iterScope,
             ct).ConfigureAwait(false);
         stepsExecuted++;
 
@@ -1294,24 +1338,41 @@ namespace GameBot.Domain.Services {
 
     /// <summary>
     /// Returns a copy of <paramref name="step"/> with <c>{{key}}</c> placeholders in
-    /// <see cref="SequenceStep.CommandId"/> and <see cref="SequenceStep.Action"/> parameters
-    /// substituted from <paramref name="context"/>.
+    /// <see cref="SequenceStep.Action"/> parameters substituted from <paramref name="scope"/>.
+    /// <para>
+    /// <see cref="SequenceStep.CommandId"/> keeps its historical substitution so a loop body may still
+    /// build a command id from <c>{{iteration}}</c>, but parameter names are rejected there at save
+    /// time, which keeps the dangling-reference validation exact (feature 078, FR-007).
+    /// </para>
+    /// <para>
+    /// Every member is listed explicitly, so a field added to <see cref="SequenceStep"/> and forgotten
+    /// here would be silently dropped — <see cref="SequenceStep.ParameterBindings"/> in particular must
+    /// survive, or bindings would vanish for steps inside a loop body.
+    /// </para>
     /// </summary>
-    private static SequenceStep ApplyIterContext(
-        SequenceStep step,
-        IReadOnlyDictionary<string, string> context) {
+    /// <param name="step">The stored step, left unmodified.</param>
+    /// <param name="scope">The scope in effect where this step is dispatched.</param>
+    private static SequenceStep ApplyScope(SequenceStep step, ParameterScope scope) {
+      var context = scope.ToSubstitutionContext();
+      if (context.Count == 0) return step;
+
       var substitutedCommandId = TemplateSubstitutor.Substitute(step.CommandId, context);
       var substitutedAction = step.Action is not null
           ? TemplateSubstitutor.SubstitutePayload(step.Action, context)
           : null;
 
+      // EVERY member of SequenceStep must be copied. Anything omitted here is silently erased from the
+      // step that actually executes — which is how WaitForImage once vanished from action steps. When
+      // adding a field to SequenceStep, add it here too.
       return new SequenceStep {
         Order = step.Order,
         StepId = step.StepId,
         Label = step.Label,
         CommandId = substitutedCommandId,
+        CommandReference = step.CommandReference,
         StepType = step.StepType,
         Action = substitutedAction,
+        WaitForImage = step.WaitForImage,
         Condition = step.Condition,
         ConditionExpression = step.ConditionExpression,
         DelayMs = step.DelayMs,
@@ -1319,20 +1380,20 @@ namespace GameBot.Domain.Services {
         TimeoutMs = step.TimeoutMs,
         Retry = step.Retry,
         Gate = step.Gate,
-        // Body / Loop / BreakCondition are not deep-substituted in body steps
+        // Body / Loop / If / ElseBody / BreakCondition are not deep-substituted: nested steps are
+        // substituted when they are themselves dispatched, against the scope in effect there.
         Loop = step.Loop,
         Body = step.Body,
-        BreakCondition = step.BreakCondition
+        If = step.If,
+        ElseBody = step.ElseBody,
+        BreakCondition = step.BreakCondition,
+        ParameterBindings = step.ParameterBindings
       };
     }
 
-    /// <summary>Creates a read-only dict with iteration substitution context.</summary>
-    private static Dictionary<string, string> ImmutableIterContext(int iteration)
-        => new(StringComparer.Ordinal) { ["iteration"] = iteration.ToString(System.Globalization.CultureInfo.InvariantCulture) };
-
     private async Task ExecuteBlocksAsync(
         IReadOnlyList<object> blocks,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         SequenceExecutionResult result,
@@ -1374,7 +1435,7 @@ namespace GameBot.Domain.Services {
 
     private async Task ExecuteIfElseAsync(
         JsonElement block,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         SequenceExecutionResult result,
@@ -1422,7 +1483,7 @@ namespace GameBot.Domain.Services {
 
     private async Task ExecuteWhileAsync(
         JsonElement block,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         SequenceExecutionResult result,
@@ -1559,7 +1620,7 @@ namespace GameBot.Domain.Services {
 
     private async Task ExecuteStepsCollectionAsync(
         List<object> items,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         SequenceExecutionResult result,
@@ -1581,7 +1642,7 @@ namespace GameBot.Domain.Services {
 
     private async Task ExecuteRepeatUntilAsync(
         JsonElement block,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         SequenceExecutionResult result,
@@ -1747,7 +1808,7 @@ namespace GameBot.Domain.Services {
 
     private async Task ExecuteRepeatCountAsync(
         JsonElement block,
-        Func<string, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task> executeCommandAsync,
         Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         SequenceExecutionResult result,

@@ -28,7 +28,7 @@ namespace GameBot.UnitTests.Sequences {
 
       var runner = new SequenceRunner(new StubRepo(seq));
       var sw = Stopwatch.StartNew();
-      var res = await runner.ExecuteAsync("ru-timeout", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("ru-timeout", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => Task.FromResult(false),
           ct: CancellationToken.None);
       sw.Stop();
@@ -52,7 +52,7 @@ namespace GameBot.UnitTests.Sequences {
 
       var starts = 0;
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("ru-continue", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("ru-continue", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => {
             if (cond.TargetId == "main") {
               starts++;
@@ -82,7 +82,7 @@ namespace GameBot.UnitTests.Sequences {
 
       var firstStart = true;
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("wh-break", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("wh-break", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => {
             if (cond.TargetId == "main") {
               if (firstStart) {
@@ -114,7 +114,7 @@ namespace GameBot.UnitTests.Sequences {
 
       int starts = 0;
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("wh-cadence", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("wh-cadence", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => {
             if (cond.TargetId == "main") {
               starts++;
@@ -139,7 +139,7 @@ namespace GameBot.UnitTests.Sequences {
       seq.SetBlocks(new object[] { blockJson.RootElement });
 
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("ru-start-true-iter", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("ru-start-true-iter", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => Task.FromResult(true),
           ct: CancellationToken.None);
 
@@ -158,7 +158,7 @@ namespace GameBot.UnitTests.Sequences {
       seq.SetBlocks(new object[] { blockJson.RootElement });
 
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("wh-cond-false", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("wh-cond-false", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => Task.FromResult(false),
           ct: CancellationToken.None);
 
@@ -176,7 +176,7 @@ namespace GameBot.UnitTests.Sequences {
       seq.SetBlocks(new object[] { blockJson.RootElement });
 
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("wh-max", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("wh-max", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => Task.FromResult(true),
           ct: CancellationToken.None);
 
@@ -197,7 +197,7 @@ namespace GameBot.UnitTests.Sequences {
       seq.SetBlocks(new object[] { blockJson.RootElement });
 
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("ru-max", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("ru-max", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => Task.FromResult(false),
           ct: CancellationToken.None);
 
@@ -218,7 +218,7 @@ namespace GameBot.UnitTests.Sequences {
       seq.SetBlocks(new object[] { blockJson.RootElement });
 
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("ru-start-true", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("ru-start-true", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => Task.FromResult(true),
           ct: CancellationToken.None);
 

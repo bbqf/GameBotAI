@@ -3,6 +3,7 @@ import { SearchableDropdown, SearchableOption } from '../SearchableDropdown';
 import { QueueEntryDto } from '../../services/queues';
 import { SequenceDto } from '../../services/sequences';
 import { ScheduleType } from '../../services/queueTemplates';
+import type { ParameterBinding, ParameterScopeEntry } from '../parameters/types';
 
 export type TimerMode = 'timeOfDay' | 'relative';
 
@@ -15,6 +16,19 @@ export type EntrySchedule = {
   timerRelativeOffset?: string;
   /** Whether the entry runs during a queue run. Undefined or true = enabled; false = disabled. */
   enabled?: boolean;
+  /**
+   * True when the entry supplies at least one parameter value (feature 078, FR-030). Badged in the
+   * list so an operator can spot an overridden entry without opening it — which matters when three
+   * near-identical entries differ only by a value.
+   */
+  hasParameterOverrides?: boolean;
+  /**
+   * Values this entry supplies to its sequence's run scope (feature 078). Holds both declared
+   * bindings and ad-hoc names.
+   */
+  parameterValues?: ParameterBinding[];
+  /** Effective value and originating scope per parameter, for the entry's preview (FR-028). */
+  effectiveParameters?: ParameterScopeEntry[];
 };
 
 type QueueEntryListProps = {
@@ -99,6 +113,9 @@ export const QueueEntryList: React.FC<QueueEntryListProps> = ({
                 {isAtQueueStart && <span className="badge badge-info" role="status" aria-label="At Queue Start"> At Queue Start</span>}
                 {isEveryStep && <span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
                 {isTimer && !isRelative && <span className="badge badge-info" role="status" aria-label="Timer"> Timer</span>}
+                {schedule.hasParameterOverrides && (
+                  <span className="badge badge-param" role="status" aria-label="Has parameter overrides"> Parameters</span>
+                )}
                 {isRelative && <span className="badge badge-info" role="status" aria-label="Relative timer"> Timer · relative</span>}
               </span>
 

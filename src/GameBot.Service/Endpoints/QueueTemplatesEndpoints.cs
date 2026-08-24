@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Parameters;
 using GameBot.Domain.QueueTemplates;
+using GameBot.Domain.Services;
 using GameBot.Service.Contracts.QueueTemplates;
 using GameBot.Service.Services.QueueExecution;
 
@@ -80,14 +83,36 @@ internal static class QueueTemplatesEndpoints {
           ? parsedOffset
           : null;
 
-        target.Entries.Add(new QueueTemplateEntry {
+        var domainEntry = new QueueTemplateEntry {
           SequenceId = entry.SequenceId!,
           ScheduleType = scheduleType,
           TimerTimeOfDay = timerTime,
           TimerRelativeOffset = timerOffset,
           // Null (omitted by older clients) means enabled; only an explicit false disables.
           Enabled = entry.Enabled ?? true
-        });
+        };
+        foreach (var binding in ParameterDtoMapper.ToDomainBindings(entry.ParameterValues)) {
+          domainEntry.ParameterValues.Add(binding);
+        }
+
+        target.Entries.Add(domainEntry);
+      }
+
+      // Feature 078: only a malformed or reserved value name blocks the save (FR-012b's unused-value
+      // feedback and FR-021's unsatisfied-required feedback are warnings, surfaced in the response).
+      var nameErrors = target.Entries
+        .SelectMany((e, index) => e.ParameterValues
+          .Select(b => (Index: index, Name: b.Name, Error: ParameterNameRules.ValidateName(b.Name)))
+          .Where(x => x.Error is not null))
+        .Select(x => new ParameterValidationIssue(
+          ParameterValidationCodes.InvalidValueName,
+          $"Entry {x.Index}: {x.Error}.",
+          null,
+          x.Name,
+          x.Index))
+        .ToList();
+      if (nameErrors.Count > 0) {
+        return Results.BadRequest(ParameterDtoMapper.ToErrorBody(nameErrors));
       }
 
       if (existing is null) {
@@ -148,6 +173,7 @@ internal static class QueueTemplatesEndpoints {
       CreatedAt = template.CreatedAt,
       UpdatedAt = template.UpdatedAt
     };
+    var sequencesById = allSequences.ToDictionary(s => s.Id, s => s, StringComparer.Ordinal);
     foreach (var entry in template.Entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);
       detail.Entries.Add(new QueueTemplateEntryResponse {
@@ -157,10 +183,34 @@ internal static class QueueTemplatesEndpoints {
         ScheduleType = entry.ScheduleType.ToString(),
         TimerTimeOfDay = entry.TimerTimeOfDay?.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture),
         TimerRelativeOffset = entry.TimerRelativeOffset is { } offset ? RelativeOffsetParser.Format(offset) : null,
-        Enabled = entry.Enabled
+        Enabled = entry.Enabled,
+        // Feature 078
+        ParameterValues = ParameterDtoMapper.ToResponseBindings(entry.ParameterValues),
+        HasParameterOverrides = entry.ParameterValues.Count > 0,
+        EffectiveParameters = BuildEffectiveParameters(entry, sequencesById.GetValueOrDefault(entry.SequenceId))
       });
     }
     return detail;
+  }
+
+  /// <summary>
+  /// Per-parameter effective value and originating scope for one entry (feature 078, FR-028), so the
+  /// operator can see what a parameter will resolve to — and which scope wins — without running
+  /// anything. Queue built-ins appear with a null value because no run is in progress.
+  /// </summary>
+  /// <param name="entry">The template entry.</param>
+  /// <param name="sequence">The referenced sequence, or null when the reference is stale.</param>
+  private static Collection<GameBot.Service.Models.ParameterScopeEntryDto>? BuildEffectiveParameters(
+      QueueTemplateEntry entry,
+      GameBot.Domain.Commands.CommandSequence? sequence) {
+    var declarations = sequence?.Parameters
+        ?? (IReadOnlyCollection<ParameterDeclaration>)Array.Empty<ParameterDeclaration>();
+    if (declarations.Count == 0 && entry.ParameterValues.Count == 0) return null;
+
+    var scope = ParameterScope.Empty
+        .Child(ParameterScopeLayers.Sequence, null, declarations)
+        .Child(ParameterScopeLayers.Entry, entry.ParameterValues, null);
+    return ParameterDtoMapper.ToResponseScopeEntries(scope.Describe());
   }
 
   private static IResult NotFound() => Error(404, "not_found", "Queue template not found");

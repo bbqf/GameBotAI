@@ -34,5 +34,13 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     /// exclusive with <see cref="TimerTimeOfDay"/>; ignored for other schedule types.
     /// </summary>
     public string? TimerRelativeOffset { get; set; }
+
+    /// <summary>
+    /// Values this entry supplies to its sequence's run scope (feature 078). Holds both declared
+    /// bindings and ad-hoc names; ad-hoc values reach any command beneath the entry at any depth, so
+    /// an intermediate sequence never has to re-declare a pass-through value. A name that nothing
+    /// consumes is reported as a warning, never an error.
+    /// </summary>
+    public GameBot.Service.Models.ParameterBindingDto[]? ParameterValues { get; set; }
   }
 }

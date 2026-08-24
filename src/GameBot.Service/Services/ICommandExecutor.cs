@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using GameBot.Domain.Parameters;
 using GameBot.Domain.Triggers;
 using GameBot.Service.Services.ExecutionLog;
 
@@ -14,6 +15,18 @@ internal interface ICommandExecutor {
   Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default);
   Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default);
   Task<int> ForceExecuteAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default);
+
+  /// <summary>
+  /// Force-executes a command with a parameter scope (feature 078). Each step is resolved against
+  /// <paramref name="scope"/> immediately before dispatch; a step whose parameters cannot be resolved
+  /// fails without dispatching anything to the device.
+  /// </summary>
+  /// <param name="sessionId">Session to execute against, or null to use the cached one.</param>
+  /// <param name="commandId">Command to execute.</param>
+  /// <param name="context">Execution-log context linking this run to its parent.</param>
+  /// <param name="scope">Scope in effect at the invoking sequence step.</param>
+  /// <param name="ct">Cancellation token.</param>
+  Task<int> ForceExecuteAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, CancellationToken ct = default);
   Task<CommandEvaluationExecutionResult> EvaluateAndExecuteDetailedAsync(string? sessionId, string commandId, CancellationToken ct = default);
   Task<CommandEvaluationDecision> EvaluateAndExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default);
   Task<CommandForceExecutionResult> ForceExecuteStepAsync(string? sessionId, GameBot.Domain.Commands.CommandStep step, CancellationToken ct = default);
@@ -40,7 +53,8 @@ internal sealed record PrimitiveTapStepOutcome(
   double? ConfiguredConfidence = null,
   PrimitiveTapResolvedPoint? ExecutedPoint = null,
   PrimitiveSwipePoints? TargetSwipe = null,
-  PrimitiveSwipePoints? ExecutedSwipe = null);
+  PrimitiveSwipePoints? ExecutedSwipe = null,
+  IReadOnlyList<ResolvedParameter>? ResolvedParameters = null);
 
 internal sealed record CommandForceExecutionResult(int Accepted, IReadOnlyList<PrimitiveTapStepOutcome> StepOutcomes);
 

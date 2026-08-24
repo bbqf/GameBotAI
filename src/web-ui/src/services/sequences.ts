@@ -1,5 +1,6 @@
 import { ApiError, deleteJson, getJson, patchJson, postJson, putJson } from '../lib/api';
 import type { DetectionTargetDto } from './commands';
+import type { ParameterBinding, ParameterDeclaration } from '../components/parameters/types';
 import type {
   BranchLink,
   FlowStep,
@@ -29,6 +30,8 @@ export type SequenceDto = {
   steps: string[] | FlowStep[] | SequenceLinearStep[];
   links?: BranchLink[];
   interStepDelayRangeMs?: InterStepDelayRangeMs | null;
+  /** Parameters this sequence declares (feature 078); absent when unparametrized. */
+  parameters?: ParameterDeclaration[] | null;
 };
 
 export type SequenceCreate = {
@@ -38,6 +41,7 @@ export type SequenceCreate = {
   entryStepId?: string;
   links?: BranchLink[];
   interStepDelayRangeMs?: InterStepDelayRangeMs | null;
+  parameters?: ParameterDeclaration[];
 };
 
 export type SequenceLinearCreate = SequenceLinearUpsertRequest;
@@ -74,8 +78,24 @@ export const deleteSequence = (id: string) => deleteJson<void>(`${base}/${id}`);
 export const validateSequenceFlow = (sequenceId: string, input: SequenceFlowUpsertRequest) =>
   postJson<{ valid: boolean; errors: string[] }>(`${base}/${sequenceId}/validate`, input);
 
-export const executeSequence = (sequenceId: string, sessionId?: string) =>
-  postJson<SequenceExecuteResponse>(`${base}/${sequenceId}/execute`, sessionId ? { sessionId } : {});
+/**
+ * Runs a sequence ad hoc.
+ *
+ * @param sequenceId Sequence to run.
+ * @param sessionId Optional session override.
+ * @param parameters Values for an ad-hoc run (feature 078, FR-031). A run outside any queue has no
+ *   built-ins to inherit, so a required parameter with no default must be supplied here or the
+ *   backend refuses the run with 409 `missing_required_parameters`.
+ */
+export const executeSequence = (
+  sequenceId: string,
+  sessionId?: string,
+  parameters?: ParameterBinding[],
+) =>
+  postJson<SequenceExecuteResponse>(`${base}/${sequenceId}/execute`, {
+    ...(sessionId ? { sessionId } : {}),
+    ...(parameters && parameters.length > 0 ? { parameters } : {}),
+  });
 
 export const isSequenceConflictError = (error: unknown): error is SequenceConflictError => {
   return error instanceof ApiError

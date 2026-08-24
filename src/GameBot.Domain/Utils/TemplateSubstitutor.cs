@@ -6,11 +6,75 @@ namespace GameBot.Domain.Utils;
 
 /// <summary>
 /// Substitutes <c>{{key}}</c> template placeholders in strings and action payload parameters.
-/// Keys must consist of word characters only (<c>\w+</c>).  Unknown keys are left unchanged.
+/// <para>
+/// Keys are dotted identifiers (<c>\w+(?:\.\w+)*</c>), which covers both the original loop
+/// <c>{{iteration}}</c> key and the reserved <c>{{queue.emulatorSerial}}</c>-style built-ins added by
+/// feature 078. The pattern is a strict superset of the original <c>\w+</c>, so every placeholder
+/// that matched before still matches.
+/// </para>
+/// <para>
+/// <see cref="Substitute"/> and <see cref="SubstitutePayload"/> are <em>lenient</em>: unknown keys are
+/// left in place, which the loop path depends on so an outer context can resolve them later. Use
+/// <see cref="TrySubstitute"/> when an unresolved key must be reported instead of passed through.
+/// </para>
 /// </summary>
 public static class TemplateSubstitutor {
   private static readonly Regex PlaceholderPattern =
-      new(@"\{\{(\w+)\}\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+      new(@"\{\{(\w+(?:\.\w+)*)\}\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+
+  /// <summary>
+  /// Returns every distinct <c>{{key}}</c> name referenced by <paramref name="template"/>, in order
+  /// of first appearance. Returns an empty list for null, empty, or placeholder-free input.
+  /// </summary>
+  /// <param name="template">String that may contain placeholders.</param>
+  public static IReadOnlyList<string> ExtractKeys(string? template) {
+    if (string.IsNullOrEmpty(template)) return Array.Empty<string>();
+    var keys = new List<string>();
+    foreach (Match match in PlaceholderPattern.Matches(template)) {
+      var key = match.Groups[1].Value;
+      if (!keys.Contains(key, StringComparer.Ordinal)) keys.Add(key);
+    }
+
+    return keys;
+  }
+
+  /// <summary>True when <paramref name="template"/> contains at least one <c>{{key}}</c> placeholder.</summary>
+  /// <param name="template">String to test; null and empty are false.</param>
+  public static bool ContainsPlaceholder(string? template) =>
+      !string.IsNullOrEmpty(template) && PlaceholderPattern.IsMatch(template);
+
+  /// <summary>
+  /// Strict counterpart to <see cref="Substitute"/>: replaces every <c>{{key}}</c> that
+  /// <paramref name="context"/> can supply and reports the rest instead of leaving them in place.
+  /// </summary>
+  /// <param name="template">String that may contain placeholders.</param>
+  /// <param name="context">Substitution map from placeholder key to replacement value.</param>
+  /// <param name="result">The substituted string. Unresolved keys remain as-is so callers may log it.</param>
+  /// <param name="unresolvedKeys">Distinct keys the context could not supply, in order of appearance.</param>
+  /// <returns><c>true</c> when every key resolved; otherwise <c>false</c>.</returns>
+  public static bool TrySubstitute(
+      string? template,
+      IReadOnlyDictionary<string, string> context,
+      out string result,
+      out IReadOnlyList<string> unresolvedKeys) {
+    ArgumentNullException.ThrowIfNull(context);
+    if (string.IsNullOrEmpty(template)) {
+      result = template ?? string.Empty;
+      unresolvedKeys = Array.Empty<string>();
+      return true;
+    }
+
+    var missing = new List<string>();
+    result = PlaceholderPattern.Replace(template, m => {
+      var key = m.Groups[1].Value;
+      if (context.TryGetValue(key, out var value)) return value;
+      if (!missing.Contains(key, StringComparer.Ordinal)) missing.Add(key);
+      return m.Value;
+    });
+
+    unresolvedKeys = missing;
+    return missing.Count == 0;
+  }
 
   /// <summary>
   /// Returns a copy of <paramref name="template"/> with every <c>{{key}}</c> token replaced

@@ -1,5 +1,6 @@
 using GameBot.Domain.Commands;
 using GameBot.Domain.Config;
+using GameBot.Domain.Parameters;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Services;
 using GameBot.Domain.Triggers;
@@ -69,15 +70,32 @@ internal sealed class CommandExecutor : ICommandExecutor {
     => ForceExecuteAsync(sessionId, commandId, new ExecutionLogContext { Depth = 0 }, ct);
 
   public async Task<int> ForceExecuteAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default) {
-    var result = await ForceExecuteDetailedAsync(sessionId, commandId, context, ct).ConfigureAwait(false);
+    var result = await ForceExecuteDetailedAsync(sessionId, commandId, context, ParameterScope.Empty, ct).ConfigureAwait(false);
+    return result.Accepted;
+  }
+
+  public async Task<int> ForceExecuteAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, CancellationToken ct = default) {
+    var result = await ForceExecuteDetailedAsync(sessionId, commandId, context, scope, ct).ConfigureAwait(false);
     return result.Accepted;
   }
 
   public Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, CancellationToken ct = default)
-    => ForceExecuteDetailedAsync(sessionId, commandId, new ExecutionLogContext { Depth = 0 }, ct);
+    => ForceExecuteDetailedAsync(sessionId, commandId, new ExecutionLogContext { Depth = 0 }, ParameterScope.Empty, ct);
 
-  public async Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default) {
+  public Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default)
+    => ForceExecuteDetailedAsync(sessionId, commandId, context, ParameterScope.Empty, ct);
+
+  /// <summary>
+  /// Force-executes a command, resolving every step against <paramref name="scope"/> before dispatch.
+  /// </summary>
+  /// <param name="sessionId">Session to execute against, or null to use the cached one.</param>
+  /// <param name="commandId">Command to execute.</param>
+  /// <param name="context">Execution-log context.</param>
+  /// <param name="scope">Parameter scope in effect at the call site.</param>
+  /// <param name="ct">Cancellation token.</param>
+  public async Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, CancellationToken ct = default) {
     ArgumentNullException.ThrowIfNull(context);
+    ArgumentNullException.ThrowIfNull(scope);
     var resolvedSessionId = await ResolveSessionIdAsync(sessionId, commandId, ct).ConfigureAwait(false);
     var session = _sessions.GetSession(resolvedSessionId) ?? throw new KeyNotFoundException("Session not found");
     if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
@@ -85,7 +103,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var stepOutcomes = new List<PrimitiveTapStepOutcome>();
-    var accepted = await ExecuteCommandRecursiveAsync(resolvedSessionId, commandId, visited, stepOutcomes, ct).ConfigureAwait(false);
+    var accepted = await ExecuteCommandRecursiveAsync(resolvedSessionId, commandId, visited, stepOutcomes, scope, ct).ConfigureAwait(false);
     if (_executionLogService is not null) {
       var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false);
       var cmdName = cmd?.Name ?? commandId;
@@ -184,7 +202,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     return new CommandForceExecutionResult(accepted, new[] { outcome });
   }
 
-  private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, CancellationToken ct) {
+  private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, ParameterScope scope, CancellationToken ct) {
     if (!visited.Add(commandId))
       throw new InvalidOperationException("command_cycle_detected");
 
@@ -193,16 +211,41 @@ internal sealed class CommandExecutor : ICommandExecutor {
     if (cmd.Steps.Count == 0)
       throw new InvalidOperationException("command_has_no_steps");
 
+    // This command's own declarations join the scope, so their defaults cover any name no caller
+    // supplied. Bindings still outrank defaults regardless of nesting depth (feature 078, FR-009).
+    var commandScope = cmd.Parameters.Count > 0
+      ? scope.Child(ParameterScopeLayers.Command, null, cmd.Parameters)
+      : scope;
+
     var totalAccepted = 0;
     foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
       if (step.Type == CommandStepType.Command) {
-        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, ct).ConfigureAwait(false);
+        // A nested command invocation pushes its own bindings before recursing.
+        var nestedScope = step.ParameterBindings is { Count: > 0 }
+          ? commandScope.Child(ParameterScopeLayers.Command, step.ParameterBindings, null)
+          : commandScope;
+        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, nestedScope, ct).ConfigureAwait(false);
         continue;
       }
 
-      var (accepted, outcome) = await ExecuteOneStepAsync(sessionId, step, cmd.Detection, ct).ConfigureAwait(false);
+      // Resolve immediately before dispatch. A failure here dispatches nothing to the device, so an
+      // unresolved placeholder can never reach a real emulator (feature 078, FR-017/FR-018).
+      if (!CommandStepResolver.TryResolve(step, commandScope, out var effectiveStep, out var resolutionError, out var usedParameters)) {
+        stepOutcomes.Add(new PrimitiveTapStepOutcome(
+          step.Order,
+          "skipped_parameter_unresolved",
+          resolutionError!.ToMessage(step.Order.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+          null,
+          null,
+          StepType: step.Type.ToString()));
+        continue;
+      }
+
+      var (accepted, outcome) = await ExecuteOneStepAsync(sessionId, effectiveStep, cmd.Detection, ct).ConfigureAwait(false);
       totalAccepted += accepted;
-      stepOutcomes.Add(outcome);
+      stepOutcomes.Add(usedParameters.Count > 0
+        ? outcome with { ResolvedParameters = usedParameters }
+        : outcome);
     }
 
     visited.Remove(commandId);

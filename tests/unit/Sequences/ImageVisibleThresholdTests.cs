@@ -16,7 +16,7 @@ public sealed class ImageVisibleThresholdTests {
 
     var result = await runner.ExecuteAsync(
       "threshold-seq",
-      _ => Task.CompletedTask,
+      (_, _) => Task.CompletedTask,
       conditionEvaluator: (condition, _) => {
         observedThreshold = condition.ConfidenceThreshold;
         return Task.FromResult(true);
@@ -34,7 +34,7 @@ public sealed class ImageVisibleThresholdTests {
 
     var result = await runner.ExecuteAsync(
       "threshold-seq",
-      _ => Task.CompletedTask,
+      (_, _) => Task.CompletedTask,
       conditionEvaluator: (condition, _) => {
         observedThreshold = condition.ConfidenceThreshold;
         return Task.FromResult(true);

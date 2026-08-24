@@ -136,7 +136,30 @@ internal static class QueuesEndpoints {
         : Error(404, "not_found", "Queue entry not found");
     }).WithName("RemoveQueueEntry");
 
-    group.MapPost("{id}/start", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, IQueueExecutionService execution, ILoggerFactory loggerFactory) => {
+    group.MapPost("{id}/start", async (
+        string id,
+        IQueueRepository repo,
+        IQueueRuntimeStore runtime,
+        IQueueExecutionService execution,
+        IQueueTemplateRepository templates,
+        ISequenceRepository sequences,
+        ICommandRepository commands,
+        ILoggerFactory loggerFactory) => {
+      // Feature 078 (FR-022): refuse the start BEFORE any session or device work when an enabled
+      // entry has a required parameter nothing in scope can supply. Failing here beats discovering it
+      // at 03:00 halfway through a run.
+      var preflightQueue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (preflightQueue is null) return NotFound();
+      var unsatisfied = await FindUnsatisfiedRequiredParametersAsync(
+          preflightQueue, templates, sequences, commands).ConfigureAwait(false);
+      if (unsatisfied.Count > 0) {
+        return Results.Json(new {
+          error = "missing_required_parameters",
+          message = "One or more enabled entries have required parameters that nothing can supply.",
+          entries = unsatisfied
+        }, statusCode: 409);
+      }
+
       var outcome = await execution.StartAsync(id).ConfigureAwait(false);
       if (outcome == QueueStartOutcome.NotFound) return NotFound();
       if (outcome == QueueStartOutcome.AlreadyRunning) return Error(409, "already_running", "The queue is already running.");
@@ -203,6 +226,91 @@ internal static class QueuesEndpoints {
       return;
     }
     runtime.SetEntries(queue.Id, template.Entries.Select(e => e.SequenceId));
+  }
+
+  /// <summary>
+  /// Finds, per enabled template entry, the required parameters that neither the entry, the queue's
+  /// built-ins, nor a declared default can supply (feature 078, FR-022). An unlinked template or a
+  /// stale sequence reference contributes nothing — those are reported by their own existing checks.
+  /// </summary>
+  private static async Task<List<object>> FindUnsatisfiedRequiredParametersAsync(
+      ExecutionQueue queue,
+      IQueueTemplateRepository templates,
+      ISequenceRepository sequences,
+      ICommandRepository commands) {
+    var problems = new List<object>();
+    if (string.IsNullOrWhiteSpace(queue.LinkedTemplateId)) return problems;
+
+    var template = await templates.GetAsync(queue.LinkedTemplateId).ConfigureAwait(false);
+    if (template is null) return problems;
+
+    var queueSuppliedNames = GameBot.Domain.Parameters.ParameterScope.FromQueue(queue)
+        .Describe()
+        .Where(e => e.Value is not null)
+        .Select(e => e.Name)
+        .ToHashSet(StringComparer.Ordinal);
+
+    for (var index = 0; index < template.Entries.Count; index++) {
+      var entry = template.Entries[index];
+      if (!entry.Enabled) continue;
+
+      var sequence = await sequences.GetAsync(entry.SequenceId).ConfigureAwait(false);
+      if (sequence is null) continue;
+
+      var reachable = await CollectReachableDeclarationsAsync(sequence, commands).ConfigureAwait(false);
+      var missing = GameBot.Domain.Services.ParameterValidationService.FindUnsatisfiedRequired(
+          entry, sequence, reachable, queueSuppliedNames);
+      if (missing.Count == 0) continue;
+
+      problems.Add(new {
+        entryIndex = index,
+        sequenceId = entry.SequenceId,
+        sequenceName = sequence.Name,
+        missing
+      });
+    }
+
+    return problems;
+  }
+
+  /// <summary>
+  /// Declarations of every command reachable from a sequence, following command steps and nested
+  /// command steps. Cycles are guarded by a visited set.
+  /// </summary>
+  internal static async Task<List<GameBot.Domain.Parameters.ParameterDeclaration>> CollectReachableDeclarationsAsync(
+      CommandSequence sequence,
+      ICommandRepository commands) {
+    var declarations = new List<GameBot.Domain.Parameters.ParameterDeclaration>();
+    var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var pending = new Queue<string>();
+
+    foreach (var step in FlattenSequenceSteps(sequence.Steps)) {
+      if (!string.IsNullOrWhiteSpace(step.CommandId)) pending.Enqueue(step.CommandId);
+    }
+
+    while (pending.Count > 0) {
+      var commandId = pending.Dequeue();
+      if (!visited.Add(commandId)) continue;
+      var command = await commands.GetAsync(commandId).ConfigureAwait(false);
+      if (command is null) continue;
+      declarations.AddRange(command.Parameters);
+      foreach (var step in command.Steps) {
+        if (step.Type == CommandStepType.Command && !string.IsNullOrWhiteSpace(step.TargetId)) {
+          pending.Enqueue(step.TargetId);
+        }
+      }
+    }
+
+    return declarations;
+  }
+
+  private static IEnumerable<SequenceStep> FlattenSequenceSteps(IEnumerable<SequenceStep> steps) {
+    foreach (var step in steps) {
+      yield return step;
+      foreach (var child in FlattenSequenceSteps(step.Body)) yield return child;
+      if (step.ElseBody is null) continue;
+      foreach (var child in FlattenSequenceSteps(step.ElseBody)) yield return child;
+    }
   }
 
   private static QueueResponse BuildResponse(ExecutionQueue queue, IQueueRuntimeStore runtime) => new() {

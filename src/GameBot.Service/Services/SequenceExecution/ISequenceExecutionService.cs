@@ -17,4 +17,20 @@ internal interface ISequenceExecutionService {
     string? sessionId,
     ExecutionLogContext? parentContext,
     CancellationToken ct = default);
+
+  /// <summary>
+  /// Executes a sequence with a parameter scope (feature 078). The scope supplies the queue built-ins
+  /// and the firing entry's values, and is inherited by every command the sequence invokes.
+  /// </summary>
+  /// <param name="sequenceId">Sequence to run.</param>
+  /// <param name="sessionId">Session to run against.</param>
+  /// <param name="parentContext">Execution-log context linking this firing to its parent.</param>
+  /// <param name="scope">Scope in effect for this firing.</param>
+  /// <param name="ct">Cancellation token.</param>
+  Task<SequenceExecutionResult> ExecuteAsync(
+    string sequenceId,
+    string? sessionId,
+    ExecutionLogContext? parentContext,
+    GameBot.Domain.Parameters.ParameterScope scope,
+    CancellationToken ct = default);
 }

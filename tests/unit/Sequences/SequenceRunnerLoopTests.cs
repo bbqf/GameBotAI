@@ -61,7 +61,7 @@ public sealed class SequenceRunnerLoopTests {
     };
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
-    var result = await runner.ExecuteAsync("s", id => { executed.Add(id); return Task.CompletedTask; });
+    var result = await runner.ExecuteAsync("s", (id, _) => { executed.Add(id); return Task.CompletedTask; });
 
     result.Status.Should().Be("Succeeded");
     executed.Should().HaveCount(5);
@@ -79,7 +79,7 @@ public sealed class SequenceRunnerLoopTests {
     };
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
-    var result = await runner.ExecuteAsync("s", id => { executed.Add(id); return Task.CompletedTask; });
+    var result = await runner.ExecuteAsync("s", (id, _) => { executed.Add(id); return Task.CompletedTask; });
 
     result.Status.Should().Be("Succeeded");
     executed.Should().BeEmpty();
@@ -105,7 +105,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var executed = new List<string>();
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
-    var result = await runner.ExecuteAsync("s", id => { executed.Add(id); return Task.CompletedTask; });
+    var result = await runner.ExecuteAsync("s", (id, _) => { executed.Add(id); return Task.CompletedTask; });
 
     result.Status.Should().Be("Succeeded");
     executed.Should().Equal("cmd-1", "cmd-2", "cmd-3");
@@ -126,7 +126,7 @@ public sealed class SequenceRunnerLoopTests {
     };
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
-    var result = await runner.ExecuteAsync("s", _ => Task.CompletedTask);
+    var result = await runner.ExecuteAsync("s", (_, _) => Task.CompletedTask);
 
     result.Status.Should().Be("Succeeded");
     var firstBodyStep = result.Steps.First(step => step.CommandId == "cmd-1");
@@ -155,7 +155,7 @@ public sealed class SequenceRunnerLoopTests {
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     // Condition: true, true, false  (evaluated before iteration 1, 2, 3)
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (cond, _) => Task.FromResult(++evalCount <= 2));
 
     result.Status.Should().Be("Succeeded");
@@ -177,7 +177,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Succeeded");
@@ -202,7 +202,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Failed");
@@ -224,7 +224,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => throw new InvalidOperationException("eval error"));
 
     result.Status.Should().Be("Failed");
@@ -251,7 +251,7 @@ public sealed class SequenceRunnerLoopTests {
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     // Condition true on first check (after first iteration)
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -275,7 +275,7 @@ public sealed class SequenceRunnerLoopTests {
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     // Condition: false, false, true
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(++evalCount >= 3));
 
     result.Status.Should().Be("Succeeded");
@@ -298,7 +298,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Failed");
@@ -322,7 +322,7 @@ public sealed class SequenceRunnerLoopTests {
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     // Execute once, then throw on condition eval
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => {
           if (firstEval) { firstEval = false; throw new InvalidOperationException("eval error"); }
           return Task.FromResult(false);
@@ -357,7 +357,7 @@ public sealed class SequenceRunnerLoopTests {
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     // Break condition returns true at evalCount == 3 (on 3rd iteration's break check)
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(++evalCount >= 3));
 
     result.Status.Should().Be("Succeeded");
@@ -394,7 +394,7 @@ public sealed class SequenceRunnerLoopTests {
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     // Break condition never true
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Succeeded"); // T015 (US2): the non-firing break never taints the run
@@ -430,7 +430,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; });
+        (id, _) => { executed.Add(id); return Task.CompletedTask; });
 
     result.Status.Should().Be("Succeeded");
     executed.Should().HaveCount(1);
@@ -443,7 +443,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => throw new InvalidOperationException("eval error"));
 
     // The break condition erroring is a neutral "no break": the loop runs to completion and the
@@ -486,7 +486,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -505,7 +505,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Succeeded");
@@ -526,7 +526,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; });
+        (id, _) => { executed.Add(id); return Task.CompletedTask; });
 
     result.Status.Should().Be("Succeeded");
     executed.Should().HaveCount(1);
@@ -553,7 +553,7 @@ public sealed class SequenceRunnerLoopTests {
     var brkChecks = 0;
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (cond, _) => {
           // While condition ("loop") stays true; break condition ("brk") fires on 2nd check.
           if (cond.TargetId == "brk") return Task.FromResult(++brkChecks >= 2);
@@ -593,7 +593,7 @@ public sealed class SequenceRunnerLoopTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { outerLoop })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false)); // break never fires
 
     result.Status.Should().Be("Succeeded");

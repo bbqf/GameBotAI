@@ -44,7 +44,7 @@ public sealed class SequenceRunnerWhileBreakOnTests {
     var mainChecks = 0;
 
     var runner = new SequenceRunner(new StubRepo(seq));
-    var res = await runner.ExecuteAsync("wh-breakon-error", _ => Task.CompletedTask,
+    var res = await runner.ExecuteAsync("wh-breakon-error", (_, _) => Task.CompletedTask,
         conditionEvaluator: (cond, _) => {
           if (cond.TargetId == "break") throw new InvalidOperationException("breakOn eval error");
           // main stays true for two iterations then ends the loop normally.
@@ -63,7 +63,7 @@ public sealed class SequenceRunnerWhileBreakOnTests {
     var seq = WhileWithBreakOn("wh-breakon-true");
 
     var runner = new SequenceRunner(new StubRepo(seq));
-    var res = await runner.ExecuteAsync("wh-breakon-true", _ => Task.CompletedTask,
+    var res = await runner.ExecuteAsync("wh-breakon-true", (_, _) => Task.CompletedTask,
         conditionEvaluator: (cond, _) => {
           if (cond.TargetId == "main") return Task.FromResult(true);
           if (cond.TargetId == "break") return Task.FromResult(true); // fires at breakOn-start

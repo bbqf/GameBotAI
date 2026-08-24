@@ -34,7 +34,7 @@ public sealed class ConditionalStepPerformanceIntegrationTests {
       var sw = Stopwatch.StartNew();
       var result = await runner.ExecuteAsync(
         sequence.Id,
-        _ => Task.CompletedTask,
+        (_, _) => Task.CompletedTask,
         conditionEvaluator: (_, _) => Task.FromResult(true),
         ct: CancellationToken.None).ConfigureAwait(false);
       sw.Stop();

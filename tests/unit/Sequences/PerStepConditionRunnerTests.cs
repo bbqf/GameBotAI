@@ -31,7 +31,7 @@ public sealed class PerStepConditionRunnerTests {
 
     var result = await runner.ExecuteAsync(
       "per-step-runner",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },
@@ -49,7 +49,7 @@ public sealed class PerStepConditionRunnerTests {
 
     var result = await runner.ExecuteAsync(
       "per-step-runner",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },
@@ -67,7 +67,7 @@ public sealed class PerStepConditionRunnerTests {
 
     var result = await runner.ExecuteAsync(
       "per-step-runner",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },

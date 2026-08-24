@@ -34,7 +34,7 @@ public sealed class SequenceRunnerWaitForImageTests {
 
     var result = await runner.ExecuteAsync(
       "wait-sequence",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },
@@ -57,7 +57,7 @@ public sealed class SequenceRunnerWaitForImageTests {
     var stopwatch = Stopwatch.StartNew();
     var result = await runner.ExecuteAsync(
       "wait-sequence",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },
@@ -82,7 +82,7 @@ public sealed class SequenceRunnerWaitForImageTests {
     var stopwatch = Stopwatch.StartNew();
     var result = await runner.ExecuteAsync(
       "wait-sequence",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },

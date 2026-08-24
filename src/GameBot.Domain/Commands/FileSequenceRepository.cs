@@ -100,6 +100,18 @@ namespace GameBot.Domain.Commands {
     }
 
     private static void ValidateActionPayloads(CommandSequence sequence) {
+      // Feature 078: declarations are validated at the API boundary (which returns 400 with the
+      // offending name). This is the last-resort guard that keeps malformed declarations out of the
+      // store if a write ever reaches the repository unchecked — the same role the action-type
+      // allow-list below plays. Note this method does NOT reject {{placeholders}}: parameter
+      // references are legal in action payloads and are judged by ParameterValidationService, so the
+      // two validators cannot disagree about what a valid parametrized sequence looks like.
+      var declarationErrors = GameBot.Domain.Parameters.ParameterNameRules.ValidateDeclarations(sequence.Parameters);
+      if (declarationErrors.Count > 0) {
+        throw new InvalidOperationException(
+            $"Sequence '{sequence.Id}' has invalid parameter declarations: {string.Join("; ", declarationErrors)}.");
+      }
+
       var supportedActionTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
       {
                 ActionTypes.Command,

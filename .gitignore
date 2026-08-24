@@ -95,3 +95,6 @@ PR_BODY.md
 PR_BODY*.md
 
 **/*.Metrics.xml
+# Local Vite env overrides (feature 078: .env / *.env did not match .env.local)
+.env.local
+.env.*.local

@@ -15,6 +15,9 @@ import { GoToHomeScreenPanel } from './GoToHomeScreenPanel';
 import { KeyInputPanel } from './KeyInputPanel';
 import { SwipePanel } from './SwipePanel';
 import { VisualStepPicker } from './VisualStepPicker/VisualStepPicker';
+import { ParameterDeclarationList } from '../parameters/ParameterDeclarationList';
+import { buildEditorScope } from '../parameters/types';
+import type { ParameterDeclaration } from '../parameters/types';
 import './CommandForm.css';
 
 export type StepEntry = {
@@ -44,6 +47,11 @@ export type CommandFormValue = {
   name: string;
   steps: StepEntry[];
   detection?: DetectionTargetForm;
+  /**
+   * Parameters this command accepts (feature 078). Declaring one makes it available in the
+   * insert-parameter picker on every field, and as a bindable row on every call site.
+   */
+  parameters?: ParameterDeclaration[];
 };
 
 const makeId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -153,6 +161,11 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Feature 078: the names the insert-parameter picker may offer. Computed from the declarations
+  // being edited rather than fetched, so it works on an unsaved draft too; the backend still has the
+  // final say on save.
+  const parameterScope = useMemo(() => buildEditorScope(value.parameters), [value.parameters]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const stepItems = useMemo(() => toStepItems(value.steps, commandOptions), [value.steps, commandOptions]);
@@ -290,6 +303,19 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         />
       )}
 
+      <FormSection
+        title="Parameters"
+        description="Values a caller supplies, so one command can serve several emulator instances."
+        id="command-parameters"
+      >
+        <ParameterDeclarationList
+          parameters={value.parameters ?? []}
+          disabled={submitting || loading}
+          ownerLabel="This command"
+          onChange={(parameters) => onChange({ ...value, parameters })}
+        />
+      </FormSection>
+
       <FormSection title="Steps" description="Select an action type to add or edit steps." id="command-steps">
         <ActionTypeSelector
           value={pendingActionType}
@@ -367,6 +393,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         {pendingActionType === 'EnsureEmulatorRunning' && (
           <EnsureEmulatorRunningPanel
             initialValue={editingStep?.ensureEmulatorRunning}
+            parameterScope={parameterScope}
             onConfirm={(v) =>
               handlePanelConfirm({
                 type: 'EnsureEmulatorRunning',

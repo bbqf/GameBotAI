@@ -48,7 +48,7 @@ public sealed class ConditionalExecutionIntegrationTests {
 
     var result = await runner.ExecuteAsync(
       sequence.Id,
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },
@@ -77,7 +77,7 @@ public sealed class ConditionalExecutionIntegrationTests {
 
     var result = await runner.ExecuteAsync(
       sequence.Id,
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },
@@ -106,7 +106,7 @@ public sealed class ConditionalExecutionIntegrationTests {
 
     var result = await runner.ExecuteAsync(
       sequence.Id,
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },

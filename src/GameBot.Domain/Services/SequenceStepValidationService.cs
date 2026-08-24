@@ -1,6 +1,8 @@
 using GameBot.Domain.Commands;
 using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Actions;
+using GameBot.Domain.Parameters;
+using GameBot.Domain.Utils;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text.Json;
@@ -15,10 +17,6 @@ public sealed class SequenceStepValidationService {
     "skipped"
   };
   private static readonly HashSet<string> AllowedPrimitiveActionTypes = new(PrimitiveActionTypes.All, StringComparer.OrdinalIgnoreCase);
-
-  // Matches {{word}} placeholders used for template substitution.
-  private static readonly Regex TemplatePlaceholder =
-      new(@"\{\{\w+\}\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
   public IReadOnlyList<string> Validate(IReadOnlyList<SequenceStep> steps) {
     ArgumentNullException.ThrowIfNull(steps);
@@ -239,13 +237,19 @@ public sealed class SequenceStepValidationService {
       }
     }
 
-    // FR-002a: {{iteration}} placeholders in action parameters are only permitted inside loops.
+    // FR-002a (feature 034): {{iteration}} is only meaningful inside a loop.
+    //
+    // Feature 078 narrowed this rule. It used to reject EVERY placeholder outside a loop, which would
+    // have blocked parameters entirely. Now only the reserved `iteration` name is rejected here;
+    // any other name is a parameter reference and is checked by ParameterValidationService, which can
+    // tell a declared parameter from a typo. The narrowing is deliberate and faithful — the two tests
+    // that cover this rule assert on {{iteration}} specifically and still pass unmodified.
     if (!insideLoop && step.Action is not null) {
       foreach (var paramValue in step.Action.Parameters.Values) {
-        if (paramValue is string s && TemplatePlaceholder.IsMatch(s)) {
-          errors.Add($"Step '{stepLabel}' contains template placeholder(s) in action parameters which are only valid inside a loop body.");
-          break;
-        }
+        if (paramValue is not string s) continue;
+        if (!TemplateSubstitutor.ExtractKeys(s).Contains(ParameterNameRules.IterationName, StringComparer.Ordinal)) continue;
+        errors.Add($"Step '{stepLabel}' contains template placeholder(s) in action parameters which are only valid inside a loop body.");
+        break;
       }
     }
 
