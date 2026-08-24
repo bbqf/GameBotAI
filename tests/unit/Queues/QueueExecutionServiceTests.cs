@@ -56,8 +56,14 @@ public sealed class QueueExecutionServiceTests {
     public List<string> Executed { get; } = new();
     public Func<string, CancellationToken, Task<SequenceExecutionResult>>? Handler { get; set; }
 
-    public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, CancellationToken ct = default) {
-      lock (Executed) { Executed.Add(sequenceId); }
+    /// <summary>Scopes each firing was launched with, keyed by sequence id (feature 078).</summary>
+    public List<(string SequenceId, GameBot.Domain.Parameters.ParameterScope Scope)> Scopes { get; } = new();
+
+    public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, CancellationToken ct = default)
+      => ExecuteAsync(sequenceId, sessionId, parentContext, GameBot.Domain.Parameters.ParameterScope.Empty, ct);
+
+    public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, GameBot.Domain.Parameters.ParameterScope scope, CancellationToken ct = default) {
+      lock (Executed) { Executed.Add(sequenceId); Scopes.Add((sequenceId, scope)); }
       if (Handler is not null) return Handler(sequenceId, ct);
       return Task.FromResult(Success(sequenceId));
     }

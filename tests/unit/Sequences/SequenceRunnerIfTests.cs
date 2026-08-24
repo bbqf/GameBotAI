@@ -74,7 +74,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -94,7 +94,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep, after })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Succeeded");
@@ -115,7 +115,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
     var result = await runner.ExecuteAsync("s",
-        _ => Task.CompletedTask,
+        (_, _) => Task.CompletedTask,
         conditionEvaluator: (_, _) => { evalCount++; return Task.FromResult(true); });
 
     result.Status.Should().Be("Succeeded");
@@ -129,7 +129,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => throw new InvalidOperationException("eval error"));
 
     result.Status.Should().Be("Failed");
@@ -147,7 +147,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -165,7 +165,7 @@ public sealed class SequenceRunnerIfTests {
     };
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
-    var result = await runner.ExecuteAsync("s", _ => Task.CompletedTask);
+    var result = await runner.ExecuteAsync("s", (_, _) => Task.CompletedTask);
 
     result.Status.Should().Be("Failed");
   }
@@ -181,7 +181,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep, after })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Succeeded");
@@ -209,7 +209,7 @@ public sealed class SequenceRunnerIfTests {
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     // Condition alternates true/false/true across the three iterations.
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(++evalCount % 2 == 1));
 
     result.Status.Should().Be("Succeeded");
@@ -239,7 +239,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -264,7 +264,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -284,7 +284,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Succeeded");
@@ -304,7 +304,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -320,7 +320,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -336,7 +336,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep, after })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(true));
 
     result.Status.Should().Be("Succeeded");
@@ -351,7 +351,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { ifStep })));
     var result = await runner.ExecuteAsync("s",
-        id => id == "cmd-else" ? throw new InvalidOperationException("boom") : Task.CompletedTask,
+        (id, _) => id == "cmd-else" ? throw new InvalidOperationException("boom") : Task.CompletedTask,
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Failed");
@@ -376,7 +376,7 @@ public sealed class SequenceRunnerIfTests {
 
     var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
     var result = await runner.ExecuteAsync("s",
-        id => { executed.Add(id); return Task.CompletedTask; },
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
         conditionEvaluator: (_, _) => Task.FromResult(false));
 
     result.Status.Should().Be("Succeeded");

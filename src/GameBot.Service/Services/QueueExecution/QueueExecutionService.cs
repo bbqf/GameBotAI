@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GameBot.Domain.Parameters;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Emulator.Session;
@@ -188,6 +189,15 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         // (AtQueueStart/OncePerRun/EveryStep/Timer) and the monitor projection all skip them (077).
         var allEntries = template.Entries.Where(e => e.Enabled).ToList();
         var indexed = allEntries.Select((Entry, Index) => (Entry, Index)).ToList();
+
+        // Feature 078: the outermost parameter layer is derived from the queue's own configuration, so
+        // three queues that already differ by emulator serial drive one shared sequence with no extra
+        // setup. Each firing layers its entry's values on top (FR-010, FR-012).
+        var queueScope = ParameterScope.FromQueue(queue);
+        ParameterScope EntryScope(QueueTemplateEntry entry) =>
+            entry.ParameterValues.Count > 0
+              ? queueScope.Child(ParameterScopeLayers.Entry, entry.ParameterValues, null)
+              : queueScope;
         var atQueueStartEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.AtQueueStart).ToList();
         var oncePerRunEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.OncePerRun).ToList();
         var everyStepEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.EveryStep).ToList();
@@ -232,7 +242,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             foreach (var startEntry in atQueueStartEntries) {
               ct.ThrowIfCancellationRequested();
               if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-              var startOk = await RunOneSequenceAsync(startEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
+              var startOk = await RunOneSequenceAsync(startEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(startEntry), ct).ConfigureAwait(false);
               executed++;
               if (!startOk) failed++;
             }
@@ -269,7 +279,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 while (handle.PendingNextCycleStart.TryDequeue(out var nextCycleEntry)) {
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                  var nextOk = await RunOneSequenceAsync(nextCycleEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct, nextCycleEntry.Id).ConfigureAwait(false);
+                  var nextOk = await RunOneSequenceAsync(nextCycleEntry.SequenceId, rootId, ++index, sessionId, queue.Id, nextCycleEntry.Scope ?? queueScope, ct, nextCycleEntry.Id).ConfigureAwait(false);
                   executed++;
                   if (!nextOk) failed++;
                 }
@@ -284,7 +294,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (now >= timerEntry.TimerTimeOfDay.Value && !schedule.TimeOfDayFiredOn(timerIndex, today)) {
                     ct.ThrowIfCancellationRequested();
                     if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                    var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
+                    var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(timerEntry), ct).ConfigureAwait(false);
                     if (!timerOk) failed++;
                     // Timer executions do not count toward `executed` (SC-002 analogue for timers)
                     schedule.MarkTimeOfDayFired(timerIndex, today);
@@ -303,7 +313,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                  var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
+                  var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(relEntry), ct).ConfigureAwait(false);
                   executed++;
                   if (!relOk) failed++;
                   schedule.MarkRelativeFired(relIndex);
@@ -321,7 +331,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (!handle.PendingLiveSchedules.TryRemove(due, out _)) continue;
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                  var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
+                  var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, queue.Id, queueScope, ct).ConfigureAwait(false);
                   executed++;
                   if (!liveOk) failed++;
                 }
@@ -333,7 +343,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 foreach (var timerFiring in handle.DrainDueTimerFirings(_timeProvider.GetLocalNow())) {
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                  var srTimerOk = await RunOneSequenceAsync(timerFiring.SequenceId, rootId, ++index, sessionId, queue.Id, ct, timerFiring.Id).ConfigureAwait(false);
+                  var srTimerOk = await RunOneSequenceAsync(timerFiring.SequenceId, rootId, ++index, sessionId, queue.Id, timerFiring.Scope ?? queueScope, ct, timerFiring.Id).ConfigureAwait(false);
                   executed++;
                   if (!srTimerOk) failed++;
                 }
@@ -347,7 +357,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     foreach (var (entry, entryIndex) in oncePerRunEntries) {
                       ct.ThrowIfCancellationRequested();
                       if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                      var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
+                      var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(entry), ct).ConfigureAwait(false);
                       executed++;
                       if (!ok) failed++;
                       schedule.MarkOncePerRunCompleted(entryIndex);
@@ -356,7 +366,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                       foreach (var esEntry in everyStepEntries) {
                         ct.ThrowIfCancellationRequested();
                         if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                        var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
+                        var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
                         if (!esOk) failed++;
                         // Every-step executions do not count toward `executed` (FR-008/SC-002).
                       }
@@ -367,7 +377,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                       foreach (var injection in handle.EveryStepInjections.Values.ToList()) {
                         ct.ThrowIfCancellationRequested();
                         if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                        var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, ct, injection.Id).ConfigureAwait(false);
+                        var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, injection.Scope ?? queueScope, ct, injection.Id).ConfigureAwait(false);
                         if (!injOk) failed++;
                       }
                     }
@@ -377,7 +387,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     foreach (var esEntry in everyStepEntries) {
                       ct.ThrowIfCancellationRequested();
                       if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                      var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, ct).ConfigureAwait(false);
+                      var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
                       if (!esOk) failed++;
                     }
                   }
@@ -392,7 +402,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   foreach (var oprFiring in oncePerRunReschedules) {
                     ct.ThrowIfCancellationRequested();
                     if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                    var oprOk = await RunOneSequenceAsync(oprFiring.SequenceId, rootId, ++index, sessionId, queue.Id, ct, oprFiring.Id).ConfigureAwait(false);
+                    var oprOk = await RunOneSequenceAsync(oprFiring.SequenceId, rootId, ++index, sessionId, queue.Id, oprFiring.Scope ?? queueScope, ct, oprFiring.Id).ConfigureAwait(false);
                     executed++;
                     if (!oprOk) failed++;
                   }
@@ -505,7 +515,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     return $"emulator instance ('{target}') could not be started: {result.ReasonCode}";
   }
 
-  private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, string queueId, CancellationToken ct, string? selfRescheduleOriginActionId = null) {
+  private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, string queueId, ParameterScope scope, CancellationToken ct, string? selfRescheduleOriginActionId = null) {
     // Watchdog: cancel a firing that overruns SequenceWatchdogTimeout so one stuck sequence cannot
     // freeze the whole queue. Linked to ct so a real stop request still cancels immediately.
     using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -527,7 +537,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         OriginatingQueueId = queueId,
         SelfRescheduleOriginActionId = selfRescheduleOriginActionId
       };
-      var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, watchdog.Token).ConfigureAwait(false);
+      var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, scope, watchdog.Token).ConfigureAwait(false);
       return string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested) {

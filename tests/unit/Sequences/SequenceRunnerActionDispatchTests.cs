@@ -59,7 +59,7 @@ public sealed class SequenceRunnerActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "reschedule-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (action, _) => {
         dispatchedActions.Add(action);
         return Task.FromResult(new ActionDispatchResult("scheduled", "rescheduled (OncePerRun)"));
@@ -86,7 +86,7 @@ public sealed class SequenceRunnerActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "reschedule-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (_, _) => Task.FromResult(new ActionDispatchResult("noop", "no originating queue, no reschedule performed")),
       ct: CancellationToken.None);
 
@@ -103,7 +103,7 @@ public sealed class SequenceRunnerActionDispatchTests {
     // No dispatcher supplied (e.g. a path that doesn't wire one): must not throw or early-stop.
     var result = await runner.ExecuteAsync(
       "reschedule-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       ct: CancellationToken.None);
 
     result.Status.Should().Be("Succeeded");

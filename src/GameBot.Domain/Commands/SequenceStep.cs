@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Parameters;
 
 namespace GameBot.Domain.Commands {
   public enum SequenceStepType {
@@ -67,6 +69,20 @@ namespace GameBot.Domain.Commands {
     // Break-step property (StepType == Break)
     /// <summary>Optional condition for a conditional break. When <c>null</c> the break is unconditional.</summary>
     public SequenceStepCondition? BreakCondition { get; set; }
+
+    /// <summary>
+    /// Values bound for the parameters of the command this step invokes (feature 078). Meaningful
+    /// only when <see cref="StepType"/> is <see cref="SequenceStepType.Command"/>. A binding whose
+    /// value is null means "inherit" — the default for every row — so a value already present in the
+    /// enclosing scope flows down with no configuration.
+    /// <para>
+    /// Action-payload parameters need no equivalent member: <see cref="SequenceActionPayload.Parameters"/>
+    /// already holds arbitrary values and accepts a placeholder string even in a numeric slot.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Collection<ParameterBinding>? ParameterBindings { get; init; }
   }
 
   public class DelayRangeMs {

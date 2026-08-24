@@ -189,6 +189,28 @@ internal sealed class ExecutionLogService : IExecutionLogService {
           },
           "normal"));
       }
+
+      // Feature 078 (FR-024): record which value each parametrized step actually used, and where it
+      // came from, so a run can be diagnosed after the fact. Emitted only for steps that resolved at
+      // least one parameter, keeping unparametrized log payloads byte-identical to before.
+      if (outcome.ResolvedParameters is { Count: > 0 } resolvedParameters) {
+        details.Add(new ExecutionDetailItem(
+          "parameters",
+          $"Step {outcome.StepOrder} resolved {resolvedParameters.Count} parameter(s): "
+            + string.Join(", ", resolvedParameters.Select(
+                p => $"{p.Name}={ExecutionLogSanitizer.MaskParameterValue(p.Name, p.Value)}")),
+          new Dictionary<string, object?> {
+            ["stepOrder"] = outcome.StepOrder,
+            ["resolvedParameters"] = resolvedParameters
+              .Select(p => new Dictionary<string, object?> {
+                ["name"] = p.Name,
+                ["value"] = ExecutionLogSanitizer.MaskParameterValue(p.Name, p.Value),
+                ["originLayer"] = p.OriginLayer
+              })
+              .ToList()
+          },
+          "normal"));
+      }
     }
 
     var entry = new ExecutionLogEntry {

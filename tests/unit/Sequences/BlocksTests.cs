@@ -25,7 +25,7 @@ namespace GameBot.UnitTests.Sequences {
       var blockJson = JsonDocument.Parse("{\"type\":\"repeatCount\",\"maxIterations\":5,\"steps\":[{\"order\":1,\"commandId\":\"c1\"}],\"breakOn\":{\"source\":\"trigger\",\"targetId\":\"t\",\"mode\":\"Present\"}}");
       seq.SetBlocks(new object[] { blockJson.RootElement });
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("b1", _ => Task.CompletedTask, conditionEvaluator: (_, __) => Task.FromResult(true), ct: CancellationToken.None);
+      var res = await runner.ExecuteAsync("b1", (_, _) => Task.CompletedTask, conditionEvaluator: (_, __) => Task.FromResult(true), ct: CancellationToken.None);
       res.Status.Should().Be("Succeeded");
       res.Blocks.Should().HaveCount(1);
       var b = res.Blocks[0];
@@ -41,7 +41,7 @@ namespace GameBot.UnitTests.Sequences {
       var blockJson = JsonDocument.Parse("{\"type\":\"repeatCount\",\"maxIterations\":3,\"steps\":[{\"order\":1,\"commandId\":\"c1\"},{\"order\":2,\"commandId\":\"c2\"}],\"continueOn\":{\"source\":\"trigger\",\"targetId\":\"t\",\"mode\":\"Present\"},\"cadenceMs\":0}");
       seq.SetBlocks(new object[] { blockJson.RootElement });
       var runner = new SequenceRunner(new StubRepo(seq));
-      var res = await runner.ExecuteAsync("b2", _ => Task.CompletedTask, conditionEvaluator: (_, __) => Task.FromResult(true), ct: CancellationToken.None);
+      var res = await runner.ExecuteAsync("b2", (_, _) => Task.CompletedTask, conditionEvaluator: (_, __) => Task.FromResult(true), ct: CancellationToken.None);
       res.Status.Should().Be("Succeeded");
       res.Blocks.Should().HaveCount(1);
       var b = res.Blocks[0];
@@ -58,7 +58,7 @@ namespace GameBot.UnitTests.Sequences {
       seq.SetBlocks(new object[] { blockJson.RootElement });
       var runner = new SequenceRunner(new StubRepo(seq));
       // return false at start, true mid: emulate break after first step
-      var res = await runner.ExecuteAsync("b3", _ => Task.CompletedTask,
+      var res = await runner.ExecuteAsync("b3", (_, _) => Task.CompletedTask,
           conditionEvaluator: (cond, __) => Task.FromResult(true),
           ct: CancellationToken.None);
       res.Status.Should().Be("Succeeded");

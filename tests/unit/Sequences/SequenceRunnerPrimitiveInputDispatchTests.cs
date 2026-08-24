@@ -61,7 +61,7 @@ public sealed class SequenceRunnerPrimitiveInputDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "primitive-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (action, _) => {
         dispatched.Add(action);
         return Task.FromResult(new ActionDispatchResult("executed", "tap(100,200) sent to emulator"));
@@ -87,7 +87,7 @@ public sealed class SequenceRunnerPrimitiveInputDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "primitive-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (_, _) => Task.FromResult(new ActionDispatchResult("failed", "no session available for 'key' step; start a session or pass a sessionId")),
       ct: CancellationToken.None);
 
@@ -110,7 +110,7 @@ public sealed class SequenceRunnerPrimitiveInputDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "primitive-seq",
-      _ => Task.CompletedTask,
+      (_, _) => Task.CompletedTask,
       actionDispatcher: (action, _) => {
         dispatched.Add(action);
         return Task.FromResult(new ActionDispatchResult("executed", null));
@@ -130,7 +130,7 @@ public sealed class SequenceRunnerPrimitiveInputDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "primitive-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       ct: CancellationToken.None);
 
     result.Status.Should().Be("Succeeded");

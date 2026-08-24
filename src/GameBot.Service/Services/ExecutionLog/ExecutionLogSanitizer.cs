@@ -34,4 +34,15 @@ internal static class ExecutionLogSanitizer {
     if (!SecretKeyRegex.IsMatch(key)) return value;
     return "[REDACTED]";
   }
+
+  /// <summary>
+  /// Masks a resolved parameter's value when the <em>parameter name</em> looks like a secret
+  /// (feature 078). Parameter values are otherwise recorded verbatim — they are device serials,
+  /// instance names and timings, and diagnosability is the point — but an operator is free to declare
+  /// a parameter called <c>password</c>, and the constitution forbids leaking that into a log.
+  /// </summary>
+  /// <param name="parameterName">The declared parameter name.</param>
+  /// <param name="value">The resolved value.</param>
+  public static string MaskParameterValue(string parameterName, string value) =>
+    SecretKeyRegex.IsMatch(parameterName) ? "[REDACTED]" : value;
 }

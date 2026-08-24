@@ -72,10 +72,30 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _ocrOffsetResolver = ocrOffsetResolver;
   }
 
+  public Task<SequenceExecutionResult> ExecuteAsync(
+      string sequenceId,
+      string? sessionId,
+      ExecutionLogContext? parentContext,
+      CancellationToken ct = default)
+    => ExecuteAsync(sequenceId, sessionId, parentContext, GameBot.Domain.Parameters.ParameterScope.Empty, ct);
+
+  /// <summary>
+  /// Executes a sequence with a parameter scope (feature 078).
+  /// </summary>
+  /// <param name="sequenceId">Sequence to run.</param>
+  /// <param name="sessionId">Session to run against.</param>
+  /// <param name="parentContext">Execution-log context linking this firing to its parent.</param>
+  /// <param name="scope">
+  /// Scope supplied by the caller — for a queue run, the queue built-ins layered with the firing
+  /// entry's parameter values. <see cref="GameBot.Domain.Parameters.ParameterScope.Empty"/> reproduces
+  /// pre-feature behaviour.
+  /// </param>
+  /// <param name="ct">Cancellation token.</param>
   public async Task<SequenceExecutionResult> ExecuteAsync(
       string sequenceId,
       string? sessionId,
       ExecutionLogContext? parentContext,
+      GameBot.Domain.Parameters.ParameterScope scope,
       CancellationToken ct = default) {
     // Create the in-progress root entry up front so invoked commands can be linked to it
     // (and the sequence shows as a single top-level entry while it runs). When a parent
@@ -97,7 +117,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
 
     var res = await _runner.ExecuteAsync(
       sequenceId,
-      async commandId => {
+      async (commandId, stepScope) => {
         try {
           var childContext = new ExecutionLogContext {
             ParentExecutionId = rootExecutionId,
@@ -108,7 +128,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
             SequenceLabel = startSequenceName,
             OriginatingQueueId = originatingQueueId
           };
-          await _commandExecutor.ForceExecuteAsync(sessionId, commandId, childContext, ct).ConfigureAwait(false);
+          await _commandExecutor.ForceExecuteAsync(sessionId, commandId, childContext, stepScope, ct).ConfigureAwait(false);
         }
         catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
           throw new InvalidOperationException($"No cached session found for command '{commandId}'. Start a session first.");
@@ -162,6 +182,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         return Task.FromResult(false);
       },
       ct: ct,
+      scope: scope,
       actionDispatcher: (action, token) => DispatchActionAsync(action, sequenceId, originatingQueueId, sessionId, token)
     ).ConfigureAwait(false);
 

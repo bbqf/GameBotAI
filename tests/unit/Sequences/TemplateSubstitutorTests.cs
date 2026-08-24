@@ -11,6 +11,71 @@ public sealed class TemplateSubstitutorTests {
   // Substitute(string, ...)
   // ──────────────────────────────────────────────────────────────────────── //
 
+  // Feature 078: the pattern was widened from \w+ to dotted identifiers so the reserved queue
+  // built-ins parse. It is a strict superset, so every pre-existing placeholder still matches.
+
+  [Fact]
+  public void SubstituteReplacesDottedBuiltInName() {
+    var result = TemplateSubstitutor.Substitute(
+        "{{queue.emulatorSerial}}",
+        new Dictionary<string, string> { ["queue.emulatorSerial"] = "emulator-5558" });
+
+    result.Should().Be("emulator-5558");
+  }
+
+  [Fact]
+  public void ExtractKeysReturnsDistinctNamesInOrderOfAppearance() {
+    TemplateSubstitutor.ExtractKeys("{{b}}-{{a}}-{{b}}")
+        .Should().Equal("b", "a");
+  }
+
+  [Fact]
+  public void ExtractKeysOnPlaceholderFreeTextIsEmpty() {
+    TemplateSubstitutor.ExtractKeys("emulator-5558").Should().BeEmpty();
+    TemplateSubstitutor.ExtractKeys(null).Should().BeEmpty();
+  }
+
+  [Fact]
+  public void ContainsPlaceholderDetectsBothPlainAndDottedNames() {
+    TemplateSubstitutor.ContainsPlaceholder("x{{iteration}}").Should().BeTrue();
+    TemplateSubstitutor.ContainsPlaceholder("{{queue.gameId}}").Should().BeTrue();
+    TemplateSubstitutor.ContainsPlaceholder("plain").Should().BeFalse();
+    TemplateSubstitutor.ContainsPlaceholder(null).Should().BeFalse();
+  }
+
+  [Fact]
+  public void TrySubstituteSucceedsWhenEveryKeyResolves() {
+    var ok = TemplateSubstitutor.TrySubstitute(
+        "{{a}}/{{b}}",
+        new Dictionary<string, string> { ["a"] = "1", ["b"] = "2" },
+        out var result,
+        out var unresolved);
+
+    ok.Should().BeTrue();
+    result.Should().Be("1/2");
+    unresolved.Should().BeEmpty();
+  }
+
+  [Fact]
+  public void TrySubstituteReportsUnresolvedKeysInsteadOfPassingThemThrough() {
+    var ok = TemplateSubstitutor.TrySubstitute(
+        "{{known}}/{{missing}}",
+        new Dictionary<string, string> { ["known"] = "1" },
+        out _,
+        out var unresolved);
+
+    ok.Should().BeFalse();
+    unresolved.Should().Equal("missing");
+  }
+
+  [Fact]
+  public void TrySubstituteOnPlaceholderFreeTextSucceeds() {
+    TemplateSubstitutor.TrySubstitute("plain", new Dictionary<string, string>(), out var result, out var unresolved)
+        .Should().BeTrue();
+    result.Should().Be("plain");
+    unresolved.Should().BeEmpty();
+  }
+
   [Fact]
   public void SubstituteReplacesKnownPlaceholder() {
     var result = TemplateSubstitutor.Substitute(

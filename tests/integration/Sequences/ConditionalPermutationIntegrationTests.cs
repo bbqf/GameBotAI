@@ -25,7 +25,7 @@ public sealed class ConditionalPermutationIntegrationTests {
 
     var result = await runner.ExecuteAsync(
       sequence.Id,
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },

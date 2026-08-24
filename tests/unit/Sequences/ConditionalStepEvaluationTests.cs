@@ -68,7 +68,7 @@ public sealed class ConditionalStepEvaluationTests {
 
     var result = await runner.ExecuteAsync(
       "cond-us1-seq",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },
@@ -86,7 +86,7 @@ public sealed class ConditionalStepEvaluationTests {
 
     var result = await runner.ExecuteAsync(
       "cond-us1-seq",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },
@@ -104,7 +104,7 @@ public sealed class ConditionalStepEvaluationTests {
 
     var result = await runner.ExecuteAsync(
       "cond-us1-seq",
-      commandId => {
+      (commandId, _) => {
         executed.Add(commandId);
         return Task.CompletedTask;
       },

@@ -61,7 +61,7 @@ public sealed class SequenceRunnerGameActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "game-action-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (action, _) => {
         dispatched.Add(action);
         return Task.FromResult(new ActionDispatchResult("executed", "game is running in the foreground (game_running)"));
@@ -87,7 +87,7 @@ public sealed class SequenceRunnerGameActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "game-action-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (action, _) => {
         dispatched.Add(action);
         return Task.FromResult(new ActionDispatchResult("executed", "connected to game 'game-1' on device 'emulator-5554' (session s-1)"));
@@ -113,7 +113,7 @@ public sealed class SequenceRunnerGameActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "game-action-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (action, _) => {
         dispatched.Add(action);
         return Task.FromResult(new ActionDispatchResult("executed", "pressed HOME; device returned to the home screen (game left running)"));
@@ -138,7 +138,7 @@ public sealed class SequenceRunnerGameActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "game-action-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (_, _) => Task.FromResult(new ActionDispatchResult("failed", "no session available for 'go-to-home-screen' step; start a session or pass a sessionId")),
       ct: CancellationToken.None);
 
@@ -157,7 +157,7 @@ public sealed class SequenceRunnerGameActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "game-action-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (_, _) => Task.FromResult(new ActionDispatchResult("failed", "ensure-game-running failed: game_not_running")),
       ct: CancellationToken.None);
 
@@ -176,7 +176,7 @@ public sealed class SequenceRunnerGameActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "game-action-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       actionDispatcher: (_, _) => Task.FromResult(new ActionDispatchResult("failed", "connect-to-game step requires 'gameId' and 'adbSerial' parameters")),
       ct: CancellationToken.None);
 
@@ -194,7 +194,7 @@ public sealed class SequenceRunnerGameActionDispatchTests {
 
     var result = await runner.ExecuteAsync(
       "game-action-seq",
-      commandId => { executedCommands.Add(commandId); return Task.CompletedTask; },
+      (commandId, _) => { executedCommands.Add(commandId); return Task.CompletedTask; },
       ct: CancellationToken.None);
 
     result.Status.Should().Be("Succeeded");

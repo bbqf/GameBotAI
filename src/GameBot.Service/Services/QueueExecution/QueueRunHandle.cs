@@ -187,7 +187,13 @@ internal sealed record SelfRescheduleEntry(
   string Id,
   string SequenceId,
   SelfRescheduleOption Option,
-  DateTimeOffset? FireAt);
+  DateTimeOffset? FireAt,
+  /// <summary>
+  /// The parameter scope of the firing that scheduled this one (feature 078, FR-015), so the extra
+  /// firing resolves parameters identically instead of falling back to the bare queue built-ins.
+  /// Null for firings scheduled before a scope was available.
+  /// </summary>
+  GameBot.Domain.Parameters.ParameterScope? Scope = null);
 
 /// <summary>Outcome of a queue run, used to build the terminating execution-log entry.</summary>
 internal sealed record QueueRunResult(

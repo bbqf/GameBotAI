@@ -1,4 +1,6 @@
 using System;
+using System.Collections.ObjectModel;
+using GameBot.Domain.Parameters;
 
 namespace GameBot.Domain.QueueTemplates {
   /// <summary>
@@ -8,6 +10,8 @@ namespace GameBot.Domain.QueueTemplates {
   /// in a template.
   /// </summary>
   public class QueueTemplateEntry {
+    private readonly Collection<ParameterBinding> _parameterValues = new();
+
     /// <summary>ID of the referenced sequence.</summary>
     public string SequenceId { get; set; } = string.Empty;
 
@@ -52,5 +56,41 @@ namespace GameBot.Domain.QueueTemplates {
     /// </para>
     /// </summary>
     public TimeSpan? TimerRelativeOffset { get; set; }
+
+    /// <summary>
+    /// Values this entry supplies to its sequence's run scope (feature 078).
+    /// <para>
+    /// Holds both <em>declared</em> bindings — names the referenced sequence declares — and
+    /// <em>ad-hoc</em> values, names it does not. Ad-hoc values still enter the run scope and are
+    /// inheritable by any command invoked at any depth beneath the entry, which is what lets an
+    /// intermediate sequence pass a value through without re-declaring it. A supplied name that
+    /// nothing in the entry's reachable chain consumes is reported as a non-blocking warning, so a
+    /// typo is discoverable without preventing the run.
+    /// </para>
+    /// <para>
+    /// Per entry and independent, exactly like <see cref="Enabled"/> and the timer fields: two entries
+    /// referencing the same sequence hold separate collections. Templates persisted before this field
+    /// existed omit it in JSON and deserialize as empty, preserving pre-feature behaviour.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Collection<ParameterBinding> ParameterValues => _parameterValues;
+
+    /// <summary>
+    /// JSON projection of <see cref="ParameterValues"/>, omitted entirely when empty so a template
+    /// with no parameter values round-trips byte-identically to its pre-feature form.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonInclude]
+    [System.Text.Json.Serialization.JsonPropertyName("parameterValues")]
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Collection<ParameterBinding>? ParameterValuesWritable {
+      get => _parameterValues.Count == 0 ? null : _parameterValues;
+      private set {
+        _parameterValues.Clear();
+        if (value is null) return;
+        foreach (var binding in value) _parameterValues.Add(binding);
+      }
+    }
   }
 }
