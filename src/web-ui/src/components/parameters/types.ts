@@ -27,14 +27,20 @@ export type ParameterBinding = {
   value?: string | null;
 };
 
-/** Which scope layer supplied (or would supply) a value. */
+/**
+ * Which scope layer supplied (or would supply) a value.
+ *
+ * `declared` is UI-only: it marks a parameter that exists but has no value yet, so an editor can say
+ * "a caller supplies this" rather than naming a layer that has not been chosen.
+ */
 export type ParameterOriginLayer =
   | 'queue'
   | 'entry'
   | 'sequence'
   | 'command'
   | 'loop'
-  | 'default';
+  | 'default'
+  | 'declared';
 
 /** One name visible in a scope, with its effective value and where it came from. */
 export type ParameterScopeEntry = {
@@ -77,6 +83,7 @@ export const originLayerLabel = (layer: ParameterOriginLayer): string => {
     case 'command': return 'set on this step';
     case 'loop': return 'from the loop';
     case 'default': return 'declared default';
+    case 'declared': return 'supplied by a caller';
     default: return layer;
   }
 };
@@ -142,7 +149,7 @@ export const buildEditorScope = (
     .map<ParameterScopeEntry>((d) => ({
       name: d.name,
       value: d.default ?? null,
-      originLayer: d.default != null ? 'default' : 'entry',
+      originLayer: d.default != null ? 'default' : 'declared',
       declared: true,
       description: d.description ?? null,
     })),
