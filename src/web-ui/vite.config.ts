@@ -1,3 +1,7 @@
+// `vite build` writes src/web-ui/dist, which scripts/package-installer-payload.ps1
+// copies verbatim into the installer payload under web-ui/. Changes here and
+// anywhere else under src/** change what the installer ships, which is why
+// .github/workflows/release-installer.yml carries no `paths` filter.
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import dns from 'node:dns';
