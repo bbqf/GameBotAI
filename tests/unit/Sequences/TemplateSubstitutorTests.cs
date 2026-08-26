@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using FluentAssertions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Utils;
@@ -176,5 +177,66 @@ public sealed class TemplateSubstitutorTests {
     result.Parameters["first"].Should().Be("alpha");
     result.Parameters["second"].Should().Be("beta");
     result.Parameters["third"].Should().Be(42);
+  }
+
+  /// <summary>
+  /// Builds a payload slot the way persistence does. <see cref="SequenceActionPayload.Parameters"/> is
+  /// a <c>Dictionary&lt;string, object?&gt;</c>, so a stored payload holds <see cref="JsonElement"/>
+  /// values — never <see cref="string"/>.
+  /// </summary>
+  private static JsonElement Stored(string json) => JsonDocument.Parse(json).RootElement.Clone();
+
+  [Fact]
+  public void SubstitutePayloadReplacesAPlaceholderStoredAsAJsonElement() {
+    // Regression: matching only on `string` meant a placeholder loaded from disk was copied through
+    // untouched, so a stored tap reached the device layer as the literal text "{{sectionRowY}}".
+    var payload = new SequenceActionPayload { Type = "tap" };
+    payload.Parameters["x"] = Stored("448");
+    payload.Parameters["y"] = Stored("\"{{sectionRowY}}\"");
+
+    var result = TemplateSubstitutor.SubstitutePayload(
+        payload,
+        new Dictionary<string, string> { ["sectionRowY"] = "569" });
+
+    // Returned as text, which is what a numeric slot parses.
+    result.Parameters["y"].Should().Be("569");
+  }
+
+  [Fact]
+  public void SubstitutePayloadLeavesAStoredNumberUntouched() {
+    var payload = new SequenceActionPayload { Type = "tap" };
+    payload.Parameters["x"] = Stored("448");
+
+    var result = TemplateSubstitutor.SubstitutePayload(
+        payload,
+        new Dictionary<string, string> { ["sectionRowY"] = "569" });
+
+    result.Parameters["x"].Should().BeOfType<JsonElement>();
+    ((JsonElement)result.Parameters["x"]!).GetInt32().Should().Be(448);
+  }
+
+  [Fact]
+  public void SubstitutePayloadLeavesAStoredObjectUntouched() {
+    // A structured slot (an OCR region) round-trips unchanged; nested placeholders are out of scope.
+    var payload = new SequenceActionPayload { Type = "reschedule-self" };
+    payload.Parameters["ocrOffset"] = Stored("{\"region\":{\"x\":2},\"fallback\":\"02:05:00\"}");
+
+    var result = TemplateSubstitutor.SubstitutePayload(
+        payload,
+        new Dictionary<string, string> { ["x"] = "999" });
+
+    ((JsonElement)result.Parameters["ocrOffset"]!).GetProperty("region").GetProperty("x").GetInt32()
+        .Should().Be(2);
+  }
+
+  [Fact]
+  public void SubstitutePayloadLeavesAnUnknownStoredPlaceholderInPlace() {
+    // Lenient by contract: an outer scope may resolve it later, so it must not become empty text.
+    var payload = new SequenceActionPayload { Type = "tap" };
+    payload.Parameters["y"] = Stored("\"{{notInScope}}\"");
+
+    var result = TemplateSubstitutor.SubstitutePayload(payload, new Dictionary<string, string>());
+
+    result.Parameters["y"].Should().Be("{{notInScope}}");
   }
 }

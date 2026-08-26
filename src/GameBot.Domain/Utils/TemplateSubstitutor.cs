@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using GameBot.Domain.Commands;
 
@@ -91,11 +92,11 @@ public static class TemplateSubstitutor {
   }
 
   /// <summary>
-  /// Returns a new <see cref="SequenceActionPayload"/> where every <em>string</em> parameter
-  /// value has had its <c>{{key}}</c> placeholders substituted from <paramref name="context"/>.
-  /// Non-string values are copied unchanged.
+  /// Returns a new <see cref="SequenceActionPayload"/> where every textual parameter value has had
+  /// its <c>{{key}}</c> placeholders substituted from <paramref name="context"/>. Values that are not
+  /// text are copied unchanged.
   /// </summary>
-  /// <param name="payload">The payload whose string parameters should be substituted.</param>
+  /// <param name="payload">The payload whose textual parameters should be substituted.</param>
   /// <param name="context">Substitution map from placeholder key to replacement value.</param>
   public static SequenceActionPayload SubstitutePayload(
       SequenceActionPayload payload,
@@ -103,9 +104,44 @@ public static class TemplateSubstitutor {
     ArgumentNullException.ThrowIfNull(payload);
     var result = new SequenceActionPayload { Type = payload.Type, SchemaVersion = payload.SchemaVersion };
     foreach (var (key, value) in payload.Parameters) {
-      result.Parameters[key] = value is string str ? Substitute(str, context) : value;
+      result.Parameters[key] = SubstituteValue(value, context);
     }
 
     return result;
+  }
+
+  /// <summary>
+  /// Substitutes one payload slot.
+  /// <para>
+  /// Handling <see cref="JsonElement"/> is not a nicety: <see cref="SequenceActionPayload.Parameters"/>
+  /// is a <c>Dictionary&lt;string, object?&gt;</c>, so a payload loaded from disk holds
+  /// <see cref="JsonElement"/> values and <em>never</em> <see cref="string"/>. Matching only on
+  /// <see cref="string"/> meant every stored placeholder was copied through untouched — a tap with
+  /// <c>"y": "{{sectionRowY}}"</c> reached the device layer as that literal text and failed with
+  /// "requires numeric 'x' and 'y'". Only payloads built in memory (that is, in tests) ever
+  /// substituted, which is precisely why this survived a green suite.
+  /// </para>
+  /// <para>
+  /// The substituted result is returned as a plain <see cref="string"/>; every consumer parses numeric
+  /// slots defensively from text, so a resolved <c>"569"</c> reads back as the number 569.
+  /// </para>
+  /// <para>
+  /// Objects and arrays are copied unchanged — placeholders nested inside a structured value (an OCR
+  /// region, say) are not substituted, matching the feature's "string and numeric leaf fields" scope.
+  /// </para>
+  /// </summary>
+  /// <param name="value">The stored slot value.</param>
+  /// <param name="context">Substitution map from placeholder key to replacement value.</param>
+  private static object? SubstituteValue(object? value, IReadOnlyDictionary<string, string> context) {
+    switch (value) {
+      case string str:
+        return Substitute(str, context);
+      case JsonElement { ValueKind: JsonValueKind.String } element: {
+        var text = element.GetString();
+        return text is null ? value : Substitute(text, context);
+      }
+      default:
+        return value;
+    }
   }
 }
