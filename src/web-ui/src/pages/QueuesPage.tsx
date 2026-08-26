@@ -21,6 +21,7 @@ import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
 import { QueueMonitor } from '../components/queues/QueueMonitor';
 import { EntrySchedule } from '../components/queues/QueueEntryList';
 import { QueueSchedulingAreas } from '../components/queues/QueueSchedulingAreas';
+import type { ParameterBinding } from '../components/parameters/types';
 import { SchedulingAreasState } from '../components/queues/schedulingAreas';
 import { QueueLiveScheduleControl } from '../components/queues/QueueLiveScheduleControl';
 import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
@@ -150,6 +151,10 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
           timerMode: tplEntry.timerRelativeOffset ? 'relative' : 'timeOfDay',
           timerRelativeOffset: tplEntry.timerRelativeOffset ?? '',
           enabled: tplEntry.enabled ?? true,
+          // Feature 078: restore supplied values and their effective-value preview, or reopening the
+          // queue would show every row back on "inherit" and the next save would erase them.
+          parameterValues: tplEntry.parameterValues ?? undefined,
+          effectiveParameters: tplEntry.effectiveParameters ?? undefined,
         };
       } else {
         schedule[entryId] = { scheduleType: 'OncePerRun', timerTimeOfDay: '' };
@@ -237,6 +242,17 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     });
   };
 
+  /**
+   * Records the values one entry supplies (feature 078). Held in the working schedule map and
+   * persisted by the next template save, matching how the schedule fields already behave.
+   */
+  const onParameterValuesChange = (entryId: string, values: ParameterBinding[]) => {
+    setEntrySchedule((prev) => ({
+      ...prev,
+      [entryId]: { ...(prev[entryId] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }), parameterValues: values },
+    }));
+  };
+
   const handleSaveTemplate = async (name: string, overwrite: boolean) => {
     if (!detail) return;
     // Order-aware save: persist the current linear order to the runtime queue first, then build
@@ -263,6 +279,12 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
         ...(isRelative && sched.timerRelativeOffset ? { timerRelativeOffset: sched.timerRelativeOffset } : {}),
         // Only emit when disabled; omission means enabled (backend treats null/absent as true).
         ...(sched.enabled === false ? { enabled: false } : {}),
+        // Feature 078: only rows that actually bind something. A row left on "inherit" carries a
+        // null value and is dropped, so an entry that supplies nothing stays unchanged on the wire.
+        ...(() => {
+          const bound = (sched.parameterValues ?? []).filter((v) => v.value !== null && v.value !== undefined);
+          return bound.length > 0 ? { parameterValues: bound } : {};
+        })(),
       };
     });
     const saved = await saveQueueTemplate({ name, entries, overwrite });
@@ -534,6 +556,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
                   onTimerModeChange={(eid, mode) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: mode } }))}
                   onTimerRelativeOffsetChange={(eid, offset) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'Timer', timerTimeOfDay: '' }, timerMode: 'relative', timerRelativeOffset: offset } }))}
                   onToggleEnabled={(eid, en) => setEntrySchedule((prev) => ({ ...prev, [eid]: { ...prev[eid] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' }, enabled: en } }))}
+                  onParameterValuesChange={onParameterValuesChange}
                   // No `disabled` prop: this whole section is already gated on
                   // `detail.status !== 'Running'` above, so a `status === 'Running'` test here was
                   // provably always false (TS2367) and disabled nothing.

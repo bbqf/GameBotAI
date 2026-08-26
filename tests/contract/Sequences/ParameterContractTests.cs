@@ -301,6 +301,62 @@ public sealed class ParameterContractTests {
         .Should().Contain(p => p.GetProperty("name").GetString() == "keyName");
   }
 
+  [Fact]
+  public async Task TheSequenceListCarriesDeclarationsSoTheTemplateEditorNeedsNoExtraFetch() {
+    // The queue-template editor renders a binding form per entry from this list. While the member
+    // was missing the panel showed no parameters at all, which made per-entry values unreachable.
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var create = await client.PostAsJsonAsync("/api/sequences", new {
+      name = "listed-with-params",
+      version = 1,
+      parameters = new object[] { new { name = "sectionRowY", type = "number", @default = "569" } },
+      steps = new object[] {
+        new { stepId = "s1", stepType = "Action", primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 1, y = 2 } } }
+      }
+    }).ConfigureAwait(false);
+    create.StatusCode.Should().Be(HttpStatusCode.Created);
+    var sequenceId = JsonDocument.Parse(await create.Content.ReadAsStringAsync().ConfigureAwait(false))
+        .RootElement.GetProperty("id").GetString();
+
+    var list = await client.GetAsync(new Uri("/api/sequences", UriKind.Relative)).ConfigureAwait(false);
+    list.StatusCode.Should().Be(HttpStatusCode.OK);
+    var listed = JsonDocument.Parse(await list.Content.ReadAsStringAsync().ConfigureAwait(false))
+        .RootElement.EnumerateArray()
+        .Single(s => s.GetProperty("id").GetString() == sequenceId);
+
+    var declaration = listed.GetProperty("parameters").EnumerateArray().Single();
+    declaration.GetProperty("name").GetString().Should().Be("sectionRowY");
+    declaration.GetProperty("type").GetString().Should().Be("number");
+    declaration.GetProperty("default").GetString().Should().Be("569");
+  }
+
+  [Fact]
+  public async Task ASequenceThatDeclaresNothingOmitsTheMemberFromTheList() {
+    // FR-032: an unparametrized sequence keeps the shape it had before the feature.
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var create = await client.PostAsJsonAsync("/api/sequences", new {
+      name = "listed-without-params",
+      version = 1,
+      steps = new object[] {
+        new { stepId = "s1", stepType = "Action", primitiveAction = new { type = "tap", schemaVersion = "v1", payload = new { x = 1, y = 2 } } }
+      }
+    }).ConfigureAwait(false);
+    var sequenceId = JsonDocument.Parse(await create.Content.ReadAsStringAsync().ConfigureAwait(false))
+        .RootElement.GetProperty("id").GetString();
+
+    var list = await client.GetAsync(new Uri("/api/sequences", UriKind.Relative)).ConfigureAwait(false);
+    var listed = JsonDocument.Parse(await list.Content.ReadAsStringAsync().ConfigureAwait(false))
+        .RootElement.EnumerateArray()
+        .Single(s => s.GetProperty("id").GetString() == sequenceId);
+
+    listed.TryGetProperty("parameters", out _)
+        .Should().BeFalse("the member is omitted when the sequence declares nothing");
+  }
+
   // ── Ad-hoc execute ───────────────────────────────────────────────────────
 
   [Fact]

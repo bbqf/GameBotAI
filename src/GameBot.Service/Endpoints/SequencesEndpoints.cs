@@ -294,7 +294,17 @@ internal static class SequencesEndpoints {
 
   private static async Task<IResult> ListSequencesAsync(ISequenceRepository repo) {
     var list = await repo.ListAsync().ConfigureAwait(false);
-    var resp = list.Select(s => new { id = s.Id, name = s.Name, steps = s.Steps.Select(x => x.CommandId).ToArray() });
+    // Feature 078: the list carries declarations because the queue-template editor renders a binding
+    // form per entry. Without them it would have to refetch every sequence one at a time to learn
+    // what each declares — and, before this, simply showed no parameters at all. A typed row rather
+    // than an anonymous one so the member is genuinely omitted when nothing is declared, matching
+    // every other response in the feature instead of emitting an explicit null.
+    var resp = list.Select(s => new SequenceListItemResponse {
+      Id = s.Id,
+      Name = s.Name,
+      Steps = new System.Collections.ObjectModel.Collection<string>(s.Steps.Select(x => x.CommandId).ToList()),
+      Parameters = ParameterDtoMapper.ToResponseDeclarations(s.Parameters)
+    });
     return Results.Ok(resp);
   }
 

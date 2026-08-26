@@ -6,6 +6,7 @@ import { ScheduleType } from '../../services/queueTemplates';
 import { TimerMode } from './QueueEntryList';
 import { SchedulingSequenceCard } from './SchedulingSequenceCard';
 import { AREA_LABELS, SchedulingAreaId, SchedulingCard } from './schedulingAreas';
+import type { ParameterBinding, ParameterDeclaration } from '../parameters/types';
 
 type SchedulingAreaProps = {
   areaId: SchedulingAreaId;
@@ -19,6 +20,9 @@ type SchedulingAreaProps = {
   onTimerModeChange?: (entryId: string, mode: TimerMode) => void;
   onTimerRelativeOffsetChange?: (entryId: string, offset: string) => void;
   onToggleEnabled?: (entryId: string, enabled: boolean) => void;
+  /** Declarations per referenced sequence id, so each card can render its own binding form. */
+  parametersBySequenceId?: Map<string, ParameterDeclaration[]>;
+  onParameterValuesChange?: (entryId: string, values: ParameterBinding[]) => void;
 };
 
 const EMPTY_HINT = 'Drop sequences here.';
@@ -35,6 +39,8 @@ export const SchedulingArea: React.FC<SchedulingAreaProps> = ({
   onTimerModeChange,
   onTimerRelativeOffsetChange,
   onToggleEnabled,
+  parametersBySequenceId,
+  onParameterValuesChange,
 }) => {
   const label = AREA_LABELS[areaId];
   // The area itself is a droppable so empty areas can receive a dragged card.
@@ -69,6 +75,8 @@ export const SchedulingArea: React.FC<SchedulingAreaProps> = ({
                     onTimerModeChange={onTimerModeChange}
                     onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
                     onToggleEnabled={onToggleEnabled}
+                    sequenceParameters={parametersBySequenceId?.get(card.sequenceId)}
+                    onParameterValuesChange={onParameterValuesChange}
                   />
                 </div>
               </React.Fragment>
