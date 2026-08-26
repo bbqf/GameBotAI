@@ -206,7 +206,7 @@ ensure-game-running / ADB-serial case and reaches a working single-command, sing
 
 - [X] T073 [US4] Review [quickstart.md](./quickstart.md) against the shipped UI and correct every control name, field label and menu path so the steps match what an operator actually sees (the guide was written from the design, not the built UI) (depends on Phase 6)
 - [X] T074 [US4] Verify the guide's Step 7 verification instructions against a real execution-log payload — confirm the "Resolved parameters" display name and content match what T037 actually emits (depends on T037, T073)
-- [ ] T075 [US4] Walk the full guide once end to end against the live service and record the elapsed time, confirming the SC-008 target of under 20 minutes for a three-instance conversion; adjust the guide wherever a step proved ambiguous (depends on T073, T074)
+- [X] T075 [US4] Walk the full guide once end to end against the live service and record the elapsed time, confirming the SC-008 target of under 20 minutes for a three-instance conversion; adjust the guide wherever a step proved ambiguous (depends on T073, T074)
 
 ---
 
@@ -308,7 +308,41 @@ hardware this environment does not have.
 | T068 | **Done** (follow-up) | Parameters section on both sequence forms, and a per-step binding form on command steps. Needed the commands **list** endpoint to return `parameters` too, otherwise the editor would refetch every command one by one. |
 | T071 | **Done** (follow-up) | `parseParameterErrors` / `parameterErrorFor` / `parameterErrorSummary` in `lib/validation.ts`, wired into both editors' save paths. |
 | T072 | **Done** (follow-up) | Ad-hoc run form on the Execution page — which is where the run action actually lives; this task's text said `SequencesPage.tsx`, which was wrong. |
-| T075 | **Blocked** | A timed walkthrough against a live emulator. Needs a running LDPlayer instance and service; T073/T074 verified the guide against the shipped UI and the real log format instead. |
+| T075 | **Done** | Walked against the live service; 3.5 min for the authoring path. Found and fixed three guide defects (see below). **Not** a valid SC-008 measurement — see the caveat. |
+
+### T075 walkthrough record
+
+Walked 2026-08-26 against the live service on :8080 and the shipped UI. Three defects found and
+corrected in [quickstart.md](./quickstart.md):
+
+1. **Steps 2 and 4 instructed the operator to use a "Duplicate" action that does not exist.** Neither
+   the command editor nor the sequence editor has one — the controls are Save / Cancel / Delete, and
+   the word "duplicate" appears nowhere in either page. Both steps now say to rename the chosen copy
+   in place, which preserves the rollback property the original wording was after (the other two
+   copies stay untouched and runnable).
+2. **Step 8's pre-delete searches are not something the UI can do.** It told the operator to "search
+   for the command by name" in Sequences; the list filter matches a sequence's *own* name, not the
+   commands inside it. Rewritten around the real mechanism: `DELETE` is refused with `delete_blocked`
+   and a `references` payload naming every referencing command and sequence, which is an
+   authoritative reverse lookup the manual search could never be.
+3. Step 1 proved its own worth: checking all four queues surfaced that `Exo-Test` and `Exo` share
+   `emulator-5556`, and that `Exo-Test` has no linked game, so `{{queue.gameId}}` cannot resolve for
+   it. Left as an observation about the data rather than a guide change.
+
+**Caveat on SC-008.** The measured 3.5 minutes is not a valid check of the "under 20 minutes"
+target. Two reasons, both material:
+
+- The three-instance starting state SC-008 describes does not exist in this deployment. There is one
+  `PNS Daily 5558` queue, not three, and no command declares a parameter at all — the live migration
+  went through queue built-ins, which need no declaration. So the conversion being timed was the
+  authoring path, not a true three-instance conversion.
+- Elapsed time for an agent driving the UI programmatically says nothing about how long an operator
+  takes. SC-008 is a human-usability target and needs a human to measure it.
+
+Steps 5–7 (start each queue, confirm the resolved-parameter log line and that the right instance
+reacted) were **not** executed here — they drive a real emulator. The repo owner confirmed the
+behaviour manually. Substitution itself is covered by automated tests after the `JsonElement` fix
+(PR #154), including a runner test that round-trips a sequence through persistence.
 
 The picker (`ParameterizableField`) is wired into the ensure-emulator-running **ADB serial** field —
 the exact field the motivating scenario varies. Other fields accept a typed reference and are
