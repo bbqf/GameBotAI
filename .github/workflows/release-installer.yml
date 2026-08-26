@@ -1,16 +1,21 @@
 name: release-installer
 
-# PR builds run only when installer-related files change; use workflow_dispatch
-# to build an installer from any branch on demand.
+# Every PR into master builds an installer. There is deliberately no `paths`
+# filter: the installer payload is the full publish closure of
+# src/GameBot.Service (which transitively pulls in every referenced project
+# under src/**), the built src/web-ui/dist bundle, the root LICENSE, and the
+# repo-wide MSBuild/NuGet settings - see scripts/package-installer-payload.ps1.
+# Practically any source change alters what the installer contains, so a path
+# filter could never be complete, and when it skipped a run GitHub carried the
+# PREVIOUS run's conclusion into the PR status rollup: reviewers saw a green
+# `build-release-installer` produced from an older commit, next to a stale
+# artifact. Running unconditionally makes the check always match the PR head
+# commit; the job takes ~3.5 minutes on windows-latest, which is well under the
+# cost of shipping an installer built from the wrong source.
+# Use workflow_dispatch to build an installer from any branch on demand.
 on:
   pull_request:
     branches: [ master ]
-    paths:
-      - "installer/**"
-      - "scripts/installer/**"
-      - "scripts/package-installer-payload.ps1"
-      - "scripts/build-installer.ps1"
-      - ".github/workflows/release-installer.yml"
   workflow_dispatch:
 
 permissions:
