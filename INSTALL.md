@@ -36,7 +36,7 @@ Use `/quiet` with installer variables:
 ### Getting installer binaries from CI
 
 - Installer packages are published by the `release-installer` workflow as GitHub Actions artifacts.
-- The workflow runs for pull requests targeting `master` and can also be started with `workflow_dispatch`.
+- The workflow runs on every push to `master` (that is, on every PR merge) and can also be started with `workflow_dispatch`.
 - Artifact name format:
 
   ```text
@@ -124,13 +124,13 @@ Example:
 - In CI, `build` is sourced from `github.run_number`.
 - `github.run_number` increments only when GitHub creates a new workflow run for `release-installer`.
 - For this repo, that means it changes on new `release-installer` runs from:
-  - pull requests targeting `master` (for example new PR, new commits pushed to the PR branch)
+  - pushes to `master` (in practice, each PR merge)
   - manual `workflow_dispatch` runs
 - Re-running a failed/successful existing run does **not** change `github.run_number`; only `github.run_attempt` increases.
 - Example timeline:
-  - Run A (new PR update): `github.run_number=57`, `github.run_attempt=1`
+  - Run A (a PR merges to `master`): `github.run_number=57`, `github.run_attempt=1`
   - Re-run Run A: `github.run_number=57`, `github.run_attempt=2`
-  - Push another commit to the same PR (new run): `github.run_number=58`, `github.run_attempt=1`
+  - Next PR merges to `master` (new run): `github.run_number=58`, `github.run_attempt=1`
 - CI does not write version counters back to protected branches.
 - Local/manual builds still support override/version files under `installer/versioning`.
 
@@ -215,15 +215,22 @@ This section documents the current installer CI/release behavior and operational
 
 - Installer artifacts are produced by GitHub workflow `release-installer`.
 - `release-installer` runs on:
-  - `pull_request` targeting `master` - **every** such PR, with no `paths` filter
-  - manual `workflow_dispatch`
+  - `push` to `master` - **every** push, with no `paths` filter. In practice that
+    means one installer build per merged PR, built from the merged master commit.
+  - manual `workflow_dispatch` - builds an installer from any branch on demand
+- Open pull requests do **not** build an installer. The installer is a release
+  artifact of merged code, not a PR gate; PRs are gated by `.NET CI` and `CodeQL`.
+  To get an installer for an unmerged branch, run `workflow_dispatch` against it.
 - There is deliberately no `paths` filter. The installer payload is the full
   publish closure of `src/GameBot.Service` plus the built `src/web-ui/dist`
   bundle plus the root `LICENSE`, so nearly any source change alters what the
-  installer contains. When a path filter skipped a run, GitHub carried the
-  previous run's conclusion into the PR status rollup and
-  `build-release-installer` showed a green result built from an older commit.
-  Running unconditionally guarantees the check reflects the PR head commit.
+  installer contains. A path filter could never be complete, and an incomplete
+  one silently skips runs, leaving the current `master` commit with no installer
+  of its own.
+- Concurrency group is `release-installer-<ref>`, but `cancel-in-progress` is
+  **false for `push` events**: back-to-back merges queue rather than cancel, so
+  every merged master commit gets its own installer. `workflow_dispatch` runs on
+  the same ref may still be superseded by a newer dispatch.
 - The workflow uses read-only permissions (`contents: read`) and does not push version files back to protected branches.
 
 ### Build/version behavior in CI
@@ -250,11 +257,15 @@ This section documents the current installer CI/release behavior and operational
 
 ### Required checks / PR gate
 
-- PRs should wait for `release-installer / build-release-installer` plus normal CI checks to complete before merge.
+- PRs should wait for all CI checks to complete before merge.
 - Typical check set includes:
   - `.NET CI` (`build`, `web-ui-tests`) - `build` also enforces `-warnaserror` and the installer secret scan
-  - `release-installer` (`build-release-installer`) - runs on every PR into `master`; use `workflow_dispatch` to build from a branch with no open PR
   - `CodeQL`
+- `release-installer` (`build-release-installer`) is **not** a PR check and will
+  not appear in a PR's status rollup. It runs after the merge, on the resulting
+  push to `master`. Its absence from a PR is expected, not a missing check.
+- After merging, check the `release-installer` run on `master` for the installer
+  build of that merge: `gh run list --workflow release-installer.yml --branch master`.
 
 ### Conflict resolution runbook
 

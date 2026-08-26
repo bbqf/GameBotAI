@@ -1,20 +1,21 @@
 name: release-installer
 
-# Every PR into master builds an installer. There is deliberately no `paths`
-# filter: the installer payload is the full publish closure of
-# src/GameBot.Service (which transitively pulls in every referenced project
-# under src/**), the built src/web-ui/dist bundle, the root LICENSE, and the
-# repo-wide MSBuild/NuGet settings - see scripts/package-installer-payload.ps1.
-# Practically any source change alters what the installer contains, so a path
-# filter could never be complete, and when it skipped a run GitHub carried the
-# PREVIOUS run's conclusion into the PR status rollup: reviewers saw a green
-# `build-release-installer` produced from an older commit, next to a stale
-# artifact. Running unconditionally makes the check always match the PR head
-# commit; the job takes ~3.5 minutes on windows-latest, which is well under the
-# cost of shipping an installer built from the wrong source.
-# Use workflow_dispatch to build an installer from any branch on demand.
+# Installers are release artifacts, so they are built from master: every push to
+# master - in practice, every PR merge - produces one installer for that merged
+# state. Open PRs deliberately do NOT build an installer; they are gated by
+# .NET CI and CodeQL instead. Use workflow_dispatch to build an installer from
+# any branch on demand.
+#
+# There is deliberately no `paths` filter: the installer payload is the full
+# publish closure of src/GameBot.Service (which transitively pulls in every
+# referenced project under src/**), the built src/web-ui/dist bundle, the root
+# LICENSE, and the repo-wide MSBuild/NuGet settings - see
+# scripts/package-installer-payload.ps1. Practically any source change alters
+# what the installer contains, so a path filter could never be complete, and an
+# incomplete one silently skips runs and leaves the latest master commit with no
+# installer of its own. The job takes ~3.5 minutes on windows-latest.
 on:
-  pull_request:
+  push:
     branches: [ master ]
   workflow_dispatch:
 
@@ -23,7 +24,12 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Master pushes must never cancel each other: each one is the release build for
+  # a distinct merged commit, and a cancelled run leaves that commit with no
+  # installer (and burns the github.run_number that would have versioned it).
+  # Back-to-back merges queue instead. On-demand workflow_dispatch runs are just
+  # rebuilds of a branch tip, so a newer one may still supersede an older one.
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   build-release-installer:
