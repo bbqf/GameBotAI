@@ -39,9 +39,13 @@ note them — they are available as `{{queue.instanceName}}` and `{{queue.instan
 
 ### Step 2 — Pick one command to become the shared one
 
-Choose the copy you trust most — the one whose logic is current. Commands → open it → **Duplicate**,
-and name the copy `Ensure Game Running`. Working on a copy means the three originals stay untouched
-and runnable until you have proved the new one.
+Choose the copy you trust most — the one whose logic is current. Commands → open it → change its
+**Name** to `Ensure Game Running` → **Save**.
+
+There is no Duplicate action; you edit the chosen copy in place. That is fine, and it keeps the
+property that matters: the *other two* commands are untouched and still runnable, so if the shared
+one misbehaves you repoint the affected template back at one of them. Do not delete anything until
+Step 8.
 
 ### Step 3 — Replace the hard-coded serial with the queue built-in
 
@@ -59,8 +63,9 @@ Save. If the save is rejected, the message names the field and the problem — f
 
 ### Step 4 — Do the same for the sequence
 
-Sequences → duplicate `Daily 5558` → rename to `Daily`. Open its command steps and repoint each one
-that referenced `Ensure Game 5558` at the new shared `Ensure Game Running`. Save.
+Sequences → open `Daily 5558` → rename it to `Daily` (again, edit in place — there is no Duplicate).
+Open its command steps and repoint each one that referenced `Ensure Game 5558` at the new shared
+`Ensure Game Running`. Save.
 
 **Nothing else to do here.** A value the sequence does not bind is inherited from the enclosing scope
 automatically, so the queue's serial reaches the command with no configuration on the sequence at
@@ -103,17 +108,22 @@ another instance, which is exactly the failure this conversion is meant to preve
 
 ### Step 8 — Delete the redundant copies, safely
 
-For each old command and sequence, before deleting:
+**You do not have to hunt for references — the app does it for you.** Deleting a command that is
+still referenced is refused with `delete_blocked`, and the response lists every command and every
+sequence that still points at it. A referenced sequence is refused the same way.
 
-1. Sequences → search for the command by name. If any sequence still lists it as a step, that
-   sequence has not been converted — go back to Step 4.
-2. Queue templates → search for the sequence by name. If any entry still references it, that
-   template has not been converted — go back to Step 5.
-3. Only when both searches come back empty, delete it.
+So: open each old command and sequence and press **Delete**.
 
-Delete one, then run the affected queue once more before deleting the next. If something was still
-referencing it, the run fails loudly with `Command '<id>' was not found` rather than silently doing
-nothing — but it is far easier to recover if you deleted one thing rather than six.
+- **Refused?** Read the list it gives you. A sequence in that list has not been converted — go back
+  to Step 4. A template entry still pointing at an old sequence — go back to Step 5. Fix, then
+  delete again.
+- **Accepted?** Nothing referenced it, and it is gone.
+
+The list filter on each page searches by the entity's *own* name; it cannot find "sequences
+containing command X". The delete guard is the reverse lookup, and it is authoritative.
+
+Still delete one at a time, running the affected queue once more before the next. The guard covers
+commands and sequences; it is far easier to recover if you removed one thing rather than six.
 
 ---
 
