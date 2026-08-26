@@ -215,8 +215,15 @@ This section documents the current installer CI/release behavior and operational
 
 - Installer artifacts are produced by GitHub workflow `release-installer`.
 - `release-installer` runs on:
-  - `pull_request` targeting `master`
+  - `pull_request` targeting `master` - **every** such PR, with no `paths` filter
   - manual `workflow_dispatch`
+- There is deliberately no `paths` filter. The installer payload is the full
+  publish closure of `src/GameBot.Service` plus the built `src/web-ui/dist`
+  bundle plus the root `LICENSE`, so nearly any source change alters what the
+  installer contains. When a path filter skipped a run, GitHub carried the
+  previous run's conclusion into the PR status rollup and
+  `build-release-installer` showed a green result built from an older commit.
+  Running unconditionally guarantees the check reflects the PR head commit.
 - The workflow uses read-only permissions (`contents: read`) and does not push version files back to protected branches.
 
 ### Build/version behavior in CI
@@ -243,10 +250,10 @@ This section documents the current installer CI/release behavior and operational
 
 ### Required checks / PR gate
 
-- PRs should wait for `release-installer / build-release-installer` (installer-path changes only) plus normal CI checks to complete before merge.
+- PRs should wait for `release-installer / build-release-installer` plus normal CI checks to complete before merge.
 - Typical check set includes:
   - `.NET CI` (`build`, `web-ui-tests`) - `build` also enforces `-warnaserror` and the installer secret scan
-  - `release-installer` (`build-release-installer`) - runs only when installer-related paths change; use `workflow_dispatch` to build from any branch on demand
+  - `release-installer` (`build-release-installer`) - runs on every PR into `master`; use `workflow_dispatch` to build from a branch with no open PR
   - `CodeQL`
 
 ### Conflict resolution runbook

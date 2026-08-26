@@ -133,7 +133,12 @@ else {
   $versionResolution = Resolve-InstallerVersion -RepoRoot $repoRoot -BuildContext $buildContext
 }
 $installerVersion = $versionResolution.Version
-Write-Host "Resolved installer version: $installerVersion (source=$($versionResolution.Source), persisted=$($versionResolution.Persisted))"
+# PersistedCounterWrite - not Persisted - reports whether ci-build-counter.json
+# was actually rewritten. In CI the build number comes from GITHUB_RUN_NUMBER via
+# -BuildNumberOverride and the counter file is NOT touched, but the legacy
+# Persisted flag is hardcoded to ($BuildContext -eq "ci") and so always logged
+# True, which reads as if CI had bumped the checked-in counter.
+Write-Host "Resolved installer version: $installerVersion (source=$($versionResolution.Source), counterFileWritten=$($versionResolution.PersistedCounterWrite))"
 
 & (Join-Path $PSScriptRoot "package-installer-payload.ps1") -Configuration $Configuration -InstallerVersion $installerVersion
 if ($LASTEXITCODE -ne 0) {
