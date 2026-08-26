@@ -16,6 +16,7 @@ import { SequenceDto } from '../../services/sequences';
 import { ScheduleType } from '../../services/queueTemplates';
 import { EntrySchedule, TimerMode } from './QueueEntryList';
 import { SchedulingArea } from './SchedulingArea';
+import type { ParameterBinding } from '../parameters/types';
 import {
   applyDragMove,
   areaForScheduleType,
@@ -39,6 +40,12 @@ export type QueueSchedulingAreasProps = {
   onTimerModeChange?: (entryId: string, mode: TimerMode) => void;
   onTimerRelativeOffsetChange?: (entryId: string, offset: string) => void;
   onToggleEnabled?: (entryId: string, enabled: boolean) => void;
+  /**
+   * Persist an entry's supplied parameter values (feature 078). Passing this is what reveals the
+   * per-entry Parameters panel — the mechanism that lets several entries share one sequence and
+   * differ only by a value.
+   */
+  onParameterValuesChange?: (entryId: string, values: ParameterBinding[]) => void;
   disabled?: boolean;
 };
 
@@ -70,8 +77,15 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
   onTimerModeChange,
   onTimerRelativeOffsetChange,
   onToggleEnabled,
+  onParameterValuesChange,
   disabled,
 }) => {
+  // Declarations come from the sequence list the page already loaded, so opening a card's Parameters
+  // panel costs no extra request.
+  const parametersBySequenceId = useMemo(
+    () => new Map(sequences.map((s) => [s.id, s.parameters ?? []])),
+    [sequences],
+  );
   const [selected, setSelected] = useState<string | undefined>(undefined);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -167,6 +181,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
               onTimerModeChange={onTimerModeChange}
               onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
               onToggleEnabled={onToggleEnabled}
+              parametersBySequenceId={parametersBySequenceId}
+              onParameterValuesChange={onParameterValuesChange}
             />
           </div>
           <div className="scheduling-areas__body">
@@ -183,6 +199,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerModeChange={onTimerModeChange}
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
                 onToggleEnabled={onToggleEnabled}
+                parametersBySequenceId={parametersBySequenceId}
+                onParameterValuesChange={onParameterValuesChange}
               />
               <SchedulingArea
                 areaId="scheduled"
@@ -196,6 +214,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerModeChange={onTimerModeChange}
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
                 onToggleEnabled={onToggleEnabled}
+                parametersBySequenceId={parametersBySequenceId}
+                onParameterValuesChange={onParameterValuesChange}
               />
             </div>
             <div className="scheduling-areas__right">
@@ -211,6 +231,8 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
                 onTimerModeChange={onTimerModeChange}
                 onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
                 onToggleEnabled={onToggleEnabled}
+                parametersBySequenceId={parametersBySequenceId}
+                onParameterValuesChange={onParameterValuesChange}
               />
             </div>
           </div>

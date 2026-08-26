@@ -113,3 +113,19 @@ internal sealed record WhileLoopConfigContract : LoopConfigContract {
 internal sealed record RepeatUntilLoopConfigContract : LoopConfigContract {
   public required SequenceStepConditionContract Condition { get; init; }
 }
+
+/// <summary>One row of the sequence list.</summary>
+internal sealed record SequenceListItemResponse {
+  public required string Id { get; init; }
+  public required string Name { get; init; }
+  public required System.Collections.ObjectModel.Collection<string> Steps { get; init; }
+
+  /// <summary>
+  /// Parameters this sequence declares (feature 078). Carried in the list because the queue-template
+  /// editor renders a binding form per entry and would otherwise have to refetch every sequence.
+  /// Omitted entirely when the sequence is unparametrized, so a pre-feature client sees exactly the
+  /// payload it always saw.
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public System.Collections.ObjectModel.Collection<ParameterDeclarationDto>? Parameters { get; init; }
+}
