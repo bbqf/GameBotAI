@@ -3,5 +3,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/078-sequence-parameters/plan.md
+at specs/079-concurrent-queue-execution/plan.md
 <!-- SPECKIT END -->
