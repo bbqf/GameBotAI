@@ -86,7 +86,7 @@ Status vocabulary:
 | 048 | Edit Queue Page Layout | Implemented (iterated by 061, 062) |
 | 049 | Queue–Template Link with Auto-Load | Implemented |
 | 050 | Execution Log Grid Cleanup | Implemented |
-| 051 | Queue Execution Runtime | Implemented |
+| 051 | Queue Execution Runtime | Implemented (FR-013 superseded by 079) |
 | 052 | Ensure Game Running Primitive Action | Implemented |
 | 053 | Queue Sequence Scheduling | Implemented (iterated by 059, 060, 061) |
 | 054 | Key Input and Swipe Primitive Actions | Implemented |
@@ -113,6 +113,7 @@ Status vocabulary:
 | 075 | Deduplicate Self-Rescheduled Sequence Firings | Implemented |
 | 077 | Enable/Disable Template Sequences | Implemented |
 | 078 | Sequence & Command Parameters | Implemented |
+| 079 | Concurrent Queue Execution | Implemented |
 
 ## Numbering notes
 

@@ -144,6 +144,7 @@ internal static class QueuesEndpoints {
         IQueueTemplateRepository templates,
         ISequenceRepository sequences,
         ICommandRepository commands,
+        IDeviceClaimRegistry deviceClaims,
         ILoggerFactory loggerFactory) => {
       // Feature 078 (FR-022): refuse the start BEFORE any session or device work when an enabled
       // entry has a required parameter nothing in scope can supply. Failing here beats discovering it
@@ -163,6 +164,16 @@ internal static class QueuesEndpoints {
       var outcome = await execution.StartAsync(id).ConfigureAwait(false);
       if (outcome == QueueStartOutcome.NotFound) return NotFound();
       if (outcome == QueueStartOutcome.AlreadyRunning) return Error(409, "already_running", "The queue is already running.");
+      if (outcome == QueueStartOutcome.DeviceInUse) {
+        // Feature 079 (FR-009/FR-010): a different queue holds this emulator. Name the device and the
+        // holder so the operator can act, and keep this distinct from "already_running".
+        var serial = preflightQueue.EmulatorSerial;
+        var holderId = deviceClaims.TryGetHolder(serial, out var holder) ? holder.QueueId : "another queue";
+        var holderName = holder is null || string.IsNullOrWhiteSpace(holder.QueueName) ? holderId : holder.QueueName;
+        loggerFactory.CreateLogger("Queues").LogQueueStartRefusedDeviceInUse(id, serial, holderId, holderName);
+        return Error(409, "device_in_use",
+          $"Emulator '{serial}' is already in use by queue '{holderName}'. Stop that queue before starting this one.");
+      }
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       loggerFactory.CreateLogger("Queues").LogQueueStarted(id, queue.EmulatorSerial);
@@ -374,6 +385,7 @@ internal static class QueuesEndpoints {
       Running = snapshot.Running,
       CycleExecution = snapshot.CycleExecution,
       RunStartedAt = snapshot.RunStartedAt,
+      DeviceSerial = snapshot.DeviceSerial,
       Current = snapshot.Current is null ? null : ProjectMonitorItem(snapshot.Current),
       NothingScheduled = snapshot.NothingScheduled,
       LastOutcome = snapshot.LastOutcome is null

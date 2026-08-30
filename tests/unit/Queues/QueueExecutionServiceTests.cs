@@ -72,8 +72,11 @@ public sealed partial class QueueExecutionServiceTests {
     public static SequenceExecutionResult Failure(string id) { var r = SequenceExecutionResult.Start(id); r.Fail("failed"); return r; }
   }
 
+  // Feature 079: holds several sessions at once so concurrent-run tests can give each queue its own
+  // device. `Connected` is retained as the global "is the emulator link healthy" switch that
+  // connection-loss tests flip.
   private sealed class FakeSessionManager : ISessionManager {
-    private EmulatorSession? _session;
+    private readonly Dictionary<string, EmulatorSession> _sessions = new(StringComparer.Ordinal);
     public bool Connected { get; set; }
     public Exception? CreateThrows { get; set; }
     public List<string> Stopped { get; } = new();
@@ -91,19 +94,27 @@ public sealed partial class QueueExecutionServiceTests {
       }
     }
 
-    public int ActiveCount => _session is null ? 0 : 1;
+    public int ActiveCount { get { lock (_sessions) { return _sessions.Count; } } }
     public bool CanCreateSession => true;
 
     public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) {
       if (CreateThrows is not null) throw CreateThrows;
-      _session = new EmulatorSession { Id = Guid.NewGuid().ToString("N"), GameId = gameIdOrPath, DeviceSerial = preferredDeviceSerial, Status = SessionStatus.Running };
+      var session = new EmulatorSession { Id = Guid.NewGuid().ToString("N"), GameId = gameIdOrPath, DeviceSerial = preferredDeviceSerial, Status = SessionStatus.Running };
+      lock (_sessions) { _sessions[session.Id] = session; }
       Connected = true;
-      return _session;
+      return session;
     }
 
-    public EmulatorSession? GetSession(string id) => Connected && _session is not null && _session.Id == id ? _session : null;
-    public IReadOnlyCollection<EmulatorSession> ListSessions() => _session is null ? Array.Empty<EmulatorSession>() : new[] { _session };
-    public bool StopSession(string id) { Stopped.Add(id); Connected = false; return true; }
+    public EmulatorSession? GetSession(string id) {
+      if (!Connected) return null;
+      lock (_sessions) { return _sessions.TryGetValue(id, out var s) ? s : null; }
+    }
+    public IReadOnlyCollection<EmulatorSession> ListSessions() { lock (_sessions) { return _sessions.Values.ToList(); } }
+    public bool StopSession(string id) {
+      lock (Stopped) { Stopped.Add(id); }
+      lock (_sessions) { _sessions.Remove(id); if (_sessions.Count == 0) Connected = false; }
+      return true;
+    }
     public Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) {
       var list = actions.ToList();
       lock (Inputs) { Inputs.AddRange(list); }
@@ -209,12 +220,17 @@ public sealed partial class QueueExecutionServiceTests {
       Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame, ensureEmulatorRunning: EnsureEmulator);
     }
 
-    public ExecutionQueue AddQueue(string id, IReadOnlyList<string> sequenceIds, bool cycle = false, bool linkTemplate = true) {
+    /// <param name="serial">
+    /// The emulator this queue binds to. Feature 079 gives a device to one run at a time, so
+    /// concurrent-run tests must give each queue a distinct serial (the default is shared on purpose,
+    /// so a same-device start is refused).
+    /// </param>
+    public ExecutionQueue AddQueue(string id, IReadOnlyList<string> sequenceIds, bool cycle = false, bool linkTemplate = true, string serial = "emu-1") {
       var templateId = $"tpl-{id}";
       var template = new QueueTemplate { Id = templateId, Name = $"T-{id}" };
       foreach (var sid in sequenceIds) template.Entries.Add(new QueueTemplateEntry { SequenceId = sid });
       Templates.Add(template);
-      var queue = new ExecutionQueue { Id = id, Name = $"Q-{id}", EmulatorSerial = "emu-1", CycleExecution = cycle, LinkedTemplateId = linkTemplate ? templateId : null };
+      var queue = new ExecutionQueue { Id = id, Name = $"Q-{id}", EmulatorSerial = serial, CycleExecution = cycle, LinkedTemplateId = linkTemplate ? templateId : null };
       Queues.Add(queue);
       return queue;
     }
@@ -389,11 +405,51 @@ public sealed partial class QueueExecutionServiceTests {
     await h.Service.StopAsync("q1");
   }
 
-  [Fact] // T020 — concurrent runs on the same emulator are allowed (FR-013/SC-009)
-  public async Task TwoQueuesOnSameEmulatorRunConcurrently() {
+  // Feature 079 reverses 051 FR-013: two runs on ONE emulator is now an error to prevent, because two
+  // automations driving one screen cannot both be correct. Two runs on DIFFERENT emulators is the
+  // supported case and must be fully independent.
+
+  [Fact] // 079 US2 — a same-device start is refused without disturbing the incumbent (FR-008/FR-009)
+  public async Task TwoQueuesOnSameEmulatorCannotRunConcurrently() {
     var h = new Harness();
-    h.AddQueue("q1", new[] { "A" });
-    h.AddQueue("q2", new[] { "B" });
+    h.AddQueue("q1", new[] { "A" }, serial: "emu-shared");
+    h.AddQueue("q2", new[] { "B" }, serial: "emu-shared");
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(Timeout.Infinite, ct); return FakeSequenceExecution.Success(id); };
+
+    (await h.Service.StartAsync("q1")).Should().Be(QueueStartOutcome.Started);
+    await WaitForAsync(() => h.Service.IsRunning("q1"));
+
+    (await h.Service.StartAsync("q2")).Should().Be(QueueStartOutcome.DeviceInUse);
+
+    h.Service.IsRunning("q2").Should().BeFalse("the refused queue must not start a run");
+    h.Service.IsRunning("q1").Should().BeTrue("the incumbent run must be untouched");
+    h.Runtime.GetStatus("q2").Should().Be(QueueExecutionStatus.Stopped);
+
+    await h.Service.StopAsync("q1");
+  }
+
+  [Fact] // 079 US2 — the device is claimable again once the holding run is stopped (FR-011, SC-004)
+  public async Task StoppingTheHoldingRunFreesTheDevice() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" }, serial: "emu-shared");
+    h.AddQueue("q2", new[] { "B" }, serial: "emu-shared");
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(Timeout.Infinite, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Service.IsRunning("q1"));
+    (await h.Service.StartAsync("q2")).Should().Be(QueueStartOutcome.DeviceInUse);
+
+    await h.Service.StopAsync("q1");
+
+    (await h.Service.StartAsync("q2")).Should().Be(QueueStartOutcome.Started);
+    await h.Service.StopAsync("q2");
+  }
+
+  [Fact] // 079 US1/US2 — different emulators never block one another (FR-014, SC-001, SC-005)
+  public async Task TwoQueuesOnDifferentEmulatorsRunConcurrently() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" }, serial: "emu-5558");
+    h.AddQueue("q2", new[] { "B" }, serial: "emu-5560");
     h.Sequences.Handler = async (id, ct) => { await Task.Delay(Timeout.Infinite, ct); return FakeSequenceExecution.Success(id); };
 
     (await h.Service.StartAsync("q1")).Should().Be(QueueStartOutcome.Started);
@@ -402,9 +458,88 @@ public sealed partial class QueueExecutionServiceTests {
 
     h.Service.IsRunning("q1").Should().BeTrue();
     h.Service.IsRunning("q2").Should().BeTrue();
+    h.Sessions.ActiveCount.Should().Be(2, "each run holds its own device session");
+
+    // FR-020/SC-005: stopping one leaves the other running.
+    await h.Service.StopAsync("q1");
+    h.Service.IsRunning("q1").Should().BeFalse();
+    h.Service.IsRunning("q2").Should().BeTrue();
+
+    await h.Service.StopAsync("q2");
+  }
+
+  [Fact] // 079 US2 — a completed run releases its device (FR-011)
+  public async Task ACompletedRunReleasesItsDevice() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" }, serial: "emu-shared");
+    h.AddQueue("q2", new[] { "B" }, serial: "emu-shared");
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    (await h.Service.StartAsync("q2")).Should().Be(QueueStartOutcome.Started);
+    await WaitUntilStoppedAsync(h.Service, "q2");
+    h.Sequences.Executed.Should().Equal("A", "B");
+  }
+
+  [Fact] // 079 US2 — a failed run releases its device too (FR-011)
+  public async Task AFailedRunReleasesItsDevice() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" }, serial: "emu-shared");
+    h.AddQueue("q2", new[] { "B" }, serial: "emu-shared");
+    h.Sessions.CreateThrows = new InvalidOperationException("no_adb_devices");
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+    h.Log.FinalStatus.Should().Be("failure");
+
+    h.Sessions.CreateThrows = null;
+    (await h.Service.StartAsync("q2")).Should().Be(QueueStartOutcome.Started);
+    await WaitUntilStoppedAsync(h.Service, "q2");
+  }
+
+  [Fact] // 079 US3 — FR-016/FR-017: the capacity message reaches the run's execution-log summary
+  public async Task ACapacityFailureIsRecordedWithTheActionableReason() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" }, serial: "emu-5558");
+    // The real SessionManager throws exactly this when the ceiling is reached.
+    h.Sessions.CreateThrows = new InvalidOperationException(SessionManager.CapacityExceededMessage(8, 8));
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Log.FinalStatus.Should().Be("failure");
+    h.Log.Summary.Should()
+      .Contain("session capacity reached: 8 of 8 sessions are open")
+      .And.Contain("Service:Sessions:MaxConcurrentSessions");
+  }
+
+  [Fact] // 079 US2 — a queue with no bound serial never blocks another (research R5)
+  public async Task QueuesWithNoBoundSerialDoNotBlockEachOther() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" }, serial: string.Empty);
+    h.AddQueue("q2", new[] { "B" }, serial: string.Empty);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(Timeout.Infinite, ct); return FakeSequenceExecution.Success(id); };
+
+    (await h.Service.StartAsync("q1")).Should().Be(QueueStartOutcome.Started);
+    (await h.Service.StartAsync("q2")).Should().Be(QueueStartOutcome.Started);
 
     await h.Service.StopAsync("q1");
     await h.Service.StopAsync("q2");
+  }
+
+  [Fact] // 079 US2 — the same queue twice is still AlreadyRunning, not DeviceInUse (FR-010)
+  public async Task RestartingTheSameQueueReportsAlreadyRunningNotDeviceInUse() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" }, serial: "emu-shared");
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(Timeout.Infinite, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Service.IsRunning("q1"));
+
+    (await h.Service.StartAsync("q1")).Should().Be(QueueStartOutcome.AlreadyRunning);
+
+    await h.Service.StopAsync("q1");
   }
 
   [Fact] // T-not-found

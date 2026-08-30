@@ -40,6 +40,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private readonly IEnsureEmulatorRunningActionHandler _ensureEmulatorRunning;
   private readonly ISessionService _sessionService;
   private readonly IOcrOffsetResolver _ocrOffsetResolver;
+  // Feature 079: pushed for the duration of a sequence run so everything the sequence starts —
+  // nested sequences, commands, loops, trigger-based image/text conditions — observes this run's own
+  // device instead of "the first running session". Null only in tests that omit it.
+  private readonly GameBot.Domain.Sessions.IDeviceContextAccessor? _deviceContext;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -55,7 +59,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     IEnsureGameRunningActionHandler ensureGameRunning,
     IEnsureEmulatorRunningActionHandler ensureEmulatorRunning,
     ISessionService sessionService,
-    IOcrOffsetResolver ocrOffsetResolver) {
+    IOcrOffsetResolver ocrOffsetResolver,
+    GameBot.Domain.Sessions.IDeviceContextAccessor? deviceContext = null) {
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -70,6 +75,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _ensureEmulatorRunning = ensureEmulatorRunning;
     _sessionService = sessionService;
     _ocrOffsetResolver = ocrOffsetResolver;
+    _deviceContext = deviceContext;
   }
 
   public Task<SequenceExecutionResult> ExecuteAsync(
@@ -97,6 +103,14 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       ExecutionLogContext? parentContext,
       GameBot.Domain.Parameters.ParameterScope scope,
       CancellationToken ct = default) {
+    // Feature 079: bind this whole execution flow to the caller's device, so every screen observation
+    // made anywhere beneath it resolves against that device. No session (an unbound, ad-hoc run) means
+    // no context, and consumers fall back to the single-running-session rule.
+    using var deviceScope = string.IsNullOrWhiteSpace(sessionId) || _deviceContext is null
+      ? null
+      : _deviceContext.Push(GameBot.Domain.Sessions.DeviceContext.For(
+          sessionId!, _sessionManager.GetSession(sessionId!)?.DeviceSerial));
+
     // Create the in-progress root entry up front so invoked commands can be linked to it
     // (and the sequence shows as a single top-level entry while it runs). When a parent
     // context is supplied (e.g. a queue run), the sequence is nested under it instead.
@@ -601,17 +615,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private async Task<ActionDispatchResult> DispatchEnsureGameRunningAsync(
       string? sessionId,
       CancellationToken ct) {
-    var resolvedSessionId = sessionId;
-    if (string.IsNullOrWhiteSpace(resolvedSessionId)) {
-      var runningSessions = _sessionManager.ListSessions()
-        .Where(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
-        .ToList();
-      if (runningSessions.Count != 1) {
-        return new ActionDispatchResult(
-          "failed",
-          "no session available for 'ensure-game-running' step; start a session or pass a sessionId");
-      }
-      resolvedSessionId = runningSessions[0].Id;
+    if (!TryResolveSessionId(sessionId, "ensure-game-running", out var resolvedSessionId, out var resolveError)) {
+      return new ActionDispatchResult("failed", resolveError);
     }
 
     var result = await _ensureGameRunning.ExecuteAsync(resolvedSessionId!, ct).ConfigureAwait(false);
@@ -642,6 +647,13 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       : new ActionDispatchResult("failed", $"ensure-emulator-running failed: {result.Message}");
   }
 
+  /// <summary>
+  /// Resolves the device session a step must act on, delegating to the shared
+  /// <see cref="SessionResolver"/> rule (feature 079, FR-006/FR-007).
+  /// </summary>
+  private bool TryResolveSessionId(string? sessionId, string stepType, out string? resolved, out string error) =>
+    SessionResolver.TryResolve(_sessionManager, sessionId, stepType, out resolved, out error);
+
   // Android KEYCODE_HOME. Pressing it returns the device to the home/main screen without stopping
   // the foreground app, so the game keeps running in the background (feature 069).
   private const int AndroidKeyCodeHome = 3;
@@ -657,17 +669,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private async Task<ActionDispatchResult> DispatchGoToHomeScreenAsync(
       string? sessionId,
       CancellationToken ct) {
-    var resolvedSessionId = sessionId;
-    if (string.IsNullOrWhiteSpace(resolvedSessionId)) {
-      var runningSessions = _sessionManager.ListSessions()
-        .Where(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
-        .ToList();
-      if (runningSessions.Count != 1) {
-        return new ActionDispatchResult(
-          "failed",
-          "no session available for 'go-to-home-screen' step; start a session or pass a sessionId");
-      }
-      resolvedSessionId = runningSessions[0].Id;
+    if (!TryResolveSessionId(sessionId, "go-to-home-screen", out var resolvedSessionId, out var resolveError)) {
+      return new ActionDispatchResult("failed", resolveError);
     }
 
     var input = new EmulatorInputAction("key", new Dictionary<string, object> { ["keyCode"] = AndroidKeyCodeHome });
@@ -690,17 +693,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       return new ActionDispatchResult("failed", error);
     }
 
-    var resolvedSessionId = sessionId;
-    if (string.IsNullOrWhiteSpace(resolvedSessionId)) {
-      var runningSessions = _sessionManager.ListSessions()
-        .Where(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
-        .ToList();
-      if (runningSessions.Count != 1) {
-        return new ActionDispatchResult(
-          "failed",
-          $"no session available for '{action.Type}' step; start a session or pass a sessionId");
-      }
-      resolvedSessionId = runningSessions[0].Id;
+    if (!TryResolveSessionId(sessionId, action.Type, out var resolvedSessionId, out var resolveError)) {
+      return new ActionDispatchResult("failed", resolveError);
     }
 
     var accepted = await _sessionManager.SendInputsAsync(resolvedSessionId!, new[] { input! }, ct).ConfigureAwait(false);

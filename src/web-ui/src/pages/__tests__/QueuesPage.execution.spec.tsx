@@ -80,4 +80,22 @@ describe('QueuesPage start/stop', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('already running'));
   });
+
+  // Feature 079: a start refused because another queue holds the emulator is a different condition
+  // from "this queue is already running", and the operator must see which device and which queue.
+  it('surfaces a device_in_use start refusal naming the emulator and the holding queue', async () => {
+    listQueuesMock.mockResolvedValueOnce([queue({ status: 'Stopped' })] as any);
+    render(<QueuesPage />);
+    await screen.findByText('Daily');
+
+    startQueueMock.mockRejectedValue(Object.assign(
+      new Error("Emulator 'emulator-5558' is already in use by queue 'PNS Daily 5558'. Stop that queue before starting this one."),
+      { status: 409 }
+    ));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('emulator-5558'));
+    expect(screen.getByRole('alert')).toHaveTextContent('PNS Daily 5558');
+  });
 });

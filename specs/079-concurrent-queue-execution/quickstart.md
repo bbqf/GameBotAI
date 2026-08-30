@@ -11,8 +11,11 @@ Each queue is bound to one ADB serial (`emulatorSerial`, immutable after creatio
 should run at the same time must have **different** serials.
 
 ```bash
-curl -s http://localhost:8080/api/queues | jq -r '.[] | "\(.name)\t\(.emulatorSerial)"'
+curl -s -H "Authorization: Bearer $GAMEBOT_AUTH_TOKEN" http://localhost:8080/api/queues | jq -r '.[] | "\(.name)\t\(.emulatorSerial)"'
 ```
+
+(Every call below needs the same `Authorization` header when `GAMEBOT_AUTH_TOKEN` is set; it is
+omitted from the remaining examples for brevity.)
 
 If two queues share a serial, split the work differently: put the sequences into one template on one
 queue, or create a second LDPlayer instance and bind the second queue to its serial.
@@ -26,16 +29,16 @@ curl -s -X POST http://localhost:8080/api/queues/<queueA-id>/start
 curl -s -X POST http://localhost:8080/api/queues/<queueB-id>/start
 ```
 
-If the second start returns:
+If the second start returns `409` with:
 
 ```json
-{ "error": "device_in_use", "message": "Emulator 'emulator-5558' is already in use by queue 'PNS Daily 5558'. Stop that queue before starting this one." }
+{ "error": { "code": "device_in_use", "message": "Emulator 'emulator-5558' is already in use by queue 'PNS Daily 5558'. Stop that queue before starting this one." } }
 ```
 
 then both queues are bound to the same emulator. Stop the holding queue, or re-point one queue at a
 different instance.
 
-`{"error":"already_running"}` is a different thing: that queue itself is already running.
+Code `already_running` is a different thing: that queue itself is already running.
 
 ## 3. Watch them
 
@@ -53,9 +56,9 @@ With more than one session active, screen capture needs to know which one you me
 
 ```bash
 # by session
-curl -s "http://localhost:8080/api/emulators/screenshot?sessionId=<id>" -o shot.png
+curl -s "http://localhost:8080/api/emulator/screenshot?sessionId=<id>" -o shot.png
 # by device serial
-curl -s "http://localhost:8080/api/emulators/screenshot?serial=emulator-5560" -o shot.png
+curl -s "http://localhost:8080/api/emulator/screenshot?serial=emulator-5560" -o shot.png
 ```
 
 Without a selector and with several sessions active you now get `409 ambiguous_session` instead of an

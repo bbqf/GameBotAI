@@ -133,6 +133,8 @@ export type QueueMonitorDto = {
   running: boolean;
   cycleExecution: boolean;
   runStartedAt: string | null;
+  /** Emulator this run exclusively holds (feature 079); null when the queue is not running. */
+  deviceSerial?: string | null;
   current: QueueMonitorItemDto | null;
   upcoming: QueueMonitorItemDto[];
   nothingScheduled: boolean;

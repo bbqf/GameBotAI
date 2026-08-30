@@ -1,7 +1,13 @@
 # Phase 1 Contracts: Concurrent Queue Execution
 
 All changes are additive except where explicitly marked. No API version bump.
-Error bodies use the repository's existing envelope: `{ "error": "<code>", "message": "<text>" }`.
+
+Error bodies keep each endpoint's existing envelope, which differs by area:
+
+- **Queues** (`/api/queues/*`): `{ "error": { "code": "...", "message": "...", "hint": null } }`
+- **Emulator images** (`/api/emulator/*`, `/api/images/*`): flat `{ "error": "...", "message": "..." }`
+
+Both shapes are pre-existing; this feature adds codes, not envelopes.
 
 ---
 
@@ -13,15 +19,18 @@ Error bodies use the repository's existing envelope: `{ "error": "<code>", "mess
 
 ```json
 {
-  "error": "device_in_use",
-  "message": "Emulator 'emulator-5558' is already in use by queue 'PNS Daily 5558'. Stop that queue before starting this one."
+  "error": {
+    "code": "device_in_use",
+    "message": "Emulator 'emulator-5558' is already in use by queue 'PNS Daily 5558'. Stop that queue before starting this one.",
+    "hint": null
+  }
 }
 ```
 
 Distinct from the existing refusal for the same queue, which is unchanged:
 
 ```json
-{ "error": "already_running", "message": "The queue is already running." }
+{ "error": { "code": "already_running", "message": "The queue is already running.", "hint": null } }
 ```
 
 **Preconditions checked, in order** (unchanged order except for the new step 3):
@@ -71,7 +80,7 @@ Additive and nullable; clients that ignore it are unaffected.
 
 ---
 
-## 3. `GET /api/emulators/screenshot`
+## 3. `GET /api/emulator/screenshot`
 
 ### Changed selector behavior (FR-022, FR-023, FR-024) - **intentionally breaking in one case**
 
@@ -82,6 +91,9 @@ Additive and nullable; clients that ignore it are unaffected.
 | none | 0 | `503 emulator_unavailable` | unchanged |
 | none | 1 | that session | unchanged |
 | none | >1 | **arbitrary session** | **`409 ambiguous_session`** |
+
+"Running sessions" here means every running session, including those with no bound ADB serial —
+in stub/non-ADB mode that is all of them, and excluding them would break single-session capture there.
 
 ```json
 {

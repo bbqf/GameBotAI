@@ -51,7 +51,12 @@ internal sealed record QueueMonitorSnapshot(
   QueueMonitorItem? Current,
   IReadOnlyList<QueueMonitorItem> Upcoming,
   bool NothingScheduled,
-  RunOutcome? LastOutcome);
+  RunOutcome? LastOutcome,
+  /// <summary>
+  /// The emulator this run exclusively holds (feature 079, FR-018); null when not running. Read from
+  /// the run's own handle so several concurrent runs each report their own device.
+  /// </summary>
+  string? DeviceSerial = null);
 
 /// <summary>One item in the monitor's now/up-next plan.</summary>
 internal sealed record QueueMonitorItem(

@@ -8,6 +8,44 @@ public interface IScreenSource {
   Bitmap? GetLatestScreenshot();
 }
 
+/// <summary>
+/// Creates <see cref="IScreenSource"/> instances bound to one specific emulator session (feature 079).
+/// </summary>
+/// <remarks>
+/// Used by every call site that already knows which session it is acting for, so concurrent queue runs
+/// can never observe one another's screen. Paths that cannot take a session id (trigger evaluators,
+/// condition adapters) keep using the singleton <see cref="IScreenSource"/>, which resolves the device
+/// from the ambient <c>IDeviceContextAccessor</c> instead.
+/// </remarks>
+public interface IScreenSourceFactory {
+  /// <summary>
+  /// Returns a screen source that observes only <paramref name="sessionId"/> for its whole lifetime.
+  /// When that session has no cached frame, or is no longer running, the source returns <c>null</c> —
+  /// it never substitutes another session's frame.
+  /// </summary>
+  /// <param name="sessionId">The emulator session to observe. Must not be blank.</param>
+  IScreenSource ForSession(string sessionId);
+}
+
+/// <summary>
+/// <see cref="IScreenSourceFactory"/> that hands the same source back for every session (feature 079).
+/// </summary>
+/// <remarks>
+/// Used in stub/test mode, where there is no real device and therefore nothing to keep separate, so
+/// callers can depend on the factory unconditionally.
+/// </remarks>
+public sealed class FixedScreenSourceFactory : IScreenSourceFactory {
+  private readonly IScreenSource _inner;
+
+  /// <summary>Creates a factory that always returns <paramref name="inner"/>.</summary>
+  public FixedScreenSourceFactory(IScreenSource inner) {
+    _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+  }
+
+  /// <inheritdoc />
+  public IScreenSource ForSession(string sessionId) => _inner;
+}
+
 [SupportedOSPlatform("windows")]
 public sealed class SingleBitmapScreenSource : IScreenSource {
   private readonly Func<Bitmap?> _provider;

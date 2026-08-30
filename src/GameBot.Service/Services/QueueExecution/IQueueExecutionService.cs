@@ -12,8 +12,15 @@ internal enum QueueStartOutcome {
   /// <summary>No queue exists with the given id.</summary>
   NotFound,
 
-  /// <summary>A run is already in progress for this queue (FR-013a).</summary>
-  AlreadyRunning
+  /// <summary>A run is already in progress for this queue (051 FR-013a).</summary>
+  AlreadyRunning,
+
+  /// <summary>
+  /// The queue's bound emulator is claimed by a <i>different</i> running queue (feature 079,
+  /// FR-009/FR-010). Deliberately distinct from <see cref="AlreadyRunning"/> so the operator can tell
+  /// "this queue is running" from "this queue's device is busy".
+  /// </summary>
+  DeviceInUse
 }
 
 /// <summary>Result of attempting to register a live relative schedule (feature 059).</summary>
@@ -30,8 +37,11 @@ internal readonly record struct LiveScheduleResult(LiveScheduleOutcome Outcome, 
 
 /// <summary>
 /// Owns the lifecycle of live queue runs: launching a background run on start, cancelling it on
-/// stop, and tracking which queues are currently running. One run at a time per queue; concurrent
-/// runs across different queues (including ones bound to the same emulator) are allowed (FR-013).
+/// stop, and tracking which queues are currently running. One run at a time per queue (051 FR-013a),
+/// and — since feature 079 — one run at a time per emulator: queues bound to <i>different</i> devices
+/// run concurrently and independently, while a start whose device is already claimed is refused with
+/// <see cref="QueueStartOutcome.DeviceInUse"/>. This reverses 051 FR-013, which allowed two runs to
+/// share one emulator and left the resulting interference to the operator.
 /// </summary>
 internal interface IQueueExecutionService {
   /// <summary>

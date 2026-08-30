@@ -26,6 +26,12 @@ internal sealed class QueueRunHandle {
   /// <summary>The emulator session opened for this run; null until connected.</summary>
   public string? SessionId { get; set; }
 
+  /// <summary>
+  /// The ADB serial this run claimed at start (feature 079). Exclusively held for the run's lifetime,
+  /// and surfaced by the monitor so the operator can see which device each concurrent run drives.
+  /// </summary>
+  public string? DeviceSerial { get; set; }
+
   public DateTimeOffset StartedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
   /// <summary>

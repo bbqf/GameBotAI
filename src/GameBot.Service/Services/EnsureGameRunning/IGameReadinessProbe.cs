@@ -12,5 +12,14 @@ internal readonly record struct GameReadinessResult(bool Ready, string ImageLoad
 /// configured ready screen (rather than as soon as its package is foreground).
 /// </summary>
 internal interface IGameReadinessProbe {
-  Task<GameReadinessResult> WaitUntilReadyAsync(DetectionTarget readinessImage, int timeoutMs, CancellationToken ct = default);
+  /// <summary>Polls until the readiness image is detected or the timeout elapses.</summary>
+  /// <param name="readinessImage">The reference image that means "the game is ready".</param>
+  /// <param name="timeoutMs">How long to keep polling, in milliseconds.</param>
+  /// <param name="sessionId">
+  /// The emulator session to observe (feature 079). When supplied, the probe reads only that
+  /// session's screen, so a concurrent queue run's device can never satisfy this gate. Null keeps
+  /// the ambient/single-session resolution.
+  /// </param>
+  /// <param name="ct">Cancellation token.</param>
+  Task<GameReadinessResult> WaitUntilReadyAsync(DetectionTarget readinessImage, int timeoutMs, string? sessionId = null, CancellationToken ct = default);
 }

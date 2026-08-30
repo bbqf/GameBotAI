@@ -2,7 +2,7 @@
 
 **Feature Branch**: `079-concurrent-queue-execution`
 **Created**: 2026-08-30
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I want to be able to run multiple queues at the same time. Check why these are interfereing each other now and implement a robust solution."
 
 ## Overview

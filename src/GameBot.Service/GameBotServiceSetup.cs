@@ -131,6 +131,11 @@ internal static class GameBotServiceSetup {
     });
     builder.Services.AddSingleton<ISessionManager, SessionManager>();
     builder.Services.AddSingleton<ISessionContextCache, SessionContextCache>();
+    // Feature 079: ambient "which device is this execution flow acting on" context. A queue run pushes
+    // it around each firing so the singleton IScreenSource — used by trigger evaluators and condition
+    // adapters that take no session id — observes that run's own device instead of the first session.
+    builder.Services.AddSingleton<GameBot.Domain.Sessions.IDeviceContextAccessor,
+      GameBot.Domain.Sessions.AsyncLocalDeviceContextAccessor>();
     // SessionService: optionally inject BackgroundScreenCaptureService when ADB capture is enabled
     builder.Services.AddSingleton<ISessionService>(sp => {
       var sessions = sp.GetRequiredService<ISessionManager>();
@@ -148,7 +153,8 @@ internal static class GameBotServiceSetup {
           sp.GetRequiredService<GameBot.Domain.Triggers.Evaluators.IScreenSource>(),
           sp.GetRequiredService<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(),
           sp.GetRequiredService<GameBot.Domain.Vision.ITemplateMatcher>(),
-          sp.GetRequiredService<GameBot.Domain.Config.AppConfig>()));
+          sp.GetRequiredService<GameBot.Domain.Config.AppConfig>(),
+          sp.GetService<GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory>()));
     }
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorControl, GameBot.Service.Services.EnsureEmulatorRunning.LdConsoleEmulatorControl>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorDeviceProbe, GameBot.Service.Services.EnsureEmulatorRunning.AdbEmulatorDeviceProbe>();
@@ -178,6 +184,8 @@ internal static class GameBotServiceSetup {
     // Self-reschedule (feature 065): the run registry breaks the SequenceExecutionService ↔
     // QueueExecutionService DI cycle; the coordinator injects ephemeral run-scoped firings.
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueRunRegistry, GameBot.Service.Services.QueueExecution.QueueRunRegistry>();
+    // Feature 079: exclusive per-emulator ownership, so two queues can never drive one screen.
+    builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IDeviceClaimRegistry, GameBot.Service.Services.QueueExecution.DeviceClaimRegistry>();
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.ISelfRescheduleCoordinator, GameBot.Service.Services.QueueExecution.SelfRescheduleCoordinator>();
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueExecutionService, GameBot.Service.Services.QueueExecution.QueueExecutionService>();
     // Read-only live monitor projection (feature 072): pure fold of run handle + linked template + now.
@@ -324,18 +332,29 @@ internal static class GameBotServiceSetup {
         return new GameBot.Emulator.Session.BackgroundScreenCaptureService(
           factory, appConfig.CaptureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>());
       });
-      // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain)
+      // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain).
+      // Feature 079: the ambient device context decides which session it observes, so concurrent
+      // queue runs never read one another's screen.
       builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(sp => {
         var captureService = sp.GetRequiredService<GameBot.Emulator.Session.BackgroundScreenCaptureService>();
         var sessions = sp.GetRequiredService<ISessionManager>();
-        return new GameBot.Emulator.Session.BackgroundCaptureScreenSource(captureService, sessions);
+        var deviceContext = sp.GetRequiredService<GameBot.Domain.Sessions.IDeviceContextAccessor>();
+        return new GameBot.Emulator.Session.BackgroundCaptureScreenSource(captureService, sessions, deviceContext);
       });
+      // Feature 079: explicit per-session screen sources for call sites that already know their session.
+      builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory>(sp =>
+        new GameBot.Emulator.Session.BackgroundCaptureScreenSourceFactory(
+          sp.GetRequiredService<GameBot.Emulator.Session.BackgroundScreenCaptureService>()));
       // Keep AdbScreenSource registered for any legacy/direct consumers
       builder.Services.AddSingleton<GameBot.Emulator.Session.AdbScreenSource>();
     }
     else {
-      // Test/stub mode: optional fixed bitmap via env variable
+      // Test/stub mode: optional fixed bitmap via env variable. There is no real device, so the
+      // per-session factory hands the same stub source to every caller (feature 079).
       builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSource>(_ => CreateTestScreenSource());
+      builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory>(sp =>
+        new GameBot.Domain.Triggers.Evaluators.FixedScreenSourceFactory(
+          sp.GetRequiredService<GameBot.Domain.Triggers.Evaluators.IScreenSource>()));
     }
   }
 

@@ -9,7 +9,17 @@ type CaptureState = { captureId: string; url: string; naturalWidth: number; natu
 
 type Point = { x: number; y: number };
 
-export const EmulatorCaptureCropper: React.FC = () => {
+export type EmulatorCaptureCropperProps = {
+  /**
+   * Emulator to capture from (feature 079). Pass whenever the caller knows which device it means;
+   * with several sessions running the backend refuses an unqualified capture rather than guessing.
+   */
+  sessionId?: string | null;
+  /** ADB serial alternative to {@link EmulatorCaptureCropperProps.sessionId}. */
+  serial?: string | null;
+};
+
+export const EmulatorCaptureCropper: React.FC<EmulatorCaptureCropperProps> = ({ sessionId, serial } = {}) => {
   const [capture, setCapture] = useState<CaptureState>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [dragStart, setDragStart] = useState<Point | null>(null);
@@ -78,7 +88,7 @@ export const EmulatorCaptureCropper: React.FC = () => {
     setStatus(null);
     setError(null);
     try {
-      const res = await fetchEmulatorScreenshot();
+      const res = await fetchEmulatorScreenshot({ sessionId, serial });
       const url = URL.createObjectURL(res.blob);
       setNewCapture({ captureId: res.captureId, url, naturalWidth: 0, naturalHeight: 0 });
     } catch (e: any) {
@@ -86,6 +96,10 @@ export const EmulatorCaptureCropper: React.FC = () => {
         const code = resolveErrorCode(e.payload);
         if (code === 'emulator_unavailable' || e.status === 503) {
           setError('Emulator unavailable. Ensure it is running and retry capture.');
+        } else if (code === 'ambiguous_session') {
+          // Feature 079: several queues are running, so the backend will not guess a device. Cropping
+          // from the wrong emulator silently poisons every sequence that uses the reference image.
+          setError('Several emulators are running. Stop all but one, or open this from a specific emulator session.');
         } else {
           setError(e.message);
         }
