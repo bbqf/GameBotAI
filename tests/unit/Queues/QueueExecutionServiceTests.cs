@@ -454,7 +454,9 @@ public sealed partial class QueueExecutionServiceTests {
 
     (await h.Service.StartAsync("q1")).Should().Be(QueueStartOutcome.Started);
     (await h.Service.StartAsync("q2")).Should().Be(QueueStartOutcome.Started);
-    await WaitForAsync(() => h.Service.IsRunning("q1") && h.Service.IsRunning("q2"));
+    // IsRunning flips in StartAsync, before the background run connects, so wait for the sessions
+    // themselves — otherwise this races on a slow machine.
+    await WaitForAsync(() => h.Sessions.ActiveCount == 2);
 
     h.Service.IsRunning("q1").Should().BeTrue();
     h.Service.IsRunning("q2").Should().BeTrue();
