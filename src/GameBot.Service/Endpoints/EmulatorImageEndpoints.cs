@@ -17,15 +17,27 @@ internal static class EmulatorImageEndpoints {
 
   public static IEndpointRouteBuilder MapEmulatorImageEndpoints(this IEndpointRouteBuilder app) {
     // Capture emulator screenshot (served from background capture service cache)
-    app.MapGet(ApiRoutes.EmulatorScreenshot, async (HttpContext ctx, ISessionManager sessions, CaptureSessionStore captures, ILogger<EmulatorImageLoggingTag> logger, string? sessionId = null) => {
+    app.MapGet(ApiRoutes.EmulatorScreenshot, async (HttpContext ctx, ISessionManager sessions, CaptureSessionStore captures, ILogger<EmulatorImageLoggingTag> logger, string? sessionId = null, string? serial = null) => {
       var captureService = ctx.RequestServices.GetService<BackgroundScreenCaptureService>();
-      // Resolve session: use explicit sessionId or find first running session
+      // Feature 079 (FR-022..FR-024): resolve the device explicitly. Before this, an unqualified
+      // request with several sessions open returned an arbitrary one, so an operator could crop a
+      // reference image from the wrong emulator without noticing.
       GameBot.Domain.Sessions.EmulatorSession? session;
       if (!string.IsNullOrWhiteSpace(sessionId)) {
         session = sessions.GetSession(sessionId);
       }
+      else if (!string.IsNullOrWhiteSpace(serial)) {
+        session = FindSessionBySerial(sessions, serial);
+        if (session is null) {
+          return Results.Json(new { error = "session_not_found", message = $"No running session is bound to device '{serial}'." }, statusCode: StatusCodes.Status404NotFound);
+        }
+      }
       else {
-        session = PickSession(sessions);
+        var running = RunningSessions(sessions);
+        if (running.Count > 1) {
+          return Results.Json(new { error = "ambiguous_session", message = $"{running.Count} device sessions are active; specify sessionId or serial." }, statusCode: StatusCodes.Status409Conflict);
+        }
+        session = running.Count == 1 ? running[0] : null;
       }
 
       if (session is null) {
@@ -103,12 +115,22 @@ internal static class EmulatorImageEndpoints {
     return app;
   }
 
-  private static GameBot.Domain.Sessions.EmulatorSession? PickSession(ISessionManager sessions) {
-    var all = sessions.ListSessions();
-    return all.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.DeviceSerial) && s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
-        ?? all.FirstOrDefault(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
-        ?? all.FirstOrDefault();
-  }
+  /// <summary>
+  /// Every running session, in listing order (feature 079). Replaces the old <c>PickSession</c>, whose
+  /// <c>FirstOrDefault</c> chain silently chose an arbitrary emulator once more than one queue was
+  /// running. Sessions with no bound serial are included: in stub/non-ADB mode that is every session,
+  /// and excluding them would break single-session capture there.
+  /// </summary>
+  private static List<GameBot.Domain.Sessions.EmulatorSession> RunningSessions(ISessionManager sessions) =>
+    sessions.ListSessions()
+      .Where(s => s.Status == GameBot.Domain.Sessions.SessionStatus.Running)
+      .ToList();
+
+  /// <summary>The running session bound to <paramref name="serial"/>, or null when there is none.</summary>
+  private static GameBot.Domain.Sessions.EmulatorSession? FindSessionBySerial(ISessionManager sessions, string serial) =>
+    RunningSessions(sessions)
+      .Find(s => !string.IsNullOrWhiteSpace(s.DeviceSerial)
+                 && string.Equals(s.DeviceSerial, serial.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
 internal sealed class CropRequest {

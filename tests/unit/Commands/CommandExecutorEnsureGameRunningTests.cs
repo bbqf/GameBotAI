@@ -68,8 +68,11 @@ public sealed class CommandExecutorEnsureGameRunningTests {
     private readonly GameReadinessResult _result;
     public StubReadinessProbe(bool ready, string loadStatus = "loaded") => _result = new GameReadinessResult(ready, loadStatus);
     public int CallCount { get; private set; }
-    public Task<GameReadinessResult> WaitUntilReadyAsync(DetectionTarget readinessImage, int timeoutMs, CancellationToken ct = default) {
+    /// <summary>The session the probe was asked to observe (feature 079); null when none was passed.</summary>
+    public string? LastSessionId { get; private set; }
+    public Task<GameReadinessResult> WaitUntilReadyAsync(DetectionTarget readinessImage, int timeoutMs, string? sessionId = null, CancellationToken ct = default) {
       CallCount++;
+      LastSessionId = sessionId;
       return Task.FromResult(_result);
     }
   }

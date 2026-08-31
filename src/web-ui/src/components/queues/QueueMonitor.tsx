@@ -99,6 +99,13 @@ export const QueueMonitor: React.FC<QueueMonitorProps> = ({ queueId, onReturnToE
     <div className="queue-monitor" data-testid="queue-monitor">
       <div className="queue-monitor-header">
         <h4>{snapshot.name} — live monitor</h4>
+        {/* Feature 079: several queues can run at once, each on its own emulator, so name the device
+            this run holds — otherwise two open monitors are indistinguishable. */}
+        {snapshot.deviceSerial && (
+          <span className="monitor-badge" data-testid="monitor-device" title="Emulator this run holds">
+            {snapshot.deviceSerial}
+          </span>
+        )}
         {snapshot.cycleExecution && <span className="monitor-badge">cycling</span>}
       </div>
 

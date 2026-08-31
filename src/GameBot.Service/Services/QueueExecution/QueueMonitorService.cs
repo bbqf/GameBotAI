@@ -56,7 +56,7 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
       return new QueueMonitorSnapshot(
         queueId, name, Running: false, CycleExecution: queue?.CycleExecution ?? false,
         RunStartedAt: null, Current: null, Upcoming: Array.Empty<QueueMonitorItem>(),
-        NothingScheduled: false, LastOutcome: lastOutcome);
+        NothingScheduled: false, LastOutcome: lastOutcome, DeviceSerial: null);
     }
 
     var template = string.IsNullOrEmpty(queue?.LinkedTemplateId)
@@ -86,7 +86,11 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
 
     return new QueueMonitorSnapshot(
       queueId, name, Running: true, CycleExecution: cycling, RunStartedAt: handle.RunStartedAt,
-      Current: current, Upcoming: upcoming, NothingScheduled: nothingScheduled, LastOutcome: null);
+      Current: current, Upcoming: upcoming, NothingScheduled: nothingScheduled, LastOutcome: null,
+      // Feature 079 (FR-018): the device this run holds, taken from its own handle so concurrent runs
+      // never report one another's emulator. Falls back to the queue's bound serial for a handle
+      // built before the run assigned it (and in tests that hand-build one).
+      DeviceSerial: string.IsNullOrWhiteSpace(handle.DeviceSerial) ? queue?.EmulatorSerial : handle.DeviceSerial);
   }
 
   // ── Current ("now") ────────────────────────────────────────────────────────────────────────

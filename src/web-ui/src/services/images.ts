@@ -148,8 +148,28 @@ export const detectImage = async (referenceImageId: string, opts?: { threshold?:
   return res.json();
 };
 
-export const fetchEmulatorScreenshot = async (): Promise<EmulatorScreenshot> => {
-  const res = await fetch(buildApiUrl('/api/emulator/screenshot'), {
+/** Which emulator to capture. Feature 079: required once more than one session is running. */
+export type ScreenshotTarget = {
+  /** Explicit emulator session id. */
+  sessionId?: string | null;
+  /** ADB device serial; used when no session id is known. */
+  serial?: string | null;
+};
+
+/**
+ * Captures the current emulator screen.
+ *
+ * With several sessions running the backend refuses an unqualified request with
+ * `409 ambiguous_session` rather than picking an arbitrary device, so pass a `target` whenever the
+ * caller knows which emulator it means. With exactly one session running, omitting it still works.
+ */
+export const fetchEmulatorScreenshot = async (target?: ScreenshotTarget): Promise<EmulatorScreenshot> => {
+  const query = new URLSearchParams();
+  if (target?.sessionId) query.set('sessionId', target.sessionId);
+  else if (target?.serial) query.set('serial', target.serial);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  const res = await fetch(buildApiUrl(`/api/emulator/screenshot${suffix}`), {
     method: 'GET',
     headers: buildAuthHeaders(false)
   });

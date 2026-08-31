@@ -1,4 +1,4 @@
-using GameBot.Domain.Commands;
+﻿using GameBot.Domain.Commands;
 using GameBot.Domain.Config;
 using GameBot.Domain.Parameters;
 using GameBot.Domain.Logging;
@@ -23,6 +23,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly ILogger<CommandExecutor> _logger;
   private readonly GameBot.Domain.Triggers.Evaluators.IReferenceImageStore? _images;
   private readonly GameBot.Domain.Triggers.Evaluators.IScreenSource? _screen;
+  // Feature 079: when the executor knows which session it is acting for, detection reads that
+  // session's frames explicitly instead of relying on the ambient/singleton screen source.
+  private readonly GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory? _screenFactory;
   private readonly GameBot.Domain.Vision.ITemplateMatcher? _matcher;
   private readonly ISessionContextCache _sessionCache;
   private readonly IExecutionLogService? _executionLogService;
@@ -31,7 +34,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly IEnsureEmulatorRunningActionHandler? _ensureEmulatorRunning;
   private readonly IGameReadinessProbe? _gameReadiness;
 
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null, GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory? screenFactory = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -39,6 +42,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _logger = logger;
     _images = images;
     _screen = screen;
+    _screenFactory = screenFactory;
     _matcher = matcher;
     _sessionCache = sessionCache;
     _appConfig = appConfig;
@@ -57,6 +61,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _logger = logger;
     _images = null;
     _screen = null;
+    _screenFactory = null;
     _matcher = null;
     _sessionCache = sessionCache;
     _appConfig = new AppConfig();
@@ -64,6 +69,21 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _ensureGameRunning = ensureGameRunning;
     _ensureEmulatorRunning = ensureEmulatorRunning;
     _gameReadiness = gameReadiness;
+  }
+
+  /// <summary>
+  /// Returns the screen source detection should read for <paramref name="sessionId"/> (feature 079).
+  /// </summary>
+  /// <remarks>
+  /// Prefers an explicitly session-bound source so concurrent queue runs cannot observe one another's
+  /// device. Falls back to the injected singleton when no factory is registered (stub/test mode) or
+  /// no session is known, where the ambient device context still applies.
+  /// </remarks>
+  private GameBot.Domain.Triggers.Evaluators.IScreenSource? ResolveScreenSource(string? sessionId) {
+    if (_screenFactory is not null && !string.IsNullOrWhiteSpace(sessionId)) {
+      return _screenFactory.ForSession(sessionId);
+    }
+    return _screen;
   }
 
   public Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default)
@@ -189,6 +209,14 @@ internal sealed class CommandExecutor : ICommandExecutor {
       if (runningSessions.Count == 1) {
         resolvedSessionId = runningSessions[0].Id;
       }
+      else if (runningSessions.Count > 1) {
+        // Feature 079 (FR-007): several devices are live and the caller named none. Say so instead of
+        // acting on an arbitrary one. The sentinel stays "missing_session_context" so existing API
+        // mappings and callers keep working; the ambiguity is carried in the inner exception's text.
+        throw new InvalidOperationException(
+          "missing_session_context",
+          new InvalidOperationException(SessionResolver.Ambiguous(runningSessions.Count, "force-execute")));
+      }
       else {
         throw new InvalidOperationException("missing_session_context");
       }
@@ -258,7 +286,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
       DetectionTarget? commandLevelDetection,
       CancellationToken ct) {
     if (step.Type == CommandStepType.WaitForImage) {
-      return (0, await ExecuteWaitForImageStepAsync(step, ct).ConfigureAwait(false));
+      return (0, await ExecuteWaitForImageStepAsync(step, sessionId, ct).ConfigureAwait(false));
     }
 
     if (step.Type == CommandStepType.EnsureGameRunning) {
@@ -279,7 +307,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
           : (0, new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
       }
 
-      // The game/session could not be resolved (or the platform is unsupported) — there is nothing
+      // The game/session could not be resolved (or the platform is unsupported) â€” there is nothing
       // to wait for, so surface the handler failure directly instead of spinning on the screen.
       if (result.Outcome is EnsureGameRunningOutcome.NoQueueContext
           or EnsureGameRunningOutcome.NoLinkedGame
@@ -291,7 +319,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
       // Handler has (best-effort) launched the game if it was not foreground. Now wait for it to
       // actually reach the ready screen before letting the queue proceed.
       var readinessTimeoutMs = Math.Max(0, step.EnsureGameRunning!.ReadinessTimeoutMs);
-      var readinessResult = await _gameReadiness!.WaitUntilReadyAsync(readiness!, readinessTimeoutMs, ct).ConfigureAwait(false);
+      var readinessResult = await _gameReadiness!.WaitUntilReadyAsync(readiness!, readinessTimeoutMs, sessionId, ct).ConfigureAwait(false);
       return readinessResult.Ready
         ? (1, new PrimitiveTapStepOutcome(step.Order, "executed", "game_ready", null, null, StepType: "ensure-game-running", TimeoutMs: readinessTimeoutMs, EffectiveTimeoutMs: readinessTimeoutMs, ReferenceImageId: readiness!.ReferenceImageId, ImageLoadStatus: readinessResult.ImageLoadStatus))
         : (0, new PrimitiveTapStepOutcome(step.Order, "readiness_timeout", "readiness_timeout", null, null, StepType: "ensure-game-running", TimeoutMs: readinessTimeoutMs, EffectiveTimeoutMs: readinessTimeoutMs, ReferenceImageId: readiness!.ReferenceImageId, ImageLoadStatus: readinessResult.ImageLoadStatus));
@@ -385,7 +413,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
       var cancelCycleTracker = 0;
       try {
-        var screenSrc = _screen;
+        var screenSrc = ResolveScreenSource(sessionId);
         var images = _images;
         var matcher = _matcher;
         if (screenSrc is null || images is null || matcher is null) {
@@ -450,7 +478,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     throw new InvalidOperationException($"Step type {step.Type} cannot be executed as a standalone step");
   }
 
-  private async Task<PrimitiveTapStepOutcome> ExecuteWaitForImageStepAsync(CommandStep step, CancellationToken ct) {
+  private async Task<PrimitiveTapStepOutcome> ExecuteWaitForImageStepAsync(CommandStep step, string sessionId, CancellationToken ct) {
     var waitConfig = step.WaitForImage ?? new WaitForImageConfig();
     var timeoutMs = Math.Max(0, waitConfig.TimeoutMs);
     var detectionTarget = waitConfig.DetectionTarget;
@@ -485,7 +513,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
         ConfiguredConfidence: detectionTarget.Confidence);
     }
 
-    var screenSrc = _screen;
+    var screenSrc = ResolveScreenSource(sessionId);
     var images = _images;
     var matcher = _matcher;
     if (screenSrc is null || images is null || matcher is null) {
@@ -591,7 +619,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     => ImageDetectionHelper.TryDetect(screenSrc, templateBmp, detectionTarget, matcher, out resolvedPoint, out detectionConfidence);
 
   /// <summary>
-  /// Attempts a single screenshot-fetch → template-match → coordinate-resolve → tap cycle.
+  /// Attempts a single screenshot-fetch â†’ template-match â†’ coordinate-resolve â†’ tap cycle.
   /// Returns true if detection succeeded and the tap was sent; false otherwise.
   /// On success, appends the outcome to <paramref name="stepOutcomes"/> and increments <paramref name="totalAccepted"/>.
   /// </summary>
@@ -681,7 +709,13 @@ internal sealed class CommandExecutor : ICommandExecutor {
       Log.SessionContextMissing(_logger, commandId);
     }
 
-    throw new InvalidOperationException("missing_session_context");
+    // Feature 079 (FR-007): distinguish "no device at all" from "several devices, none named" while
+    // keeping the "missing_session_context" sentinel every caller and API mapping already matches on.
+    throw runningSessions.Count > 1
+      ? new InvalidOperationException(
+          "missing_session_context",
+          new InvalidOperationException(SessionResolver.Ambiguous(runningSessions.Count, commandId)))
+      : new InvalidOperationException("missing_session_context");
   }
 }
 

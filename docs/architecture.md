@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-08-24._
+_Last reviewed: 2026-08-30._
 
 ## What GameBot is
 
@@ -203,6 +203,12 @@ not survive a service restart; queue *configuration* and templates are persisted
   schedule option, IF-gated), a **live monitor** that shows a running queue's now/up-next plan
   (read-only, auto-refreshing) in place of the editor, a background screen-capture service reporting
   FPS, and "ensure game running" handling.
+- **Concurrent queue runs** (feature 079): several queues run at the same time, **one per emulator**.
+  Each run holds an exclusive, in-memory claim on its ADB serial (`IDeviceClaimRegistry`); starting a
+  second queue on a claimed device is refused with `409 device_in_use` naming the device and the
+  holding queue, distinct from `already_running`. The claim is released when the run ends for any
+  reason and never survives a restart. See "Device-scoped observation" below for how each run's screen
+  reads are kept to its own device.
 - **Execution Logs** (separate tab): filterable/sortable grid, expandable hierarchy reflecting
   what actually executed, deep links into authoring, snapshots and step outcomes; non-technical
   presentation (no raw JSON).
@@ -210,6 +216,28 @@ not survive a service restart; queue *configuration* and templates are persisted
   runtime per-component logging level control, jitter/retry/delay parameters.
 - **Packaging**: standalone Windows installer (EXE/MSI) with semantic-version upgrade flow
   (build auto-versioning, downgrade prohibition).
+
+### Device-scoped observation (feature 079)
+
+Every screen read is resolved against **one** device, so concurrent runs cannot observe each other:
+
+- `IScreenSourceFactory.ForSession(sessionId)` returns a `SessionScopedScreenSource` bound to one
+  session for its lifetime. Used wherever the caller already knows its session — `CommandExecutor`'s
+  detect-and-tap and wait-for-image paths, and `GameReadinessProbe`.
+- `IDeviceContextAccessor` (an `AsyncLocal<DeviceContext>`) carries "which device is this execution
+  flow acting on". `SequenceExecutionService.ExecuteAsync` pushes it for the whole sequence when given
+  a session, so nested sequences, commands, loops and trigger-based image/text conditions inherit it
+  without `ITriggerEvaluator` needing a session parameter.
+- The singleton `IScreenSource` (`BackgroundCaptureScreenSource`) resolves: **ambient context → the
+  single running session → nothing**. It previously returned the frame of the *first* running session,
+  which silently gave one queue run another run's screen.
+- Device resolution for steps follows one rule (`SessionResolver`): an explicit session always wins;
+  with none supplied, exactly one running session is used; several running sessions fail the step with
+  `"N device sessions are active; specify a sessionId for '<step>'"` rather than guessing.
+- `GET /api/emulator/screenshot` takes `sessionId` or `serial`; with several sessions and no selector
+  it returns `409 ambiguous_session` instead of an arbitrary device.
+- `Service:Sessions:MaxConcurrentSessions` defaults to **8** (was 3); exceeding it fails a run with a
+  message naming the limit and the setting.
 
 ### Break & loop execution and the execution-log status vocabulary
 

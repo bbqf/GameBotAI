@@ -20,6 +20,12 @@ namespace GameBot.Service.Contracts.Queues {
     /// <summary>Local-clock instant the run loop started (anchor for relative timers); null when not running.</summary>
     public DateTimeOffset? RunStartedAt { get; set; }
 
+    /// <summary>
+    /// The emulator serial this run exclusively holds (feature 079); null when not running. Lets the
+    /// operator see which device each concurrently running queue is driving.
+    /// </summary>
+    public string? DeviceSerial { get; set; }
+
     /// <summary>The sequence executing right now; null when idle or not running.</summary>
     public QueueMonitorItemResponse? Current { get; set; }
 

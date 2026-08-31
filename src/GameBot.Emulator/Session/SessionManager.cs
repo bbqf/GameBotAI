@@ -41,11 +41,27 @@ public sealed class SessionManager : ISessionManager {
   public int ActiveCount => _sessions.Count;
   public bool CanCreateSession => ActiveCount < _options.MaxConcurrentSessions;
 
+  /// <summary>
+  /// Builds the actionable session-capacity failure text (feature 079, FR-016). Exposed so tests and
+  /// callers assert on one wording.
+  /// </summary>
+  /// <param name="active">How many sessions are currently open.</param>
+  /// <param name="max">The configured ceiling.</param>
+  public static string CapacityExceededMessage(int active, int max) =>
+    string.Format(
+      CultureInfo.InvariantCulture,
+      "session capacity reached: {0} of {1} sessions are open (Service:Sessions:MaxConcurrentSessions)",
+      active,
+      max);
+
   public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) {
     CleanupIdleSessions();
     if (!CanCreateSession) {
       Log.CapacityExceeded(_logger, ActiveCount, _options.MaxConcurrentSessions);
-      throw new InvalidOperationException("capacity_exceeded");
+      // Feature 079 (FR-016): the message is what a failed queue run records, so it must name the
+      // limit, the current count and the setting to change — not the bare "capacity_exceeded" token.
+      // The exception type is unchanged, so the existing API mapping to that error code still works.
+      throw new InvalidOperationException(CapacityExceededMessage(ActiveCount, _options.MaxConcurrentSessions));
     }
     var id = Guid.NewGuid().ToString("N");
     var sess = new EmulatorSession {

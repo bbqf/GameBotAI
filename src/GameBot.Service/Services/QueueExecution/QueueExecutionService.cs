@@ -46,6 +46,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   private readonly TimeProvider _timeProvider;
   private readonly CancellationToken _appStopping;
   private readonly IQueueRunRegistry _registry;
+  // Exclusive per-emulator ownership (feature 079): claimed before the run launches, released when it
+  // ends, so two queues can never drive one screen. When not injected (tests) the service owns a
+  // private registry, so claims are still enforced between the queues it starts.
+  private readonly IDeviceClaimRegistry _deviceClaims;
   // Foregrounds the game when an idle pause resumes (feature 073). Same handler the
   // ensure-game-running sequence step uses; reused directly here so the scheduler can bring the game
   // back without routing through a watchdog-subject sequence. Null only in tests that omit it.
@@ -86,7 +90,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     BackgroundScreenCaptureService? captureService = null,
     TimeProvider? timeProvider = null,
     IEnsureGameRunningActionHandler? ensureGameRunning = null,
-    IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null) {
+    IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null,
+    IDeviceClaimRegistry? deviceClaims = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -100,6 +105,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _appStopping = lifetime?.ApplicationStopping ?? CancellationToken.None;
     _ensureGameRunning = ensureGameRunning;
     _ensureEmulatorRunning = ensureEmulatorRunning;
+    _deviceClaims = deviceClaims ?? new DeviceClaimRegistry();
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -119,10 +125,25 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     if (queue is null) return QueueStartOutcome.NotFound;
 
     var cts = CancellationTokenSource.CreateLinkedTokenSource(_appStopping);
-    var handle = new QueueRunHandle { QueueId = queueId, Cts = cts, CycleExecution = queue.CycleExecution };
+    var handle = new QueueRunHandle {
+      QueueId = queueId,
+      Cts = cts,
+      CycleExecution = queue.CycleExecution,
+      DeviceSerial = queue.EmulatorSerial
+    };
     if (!_registry.TryAdd(queueId, handle)) {
       cts.Dispose();
       return QueueStartOutcome.AlreadyRunning;
+    }
+
+    // Feature 079 (FR-008/FR-009/FR-012): one run per device. Claim before launching, so a refusal
+    // leaves the queue Stopped with no run and no residue in the run registry. TryClaim is atomic, so
+    // two simultaneous starts for one serial cannot both win. Released in RunAsync's finally, which
+    // covers completion, manual stop, failure, cancellation and host shutdown (FR-011).
+    if (!_deviceClaims.TryClaim(queue.EmulatorSerial, queueId, queue.Name)) {
+      _registry.Remove(queueId, out _);
+      cts.Dispose();
+      return QueueStartOutcome.DeviceInUse;
     }
 
     // Resolve the linked template once and materialize its entries into the runtime store so the
@@ -130,9 +151,20 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     // display layer instead reads the runtime store, and auto-load on display is suppressed once
     // the queue is Running (see QueuesEndpoints.MaybeAutoLoadAsync). Without this, a queue started
     // before it was ever displayed reports zero entries despite a populated linked template.
-    var template = string.IsNullOrEmpty(queue.LinkedTemplateId)
-      ? null
-      : await _templates.GetAsync(queue.LinkedTemplateId).ConfigureAwait(false);
+    QueueTemplate? template;
+    try {
+      template = string.IsNullOrEmpty(queue.LinkedTemplateId)
+        ? null
+        : await _templates.GetAsync(queue.LinkedTemplateId).ConfigureAwait(false);
+    }
+    catch {
+      // The run never launched, so RunAsync's finally will not run: undo the claim and the registry
+      // entry here rather than leaking the device until the service restarts (feature 079, FR-011).
+      _deviceClaims.Release(queue.EmulatorSerial, queueId);
+      _registry.Remove(queueId, out _);
+      cts.Dispose();
+      throw;
+    }
     if (template is not null) {
       // Materialize ALL entries (including disabled ones) into the runtime store: the template
       // editor renders from these runtime entries and merges each entry's schedule/enabled state
@@ -479,6 +511,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
       _runtime.SetStatus(queue.Id, QueueExecutionStatus.Stopped);
       _registry.Remove(queue.Id, out _);
+      // Feature 079 (FR-011): the device becomes claimable again however this run ended — completed,
+      // stopped, failed, cancelled, or torn down by host shutdown.
+      _deviceClaims.Release(queue.EmulatorSerial, queue.Id);
       handle.Cts.Dispose();
     }
   }
@@ -524,6 +559,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     // once-per-run, every-step, timer, relative, live, self-reschedule — flows through here, so
     // set the current sequence at the top and clear it in the finally. This is purely observational
     // and does not change scheduling behavior.
+    // Feature 079: the ambient device context for this firing is established by
+    // SequenceExecutionService.ExecuteAsync from the sessionId passed below, and covers everything the
+    // firing starts (nested sequences, commands, loops, image/text conditions). Pushing it again here
+    // would be redundant, so the run loop deliberately does not.
     var trackedHandle = _registry.TryGet(queueId, out var handle) ? handle : null;
     trackedHandle?.SetCurrentSequence(sequenceId, _timeProvider.GetLocalNow());
     try {
