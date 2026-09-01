@@ -529,8 +529,8 @@ public sealed class QueueMonitorServiceTests {
     snap.Upcoming.Should().ContainSingle(i => i.SequenceId == "T");
   }
 
-  [Fact]
-  public async Task EveryStepIsDroppedOnceItsOncePerRunPassCanNoLongerRun() {
+  [Fact] // FR-005a: the guard follows every firing, so a done once-per-run pass no longer retires it.
+  public async Task EveryStepIsStillListedOnceItsOncePerRunPassIsDone() {
     var h = new Harness();
     h.AddQueue();
     h.Entry("A", "Alpha");
@@ -544,8 +544,9 @@ public sealed class QueueMonitorServiceTests {
 
     var snap = await h.Service.BuildAsync("q1");
 
-    // Every-step firings only follow a once-per-run step; with the pass done, none can happen again.
-    snap.Upcoming.Select(i => i.SequenceId).Should().Equal("T");
+    // The 22:30 timer is still to come, and G will follow it — so the operator must still see G.
+    snap.Upcoming.Select(i => i.SequenceId).Should().Contain("G");
+    snap.Upcoming.Select(i => i.SequenceId).Should().Contain("T");
   }
 
   [Fact] // The reported case, end to end: only the 22:30 timer is really left, so it must lead the list.
@@ -567,7 +568,11 @@ public sealed class QueueMonitorServiceTests {
 
     var snap = await h.Service.BuildAsync("q1");
 
-    snap.Upcoming.Select(i => i.SequenceId).Should().Equal("Chests");
+    // The Guard (EveryStep) rides along with whatever fires next and carries no time of its own, so
+    // the only *timed* firing left is Chests — and it must lead the list.
+    snap.Upcoming.Where(i => i.ScheduleKind != ScheduleKind.EveryStep)
+        .Select(i => i.SequenceId).Should().Equal("Chests");
+    snap.Upcoming[0].SequenceId.Should().Be("Chests");
     snap.Upcoming[0].ExpectedAt.Should().Be(resumeAt);
     // The pause's resume time and the first up-next item now agree — they are the same firing.
     snap.Current!.ScheduleKind.Should().Be(ScheduleKind.IdlePause);

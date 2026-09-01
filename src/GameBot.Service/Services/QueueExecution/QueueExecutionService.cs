@@ -25,7 +25,11 @@ namespace GameBot.Service.Services.QueueExecution;
 ///   AtQueueStart — executed once at run start, in template order, before any timer evaluation and
 ///                 before the first OncePerRun step; counts toward executed (feature 060).
 ///   OncePerRun  — executed in template order as the regular "step"; defines run completion.
-///   EveryStep   — executed after each OncePerRun step (and after the final step); not counted.
+///   EveryStep   — executed after EVERY firing the run performs — at-start, once-per-run, timer,
+///                 relative, live and self-reschedule alike — never after itself; not counted.
+///                 Feature 060 originally scoped this to OncePerRun steps only, which left the
+///                 entry dormant for the whole life of a long-running non-cycling queue once its
+///                 once-per-run pass was done (the recovery-guard starvation bug).
 ///   Timer       — evaluated at each iteration boundary; either an absolute time-of-day (fires at
 ///                 most once per calendar day) or a relative offset / live schedule (feature 059).
 ///
@@ -266,6 +270,37 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
           try {
             var index = 0;
 
+            // Every-step pass: run each template EveryStep entry, then each self-reschedule EveryStep
+            // injection, once. Called after EVERY firing the run performs (at-start, once-per-run,
+            // time-of-day, relative, live and self-reschedule), which is what makes an EveryStep entry
+            // usable as a recovery guard on a long-lived non-cycling queue: scoping it to the
+            // once-per-run pass (feature 060, FR-005) left it dormant from the moment that pass ended.
+            //
+            // Never called from inside itself, so an EveryStep firing still cannot trigger another
+            // round (FR-006 loop-safety is preserved), and these executions still do not count toward
+            // `executed` (FR-015) — only toward `failed` when one fails, which stays non-fatal.
+            var everyStepRanThisIteration = false;
+            async Task RunEveryStepPassAsync() {
+              if (everyStepEntries.Count == 0 && handle.EveryStepInjections.IsEmpty) return;
+              everyStepRanThisIteration = true;
+
+              foreach (var esEntry in everyStepEntries) {
+                ct.ThrowIfCancellationRequested();
+                if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
+                if (!esOk) failed++;
+              }
+
+              // Self-reschedule EveryStep injections (feature 065, FR-008). Snapshot first so a
+              // firing's own re-registration cannot grow the pass (loop-safe).
+              foreach (var injection in handle.EveryStepInjections.Values.ToList()) {
+                ct.ThrowIfCancellationRequested();
+                if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, injection.Scope ?? queueScope, ct, injection.Id).ConfigureAwait(false);
+                if (!injOk) failed++;
+              }
+            }
+
             // (0) At-queue-start pre-pass (feature 060, FR-003/FR-004/FR-007/FR-014/FR-015).
             // Run every at-queue-start entry once, in template order, BEFORE any timer evaluation
             // and before the first OncePerRun step. Runs once per run (outside the do/while, so it
@@ -277,6 +312,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               var startOk = await RunOneSequenceAsync(startEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(startEntry), ct).ConfigureAwait(false);
               executed++;
               if (!startOk) failed++;
+              await RunEveryStepPassAsync().ConfigureAwait(false);
             }
 
             // Per-run scheduling state (FR-003/FR-012, feature 059 FR-005): the relative-offset anchor
@@ -304,6 +340,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
               do {
                 ct.ThrowIfCancellationRequested();
+                everyStepRanThisIteration = false;
 
                 // (a0) Self-reschedule AtQueueStart firings (feature 065, FR-009): entries queued
                 // during the previous cycle fire at the top of the next cycle, before timers and the
@@ -314,6 +351,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var nextOk = await RunOneSequenceAsync(nextCycleEntry.SequenceId, rootId, ++index, sessionId, queue.Id, nextCycleEntry.Scope ?? queueScope, ct, nextCycleEntry.Id).ConfigureAwait(false);
                   executed++;
                   if (!nextOk) failed++;
+                  await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
                 // (a) Evaluate timer entries at iteration boundary (FR-011/FR-012/FR-016).
@@ -330,6 +368,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     if (!timerOk) failed++;
                     // Timer executions do not count toward `executed` (SC-002 analogue for timers)
                     schedule.MarkTimeOfDayFired(timerIndex, today);
+                    await RunEveryStepPassAsync().ConfigureAwait(false);
                   }
                 }
 
@@ -349,6 +388,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   executed++;
                   if (!relOk) failed++;
                   schedule.MarkRelativeFired(relIndex);
+                  await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
                 // (a3) Evaluate live relative schedules at the iteration boundary (feature 059).
@@ -366,6 +406,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, queue.Id, queueScope, ct).ConfigureAwait(false);
                   executed++;
                   if (!liveOk) failed++;
+                  await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
                 // (a4) Self-reschedule Timer firings (feature 065, FR-005/FR-006): fire those whose
@@ -378,6 +419,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var srTimerOk = await RunOneSequenceAsync(timerFiring.SequenceId, rootId, ++index, sessionId, queue.Id, timerFiring.Scope ?? queueScope, ct, timerFiring.Id).ConfigureAwait(false);
                   executed++;
                   if (!srTimerOk) failed++;
+                  await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
                 // (b) OncePerRun steps, each followed by all EveryStep sequences (FR-006/FR-007/FR-016).
@@ -395,33 +437,13 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                       schedule.MarkOncePerRunCompleted(entryIndex);
 
                       // Run every-step sequences after each OncePerRun step (FR-006).
-                      foreach (var esEntry in everyStepEntries) {
-                        ct.ThrowIfCancellationRequested();
-                        if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                        var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
-                        if (!esOk) failed++;
-                        // Every-step executions do not count toward `executed` (FR-008/SC-002).
-                      }
-
-                      // Self-reschedule EveryStep injections (feature 065, FR-008): fire after each
-                      // once-per-run step for the rest of the run. Snapshot first so a firing's own
-                      // re-registration cannot grow the pass (loop-safe). Not counted toward executed.
-                      foreach (var injection in handle.EveryStepInjections.Values.ToList()) {
-                        ct.ThrowIfCancellationRequested();
-                        if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                        var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, injection.Scope ?? queueScope, ct, injection.Id).ConfigureAwait(false);
-                        if (!injOk) failed++;
-                      }
+                      await RunEveryStepPassAsync().ConfigureAwait(false);
                     }
                   }
-                  else if (everyStepEntries.Count > 0) {
-                    // FR-009: no OncePerRun entries — EveryStep runs exactly once, then the run ends.
-                    foreach (var esEntry in everyStepEntries) {
-                      ct.ThrowIfCancellationRequested();
-                      if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
-                      var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
-                      if (!esOk) failed++;
-                    }
+                  else if (everyStepEntries.Count > 0 && !everyStepRanThisIteration) {
+                    // FR-009: no OncePerRun entries — EveryStep still runs at least once per cycle,
+                    // unless a firing earlier in this iteration already triggered a pass.
+                    await RunEveryStepPassAsync().ConfigureAwait(false);
                   }
 
                   // OncePerRun self-reschedule firings (feature 065, FR-007), and the non-cycling
@@ -437,6 +459,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     var oprOk = await RunOneSequenceAsync(oprFiring.SequenceId, rootId, ++index, sessionId, queue.Id, oprFiring.Scope ?? queueScope, ct, oprFiring.Id).ConfigureAwait(false);
                     executed++;
                     if (!oprOk) failed++;
+                    await RunEveryStepPassAsync().ConfigureAwait(false);
                   }
 
                   schedule.MarkOncePerRunPassDone();
