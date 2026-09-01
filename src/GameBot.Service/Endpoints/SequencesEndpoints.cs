@@ -542,6 +542,7 @@ internal static class SequencesEndpoints {
       stepType,
       commandReference = MapCommandReferenceToDto(step, commandLookup),
       parameterBindings = ParameterDtoMapper.ToResponseBindings(step.ParameterBindings),
+      requireDispatch = step.RequireDispatch ? true : (bool?)null,
       primitiveAction = step.Action is null
         ? null
         : new {
@@ -871,6 +872,7 @@ internal static class SequencesEndpoints {
           Action = step.PrimitiveAction is not null ? new SequenceActionPayload { Type = step.PrimitiveAction.Type, SchemaVersion = step.PrimitiveAction.SchemaVersion } : null,
           WaitForImage = MapWaitForImageConfig(step.PrimitiveAction),
           Condition = MapPerStepCondition(step.Condition),
+          RequireDispatch = step.RequireDispatch ?? false,
           // Feature 078: normalize an empty list to null so unparametrized steps stay byte-identical.
           ParameterBindings = step.ParameterBindings is { Count: > 0 }
             ? new System.Collections.ObjectModel.Collection<GameBot.Domain.Parameters.ParameterBinding>(

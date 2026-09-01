@@ -51,6 +51,14 @@ internal sealed record SequenceStepContract {
   /// step; a binding with a null value means "inherit", which is the default for every row.
   /// </summary>
   public IReadOnlyList<ParameterBindingDto>? ParameterBindings { get; init; }
+
+  /// <summary>
+  /// Opt-in strictness: when <c>true</c>, this step fails (aborting the sequence) if the command it
+  /// invokes puts no input on the device — typically an image-anchored tap that never found its
+  /// template. Defaults to <c>false</c>, matching the long-standing "carry on" behavior that loops
+  /// draining a list, and retry loops, depend on. Omitted from responses when false.
+  /// </summary>
+  public bool? RequireDispatch { get; init; }
 }
 
 /// <summary>

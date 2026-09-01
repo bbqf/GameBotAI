@@ -13,6 +13,14 @@ internal interface ICommandExecutor {
   /// invoked as part of a sequence is recorded as a linked child rather than a top-level entry.
   /// </summary>
   Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default);
+
+  /// <summary>
+  /// Force-executes a command with a parameter scope and returns its per-step outcomes, so a caller
+  /// can tell whether the command actually put input on the device rather than only that it did not
+  /// throw. The sequence runner needs this to avoid recording <c>executed</c> for a command whose
+  /// image-anchored tap never found its template.
+  /// </summary>
+  Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, CancellationToken ct = default);
   Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default);
   Task<int> ForceExecuteAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default);
 
