@@ -48,6 +48,26 @@ namespace GameBot.Domain.Commands {
     public RetryPolicy? Retry { get; set; }
     public GateConfig? Gate { get; set; }
 
+    /// <summary>
+    /// Opt-in strictness for a command step: when <c>true</c>, the step FAILS (and so aborts the
+    /// sequence) if the command it invoked dispatched no input to the device — typically an
+    /// image-anchored tap whose template was not found within its retries.
+    /// <para>
+    /// Defaults to <c>false</c>, which keeps the long-standing behavior of carrying on, because
+    /// "tap it if it happens to be there" is a deliberate and widespread authoring pattern: loops
+    /// that drain a list until nothing matches, and retry loops that expect early misses, both
+    /// rely on a missed tap being survivable. Turning that into a failure by default would abort
+    /// those sequences on the very iteration that is supposed to end them.
+    /// </para>
+    /// <para>
+    /// Set it on steps that guard a screen transition, where a missed tap means every later step
+    /// is running against the wrong screen. Regardless of this flag, a step that dispatched
+    /// nothing now reports <c>not_executed</c> rather than <c>executed</c>, so the miss is always
+    /// visible in the execution log and available to a <c>commandOutcome</c> condition.
+    /// </para>
+    /// </summary>
+    public bool RequireDispatch { get; set; }
+
     // Loop-step properties (StepType == Loop)
     /// <summary>Loop configuration (count, while, or repeat-until). Required when <see cref="StepType"/> is <see cref="SequenceStepType.Loop"/>.</summary>
     public LoopConfig? Loop { get; set; }

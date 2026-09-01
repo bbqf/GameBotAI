@@ -129,9 +129,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     // the extra firing is attributable in the execution log (feature 065, FR-014).
     var selfRescheduleOriginActionId = parentContext?.SelfRescheduleOriginActionId;
 
-    var res = await _runner.ExecuteAsync(
-      sequenceId,
-      async (commandId, stepScope) => {
+    // Invokes one command step and reports whether its input actually reached the device, so the
+    // runner can record an honest outcome instead of assuming "executed" whenever nothing threw.
+    async Task<GameBot.Domain.Services.CommandDispatchOutcome> DispatchCommandAsync(string commandId, GameBot.Domain.Parameters.ParameterScope stepScope) {
+      {
         try {
           var childContext = new ExecutionLogContext {
             ParentExecutionId = rootExecutionId,
@@ -142,7 +143,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
             SequenceLabel = startSequenceName,
             OriginatingQueueId = originatingQueueId
           };
-          await _commandExecutor.ForceExecuteAsync(sessionId, commandId, childContext, stepScope, ct).ConfigureAwait(false);
+          var detailed = await _commandExecutor.ForceExecuteDetailedAsync(sessionId, commandId, childContext, stepScope, ct).ConfigureAwait(false);
+          return ClassifyDispatch(detailed, ct);
         }
         catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
           throw new InvalidOperationException($"No cached session found for command '{commandId}'. Start a session first.");
@@ -160,7 +162,15 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
             : $"Command '{commandId}' could not be executed: {ex.Message}.";
           throw new InvalidOperationException(reason);
         }
-      },
+      }
+    }
+
+    var res = await _runner.ExecuteAsync(
+      sequenceId,
+      // Never reached in production — the runner prefers the dispatcher below — but kept a real
+      // call rather than a throwing stub so the legacy contract stays honest.
+      async (commandId, stepScope) => await DispatchCommandAsync(commandId, stepScope).ConfigureAwait(false),
+      commandDispatcher: DispatchCommandAsync,
       gateEvaluator: (step, token) => {
         // Temporary evaluator for integration tests:
         // TargetId "always" => gate passes; "never" => gate fails
@@ -804,6 +814,38 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     }
 
     return await imageVisibleConditionAdapter.EvaluateAsync(cond, token).ConfigureAwait(false);
+  }
+
+  /// <summary>
+  /// Command step types that put input on the device. Only these can make a command "dispatch
+  /// nothing": waiting for an image is observational, and the ensure-emulator/ensure-game steps
+  /// carry their own reason codes (a deliberately optional readiness gate among them), so neither
+  /// says anything about whether a tap landed.
+  /// </summary>
+  private static bool IsInputBearing(PrimitiveTapStepOutcome outcome) =>
+    outcome.StepType is null                       // primitive tap: the only kind that leaves StepType unset
+    || string.Equals(outcome.StepType, "key", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(outcome.StepType, "swipe", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(outcome.StepType, "go-to-home-screen", StringComparison.OrdinalIgnoreCase);
+
+  /// <summary>
+  /// Decides whether a finished command actually put input on the device. A command with no
+  /// input-bearing steps at all (a pure wait, say) counts as dispatched: it did everything it was
+  /// asked to. Cancellation is deliberately NOT reported as a miss — a stopped queue or a tripped
+  /// watchdog must keep surfacing as cancellation rather than as a sequence failure.
+  /// </summary>
+  private static CommandDispatchOutcome ClassifyDispatch(CommandForceExecutionResult result, CancellationToken ct) {
+    if (ct.IsCancellationRequested) return CommandDispatchOutcome.Executed;
+
+    var inputSteps = result.StepOutcomes.Where(IsInputBearing).ToList();
+    if (inputSteps.Count == 0) return CommandDispatchOutcome.Executed;
+    if (inputSteps.Any(o => string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase)))
+      return CommandDispatchOutcome.Executed;
+    if (inputSteps.Any(o => string.Equals(o.Status, "cancelled", StringComparison.OrdinalIgnoreCase)))
+      return CommandDispatchOutcome.Executed;
+
+    var first = inputSteps[0];
+    return new CommandDispatchOutcome(false, first.Reason ?? first.Status);
   }
 
   private static IEnumerable<SequenceStep> FlattenSequenceSteps(IEnumerable<SequenceStep> steps) {
