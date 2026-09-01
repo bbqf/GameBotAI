@@ -148,15 +148,15 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
       expectedAt: null, relativeLabel: i == 0 ? "next" : "up next",
       repeats: Repeats(ScheduleKind.OncePerRun, cycling), order: 0)).ToList();
 
-    // (2) EveryStep entries, surfaced once each as "After Every Step" (not interleaved per step), and
-    // only while the once-per-run pass they hang off can still run — otherwise no every-step firing
-    // can follow and listing one is as misleading as listing the spine.
-    var everyStepItems = schedule.EveryStepCanStillRun
-      ? entries.Where(e => e.ScheduleType == ScheduleType.EveryStep)
-        .Select(e => NewItem(e.SequenceId, names, ScheduleKind.EveryStep, ReasonFor(ScheduleKind.EveryStep, e),
-          expectedAt: null, relativeLabel: null, repeats: Repeats(ScheduleKind.EveryStep, cycling), order: 0))
-        .ToList()
-      : new List<QueueMonitorItem>();
+    // (2) EveryStep entries, surfaced once each as "After Every Step" (not interleaved per firing).
+    // Since FR-005a these follow every firing, so one can always still run while the run is alive.
+    // They carry no time of their own — they ride along with whatever fires next — so they are
+    // listed LAST (below), never ahead of the timed firing that actually determines when the queue
+    // next does something.
+    var everyStepItems = entries.Where(e => e.ScheduleType == ScheduleType.EveryStep)
+      .Select(e => NewItem(e.SequenceId, names, ScheduleKind.EveryStep, ReasonFor(ScheduleKind.EveryStep, e),
+        expectedAt: null, relativeLabel: null, repeats: Repeats(ScheduleKind.EveryStep, cycling), order: 0))
+      .ToList();
 
     // (3) Timed firings — template timers (time-of-day next-eligible; relative anchor+offset), live
     // schedules (exact), and self-reschedule Timer firings (exact) — merged, sorted by ExpectedAt.
@@ -196,8 +196,11 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
       timed[0] = timed[0] with { RelativeLabel = "waiting" };
     }
 
-    // Assign stable order across the whole list: spine → every-step → sorted timed.
-    return spineItems.Concat(everyStepItems).Concat(timed)
+    // Assign stable order across the whole list: spine → sorted timed → every-step. Every-step items
+    // trail because they have no ExpectedAt of their own; putting them ahead of the timed firings
+    // would push the run's real next action down the list (the exact confusion feature 072/073 fixed
+    // for the once-per-run spine).
+    return spineItems.Concat(timed).Concat(everyStepItems)
       .Select((item, i) => item with { Order = i }).ToList();
   }
 

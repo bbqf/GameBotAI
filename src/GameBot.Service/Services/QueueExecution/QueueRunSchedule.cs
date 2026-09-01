@@ -123,13 +123,6 @@ internal sealed class QueueRunSchedule {
   }
 
   /// <summary>
-  /// Whether an every-step firing can still happen. Every-step sequences piggyback on the once-per-run
-  /// pass (and, with no once-per-run entries, run exactly once with it), so once a non-cycling run's
-  /// pass is done none can follow — the run stays alive purely to service timers.
-  /// </summary>
-  public bool EveryStepCanStillRun => Cycling || !OncePerRunPassDone;
-
-  /// <summary>
   /// The once-per-run entries this run has still to execute, in template order. Empty for a
   /// non-cycling run whose pass is done; a cycling run whose current cycle is exhausted reports the
   /// next cycle's full spine.

@@ -960,8 +960,9 @@ public sealed partial class QueueExecutionServiceTests {
     await h.Service.StartAsync("q1");
     await WaitUntilStoppedAsync(h.Service, "q1");
 
-    // FR-016: T fires first (timer boundary), then A (OncePerRun), then C (EveryStep)
-    h.Sequences.Executed.Should().Equal("T", "A", "C");
+    // FR-016 + FR-005a: T fires first (timer boundary) and is itself followed by C, then A
+    // (OncePerRun), then C again.
+    h.Sequences.Executed.Should().Equal("T", "C", "A", "C");
   }
 
   // ── US1 (feature 059): relative-offset timers ────────────────────────────
@@ -1293,8 +1294,8 @@ public sealed partial class QueueExecutionServiceTests {
 
   // ── US2 (feature 060): "After Every Step" narrow-trigger guarantee ────────
 
-  [Fact] // T008 — EveryStep fires ONLY after OncePerRun steps, never after at-start or timer firings
-  public async Task EveryStepFiresOnlyAfterOncePerRunNotAfterAtQueueStartOrTimer() {
+  [Fact] // T008 — EveryStep fires after EVERY firing, at-start and timer firings included (FR-005a).
+  public async Task EveryStepFiresAfterAtQueueStartAndTimerFiringsToo() {
     var h = new Harness();
     AddQueueWithEntries(h, "q1", new[] {
       AtQueueStart("S"),
@@ -1306,11 +1307,39 @@ public sealed partial class QueueExecutionServiceTests {
     await h.Service.StartAsync("q1");
     await WaitUntilStoppedAsync(h.Service, "q1");
 
-    // FR-005/FR-006: order is S (at-start), T (timer), A (once-per-run), C (every-step after A only).
-    // C must NOT appear right after S or right after T.
-    h.Sequences.Executed.Should().Equal("S", "T", "A", "C");
-    // EveryStep fired exactly once — only after the single OncePerRun step.
-    h.Sequences.Executed.Count(id => id == "C").Should().Be(1);
+    // FR-005a: every firing is followed by the guard — S, T and A each get their own C.
+    h.Sequences.Executed.Should().Equal("S", "C", "T", "C", "A", "C");
+    // FR-006 loop-safety still holds: three firings, three guard runs — C never triggers itself.
+    h.Sequences.Executed.Count(id => id == "C").Should().Be(3);
+    // FR-015 unchanged: guard runs stay interstitial and are not counted.
+    h.Log.Summary.Should().Contain("2 sequence(s) executed");
+  }
+
+  [Fact] // FR-005a regression — the reported outage: a long-lived non-cycling run whose once-per-run
+         // pass is long done must still guard every later timer firing.
+  public async Task EveryStepStillFiresAfterTimersOnceTheOncePerRunPassIsDone() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    // A relative timer keeps the non-cycling run alive past its once-per-run pass, exactly like a
+    // 24h queue sitting idle between daily timers.
+    AddQueueWithEntries(h, "q1", new[] {
+      OncePerRun("A"),
+      EveryStep("C"),
+      RelativeTimer("T", TimeSpan.FromMinutes(10))
+    });
+
+    await h.Service.StartAsync("q1");
+    // The once-per-run pass completes first: A then C.
+    await WaitForAsync(() => h.Sequences.Executed.Any(id => id == "C"));
+
+    // Now the pass is done and the run is only servicing timers — the old narrow rule left the
+    // guard dormant from here on.
+    clock.Advance(TimeSpan.FromMinutes(11));
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T"));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "C") >= 2);
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Should().Equal("A", "C", "T", "C");
   }
 
   // ── Polish (feature 060): regression — unchanged OncePerRun/Timer behavior ─
