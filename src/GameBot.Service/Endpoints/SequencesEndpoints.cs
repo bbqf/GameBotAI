@@ -272,6 +272,18 @@ internal static class SequencesEndpoints {
       var delayContract = JsonSerializer.Deserialize<DelayRangeMsContract>(delayProp.GetRawText(), PerStepRequestJsonOptions);
       existing.InterStepDelayRangeMs = MapDelayRangeMs(delayContract);
     }
+    // Handled at the top level too, so a body carrying only the watchdog is honoured. The per-step
+    // branch above never runs for such a body (there are no steps to read), which would otherwise make
+    // "PATCH just the watchdog" — the natural way to set it — silently do nothing. An explicit null
+    // clears it back to the queue default.
+    if (root.TryGetProperty("watchdogTimeoutMs", out var watchdogProp)) {
+      if (watchdogProp.ValueKind == System.Text.Json.JsonValueKind.Number && watchdogProp.TryGetInt32(out var watchdogMs)) {
+        existing.WatchdogTimeoutMs = watchdogMs;
+      }
+      else if (watchdogProp.ValueKind == System.Text.Json.JsonValueKind.Null) {
+        existing.WatchdogTimeoutMs = null;
+      }
+    }
     existing.Version += 1;
     existing.UpdatedAt = DateTimeOffset.UtcNow;
     var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);

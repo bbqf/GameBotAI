@@ -67,7 +67,9 @@ public sealed class SequenceRunnerWaitForImageTests {
 
     result.Status.Should().Be("Succeeded");
     executed.Should().ContainSingle().Which.Should().Be("cmd-after-wait");
-    result.Steps.Should().ContainSingle(step => step.ActionOutcome == "timeout_elapsed");
+    // No image to look for means this is a plain delay, reported as such rather than as a search
+    // that timed out.
+    result.Steps.Should().ContainSingle(step => step.ActionOutcome == "delay_elapsed");
     stopwatch.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(25);
   }
 
