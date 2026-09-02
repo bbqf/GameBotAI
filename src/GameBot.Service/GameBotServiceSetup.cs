@@ -145,6 +145,11 @@ internal static class GameBotServiceSetup {
     });
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IAdbGameOperations, GameBot.Service.Services.EnsureGameRunning.AdbGameOperations>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IEnsureGameRunningActionHandler, GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionHandler>();
+    // Keeps the game in front across a long queue run, so a game pushed out of the foreground mid-run
+    // is recovered at the next firing instead of leaving the queue running but achieving nothing.
+    builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IGameForegroundGuard>(sp =>
+      new GameBot.Service.Services.EnsureGameRunning.GameForegroundGuard(
+        sp.GetRequiredService<GameBot.Service.Services.EnsureGameRunning.IEnsureGameRunningActionHandler>()));
     // Readiness probe needs the vision stack (IScreenSource is Windows-only). Off Windows it stays
     // unregistered and the ensure-game-running step falls back to its foreground-only behavior.
     if (OperatingSystem.IsWindows()) {
