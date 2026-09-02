@@ -17,6 +17,7 @@ using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.QueueExecution;
+using Microsoft.Extensions.Logging;
 using EmulatorInputAction = GameBot.Emulator.Session.InputAction;
 
 namespace GameBot.Service.Services.SequenceExecution;
@@ -44,6 +45,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   // nested sequences, commands, loops, trigger-based image/text conditions — observes this run's own
   // device instead of "the first running session". Null only in tests that omit it.
   private readonly GameBot.Domain.Sessions.IDeviceContextAccessor? _deviceContext;
+  // Only used to report a failure to close an abandoned log entry. Null in tests that omit it.
+  private readonly ILogger<SequenceExecutionService>? _logger;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -60,7 +63,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     IEnsureEmulatorRunningActionHandler ensureEmulatorRunning,
     ISessionService sessionService,
     IOcrOffsetResolver ocrOffsetResolver,
-    GameBot.Domain.Sessions.IDeviceContextAccessor? deviceContext = null) {
+    GameBot.Domain.Sessions.IDeviceContextAccessor? deviceContext = null,
+    ILogger<SequenceExecutionService>? logger = null) {
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -76,6 +80,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _sessionService = sessionService;
     _ocrOffsetResolver = ocrOffsetResolver;
     _deviceContext = deviceContext;
+    _logger = logger;
   }
 
   public Task<SequenceExecutionResult> ExecuteAsync(
@@ -103,6 +108,71 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       ExecutionLogContext? parentContext,
       GameBot.Domain.Parameters.ParameterScope scope,
       CancellationToken ct = default) {
+    // The in-progress entry is opened before the first step and closed after the last one. Anything
+    // that unwinds in between — most often the queue's per-sequence watchdog cancelling a firing that
+    // overran, but any fault does it — used to skip that close, leaving an entry that reads "running"
+    // for the rest of time. Those orphans are indistinguishable from a sequence still going, so a
+    // queue could look busy while nothing was happening. Close the entry on the way out instead.
+    var opened = new OpenSequenceEntry();
+    try {
+      return await ExecuteCoreAsync(sequenceId, sessionId, parentContext, scope, opened, ct).ConfigureAwait(false);
+    }
+    catch (Exception ex) when (opened.ExecutionId is not null) {
+      await FinalizeAbandonedAsync(opened, ex).ConfigureAwait(false);
+      throw;
+    }
+  }
+
+  /// <summary>Carries the in-progress log entry out of the core run so an abort can still close it.</summary>
+  private sealed class OpenSequenceEntry {
+    public string? ExecutionId { get; set; }
+    public string? SequenceId { get; set; }
+    public string? SequenceName { get; set; }
+  }
+
+  /// <summary>
+  /// Closes a sequence entry whose run unwound before it could finalize itself, recording why. The log
+  /// has exactly three statuses — success, running, failure — so an aborted run is a failure, and the
+  /// distinction between "cancelled" and "faulted" lives in the summary. Uses
+  /// <see cref="CancellationToken.None"/> deliberately: the common cause IS a cancelled token, and the
+  /// write must still land. Best-effort — a logging failure here must not replace the original
+  /// exception on its way up.
+  /// </summary>
+  private async Task FinalizeAbandonedAsync(OpenSequenceEntry opened, Exception ex) {
+    var cancelled = ex is OperationCanceledException;
+    var name = opened.SequenceName ?? opened.SequenceId ?? "sequence";
+    var summary = cancelled
+      ? $"Sequence '{name}' was cancelled before it finished (it exceeded its time bound, or the run was stopped)."
+      : $"Sequence '{name}' ended early: {ex.GetType().Name}: {ex.Message}";
+    try {
+      await _executionLogService.LogSequenceFinalizeAsync(
+        opened.ExecutionId!,
+        opened.SequenceId ?? string.Empty,
+        name,
+        "failure",
+        summary,
+        new ExecutionLogContext {
+          Depth = 0,
+          SequenceId = opened.SequenceId,
+          SequenceLabel = name
+        },
+        details: new[] {
+          new ExecutionDetailItem("sequence", summary, null, "normal")
+        },
+        CancellationToken.None).ConfigureAwait(false);
+    }
+    catch (Exception logEx) {
+      if (_logger is not null) SequenceExecutionLog.AbandonedFinalizeFailed(_logger, opened.ExecutionId!, logEx);
+    }
+  }
+
+  private async Task<SequenceExecutionResult> ExecuteCoreAsync(
+      string sequenceId,
+      string? sessionId,
+      ExecutionLogContext? parentContext,
+      GameBot.Domain.Parameters.ParameterScope scope,
+      OpenSequenceEntry opened,
+      CancellationToken ct) {
     // Feature 079: bind this whole execution flow to the caller's device, so every screen observation
     // made anywhere beneath it resolves against that device. No session (an unbound, ad-hoc run) means
     // no context, and consumers fall back to the single-running-session rule.
@@ -119,6 +189,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     var rootExecutionId = parentContext is null
       ? await _executionLogService.LogSequenceStartAsync(sequenceId, startSequenceName, ct).ConfigureAwait(false)
       : await _executionLogService.LogSequenceStartAsync(sequenceId, startSequenceName, parentContext, ct).ConfigureAwait(false);
+    // Publish the open entry so an abort further down can still close it.
+    opened.ExecutionId = rootExecutionId;
+    opened.SequenceId = sequenceId;
+    opened.SequenceName = startSequenceName;
     var childRootExecutionId = string.IsNullOrWhiteSpace(parentContext?.RootExecutionId) ? rootExecutionId : parentContext!.RootExecutionId!;
     var childDepth = (parentContext?.Depth ?? 0) + 1;
     var childInvocationIndex = 0;
@@ -859,4 +933,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       }
     }
   }
+}
+
+internal static partial class SequenceExecutionLog {
+  [LoggerMessage(EventId = 1130, Level = LogLevel.Warning, Message = "Could not close abandoned sequence execution-log entry {ExecutionId}; it will keep reading as running")]
+  public static partial void AbandonedFinalizeFailed(ILogger logger, string ExecutionId, Exception ex);
 }

@@ -26,6 +26,22 @@ namespace GameBot.Domain.Commands {
     public DelayRangeMs? InterStepDelayRangeMs { get; set; }
 
     /// <summary>
+    /// How long a queue run may spend on one firing of this sequence before its watchdog cancels it,
+    /// in milliseconds. Null means the queue's default bound applies.
+    ///
+    /// The default exists so one stuck sequence cannot starve every timer-scheduled sequence behind it
+    /// on the same emulator, and it suits sequences built from taps and short waits. A few legitimately
+    /// take longer — anything that waits on the game to play out a scripted animation, such as an
+    /// auto-battle — and for those the default is not a safety net but a guaranteed kill: the firing is
+    /// cancelled mid-wait every time, so the sequence never once completes. Raising the bound HERE, per
+    /// sequence, keeps the protection for everything else while letting a slow sequence finish. Set it
+    /// from the sequence's own measured worst case plus its navigation and cleanup, and remember the
+    /// whole of that time is time other sequences on the same queue are waiting.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? WatchdogTimeoutMs { get; set; }
+
+    /// <summary>
     /// Parameters this sequence accepts (feature 078). Empty means the sequence is unparametrized and
     /// behaves exactly as before the feature. A sequence need <em>not</em> declare a parameter merely
     /// to pass it through to a nested command: unbound names inherit from the enclosing run scope.

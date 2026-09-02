@@ -19,6 +19,9 @@ internal sealed record SequenceUpsertContract {
   public required IReadOnlyList<SequenceStepContract> Steps { get; init; }
   public DelayRangeMsContract? InterStepDelayRangeMs { get; init; }
 
+  /// <summary>Per-firing watchdog bound for queue runs, in ms; absent means the queue's default.</summary>
+  public int? WatchdogTimeoutMs { get; init; }
+
   /// <summary>Parameters this sequence accepts (feature 078); absent means unparametrized.</summary>
   public IReadOnlyList<ParameterDeclarationDto>? Parameters { get; init; }
 }
@@ -28,6 +31,9 @@ internal sealed record SequencePatchContract {
   public int? Version { get; init; }
   public IReadOnlyList<SequenceStepContract>? Steps { get; init; }
   public DelayRangeMsContract? InterStepDelayRangeMs { get; init; }
+
+  /// <summary>Per-firing watchdog bound for queue runs, in ms; absent leaves it unchanged.</summary>
+  public int? WatchdogTimeoutMs { get; init; }
 
   /// <summary>Parameters this sequence accepts (feature 078); absent leaves them unchanged.</summary>
   public IReadOnlyList<ParameterDeclarationDto>? Parameters { get; init; }

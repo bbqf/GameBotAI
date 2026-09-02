@@ -64,6 +64,7 @@ namespace GameBot.Domain.Commands {
       ArgumentNullException.ThrowIfNull(sequence);
       ValidateActionPayloads(sequence);
       ValidateInterStepDelayRange(sequence);
+      ValidateWatchdogTimeout(sequence);
       Directory.CreateDirectory(_root);
       if (string.IsNullOrWhiteSpace(sequence.Id)) {
         sequence.Id = Guid.NewGuid().ToString("N");
@@ -80,6 +81,7 @@ namespace GameBot.Domain.Commands {
       ArgumentNullException.ThrowIfNull(sequence);
       ValidateActionPayloads(sequence);
       ValidateInterStepDelayRange(sequence);
+      ValidateWatchdogTimeout(sequence);
       Directory.CreateDirectory(_root);
       if (string.IsNullOrWhiteSpace(sequence.Id)) {
         throw new InvalidOperationException("Sequence Id is required for update");
@@ -191,6 +193,26 @@ namespace GameBot.Domain.Commands {
 
       if (sequence.InterStepDelayRangeMs.Min > sequence.InterStepDelayRangeMs.Max) {
         throw new InvalidOperationException("InterStepDelayRangeMs.Min must be <= Max.");
+      }
+    }
+
+    /// <summary>
+    /// A per-sequence watchdog must be a positive duration, and is capped so a typo cannot hand one
+    /// sequence an effectively unbounded hold on its queue's emulator.
+    /// </summary>
+    private const int MaxWatchdogTimeoutMs = 30 * 60 * 1000;
+
+    private static void ValidateWatchdogTimeout(CommandSequence sequence) {
+      if (sequence.WatchdogTimeoutMs is not { } watchdog) {
+        return;
+      }
+
+      if (watchdog <= 0) {
+        throw new InvalidOperationException("WatchdogTimeoutMs must be > 0 when set.");
+      }
+
+      if (watchdog > MaxWatchdogTimeoutMs) {
+        throw new InvalidOperationException($"WatchdogTimeoutMs must be <= {MaxWatchdogTimeoutMs} (30 minutes).");
       }
     }
   }

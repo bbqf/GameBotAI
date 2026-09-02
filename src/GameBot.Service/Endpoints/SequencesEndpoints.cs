@@ -68,6 +68,7 @@ internal static class SequencesEndpoints {
       perStepSequence.SetFlowGraph(null);
       perStepSequence.SetSteps(linearSteps);
       perStepSequence.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+      perStepSequence.WatchdogTimeoutMs = perStepRequest.WatchdogTimeoutMs;
       foreach (var declaration in ParameterDtoMapper.ToDomainDeclarations(perStepRequest.Parameters)) {
         perStepSequence.Parameters.Add(declaration);
       }
@@ -160,6 +161,8 @@ internal static class SequencesEndpoints {
       existing.SetFlowGraph(null);
       existing.SetSteps(linearSteps);
       existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+      // PUT replaces the sequence, so an absent watchdog clears it back to the queue default.
+      existing.WatchdogTimeoutMs = perStepRequest.WatchdogTimeoutMs;
       if (perStepRequest.Parameters is not null) {
         existing.Parameters.Clear();
         foreach (var declaration in ParameterDtoMapper.ToDomainDeclarations(perStepRequest.Parameters)) {
@@ -236,6 +239,8 @@ internal static class SequencesEndpoints {
       existing.SetFlowGraph(null);
       existing.SetSteps(linearSteps);
       existing.InterStepDelayRangeMs = MapDelayRangeMs(perStepRequest.InterStepDelayRangeMs);
+      // PATCH is partial: only a supplied watchdog changes it.
+      if (perStepRequest.WatchdogTimeoutMs is not null) existing.WatchdogTimeoutMs = perStepRequest.WatchdogTimeoutMs;
       if (perStepRequest.Parameters is not null) {
         existing.Parameters.Clear();
         foreach (var declaration in ParameterDtoMapper.ToDomainDeclarations(perStepRequest.Parameters)) {
@@ -425,7 +430,8 @@ internal static class SequencesEndpoints {
         links = flowLinks,
         interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
           ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
-          : null
+          : null,
+        watchdogTimeoutMs = sequence.WatchdogTimeoutMs
       };
     }
 
@@ -438,6 +444,7 @@ internal static class SequencesEndpoints {
         interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
           ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
           : null,
+        watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
         parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters)
       };
     }
@@ -450,6 +457,7 @@ internal static class SequencesEndpoints {
       interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
         ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
         : null,
+      watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
       parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters)
     };
   }
