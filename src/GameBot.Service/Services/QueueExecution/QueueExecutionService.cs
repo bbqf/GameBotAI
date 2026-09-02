@@ -63,6 +63,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // pre-session cold-start is skipped, degrading to the pre-074 behavior).
   private readonly IEnsureEmulatorRunningActionHandler? _ensureEmulatorRunning;
 
+  // Confirms the linked game is in front before each firing. Optional: when it is not wired the run
+  // behaves exactly as it did before the guard existed.
+  private readonly IGameForegroundGuard? _foregroundGuard;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -95,7 +99,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     TimeProvider? timeProvider = null,
     IEnsureGameRunningActionHandler? ensureGameRunning = null,
     IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null,
-    IDeviceClaimRegistry? deviceClaims = null) {
+    IDeviceClaimRegistry? deviceClaims = null,
+    IGameForegroundGuard? foregroundGuard = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -110,6 +115,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _ensureGameRunning = ensureGameRunning;
     _ensureEmulatorRunning = ensureEmulatorRunning;
     _deviceClaims = deviceClaims ?? new DeviceClaimRegistry();
+    _foregroundGuard = foregroundGuard;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -589,6 +595,30 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     var trackedHandle = _registry.TryGet(queueId, out var handle) ? handle : null;
     trackedHandle?.SetCurrentSequence(sequenceId, _timeProvider.GetLocalNow());
     try {
+      // Foreground guard: a queue run holds one emulator for hours, and anything that pushes the
+      // game out of the foreground in that window (a recovery loop pressing BACK off the game's top
+      // screen, a crash, someone touching the emulator) makes every later image detection read the
+      // device launcher instead of the game. Without this, the run keeps firing sequences that can
+      // only fail — the game's launch step runs at queue start and never again — so the queue reports
+      // "Running" indefinitely while achieving nothing. Confirming the foreground here means a
+      // dropped-out game costs at most one firing instead of the rest of the run.
+      // Best-effort by design: a guard failure never fails the firing, exactly like the idle-pause
+      // foreground (FR-011). Runs under the watchdog token so a stop request cancels it promptly.
+      if (_foregroundGuard is not null) {
+        try {
+          var guard = await _foregroundGuard.EnsureForegroundAsync(sessionId, watchdog.Token).ConfigureAwait(false);
+          if (guard.Recovered) {
+            QueueExecutionLog.ForegroundGuardRecovered(_logger, queueId, sequenceId);
+          }
+          else if (guard.Failed) {
+            QueueExecutionLog.ForegroundGuardFailed(_logger, queueId, sequenceId, guard.ReasonCode);
+          }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) { /* watchdog — fall through and let the firing try anyway */ }
+        catch (Exception ex) { QueueExecutionLog.ForegroundGuardFaulted(_logger, queueId, ex); }
+      }
+
       var parentContext = new ExecutionLogContext {
         ParentExecutionId = rootId,
         RootExecutionId = rootId,
@@ -722,4 +752,13 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1118, Level = LogLevel.Warning, Message = "Queue {QueueId} pre-session emulator ensure for instance {Instance} failed ({ReasonCode}); the run will not create a session")]
   public static partial void PreSessionEmulatorFailed(ILogger logger, string QueueId, string Instance, string ReasonCode);
+
+  [LoggerMessage(EventId = 1119, Level = LogLevel.Warning, Message = "Queue {QueueId} found the game out of the foreground before sequence {SequenceId} and brought it back")]
+  public static partial void ForegroundGuardRecovered(ILogger logger, string QueueId, string SequenceId);
+
+  [LoggerMessage(EventId = 1120, Level = LogLevel.Warning, Message = "Queue {QueueId} could not bring the game back to the foreground before sequence {SequenceId} ({ReasonCode}); the firing will run anyway and the next one retries")]
+  public static partial void ForegroundGuardFailed(ILogger logger, string QueueId, string SequenceId, string ReasonCode);
+
+  [LoggerMessage(EventId = 1121, Level = LogLevel.Warning, Message = "Queue {QueueId} foreground guard faulted; treated as non-fatal and the firing proceeds")]
+  public static partial void ForegroundGuardFaulted(ILogger logger, string QueueId, Exception ex);
 }

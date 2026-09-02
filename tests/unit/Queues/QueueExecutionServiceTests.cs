@@ -144,6 +144,29 @@ public sealed partial class QueueExecutionServiceTests {
     }
   }
 
+  // Records every foreground-guard pass the run makes, together with how many sequences had already
+  // executed at that moment — that ordering is the whole point of the guard, so the tests assert it
+  // rather than just the call count. Optionally throws to prove a guard failure is non-fatal.
+  private sealed class FakeForegroundGuard : IGameForegroundGuard {
+    private readonly List<int> _executedCountAtCall = new();
+    public Exception? Throws { get; set; }
+    public GameForegroundGuardOutcome Outcome { get; set; } = GameForegroundGuardOutcome.AlreadyForeground;
+    public Func<int>? ExecutedCountProvider { get; set; }
+    public List<string> Sessions { get; } = new();
+
+    public IReadOnlyList<int> ExecutedCountAtCall { get { lock (_executedCountAtCall) return _executedCountAtCall.ToList(); } }
+    public int Calls { get { lock (_executedCountAtCall) return _executedCountAtCall.Count; } }
+
+    public Task<GameForegroundGuardResult> EnsureForegroundAsync(string sessionId, CancellationToken ct = default) {
+      lock (_executedCountAtCall) {
+        _executedCountAtCall.Add(ExecutedCountProvider?.Invoke() ?? -1);
+        Sessions.Add(sessionId);
+      }
+      if (Throws is not null) throw Throws;
+      return Task.FromResult(new GameForegroundGuardResult(Outcome, Outcome.ToString()));
+    }
+  }
+
   // Feature 074: fake pre-session emulator cold-start handler. Records the call count, the args it was
   // given, and how many sessions existed at the moment it ran (to prove the ensure precedes
   // CreateSession). The returned outcome is configurable to drive the behavior matrix.
@@ -210,14 +233,23 @@ public sealed partial class QueueExecutionServiceTests {
     public QueueRunRegistry Registry { get; } = new();
     public FakeEnsureGameRunning EnsureGame { get; } = new();
     public FakeEnsureEmulatorRunning EnsureEmulator { get; } = new();
+    /// <summary>
+    /// Non-null only when the harness was built with <c>foregroundGuard: true</c>. Left unwired by
+    /// default so the pre-guard tests keep asserting the exact ensure-game call counts they were
+    /// written for.
+    /// </summary>
+    public FakeForegroundGuard? ForegroundGuard { get; }
     public SelfRescheduleCoordinator Coordinator { get; }
     public QueueExecutionService Service { get; }
 
-    public Harness(FakeTimeProvider? clock = null) {
+    public Harness(FakeTimeProvider? clock = null, bool foregroundGuard = false) {
       Clock = clock;
       Coordinator = new SelfRescheduleCoordinator(Registry, clock);
       EnsureEmulator.SessionCountProvider = () => Sessions.ActiveCount;
-      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame, ensureEmulatorRunning: EnsureEmulator);
+      if (foregroundGuard) {
+        ForegroundGuard = new FakeForegroundGuard { ExecutedCountProvider = () => Sequences.Executed.Count };
+      }
+      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame, ensureEmulatorRunning: EnsureEmulator, foregroundGuard: ForegroundGuard);
     }
 
     /// <param name="serial">
@@ -1656,5 +1688,90 @@ public sealed partial class QueueExecutionServiceTests {
     h.EnsureGame.Calls.Should().BeGreaterThanOrEqualTo(1);
 
     await WaitUntilStoppedAsync(h.Service, "q1");
+  }
+
+  // ── Foreground guard ──────────────────────────────────────────────────
+  // A queue run holds one emulator for hours. If the game is pushed out of the foreground mid-run
+  // (a recovery loop pressing BACK off the top screen, a crash, someone touching the emulator) every
+  // later detection reads the device launcher, so every firing fails — while the queue still reports
+  // "Running". The game's launch step runs at queue start and never again, so nothing recovers it.
+  // The guard closes that hole by confirming the foreground before each firing.
+
+  [Fact]
+  public async Task ForegroundIsConfirmedBeforeEveryFiring() {
+    var h = new Harness(foregroundGuard: true);
+    h.AddQueue("q1", new[] { "A", "B", "C" });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "B", "C");
+    h.ForegroundGuard!.Calls.Should().Be(3);
+    // Each pass ran BEFORE its sequence: 0 sequences done at the first, 1 at the second, 2 at the third.
+    h.ForegroundGuard.ExecutedCountAtCall.Should().Equal(0, 1, 2);
+    h.ForegroundGuard.Sessions.Should().OnlyContain(s => !string.IsNullOrEmpty(s));
+  }
+
+  [Fact] // The scenario the guard exists for: the game keeps dropping out and is recovered each time.
+  public async Task RunKeepsGoingWhenTheGameHasToBeRecoveredBeforeEachFiring() {
+    var h = new Harness(foregroundGuard: true);
+    h.ForegroundGuard!.Outcome = GameForegroundGuardOutcome.Recovered;
+    h.AddQueue("q1", new[] { "A", "B" });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "B");
+    h.ForegroundGuard.Calls.Should().Be(2);
+  }
+
+  [Fact] // A game that cannot be brought back must not stall the run — the firing still gets its try.
+  public async Task FiringStillRunsWhenTheGameCannotBeBroughtBack() {
+    var h = new Harness(foregroundGuard: true);
+    h.ForegroundGuard!.Outcome = GameForegroundGuardOutcome.RecoveryFailed;
+    h.AddQueue("q1", new[] { "A", "B" });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "B");
+  }
+
+  [Fact] // Best-effort, like the idle-pause foreground: a guard fault never fails the firing.
+  public async Task GuardFailureIsNonFatal() {
+    var h = new Harness(foregroundGuard: true);
+    h.ForegroundGuard!.Throws = new InvalidOperationException("adb exploded");
+    h.AddQueue("q1", new[] { "A", "B" });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "B");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact] // Hosts that cannot drive ADB report NotApplicable; the run must be untouched.
+  public async Task NotApplicableGuardLeavesTheRunUnchanged() {
+    var h = new Harness(foregroundGuard: true);
+    h.ForegroundGuard!.Outcome = GameForegroundGuardOutcome.NotApplicable;
+    h.AddQueue("q1", new[] { "A", "B" });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "B");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact] // The guard is optional wiring: an unwired run behaves exactly as before.
+  public async Task RunWithoutAGuardIsUnaffected() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A", "B" });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.ForegroundGuard.Should().BeNull();
+    h.Sequences.Executed.Should().Equal("A", "B");
   }
 }
