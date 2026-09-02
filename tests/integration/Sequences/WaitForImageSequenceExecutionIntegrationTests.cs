@@ -92,7 +92,8 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     // honestly because its command reference does not exist.
     execution.GetProperty("status").GetString().Should().Be("Failed");
     var steps = execution.GetProperty("steps");
-    steps[0].GetProperty("actionOutcome").GetString().Should().Be("timeout_elapsed");
+    // No image to look for makes this a plain delay, not a search that timed out.
+    steps[0].GetProperty("actionOutcome").GetString().Should().Be("delay_elapsed");
     steps[1].GetProperty("actionOutcome").GetString().Should().Be("failed");
   }
 

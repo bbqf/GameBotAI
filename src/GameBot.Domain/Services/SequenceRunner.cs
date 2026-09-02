@@ -792,9 +792,12 @@ namespace GameBot.Domain.Services {
       };
 
       if (detectionTarget is null || string.IsNullOrWhiteSpace(detectionTarget.ReferenceImageId)) {
+        // A wait with no image to look for is a plain delay, not a search that failed. Reported as
+        // such so the log distinguishes "paused on purpose" from "looked for something and never
+        // found it" — the command executor draws the same distinction, and treats a delay as executed.
         await WaitUntilDeadlineAsync(deadline, ct).ConfigureAwait(false);
-        detail.ExitCondition = "timeout_elapsed";
-        return new WaitForImageStepOutcome("timeout_elapsed", detail);
+        detail.ExitCondition = "delay_elapsed";
+        return new WaitForImageStepOutcome("delay_elapsed", detail);
       }
 
       if (conditionEvaluator is null) {

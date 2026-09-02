@@ -42,4 +42,20 @@ public sealed class ForegroundGuardWiringIntegrationTests {
 
     field.GetValue(queueExecution).Should().NotBeNull("a queue run must confirm the game is in front before each firing");
   }
+
+  [Fact]
+  public void QueueExecutionServiceReceivesTheSequenceRepository() {
+    using var app = new WebApplicationFactory<Program>();
+
+    var queueExecution = app.Services.GetRequiredService<IQueueExecutionService>();
+
+    // Same silent-failure shape as the guard: without this the run cannot read a sequence's own
+    // watchdog bound, so every sequence would quietly keep the default and a slow one would be
+    // cancelled on every firing — with nothing failing to say so.
+    var field = typeof(QueueExecutionService)
+      .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+      .Single(f => f.FieldType == typeof(GameBot.Domain.Commands.ISequenceRepository));
+
+    field.GetValue(queueExecution).Should().NotBeNull("a firing's watchdog bound comes from the sequence itself");
+  }
 }

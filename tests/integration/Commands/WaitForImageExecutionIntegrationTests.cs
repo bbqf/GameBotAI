@@ -102,8 +102,10 @@ public sealed class WaitForImageExecutionIntegrationTests : IDisposable {
     outcomes.GetArrayLength().Should().Be(2);
 
     outcomes[0].GetProperty("stepType").GetString().Should().Be("waitForImage");
-    outcomes[0].GetProperty("status").GetString().Should().Be("completed_timeout");
-    outcomes[0].GetProperty("reason").GetString().Should().Be("timeout_elapsed");
+    // A wait with no image to look for is a plain delay: waiting it out is the step succeeding, so it
+    // must not drag the whole command's status down to failure.
+    outcomes[0].GetProperty("status").GetString().Should().Be("executed");
+    outcomes[0].GetProperty("reason").GetString().Should().Be("delay_elapsed");
     outcomes[0].GetProperty("effectiveTimeoutMs").GetInt32().Should().Be(25);
     if (outcomes[0].TryGetProperty("referenceImageId", out var referenceImageId)) {
       referenceImageId.ValueKind.Should().Be(JsonValueKind.Null);
@@ -196,5 +198,53 @@ public sealed class WaitForImageExecutionIntegrationTests : IDisposable {
     commandResp.EnsureSuccessStatusCode();
     var command = await commandResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
     return command!["id"]!.ToString()!;
+  }
+
+  [Fact]
+  public async Task CommandEndingInADelayIsLoggedAsSuccessNotFailure() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    await UploadImageAsync(client, "tap-image").ConfigureAwait(false);
+    var sessionId = await CreateSessionAsync(client, "TrailingDelayGame").ConfigureAwait(false);
+    // Tap, then a targetless wait — the "pause after acting" idiom commands are written with.
+    var commandReq = new {
+      name = "Trailing delay command",
+      steps = new object[] {
+        new {
+          type = "PrimitiveTap",
+          order = 0,
+          primitiveTap = new {
+            detectionTarget = new {
+              referenceImageId = "tap-image",
+              confidence = 0.99,
+              offsetX = 0,
+              offsetY = 0,
+              selectionStrategy = "HighestConfidence"
+            }
+          }
+        },
+        new { type = "WaitForImage", order = 1, waitForImage = new { timeoutMs = 25 } }
+      }
+    };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), commandReq).ConfigureAwait(false);
+    createResp.EnsureSuccessStatusCode();
+    var created = await createResp.Content.ReadFromJsonAsync<Dictionary<string, object>>().ConfigureAwait(false);
+    var commandId = created!["id"]!.ToString()!;
+
+    var execResp = await client.PostAsync(new Uri($"/api/commands/{commandId}/force-execute?sessionId={sessionId}", UriKind.Relative), null).ConfigureAwait(false);
+    execResp.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+    var logResp = await client.GetAsync(
+      new Uri($"/api/execution-logs?objectType=command&objectId={commandId}&pageSize=1", UriKind.Relative)).ConfigureAwait(false);
+    logResp.EnsureSuccessStatusCode();
+    using var logDoc = JsonDocument.Parse(await logResp.Content.ReadAsStringAsync().ConfigureAwait(false));
+    var items = logDoc.RootElement.GetProperty("items");
+    items.GetArrayLength().Should().Be(1);
+
+    // The command did everything it was told; a trailing pause must not report it as failed. This is
+    // what filled the logs with failure lines on commands that had worked, hiding the real ones.
+    items[0].GetProperty("finalStatus").GetString().Should().Be("success");
   }
 }

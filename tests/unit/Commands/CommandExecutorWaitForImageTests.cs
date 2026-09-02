@@ -85,8 +85,10 @@ public sealed class CommandExecutorWaitForImageTests {
 
     result.Accepted.Should().Be(0);
     result.StepOutcomes.Should().HaveCount(1);
-    result.StepOutcomes[0].Status.Should().Be("completed_timeout");
-    result.StepOutcomes[0].Reason.Should().Be("timeout_elapsed");
+    // A wait with no image to look for is a plain delay, so waiting it out IS success. Reporting a
+    // timeout here marked every command ending in a delay as failed.
+    result.StepOutcomes[0].Status.Should().Be("executed");
+    result.StepOutcomes[0].Reason.Should().Be("delay_elapsed");
     stopwatch.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(25);
   }
 

@@ -485,11 +485,16 @@ internal sealed class CommandExecutor : ICommandExecutor {
     var deadline = DateTimeOffset.UtcNow.AddMilliseconds(timeoutMs);
 
     if (detectionTarget is null || string.IsNullOrWhiteSpace(detectionTarget.ReferenceImageId)) {
+      // A wait with no image to look for is not a search that failed — it is a plain delay, the only
+      // way to express "pause here" in a command. Waiting it out IS the step succeeding, so it must
+      // report "executed": a command's status is failure if ANY step is not executed, so reporting a
+      // timeout here marked every command ending in a delay as failed. That mislabelled a great many
+      // commands that had done exactly what they were told, and buried the genuine failures among them.
       await WaitForTimeoutAsync(deadline, ct).ConfigureAwait(false);
       return new PrimitiveTapStepOutcome(
         step.Order,
-        "completed_timeout",
-        "timeout_elapsed",
+        "executed",
+        "delay_elapsed",
         null,
         null,
         StepType: "waitForImage",
