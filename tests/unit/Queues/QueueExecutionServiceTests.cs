@@ -167,6 +167,29 @@ public sealed partial class QueueExecutionServiceTests {
     }
   }
 
+  // Serves sequences so the run loop can read a per-sequence watchdog bound. Only sequences added
+  // here have one; everything else resolves to the queue default.
+  private sealed class FakeSequenceRepository : GameBot.Domain.Commands.ISequenceRepository {
+    private readonly Dictionary<string, GameBot.Domain.Commands.CommandSequence> _items = new(StringComparer.Ordinal);
+    public Exception? GetThrows { get; set; }
+    public List<string> Requested { get; } = new();
+
+    public void SetWatchdog(string sequenceId, int? watchdogMs)
+      => _items[sequenceId] = new GameBot.Domain.Commands.CommandSequence { Id = sequenceId, Name = sequenceId, WatchdogTimeoutMs = watchdogMs };
+
+    public Task<GameBot.Domain.Commands.CommandSequence?> GetAsync(string id) {
+      lock (Requested) Requested.Add(id);
+      if (GetThrows is not null) throw GetThrows;
+      return Task.FromResult(_items.TryGetValue(id, out var s) ? s : null);
+    }
+
+    public Task<IReadOnlyList<GameBot.Domain.Commands.CommandSequence>> ListAsync()
+      => Task.FromResult((IReadOnlyList<GameBot.Domain.Commands.CommandSequence>)_items.Values.ToList());
+    public Task<GameBot.Domain.Commands.CommandSequence> CreateAsync(GameBot.Domain.Commands.CommandSequence sequence) { _items[sequence.Id] = sequence; return Task.FromResult(sequence); }
+    public Task<GameBot.Domain.Commands.CommandSequence> UpdateAsync(GameBot.Domain.Commands.CommandSequence sequence) { _items[sequence.Id] = sequence; return Task.FromResult(sequence); }
+    public Task<bool> DeleteAsync(string id) => Task.FromResult(_items.Remove(id));
+  }
+
   // Feature 074: fake pre-session emulator cold-start handler. Records the call count, the args it was
   // given, and how many sessions existed at the moment it ran (to prove the ensure precedes
   // CreateSession). The returned outcome is configurable to drive the behavior matrix.
@@ -239,17 +262,22 @@ public sealed partial class QueueExecutionServiceTests {
     /// written for.
     /// </summary>
     public FakeForegroundGuard? ForegroundGuard { get; }
+    /// <summary>Non-null only when the harness was built with <c>sequenceRepository: true</c>.</summary>
+    public FakeSequenceRepository? SequenceRepository { get; }
     public SelfRescheduleCoordinator Coordinator { get; }
     public QueueExecutionService Service { get; }
 
-    public Harness(FakeTimeProvider? clock = null, bool foregroundGuard = false) {
+    public Harness(FakeTimeProvider? clock = null, bool foregroundGuard = false, bool sequenceRepository = false) {
       Clock = clock;
       Coordinator = new SelfRescheduleCoordinator(Registry, clock);
       EnsureEmulator.SessionCountProvider = () => Sessions.ActiveCount;
       if (foregroundGuard) {
         ForegroundGuard = new FakeForegroundGuard { ExecutedCountProvider = () => Sequences.Executed.Count };
       }
-      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame, ensureEmulatorRunning: EnsureEmulator, foregroundGuard: ForegroundGuard);
+      if (sequenceRepository) {
+        SequenceRepository = new FakeSequenceRepository();
+      }
+      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame, ensureEmulatorRunning: EnsureEmulator, foregroundGuard: ForegroundGuard, sequences: SequenceRepository);
     }
 
     /// <param name="serial">
@@ -1772,6 +1800,99 @@ public sealed partial class QueueExecutionServiceTests {
     await WaitUntilStoppedAsync(h.Service, "q1");
 
     h.ForegroundGuard.Should().BeNull();
+    h.Sequences.Executed.Should().Equal("A", "B");
+  }
+
+  // ── Per-sequence watchdog ─────────────────────────────────────────────
+  // The default per-sequence bound suits sequences of taps and short waits. A sequence that waits out
+  // a scripted in-game animation (an auto-battle) can exceed it on EVERY run, so for that sequence the
+  // default is not a safety net but a guaranteed abort. A sequence may raise its own bound.
+
+  [Fact]
+  public async Task SequenceWithoutAnOverrideKeepsTheDefaultBound() {
+    var h = new Harness(sequenceRepository: true);
+    h.AddQueue("q1", new[] { "A" });
+    // A firing that outlives a raised bound would hang this test; the point is that a sequence with no
+    // override still runs normally and is simply asked about.
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A");
+    h.SequenceRepository!.Requested.Should().Contain("A");
+  }
+
+  [Fact] // A sequence that sets a longer bound is allowed to run past the default.
+  public async Task SequenceWithALongerBoundIsNotCancelledAtTheDefault() {
+    var h = new Harness(sequenceRepository: true);
+    h.SequenceRepository!.SetWatchdog("A", 10 * 60 * 1000);
+    h.AddQueue("q1", new[] { "A" });
+    CancellationToken observed = default;
+    h.Sequences.Handler = (id, ct) => { observed = ct; return Task.FromResult(FakeSequenceExecution.Success(id)); };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // The firing's token carries the raised bound, so it is not already near expiry.
+    observed.IsCancellationRequested.Should().BeFalse();
+    h.Sequences.Executed.Should().Equal("A");
+  }
+
+  [Fact] // A short override still cancels an overrunning firing, and the run continues past it.
+  public async Task ShortOverrideCancelsAnOverrunningFiringWithoutStoppingTheRun() {
+    var h = new Harness(sequenceRepository: true);
+    h.SequenceRepository!.SetWatchdog("A", 150);
+    h.AddQueue("q1", new[] { "A", "B" });
+    h.Sequences.Handler = async (id, ct) => {
+      if (id == "A") await Task.Delay(Timeout.Infinite, ct); // outlives A's 150 ms bound
+      return FakeSequenceExecution.Success(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // A was cancelled by its own bound; the queue moved on to B instead of freezing.
+    h.Sequences.Executed.Should().Equal("A", "B");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact] // The bound is a safety net — a broken lookup must fall back, never fail the run.
+  public async Task LookupFailureFallsBackToTheDefaultBound() {
+    var h = new Harness(sequenceRepository: true);
+    h.SequenceRepository!.GetThrows = new InvalidOperationException("store unavailable");
+    h.AddQueue("q1", new[] { "A", "B" });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "B");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Fact] // A nonsensical override is ignored rather than applied.
+  public async Task NonPositiveOverrideIsIgnored() {
+    var h = new Harness(sequenceRepository: true);
+    h.SequenceRepository!.SetWatchdog("A", 0);
+    h.AddQueue("q1", new[] { "A" });
+    CancellationToken observed = default;
+    h.Sequences.Handler = (id, ct) => { observed = ct; return Task.FromResult(FakeSequenceExecution.Success(id)); };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    // Had 0 ms been applied the firing would have been cancelled before it ran.
+    observed.IsCancellationRequested.Should().BeFalse();
+    h.Sequences.Executed.Should().Equal("A");
+  }
+
+  [Fact] // Optional wiring: without a repository every sequence keeps the default bound.
+  public async Task RunWithoutASequenceRepositoryIsUnaffected() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A", "B" });
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.SequenceRepository.Should().BeNull();
     h.Sequences.Executed.Should().Equal("A", "B");
   }
 }

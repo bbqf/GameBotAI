@@ -67,6 +67,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // behaves exactly as it did before the guard existed.
   private readonly IGameForegroundGuard? _foregroundGuard;
 
+  // Read per firing to pick up a sequence's own watchdog bound. Optional: without it every sequence
+  // gets the default bound, as before.
+  private readonly GameBot.Domain.Commands.ISequenceRepository? _sequences;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -100,7 +104,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IEnsureGameRunningActionHandler? ensureGameRunning = null,
     IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null,
     IDeviceClaimRegistry? deviceClaims = null,
-    IGameForegroundGuard? foregroundGuard = null) {
+    IGameForegroundGuard? foregroundGuard = null,
+    GameBot.Domain.Commands.ISequenceRepository? sequences = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -116,6 +121,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _ensureEmulatorRunning = ensureEmulatorRunning;
     _deviceClaims = deviceClaims ?? new DeviceClaimRegistry();
     _foregroundGuard = foregroundGuard;
+    _sequences = sequences;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -580,10 +586,15 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   }
 
   private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, string queueId, ParameterScope scope, CancellationToken ct, string? selfRescheduleOriginActionId = null) {
-    // Watchdog: cancel a firing that overruns SequenceWatchdogTimeout so one stuck sequence cannot
-    // freeze the whole queue. Linked to ct so a real stop request still cancels immediately.
+    // Watchdog: cancel a firing that overruns its bound so one stuck sequence cannot freeze the whole
+    // queue. Linked to ct so a real stop request still cancels immediately.
+    // A sequence may raise its own bound (CommandSequence.WatchdogTimeoutMs). Some legitimately need
+    // longer than the default — one that waits out a scripted in-game animation such as an auto-battle
+    // can exceed it on every single run, so the default would not protect that sequence but abort it
+    // every time. Anything without an override keeps the default exactly as before.
+    var watchdogTimeout = await ResolveWatchdogTimeoutAsync(sequenceId).ConfigureAwait(false);
     using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(ct);
-    watchdog.CancelAfter(SequenceWatchdogTimeout);
+    watchdog.CancelAfter(watchdogTimeout);
     // Sequence-level "now" tracking for the live monitor (feature 072): every firing — at-start,
     // once-per-run, every-step, timer, relative, live, self-reschedule — flows through here, so
     // set the current sequence at the top and clear it in the finally. This is purely observational
@@ -638,7 +649,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     catch (OperationCanceledException) {
       // Watchdog fired: the sequence overran its bound. Non-fatal — record it and let the run continue
       // so the timeout releases the queue instead of hanging it (FR-008/008b analogue).
-      QueueExecutionLog.SequenceWatchdogTimedOut(_logger, sequenceId, (int)SequenceWatchdogTimeout.TotalSeconds);
+      QueueExecutionLog.SequenceWatchdogTimedOut(_logger, sequenceId, (int)watchdogTimeout.TotalSeconds);
       return false;
     }
     catch (Exception ex) {
@@ -649,6 +660,26 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     finally {
       trackedHandle?.ClearCurrentSequence();
     }
+  }
+
+  /// <summary>
+  /// Resolves the watchdog bound for one firing: the sequence's own <c>WatchdogTimeoutMs</c> when it
+  /// sets one, otherwise <see cref="SequenceWatchdogTimeout"/>. A missing repository, a missing
+  /// sequence, a non-positive override, or a lookup failure all fall back to the default — the bound
+  /// is a safety net, so it must never be the thing that breaks a run.
+  /// </summary>
+  private async Task<TimeSpan> ResolveWatchdogTimeoutAsync(string sequenceId) {
+    if (_sequences is null) return SequenceWatchdogTimeout;
+    try {
+      var sequence = await _sequences.GetAsync(sequenceId).ConfigureAwait(false);
+      if (sequence?.WatchdogTimeoutMs is > 0 and var ms) {
+        return TimeSpan.FromMilliseconds(ms);
+      }
+    }
+    catch (Exception ex) {
+      QueueExecutionLog.WatchdogTimeoutLookupFailed(_logger, sequenceId, ex);
+    }
+    return SequenceWatchdogTimeout;
   }
 
   /// <summary>
@@ -761,4 +792,7 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1121, Level = LogLevel.Warning, Message = "Queue {QueueId} foreground guard faulted; treated as non-fatal and the firing proceeds")]
   public static partial void ForegroundGuardFaulted(ILogger logger, string QueueId, Exception ex);
+
+  [LoggerMessage(EventId = 1122, Level = LogLevel.Warning, Message = "Could not read the watchdog bound for sequence {SequenceId}; falling back to the queue default")]
+  public static partial void WatchdogTimeoutLookupFailed(ILogger logger, string SequenceId, Exception ex);
 }
