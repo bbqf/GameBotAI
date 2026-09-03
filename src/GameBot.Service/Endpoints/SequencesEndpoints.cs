@@ -606,17 +606,20 @@ internal static class SequencesEndpoints {
       CountLoopConfig count => new {
         loopType = "count",
         count = count.Count,
-        maxIterations = count.MaxIterations
+        maxIterations = count.MaxIterations,
+        exitOnMaxIterations = count.ExitOnMaxIterations ? true : (bool?)null
       },
       WhileLoopConfig while_ => new {
         loopType = "while",
         condition = MapPerStepConditionToDto(while_.Condition),
-        maxIterations = while_.MaxIterations
+        maxIterations = while_.MaxIterations,
+        exitOnMaxIterations = while_.ExitOnMaxIterations ? true : (bool?)null
       },
       RepeatUntilLoopConfig repeatUntil => new {
         loopType = "repeatUntil",
         condition = MapPerStepConditionToDto(repeatUntil.Condition),
-        maxIterations = repeatUntil.MaxIterations
+        maxIterations = repeatUntil.MaxIterations,
+        exitOnMaxIterations = repeatUntil.ExitOnMaxIterations ? true : (bool?)null
       },
       _ => null
     };
@@ -940,9 +943,21 @@ internal static class SequencesEndpoints {
 
   private static LoopConfig? MapLoopConfig(LoopConfigContract? contract) {
     return contract switch {
-      CountLoopConfigContract count => new CountLoopConfig { Count = count.Count, MaxIterations = count.MaxIterations },
-      WhileLoopConfigContract while_ => new WhileLoopConfig { Condition = MapPerStepCondition(while_.Condition)!, MaxIterations = while_.MaxIterations },
-      RepeatUntilLoopConfigContract repeatUntil => new RepeatUntilLoopConfig { Condition = MapPerStepCondition(repeatUntil.Condition)!, MaxIterations = repeatUntil.MaxIterations },
+      CountLoopConfigContract count => new CountLoopConfig {
+        Count = count.Count,
+        MaxIterations = count.MaxIterations,
+        ExitOnMaxIterations = count.ExitOnMaxIterations ?? false
+      },
+      WhileLoopConfigContract while_ => new WhileLoopConfig {
+        Condition = MapPerStepCondition(while_.Condition)!,
+        MaxIterations = while_.MaxIterations,
+        ExitOnMaxIterations = while_.ExitOnMaxIterations ?? false
+      },
+      RepeatUntilLoopConfigContract repeatUntil => new RepeatUntilLoopConfig {
+        Condition = MapPerStepCondition(repeatUntil.Condition)!,
+        MaxIterations = repeatUntil.MaxIterations,
+        ExitOnMaxIterations = repeatUntil.ExitOnMaxIterations ?? false
+      },
       _ => null
     };
   }

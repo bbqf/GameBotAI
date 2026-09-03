@@ -344,9 +344,13 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
 
       if (step.LoopIterations is not null) {
         var iterCount = step.LoopIterations.Count;
+        // A loop that carries its own message (it hit its iteration ceiling) says something the
+        // generated "<status> after N iterations" line cannot, so let it speak for itself.
         detailItems.Add(new ExecutionDetailItem(
           "step",
-          $"Loop '{stepLabel}' {step.Status.ToLowerInvariant()} after {iterCount} iteration{(iterCount == 1 ? "" : "s")}.",
+          !string.IsNullOrWhiteSpace(step.Message)
+            ? step.Message!
+            : $"Loop '{stepLabel}' {step.Status.ToLowerInvariant()} after {iterCount} iteration{(iterCount == 1 ? "" : "s")}.",
           new Dictionary<string, object?> {
             ["stepOrder"] = stepOrder++,
             ["stepType"] = "loop",

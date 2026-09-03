@@ -1038,6 +1038,12 @@ namespace GameBot.Domain.Services {
 
         iterations++;
         if (iterations > maxIterations) {
+          if (cfg.ExitOnMaxIterations) {
+            var gaveUp = $"Loop '{stepKey}' gave up after {maxIterations} iterations with its condition still true.";
+            result.AddLoopStep(stepKey, "exhausted", iterResults, gaveUp);
+            stepOutcomes[stepKey] = "not_executed";
+            return false;
+          }
           result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
           result.Fail($"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
           stepOutcomes[stepKey] = "failed";
@@ -1113,6 +1119,12 @@ namespace GameBot.Domain.Services {
         if (breakTriggered) break;
 
         if (iterations >= maxIterations) {
+          if (cfg.ExitOnMaxIterations) {
+            var gaveUp = $"Loop '{stepKey}' gave up after {maxIterations} iterations with its exit condition still false.";
+            result.AddLoopStep(stepKey, "exhausted", iterResults, gaveUp);
+            stepOutcomes[stepKey] = "not_executed";
+            return false;
+          }
           result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
           result.Fail($"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
           stepOutcomes[stepKey] = "failed";

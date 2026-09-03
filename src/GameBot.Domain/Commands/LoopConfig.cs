@@ -17,6 +17,22 @@ public abstract class LoopConfig {
   /// Must be greater than zero when present.
   /// </summary>
   public int? MaxIterations { get; set; }
+
+  /// <summary>
+  /// <para>
+  /// When <c>true</c>, running out of iterations ends the loop as an ordinary exit instead of
+  /// failing the step and aborting the rest of the sequence.
+  /// </para>
+  /// <para>
+  /// The default (<c>false</c>) keeps the ceiling as a hard error, which is what a loop that is
+  /// meant to converge — draining a list, waiting for a state — wants. A best-effort guard such
+  /// as "press BACK until the city is on screen" is different: giving up after N presses is a
+  /// disappointing outcome, not a broken one, and the steps that follow are still worth running.
+  /// Opting such a loop out is what stops one screen the guard could not escape from taking the
+  /// whole sequence down with it.
+  /// </para>
+  /// </summary>
+  public bool ExitOnMaxIterations { get; set; }
 }
 
 /// <summary>

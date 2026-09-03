@@ -210,6 +210,43 @@ public sealed class SequenceRunnerLoopTests {
   }
 
   [Fact]
+  public async Task WhileLoopExitOnMaxIterationsGivesUpWithoutFailingTheSequence() {
+    // A best-effort guard ("press BACK until the city is on screen") that runs out of attempts
+    // has produced a disappointing outcome, not a broken one — the steps after it still run.
+    var executed = new List<string>();
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "recover",
+      StepType = SequenceStepType.Loop,
+      Loop = new WhileLoopConfig {
+        Condition = new ImageVisibleStepCondition { ImageId = "img" },
+        MaxIterations = 3,
+        ExitOnMaxIterations = true
+      },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+    var afterStep = new SequenceStep {
+      Order = 1,
+      StepId = "after",
+      CommandId = "after-cmd",
+      StepType = SequenceStepType.Action,
+      Action = new SequenceActionPayload { Type = "tap" }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep, afterStep })));
+    var result = await runner.ExecuteAsync("s",
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
+        conditionEvaluator: (_, _) => Task.FromResult(true));
+
+    result.Status.Should().Be("Succeeded");
+    executed.Should().HaveCount(4);
+    executed.Should().Contain("after-cmd");
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.Status.Should().Be("exhausted");
+    loopResult.Message.Should().Contain("gave up after 3 iterations");
+  }
+
+  [Fact]
   public async Task WhileLoopConditionThrowsLoopFails() {
     var executed = new List<string>();
     var loopStep = new SequenceStep {
@@ -303,6 +340,33 @@ public sealed class SequenceRunnerLoopTests {
 
     result.Status.Should().Be("Failed");
     executed.Should().HaveCount(3);
+  }
+
+  [Fact]
+  public async Task RepeatUntilLoopExitOnMaxIterationsGivesUpWithoutFailingTheSequence() {
+    var executed = new List<string>();
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "cleanup",
+      StepType = SequenceStepType.Loop,
+      Loop = new RepeatUntilLoopConfig {
+        Condition = new ImageVisibleStepCondition { ImageId = "img" },
+        MaxIterations = 3,
+        ExitOnMaxIterations = true
+      },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (id, _) => { executed.Add(id); return Task.CompletedTask; },
+        conditionEvaluator: (_, _) => Task.FromResult(false));
+
+    result.Status.Should().Be("Succeeded");
+    executed.Should().HaveCount(3);
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.Status.Should().Be("exhausted");
+    loopResult.Message.Should().Contain("gave up after 3 iterations");
   }
 
   [Fact]

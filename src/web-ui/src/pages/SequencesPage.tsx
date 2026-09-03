@@ -357,14 +357,15 @@ const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
   const loop = step.loop!;
   const base: Pick<LoopStepEntry, 'type' | 'id' | 'stepId' | 'label'> = { type: 'Loop', id: makeId(), stepId: step.stepId, label: step.label };
   const body = linearBodyToStepEntries(step.body ?? []);
+  const exitOnMaxIterations = loop.exitOnMaxIterations ?? undefined;
   if (loop.loopType === 'count') {
-    return { ...base, loopType: 'count', count: loop.count, maxIterations: loop.maxIterations ?? undefined, body };
+    return { ...base, loopType: 'count', count: loop.count, maxIterations: loop.maxIterations ?? undefined, exitOnMaxIterations, body };
   }
   if (loop.loopType === 'while') {
-    return { ...base, loopType: 'while', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, body };
+    return { ...base, loopType: 'while', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, exitOnMaxIterations, body };
   }
   // repeatUntil
-  return { ...base, loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, body };
+  return { ...base, loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? undefined, exitOnMaxIterations, body };
 };
 
 const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
@@ -649,14 +650,16 @@ const buildConditionPayload = (step: SequenceStep) => {
 };
 
 const buildLoopConfigPayload = (loop: LoopStepEntry): LoopConfigDto | null => {
+  // Carried only when opted in, so a loop that never touched the flag keeps its payload identical.
+  const exit = loop.exitOnMaxIterations ? { exitOnMaxIterations: true } : {};
   if (loop.loopType === 'count') {
-    return { loopType: 'count', count: loop.count ?? 1, maxIterations: loop.maxIterations ?? null };
+    return { loopType: 'count', count: loop.count ?? 1, maxIterations: loop.maxIterations ?? null, ...exit };
   }
   if (loop.loopType === 'while' && loop.condition) {
-    return { loopType: 'while', condition: loop.condition, maxIterations: loop.maxIterations ?? null };
+    return { loopType: 'while', condition: loop.condition, maxIterations: loop.maxIterations ?? null, ...exit };
   }
   if (loop.loopType === 'repeatUntil' && loop.condition) {
-    return { loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? null };
+    return { loopType: 'repeatUntil', condition: loop.condition, maxIterations: loop.maxIterations ?? null, ...exit };
   }
   return null;
 };

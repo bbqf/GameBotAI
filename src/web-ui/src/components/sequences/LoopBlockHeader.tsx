@@ -7,9 +7,11 @@ export type LoopBlockHeaderProps = {
   count?: number;
   condition?: SequenceStepCondition;
   maxIterations?: number;
+  exitOnMaxIterations?: boolean;
   disabled?: boolean;
   onCountChange?: (count: number) => void;
   onMaxIterationsChange?: (maxIterations: number | undefined) => void;
+  onExitOnMaxIterationsChange?: (exitOnMaxIterations: boolean) => void;
   onConditionChange?: (condition: SequenceStepCondition) => void;
 };
 
@@ -20,8 +22,8 @@ const loopTypeBadge: Record<string, string> = {
 };
 
 export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
-  loopType, count, condition, maxIterations, disabled,
-  onCountChange, onMaxIterationsChange, onConditionChange,
+  loopType, count, condition, maxIterations, exitOnMaxIterations, disabled,
+  onCountChange, onMaxIterationsChange, onExitOnMaxIterationsChange, onConditionChange,
 }) => {
   const badge = loopTypeBadge[loopType] ?? loopType;
 
@@ -67,6 +69,21 @@ export const LoopBlockHeader: React.FC<LoopBlockHeaderProps> = ({
             }}
             style={{ width: '60px' }}
           />
+        </label>
+      )}
+
+      {/* Reaching the cap normally fails the step and stops the sequence. A best-effort guard —
+          "press BACK until the city is on screen" — wants the opposite: give up, carry on. */}
+      {loopType !== 'count' && (
+        <label className="loop-block-header__limit-field" title="Reaching Max ends the loop instead of failing the sequence">
+          <input
+            type="checkbox"
+            data-testid="loop-exit-on-max"
+            checked={exitOnMaxIterations ?? false}
+            disabled={disabled}
+            onChange={(e) => onExitOnMaxIterationsChange?.(e.target.checked)}
+          />{' '}
+          Give up at Max
         </label>
       )}
     </div>

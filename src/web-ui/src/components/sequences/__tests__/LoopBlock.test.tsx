@@ -146,6 +146,27 @@ describe('LoopBlockHeader', () => {
     const input = screen.getByTestId('loop-max-iterations') as HTMLInputElement;
     expect(input.value).toBe('');
   });
+
+  it('toggles the give-up-at-max option for while/repeat-until loops', () => {
+    const onExitChange = jest.fn();
+    render(
+      <LoopBlockHeader
+        loopType="while"
+        condition={{ type: 'imageVisible', imageId: '', minSimilarity: null }}
+        maxIterations={4}
+        onExitOnMaxIterationsChange={onExitChange}
+      />
+    );
+    const toggle = screen.getByTestId('loop-exit-on-max') as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    expect(onExitChange).toHaveBeenCalledWith(true);
+  });
+
+  it('hides the give-up-at-max option for a count loop', () => {
+    render(<LoopBlockHeader loopType="count" count={3} />);
+    expect(screen.queryByTestId('loop-exit-on-max')).not.toBeInTheDocument();
+  });
 });
 
 describe('BreakStepRow', () => {
