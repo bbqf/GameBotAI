@@ -111,9 +111,9 @@ export type SequenceCommandReference = {
 };
 
 export type LoopConfigDto =
-  | { loopType: 'count'; count: number; maxIterations?: number | null }
-  | { loopType: 'while'; condition: SequenceStepCondition; maxIterations?: number | null }
-  | { loopType: 'repeatUntil'; condition: SequenceStepCondition; maxIterations?: number | null };
+  | { loopType: 'count'; count: number; maxIterations?: number | null; exitOnMaxIterations?: boolean | null }
+  | { loopType: 'while'; condition: SequenceStepCondition; maxIterations?: number | null; exitOnMaxIterations?: boolean | null }
+  | { loopType: 'repeatUntil'; condition: SequenceStepCondition; maxIterations?: number | null; exitOnMaxIterations?: boolean | null };
 
 export type IfConfigDto = { condition: SequenceStepCondition };
 

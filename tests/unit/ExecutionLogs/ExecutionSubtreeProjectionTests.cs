@@ -44,6 +44,32 @@ public sealed class ExecutionSubtreeProjectionTests {
   }
 
   [Fact]
+  public void BuildSubtreeRendersAGatedOutCommandAsSkippedNotFailed() {
+    // A command step carries the trace explaining why its gate declined to run it. The step was
+    // skipped, exactly as authored — reading the false verdict as the step's own status is what
+    // painted hundreds of healthy "tap it if it is there" steps red.
+    var root = SequenceEntry("root-4", "Gated", "success", new[] { GatedOutCommandStep(1) });
+
+    var subtree = ExecutionLogService.BuildSubtree(root, new[] { root });
+
+    var node = subtree.Root.Children[0];
+    node.NodeKind.Should().Be("command");
+    node.Status.Should().Be("skipped");
+    node.ConditionTrace.Should().NotBeNull();
+  }
+
+  [Fact]
+  public void BuildSubtreeStillRendersAFalseConditionStepAsFailure() {
+    // A condition step IS its verdict, so false remains that step's failure.
+    var root = SequenceEntry("root-5", "Conditional", "failure", new[] { FalseConditionStep(1) });
+
+    var subtree = ExecutionLogService.BuildSubtree(root, new[] { root });
+
+    subtree.Root.Children[0].NodeKind.Should().Be("condition");
+    subtree.Root.Children[0].Status.Should().Be("failure");
+  }
+
+  [Fact]
   public void BuildSubtreeNestsChildSequenceWithoutExtraTopLevelNode() {
     // Sequence-invoking-sequence: a child entry that is itself a sequence with its own command child.
     var root = SequenceEntry("root-3", "Outer", "success", new[] { CommandStep(1, "seq-inner", "Inner") });
@@ -117,6 +143,17 @@ public sealed class ExecutionSubtreeProjectionTests {
       CommandName = commandName,
       CommandId = commandId
     };
+
+  private static ExecutionStepOutcome GatedOutCommandStep(int order)
+    => new(order, "command", "skipped", "skipped", "Step ran command 'Claim' with outcome 'skipped'.", "seq", $"step-{order}", "Seq", $"Step {order}",
+      new ConditionEvaluationTrace(false, "false", null, Array.Empty<Dictionary<string, object?>>(), Array.Empty<Dictionary<string, object?>>())) {
+      CommandName = "Claim",
+      CommandId = "cmd-claim"
+    };
+
+  private static ExecutionStepOutcome FalseConditionStep(int order)
+    => new(order, "condition", "executed", "executed", "Condition evaluated to false.", "seq", $"step-{order}", "Seq", $"Step {order}",
+      new ConditionEvaluationTrace(false, "false", null, Array.Empty<Dictionary<string, object?>>(), Array.Empty<Dictionary<string, object?>>()));
 
   private static ExecutionStepOutcome ConditionStep(int order)
     => new(order, "condition", "executed", "executed", "Condition evaluated to true.", "seq", $"step-{order}", "Seq", $"Step {order}",

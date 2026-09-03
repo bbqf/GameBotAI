@@ -475,7 +475,10 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       null,
       step.StepOrder,
       ResolveStepLabel(step),
-      step.ConditionTrace is not null ? (step.ConditionTrace.FinalResult ? "success" : "failure") : MapStepStatus(step.Outcome),
+      // A condition step IS its verdict, so a false result is that step's failure. Every other
+      // kind of step merely carries the trace that explains a gate decision — a command whose
+      // gate was false was skipped, not broken — so there its own outcome decides the status.
+      IsConditionStep(step) ? (step.ConditionTrace!.FinalResult ? "success" : "failure") : MapStepStatus(step.Outcome),
       step.ReasonText ?? step.ReasonCode,
       step.AppliedDelayMs,
       step.CommandName,
@@ -483,6 +486,10 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       step.ConditionTrace,
       BuildDeepLink(entry, step),
       Array.Empty<ExecutionTreeNodeProjection>());
+
+  private static bool IsConditionStep(ExecutionStepOutcome step)
+    => step.ConditionTrace is not null
+       && string.Equals(step.StepType, "condition", StringComparison.OrdinalIgnoreCase);
 
   private static string MapStepKind(string? stepType)
     => (stepType ?? string.Empty).ToLowerInvariant() switch {
@@ -498,6 +505,18 @@ internal sealed class ExecutionLogService : IExecutionLogService {
   internal static string MapStepStatus(string? outcome)
     => (outcome ?? string.Empty).ToLowerInvariant() switch {
       "executed" or "success" or "image_detected" or "true" or "break" => "success",
+      // A while loop whose condition finally goes false, and a count loop that runs every
+      // iteration, have both done exactly what they were asked. Without these the runner's own
+      // "false"/"Succeeded" loop statuses fell through to the failure default and painted a
+      // healthy guard red on every single run.
+      "false" or "succeeded" => "success",
+      // A loop that ran out of iterations while opted out of failing (LoopConfig.ExitOnMaxIterations):
+      // the body ran, the goal was not reached, and the sequence continued.
+      "exhausted" => "not_executed",
+      "failed" => "failure",
+      // feature 065: self-reschedule outcomes. Scheduling the next firing is the step working.
+      "scheduled" => "success",
+      "noop" => "skipped",
       // feature 067: if-step branch decisions — a taken branch is a success, a no-op is skipped.
       "then" or "else" => "success",
       "none" => "skipped",

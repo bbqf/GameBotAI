@@ -38,6 +38,8 @@ export type LoopStepEntry = {
   count?: number;
   condition?: SequenceStepCondition;
   maxIterations?: number;
+  // When set, running out of iterations ends the loop instead of failing the sequence.
+  exitOnMaxIterations?: boolean;
   body: StepEntry[];
 };
 

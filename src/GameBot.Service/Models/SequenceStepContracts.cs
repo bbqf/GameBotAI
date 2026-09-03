@@ -114,6 +114,12 @@ internal sealed record CommandOutcomeConditionContract : SequenceStepConditionCo
 [JsonDerivedType(typeof(RepeatUntilLoopConfigContract), typeDiscriminator: "repeatUntil")]
 internal abstract record LoopConfigContract {
   public int? MaxIterations { get; init; }
+
+  /// <summary>
+  /// When true, running out of iterations ends the loop as an ordinary exit instead of failing
+  /// the step and aborting the sequence. Omitted from responses when false.
+  /// </summary>
+  public bool? ExitOnMaxIterations { get; init; }
 }
 
 internal sealed record CountLoopConfigContract : LoopConfigContract {

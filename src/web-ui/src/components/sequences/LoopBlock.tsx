@@ -86,9 +86,11 @@ export const LoopBlock: React.FC<LoopBlockProps> = ({
           count={loop.count}
           condition={loop.condition}
           maxIterations={loop.maxIterations}
+          exitOnMaxIterations={loop.exitOnMaxIterations}
           disabled={disabled}
           onCountChange={(count) => onChange({ ...loop, count })}
           onMaxIterationsChange={(maxIterations) => onChange({ ...loop, maxIterations })}
+          onExitOnMaxIterationsChange={(exitOnMaxIterations) => onChange({ ...loop, exitOnMaxIterations })}
           onConditionChange={(condition: SequenceStepCondition) => onChange({ ...loop, condition })}
         />
         <button type="button" onClick={onRemove} disabled={disabled} data-testid="loop-remove">Remove Loop</button>

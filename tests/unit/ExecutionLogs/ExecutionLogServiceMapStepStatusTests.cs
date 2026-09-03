@@ -28,4 +28,37 @@ public sealed class ExecutionLogServiceMapStepStatusTests {
     // Failure counts/health/alerts key on the "failure" node status; no_break must never map to it.
     ExecutionLogService.MapStepStatus("no_break").Should().NotBe("failure");
   }
+
+  // A while loop whose condition finally goes false, and a count loop that runs every iteration,
+  // have each done exactly what they were asked. These runner statuses used to fall through to the
+  // failure default, which painted a healthy recovery guard red on every single run.
+  [Theory]
+  [InlineData("false")]
+  [InlineData("Succeeded")]
+  [InlineData("true")]
+  public void MapsNormalLoopExitsToSuccess(string outcome) {
+    ExecutionLogService.MapStepStatus(outcome).Should().Be("success");
+  }
+
+  [Fact]
+  public void MapsFailedLoopToFailure() {
+    ExecutionLogService.MapStepStatus("Failed").Should().Be("failure");
+  }
+
+  [Fact]
+  public void MapsExhaustedLoopToNotExecuted() {
+    // The loop opted out of failing at its ceiling: the body ran, the goal was not reached, and
+    // the sequence carried on. That is neither a success nor a failure.
+    var status = ExecutionLogService.MapStepStatus("exhausted");
+    status.Should().Be("not_executed");
+    status.Should().NotBe("failure");
+  }
+
+  // Feature 065: a self-reschedule that booked the next firing is the step working, and one that
+  // declined because its queue run had ended is a no-op — neither is a failure.
+  [Fact]
+  public void MapsSelfRescheduleOutcomes() {
+    ExecutionLogService.MapStepStatus("scheduled").Should().Be("success");
+    ExecutionLogService.MapStepStatus("noop").Should().Be("skipped");
+  }
 }
