@@ -247,6 +247,16 @@ internal static class GameBotServiceSetup {
     var pollIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_EMULATOR_POLL_INTERVAL_MS");
     var pollInterval = int.TryParse(pollIntervalEnv, out var piParsed) && piParsed >= 100 ? piParsed : 3000;
 
+    // 0 is meaningful: it disables the queue device watchdog, so this one accepts zero.
+    var watchdogIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DEVICE_WATCHDOG_INTERVAL_MS");
+    var watchdogInterval = int.TryParse(watchdogIntervalEnv, out var wiParsed) && wiParsed >= 0 ? wiParsed : 60000;
+
+    var watchdogStrikesEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DEVICE_WATCHDOG_STRIKES");
+    var watchdogStrikes = int.TryParse(watchdogStrikesEnv, out var wsParsed) && wsParsed > 0 ? wsParsed : 3;
+
+    var watchdogCooldownEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DEVICE_WATCHDOG_COOLDOWN_MS");
+    var watchdogCooldown = int.TryParse(watchdogCooldownEnv, out var wcParsed) && wcParsed >= 0 ? wcParsed : 600000;
+
     return new GameBot.Domain.Config.AppConfig {
       LoopMaxIterations = loopMax,
       CaptureIntervalMs = captureInterval,
@@ -258,6 +268,9 @@ internal static class GameBotServiceSetup {
       EmulatorProbeTimeoutMs = probeTimeout,
       EmulatorBootWaitMs = bootWait,
       EmulatorPollIntervalMs = pollInterval,
+      QueueDeviceWatchdogIntervalMs = watchdogInterval,
+      QueueDeviceWatchdogStrikes = watchdogStrikes,
+      QueueDeviceWatchdogCooldownMs = watchdogCooldown,
     };
   }
 
@@ -389,6 +402,8 @@ internal static class GameBotServiceSetup {
     builder.Services.AddHostedService<GameBot.Service.Hosted.ConfigSnapshotStartupInitializer>();
     builder.Services.AddHostedService<LoggingPolicyStartupInitializer>();
     builder.Services.AddHostedService<GameBot.Service.Hosted.ExecutionLogRetentionCleanupService>();
+    // Brings a queue back when its emulator dies mid-run; nothing else notices that case.
+    builder.Services.AddHostedService<GameBot.Service.Hosted.QueueDeviceWatchdogService>();
   }
 
   // In CI/tests (or when explicitly requested), avoid fixed ports to prevent socket bind conflicts
