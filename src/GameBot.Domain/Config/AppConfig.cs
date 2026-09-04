@@ -82,4 +82,31 @@ public sealed class AppConfig {
   /// Binders clamp to a minimum of 100 and fall back to the default on invalid values.
   /// </summary>
   public int EmulatorPollIntervalMs { get; set; } = 3000;
+
+  /// <summary>
+  /// How often, in milliseconds, to re-check that every running queue's emulator is still answering
+  /// ADB. Maps to <c>GAMEBOT_QUEUE_DEVICE_WATCHDOG_INTERVAL_MS</c>. Default 60000; <c>0</c> disables
+  /// the watchdog entirely.
+  /// <para>
+  /// An emulator can die mid-run without anything noticing: the session keeps reporting healthy and
+  /// the queue keeps firing sequences whose input goes nowhere, so a run can burn hours achieving
+  /// nothing. Only a queue start brings an instance back up, so the watchdog restarts the run.
+  /// </para>
+  /// </summary>
+  public int QueueDeviceWatchdogIntervalMs { get; set; } = 60000;
+
+  /// <summary>
+  /// Consecutive failed probes before the watchdog restarts a queue's run. Maps to
+  /// <c>GAMEBOT_QUEUE_DEVICE_WATCHDOG_STRIKES</c>. Default 3. More than one is required because ADB
+  /// drops a device briefly for reasons that resolve on their own, and a restart costs the run its
+  /// live self-reschedules.
+  /// </summary>
+  public int QueueDeviceWatchdogStrikes { get; set; } = 3;
+
+  /// <summary>
+  /// Minimum time in milliseconds between two watchdog restarts of the same queue. Maps to
+  /// <c>GAMEBOT_QUEUE_DEVICE_WATCHDOG_COOLDOWN_MS</c>. Default 600000. Stops a host whose emulator
+  /// cannot come back from being restarted in a tight loop.
+  /// </summary>
+  public int QueueDeviceWatchdogCooldownMs { get; set; } = 600000;
 }

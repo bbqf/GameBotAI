@@ -58,6 +58,10 @@ internal sealed class ConfigApplier : IConfigApplier {
     _appConfig.EmulatorProbeTimeoutMs = Math.Max(1, GetInt(snapshot, "GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS", 10000));
     _appConfig.EmulatorBootWaitMs = Math.Max(_appConfig.EmulatorProbeTimeoutMs, GetInt(snapshot, "GAMEBOT_EMULATOR_BOOT_WAIT_MS", 120000));
     _appConfig.EmulatorPollIntervalMs = Math.Max(100, GetInt(snapshot, "GAMEBOT_EMULATOR_POLL_INTERVAL_MS", 3000));
+    // 0 is meaningful here: it turns the queue device watchdog off, so this one is not clamped up.
+    _appConfig.QueueDeviceWatchdogIntervalMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_QUEUE_DEVICE_WATCHDOG_INTERVAL_MS", 60000));
+    _appConfig.QueueDeviceWatchdogStrikes = Math.Max(1, GetInt(snapshot, "GAMEBOT_QUEUE_DEVICE_WATCHDOG_STRIKES", 3));
+    _appConfig.QueueDeviceWatchdogCooldownMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_QUEUE_DEVICE_WATCHDOG_COOLDOWN_MS", 600000));
 
     // Propagate capture interval to active background capture loops
     _captureService?.UpdateCaptureInterval(_appConfig.CaptureIntervalMs);
