@@ -125,7 +125,9 @@ internal sealed partial class QueueDeviceWatchdogService : BackgroundService {
         // refuses a queue whose device is still claimed.
         await execution.StopAsync(queue.Id, ct).ConfigureAwait(false);
         var outcome = await execution.StartAsync(queue.Id, ct).ConfigureAwait(false);
-        Log.Healed(_logger, queue.Id, queue.EmulatorSerial, outcome.ToString());
+        // Passed as the enum, not ToString(): the generated logger only formats it once it knows the
+        // level is enabled (CA1873).
+        Log.Healed(_logger, queue.Id, queue.EmulatorSerial, outcome);
       }
       catch (OperationCanceledException) { throw; }
       catch (Exception ex) {
@@ -145,7 +147,7 @@ internal sealed partial class QueueDeviceWatchdogService : BackgroundService {
     public static partial void Healing(ILogger logger, string queueId, string serial);
 
     [LoggerMessage(EventId = 7203, Level = LogLevel.Information, Message = "Queue {QueueId} restarted after device {Serial} was unresponsive: {Outcome}.")]
-    public static partial void Healed(ILogger logger, string queueId, string serial, string outcome);
+    public static partial void Healed(ILogger logger, string queueId, string serial, QueueStartOutcome outcome);
 
     [LoggerMessage(EventId = 7204, Level = LogLevel.Error, Message = "Queue {QueueId} restart after device {Serial} went unresponsive failed.")]
     public static partial void HealFailed(ILogger logger, string queueId, string serial, Exception ex);
