@@ -96,6 +96,15 @@ internal sealed class QueueRunSchedule {
   }
 
   /// <summary>
+  /// True while any daily retry is armed. Like a pending relative/live schedule, an armed retry is
+  /// work this run still owes: a non-cyclic run that broke out of its loop here would take the retry
+  /// with it and the daily would be lost after all.
+  /// </summary>
+  public bool HasPendingDailyRetries {
+    get { lock (_gate) { return _dailyRetries.Count > 0; } }
+  }
+
+  /// <summary>
   /// The entry indices whose retry is due at <paramref name="now"/>, each with the attempt number that
   /// armed it. A snapshot: the caller fires them, then clears or re-arms each one.
   /// </summary>

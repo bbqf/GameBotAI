@@ -349,6 +349,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             bool HasPendingRelativeOrLive() {
               if (schedule.HasUnfiredRelativeTimers) return true;
               if (!handle.PendingLiveSchedules.IsEmpty) return true;
+              // An armed daily retry is pending work too: without this the run could break out of the
+              // loop between a failed firing and its retry, silently losing the retry it just armed.
+              if (schedule.HasPendingDailyRetries) return true;
               // feature 065: a self-reschedule Timer firing not yet due keeps a non-cyclic run alive
               // until it lands (or the run is stopped), exactly like a relative/live schedule.
               return handle.HasPendingTimerFirings;

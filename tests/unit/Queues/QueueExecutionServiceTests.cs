@@ -995,7 +995,10 @@ public sealed partial class QueueExecutionServiceTests {
 
   [Fact]
   public async Task TimerFailureIsNonFatalRunContinues() {
-    var h = new Harness();
+    // Retries off: this test is about a failed timer firing being non-fatal, not about the retry that
+    // now follows one. With retries on the run legitimately stays alive waiting to re-fire, which is
+    // covered by the daily-retry tests above.
+    var h = new Harness(config: RetryConfig(maxAttempts: 0));
     AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.MinValue), OncePerRun("A") });
     h.Sequences.Handler = (id, ct) =>
       Task.FromResult(id == "T" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
@@ -1033,6 +1036,8 @@ public sealed partial class QueueExecutionServiceTests {
     => new() { QueueDailyRetryMaxAttempts = maxAttempts, QueueDailyRetryDelayMs = delayMinutes * 60_000 };
 
   [Fact]
+  // Deliberately NOT cycling: this is also the regression test for a non-cyclic run breaking out of
+  // its loop between a failed firing and the retry it armed, which would lose the retry entirely.
   public async Task FailedDailyTimerIsRetriedAfterTheDelayAndStopsOnceItSucceeds() {
     var clock = new FakeTimeProvider(FakeStart);
     var h = new Harness(clock, config: RetryConfig(maxAttempts: 3));
