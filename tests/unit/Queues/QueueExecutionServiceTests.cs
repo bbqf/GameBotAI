@@ -267,7 +267,7 @@ public sealed partial class QueueExecutionServiceTests {
     public SelfRescheduleCoordinator Coordinator { get; }
     public QueueExecutionService Service { get; }
 
-    public Harness(FakeTimeProvider? clock = null, bool foregroundGuard = false, bool sequenceRepository = false) {
+    public Harness(FakeTimeProvider? clock = null, bool foregroundGuard = false, bool sequenceRepository = false, GameBot.Domain.Config.AppConfig? config = null) {
       Clock = clock;
       Coordinator = new SelfRescheduleCoordinator(Registry, clock);
       EnsureEmulator.SessionCountProvider = () => Sessions.ActiveCount;
@@ -277,7 +277,7 @@ public sealed partial class QueueExecutionServiceTests {
       if (sequenceRepository) {
         SequenceRepository = new FakeSequenceRepository();
       }
-      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame, ensureEmulatorRunning: EnsureEmulator, foregroundGuard: ForegroundGuard, sequences: SequenceRepository);
+      Service = new QueueExecutionService(Queues, Runtime, Templates, Sequences, Sessions, Log, NullLogger<QueueExecutionService>.Instance, Registry, timeProvider: clock, ensureGameRunning: EnsureGame, ensureEmulatorRunning: EnsureEmulator, foregroundGuard: ForegroundGuard, sequences: SequenceRepository, config: config);
     }
 
     /// <param name="serial">
@@ -995,7 +995,10 @@ public sealed partial class QueueExecutionServiceTests {
 
   [Fact]
   public async Task TimerFailureIsNonFatalRunContinues() {
-    var h = new Harness();
+    // Retries off: this test is about a failed timer firing being non-fatal, not about the retry that
+    // now follows one. With retries on the run legitimately stays alive waiting to re-fire, which is
+    // covered by the daily-retry tests above.
+    var h = new Harness(config: RetryConfig(maxAttempts: 0));
     AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.MinValue), OncePerRun("A") });
     h.Sequences.Handler = (id, ct) =>
       Task.FromResult(id == "T" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
@@ -1026,6 +1029,105 @@ public sealed partial class QueueExecutionServiceTests {
   }
 
   // ── US1 (feature 059): relative-offset timers ────────────────────────────
+
+  // ── Daily retries: a failed time-of-day firing is re-fired, bounded ──────────
+
+  private static GameBot.Domain.Config.AppConfig RetryConfig(int maxAttempts, int delayMinutes = 30)
+    => new() { QueueDailyRetryMaxAttempts = maxAttempts, QueueDailyRetryDelayMs = delayMinutes * 60_000 };
+
+  [Fact]
+  // Deliberately NOT cycling: this is also the regression test for a non-cyclic run breaking out of
+  // its loop between a failed firing and the retry it armed, which would lose the retry entirely.
+  public async Task FailedDailyTimerIsRetriedAfterTheDelayAndStopsOnceItSucceeds() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock, config: RetryConfig(maxAttempts: 3));
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.FromDateTime(FakeStart.DateTime)), OncePerRun("A") });
+    var attempts = 0;
+    h.Sequences.Handler = (id, ct) => Task.FromResult(
+      id == "T" && Interlocked.Increment(ref attempts) == 1
+        ? FakeSequenceExecution.Failure(id)
+        : FakeSequenceExecution.Success(id));
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T"));
+
+    // Nothing re-fires until the retry falls due.
+    h.Sequences.Executed.Count(id => id == "T").Should().Be(1);
+
+    clock.Advance(TimeSpan.FromMinutes(30));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "T") >= 2);
+
+    // The retry succeeded, so a further 30 minutes brings no third firing.
+    clock.Advance(TimeSpan.FromMinutes(30));
+    await WaitForAsync(() => h.Sequences.Executed.Any(id => id == "A"));
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Count(id => id == "T").Should().Be(2);
+  }
+
+  [Fact]
+  public async Task DailyTimerRetriesStopAfterMaxAttempts() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock, config: RetryConfig(maxAttempts: 2));
+    // Cycling so the once-per-run step keeps ticking: waiting for it to advance is what proves loop
+    // iterations elapsed after the last retry window without another "T" firing.
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.FromDateTime(FakeStart.DateTime)), OncePerRun("A") }, cycle: true);
+    h.Sequences.Handler = (id, ct) =>
+      Task.FromResult(id == "T" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T"));
+
+    clock.Advance(TimeSpan.FromMinutes(30));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "T") >= 2);
+    clock.Advance(TimeSpan.FromMinutes(30));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "T") >= 3);
+
+    // Attempts are spent: a further window brings no fourth firing.
+    var seen = h.Sequences.Executed.Count(id => id == "A");
+    clock.Advance(TimeSpan.FromMinutes(30));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= seen + 3);
+    await h.Service.StopAsync("q1");
+
+    // One scheduled firing + two retries, then it gives up until tomorrow's slot.
+    h.Sequences.Executed.Count(id => id == "T").Should().Be(3);
+  }
+
+  [Fact]
+  public async Task DailyTimerIsNotRetriedWhenRetriesAreDisabled() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock, config: RetryConfig(maxAttempts: 0));
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.FromDateTime(FakeStart.DateTime)), OncePerRun("A") }, cycle: true);
+    h.Sequences.Handler = (id, ct) =>
+      Task.FromResult(id == "T" ? FakeSequenceExecution.Failure(id) : FakeSequenceExecution.Success(id));
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T"));
+
+    var seen = h.Sequences.Executed.Count(id => id == "A");
+    clock.Advance(TimeSpan.FromHours(2));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= seen + 3);
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Count(id => id == "T").Should().Be(1);
+  }
+
+  [Fact]
+  public async Task SucceedingDailyTimerIsNeverRetried() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock, config: RetryConfig(maxAttempts: 3));
+    AddQueueWithEntries(h, "q1", new[] { TimerEntry("T", TimeOnly.FromDateTime(FakeStart.DateTime)), OncePerRun("A") }, cycle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T"));
+
+    var seen = h.Sequences.Executed.Count(id => id == "A");
+    clock.Advance(TimeSpan.FromHours(2));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= seen + 3);
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Count(id => id == "T").Should().Be(1);
+  }
 
   [Fact] // T007 — zero offset fires at first boundary and COUNTS toward executed (FR-016a)
   public async Task RelativeTimerZeroOffsetFiresAtFirstBoundaryAndCountsTowardExecuted() {

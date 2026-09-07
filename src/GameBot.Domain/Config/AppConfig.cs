@@ -70,11 +70,17 @@ public sealed class AppConfig {
 
   /// <summary>
   /// Maximum time in milliseconds to wait for an emulator instance to reach boot-complete after a
-  /// start or restart (feature 070). Maps to <c>GAMEBOT_EMULATOR_BOOT_WAIT_MS</c>. Default 120000.
+  /// start or restart (feature 070). Maps to <c>GAMEBOT_EMULATOR_BOOT_WAIT_MS</c>. Default 300000.
   /// Binders clamp this to be at least <see cref="EmulatorProbeTimeoutMs"/> and fall back to the
   /// default on invalid values.
+  /// <para>
+  /// Was 120000, which a cold LDPlayer start outran: on 2026-09-07 all three queues began a run while
+  /// their instances were still booting, gave up with <c>recovery_timed_out</c>, and stayed stopped.
+  /// The wait costs nothing when the emulator is already healthy - the first poll returns immediately -
+  /// so it is sized for the slow case.
+  /// </para>
   /// </summary>
-  public int EmulatorBootWaitMs { get; set; } = 120000;
+  public int EmulatorBootWaitMs { get; set; } = 300000;
 
   /// <summary>
   /// Interval in milliseconds between health polls while waiting for an emulator to become healthy
@@ -109,4 +115,22 @@ public sealed class AppConfig {
   /// cannot come back from being restarted in a tight loop.
   /// </summary>
   public int QueueDeviceWatchdogCooldownMs { get; set; } = 600000;
+
+  /// <summary>
+  /// How long to wait, in milliseconds, before re-firing a time-of-day timer entry whose sequence
+  /// failed. Maps to <c>GAMEBOT_QUEUE_DAILY_RETRY_DELAY_MS</c>. Default 1800000 (30 minutes).
+  /// <para>
+  /// A time-of-day entry fires at most once per calendar day, so before this existed a single failed
+  /// firing - one flaky image detection, one popup in the way - cost the whole day's task with no way
+  /// to notice or recover until the next day's slot.
+  /// </para>
+  /// </summary>
+  public int QueueDailyRetryDelayMs { get; set; } = 1800000;
+
+  /// <summary>
+  /// How many times to re-fire a failed time-of-day timer entry before giving up until its next
+  /// day's slot. Maps to <c>GAMEBOT_QUEUE_DAILY_RETRY_MAX_ATTEMPTS</c>. Default 3; <c>0</c> disables
+  /// daily retries entirely (the pre-feature behaviour).
+  /// </summary>
+  public int QueueDailyRetryMaxAttempts { get; set; } = 3;
 }

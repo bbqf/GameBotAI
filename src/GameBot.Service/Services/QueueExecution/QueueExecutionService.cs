@@ -71,6 +71,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // gets the default bound, as before.
   private readonly GameBot.Domain.Commands.ISequenceRepository? _sequences;
 
+  // Daily-retry bounds (delay and attempt cap) live here; defaults apply when no config is injected.
+  private readonly GameBot.Domain.Config.AppConfig _config;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -105,7 +108,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null,
     IDeviceClaimRegistry? deviceClaims = null,
     IGameForegroundGuard? foregroundGuard = null,
-    GameBot.Domain.Commands.ISequenceRepository? sequences = null) {
+    GameBot.Domain.Commands.ISequenceRepository? sequences = null,
+    GameBot.Domain.Config.AppConfig? config = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -122,6 +126,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _deviceClaims = deviceClaims ?? new DeviceClaimRegistry();
     _foregroundGuard = foregroundGuard;
     _sequences = sequences;
+    _config = config ?? new GameBot.Domain.Config.AppConfig();
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -344,6 +349,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             bool HasPendingRelativeOrLive() {
               if (schedule.HasUnfiredRelativeTimers) return true;
               if (!handle.PendingLiveSchedules.IsEmpty) return true;
+              // An armed daily retry is pending work too: without this the run could break out of the
+              // loop between a failed firing and its retry, silently losing the retry it just armed.
+              if (schedule.HasPendingDailyRetries) return true;
               // feature 065: a self-reschedule Timer firing not yet due keeps a non-cyclic run alive
               // until it lands (or the run is stopped), exactly like a relative/live schedule.
               return handle.HasPendingTimerFirings;
@@ -380,8 +388,23 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     if (!timerOk) failed++;
                     // Timer executions do not count toward `executed` (SC-002 analogue for timers)
                     schedule.MarkTimeOfDayFired(timerIndex, today);
+                    ArmOrClearDailyRetry(schedule, timerIndex, timerEntry.SequenceId, timerOk, attempt: 0, localNow);
                     await RunEveryStepPassAsync().ConfigureAwait(false);
                   }
+                }
+
+                // (a1b) Re-fire time-of-day entries whose sequence failed (bounded by
+                // QueueDailyRetryMaxAttempts). A daily slot fires once per calendar day, so without
+                // this one flaky firing silently costs the whole day's task.
+                foreach (var (retryIndex, attempt) in schedule.DueDailyRetries(_timeProvider.GetLocalNow())) {
+                  var retryEntry = schedule.Entries[retryIndex];
+                  ct.ThrowIfCancellationRequested();
+                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  QueueExecutionLog.DailyRetryFiring(_logger, retryEntry.SequenceId, attempt);
+                  var retryOk = await RunOneSequenceAsync(retryEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(retryEntry), ct).ConfigureAwait(false);
+                  if (!retryOk) failed++;
+                  ArmOrClearDailyRetry(schedule, retryIndex, retryEntry.SequenceId, retryOk, attempt, _timeProvider.GetLocalNow());
+                  await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
                 // (a2) Evaluate relative-offset timers at the iteration boundary (feature 059).
@@ -668,6 +691,30 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// sequence, a non-positive override, or a lookup failure all fall back to the default — the bound
   /// is a safety net, so it must never be the thing that breaks a run.
   /// </summary>
+  /// <summary>
+  /// Settles the retry state of one time-of-day firing: a success (or a run with retries disabled)
+  /// clears it, a failure with attempts left arms the next one, and a failure that exhausts them gives
+  /// up until the entry's next daily slot.
+  /// </summary>
+  private void ArmOrClearDailyRetry(QueueRunSchedule schedule, int entryIndex, string sequenceId, bool succeeded, int attempt, DateTimeOffset now) {
+    var maxAttempts = Math.Max(0, _config.QueueDailyRetryMaxAttempts);
+    if (succeeded || maxAttempts == 0) {
+      schedule.ClearDailyRetry(entryIndex);
+      return;
+    }
+
+    var nextAttempt = attempt + 1;
+    if (nextAttempt > maxAttempts) {
+      schedule.ClearDailyRetry(entryIndex);
+      QueueExecutionLog.DailyRetryExhausted(_logger, sequenceId, maxAttempts);
+      return;
+    }
+
+    var delay = TimeSpan.FromMilliseconds(Math.Max(1, _config.QueueDailyRetryDelayMs));
+    schedule.ArmDailyRetry(entryIndex, now + delay, nextAttempt);
+    QueueExecutionLog.DailyRetryArmed(_logger, sequenceId, nextAttempt, maxAttempts, (int)delay.TotalMinutes);
+  }
+
   private async Task<TimeSpan> ResolveWatchdogTimeoutAsync(string sequenceId) {
     if (_sequences is null) return SequenceWatchdogTimeout;
     try {
@@ -795,4 +842,13 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1122, Level = LogLevel.Warning, Message = "Could not read the watchdog bound for sequence {SequenceId}; falling back to the queue default")]
   public static partial void WatchdogTimeoutLookupFailed(ILogger logger, string SequenceId, Exception ex);
+
+  [LoggerMessage(EventId = 1123, Level = LogLevel.Warning, Message = "Daily sequence {SequenceId} failed; retry {Attempt} of {MaxAttempts} armed for {DelayMinutes} minutes from now")]
+  public static partial void DailyRetryArmed(ILogger logger, string SequenceId, int Attempt, int MaxAttempts, int DelayMinutes);
+
+  [LoggerMessage(EventId = 1124, Level = LogLevel.Information, Message = "Retrying daily sequence {SequenceId} (attempt {Attempt})")]
+  public static partial void DailyRetryFiring(ILogger logger, string SequenceId, int Attempt);
+
+  [LoggerMessage(EventId = 1125, Level = LogLevel.Warning, Message = "Daily sequence {SequenceId} still failing after {MaxAttempts} retries; giving up until its next daily slot")]
+  public static partial void DailyRetryExhausted(ILogger logger, string SequenceId, int MaxAttempts);
 }

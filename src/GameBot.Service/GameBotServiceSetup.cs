@@ -242,7 +242,7 @@ internal static class GameBotServiceSetup {
     var probeTimeout = int.TryParse(probeTimeoutEnv, out var ptParsed) && ptParsed > 0 ? ptParsed : 10000;
 
     var bootWaitEnv = Environment.GetEnvironmentVariable("GAMEBOT_EMULATOR_BOOT_WAIT_MS");
-    var bootWait = int.TryParse(bootWaitEnv, out var bwParsed) && bwParsed > 0 ? Math.Max(bwParsed, probeTimeout) : 120000;
+    var bootWait = int.TryParse(bootWaitEnv, out var bwParsed) && bwParsed > 0 ? Math.Max(bwParsed, probeTimeout) : 300000;
 
     var pollIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_EMULATOR_POLL_INTERVAL_MS");
     var pollInterval = int.TryParse(pollIntervalEnv, out var piParsed) && piParsed >= 100 ? piParsed : 3000;
@@ -256,6 +256,13 @@ internal static class GameBotServiceSetup {
 
     var watchdogCooldownEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DEVICE_WATCHDOG_COOLDOWN_MS");
     var watchdogCooldown = int.TryParse(watchdogCooldownEnv, out var wcParsed) && wcParsed >= 0 ? wcParsed : 600000;
+
+    var dailyRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DAILY_RETRY_DELAY_MS");
+    var dailyRetryDelay = int.TryParse(dailyRetryDelayEnv, out var drdParsed) && drdParsed > 0 ? drdParsed : 1800000;
+
+    // 0 is meaningful: it disables the daily retry, so this one accepts zero.
+    var dailyRetryAttemptsEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DAILY_RETRY_MAX_ATTEMPTS");
+    var dailyRetryAttempts = int.TryParse(dailyRetryAttemptsEnv, out var draParsed) && draParsed >= 0 ? draParsed : 3;
 
     return new GameBot.Domain.Config.AppConfig {
       LoopMaxIterations = loopMax,
@@ -271,6 +278,8 @@ internal static class GameBotServiceSetup {
       QueueDeviceWatchdogIntervalMs = watchdogInterval,
       QueueDeviceWatchdogStrikes = watchdogStrikes,
       QueueDeviceWatchdogCooldownMs = watchdogCooldown,
+      QueueDailyRetryDelayMs = dailyRetryDelay,
+      QueueDailyRetryMaxAttempts = dailyRetryAttempts,
     };
   }
 
