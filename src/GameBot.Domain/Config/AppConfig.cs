@@ -70,11 +70,17 @@ public sealed class AppConfig {
 
   /// <summary>
   /// Maximum time in milliseconds to wait for an emulator instance to reach boot-complete after a
-  /// start or restart (feature 070). Maps to <c>GAMEBOT_EMULATOR_BOOT_WAIT_MS</c>. Default 120000.
+  /// start or restart (feature 070). Maps to <c>GAMEBOT_EMULATOR_BOOT_WAIT_MS</c>. Default 300000.
   /// Binders clamp this to be at least <see cref="EmulatorProbeTimeoutMs"/> and fall back to the
   /// default on invalid values.
+  /// <para>
+  /// Was 120000, which a cold LDPlayer start outran: on 2026-09-07 all three queues began a run while
+  /// their instances were still booting, gave up with <c>recovery_timed_out</c>, and stayed stopped.
+  /// The wait costs nothing when the emulator is already healthy - the first poll returns immediately -
+  /// so it is sized for the slow case.
+  /// </para>
   /// </summary>
-  public int EmulatorBootWaitMs { get; set; } = 120000;
+  public int EmulatorBootWaitMs { get; set; } = 300000;
 
   /// <summary>
   /// Interval in milliseconds between health polls while waiting for an emulator to become healthy

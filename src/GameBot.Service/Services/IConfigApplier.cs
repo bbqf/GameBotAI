@@ -56,7 +56,7 @@ internal sealed class ConfigApplier : IConfigApplier {
     _appConfig.AdbRetries = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRIES", 2));
     _appConfig.AdbRetryDelayMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_ADB_RETRY_DELAY_MS", 100));
     _appConfig.EmulatorProbeTimeoutMs = Math.Max(1, GetInt(snapshot, "GAMEBOT_EMULATOR_PROBE_TIMEOUT_MS", 10000));
-    _appConfig.EmulatorBootWaitMs = Math.Max(_appConfig.EmulatorProbeTimeoutMs, GetInt(snapshot, "GAMEBOT_EMULATOR_BOOT_WAIT_MS", 120000));
+    _appConfig.EmulatorBootWaitMs = Math.Max(_appConfig.EmulatorProbeTimeoutMs, GetInt(snapshot, "GAMEBOT_EMULATOR_BOOT_WAIT_MS", 300000));
     _appConfig.EmulatorPollIntervalMs = Math.Max(100, GetInt(snapshot, "GAMEBOT_EMULATOR_POLL_INTERVAL_MS", 3000));
     // 0 is meaningful here: it turns the queue device watchdog off, so this one is not clamped up.
     _appConfig.QueueDeviceWatchdogIntervalMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_QUEUE_DEVICE_WATCHDOG_INTERVAL_MS", 60000));

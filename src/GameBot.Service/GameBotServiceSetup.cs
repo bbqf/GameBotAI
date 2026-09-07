@@ -242,7 +242,7 @@ internal static class GameBotServiceSetup {
     var probeTimeout = int.TryParse(probeTimeoutEnv, out var ptParsed) && ptParsed > 0 ? ptParsed : 10000;
 
     var bootWaitEnv = Environment.GetEnvironmentVariable("GAMEBOT_EMULATOR_BOOT_WAIT_MS");
-    var bootWait = int.TryParse(bootWaitEnv, out var bwParsed) && bwParsed > 0 ? Math.Max(bwParsed, probeTimeout) : 120000;
+    var bootWait = int.TryParse(bootWaitEnv, out var bwParsed) && bwParsed > 0 ? Math.Max(bwParsed, probeTimeout) : 300000;
 
     var pollIntervalEnv = Environment.GetEnvironmentVariable("GAMEBOT_EMULATOR_POLL_INTERVAL_MS");
     var pollInterval = int.TryParse(pollIntervalEnv, out var piParsed) && piParsed >= 100 ? piParsed : 3000;
