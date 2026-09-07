@@ -109,4 +109,22 @@ public sealed class AppConfig {
   /// cannot come back from being restarted in a tight loop.
   /// </summary>
   public int QueueDeviceWatchdogCooldownMs { get; set; } = 600000;
+
+  /// <summary>
+  /// How long to wait, in milliseconds, before re-firing a time-of-day timer entry whose sequence
+  /// failed. Maps to <c>GAMEBOT_QUEUE_DAILY_RETRY_DELAY_MS</c>. Default 1800000 (30 minutes).
+  /// <para>
+  /// A time-of-day entry fires at most once per calendar day, so before this existed a single failed
+  /// firing - one flaky image detection, one popup in the way - cost the whole day's task with no way
+  /// to notice or recover until the next day's slot.
+  /// </para>
+  /// </summary>
+  public int QueueDailyRetryDelayMs { get; set; } = 1800000;
+
+  /// <summary>
+  /// How many times to re-fire a failed time-of-day timer entry before giving up until its next
+  /// day's slot. Maps to <c>GAMEBOT_QUEUE_DAILY_RETRY_MAX_ATTEMPTS</c>. Default 3; <c>0</c> disables
+  /// daily retries entirely (the pre-feature behaviour).
+  /// </summary>
+  public int QueueDailyRetryMaxAttempts { get; set; } = 3;
 }

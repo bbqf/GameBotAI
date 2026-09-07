@@ -24,9 +24,13 @@ namespace GameBot.Service.Services.QueueExecution;
 internal sealed class QueueRunSchedule {
   private readonly object _gate = new();
   private readonly Dictionary<int, DateOnly> _timeOfDayFiredOn = new();
+  private readonly Dictionary<int, DailyRetry> _dailyRetries = new();
   private readonly HashSet<int> _relativeFired = new();
   private readonly HashSet<int> _oncePerRunDoneThisCycle = new();
   private bool _oncePerRunPassDone;
+
+  /// <summary>A pending re-fire of a time-of-day entry whose sequence failed: when, and which attempt.</summary>
+  internal readonly record struct DailyRetry(DateTimeOffset DueAt, int Attempt);
 
   public QueueRunSchedule(IReadOnlyList<QueueTemplateEntry> entries, DateTimeOffset runStartedAt, bool cycling) {
     Entries = entries;
@@ -75,6 +79,35 @@ internal sealed class QueueRunSchedule {
   }
 
   // ── Relative-offset timers (fire at most once per run) ───────────────────────────────────────
+
+  /// <summary>
+  /// Arms (or re-arms) a retry of the time-of-day entry at <paramref name="index"/>. A time-of-day
+  /// entry is marked fired for the day even when its sequence fails - otherwise the loop would re-run
+  /// it on its very next iteration, in a tight loop - so the retry is tracked separately here, with
+  /// its own due time and attempt count.
+  /// </summary>
+  public void ArmDailyRetry(int index, DateTimeOffset dueAt, int attempt) {
+    lock (_gate) { _dailyRetries[index] = new DailyRetry(dueAt, attempt); }
+  }
+
+  /// <summary>Drops any pending retry of that entry (its firing finally succeeded, or attempts ran out).</summary>
+  public void ClearDailyRetry(int index) {
+    lock (_gate) { _dailyRetries.Remove(index); }
+  }
+
+  /// <summary>
+  /// The entry indices whose retry is due at <paramref name="now"/>, each with the attempt number that
+  /// armed it. A snapshot: the caller fires them, then clears or re-arms each one.
+  /// </summary>
+  public IReadOnlyList<(int Index, int Attempt)> DueDailyRetries(DateTimeOffset now) {
+    lock (_gate) {
+      var due = new List<(int, int)>();
+      foreach (var pair in _dailyRetries) {
+        if (pair.Value.DueAt <= now) due.Add((pair.Key, pair.Value.Attempt));
+      }
+      return due;
+    }
+  }
 
   /// <summary>Records that the relative-offset timer at <paramref name="index"/> has fired this run.</summary>
   public void MarkRelativeFired(int index) {
@@ -163,6 +196,12 @@ internal sealed class QueueRunSchedule {
       if (!IsTimer(entry)) continue;
       if (entry.TimerTimeOfDay is { } tod) Consider(NextTimeOfDayDue(i, tod, now));
       if (entry.TimerRelativeOffset is { } offset && !RelativeFired(i)) Consider(RunStartedAt + offset);
+    }
+
+    // An armed daily retry is real pending work: without it here the idle pause would park the
+    // emulator until the next scheduled entry and sleep straight through the retry.
+    lock (_gate) {
+      foreach (var pair in _dailyRetries) Consider(pair.Value.DueAt);
     }
 
     foreach (var firing in handle.SnapshotPendingTimerFirings()) {

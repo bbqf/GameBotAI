@@ -258,6 +258,8 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["GAMEBOT_QUEUE_DEVICE_WATCHDOG_INTERVAL_MS"] = 60000,
       ["GAMEBOT_QUEUE_DEVICE_WATCHDOG_STRIKES"] = 3,
       ["GAMEBOT_QUEUE_DEVICE_WATCHDOG_COOLDOWN_MS"] = 600000,
+      ["GAMEBOT_QUEUE_DAILY_RETRY_DELAY_MS"] = 1800000,
+      ["GAMEBOT_QUEUE_DAILY_RETRY_MAX_ATTEMPTS"] = 3,
       ["GAMEBOT_HTTP_LOG_LEVEL_MINIMUM"] = "Warning",
       ["GAMEBOT_BIND_HOST"] = installerBindHost,
       ["GAMEBOT_PORT"] = installerPort,

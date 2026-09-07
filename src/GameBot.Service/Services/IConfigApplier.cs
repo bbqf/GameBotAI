@@ -62,6 +62,9 @@ internal sealed class ConfigApplier : IConfigApplier {
     _appConfig.QueueDeviceWatchdogIntervalMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_QUEUE_DEVICE_WATCHDOG_INTERVAL_MS", 60000));
     _appConfig.QueueDeviceWatchdogStrikes = Math.Max(1, GetInt(snapshot, "GAMEBOT_QUEUE_DEVICE_WATCHDOG_STRIKES", 3));
     _appConfig.QueueDeviceWatchdogCooldownMs = Math.Max(0, GetInt(snapshot, "GAMEBOT_QUEUE_DEVICE_WATCHDOG_COOLDOWN_MS", 600000));
+    _appConfig.QueueDailyRetryDelayMs = Math.Max(1, GetInt(snapshot, "GAMEBOT_QUEUE_DAILY_RETRY_DELAY_MS", 1800000));
+    // 0 is meaningful here too: it turns the daily retry off, so this one is not clamped up.
+    _appConfig.QueueDailyRetryMaxAttempts = Math.Max(0, GetInt(snapshot, "GAMEBOT_QUEUE_DAILY_RETRY_MAX_ATTEMPTS", 3));
 
     // Propagate capture interval to active background capture loops
     _captureService?.UpdateCaptureInterval(_appConfig.CaptureIntervalMs);

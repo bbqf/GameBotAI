@@ -257,6 +257,13 @@ internal static class GameBotServiceSetup {
     var watchdogCooldownEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DEVICE_WATCHDOG_COOLDOWN_MS");
     var watchdogCooldown = int.TryParse(watchdogCooldownEnv, out var wcParsed) && wcParsed >= 0 ? wcParsed : 600000;
 
+    var dailyRetryDelayEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DAILY_RETRY_DELAY_MS");
+    var dailyRetryDelay = int.TryParse(dailyRetryDelayEnv, out var drdParsed) && drdParsed > 0 ? drdParsed : 1800000;
+
+    // 0 is meaningful: it disables the daily retry, so this one accepts zero.
+    var dailyRetryAttemptsEnv = Environment.GetEnvironmentVariable("GAMEBOT_QUEUE_DAILY_RETRY_MAX_ATTEMPTS");
+    var dailyRetryAttempts = int.TryParse(dailyRetryAttemptsEnv, out var draParsed) && draParsed >= 0 ? draParsed : 3;
+
     return new GameBot.Domain.Config.AppConfig {
       LoopMaxIterations = loopMax,
       CaptureIntervalMs = captureInterval,
@@ -271,6 +278,8 @@ internal static class GameBotServiceSetup {
       QueueDeviceWatchdogIntervalMs = watchdogInterval,
       QueueDeviceWatchdogStrikes = watchdogStrikes,
       QueueDeviceWatchdogCooldownMs = watchdogCooldown,
+      QueueDailyRetryDelayMs = dailyRetryDelay,
+      QueueDailyRetryMaxAttempts = dailyRetryAttempts,
     };
   }
 
