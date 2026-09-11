@@ -441,6 +441,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, QueueLiveScheduleRequest(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleRequest));
       SetResponseExample(operation, "200", QueueLiveScheduleResponse(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleResponse));
     }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/duplicate", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Duplicate a queue under a new name (same configuration, template, game, and entries)";
+      SetRequestExample(operation, QueueDuplicateRequest(), context, typeof(GameBot.Service.Contracts.Queues.DuplicateQueueRequest));
+      SetResponseExample(operation, "201", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
+    }
     else if (IsMethod(method, HttpMethods.Put) && path.Contains("/entries", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Replace a queue's entries (used to load a template)";
       SetRequestExample(operation, QueueEntriesReplaceRequest(), context, typeof(GameBot.Service.Contracts.Queues.ReplaceQueueEntriesRequest));
@@ -475,6 +480,10 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   private static OpenApiObject QueueLiveScheduleRequest() => new OpenApiObject {
     ["sequenceId"] = new OpenApiString("sequence-collect"),
     ["offset"] = new OpenApiString("00:10:00")
+  };
+
+  private static OpenApiObject QueueDuplicateRequest() => new OpenApiObject {
+    ["name"] = new OpenApiString("Daily Farm 2")
   };
 
   private static OpenApiObject QueueLiveScheduleResponse() => new OpenApiObject {
