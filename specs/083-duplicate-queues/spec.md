@@ -2,7 +2,7 @@
 
 **Feature Branch**: `083-duplicate-queues`
 **Created**: 2026-09-11
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I want to be able to duplicate queues. The duplicated queue should be an 1:1 copy of the original, using the same template, just the name must be different"
 
 ## User Scenarios & Testing *(mandatory)*

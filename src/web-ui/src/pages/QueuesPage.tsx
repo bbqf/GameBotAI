@@ -7,6 +7,7 @@ import {
   createQueue,
   updateQueue,
   deleteQueue,
+  duplicateQueue,
   addQueueEntry,
   removeQueueEntry,
   replaceQueueEntries,
@@ -27,6 +28,7 @@ import { QueueLiveScheduleControl } from '../components/queues/QueueLiveSchedule
 import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
 import { QueueGameControls } from '../components/queues/QueueGameControls';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
+import { DuplicateQueueModal } from '../components/queues/DuplicateQueueModal';
 import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, ScheduleType, QueueTemplateEntryDto } from '../services/queueTemplates';
 import { sameSequenceOrder } from '../lib/sequenceOrder';
 import { ApiError } from '../lib/api';
@@ -57,6 +59,8 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
 
   const [detail, setDetail] = useState<QueueDetailDto | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [duplicateSource, setDuplicateSource] = useState<QueueDto | undefined>(undefined);
+  const [duplicateError, setDuplicateError] = useState<string | undefined>(undefined);
   const [associatedTemplateName, setAssociatedTemplateName] = useState<string | undefined>(undefined);
   const [pendingLoad, setPendingLoad] = useState<{ name: string; sequenceIds: string[]; templateId: string; templateEntries?: QueueTemplateEntryDto[] } | undefined>(undefined);
   const [pendingReload, setPendingReload] = useState<{ name: string; sequenceIds: string[]; templateId: string; templateEntries?: QueueTemplateEntryDto[] } | undefined>(undefined);
@@ -205,6 +209,21 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
       // Start/stop request errors (e.g. 409 already_running) surface here; the run's own
       // pass/fail outcome is recorded in the Execution Logs.
       setTableError(err?.message ?? 'Action failed');
+    }
+  };
+
+  const handleDuplicate = async (name: string) => {
+    if (!duplicateSource) return;
+    try {
+      await duplicateQueue(duplicateSource.id, name);
+      setDuplicateSource(undefined);
+      setDuplicateError(undefined);
+      setTableMessage(`Queue "${name}" duplicated successfully.`);
+      await refresh();
+    } catch (err: any) {
+      // Keep the dialog open on rejection (e.g. unchanged name) so the user can correct it
+      // without losing their place, instead of surfacing this at the page-level tableError.
+      setDuplicateError(err instanceof ApiError ? err.message : err?.message ?? 'Failed to duplicate queue');
     }
   };
 
@@ -458,6 +477,12 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
                     <button type="button" onClick={() => void openEdit(q.id)} disabled={running}>Edit</button>
                     <button
                       type="button"
+                      onClick={() => { setDuplicateError(undefined); setDuplicateSource(q); }}
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      type="button"
                       className="btn btn-danger"
                       disabled={running}
                       onClick={async () => { await openEdit(q.id); setDeleteOpen(true); }}
@@ -575,6 +600,15 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
           />
         </section>
       )}
+
+      <DuplicateQueueModal
+        open={Boolean(duplicateSource)}
+        sourceName={duplicateSource?.name ?? ''}
+        suggestedName={`${duplicateSource?.name ?? ''} (copy)`}
+        error={duplicateError}
+        onCancel={() => { setDuplicateSource(undefined); setDuplicateError(undefined); }}
+        onConfirm={(name) => void handleDuplicate(name)}
+      />
 
       <ConfirmDeleteModal
         open={deleteOpen}

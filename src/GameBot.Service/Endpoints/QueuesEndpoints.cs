@@ -77,6 +77,35 @@ internal static class QueuesEndpoints {
       return Results.Ok(BuildResponse(saved, runtime));
     }).WithName("UpdateQueue");
 
+    // Duplicate (feature 083): a 1:1 copy of the source queue's configuration and currently
+    // loaded entries under a new, required-to-differ name. Never mutates the source; the
+    // duplicate is always created stopped since a brand-new queue ID has no runtime status yet.
+    group.MapPost("{id}/duplicate", async (string id, DuplicateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime) => {
+      var source = await repo.GetAsync(id).ConfigureAwait(false);
+      if (source is null) return NotFound();
+      var name = req?.Name?.Trim();
+      if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
+      if (string.Equals(name, source.Name, StringComparison.Ordinal))
+        return Error(400, "invalid_request", "name must differ from the original queue's name");
+
+      var created = await repo.CreateAsync(new ExecutionQueue {
+        Name = name,
+        EmulatorSerial = source.EmulatorSerial,
+        CycleExecution = source.CycleExecution,
+        PauseWhenIdle = source.PauseWhenIdle,
+        IdleThresholdSeconds = CoerceThreshold(source.IdleThresholdSeconds),
+        EmulatorInstanceName = NormalizeInstanceName(source.EmulatorInstanceName),
+        EmulatorInstanceIndex = source.EmulatorInstanceIndex,
+        LinkedTemplateId = source.LinkedTemplateId,
+        LinkedGameId = source.LinkedGameId
+      }).ConfigureAwait(false);
+
+      var sourceEntries = runtime.GetEntries(id).Select(e => e.SequenceId);
+      runtime.SetEntries(created.Id, sourceEntries);
+
+      return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
+    }).WithName("DuplicateQueue");
+
     group.MapDelete("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();

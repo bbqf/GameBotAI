@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-11._
+_Last reviewed: 2026-09-11 (feature 083)._
 
 ## What GameBot is
 
@@ -129,6 +129,14 @@ not survive a service restart; queue *configuration* and templates are persisted
 - **Queue Template** — a named, persisted snapshot of a queue's ordered entries and their
   **schedules**. A queue links to 0..1 templates (auto-loaded when the queue opens); a template can
   be shared across queues.
+- **Queue duplication** (feature 083) — `POST /api/queues/{id}/duplicate` creates a 1:1 copy of an
+  existing queue: every configuration field (emulator serial/instance, cycle-execution, idle-pause,
+  linked template reference, linked game reference) plus the source's *currently loaded* runtime
+  entries are copied into a brand-new queue. The duplicate links to the **same** template record —
+  no template copy is made. The new name is required and MUST differ from the source's current
+  name (ordinal comparison); queue names are otherwise not required to be unique. The duplicate is
+  always created `Stopped` with no execution history, since a brand-new queue ID has never been
+  started — the source queue's own running/stopped state is untouched either way.
 - **Sequence schedule** (within a template) — how/when an entry runs in a queue cycle:
   *Once per run*, *At queue start*, *After every step*, and *Scheduled* (absolute or relative time).
 - **Entry enabled/disabled** (within a template, spec 077) — each `QueueTemplateEntry` carries an
