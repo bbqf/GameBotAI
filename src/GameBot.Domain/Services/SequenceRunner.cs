@@ -32,6 +32,20 @@ namespace GameBot.Domain.Services {
   }
 
   /// <summary>
+  /// Canonical dry-run outcome vocabulary (feature 082, FR-002/FR-006). Reported for any step a
+  /// <c>dryRun</c> execution intentionally did not dispatch — never equal to any of
+  /// <see cref="BreakOutcomes"/>'s values or the ordinary success/failed/skipped tokens, so a
+  /// <c>commandOutcome</c> reference to a dry-run-skipped step's outcome never matches.
+  /// </summary>
+  public static class DryRunOutcomes {
+    /// <summary>
+    /// The step would have dispatched input to the emulator, started/used a session, or read live
+    /// capture state, but did not because the run is a dry run.
+    /// </summary>
+    public const string SkippedDryRun = "skipped_dry_run";
+  }
+
+  /// <summary>
   /// Minimal runner that executes a sequence by iterating steps and applying delays.
   /// Detection gating and retries will be added in later phases.
   /// </summary>
@@ -87,6 +101,7 @@ namespace GameBot.Domain.Services {
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator = null,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher = null,
         ParameterScope? scope = null,
+        bool dryRun = false,
         CancellationToken ct = default) {
       ArgumentNullException.ThrowIfNull(executeCommandAsync);
       var sequence = await _repository.GetAsync(sequenceId).ConfigureAwait(false);
@@ -127,6 +142,7 @@ namespace GameBot.Domain.Services {
             sequenceId,
             actionDispatcher,
             runScope,
+            dryRun,
             ct).ConfigureAwait(false);
         if (earlyStop) {
           if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
@@ -443,6 +459,7 @@ namespace GameBot.Domain.Services {
         string sequenceId,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
         ParameterScope scope,
+        bool dryRun,
         CancellationToken ct) {
       // Substitution happens here and only here, so a parameter resolves identically whether the step
       // sits at the top level, in a loop body, or in an if branch (feature 078, FR-016). Loop and if
@@ -467,6 +484,7 @@ namespace GameBot.Domain.Services {
             _config.LoopMaxIterations,
             actionDispatcher,
             scope,
+            dryRun,
             ct).ConfigureAwait(false);
       }
 
@@ -484,6 +502,7 @@ namespace GameBot.Domain.Services {
             sequenceId,
             scope,
             actionDispatcher,
+            dryRun,
             ct).ConfigureAwait(false);
         return ifEarlyStop;
       }
@@ -602,6 +621,31 @@ namespace GameBot.Domain.Services {
         }
       }
 
+      // ── Dry-run leaf-dispatch gate (feature 082, FR-002/FR-006/FR-007/FR-015) ───────────
+      // Intercepts every step family that would otherwise dispatch input to the emulator, start or
+      // use a session, or read live capture state — wait-for-image, reschedule-self, and every
+      // dispatched primitive action (tap/swipe/key/connect-to-game/ensure-game-running/
+      // go-to-home-screen/ensure-emulator-running) — before any of those blocks run, reporting a
+      // uniform skipped_dry_run outcome instead. Deliberately does NOT intercept the ordinary
+      // command-referencing fallback below: that path preserves its own stale-commandId existence
+      // check via CommandDispatchOutcome.SkippedDryRun (see the RequireDispatch handling further
+      // down), which a blanket skip here would silently swallow (FR-010).
+      if (dryRun && (IsWaitForImageStep(step)
+          || (step.StepType == SequenceStepType.Action
+              && string.Equals(step.Action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase))
+          || (step.StepType == SequenceStepType.Action && IsDispatchedPrimitiveAction(step.Action)))) {
+        result.AddStep(
+            stepKey,
+            appliedDelay,
+            "Succeeded",
+            conditionType: step.Condition is null ? null : step.Condition.Type,
+            conditionResult: step.Condition is null ? null : "true",
+            actionOutcome: DryRunOutcomes.SkippedDryRun,
+            message: $"dry run: '{step.Action?.Type}' was not dispatched");
+        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = DryRunOutcomes.SkippedDryRun;
+        return false;
+      }
+
       if (IsWaitForImageStep(step)) {
         var waitOutcome = await WaitForImageAsync(step.WaitForImage, conditionEvaluator, ct).ConfigureAwait(false);
         result.AddStep(
@@ -713,6 +757,23 @@ namespace GameBot.Domain.Services {
       // "tap it if it is there" is a legitimate and common pattern (loops that drain a list until
       // nothing matches end precisely on a miss), so only a step marked RequireDispatch fails.
       if (!cmdDispatch.Dispatched) {
+        // Feature 082 (FR-002/FR-006/FR-010): the commandId resolved to a real command, but a
+        // dry-run skipped actually dispatching it — distinct from a genuine "nothing dispatched"
+        // miss, so it must never trip the RequireDispatch failure check below.
+        if (cmdDispatch.SkippedDryRun) {
+          result.AddStep(
+              step.CommandId,
+              appliedDelay,
+              "Succeeded",
+              conditionType: step.Condition is null ? null : step.Condition.Type,
+              conditionResult: step.Condition is null ? null : "true",
+              actionOutcome: DryRunOutcomes.SkippedDryRun,
+              message: "dry run: command was not dispatched");
+          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = DryRunOutcomes.SkippedDryRun;
+          if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
+          return false;
+        }
+
         var missReason = !string.IsNullOrWhiteSpace(cmdDispatch.Reason)
             ? cmdDispatch.Reason!
             : "command dispatched no input to the device";
@@ -882,6 +943,7 @@ namespace GameBot.Domain.Services {
           actionDispatcher: null,
           // Legacy blocks path: no parameter scope, matching pre-feature behaviour.
           ParameterScope.Empty,
+          dryRun: false,
           ct);
     }
 
@@ -908,6 +970,7 @@ namespace GameBot.Domain.Services {
         int globalMaxIterations,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
         ParameterScope scope,
+        bool dryRun,
         CancellationToken ct) {
       var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"loop@{step.Order}";
       var maxIterations = step.Loop?.MaxIterations ?? globalMaxIterations;
@@ -916,17 +979,17 @@ namespace GameBot.Domain.Services {
         case CountLoopConfig countCfg:
           return await ExecuteCountLoopAsync(step, stepKey, countCfg,
               executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
-              stepOutcomes, result, sequenceId, actionDispatcher, scope, ct).ConfigureAwait(false);
+              stepOutcomes, result, sequenceId, actionDispatcher, scope, dryRun, ct).ConfigureAwait(false);
 
         case WhileLoopConfig whileCfg:
           return await ExecuteWhileLoopAsync(step, stepKey, whileCfg, maxIterations,
               executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
-              stepOutcomes, result, sequenceId, actionDispatcher, scope, ct).ConfigureAwait(false);
+              stepOutcomes, result, sequenceId, actionDispatcher, scope, dryRun, ct).ConfigureAwait(false);
 
         case RepeatUntilLoopConfig ruCfg:
           return await ExecuteRepeatUntilLoopAsync(step, stepKey, ruCfg, maxIterations,
               executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
-              stepOutcomes, result, sequenceId, actionDispatcher, scope, ct).ConfigureAwait(false);
+              stepOutcomes, result, sequenceId, actionDispatcher, scope, dryRun, ct).ConfigureAwait(false);
 
         default:
           result.AddStep(stepKey, 0, "Failed", message: $"Loop step '{stepKey}' has missing or unknown loop configuration.");
@@ -951,6 +1014,7 @@ namespace GameBot.Domain.Services {
         string sequenceId,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
         ParameterScope scope,
+        bool dryRun,
         CancellationToken ct) {
       var iterResults = new List<LoopIterResult>();
       var priorIterationExecutedSteps = false;
@@ -969,7 +1033,7 @@ namespace GameBot.Domain.Services {
         var iterCtx = scope.WithIteration(i + 1);
         var (earlyStop, breakTriggered, stepCount, iterBrokeVia) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
-            stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
+            stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, dryRun, ct).ConfigureAwait(false);
 
         iterResults.Add(new LoopIterResult { IterationIndex = i + 1, BreakTriggered = breakTriggered, StepCount = stepCount });
         priorIterationExecutedSteps = stepCount > 0;
@@ -1004,6 +1068,7 @@ namespace GameBot.Domain.Services {
         string sequenceId,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
         ParameterScope scope,
+        bool dryRun,
         CancellationToken ct) {
       var iterResults = new List<LoopIterResult>();
       var iterations = 0;
@@ -1059,7 +1124,7 @@ namespace GameBot.Domain.Services {
         var iterCtx = scope.WithIteration(iterations);
         var (earlyStop, breakTriggered, stepCount, iterBrokeVia) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
-            stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
+            stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, dryRun, ct).ConfigureAwait(false);
 
         iterResults.Add(new LoopIterResult { IterationIndex = iterations, BreakTriggered = breakTriggered, StepCount = stepCount });
         priorIterationExecutedSteps = stepCount > 0;
@@ -1094,6 +1159,7 @@ namespace GameBot.Domain.Services {
         string sequenceId,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
         ParameterScope scope,
+        bool dryRun,
         CancellationToken ct) {
       var iterResults = new List<LoopIterResult>();
       var iterations = 0;
@@ -1114,7 +1180,7 @@ namespace GameBot.Domain.Services {
         var iterCtx = scope.WithIteration(iterations);
         var (earlyStop, breakTriggered, stepCount, iterBrokeVia) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
-            stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
+            stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, dryRun, ct).ConfigureAwait(false);
 
         iterResults.Add(new LoopIterResult { IterationIndex = iterations, BreakTriggered = breakTriggered, StepCount = stepCount });
         priorIterationExecutedSteps = stepCount > 0;
@@ -1184,6 +1250,7 @@ namespace GameBot.Domain.Services {
         string sequenceId,
         ParameterScope iterScope,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        bool dryRun,
         CancellationToken ct) {
       var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"if@{step.Order}";
 
@@ -1232,7 +1299,7 @@ namespace GameBot.Domain.Services {
 
       var (earlyStop, breakTriggered, _, brokeVia) = await ExecuteLoopBodyAsync(
           branch, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
-          stepOutcomes, result, sequenceId, iterScope, actionDispatcher, ct).ConfigureAwait(false);
+          stepOutcomes, result, sequenceId, iterScope, actionDispatcher, dryRun, ct).ConfigureAwait(false);
 
       if (earlyStop) {
         stepOutcomes[stepKey] = "failed";
@@ -1263,6 +1330,7 @@ namespace GameBot.Domain.Services {
         string sequenceId,
         ParameterScope iterScope,
         Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        bool dryRun,
         CancellationToken ct) {
       var stepsExecuted = 0;
       var orderedBodySteps = bodySteps.OrderBy(s => s.Order).ToList();
@@ -1342,7 +1410,7 @@ namespace GameBot.Domain.Services {
           // {{iteration}} substitution, and a break inside a branch exits the enclosing loop.
           var (ifEarlyStop, ifBreakTriggered, ifBrokeVia) = await ExecuteIfStepAsync(
               step, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
-              stepOutcomes, result, sequenceId, iterScope, actionDispatcher, ct).ConfigureAwait(false);
+              stepOutcomes, result, sequenceId, iterScope, actionDispatcher, dryRun, ct).ConfigureAwait(false);
           stepsExecuted++;
 
           if (ifEarlyStop) return (true, false, stepsExecuted, null);
@@ -1370,6 +1438,7 @@ namespace GameBot.Domain.Services {
             sequenceId,
             actionDispatcher,
             iterScope,
+            dryRun,
             ct).ConfigureAwait(false);
         stepsExecuted++;
 

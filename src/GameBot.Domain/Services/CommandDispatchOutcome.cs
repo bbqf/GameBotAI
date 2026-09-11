@@ -21,7 +21,13 @@ namespace GameBot.Domain.Services;
 /// Reason code from the first step that failed to dispatch (e.g. <c>detection_failed_after_3_retries</c>),
 /// recorded on the sequence step so the miss is legible without opening the command's own subtree.
 /// </param>
-public sealed record CommandDispatchOutcome(bool Dispatched, string? Reason) {
+/// <param name="SkippedDryRun">
+/// Feature 082 (FR-002/FR-010): <c>true</c> when the referenced <c>commandId</c> resolved to a real
+/// command but was not dispatched because the run is a dry run — distinct from <paramref name="Dispatched"/>
+/// being <c>false</c> for a genuine "nothing dispatched" miss, so it MUST NOT trip the
+/// <c>requireDispatch</c> failure check. Defaults to <c>false</c> for every existing caller.
+/// </param>
+public sealed record CommandDispatchOutcome(bool Dispatched, string? Reason, bool SkippedDryRun = false) {
   /// <summary>The ordinary case: the command ran and its input reached the device.</summary>
   public static readonly CommandDispatchOutcome Executed = new(true, null);
 }

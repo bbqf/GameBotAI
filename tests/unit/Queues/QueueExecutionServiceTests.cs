@@ -59,11 +59,13 @@ public sealed partial class QueueExecutionServiceTests {
     /// <summary>Scopes each firing was launched with, keyed by sequence id (feature 078).</summary>
     public List<(string SequenceId, GameBot.Domain.Parameters.ParameterScope Scope)> Scopes { get; } = new();
 
-    public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, CancellationToken ct = default)
-      => ExecuteAsync(sequenceId, sessionId, parentContext, GameBot.Domain.Parameters.ParameterScope.Empty, ct);
+    public List<bool> DryRunFlags { get; } = new();
 
-    public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, GameBot.Domain.Parameters.ParameterScope scope, CancellationToken ct = default) {
-      lock (Executed) { Executed.Add(sequenceId); Scopes.Add((sequenceId, scope)); }
+    public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, CancellationToken ct = default)
+      => ExecuteAsync(sequenceId, sessionId, parentContext, GameBot.Domain.Parameters.ParameterScope.Empty, ct: ct);
+
+    public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, GameBot.Domain.Parameters.ParameterScope scope, bool dryRun = false, CancellationToken ct = default) {
+      lock (Executed) { Executed.Add(sequenceId); Scopes.Add((sequenceId, scope)); DryRunFlags.Add(dryRun); }
       if (Handler is not null) return Handler(sequenceId, ct);
       return Task.FromResult(Success(sequenceId));
     }
@@ -323,6 +325,19 @@ public sealed partial class QueueExecutionServiceTests {
     await WaitUntilStoppedAsync(h.Service, "q1");
 
     h.Sequences.Executed.Should().Equal("A", "B", "C");
+  }
+
+  [Fact] // Feature 082 (FR-012): dryRun is unreachable through queue-scheduled execution.
+  public async Task QueueRunsAlwaysExecuteWithDryRunFalse() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A", "B" });
+
+    var outcome = await h.Service.StartAsync("q1");
+    outcome.Should().Be(QueueStartOutcome.Started);
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.DryRunFlags.Should().NotBeEmpty();
+    h.Sequences.DryRunFlags.Should().OnlyContain(dryRun => dryRun == false);
   }
 
   [Fact] // 077: disabled template entries are excluded from the run; enabled ones run in order

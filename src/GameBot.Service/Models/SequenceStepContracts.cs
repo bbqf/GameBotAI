@@ -24,6 +24,13 @@ internal sealed record SequenceUpsertContract {
 
   /// <summary>Parameters this sequence accepts (feature 078); absent means unparametrized.</summary>
   public IReadOnlyList<ParameterDeclarationDto>? Parameters { get; init; }
+
+  /// <summary>
+  /// Validate-only mode (feature 082, FR-002): when <c>true</c> on create, runs the same
+  /// enrichment/validation a real create runs but never persists a sequence. Defaults to
+  /// <c>false</c>.
+  /// </summary>
+  public bool? DryRun { get; init; }
 }
 
 internal sealed record SequencePatchContract {
@@ -74,6 +81,13 @@ internal sealed record SequenceStepContract {
 internal sealed record SequenceExecuteContract {
   public string? SessionId { get; init; }
   public IReadOnlyList<ParameterBindingDto>? Parameters { get; init; }
+
+  /// <summary>
+  /// Validate-only mode (feature 082, FR-002): when <c>true</c>, walks the sequence's real step
+  /// tree but skips every step that would dispatch to the emulator, start/use a session, or read
+  /// live capture state, reporting <c>skipped_dry_run</c> for each. Defaults to <c>false</c>.
+  /// </summary>
+  public bool? DryRun { get; init; }
 }
 
 internal sealed record IfConfigContract {

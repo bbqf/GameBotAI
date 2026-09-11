@@ -80,6 +80,12 @@ internal static class SequencesEndpoints {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
 
+      // Feature 082 (FR-002/FR-003): a dry-run create has already run every check above — the
+      // only thing left to skip is persistence itself.
+      if (perStepRequest.DryRun == true) {
+        return Results.Ok(new { valid = true, dryRun = true, errors = Array.Empty<string>() });
+      }
+
       var createdPerStep = await repo.CreateAsync(perStepSequence).ConfigureAwait(false);
       return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), await ToSequenceResponseAsync(createdPerStep, commandRepository, ct).ConfigureAwait(false));
     }
@@ -341,10 +347,12 @@ internal static class SequencesEndpoints {
     // Read optional sessionId and, since feature 078, optional parameter values from the body.
     string? sessionId = null;
     IReadOnlyList<GameBot.Service.Models.ParameterBindingDto>? suppliedParameters = null;
+    var dryRun = false;
     try {
       var body = await httpContext.Request.ReadFromJsonAsync<SequenceExecuteContract>(ct).ConfigureAwait(false);
       sessionId = body?.SessionId;
       suppliedParameters = body?.Parameters;
+      dryRun = body?.DryRun == true;
     }
     catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
       // empty body, malformed JSON, or missing content-type — no sessionId or parameter override
@@ -374,7 +382,7 @@ internal static class SequencesEndpoints {
           GameBot.Domain.Parameters.ParameterScopeLayers.Entry, bindings, null);
     }
 
-    var res = await sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext: null, scope, ct).ConfigureAwait(false);
+    var res = await sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext: null, scope, dryRun, ct).ConfigureAwait(false);
     return Results.Ok(res);
   }
 

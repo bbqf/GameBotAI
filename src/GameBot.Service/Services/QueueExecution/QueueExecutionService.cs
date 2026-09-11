@@ -663,7 +663,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         OriginatingQueueId = queueId,
         SelfRescheduleOriginActionId = selfRescheduleOriginActionId
       };
-      var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, scope, watchdog.Token).ConfigureAwait(false);
+      var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, scope, ct: watchdog.Token).ConfigureAwait(false);
       return string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested) {

@@ -116,6 +116,7 @@ Status vocabulary:
 | 079 | Concurrent Queue Execution | Implemented |
 | 080 | Fix Sequence & Session-Input API Bugs | Implemented |
 | 081 | Loop Exit Reason & Nested Step-Outcome References | Implemented |
+| 082 | Dry-Run / Validate-Only Sequence Mode | Implemented |
 
 ## Numbering notes
 

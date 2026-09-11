@@ -2,7 +2,7 @@
 
 **Feature Branch**: `082-dry-run-sequences`
 **Created**: 2026-09-11
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Implement FR-002 from C:\src\PNS\docs\api-feature-requests.md: a dry-run / validate-only mode for sequence authoring and execution — resolve every commandId/image reference and check structural constraints without dispatching any input to the emulator."
 
 ## Background

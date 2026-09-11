@@ -295,6 +295,47 @@ validation-legal (reachable + prior) but names a step that did not execute durin
 the run with that same "unavailable" error — unchanged, deliberately not softened into a silent
 skip. See `specs/081-loop-exit-reason-and-nested-steprefs/contracts/loop-exit-reason-and-stepref-scope.md`.
 
+### Dry-run / validate-only sequence mode (feature 082)
+
+`dryRun: true` on the per-step `POST /api/sequences` create request and on
+`POST /api/sequences/{id}/execute` lets a sequence author check structural
+validity or exercise runtime branching without ever touching a real emulator.
+
+- **Create**: runs the same enrichment (`commandId` → `commandName`) and
+  full structural/reference validation a real create runs, but never calls
+  `ISequenceRepository.CreateAsync`. Success returns `200 OK` with
+  `{ valid: true, dryRun: true, errors: [] }` (mirroring the sibling
+  `POST /api/sequences/{id}/validate` response shape); failure returns the
+  identical `400` error a non-dry-run create would give for the same body.
+  Only recognized on the per-step request shape.
+- **Execute**: walks the sequence's real step tree — `Loop`/`If`/`Break`
+  control-flow (iteration counting, `exitReason`, branch selection) executes
+  exactly as a real run — but every step that would dispatch input to the
+  emulator, start/use a session, or read live capture state (primitive tap/
+  swipe/key, connect-to-game, ensure-game-running, ensure-emulator-running,
+  go-to-home-screen, wait-for-image, reschedule-self, and a command-referencing
+  step's inner dispatch) is skipped and reported with a new
+  `actionOutcome: "skipped_dry_run"` (`SequenceRunner.DryRunOutcomes`),
+  `Status: "Succeeded"` — never tripping a `requireDispatch: true` step's
+  miss-check. No session is ever required. An `imageVisible`- or text-sourced
+  condition (per-step gate, `If` condition, `Loop` `breakOn`) resolves to
+  `false` without reading live capture state, wherever the injected
+  `conditionEvaluator` is invoked; this applies even when the referenced image
+  no longer exists — unlike a stale `commandId` below, that case is not
+  specially detected under `dryRun`.
+- **`commandId` existence is still checked**: a command-referencing step's
+  `commandId` is looked up against the command repository even under
+  `dryRun` — a resolvable one is skipped like any other step, but one that
+  does not resolve still fails the step and the run with the same
+  "references a missing command" error a real execution reports. This check
+  never reaches `CommandExecutor`/the real dispatch machinery either way.
+- **Queue execution is unaffected**: `dryRun` is a parameter on
+  `ISequenceExecutionService.ExecuteAsync`/`SequenceRunner.ExecuteAsync`
+  defaulting to `false`; `QueueExecutionService` never passes it, so every
+  scheduled queue run is byte-for-byte unchanged.
+- See `specs/082-dry-run-sequences/contracts/dry-run-sequences.md` for the
+  full request/response contract and invariants.
+
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):
@@ -343,6 +384,13 @@ above for detail):
 - `POST /api/sequences` / `PUT /api/sequences/{id}` now accept a `commandOutcome` condition's
   `stepRef` naming any structurally prior step reachable from the sequence root, not only an
   immediate sibling, and accept `break`/`no_break` as `expectedState` values.
+
+Feature 082 added, additively (see "Dry-run / validate-only sequence mode" above for detail):
+
+- `dryRun` on the per-step `POST /api/sequences` create request: validates without persisting.
+- `dryRun` on `POST /api/sequences/{id}/execute`: walks the real step tree without dispatching to
+  the emulator, starting a session, or reading live capture state, reporting a new
+  `actionOutcome: "skipped_dry_run"` for each step it skips.
 
 ## Legacy / removed (don't be misled by old specs)
 
