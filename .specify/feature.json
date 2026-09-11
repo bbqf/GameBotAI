@@ -1,1 +1,3 @@
-{"feature_directory": "specs/081-loop-exit-reason-and-nested-steprefs"}
+{
+  "feature_directory": "specs/082-dry-run-sequences"
+}

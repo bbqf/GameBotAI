@@ -88,7 +88,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       string? sessionId,
       ExecutionLogContext? parentContext,
       CancellationToken ct = default)
-    => ExecuteAsync(sequenceId, sessionId, parentContext, GameBot.Domain.Parameters.ParameterScope.Empty, ct);
+    => ExecuteAsync(sequenceId, sessionId, parentContext, GameBot.Domain.Parameters.ParameterScope.Empty, ct: ct);
 
   /// <summary>
   /// Executes a sequence with a parameter scope (feature 078).
@@ -101,12 +101,18 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   /// entry's parameter values. <see cref="GameBot.Domain.Parameters.ParameterScope.Empty"/> reproduces
   /// pre-feature behaviour.
   /// </param>
+  /// <param name="dryRun">
+  /// Feature 082 (FR-002/FR-005): when <c>true</c>, walks the sequence's real step tree but skips
+  /// every step that would dispatch to the emulator, start/use a session, or read live capture
+  /// state, reporting <c>skipped_dry_run</c> for each. Defaults to <c>false</c>.
+  /// </param>
   /// <param name="ct">Cancellation token.</param>
   public async Task<SequenceExecutionResult> ExecuteAsync(
       string sequenceId,
       string? sessionId,
       ExecutionLogContext? parentContext,
       GameBot.Domain.Parameters.ParameterScope scope,
+      bool dryRun = false,
       CancellationToken ct = default) {
     // The in-progress entry is opened before the first step and closed after the last one. Anything
     // that unwinds in between — most often the queue's per-sequence watchdog cancelling a firing that
@@ -115,7 +121,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     // queue could look busy while nothing was happening. Close the entry on the way out instead.
     var opened = new OpenSequenceEntry();
     try {
-      return await ExecuteCoreAsync(sequenceId, sessionId, parentContext, scope, opened, ct).ConfigureAwait(false);
+      return await ExecuteCoreAsync(sequenceId, sessionId, parentContext, scope, opened, dryRun, ct).ConfigureAwait(false);
     }
     catch (Exception ex) when (opened.ExecutionId is not null) {
       await FinalizeAbandonedAsync(opened, ex).ConfigureAwait(false);
@@ -172,6 +178,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       ExecutionLogContext? parentContext,
       GameBot.Domain.Parameters.ParameterScope scope,
       OpenSequenceEntry opened,
+      bool dryRun,
       CancellationToken ct) {
     // Feature 079: bind this whole execution flow to the caller's device, so every screen observation
     // made anywhere beneath it resolves against that device. No session (an unbound, ad-hoc run) means
@@ -206,6 +213,18 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     // Invokes one command step and reports whether its input actually reached the device, so the
     // runner can record an honest outcome instead of assuming "executed" whenever nothing threw.
     async Task<GameBot.Domain.Services.CommandDispatchOutcome> DispatchCommandAsync(string commandId, GameBot.Domain.Parameters.ParameterScope stepScope) {
+      // Feature 082 (FR-002/FR-006/FR-010): a dry-run still confirms the commandId resolves to a
+      // real command — the same "stale reference" cost the referenced command's existence check
+      // avoids in a real run — but never reaches ForceExecuteDetailedAsync/CommandExecutor, so no
+      // real dispatch is attempted either way.
+      if (dryRun) {
+        var command = await _commandRepository.GetAsync(commandId, ct).ConfigureAwait(false);
+        if (command is null) {
+          throw new InvalidOperationException($"Command '{commandId}' was not found; the sequence step references a missing command.");
+        }
+        return new GameBot.Domain.Services.CommandDispatchOutcome(false, null, SkippedDryRun: true);
+      }
+
       {
         try {
           var childContext = new ExecutionLogContext {
@@ -255,6 +274,14 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         return Task.FromResult(true);
       },
       conditionEvaluator: (cond, token) => {
+        // Feature 082 (FR-015): under dryRun, an image/text-sourced condition never reads live
+        // capture state — it resolves the same neutral way an ordinary false-evaluated condition
+        // does today, so a dry-run execute never needs a session for these. A commandOutcome
+        // condition is untouched — SequenceRunner resolves it directly, never through this delegate.
+        if (dryRun && (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase))) {
+          return Task.FromResult(false);
+        }
         if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)) {
           return EvaluateImageConditionAsync(cond, _imageRepository, _imageVisibleConditionAdapter, token);
         }
@@ -281,6 +308,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       },
       ct: ct,
       scope: scope,
+      dryRun: dryRun,
       actionDispatcher: (action, token) => DispatchActionAsync(action, sequenceId, originatingQueueId, sessionId, token)
     ).ConfigureAwait(false);
 

@@ -26,11 +26,19 @@ internal interface ISequenceExecutionService {
   /// <param name="sessionId">Session to run against.</param>
   /// <param name="parentContext">Execution-log context linking this firing to its parent.</param>
   /// <param name="scope">Scope in effect for this firing.</param>
+  /// <param name="dryRun">
+  /// Feature 082 (FR-002/FR-005): when <c>true</c>, walks the sequence's real step tree but skips
+  /// every step that would dispatch to the emulator, start/use a session, or read live capture
+  /// state, reporting <c>skipped_dry_run</c> for each. Defaults to <c>false</c>, reproducing
+  /// pre-feature behaviour exactly for every existing call site (including queue execution, which
+  /// never passes it).
+  /// </param>
   /// <param name="ct">Cancellation token.</param>
   Task<SequenceExecutionResult> ExecuteAsync(
     string sequenceId,
     string? sessionId,
     ExecutionLogContext? parentContext,
     GameBot.Domain.Parameters.ParameterScope scope,
+    bool dryRun = false,
     CancellationToken ct = default);
 }
