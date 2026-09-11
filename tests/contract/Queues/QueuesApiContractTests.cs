@@ -162,4 +162,23 @@ public sealed class QueuesApiContractTests : IDisposable {
 
     (await client.DeleteAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
   }
+
+  [Fact] // feature 083: POST /api/queues/{id}/duplicate returns the same QueueResponse shape as create
+  public async Task DuplicateQueueContractMatchesQueueResponseShape() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative),
+      new { name = "Farm", emulatorSerial = "emu-1", cycleExecution = true }).ConfigureAwait(true);
+    var id = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString();
+
+    var dupResp = await client.PostAsJsonAsync(new Uri($"/api/queues/{id}/duplicate", UriKind.Relative), new { name = "Farm 2" }).ConfigureAwait(true);
+    dupResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    dupResp.Headers.Location.Should().NotBeNull();
+    var dup = JsonDocument.Parse(await dupResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    foreach (var field in new[] { "id", "name", "emulatorSerial", "cycleExecution", "pauseWhenIdle", "idleThresholdSeconds", "emulatorInstanceName", "emulatorInstanceIndex", "status", "entryCount", "linkedTemplateId", "linkedGameId" }) {
+      dup.TryGetProperty(field, out _).Should().BeTrue($"duplicate response must expose '{field}' like QueueResponse");
+    }
+  }
 }

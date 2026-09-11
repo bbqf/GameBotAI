@@ -62,6 +62,10 @@ export const createQueue = (input: QueueCreate) => postJson<QueueDto>(base, inpu
 export const updateQueue = (id: string, input: QueueUpdate) => putJson<QueueDto>(`${base}/${id}`, input);
 export const deleteQueue = (id: string) => deleteJson<void>(`${base}/${id}`);
 
+/** Creates a 1:1 copy of the queue under a new name (feature 083). Name must differ from the source's. */
+export const duplicateQueue = (id: string, name: string) =>
+  postJson<QueueDto>(`${base}/${id}/duplicate`, { name });
+
 export const addQueueEntry = (id: string, sequenceId: string) =>
   postJson<QueueEntryDto>(`${base}/${id}/entries`, { sequenceId });
 export const removeQueueEntry = (id: string, entryId: string) =>
