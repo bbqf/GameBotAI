@@ -132,6 +132,7 @@ internal sealed class TestSessionManager : ISessionManager {
   }
 
   public Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) => Task.FromResult(0);
+  public Task<SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) => Task.FromResult(new SessionInputDispatchResult(true, Array.Empty<InputActionResult>()));
   public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
 }
 

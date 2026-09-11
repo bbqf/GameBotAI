@@ -71,9 +71,21 @@ internal static class SessionsEndpoints {
       if (req.Actions is null || req.Actions.Count == 0)
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "No actions provided.", hint = (string?)null } });
 
-      var accepted = await mgr.SendInputsAsync(id, req.Actions.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)), ct).ConfigureAwait(false);
-      if (accepted == 0) return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
-      return Results.Accepted($"{ApiRoutes.Sessions}/{id}", new { accepted });
+      // B-001: a session that IS running but posted actions that can't be parsed/dispatched used
+      // to be misreported as "not_running" (409) — the two failure modes are now distinguished by
+      // checking whether the session was found at all, rather than by whether anything dispatched.
+      var dispatch = await mgr.SendInputsWithResultsAsync(id, req.Actions.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)), ct).ConfigureAwait(false);
+      if (!dispatch.SessionFound) return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
+
+      var resultsDto = dispatch.Results.Select(r => new { index = r.Index, dispatched = r.Dispatched, failureReason = r.FailureReason }).ToArray();
+      var accepted = resultsDto.Count(r => r.dispatched);
+      if (accepted == 0) {
+        return Results.Json(
+          new { error = new { code = "invalid_input_actions", message = "No posted actions could be dispatched.", hint = (string?)null }, results = resultsDto },
+          statusCode: StatusCodes.Status400BadRequest);
+      }
+
+      return Results.Accepted($"{ApiRoutes.Sessions}/{id}", new { accepted, results = resultsDto });
     }).WithName("SendInputs").WithTags("Sessions");
 
     // Session health endpoint (checks ADB connectivity if applicable)
