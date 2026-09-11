@@ -270,6 +270,31 @@ tree node kind `if` (web-ui grid label "If"). Branch steps log themselves like l
 `elseBody: [...]` (null/absent = no else; `[]` = present but empty). See
 `specs/067-sequence-if-conditions/contracts/sequences-api.md`.
 
+**Loop exit reason** (feature 081): a `Loop` step's `StepResult` carries a structured
+`ExitReason { BrokeVia: string?, ExhaustedMaxIterations: bool }` alongside the existing
+`LoopIterations`, populated identically across all three loop kinds (count/while/repeat-until) and
+correct even when the firing `Break` is nested inside an `If` body within the loop. `BrokeVia` is
+the firing `Break` step's own `StepId` (never an enclosing `If`'s), or `null` if none fired.
+`ExhaustedMaxIterations` reports whether the loop ran its full configured `MaxIterations` without
+any `Break` firing, independent of `ExitOnMaxIterations` (so it stays `true` even when
+`ExitOnMaxIterations: false` also fails the loop for that reason). Both are `false`/`null` when the
+loop finished its body/condition normally. Purely additive on the existing `/api/sequences/{id}/execute`
+response — no separate contract to update.
+
+**Widened `commandOutcome` `stepRef` scope** (feature 081): `SequenceStepValidationService`
+resolves a `commandOutcome` condition's `stepRef` against every step reachable from the sequence
+root — root steps plus every nested `Loop.Body` and `If.Body`/`ElseBody`, recursively — using the
+sequence's authored (document) order to keep enforcing "must reference a prior step," rather than
+only the condition's immediate sibling list as before. `expectedState` additionally accepts
+`break`/`no_break` (alongside `success`/`failed`/`skipped`), and `SequenceRunner` now records a
+`Break` step's fired/not-fired outcome into its runtime outcome map so such a reference actually
+resolves at execution time (previously unset, so even an already-legal same-body reference to a
+`Break` step's outcome always failed with "reference unavailable"). A reference that is now
+validation-legal (reachable + prior) but names a step that did not execute during a given run (an
+`If` branch not taken, a loop body that ran zero iterations) still fails the referencing step and
+the run with that same "unavailable" error — unchanged, deliberately not softened into a silent
+skip. See `specs/081-loop-exit-reason-and-nested-steprefs/contracts/loop-exit-reason-and-stepref-scope.md`.
+
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):
@@ -310,6 +335,14 @@ Feature 080 fixed three platform bugs, additively/tightening only (no route remo
   `400 invalid_input_actions` when none of the actions dispatched, or keeps the existing
   `202 Accepted` (extended with a per-action `results` array) when some/all did; `409` is reserved
   for a session that genuinely isn't found/running.
+
+Feature 081 added, additively (see "Loop exit reason" / "Widened `commandOutcome` `stepRef` scope"
+above for detail):
+
+- A `Loop` step's execution result gains `exitReason: { brokeVia, exhaustedMaxIterations }`.
+- `POST /api/sequences` / `PUT /api/sequences/{id}` now accept a `commandOutcome` condition's
+  `stepRef` naming any structurally prior step reachable from the sequence root, not only an
+  immediate sibling, and accept `break`/`no_break` as `expectedState` values.
 
 ## Legacy / removed (don't be misled by old specs)
 

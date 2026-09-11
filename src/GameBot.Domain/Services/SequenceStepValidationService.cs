@@ -3,7 +3,6 @@ using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Parameters;
 using GameBot.Domain.Utils;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 
@@ -14,7 +13,9 @@ public sealed class SequenceStepValidationService {
   private static readonly HashSet<string> AllowedCommandOutcomeStates = new(StringComparer.OrdinalIgnoreCase) {
     "success",
     "failed",
-    "skipped"
+    "skipped",
+    "break",
+    "no_break"
   };
   private static readonly HashSet<string> AllowedPrimitiveActionTypes = new(PrimitiveActionTypes.All, StringComparer.OrdinalIgnoreCase);
 
@@ -23,6 +24,15 @@ public sealed class SequenceStepValidationService {
 
     var errors = new List<string>();
     var seenStepIds = new HashSet<string>(_stepIdComparer);
+
+    // FR-006/FR-007 (feature 081): a commandOutcome condition's stepRef may reference any step
+    // reachable from the sequence root, not only an immediate sibling — resolved against a
+    // flattened, authored-order index built once up front, so "prior" means "appears earlier in
+    // this document-order walk" rather than "has a lower index within the immediate list."
+    var ownPosition = new Dictionary<SequenceStep, int>();
+    var positionByStepId = new Dictionary<string, int>(_stepIdComparer);
+    var positionCounter = 0;
+    BuildStepPositionIndex(steps, ownPosition, positionByStepId, ref positionCounter);
 
     for (var index = 0; index < steps.Count; index++) {
       var step = steps[index];
@@ -42,12 +52,12 @@ public sealed class SequenceStepValidationService {
       }
 
       if (step.StepType == SequenceStepType.Loop) {
-        ValidateLoopStep(step, stepLabel, steps, index, errors, insideLoop: false);
+        ValidateLoopStep(step, stepLabel, ownPosition, positionByStepId, errors, insideLoop: false);
         continue;
       }
 
       if (step.StepType == SequenceStepType.If) {
-        ValidateIfStep(step, stepLabel, errors, insideLoop: false);
+        ValidateIfStep(step, stepLabel, ownPosition, positionByStepId, errors, insideLoop: false);
         continue;
       }
 
@@ -55,17 +65,44 @@ public sealed class SequenceStepValidationService {
         errors.Add($"Step '{stepLabel}' requires action payload.");
       }
 
-      ValidateStepCondition(step, stepLabel, steps, index, errors, insideLoop: false);
+      ValidateStepCondition(step, stepLabel, ownPosition, positionByStepId, errors, insideLoop: false);
     }
 
     return errors;
   }
 
+  // Preorder walk (root steps in order; each Loop's Body and each If's Body/ElseBody expanded in
+  // place, recursively) recording every step's position in that document order. First occurrence
+  // wins for a duplicate stepId (duplicates are already flagged as a separate error).
+  private static void BuildStepPositionIndex(
+      IReadOnlyList<SequenceStep> steps,
+      Dictionary<SequenceStep, int> ownPosition,
+      Dictionary<string, int> positionByStepId,
+      ref int counter) {
+    foreach (var step in steps) {
+      ownPosition[step] = counter;
+      if (!string.IsNullOrWhiteSpace(step.StepId)) {
+        positionByStepId.TryAdd(step.StepId, counter);
+      }
+      counter++;
+
+      if (step.StepType == SequenceStepType.Loop) {
+        BuildStepPositionIndex(step.Body, ownPosition, positionByStepId, ref counter);
+      }
+      else if (step.StepType == SequenceStepType.If) {
+        BuildStepPositionIndex(step.Body, ownPosition, positionByStepId, ref counter);
+        if (step.ElseBody is not null) {
+          BuildStepPositionIndex(step.ElseBody, ownPosition, positionByStepId, ref counter);
+        }
+      }
+    }
+  }
+
   private void ValidateLoopStep(
       SequenceStep step,
       string stepLabel,
-      IReadOnlyList<SequenceStep> siblings,
-      int indexInSiblings,
+      Dictionary<SequenceStep, int> ownPosition,
+      Dictionary<string, int> positionByStepId,
       List<string> errors,
       bool insideLoop) {
 
@@ -105,7 +142,7 @@ public sealed class SequenceStepValidationService {
 
       // Feature 067: loop bodies may contain if steps (whose branches may then use breaks).
       if (bodyStep.StepType == SequenceStepType.If) {
-        ValidateIfStep(bodyStep, bodyLabel, errors, insideLoop: true);
+        ValidateIfStep(bodyStep, bodyLabel, ownPosition, positionByStepId, errors, insideLoop: true);
         continue;
       }
 
@@ -124,7 +161,7 @@ public sealed class SequenceStepValidationService {
       // FR-002a: {{iteration}} (or any template placeholder) is only valid inside a loop body —
       // validate that top-level steps do NOT contain placeholders (done in Validate()). Here
       // we just validate the body step's condition references.
-      ValidateStepCondition(bodyStep, bodyLabel, step.Body, bi, errors, insideLoop: true);
+      ValidateStepCondition(bodyStep, bodyLabel, ownPosition, positionByStepId, errors, insideLoop: true);
     }
   }
 
@@ -134,6 +171,8 @@ public sealed class SequenceStepValidationService {
   private void ValidateIfStep(
       SequenceStep step,
       string stepLabel,
+      Dictionary<SequenceStep, int> ownPosition,
+      Dictionary<string, int> positionByStepId,
       List<string> errors,
       bool insideLoop) {
 
@@ -144,9 +183,9 @@ public sealed class SequenceStepValidationService {
       ValidateIfCondition(step.If.Condition, stepLabel, errors);
     }
 
-    ValidateIfBranch(step.Body, "then", stepLabel, errors, insideLoop);
+    ValidateIfBranch(step.Body, "then", stepLabel, ownPosition, positionByStepId, errors, insideLoop);
     if (step.ElseBody is not null) {
-      ValidateIfBranch(step.ElseBody, "else", stepLabel, errors, insideLoop);
+      ValidateIfBranch(step.ElseBody, "else", stepLabel, ownPosition, positionByStepId, errors, insideLoop);
     }
   }
 
@@ -171,6 +210,8 @@ public sealed class SequenceStepValidationService {
       IReadOnlyList<SequenceStep> branch,
       string branchName,
       string stepLabel,
+      Dictionary<SequenceStep, int> ownPosition,
+      Dictionary<string, int> positionByStepId,
       List<string> errors,
       bool insideLoop) {
 
@@ -212,15 +253,15 @@ public sealed class SequenceStepValidationService {
         errors.Add($"Branch step '{branchLabel}' inside if '{stepLabel}' requires action payload.");
       }
 
-      ValidateStepCondition(branchStep, branchLabel, branch, bi, errors, insideLoop: insideLoop);
+      ValidateStepCondition(branchStep, branchLabel, ownPosition, positionByStepId, errors, insideLoop: insideLoop);
     }
   }
 
   private static void ValidateStepCondition(
       SequenceStep step,
       string stepLabel,
-      IReadOnlyList<SequenceStep> siblings,
-      int indexInSiblings,
+      Dictionary<SequenceStep, int> ownPosition,
+      Dictionary<string, int> positionByStepId,
       List<string> errors,
       bool insideLoop) {
 
@@ -260,24 +301,21 @@ public sealed class SequenceStepValidationService {
       if (string.IsNullOrWhiteSpace(commandOutcome.StepRef)) {
         errors.Add($"Step '{stepLabel}' commandOutcome condition requires stepRef.");
       }
-      else {
-        var referencedIndex = siblings
-          .Select((candidate, candidateIndex) => new { candidate.StepId, candidateIndex })
-          .FirstOrDefault(candidate => string.Equals(candidate.StepId, commandOutcome.StepRef, StringComparison.Ordinal))
-          ?.candidateIndex ?? -1;
-
-        if (referencedIndex < 0) {
-          errors.Add($"Step '{stepLabel}' commandOutcome references unknown prior step '{commandOutcome.StepRef}'.");
-        }
-        else if (referencedIndex >= indexInSiblings) {
-          // FR-006: inside a loop body a commandOutcome must not forward-reference within the same body.
-          errors.Add($"Step '{stepLabel}' commandOutcome stepRef '{commandOutcome.StepRef}' must reference a prior step.");
-        }
+      else if (!positionByStepId.TryGetValue(commandOutcome.StepRef, out var referencedPosition)) {
+        // Feature 081 (FR-006): resolved against every step reachable from the sequence root —
+        // not only this condition's immediate sibling list — so "unknown" now means genuinely
+        // absent from the whole sequence, not merely outside this condition's own scope.
+        errors.Add($"Step '{stepLabel}' commandOutcome references unknown prior step '{commandOutcome.StepRef}'.");
+      }
+      else if (!ownPosition.TryGetValue(step, out var ownPos) || referencedPosition >= ownPos) {
+        // FR-007: "prior" is now authored (document) order across the whole sequence, a strict
+        // generalization of the old same-list-index check.
+        errors.Add($"Step '{stepLabel}' commandOutcome stepRef '{commandOutcome.StepRef}' must reference a prior step.");
       }
 
       if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
           || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
-        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of success|failed|skipped.");
+        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
       }
     }
 
