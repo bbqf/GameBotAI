@@ -51,6 +51,7 @@ public sealed class CommandExecutorGoToHomeScreenTests {
       Sent.AddRange(list);
       return Task.FromResult(list.Count);
     }
+    public Task<SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) => Task.FromResult(new SessionInputDispatchResult(true, Array.Empty<InputActionResult>()));
     public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
   }
 

@@ -45,18 +45,18 @@ repeat with the same malformed step nested inside a `Loop` body.
 
 > Write these first; confirm they FAIL against current code before implementing.
 
-- [ ] T001 [P] [US1] Add failing unit test in `tests/unit/Sequences/` (new file `SequenceStepValidationServiceCommandIdTests.cs`) asserting `SequenceStepValidationService.Validate` returns a validation error for a top-level `Command`-typed step whose `Action.Parameters` has no `commandId`
-- [ ] T002 [P] [US1] Add failing unit test in the same file asserting the same validation error for a `Command`-typed step nested inside a `Loop` step's body, and separately inside an `If` step's body
-- [ ] T003 [P] [US1] Add failing integration test in `tests/integration/Sequences/` (new file `SequenceCommandIdValidationIntegrationTests.cs`) that POSTs to `/api/sequences` with a top-level step payload containing `commandName` but no `commandId`, asserting `400 Bad Request` with an error mentioning the step id, and that no sequence was persisted (follow-up `GET` confirms absence)
-- [ ] T004 [P] [US1] Add failing integration test in the same file for `PUT /api/sequences/{id}` (replace) with the same malformed nested-step payload, asserting `400 Bad Request`
-- [ ] T005 [P] [US1] Add a regression test in the same file confirming a request where every `Command`-typed step supplies a valid `commandId` still returns `201`/`204` (spec FR-004) — this test should already pass and must keep passing
-- [ ] T006 [P] [US1] Add a regression test in the same file confirming a step payload carrying **both** `commandName` and `commandId` validates successfully and dispatches using `commandId` (spec Edge Cases) — this test should already pass and must keep passing
+- [X] T001 [P] [US1] Add failing unit test in `tests/unit/Sequences/` (new file `SequenceStepValidationServiceCommandIdTests.cs`) asserting `SequenceStepValidationService.Validate` returns a validation error for a top-level `Command`-typed step whose `Action.Parameters` has no `commandId`
+- [X] T002 [P] [US1] Add failing unit test in the same file asserting the same validation error for a `Command`-typed step nested inside a `Loop` step's body, and separately inside an `If` step's body
+- [X] T003 [P] [US1] Add failing integration test in `tests/integration/Sequences/` (new file `SequenceCommandIdValidationIntegrationTests.cs`) that POSTs to `/api/sequences` with a top-level step payload containing `commandName` but no `commandId`, asserting `400 Bad Request` with an error mentioning the step id, and that no sequence was persisted (follow-up `GET` confirms absence)
+- [X] T004 [P] [US1] Add failing integration test in the same file for `PUT /api/sequences/{id}` (replace) with the same malformed nested-step payload, asserting `400 Bad Request`
+- [X] T005 [P] [US1] Add a regression test in the same file confirming a request where every `Command`-typed step supplies a valid `commandId` still returns `201`/`204` (spec FR-004) — this test should already pass and must keep passing
+- [X] T006 [P] [US1] Add a regression test in the same file confirming a step payload carrying **both** `commandName` and `commandId` validates successfully and dispatches using `commandId` (spec Edge Cases) — this test should already pass and must keep passing
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] In `src/GameBot.Domain/Services/SequenceStepValidationService.cs`, extend `Validate`/`ValidateStepCondition` to reject a `Command`-typed action step (`ActionTypes.Command`) whose `Action.Parameters` has no non-empty `commandId`, for both top-level steps and steps inside `Loop`/`If` bodies (recursing through `Body`/`ElseBody` the same way existing checks already traverse nested steps), producing an error string identifying the step id
-- [ ] T008 [US1] In `src/GameBot.Domain/Commands/FileSequenceRepository.cs`, mirror the identical `commandId`-presence gate inside `ValidateActionPayloads` (per the existing "two allow-lists" duplication noted in research.md), so this path can't be bypassed
-- [ ] T009 [US1] In `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, confirm the `POST`/`PUT` handlers surface the new validation errors from T007 through the existing `Results.BadRequest(new { message = "Invalid sequence payload", errors = ... })` shape (no new error envelope) — adjust only if the current wiring doesn't already propagate `SequenceStepValidationService`'s errors to the response
+- [X] T007 [US1] In `src/GameBot.Domain/Services/SequenceStepValidationService.cs`, extend `Validate`/`ValidateStepCondition` to reject a `Command`-typed action step (`ActionTypes.Command`) whose `Action.Parameters` has no non-empty `commandId`, for both top-level steps and steps inside `Loop`/`If` bodies (recursing through `Body`/`ElseBody` the same way existing checks already traverse nested steps), producing an error string identifying the step id
+- [X] T008 [US1] In `src/GameBot.Domain/Commands/FileSequenceRepository.cs`, mirror the identical `commandId`-presence gate inside `ValidateActionPayloads` (per the existing "two allow-lists" duplication noted in research.md), so this path can't be bypassed
+- [X] T009 [US1] In `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, confirm the `POST`/`PUT` handlers surface the new validation errors from T007 through the existing `Results.BadRequest(new { message = "Invalid sequence payload", errors = ... })` shape (no new error envelope) — adjust only if the current wiring doesn't already propagate `SequenceStepValidationService`'s errors to the response
 
 **Checkpoint**: Run T001-T006 — all must now pass. User Story 1 is independently
 complete and testable.
@@ -77,16 +77,16 @@ overall run are reported `Failed`. Repeat for an `If` body.
 
 > Write these first; confirm they FAIL against current code before implementing.
 
-- [ ] T010 [P] [US2] Add failing integration test in `tests/integration/Sequences/` (new file `NestedRequireDispatchIntegrationTests.cs`) that creates a sequence via the real `POST /api/sequences` HTTP path with a `Loop(maxIterations: 1)` body containing one step with `requireDispatch: true` targeting an action that won't dispatch (e.g. an `imageVisible` wait that never matches), runs it, and asserts the step outcome and overall run status are both `Failed`
-- [ ] T011 [P] [US2] Add the same failing test in the same file for an `If` body (both `then` and `else` branches) with a `requireDispatch: true` step that doesn't dispatch
-- [ ] T012 [P] [US2] Add a failing integration test in the same file for a step nested **two levels deep** — a top-level `Loop` body containing an `If` step, whose branch contains the `requireDispatch: true` step that doesn't dispatch — asserting the same `Failed` outcome (spec FR-007, nesting-depth uniformity)
-- [ ] T013 [P] [US2] Add a regression test in the same file confirming a nested `requireDispatch: true` step whose action *does* dispatch still reports the run as `Succeeded` (spec FR-008) — should already pass and must keep passing
-- [ ] T014 [P] [US2] Add a regression test confirming a *top-level* `requireDispatch: true` step's behavior (both dispatch-succeeds and dispatch-fails) is unchanged (spec FR-008) — should already pass and must keep passing
+- [X] T010 [P] [US2] Add failing integration test in `tests/integration/Sequences/` (new file `NestedRequireDispatchIntegrationTests.cs`) that creates a sequence via the real `POST /api/sequences` HTTP path with a `Loop(maxIterations: 1)` body containing one step with `requireDispatch: true` targeting an action that won't dispatch (e.g. an `imageVisible` wait that never matches), runs it, and asserts the step outcome and overall run status are both `Failed`
+- [X] T011 [P] [US2] Add the same failing test in the same file for an `If` body (both `then` and `else` branches) with a `requireDispatch: true` step that doesn't dispatch
+- [X] T012 [P] [US2] Add a failing integration test in the same file for a step nested **two levels deep** — a top-level `Loop` body containing an `If` step, whose branch contains the `requireDispatch: true` step that doesn't dispatch — asserting the same `Failed` outcome (spec FR-007, nesting-depth uniformity)
+- [X] T013 [P] [US2] Add a regression test in the same file confirming a nested `requireDispatch: true` step whose action *does* dispatch still reports the run as `Succeeded` (spec FR-008) — should already pass and must keep passing
+- [X] T014 [P] [US2] Add a regression test confirming a *top-level* `requireDispatch: true` step's behavior (both dispatch-succeeds and dispatch-fails) is unchanged (spec FR-008) — should already pass and must keep passing
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] In `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, `MapBodySteps`, add `RequireDispatch = child.RequireDispatch ?? false,` to the mapped `SequenceStep` object initializer, mirroring the existing top-level assignment in `MapToLinearSteps` (this single fix covers the `Loop`-body, `If`-body, and any-depth-nested cases, since `MapBodySteps` recurses into itself for nested `If` children and is reused for every `Loop` body — confirmed by code inspection)
-- [ ] T016 [US2] In the same file, check the read path (`MapStepToDto` / the `requireDispatch` projection near line 565) recurses into `Body`/`ElseBody` when serializing a sequence back out, so a `GET` of a sequence with a nested `requireDispatch: true` step reflects it correctly — fix if it currently doesn't recurse
+- [X] T015 [US2] In `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, `MapBodySteps`, add `RequireDispatch = child.RequireDispatch ?? false,` to the mapped `SequenceStep` object initializer, mirroring the existing top-level assignment in `MapToLinearSteps` (this single fix covers the `Loop`-body, `If`-body, and any-depth-nested cases, since `MapBodySteps` recurses into itself for nested `If` children and is reused for every `Loop` body — confirmed by code inspection)
+- [X] T016 [US2] In the same file, check the read path (`MapStepToDto` / the `requireDispatch` projection near line 565) recurses into `Body`/`ElseBody` when serializing a sequence back out, so a `GET` of a sequence with a nested `requireDispatch: true` step reflects it correctly — fix if it currently doesn't recurse
 
 **Checkpoint**: Run T010-T014 — all must now pass. User Stories 1 AND 2 both work
 independently.
@@ -108,17 +108,17 @@ is not `409`, and that a genuinely absent/stopped session still returns `409`.
 
 > Write these first; confirm they FAIL against current code before implementing.
 
-- [ ] T017 [P] [US3] Add failing unit test in `tests/unit/Emulator/` (new file `SessionManagerInputResultsTests.cs`) asserting the new per-action-result method on `SessionManager` reports `Dispatched: false` with a non-null `FailureReason` for a swipe action missing `x2`/`y2`, while a well-formed tap action in the same call reports `Dispatched: true`
-- [ ] T018 [P] [US3] Add failing integration test in `tests/integration/SessionInputTests.cs` (ADB/stub mode, per existing test setup patterns in that file) that posts a single malformed swipe action to a session confirmed `Running`, asserting `400 Bad Request` with `error.code == "invalid_input_actions"` (not `409`)
-- [ ] T019 [P] [US3] Add failing integration test in the same file posting one well-formed tap action and one malformed swipe action in the same request to a `Running` session, asserting `202 Accepted` with a `results` array showing one dispatched and one not, with a failure reason
-- [ ] T020 [P] [US3] Add a regression test in the same file confirming a request against a genuinely non-existent/non-running session id still returns `409 not_running` unchanged (spec FR-010) — should already pass and must keep passing
-- [ ] T021 [P] [US3] Add a regression test confirming an all-well-formed-actions request against a `Running` session still returns `202` with the existing `accepted` count (spec FR-013) — should already pass and must keep passing
+- [X] T017 [P] [US3] Add failing unit test in `tests/unit/Emulator/` (new file `SessionManagerInputResultsTests.cs`) asserting the new per-action-result method on `SessionManager` reports `Dispatched: false` with a non-null `FailureReason` for a swipe action missing `x2`/`y2`, while a well-formed tap action in the same call reports `Dispatched: true`
+- [X] T018 [P] [US3] Add failing integration test in `tests/integration/SessionInputTests.cs` (ADB/stub mode, per existing test setup patterns in that file) that posts a single malformed swipe action to a session confirmed `Running`, asserting `400 Bad Request` with `error.code == "invalid_input_actions"` (not `409`)
+- [X] T019 [P] [US3] Add failing integration test in the same file posting one well-formed tap action and one malformed swipe action in the same request to a `Running` session, asserting `202 Accepted` with a `results` array showing one dispatched and one not, with a failure reason
+- [X] T020 [P] [US3] Add a regression test in the same file confirming a request against a genuinely non-existent/non-running session id still returns `409 not_running` unchanged (spec FR-010) — should already pass and must keep passing
+- [X] T021 [P] [US3] Add a regression test confirming an all-well-formed-actions request against a `Running` session still returns `202` with the existing `accepted` count (spec FR-013) — should already pass and must keep passing
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] In `src/GameBot.Emulator/Session/SessionManager.cs`, factor the per-action dispatch loop (currently inside `SendInputsAsync`, lines ~124-244) so it can report a per-action result (dispatched yes/no, and a short stable failure reason instead of swallowing the exception in the `catch` blocks at lines ~219-230) without changing `SendInputsAsync`'s existing `Task<int>` signature or behavior
-- [ ] T023 [US3] Add the new result-returning method (e.g. `SendInputsWithResultsAsync`) to `src/GameBot.Emulator/Session/ISessionManager.cs` and its implementation in `SessionManager.cs`, reusing the loop from T022
-- [ ] T024 [US3] In `src/GameBot.Service/Endpoints/SessionsEndpoints.cs`, change the `POST {id}/inputs` handler to call the new method from T023 and the session's real `Status`, selecting: `409` when the session isn't found/running (unchanged), `400` with `error.code = "invalid_input_actions"` when running but zero actions dispatched, `202` with the existing `accepted` count plus a `results` array otherwise — per contracts/api-changes.md
+- [X] T022 [US3] In `src/GameBot.Emulator/Session/SessionManager.cs`, factor the per-action dispatch loop (currently inside `SendInputsAsync`, lines ~124-244) so it can report a per-action result (dispatched yes/no, and a short stable failure reason instead of swallowing the exception in the `catch` blocks at lines ~219-230) without changing `SendInputsAsync`'s existing `Task<int>` signature or behavior
+- [X] T023 [US3] Add the new result-returning method (e.g. `SendInputsWithResultsAsync`) to `src/GameBot.Emulator/Session/ISessionManager.cs` and its implementation in `SessionManager.cs`, reusing the loop from T022
+- [X] T024 [US3] In `src/GameBot.Service/Endpoints/SessionsEndpoints.cs`, change the `POST {id}/inputs` handler to call the new method from T023 and the session's real `Status`, selecting: `409` when the session isn't found/running (unchanged), `400` with `error.code = "invalid_input_actions"` when running but zero actions dispatched, `202` with the existing `accepted` count plus a `results` array otherwise — per contracts/api-changes.md
 
 **Checkpoint**: Run T017-T021 — all must now pass. All three user stories are
 independently functional.
@@ -127,10 +127,10 @@ independently functional.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T025 Check `docs/architecture.md` for any description of the current (buggy) contract of `POST /api/sequences`, sequence execution `requireDispatch` semantics, or `POST /api/sessions/{id}/inputs`, and update it plus its "Last reviewed" date if so (Constitution Principle V)
-- [ ] T026 Run `dotnet build` and the full `dotnet test` suite (unit + integration + contract projects) and confirm zero failures/regressions
-- [ ] T027 Manually validate quickstart.md's three curl scenarios against a locally running `GameBot.Service`
-- [ ] T028 Update spec.md's Status line to `Implemented` once all tasks above are verified complete
+- [X] T025 Check `docs/architecture.md` for any description of the current (buggy) contract of `POST /api/sequences`, sequence execution `requireDispatch` semantics, or `POST /api/sessions/{id}/inputs`, and update it plus its "Last reviewed" date if so (Constitution Principle V)
+- [X] T026 Run `dotnet build` and the full `dotnet test` suite (unit + integration + contract projects) and confirm zero failures/regressions
+- [X] T027 Manually validate quickstart.md's three curl scenarios against a locally running `GameBot.Service`
+- [X] T028 Update spec.md's Status line to `Implemented` once all tasks above are verified complete
 
 ---
 

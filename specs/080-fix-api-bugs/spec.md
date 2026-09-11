@@ -2,7 +2,7 @@
 
 **Feature Branch**: `080-fix-api-bugs`
 **Created**: 2026-09-11
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I want you to fix and update all the bugs documented in C:\src\PNS\docs\api-bugs.md . Use usual development procedures, but don't update the api-bugs.md, it's own by another project and has to be retested there."
 
 ## Background

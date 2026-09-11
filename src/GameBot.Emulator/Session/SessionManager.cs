@@ -243,6 +243,117 @@ public sealed class SessionManager : ISessionManager {
     return count;
   }
 
+  // B-001: unlike SendInputsAsync's stub-mode branch (which never parses action args at all),
+  // this method always parses args before dispatch, in both stub and real-ADB mode — the ad-hoc
+  // session-input route needs "these args don't match this action's expected shape" to be a
+  // reportable, testable outcome rather than something only observable against a real device.
+  public async Task<SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) {
+    if (!_sessions.TryGetValue(id, out var s)) {
+      return new SessionInputDispatchResult(SessionFound: false, Results: Array.Empty<InputActionResult>());
+    }
+    s.LastActivity = DateTimeOffset.UtcNow;
+    var actionList = actions?.ToList() ?? new List<InputAction>();
+    foreach (var a in actionList) {
+      ApplyTapJitter(a);
+    }
+
+    var useRealAdb = _useAdb && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial);
+    var adb = useRealAdb ? new AdbClient(_adbLogger).WithSerial(s.DeviceSerial) : null;
+    var results = new List<InputActionResult>(actionList.Count);
+
+    for (var index = 0; index < actionList.Count; index++) {
+      var a = actionList[index];
+      var (dispatched, failureReason) = await DispatchOneInputAsync(id, a, adb, ct).ConfigureAwait(false);
+      results.Add(new InputActionResult(index, dispatched, failureReason));
+
+      if (a.DelayMs.HasValue && a.DelayMs.Value > 0) {
+        await Task.Delay(a.DelayMs.Value, ct).ConfigureAwait(false);
+      }
+      if (ct.IsCancellationRequested) break;
+    }
+
+    Log.InputsAccepted(_logger, id, results.Count(r => r.Dispatched));
+    return new SessionInputDispatchResult(SessionFound: true, Results: results);
+  }
+
+  private async Task<(bool Dispatched, string? FailureReason)> DispatchOneInputAsync(string id, InputAction a, AdbClient? adb, CancellationToken ct) {
+    try {
+      if (string.Equals(a.Type, "tap", StringComparison.OrdinalIgnoreCase)) {
+        var x = GetInt(a.Args, "x");
+        var y = GetInt(a.Args, "y");
+        if (adb is null) return (true, null);
+        for (var attempt = 0; ; attempt++) {
+          var (code, _, _) = await adb.TapAsync(x, y, ct).ConfigureAwait(false);
+          if (code == 0) return (true, null);
+          if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) {
+            return (false, "tap: device did not accept the action");
+          }
+          Log.AdbRetry(_logger, id, "tap", attempt + 1);
+          if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
+        }
+      }
+
+      if (string.Equals(a.Type, "swipe", StringComparison.OrdinalIgnoreCase)) {
+        var x1 = GetInt(a.Args, "x1");
+        var y1 = GetInt(a.Args, "y1");
+        var x2 = GetInt(a.Args, "x2");
+        var y2 = GetInt(a.Args, "y2");
+        if (adb is null) return (true, null);
+        for (var attempt = 0; ; attempt++) {
+          var (code, _, _) = await adb.SwipeAsync(x1, y1, x2, y2, a.DurationMs, ct).ConfigureAwait(false);
+          if (code == 0) return (true, null);
+          if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) {
+            return (false, "swipe: device did not accept the action");
+          }
+          Log.AdbRetry(_logger, id, "swipe", attempt + 1);
+          if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
+        }
+      }
+
+      if (string.Equals(a.Type, "key", StringComparison.OrdinalIgnoreCase)) {
+        int keyCode;
+        if (a.Args.ContainsKey("keyCode")) {
+          keyCode = GetInt(a.Args, "keyCode");
+        }
+        else if (a.Args.TryGetValue("key", out var keyRaw)) {
+          var keyName = keyRaw is JsonElement je && je.ValueKind == JsonValueKind.String ? je.GetString() : keyRaw?.ToString();
+          keyCode = ResolveAndroidKeyCode(keyName);
+        }
+        else {
+          return (false, "key: missing required argument 'keyCode' or 'key'");
+        }
+        if (adb is null) return (true, null);
+        for (var attempt = 0; ; attempt++) {
+          var (code, _, _) = await adb.KeyEventAsync(keyCode, ct).ConfigureAwait(false);
+          if (code == 0) return (true, null);
+          if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) {
+            return (false, "key: device did not accept the action");
+          }
+          Log.AdbRetry(_logger, id, "key", attempt + 1);
+          if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
+        }
+      }
+
+      return (false, $"unsupported action type '{a.Type}'");
+    }
+    catch (KeyNotFoundException ex) {
+      Log.AdbInputFailed(_logger, id, ex);
+      return (false, $"{a.Type}: missing required argument '{ex.Message}'");
+    }
+    catch (FormatException ex) {
+      Log.AdbInputFailed(_logger, id, ex);
+      return (false, $"{a.Type}: argument has an invalid format");
+    }
+    catch (InvalidCastException ex) {
+      Log.AdbInputFailed(_logger, id, ex);
+      return (false, $"{a.Type}: argument has an unsupported type");
+    }
+    catch (InvalidOperationException ex) {
+      Log.AdbInputFailed(_logger, id, ex);
+      return (false, $"{a.Type}: could not be dispatched");
+    }
+  }
+
   /// <summary>
   /// Applies the configured tap-point jitter (<see cref="GameBot.Domain.Config.AppConfig.TapJitterRadiusPx"/>)
   /// to a tap's (x, y) or, independently per endpoint, a swipe's (x1, y1)/(x2, y2) coordinates,
