@@ -242,4 +242,91 @@ public sealed class LoopValidationTests {
     var errors = Svc.Validate(new[] { loop });
     errors.Should().BeEmpty();
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 9. Feature 081 (FR-006/FR-007/FR-008/FR-009): nested, cross-scope stepRef resolution
+  // ──────────────────────────────────────────────────────────────────────────
+
+  private static SequenceStep BreakStep(string stepId, int order = 0, SequenceStepCondition? condition = null)
+      => new() {
+        Order = order,
+        StepId = stepId,
+        StepType = SequenceStepType.Break,
+        BreakCondition = condition ?? new ImageVisibleStepCondition { ImageId = "img" }
+      };
+
+  private static SequenceStep ActionStepWithCondition(string stepId, int order, SequenceStepCondition condition)
+      => new() {
+        Order = order,
+        StepId = stepId,
+        StepType = SequenceStepType.Action,
+        Action = new SequenceActionPayload { Type = "tap" },
+        Condition = condition
+      };
+
+  [Fact] // T011 (US2)
+  public void CommandOutcomeReferencingBreakNestedInAnEarlierDifferentLoopIsAccepted() {
+    var brk = BreakStep("cluster-not-found-break");
+    var loop1 = LoopStep("loop-1", new CountLoopConfig { Count = 3 }, new[] { brk });
+    var gate = ActionStepWithCondition("gate", 1,
+        new CommandOutcomeStepCondition { StepRef = "cluster-not-found-break", ExpectedState = "break" });
+
+    var errors = Svc.Validate(new[] { loop1, gate });
+
+    errors.Should().BeEmpty();
+  }
+
+  [Fact] // T012 (US2)
+  public void CommandOutcomeExpectedStateBreakAndNoBreakAreAccepted() {
+    var brk = BreakStep("brk");
+    var loop1 = LoopStep("loop-1", new CountLoopConfig { Count = 3 }, new[] { brk });
+    var gateBreak = ActionStepWithCondition("gate-break", 1,
+        new CommandOutcomeStepCondition { StepRef = "brk", ExpectedState = "break" });
+    var gateNoBreak = ActionStepWithCondition("gate-no-break", 2,
+        new CommandOutcomeStepCondition { StepRef = "brk", ExpectedState = "no_break" });
+
+    var errors = Svc.Validate(new[] { loop1, gateBreak, gateNoBreak });
+
+    errors.Should().BeEmpty();
+  }
+
+  [Fact] // T013 (US2) — FR-007: widening reachability does not widen past "prior" — a stepRef
+         // naming a step that is reachable but appears LATER in the sequence's authored structure
+         // (here, nested inside a later Loop's body) is still rejected.
+  public void CommandOutcomeReferencingReachableButLaterNestedStepIsRejected() {
+    var gate = ActionStepWithCondition("gate", 0,
+        new CommandOutcomeStepCondition { StepRef = "later-nested", ExpectedState = "success" });
+    var laterNested = ActionStep("later-nested");
+    var laterLoop = LoopStep("later-loop", new CountLoopConfig { Count = 2 }, new[] { laterNested });
+
+    var errors = Svc.Validate(new[] { gate, laterLoop });
+
+    errors.Should().ContainSingle(e => e.Contains("must reference a prior step"));
+  }
+
+  [Fact] // T021 (US3) — the whole-tree resolution built for US2 is not Break-specific: an
+         // ordinary (non-Break) step nested inside a different Loop's body resolves the same way.
+  public void CommandOutcomeReferencingNonBreakStepNestedInAnEarlierDifferentLoopIsAccepted() {
+    var inner = ActionStep("inner-command", 0);
+    var loop1 = LoopStep("loop-1", new CountLoopConfig { Count = 3 }, new[] { inner });
+    var gate = ActionStepWithCondition("gate", 1,
+        new CommandOutcomeStepCondition { StepRef = "inner-command", ExpectedState = "success" });
+
+    var errors = Svc.Validate(new[] { loop1, gate });
+
+    errors.Should().BeEmpty();
+  }
+
+  [Fact] // T012 (US2) — regression: an unrecognized expectedState is still rejected, now
+         // mentioning the widened vocabulary.
+  public void CommandOutcomeUnknownExpectedStateIsStillRejected() {
+    var brk = BreakStep("brk");
+    var loop1 = LoopStep("loop-1", new CountLoopConfig { Count = 3 }, new[] { brk });
+    var gate = ActionStepWithCondition("gate", 1,
+        new CommandOutcomeStepCondition { StepRef = "brk", ExpectedState = "bogus" });
+
+    var errors = Svc.Validate(new[] { loop1, gate });
+
+    errors.Should().ContainSingle(e => e.Contains("must be one of success|failed|skipped|break|no_break"));
+  }
 }

@@ -667,4 +667,266 @@ public sealed class SequenceRunnerLoopTests {
     breaks.Should().OnlyContain(s => s.ActionOutcome == "no_break");
     result.Steps.Where(s => s.LoopIterations is not null).Should().OnlyContain(s => s.Status != "Failed");
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Feature 081 (FR-001/US1): Loop exitReason
+  // ──────────────────────────────────────────────────────────────────────────
+
+  [Fact] // T001 (US1)
+  public async Task CountLoopConditionalBreakFiresExitReasonReportsBrokeViaAndNotExhausted() {
+    var loopStep = CountLoopWithBreak(new ImageVisibleStepCondition { ImageId = "img" }, count: 5);
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(true));
+
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().Be("break");
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeFalse();
+  }
+
+  [Fact] // T001/T005 (US1) — a count loop has no "exhausted" concept (Count is fixed, not a
+         // give-up ceiling): running to completion with no break is the "neither" state.
+  public async Task CountLoopCompletesWithNoBreakExitReasonReportsNeitherBrokeNorExhausted() {
+    var loopStep = CountLoopWithBreak(new ImageVisibleStepCondition { ImageId = "img" }, count: 3);
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(false));
+
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().BeNull();
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeFalse();
+  }
+
+  [Fact] // T002 (US1)
+  public async Task WhileLoopBreakFiresExitReasonReportsBrokeViaAndNotExhausted() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new WhileLoopConfig { Condition = new ImageVisibleStepCondition { ImageId = "loop" } },
+      Body = new List<SequenceStep> {
+        ActionBodyStep(0, "inner"),
+        BreakBodyStep(1, new ImageVisibleStepCondition { ImageId = "brk" })
+      }
+    };
+
+    var brkChecks = 0;
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (cond, _) => {
+          if (cond.TargetId == "brk") return Task.FromResult(++brkChecks >= 2);
+          return Task.FromResult(true);
+        });
+
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().Be("break");
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeFalse();
+  }
+
+  [Fact] // T002 (US1)
+  public async Task WhileLoopConditionFalseOnEntryExitReasonReportsNeitherBrokeNorExhausted() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new WhileLoopConfig { Condition = new ImageVisibleStepCondition { ImageId = "img" } },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(false));
+
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().BeNull();
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeFalse();
+  }
+
+  [Fact] // T001/T002 (US1) — FR-004: ExhaustedMaxIterations is independent of ExitOnMaxIterations.
+  public async Task WhileLoopExitOnMaxIterationsTrueExitReasonReportsExhausted() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "recover",
+      StepType = SequenceStepType.Loop,
+      Loop = new WhileLoopConfig {
+        Condition = new ImageVisibleStepCondition { ImageId = "img" },
+        MaxIterations = 3,
+        ExitOnMaxIterations = true
+      },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(true));
+
+    result.Status.Should().Be("Succeeded");
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().BeNull();
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeTrue();
+  }
+
+  [Fact] // T001/T002 (US1) — FR-004: still reports exhausted even though ExitOnMaxIterations:false
+         // fails the loop for an unrelated ("Failed") reason today.
+  public async Task WhileLoopExitOnMaxIterationsFalseStillReportsExhaustedEvenThoughLoopFails() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new WhileLoopConfig {
+        Condition = new ImageVisibleStepCondition { ImageId = "img" },
+        MaxIterations = 3
+      },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(true));
+
+    result.Status.Should().Be("Failed");
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().BeNull();
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeTrue();
+  }
+
+  [Fact] // T003 (US1)
+  public async Task RepeatUntilLoopBreakFiresExitReasonReportsBrokeViaAndNotExhausted() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new RepeatUntilLoopConfig { Condition = new ImageVisibleStepCondition { ImageId = "until" } },
+      Body = new List<SequenceStep> {
+        ActionBodyStep(0, "inner"),
+        BreakBodyStep(1, new ImageVisibleStepCondition { ImageId = "brk" })
+      }
+    };
+
+    var brkChecks = 0;
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (cond, _) => {
+          if (cond.TargetId == "brk") return Task.FromResult(++brkChecks >= 2);
+          return Task.FromResult(false); // exit condition itself never true
+        });
+
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().Be("break");
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeFalse();
+  }
+
+  [Fact] // T003 (US1)
+  public async Task RepeatUntilLoopExitConditionTrueExitReasonReportsNeitherBrokeNorExhausted() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new RepeatUntilLoopConfig { Condition = new ImageVisibleStepCondition { ImageId = "img" } },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(true));
+
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().BeNull();
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeFalse();
+  }
+
+  [Fact] // T003 (US1) — FR-004: exhausted regardless of ExitOnMaxIterations.
+  public async Task RepeatUntilLoopExitOnMaxIterationsTrueExitReasonReportsExhausted() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "cleanup",
+      StepType = SequenceStepType.Loop,
+      Loop = new RepeatUntilLoopConfig {
+        Condition = new ImageVisibleStepCondition { ImageId = "img" },
+        MaxIterations = 3,
+        ExitOnMaxIterations = true
+      },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(false));
+
+    result.Status.Should().Be("Succeeded");
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().BeNull();
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeTrue();
+  }
+
+  [Fact] // T003 (US1) — FR-004: still exhausted even though ExitOnMaxIterations:false fails the loop.
+  public async Task RepeatUntilLoopExitOnMaxIterationsFalseStillReportsExhaustedEvenThoughLoopFails() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new RepeatUntilLoopConfig {
+        Condition = new ImageVisibleStepCondition { ImageId = "img" },
+        MaxIterations = 3
+      },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(false));
+
+    result.Status.Should().Be("Failed");
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().BeNull();
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeTrue();
+  }
+
+  [Fact] // T006 (US1) — regression: exitReason is additive, existing assertions are unaffected.
+  public async Task ExitReasonAdditionDoesNotAffectExistingLoopStatusOrMessageAssertions() {
+    // Re-run of WhileLoopExitOnMaxIterationsGivesUpWithoutFailingTheSequence's existing assertions.
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "recover",
+      StepType = SequenceStepType.Loop,
+      Loop = new WhileLoopConfig {
+        Condition = new ImageVisibleStepCondition { ImageId = "img" },
+        MaxIterations = 3,
+        ExitOnMaxIterations = true
+      },
+      Body = new List<SequenceStep> { ActionBodyStep(0, "inner") }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(true));
+
+    result.Status.Should().Be("Succeeded");
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.Status.Should().Be("exhausted");
+    loopResult.Message.Should().Contain("gave up after 3 iterations");
+  }
 }

@@ -472,7 +472,7 @@ namespace GameBot.Domain.Services {
 
       // ── If step dispatch (top level: no iteration context, break cannot occur) ──
       if (step.StepType == SequenceStepType.If) {
-        var (ifEarlyStop, _) = await ExecuteIfStepAsync(
+        var (ifEarlyStop, _, _) = await ExecuteIfStepAsync(
             step,
             executeCommandAsync,
             commandDispatcher,
@@ -955,6 +955,7 @@ namespace GameBot.Domain.Services {
       var iterResults = new List<LoopIterResult>();
       var priorIterationExecutedSteps = false;
       var breakFired = false;
+      string? brokeVia = null;
 
       for (var i = 0; i < cfg.Count; i++) {
         ct.ThrowIfCancellationRequested();
@@ -966,7 +967,7 @@ namespace GameBot.Domain.Services {
         }
 
         var iterCtx = scope.WithIteration(i + 1);
-        var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
+        var (earlyStop, breakTriggered, stepCount, iterBrokeVia) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
             stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
 
@@ -978,10 +979,11 @@ namespace GameBot.Domain.Services {
           stepOutcomes[stepKey] = "failed";
           return true;
         }
-        if (breakTriggered) { breakFired = true; break; }
+        if (breakTriggered) { breakFired = true; brokeVia = iterBrokeVia; break; }
       }
 
-      result.AddLoopStep(stepKey, breakFired ? "true" : "Succeeded", iterResults);
+      result.AddLoopStep(stepKey, breakFired ? "true" : "Succeeded", iterResults,
+          exitReason: new LoopExitReason { BrokeVia = brokeVia, ExhaustedMaxIterations = false });
       stepOutcomes[stepKey] = "success";
       return false;
     }
@@ -1006,6 +1008,7 @@ namespace GameBot.Domain.Services {
       var iterResults = new List<LoopIterResult>();
       var iterations = 0;
       var priorIterationExecutedSteps = false;
+      string? brokeVia = null;
 
       while (true) {
         ct.ThrowIfCancellationRequested();
@@ -1025,7 +1028,8 @@ namespace GameBot.Domain.Services {
         if (!condResult) {
           // condition false on entry (or after last iteration)
           var status = iterations == 0 ? "Skipped" : "false";
-          result.AddLoopStep(stepKey, status, iterResults);
+          result.AddLoopStep(stepKey, status, iterResults,
+              exitReason: new LoopExitReason { BrokeVia = null, ExhaustedMaxIterations = false });
           stepOutcomes[stepKey] = iterations == 0 ? "skipped" : "success";
           return false;
         }
@@ -1040,18 +1044,20 @@ namespace GameBot.Domain.Services {
         if (iterations > maxIterations) {
           if (cfg.ExitOnMaxIterations) {
             var gaveUp = $"Loop '{stepKey}' gave up after {maxIterations} iterations with its condition still true.";
-            result.AddLoopStep(stepKey, "exhausted", iterResults, gaveUp);
+            result.AddLoopStep(stepKey, "exhausted", iterResults, gaveUp,
+                exitReason: new LoopExitReason { BrokeVia = null, ExhaustedMaxIterations = true });
             stepOutcomes[stepKey] = "not_executed";
             return false;
           }
-          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).",
+              exitReason: new LoopExitReason { BrokeVia = null, ExhaustedMaxIterations = true });
           result.Fail($"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
           stepOutcomes[stepKey] = "failed";
           return true;
         }
 
         var iterCtx = scope.WithIteration(iterations);
-        var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
+        var (earlyStop, breakTriggered, stepCount, iterBrokeVia) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
             stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
 
@@ -1063,10 +1069,11 @@ namespace GameBot.Domain.Services {
           stepOutcomes[stepKey] = "failed";
           return true;
         }
-        if (breakTriggered) break;
+        if (breakTriggered) { brokeVia = iterBrokeVia; break; }
       }
 
-      result.AddLoopStep(stepKey, "true", iterResults);
+      result.AddLoopStep(stepKey, "true", iterResults,
+          exitReason: new LoopExitReason { BrokeVia = brokeVia, ExhaustedMaxIterations = false });
       stepOutcomes[stepKey] = "success";
       return false;
     }
@@ -1091,6 +1098,7 @@ namespace GameBot.Domain.Services {
       var iterResults = new List<LoopIterResult>();
       var iterations = 0;
       var priorIterationExecutedSteps = false;
+      string? brokeVia = null;
 
       while (true) {
         ct.ThrowIfCancellationRequested();
@@ -1104,7 +1112,7 @@ namespace GameBot.Domain.Services {
         iterations++;
 
         var iterCtx = scope.WithIteration(iterations);
-        var (earlyStop, breakTriggered, stepCount) = await ExecuteLoopBodyAsync(
+        var (earlyStop, breakTriggered, stepCount, iterBrokeVia) = await ExecuteLoopBodyAsync(
             step.Body, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
             stepOutcomes, result, sequenceId, iterCtx, actionDispatcher, ct).ConfigureAwait(false);
 
@@ -1116,16 +1124,18 @@ namespace GameBot.Domain.Services {
           stepOutcomes[stepKey] = "failed";
           return true;
         }
-        if (breakTriggered) break;
+        if (breakTriggered) { brokeVia = iterBrokeVia; break; }
 
         if (iterations >= maxIterations) {
           if (cfg.ExitOnMaxIterations) {
             var gaveUp = $"Loop '{stepKey}' gave up after {maxIterations} iterations with its exit condition still false.";
-            result.AddLoopStep(stepKey, "exhausted", iterResults, gaveUp);
+            result.AddLoopStep(stepKey, "exhausted", iterResults, gaveUp,
+                exitReason: new LoopExitReason { BrokeVia = null, ExhaustedMaxIterations = true });
             stepOutcomes[stepKey] = "not_executed";
             return false;
           }
-          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
+          result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).",
+              exitReason: new LoopExitReason { BrokeVia = null, ExhaustedMaxIterations = true });
           result.Fail($"Loop '{stepKey}' exceeded maximum iterations ({maxIterations}).");
           stepOutcomes[stepKey] = "failed";
           return true;
@@ -1147,7 +1157,8 @@ namespace GameBot.Domain.Services {
         if (exitCond) break;
       }
 
-      result.AddLoopStep(stepKey, "true", iterResults);
+      result.AddLoopStep(stepKey, "true", iterResults,
+          exitReason: new LoopExitReason { BrokeVia = brokeVia, ExhaustedMaxIterations = false });
       stepOutcomes[stepKey] = "success";
       return false;
     }
@@ -1161,7 +1172,7 @@ namespace GameBot.Domain.Services {
     /// (<c>earlyStop</c>, <c>breakTriggered</c>); a break inside a branch propagates to the
     /// enclosing loop.
     /// </summary>
-    private async Task<(bool EarlyStop, bool BreakTriggered)> ExecuteIfStepAsync(
+    private async Task<(bool EarlyStop, bool BreakTriggered, string? BrokeVia)> ExecuteIfStepAsync(
         SequenceStep step,
         Func<string, ParameterScope, Task> executeCommandAsync,
         Func<string, ParameterScope, Task<CommandDispatchOutcome>>? commandDispatcher,
@@ -1180,7 +1191,7 @@ namespace GameBot.Domain.Services {
         result.AddStep(stepKey, 0, "Failed", message: $"If step '{stepKey}' has missing if configuration.");
         result.Fail($"If step '{stepKey}' has missing if configuration.");
         stepOutcomes[stepKey] = "failed";
-        return (true, false);
+        return (true, false, null);
       }
 
       var condDesc = DescribeBreakCondition(step.If.Condition);
@@ -1198,7 +1209,7 @@ namespace GameBot.Domain.Services {
             message: $"If '{stepKey}' condition evaluation failed: {ex.Message}");
         result.Fail($"If '{stepKey}' condition evaluation failed: {ex.Message}");
         stepOutcomes[stepKey] = "failed";
-        return (true, false);
+        return (true, false, null);
       }
 
       var branch = condResult ? step.Body : step.ElseBody ?? Array.Empty<SequenceStep>();
@@ -1216,29 +1227,31 @@ namespace GameBot.Domain.Services {
 
       if (!hasBranchSteps) {
         stepOutcomes[stepKey] = "skipped";
-        return (false, false);
+        return (false, false, null);
       }
 
-      var (earlyStop, breakTriggered, _) = await ExecuteLoopBodyAsync(
+      var (earlyStop, breakTriggered, _, brokeVia) = await ExecuteLoopBodyAsync(
           branch, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
           stepOutcomes, result, sequenceId, iterScope, actionDispatcher, ct).ConfigureAwait(false);
 
       if (earlyStop) {
         stepOutcomes[stepKey] = "failed";
-        return (true, false);
+        return (true, false, null);
       }
 
       stepOutcomes[stepKey] = "success";
-      return (false, breakTriggered);
+      return (false, breakTriggered, brokeVia);
     }
 
     /// <summary>
     /// Executes the body steps for one loop iteration.  Returns
-    /// (<c>earlyStop</c>, <c>breakTriggered</c>, <c>stepsExecuted</c>).
+    /// (<c>earlyStop</c>, <c>breakTriggered</c>, <c>stepsExecuted</c>, <c>brokeVia</c>).
+    /// <c>brokeVia</c> is the firing Break step's own StepId (even when reached through a
+    /// nested If), or null when no break fired.
     /// A break step whose condition cannot be evaluated is recorded as a neutral "No break"
     /// (feature 066, FR-002a) and the loop continues — it does not set earlyStop.
     /// </summary>
-    private async Task<(bool EarlyStop, bool BreakTriggered, int StepCount)> ExecuteLoopBodyAsync(
+    private async Task<(bool EarlyStop, bool BreakTriggered, int StepCount, string? BrokeVia)> ExecuteLoopBodyAsync(
         IReadOnlyList<SequenceStep> bodySteps,
         Func<string, ParameterScope, Task> executeCommandAsync,
         Func<string, ParameterScope, Task<CommandDispatchOutcome>>? commandDispatcher,
@@ -1268,7 +1281,8 @@ namespace GameBot.Domain.Services {
                 conditionResult: "true",
                 actionOutcome: BreakOutcomes.Break,
                 message: "Unconditional break triggered");
-            return (false, true, stepsExecuted);
+            stepOutcomes[brkKey] = BreakOutcomes.Break;
+            return (false, true, stepsExecuted, brkKey);
           }
 
           var condDesc = DescribeBreakCondition(step.BreakCondition);
@@ -1290,6 +1304,7 @@ namespace GameBot.Domain.Services {
                 conditionResult: "error",
                 actionOutcome: BreakOutcomes.NoBreak,
                 message: $"No break: {condDesc.Detail} could not be evaluated ({ex.Message})");
+            stepOutcomes[brkKey] = BreakOutcomes.NoBreak;
           }
 
           if (breakCond) {
@@ -1299,7 +1314,8 @@ namespace GameBot.Domain.Services {
                 conditionResult: "true",
                 actionOutcome: BreakOutcomes.Break,
                 message: $"Break triggered: {condDesc.Detail} evaluated to true");
-            return (false, true, stepsExecuted);
+            stepOutcomes[brkKey] = BreakOutcomes.Break;
+            return (false, true, stepsExecuted, brkKey);
           }
 
           if (!evalError) {
@@ -1310,6 +1326,7 @@ namespace GameBot.Domain.Services {
                 conditionResult: "false",
                 actionOutcome: BreakOutcomes.NoBreak,
                 message: $"No break: {condDesc.Detail} evaluated to false");
+            stepOutcomes[brkKey] = BreakOutcomes.NoBreak;
           }
 
           if (bodyIndex < orderedBodySteps.Count - 1) {
@@ -1323,13 +1340,13 @@ namespace GameBot.Domain.Services {
         if (step.StepType == SequenceStepType.If) {
           // Nested if: executed with the current iteration context so branch steps keep
           // {{iteration}} substitution, and a break inside a branch exits the enclosing loop.
-          var (ifEarlyStop, ifBreakTriggered) = await ExecuteIfStepAsync(
+          var (ifEarlyStop, ifBreakTriggered, ifBrokeVia) = await ExecuteIfStepAsync(
               step, executeCommandAsync, commandDispatcher, gateEvaluator, conditionEvaluator, interStepDelayRange,
               stepOutcomes, result, sequenceId, iterScope, actionDispatcher, ct).ConfigureAwait(false);
           stepsExecuted++;
 
-          if (ifEarlyStop) return (true, false, stepsExecuted);
-          if (ifBreakTriggered) return (false, true, stepsExecuted);
+          if (ifEarlyStop) return (true, false, stepsExecuted, null);
+          if (ifBreakTriggered) return (false, true, stepsExecuted, ifBrokeVia);
 
           if (bodyIndex < orderedBodySteps.Count - 1) {
             var ifDelayMs = SampleInterStepDelay(interStepDelayRange);
@@ -1356,7 +1373,7 @@ namespace GameBot.Domain.Services {
             ct).ConfigureAwait(false);
         stepsExecuted++;
 
-        if (earlyStop) return (true, false, stepsExecuted);
+        if (earlyStop) return (true, false, stepsExecuted, null);
 
         if (bodyIndex < orderedBodySteps.Count - 1) {
           var delayMs = SampleInterStepDelay(interStepDelayRange);
@@ -1365,7 +1382,7 @@ namespace GameBot.Domain.Services {
         }
       }
 
-      return (false, false, stepsExecuted);
+      return (false, false, stepsExecuted, null);
     }
 
     /// <summary>
@@ -2157,13 +2174,15 @@ namespace GameBot.Domain.Services {
         string stepId,
         string status,
         IReadOnlyList<LoopIterResult> iterResults,
-        string? message = null) {
+        string? message = null,
+        LoopExitReason? exitReason = null) {
       _steps.Add(new StepResult {
         CommandId = stepId,
         Status = status,
         Attempts = 1,
         LoopIterations = iterResults,
-        Message = message
+        Message = message,
+        ExitReason = exitReason
       });
     }
 
@@ -2202,6 +2221,21 @@ namespace GameBot.Domain.Services {
     public WaitForImageStepResultDetails? WaitForImageDetails { get; set; }
     /// <summary>Per-iteration results for loop steps; null for non-loop steps.</summary>
     public IReadOnlyList<LoopIterResult>? LoopIterations { get; set; }
+    /// <summary>Why a loop step stopped iterating; null for non-loop steps.</summary>
+    public LoopExitReason? ExitReason { get; set; }
+  }
+
+  /// <summary>
+  /// Structural reason a <see cref="SequenceStepType.Loop"/> step stopped iterating (feature 081 /
+  /// FR-001). <see cref="BrokeVia"/> and <see cref="ExhaustedMaxIterations"/> = true are mutually
+  /// exclusive; both are null/false when the loop finished its body/condition normally without
+  /// either happening.
+  /// </summary>
+  public sealed class LoopExitReason {
+    /// <summary>The StepId of the Break step that fired, or null if none fired.</summary>
+    public string? BrokeVia { get; set; }
+    /// <summary>True iff the loop ran its full configured MaxIterations without any Break firing.</summary>
+    public bool ExhaustedMaxIterations { get; set; }
   }
 
   public sealed class WaitForImageStepResultDetails {

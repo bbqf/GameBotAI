@@ -271,6 +271,33 @@ public sealed class SequenceRunnerIfTests {
     executed.Should().Equal("cmd-work");
   }
 
+  [Fact] // T004 (feature 081, FR-003): the Loop's exitReason.brokeVia names the Break step's own
+         // id, not the enclosing If step's id.
+  public async Task BreakInsideIfThenBranchLoopExitReasonReportsBreaksOwnIdNotTheIfsId() {
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = new CountLoopConfig { Count = 5 },
+      Body = new List<SequenceStep> {
+        ActionStep(0, "work", "cmd-work"),
+        IfStep("if1", new List<SequenceStep> {
+          new() { Order = 0, StepId = "brk", StepType = SequenceStepType.Break }
+        }, order: 1)
+      }
+    };
+
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (_, _) => Task.FromResult(true));
+
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().Be("brk");
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeFalse();
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // US2: else branch
   // ──────────────────────────────────────────────────────────────────────────
