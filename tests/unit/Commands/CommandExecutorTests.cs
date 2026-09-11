@@ -181,6 +181,7 @@ public sealed class CommandExecutorTests {
       _triggerRepo.NotifyInputsSent();
       return Task.FromResult(accepted);
     }
+    public Task<GameBot.Emulator.Session.SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) => Task.FromResult(new GameBot.Emulator.Session.SessionInputDispatchResult(true, Array.Empty<GameBot.Emulator.Session.InputActionResult>()));
     public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
   }
 

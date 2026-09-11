@@ -1000,7 +1000,8 @@ internal static class SequencesEndpoints {
           StepType = SequenceStepType.Action,
           Action = child.PrimitiveAction is not null ? new SequenceActionPayload { Type = child.PrimitiveAction.Type, SchemaVersion = child.PrimitiveAction.SchemaVersion } : null,
           WaitForImage = MapWaitForImageConfig(child.PrimitiveAction),
-          Condition = MapPerStepCondition(child.Condition)
+          Condition = MapPerStepCondition(child.Condition),
+          RequireDispatch = child.RequireDispatch ?? false
         };
         if (child.PrimitiveAction is not null) {
           foreach (var parameter in child.PrimitiveAction.Payload) {

@@ -129,6 +129,8 @@ namespace GameBot.Domain.Commands {
             };
 
       foreach (var step in sequence.Steps) {
+        ValidateCommandIdPresence(step);
+
         if (step.Action is null) {
           continue;
         }
@@ -178,6 +180,30 @@ namespace GameBot.Domain.Commands {
         var actionType = step.PayloadRef[..separatorIndex].Trim();
         if (!supportedActionTypes.Contains(actionType)) {
           throw new InvalidOperationException($"Action step '{step.StepId}' references unsupported action type '{actionType}'.");
+        }
+      }
+    }
+
+    // B-003: mirrors SequenceStepValidationService's commandId-presence gate as a last-resort
+    // guard for this repository, at any nesting depth (top-level, Loop body, If then/else).
+    // A bare commandName (or no reference at all) used to be silently accepted and would default
+    // the dispatch target to the step's own stepId, failing confusingly at run time instead of here.
+    private static void ValidateCommandIdPresence(SequenceStep step) {
+      if (step.Action is not null
+          && string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+          && (!step.Action.Parameters.TryGetValue("commandId", out var commandId)
+              || commandId is null
+              || string.IsNullOrWhiteSpace(commandId.ToString()))) {
+        throw new InvalidOperationException($"Step '{step.StepId}' (type command) requires a non-empty 'commandId' in its payload.");
+      }
+
+      foreach (var bodyStep in step.Body) {
+        ValidateCommandIdPresence(bodyStep);
+      }
+
+      if (step.ElseBody is not null) {
+        foreach (var elseStep in step.ElseBody) {
+          ValidateCommandIdPresence(elseStep);
         }
       }
     }

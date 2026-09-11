@@ -235,6 +235,9 @@ public sealed class SequenceStepValidationService {
       else if (string.Equals(step.Action.Type, PrimitiveActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)) {
         ValidateWaitForImagePayload(step.Action.Parameters, stepLabel, errors);
       }
+      else if (string.Equals(step.Action.Type, PrimitiveActionTypes.Command, StringComparison.OrdinalIgnoreCase)) {
+        ValidateCommandPayload(step.Action.Parameters, stepLabel, errors);
+      }
     }
 
     // FR-002a (feature 034): {{iteration}} is only meaningful inside a loop.
@@ -359,6 +362,20 @@ public sealed class SequenceStepValidationService {
         && referenceImageId.ValueKind == JsonValueKind.String
         && string.IsNullOrWhiteSpace(referenceImageId.GetString())) {
       errors.Add($"Step '{stepLabel}' waitForImage detectionTarget.referenceImageId must not be empty when detectionTarget is provided.");
+    }
+  }
+
+  // B-003: a "command" step must carry a resolved commandId. A bare commandName (or no
+  // reference at all) used to be silently accepted and would default the dispatch target to the
+  // step's own stepId, failing confusingly at run time instead of here.
+  private static void ValidateCommandPayload(
+      Dictionary<string, object?> parameters,
+      string stepLabel,
+      List<string> errors) {
+    if (!parameters.TryGetValue("commandId", out var commandId)
+        || commandId is null
+        || string.IsNullOrWhiteSpace(commandId.ToString())) {
+      errors.Add($"Step '{stepLabel}' (type command) requires a non-empty 'commandId' in its payload.");
     }
   }
 

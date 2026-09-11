@@ -149,6 +149,7 @@ public sealed class CommandExecutorWaitForImageTests {
     public IReadOnlyCollection<EmulatorSession> ListSessions() => new[] { _session };
     public bool StopSession(string id) => true;
     public Task<int> SendInputsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) => Task.FromResult(actions.Count());
+    public Task<GameBot.Emulator.Session.SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) => Task.FromResult(new GameBot.Emulator.Session.SessionInputDispatchResult(true, Array.Empty<GameBot.Emulator.Session.InputActionResult>()));
     public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
   }
 

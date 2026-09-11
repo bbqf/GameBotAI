@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-08-30._
+_Last reviewed: 2026-09-11._
 
 ## What GameBot is
 
@@ -295,6 +295,21 @@ Feature 078 added, all additively (absent members mean pre-feature behaviour):
   entries and parameter names, before any session or device work.
 - Execution-log step details gain a `parameters` item recording each resolved value and the scope
   layer it came from; a parameter whose *name* looks like a secret has its value masked.
+
+Feature 080 fixed three platform bugs, additively/tightening only (no route removed or renamed):
+
+- `POST /api/sequences` and `PUT /api/sequences/{id}` now reject, at creation/replace time, a
+  `command`-typed action step (top-level or nested in a `Loop`/`If` body) whose payload has no
+  non-empty `commandId` — it used to be accepted silently and default the dispatch target to the
+  step's own `stepId`, failing confusingly only when the sequence ran.
+- `requireDispatch: true` on a step nested inside a `Loop` or `If` body is now honored — it used to
+  be silently dropped in transit (`SequencesEndpoints.MapBodySteps` never copied it), so such a
+  step could never fail its enclosing run even when nothing dispatched.
+- `POST /api/sessions/{id}/inputs` no longer reports `409 not_running` for a session that is
+  actually running just because posted action(s) couldn't be parsed/dispatched. It now reports
+  `400 invalid_input_actions` when none of the actions dispatched, or keeps the existing
+  `202 Accepted` (extended with a per-action `results` array) when some/all did; `409` is reserved
+  for a session that genuinely isn't found/running.
 
 ## Legacy / removed (don't be misled by old specs)
 

@@ -46,6 +46,7 @@ public sealed class CommandExecutorKeyInputTests {
       ReceivedInputs.AddRange(actions);
       return Task.FromResult(SendResult);
     }
+    public Task<SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) => Task.FromResult(new SessionInputDispatchResult(true, Array.Empty<InputActionResult>()));
     public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
   }
 
