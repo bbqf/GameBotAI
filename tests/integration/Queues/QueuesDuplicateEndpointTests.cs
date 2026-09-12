@@ -14,7 +14,9 @@ namespace GameBot.IntegrationTests.Queues;
 /// <summary>
 /// Feature 083: POST /api/queues/{id}/duplicate creates a 1:1 copy of the source queue's
 /// configuration and currently loaded entries under a new, required-to-differ name, always
-/// created stopped, never mutating the source (FR-001..FR-008, FR-003a).
+/// created stopped, never mutating the source (FR-001..FR-008, FR-003a). The emulator fields
+/// (serial/instance name/instance index) are the one exception: the caller resubmits them and MAY
+/// change them, but — unlike the name — they are also allowed to come back unchanged (FR-003b).
 /// </summary>
 [Collection("ConfigIsolation")]
 public sealed class QueuesDuplicateEndpointTests {
@@ -64,8 +66,11 @@ public sealed class QueuesDuplicateEndpointTests {
   private static Task<HttpResponseMessage> AddEntryAsync(HttpClient client, string queueId, string sequenceId) =>
     client.PostAsJsonAsync(new Uri($"/api/queues/{queueId}/entries", UriKind.Relative), new { sequenceId });
 
-  private static Task<HttpResponseMessage> DuplicateAsync(HttpClient client, string queueId, string? name) =>
-    client.PostAsJsonAsync(new Uri($"/api/queues/{queueId}/duplicate", UriKind.Relative), new { name });
+  private static Task<HttpResponseMessage> DuplicateAsync(
+      HttpClient client, string queueId, string? name, string? emulatorSerial = "emu-1",
+      string? emulatorInstanceName = null, int? emulatorInstanceIndex = null) =>
+    client.PostAsJsonAsync(new Uri($"/api/queues/{queueId}/duplicate", UriKind.Relative),
+      new { name, emulatorSerial, emulatorInstanceName, emulatorInstanceIndex });
 
   private static async Task<JsonElement> GetQueueAsync(HttpClient client, string id) {
     var resp = await client.GetAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true);
@@ -87,7 +92,8 @@ public sealed class QueuesDuplicateEndpointTests {
     await client.PutAsJsonAsync(new Uri($"/api/queues/{sourceId}/game", UriKind.Relative), new { gameId }).ConfigureAwait(true);
     await AddEntryAsync(client, sourceId, "seq-a").ConfigureAwait(true);
 
-    var resp = await DuplicateAsync(client, sourceId, "Daily Farming 2").ConfigureAwait(true);
+    var resp = await DuplicateAsync(client, sourceId, "Daily Farming 2",
+        emulatorSerial: "emu-1", emulatorInstanceName: "PNS", emulatorInstanceIndex: 2).ConfigureAwait(true);
 
     resp.StatusCode.Should().Be(HttpStatusCode.Created);
     resp.Headers.Location!.ToString().Should().StartWith("/api/queues/");
@@ -189,12 +195,62 @@ public sealed class QueuesDuplicateEndpointTests {
     await client.PutAsJsonAsync(new Uri($"/api/queues/{sourceId}/template", UriKind.Relative), new { templateId }).ConfigureAwait(true);
     var before = await GetQueueAsync(client, sourceId).ConfigureAwait(true);
 
-    await DuplicateAsync(client, sourceId, "A Copy").ConfigureAwait(true);
+    // Duplicating onto a different emulator must not retarget the source's own emulator either.
+    await DuplicateAsync(client, sourceId, "A Copy", emulatorSerial: "emu-2").ConfigureAwait(true);
 
     var after = await GetQueueAsync(client, sourceId).ConfigureAwait(true);
     after.GetProperty("name").GetString().Should().Be(before.GetProperty("name").GetString());
+    after.GetProperty("emulatorSerial").GetString().Should().Be(before.GetProperty("emulatorSerial").GetString());
     after.GetProperty("linkedTemplateId").GetString().Should().Be(before.GetProperty("linkedTemplateId").GetString());
     after.GetProperty("entryCount").GetInt32().Should().Be(before.GetProperty("entryCount").GetInt32());
     after.GetProperty("status").GetString().Should().Be(before.GetProperty("status").GetString());
+  }
+
+  [Fact]
+  public async Task DuplicateWithDifferentEmulatorUsesTheRequestedEmulatorNotTheSource() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var source = await CreateQueueAsync(client, name: "Original", serial: "emu-1",
+        emulatorInstanceName: "PNS", emulatorInstanceIndex: 2).ConfigureAwait(true);
+    var sourceId = source.GetProperty("id").GetString()!;
+
+    var resp = await DuplicateAsync(client, sourceId, "On Another Emulator",
+        emulatorSerial: "emu-2", emulatorInstanceName: "Other", emulatorInstanceIndex: 9).ConfigureAwait(true);
+
+    resp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var dup = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    dup.GetProperty("emulatorSerial").GetString().Should().Be("emu-2");
+    dup.GetProperty("emulatorInstanceName").GetString().Should().Be("Other");
+    dup.GetProperty("emulatorInstanceIndex").GetInt32().Should().Be(9);
+
+    var sourceAfter = await GetQueueAsync(client, sourceId).ConfigureAwait(true);
+    sourceAfter.GetProperty("emulatorSerial").GetString().Should().Be("emu-1");
+  }
+
+  [Fact]
+  public async Task DuplicateWithSameEmulatorAsSourceStillSucceedsUnlikeName() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var sourceId = (await CreateQueueAsync(client, name: "Original", serial: "emu-1").ConfigureAwait(true))
+      .GetProperty("id").GetString()!;
+
+    var resp = await DuplicateAsync(client, sourceId, "A Copy", emulatorSerial: "emu-1").ConfigureAwait(true);
+
+    resp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var dup = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    dup.GetProperty("emulatorSerial").GetString().Should().Be("emu-1");
+  }
+
+  [Fact]
+  public async Task DuplicateWithMissingEmulatorSerialReturns400() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var sourceId = (await CreateQueueAsync(client).ConfigureAwait(true)).GetProperty("id").GetString()!;
+
+    var resp = await client.PostAsJsonAsync(new Uri($"/api/queues/{sourceId}/duplicate", UriKind.Relative),
+      new { name = "A Copy" }).ConfigureAwait(true);
+
+    resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    (await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).Should().Contain("emulatorSerial is required");
   }
 }

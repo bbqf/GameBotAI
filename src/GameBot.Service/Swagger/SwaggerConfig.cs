@@ -442,7 +442,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetResponseExample(operation, "200", QueueLiveScheduleResponse(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleResponse));
     }
     else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/duplicate", StringComparison.OrdinalIgnoreCase)) {
-      operation.Summary ??= "Duplicate a queue under a new name (same configuration, template, game, and entries)";
+      operation.Summary ??= "Duplicate a queue under a new name (same configuration, template, game, and entries; emulator target may be changed)";
       SetRequestExample(operation, QueueDuplicateRequest(), context, typeof(GameBot.Service.Contracts.Queues.DuplicateQueueRequest));
       SetResponseExample(operation, "201", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
     }
@@ -483,7 +483,8 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   };
 
   private static OpenApiObject QueueDuplicateRequest() => new OpenApiObject {
-    ["name"] = new OpenApiString("Daily Farm 2")
+    ["name"] = new OpenApiString("Daily Farm 2"),
+    ["emulatorSerial"] = new OpenApiString("emulator-5554")
   };
 
   private static OpenApiObject QueueLiveScheduleResponse() => new OpenApiObject {

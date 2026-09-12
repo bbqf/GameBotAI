@@ -62,9 +62,21 @@ export const createQueue = (input: QueueCreate) => postJson<QueueDto>(base, inpu
 export const updateQueue = (id: string, input: QueueUpdate) => putJson<QueueDto>(`${base}/${id}`, input);
 export const deleteQueue = (id: string) => deleteJson<void>(`${base}/${id}`);
 
-/** Creates a 1:1 copy of the queue under a new name (feature 083). Name must differ from the source's. */
-export const duplicateQueue = (id: string, name: string) =>
-  postJson<QueueDto>(`${base}/${id}/duplicate`, { name });
+export type QueueDuplicate = {
+  name: string;
+  emulatorSerial: string;
+  emulatorInstanceName?: string | null;
+  emulatorInstanceIndex?: number | null;
+};
+
+/**
+ * Creates a 1:1 copy of the queue under a new name (feature 083). Name must differ from the
+ * source's. The emulator fields are the one exception to "1:1": the caller resubmits them
+ * (typically pre-filled from the source) and may point the duplicate at a different
+ * emulator/instance — but unlike the name, they are allowed to come back unchanged.
+ */
+export const duplicateQueue = (id: string, input: QueueDuplicate) =>
+  postJson<QueueDto>(`${base}/${id}/duplicate`, input);
 
 export const addQueueEntry = (id: string, sequenceId: string) =>
   postJson<QueueEntryDto>(`${base}/${id}/entries`, { sequenceId });

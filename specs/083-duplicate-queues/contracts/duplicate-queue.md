@@ -2,8 +2,8 @@
 
 ## `POST /api/queues/{id}/duplicate`
 
-Creates a new queue that is a 1:1 copy of the queue identified by `{id}`, except for its name and
-identifier.
+Creates a new queue that is a 1:1 copy of the queue identified by `{id}`, except for its name,
+identifier, and — optionally — its emulator target.
 
 ### Request
 
@@ -15,13 +15,19 @@ Body (`application/json`):
 
 ```json
 {
-  "name": "Daily Farming 2"
+  "name": "Daily Farming 2",
+  "emulatorSerial": "emulator-5554",
+  "emulatorInstanceName": "PNS",
+  "emulatorInstanceIndex": 2
 }
 ```
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `name` | string | yes | Trimmed. Must be non-empty and must differ from the source queue's current name. |
+| `emulatorSerial` | string | yes | Trimmed. Must be non-empty, same rule as `POST /api/queues`. Typically pre-filled by the client from the source queue's current value, but — unlike `name` — MAY be resubmitted unchanged. |
+| `emulatorInstanceName` | string \| null | no | Same normalization as `POST`/`PUT /api/queues/{id}` (blank → `null`). |
+| `emulatorInstanceIndex` | number \| null | no | Must be `>= 0` when provided, same rule as `POST`/`PUT /api/queues/{id}`. |
 
 ### Responses
 
@@ -66,10 +72,23 @@ Body: same shape as the response of `POST /api/queues` (`QueueResponse`):
 { "error": { "code": "invalid_request", "message": "name must differ from the original queue's name", "hint": null } }
 ```
 
+**`400 invalid_request`** — missing/blank `emulatorSerial`.
+
+```json
+{ "error": { "code": "invalid_request", "message": "emulatorSerial is required", "hint": null } }
+```
+
+**`400 invalid_request`** — negative `emulatorInstanceIndex`.
+
+```json
+{ "error": { "code": "invalid_request", "message": "emulatorInstanceIndex must be >= 0", "hint": null } }
+```
+
 ### Side effects
 
-- A new `ExecutionQueue` is persisted via the existing queue repository, with every configuration
-  field copied from the source (see [data-model.md](../data-model.md)).
+- A new `ExecutionQueue` is persisted via the existing queue repository. Every configuration field
+  is copied from the source except the emulator fields, which are taken from the request body (see
+  [data-model.md](../data-model.md)).
 - The new queue's runtime entries are set to match the source queue's current entries (sequence
   IDs), via the existing runtime store.
 - The source queue is left completely unmodified (no write to it).
