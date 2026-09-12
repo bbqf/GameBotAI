@@ -173,7 +173,7 @@ public sealed class QueuesApiContractTests : IDisposable {
       new { name = "Farm", emulatorSerial = "emu-1", cycleExecution = true }).ConfigureAwait(true);
     var id = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString();
 
-    var dupResp = await client.PostAsJsonAsync(new Uri($"/api/queues/{id}/duplicate", UriKind.Relative), new { name = "Farm 2" }).ConfigureAwait(true);
+    var dupResp = await client.PostAsJsonAsync(new Uri($"/api/queues/{id}/duplicate", UriKind.Relative), new { name = "Farm 2", emulatorSerial = "emu-1" }).ConfigureAwait(true);
     dupResp.StatusCode.Should().Be(HttpStatusCode.Created);
     dupResp.Headers.Location.Should().NotBeNull();
     var dup = JsonDocument.Parse(await dupResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;

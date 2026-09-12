@@ -80,6 +80,9 @@ internal static class QueuesEndpoints {
     // Duplicate (feature 083): a 1:1 copy of the source queue's configuration and currently
     // loaded entries under a new, required-to-differ name. Never mutates the source; the
     // duplicate is always created stopped since a brand-new queue ID has no runtime status yet.
+    // The emulator fields are the one exception to "1:1 copy": the caller resubmits them
+    // (pre-filled from the source by the client) so a duplicate can target a different
+    // emulator/instance, but unlike the name they are allowed to come back unchanged.
     group.MapPost("{id}/duplicate", async (string id, DuplicateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime) => {
       var source = await repo.GetAsync(id).ConfigureAwait(false);
       if (source is null) return NotFound();
@@ -87,15 +90,18 @@ internal static class QueuesEndpoints {
       if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
       if (string.Equals(name, source.Name, StringComparison.Ordinal))
         return Error(400, "invalid_request", "name must differ from the original queue's name");
+      var serial = req?.EmulatorSerial?.Trim();
+      if (string.IsNullOrWhiteSpace(serial)) return Error(400, "invalid_request", "emulatorSerial is required");
+      if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
 
       var created = await repo.CreateAsync(new ExecutionQueue {
         Name = name,
-        EmulatorSerial = source.EmulatorSerial,
+        EmulatorSerial = serial,
         CycleExecution = source.CycleExecution,
         PauseWhenIdle = source.PauseWhenIdle,
         IdleThresholdSeconds = CoerceThreshold(source.IdleThresholdSeconds),
-        EmulatorInstanceName = NormalizeInstanceName(source.EmulatorInstanceName),
-        EmulatorInstanceIndex = source.EmulatorInstanceIndex,
+        EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName),
+        EmulatorInstanceIndex = req.EmulatorInstanceIndex,
         LinkedTemplateId = source.LinkedTemplateId,
         LinkedGameId = source.LinkedGameId
       }).ConfigureAwait(false);

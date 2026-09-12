@@ -71,3 +71,32 @@ status defaults to `Stopped` exactly like any newly created queue. No explicit "
 
 **Alternatives considered**: None needed — this falls out of the existing runtime-store design for
 free.
+
+## Decision (amendment, 2026-09-12): Emulator fields are resubmitted, not copied
+
+**Decision**: `DuplicateQueueRequest` gains `EmulatorSerial` (required), `EmulatorInstanceName`
+and `EmulatorInstanceIndex` (both optional). The endpoint applies the request's values for these
+three fields to the new queue instead of copying them from the source, using the exact same
+validation `POST /api/queues` already performs (`EmulatorSerial` required non-blank,
+`EmulatorInstanceIndex >= 0` when present). The web-ui modal pre-fills these three fields from the
+source queue, so the common "just change the name" flow still requires no extra input, but the
+user can edit them before confirming.
+
+**Rationale**: Post-merge feedback: a strict 1:1 copy (including the emulator) makes duplication
+useless for its most common real purpose — taking a working queue configuration and pointing a
+copy of it at a different emulator/device, without re-entering every other field by hand. The
+emulator fields are the only ones an operator would plausibly want to change at duplication time
+(cycle-execution, idle settings, template, and game links are copied without complaint because
+nothing about "the same automation on a different device" implies changing them).
+
+**Alternatives considered**:
+- Leave emulator fields out of the request and add a separate `PUT /api/queues/{id}` call after
+  duplicating to change the emulator serial — rejected: `UpdateQueue` deliberately does not allow
+  changing `EmulatorSerial` after creation (see `QueueForm`'s read-only serial in edit mode), so
+  this would require loosening that invariant for an unrelated flow, or leave the emulator serial
+  genuinely uneditable post-duplication, which is exactly the reported problem.
+- Make the emulator fields optional overrides (omit to copy source, provide to override) instead of
+  always-required-and-resubmitted — rejected: introduces three-way nullability (not provided / null
+  / a value) for `EmulatorInstanceName`/`EmulatorInstanceIndex` with no clear way to express "clear
+  this back to unset" separately from "leave as source's value," for a case (scripts calling the
+  API directly without the web-ui's pre-fill) that isn't the feature's actual use case.

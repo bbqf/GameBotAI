@@ -28,7 +28,7 @@ import { QueueLiveScheduleControl } from '../components/queues/QueueLiveSchedule
 import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
 import { QueueGameControls } from '../components/queues/QueueGameControls';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
-import { DuplicateQueueModal } from '../components/queues/DuplicateQueueModal';
+import { DuplicateQueueModal, DuplicateQueueEmulator } from '../components/queues/DuplicateQueueModal';
 import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, ScheduleType, QueueTemplateEntryDto } from '../services/queueTemplates';
 import { sameSequenceOrder } from '../lib/sequenceOrder';
 import { ApiError } from '../lib/api';
@@ -212,10 +212,10 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     }
   };
 
-  const handleDuplicate = async (name: string) => {
+  const handleDuplicate = async (name: string, emulator: DuplicateQueueEmulator) => {
     if (!duplicateSource) return;
     try {
-      await duplicateQueue(duplicateSource.id, name);
+      await duplicateQueue(duplicateSource.id, { name, ...emulator });
       setDuplicateSource(undefined);
       setDuplicateError(undefined);
       setTableMessage(`Queue "${name}" duplicated successfully.`);
@@ -605,9 +605,14 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
         open={Boolean(duplicateSource)}
         sourceName={duplicateSource?.name ?? ''}
         suggestedName={`${duplicateSource?.name ?? ''} (copy)`}
+        sourceEmulator={{
+          emulatorSerial: duplicateSource?.emulatorSerial ?? '',
+          emulatorInstanceName: duplicateSource?.emulatorInstanceName ?? null,
+          emulatorInstanceIndex: duplicateSource?.emulatorInstanceIndex ?? null,
+        }}
         error={duplicateError}
         onCancel={() => { setDuplicateSource(undefined); setDuplicateError(undefined); }}
-        onConfirm={(name) => void handleDuplicate(name)}
+        onConfirm={(name, emulator) => void handleDuplicate(name, emulator)}
       />
 
       <ConfirmDeleteModal

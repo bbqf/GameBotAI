@@ -69,3 +69,24 @@ MVP = this entire feature (single P1 story): T002 → T005 (backend) unlocks a w
 (web-ui) make it usable from the Queues page. T010-T012 are documentation upkeep required by the
 constitution's Living Documentation principle, not functional scope. T013 is the final quality
 gate before calling the feature done.
+
+## Amendment (2026-09-12): Emulator override at duplication time
+
+Post-merge feedback: a strict 1:1 copy made it impossible to duplicate a queue onto a different
+emulator. See the amendment notes in `spec.md`, `research.md`, `data-model.md`, and
+`contracts/duplicate-queue.md` for the design.
+
+- [X] T014 Add `EmulatorSerial`/`EmulatorInstanceName`/`EmulatorInstanceIndex` to
+  `DuplicateQueueRequest` and have `QueuesEndpoints.MapPost("{id}/duplicate", ...)` apply the
+  request's values (with `POST /api/queues`'s own validation) instead of copying the source's.
+- [X] T015 Update `SwaggerConfig`'s duplicate example/summary to include `emulatorSerial`.
+- [X] T016 Update `DuplicateQueueModal` to accept `sourceEmulator`, pre-fill and let the user edit
+  emulator serial (via the same `SearchableDropdown` + `useAdbDevices` as `QueueForm`), instance
+  name, and instance index; wire `QueuesPage`'s duplicate flow and `services/queues.ts`'s
+  `duplicateQueue` through the new shape.
+- [X] T017 Update/extend backend tests (`QueuesDuplicateEndpointTests.cs`,
+  `QueuesApiContractTests.cs`) and web-ui tests (`DuplicateQueueModal.test.tsx`) to cover: same
+  emulator resubmitted (still succeeds, unlike name), a different emulator applied instead of the
+  source's, source left unaffected, and `400` on missing `emulatorSerial`.
+- [X] T018 Re-run the full verification pass (`dotnet build`/`dotnet test`, `vite build`/`npx jest`)
+  and confirm green before considering the amendment done.

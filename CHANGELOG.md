@@ -6,9 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Duplicate queues (083-duplicate-queues)
-  - A new "Duplicate" action on the Queues page creates a 1:1 copy of an existing queue: emulator binding, cycle-execution/idle-pause settings, linked template, linked game, and the queue's currently loaded entries are all copied over. The only required input is a new name, which must differ from the source queue's current name; the confirm button and the API both reject a resubmitted unchanged name.
+  - A new "Duplicate" action on the Queues page creates a copy of an existing queue: cycle-execution/idle-pause settings, linked template, linked game, and the queue's currently loaded entries are all copied over. The only required input is a new name, which must differ from the source queue's current name; the confirm button and the API both reject a resubmitted unchanged name.
+  - The dialog also pre-fills the source queue's emulator (serial, instance name, instance index) but — unlike the name — lets it be changed or left as-is, so a duplicate can target a different emulator, which a normal edit does not allow.
   - The duplicate links to the *same* template as the source (no template copy) and is always created stopped with no execution history, regardless of whether the source was running at the time. The source queue itself is never modified.
-  - API: `POST /api/queues/{id}/duplicate` with `{ "name": string }`, returning `201 Created` with the new queue (same shape as `POST /api/queues`).
+  - API: `POST /api/queues/{id}/duplicate` with `{ "name": string, "emulatorSerial": string, "emulatorInstanceName"?: string, "emulatorInstanceIndex"?: number }`, returning `201 Created` with the new queue (same shape as `POST /api/queues`).
 - Tap-point jitter (058-tap-point-jitter)
   - Every tap and swipe sent to the device now lands within a small random offset of its target instead of always hitting the exact same pixel, making repeated executions look more natural. Each axis offset is drawn independently from `[-radius, +radius]`; swipe start and end points are jittered independently; results are clamped so coordinates are never negative.
   - Applied automatically and centrally in the session input dispatch path, so it covers all origins: authored steps, image-detection-resolved primitive taps, recorder replays, and the raw `POST /sessions/{id}/inputs` API. No per-step opt-in/opt-out and no new authoring/execution UI controls.
