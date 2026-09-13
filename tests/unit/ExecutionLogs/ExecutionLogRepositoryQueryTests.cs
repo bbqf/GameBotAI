@@ -122,6 +122,40 @@ public sealed class ExecutionLogRepositoryQueryTests {
     page.Items.Select(i => i.Id).Should().ContainSingle().Which.Should().Be("active");
   }
 
+  [Fact]
+  public async Task QuerySkipsCorruptEntryFilesInsteadOfFailingTheWholePage() {
+    var storageRoot = CreateTempStorageRoot();
+    using var repository = new FileExecutionLogRepository(storageRoot);
+
+    var now = DateTimeOffset.UtcNow;
+    await repository.AddAsync(CreateEntry("entry-a", now.AddMinutes(-1), "Alpha", "success")).ConfigureAwait(false);
+
+    // Simulate a log file left behind by an interrupted write (e.g. a process killed
+    // between File.Create and JsonSerializer.SerializeAsync): present on disk, but empty.
+    var executionLogsDir = Path.Combine(storageRoot, "execution-logs");
+    var corruptPath = Path.Combine(executionLogsDir, "corrupt-entry.json");
+    await File.WriteAllTextAsync(corruptPath, string.Empty).ConfigureAwait(false);
+
+    var page = await repository.QueryAsync(new ExecutionLogQuery { PageSize = 50 }).ConfigureAwait(false);
+
+    page.Items.Select(i => i.Id).Should().ContainSingle().Which.Should().Be("entry-a");
+  }
+
+  [Fact]
+  public async Task GetAsyncReturnsNullForCorruptEntryFileInsteadOfThrowing() {
+    var storageRoot = CreateTempStorageRoot();
+    using var repository = new FileExecutionLogRepository(storageRoot);
+
+    var executionLogsDir = Path.Combine(storageRoot, "execution-logs");
+    Directory.CreateDirectory(executionLogsDir);
+    var corruptPath = Path.Combine(executionLogsDir, "corrupt-entry.json");
+    await File.WriteAllTextAsync(corruptPath, string.Empty).ConfigureAwait(false);
+
+    var result = await repository.GetAsync("corrupt-entry").ConfigureAwait(false);
+
+    result.Should().BeNull();
+  }
+
   private static ExecutionLogEntry CreateEntry(string id, DateTimeOffset timestampUtc, string objectName, string status, DateTimeOffset? retentionExpiresUtc = null)
     => new() {
       Id = id,

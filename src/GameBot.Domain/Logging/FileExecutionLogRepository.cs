@@ -23,8 +23,7 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
     var path = Path.Combine(_dir, entry.Id + ".json");
     await _mutex.WaitAsync(ct).ConfigureAwait(false);
     try {
-      using var fs = File.Create(path);
-      await JsonSerializer.SerializeAsync(fs, entry, JsonOptions, ct).ConfigureAwait(false);
+      await WriteEntryFileAsync(path, entry, ct).ConfigureAwait(false);
       if (_entriesLoaded) {
         _entries = _entries.Add(entry);
       }
@@ -39,8 +38,7 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
     var path = Path.Combine(_dir, entry.Id + ".json");
     await _mutex.WaitAsync(ct).ConfigureAwait(false);
     try {
-      using var fs = File.Create(path);
-      await JsonSerializer.SerializeAsync(fs, entry, JsonOptions, ct).ConfigureAwait(false);
+      await WriteEntryFileAsync(path, entry, ct).ConfigureAwait(false);
       if (_entriesLoaded) {
         var replaced = false;
         var builder = ImmutableArray.CreateBuilder<ExecutionLogEntry>(_entries.Length);
@@ -74,8 +72,15 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
     if (string.IsNullOrWhiteSpace(id)) return null;
     var path = Path.Combine(_dir, id + ".json");
     if (!File.Exists(path)) return null;
-    using var fs = File.OpenRead(path);
-    return await JsonSerializer.DeserializeAsync<ExecutionLogEntry>(fs, JsonOptions, ct).ConfigureAwait(false);
+    try {
+      using var fs = File.OpenRead(path);
+      return await JsonSerializer.DeserializeAsync<ExecutionLogEntry>(fs, JsonOptions, ct).ConfigureAwait(false);
+    }
+    catch (JsonException) {
+      // A file left behind by an interrupted write (e.g. the process was killed between
+      // File.Create and SerializeAsync completing) is indistinguishable from "not found" here.
+      return null;
+    }
   }
 
   public async Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default) {
@@ -164,6 +169,20 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
     _mutex.Dispose();
   }
 
+  // Writes to a sibling temp file and moves it into place, so a process killed mid-write
+  // never leaves a truncated/empty file at the real path (the prior contents, if any, stay
+  // intact until the move commits). Caller holds _mutex.
+  private static async Task WriteEntryFileAsync(string path, ExecutionLogEntry entry, CancellationToken ct) {
+    // ".tmp", not ".json.tmp": Win32 directory enumeration can treat a short pattern extension
+    // as a legacy 8.3-style prefix match, so a name merely ending differently after ".json" is
+    // not a safe way to keep this out of the "*.json" glob used when loading entries.
+    var tempPath = Path.ChangeExtension(path, ".tmp");
+    using (var fs = File.Create(tempPath)) {
+      await JsonSerializer.SerializeAsync(fs, entry, JsonOptions, ct).ConfigureAwait(false);
+    }
+    File.Move(tempPath, path, overwrite: true);
+  }
+
   private static bool ContainsIgnoreCase(string source, string value)
     => source.Contains(value, StringComparison.OrdinalIgnoreCase);
 
@@ -186,8 +205,16 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
       var loaded = ImmutableArray.CreateBuilder<ExecutionLogEntry>();
       foreach (var file in Directory.EnumerateFiles(_dir, "*.json")) {
         ct.ThrowIfCancellationRequested();
-        using var fs = File.OpenRead(file);
-        var item = await JsonSerializer.DeserializeAsync<ExecutionLogEntry>(fs, JsonOptions, ct).ConfigureAwait(false);
+        ExecutionLogEntry? item;
+        try {
+          using var fs = File.OpenRead(file);
+          item = await JsonSerializer.DeserializeAsync<ExecutionLogEntry>(fs, JsonOptions, ct).ConfigureAwait(false);
+        }
+        catch (JsonException) {
+          // One file left behind by an interrupted write (e.g. the process was killed between
+          // File.Create and SerializeAsync completing) must not take the whole log list down.
+          continue;
+        }
         if (item is not null) {
           loaded.Add(item);
         }
