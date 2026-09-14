@@ -15,6 +15,16 @@ namespace GameBot.Domain.Queues {
     /// could not be reached at start, or the emulator connection was lost mid-run. Individual
     /// per-sequence failures are NOT run-level failures and do not produce this reason.
     /// </summary>
-    Failure
+    Failure,
+
+    /// <summary>
+    /// The queue's failure policy ended the run after its consecutive-failed-cycle threshold was
+    /// reached (feature 087). Deliberately distinct from <see cref="StoppedManually"/> — reusing
+    /// that would tell an operator a person halted production when nobody did — and from
+    /// <see cref="Failure"/>, which means the run itself could not proceed (no template, no device).
+    /// Here the run was working fine; its <i>content</i> kept failing.
+    /// <para>Appended at the end of the enum so existing numeric values are unchanged.</para>
+    /// </summary>
+    StoppedByFailurePolicy
   }
 }

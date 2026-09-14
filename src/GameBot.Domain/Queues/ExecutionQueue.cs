@@ -74,6 +74,14 @@ namespace GameBot.Domain.Queues {
     /// </summary>
     public string? LinkedGameId { get; set; }
 
+    /// <summary>
+    /// Optional failure policy (feature 087): what this queue does when its cycles keep failing.
+    /// Null means no policy — nothing is evaluated and the run behaves exactly as it did before the
+    /// feature existed. Absent from JSON stored before this field existed, which deserializes to
+    /// null, so no migration is needed.
+    /// </summary>
+    public QueueFailurePolicy? FailurePolicy { get; set; }
+
     public DateTimeOffset? CreatedAt { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }

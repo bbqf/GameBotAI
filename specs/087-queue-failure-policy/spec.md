@@ -2,7 +2,7 @@
 
 **Feature Branch**: `087-queue-failure-policy`
 **Created**: 2026-09-14
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue [#181](https://github.com/bbqf/GameBotAI/issues/181) — "FR-004: no queue-level failure policy and no outbound notification - a failing queue cycles forever, silently"
 
 ## Context

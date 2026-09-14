@@ -125,7 +125,8 @@ namespace GameBot.Domain.Commands {
                 ActionTypes.GoToHomeScreen,
                 ActionTypes.EnsureEmulatorRunning,
                 ActionTypes.WaitForImage,
-                ActionTypes.RescheduleSelf
+                ActionTypes.RescheduleSelf,
+                ActionTypes.Notify
             };
 
       foreach (var step in sequence.Steps) {

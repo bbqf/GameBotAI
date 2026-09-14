@@ -192,6 +192,14 @@ internal static class GameBotServiceSetup {
     // Feature 079: exclusive per-emulator ownership, so two queues can never drive one screen.
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IDeviceClaimRegistry, GameBot.Service.Services.QueueExecution.DeviceClaimRegistry>();
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.ISelfRescheduleCoordinator, GameBot.Service.Services.QueueExecution.SelfRescheduleCoordinator>();
+    // Feature 087 (issue #181): outbound failure notification, and the evaluator that acts on the
+    // consecutive-failed-cycle count feature 086 publishes. Registered before the execution service
+    // so the engine can take the evaluator as a dependency.
+    builder.Services.Configure<GameBot.Service.Services.Notifications.FailureNotificationOptions>(
+      builder.Configuration.GetSection(GameBot.Service.Services.Notifications.FailureNotificationOptions.SectionName));
+    builder.Services.AddHttpClient<GameBot.Service.Services.Notifications.IFailureNotifier,
+      GameBot.Service.Services.Notifications.HttpFailureNotifier>();
+    builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.QueueFailurePolicyEvaluator>();
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueExecutionService, GameBot.Service.Services.QueueExecution.QueueExecutionService>();
     // Read-only live monitor projection (feature 072): pure fold of run handle + linked template + now.
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueMonitorService, GameBot.Service.Services.QueueExecution.QueueMonitorService>();

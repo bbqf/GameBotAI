@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-14 (feature 086 queue cycle observability)._
+_Last reviewed: 2026-09-15 (feature 087 queue failure policy and outbound notification)._
 
 ## What GameBot is
 
@@ -124,8 +124,16 @@ not survive a service restart; queue *configuration* and templates are persisted
   no nested ifs; breaks only when the if is inside a loop, where a branch break exits the
   enclosing loop). The condition is evaluated once per encounter; a condition error fails the
   step and sequence exactly like a while-loop condition error.
-- **Queue** — bound to exactly one emulator; holds ordered **entries** (sequences) and a
-  cycle-execution flag. Runs entries against the emulator; can cycle.
+- **Queue** — bound to exactly one emulator; holds ordered **entries** (sequences), a
+  cycle-execution flag, and an optional **failure policy**. Runs entries against the emulator; can
+  cycle.
+- **Queue failure policy** (`QueueFailurePolicy`, feature 087) — optional persisted configuration on
+  a queue: a consecutive-failed-cycle threshold, a `QueueFailureAction`
+  (`Notify`/`Stop`/`Pause`/`NotifyAndStop`), and an optional destination URL. Null means no policy
+  and no evaluation. Deliberately carries **no credential** — the auth header for a destination is
+  service configuration, because a queue is persisted to a JSON file the backup/restore endpoints
+  copy around. Evaluated at cycle granularity against the feature-086 ledger, never per sequence: a
+  single flaky firing must not trip a policy.
 - **Queue Template** — a named, persisted snapshot of a queue's ordered entries and their
   **schedules**. A queue links to 0..1 templates (auto-loaded when the queue opens); a template can
   be shared across queues.
@@ -163,6 +171,15 @@ not survive a service restart; queue *configuration* and templates are persisted
   Timer firing already queued for the same sequence in that run, so a self-rescheduling sequence never
   stacks duplicate future firings. The other options are unchanged — *Once Per Run* / *At Queue Start*
   accumulate, and *After Every Step* is idempotent per sequence.
+- **Notify action** (within a sequence, feature 087) — an authorable sequence action (`notify`) that
+  raises an outbound alert carrying an author-written `message` (required, ≤1000 chars) and an
+  optional per-step `url`. It touches no device, which is the point: a guard that has detected an
+  unusable screen must still be able to say so. It **always succeeds** — a delivery failure is
+  recorded on the run's health and in the application log but never fails the step or the enclosing
+  sequence, so adding an alert to a guard cannot make that guard less reliable. Payload is validated
+  at save time. Queue id/name/serial are populated when the sequence runs inside a queue and null for
+  an ad-hoc run. Complements the queue-level failure policy (feature 087 below): the policy is service
+  configuration, this keeps escalation inside a committed, reviewable sequence artifact.
 - **Queue monitor** — a read-only "live plan" view of a *running* queue. `GET /api/queues/{id}/monitor`
   returns a pure projection (`IQueueMonitorService`) that folds the active `QueueRunHandle` (the
   sequence-level "now" indicator plus pending live schedules and self-reschedule firings) and the
@@ -194,7 +211,40 @@ not survive a service restart; queue *configuration* and templates are persisted
   after `SetStatus(Stopped)`), so keying off the handle alone would emit a populated `health` on a
   response whose `status` reads `Stopped`. `health` is `null` when not running, never a zeroed block.
   All values describe the **current run** and do not survive a service restart; the queue *list*
-  response is unchanged. Exposing `consecutiveFailedCycles` is deliberate — nothing acts on it.
+  response is unchanged. Exposing `consecutiveFailedCycles` was deliberate — feature 086 shipped it
+  inert, and feature 087 is what acts on it.
+- **Queue failure policy and outbound notification** (feature 087, issue #181) — the escalation path
+  feature 086 left out. Observability made a failing queue *visible to anyone who asks*; this makes it
+  *tell someone*. During the 2026-09-14 outage the per-entry guards on two rosters worked exactly as
+  designed — they detected a bad screen and refused to act on it, every cycle, for 44 hours — and it
+  changed nothing, because a guard can protect the account but cannot escalate.
+  `ExecutionQueue.FailurePolicy` is optional persisted configuration: a consecutive-failed-cycle
+  threshold plus a selectable action — `notify` | `stop` | `pause` | `notifyAndStop` — and an optional
+  `notifyUrl` overriding `Service:Notifications:DefaultUrl`. **`notify` is the primary action, not
+  `stop`**: a cycling roster can self-heal (during that outage it relaunched the game itself once the
+  network returned), so an automatic halt is a liability where an alert is a guardrail.
+  `QueueFailurePolicyEvaluator` is called from one line in the run loop, immediately after the ledger
+  seals a cycle. It reads the ledger's existing `SnapshotHealth()` — **the ledger itself gains no
+  policy knowledge and stays a pure observer**; keeping the decision in a separate type outside the
+  observer's lock is what makes acting on a failing run safe. The policy trips at most **once per
+  failure episode** (a tripped flag, cleared by any successful cycle, which also re-arms it), so a
+  44-hour outage produces one alert rather than one per cycle. `IFailureNotifier` POSTs a versioned
+  JSON payload (`schemaVersion: 1`) carrying queue id/name/serial, the failing entry and sequence, the
+  failed-entry count, the consecutive count and the action; delivery runs **off the run loop's thread**
+  with a 5s per-attempt timeout and 2 attempts, swallows every fault, and uses a token that is *not*
+  the run's so a `notifyAndStop` alert survives the stop it announces. An optional static auth header
+  (`Service:Notifications:AuthHeaderName`/`AuthHeaderValue`) is a secret — never returned by any
+  endpoint or written to a log. **Pause is run state on `QueueRunHandle`, not a third
+  `QueueExecutionStatus`** (still `Stopped | Running`): the gate is awaited at the top of the loop
+  iteration *before* any due-ness evaluation, so on resume a firing that came due while parked is
+  simply still due — no skip list, no catch-up bookkeeping. `POST /api/queues/{id}/resume` releases it
+  (200 with `resumed: true|false` for every known queue, 404 for an unknown one) and clears the failure
+  count; `POST {id}/stop` still works on a parked run. A policy stop records the new
+  `QueueStopReason.StoppedByFailurePolicy`, distinguished from an operator stop by a marker on the
+  handle — both cancel the same token, and reporting one as the other would say a person halted
+  production when nobody did. `health` gains `failurePolicyConfigured`, `failurePolicyTripped`,
+  `paused`, `pausedAt`, `pauseReason`, `lastNotificationAt`, `lastNotificationSucceeded` and
+  `lastNotificationError`. Policy *state* is per-run and in-memory; only the configuration persists.
 - **Idle-pause** (feature 073) — an opt-in per-queue behavior (`ExecutionQueue.PauseWhenIdle` +
   `IdleThresholdSeconds`, default 30s; exposed via the REST API and web-ui, not MCP). When a
   non-cyclic run has no sequence due and the gap to the next scheduled firing exceeds the threshold,
@@ -363,7 +413,7 @@ validity or exercise runtime branching without ever touching a real emulator.
   exactly as a real run — but every step that would dispatch input to the
   emulator, start/use a session, or read live capture state (primitive tap/
   swipe/key, connect-to-game, ensure-game-running, ensure-emulator-running,
-  go-to-home-screen, wait-for-image, reschedule-self, and a command-referencing
+  go-to-home-screen, wait-for-image, reschedule-self, notify, and a command-referencing
   step's inner dispatch) is skipped and reported with a new
   `actionOutcome: "skipped_dry_run"` (`SequenceRunner.DryRunOutcomes`),
   `Status: "Succeeded"` — never tripping a `requireDispatch: true` step's
@@ -441,6 +491,33 @@ Feature 082 added, additively (see "Dry-run / validate-only sequence mode" above
 - `dryRun` on `POST /api/sequences/{id}/execute`: walks the real step tree without dispatching to
   the emulator, starting a session, or reading live capture state, reporting a new
   `actionOutcome: "skipped_dry_run"` for each step it skips.
+
+Feature 086 added, additively (see "Queue cycle observability" above):
+
+- A `health` block on `GET /api/queues/{id}`, present only while the queue is Running.
+- `GET /api/queues/{id}/cycles?limit=n` — recent cycles newest-first with per-entry outcomes.
+
+Feature 087 added, additively (see "Queue failure policy and outbound notification" above):
+
+- `failurePolicy` (`{ consecutiveFailedCycles, action, notifyUrl }`) on queue create/update/response
+  and carried by `POST /api/queues/{id}/duplicate`. Absent or null ⇒ no policy, no evaluation, and
+  behaviour identical to before the feature. Rejected with 400 naming the offending value when the
+  threshold is < 1, the action is outside `notify|stop|pause|notifyAndStop`, `notifyUrl` is not an
+  absolute http/https URL, or a notifying action has no destination from either the policy or
+  `Service:Notifications:DefaultUrl`.
+- Eight fields on the `health` block: `failurePolicyConfigured`, `failurePolicyTripped`, `paused`,
+  `pausedAt`, `pauseReason`, `lastNotificationAt`, `lastNotificationSucceeded`,
+  `lastNotificationError`.
+- `POST /api/queues/{id}/resume` — releases a policy pause. 200 with `resumed: true|false` for every
+  known queue (not 409 for "running but not paused"), 404 for an unknown one. Idempotent.
+- A `notify` action type on sequence steps (`{ message, url? }`), validated at save time.
+- A new `Service:Notifications` configuration section (`DefaultUrl`, `AuthHeaderName`,
+  `AuthHeaderValue`, `TimeoutSeconds`, `MaxAttempts`). `AuthHeaderValue` is a secret and is never
+  returned by any endpoint nor written to a log.
+- An **outbound** contract: `POST <configured url>` with a versioned JSON payload
+  (`schemaVersion: 1`). Documented in
+  `specs/087-queue-failure-policy/contracts/notification-payload.md` — a receiver is written against
+  it, so it is a published contract, not an internal shape.
 
 ## Legacy / removed (don't be misled by old specs)
 

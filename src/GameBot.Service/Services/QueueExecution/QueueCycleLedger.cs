@@ -50,9 +50,17 @@ internal sealed record QueueCycleHealth(
 /// </para>
 /// <para>
 /// <b>The ledger is a pure observer.</b> Every mutator returns void and is never consulted by a
-/// scheduling decision — removing it entirely would not change which sequences run, in what order, or
-/// when. That property is what makes it safe to add to the engine that drives production farms, and it
-/// must be preserved by anything added here.
+/// scheduling decision <i>from within this type</i> — removing it entirely would not change which
+/// sequences run, in what order, or when. That property is what makes it safe to add to the engine
+/// that drives production farms, and it must be preserved by anything added here.
+/// </para>
+/// <para>
+/// <b>Qualified by feature 087 (issue #181), deliberately.</b> A queue's failure policy now <i>acts</i>
+/// on what this ledger publishes: <see cref="QueueFailurePolicyEvaluator"/> reads
+/// <see cref="SnapshotHealth"/> after each cycle and may notify, pause or stop the run. That evaluator
+/// is a separate type by design — this one still has no policy knowledge, takes no dependency on the
+/// notifier, and returns nothing from any mutator. Keeping the decision outside the lock-holding
+/// observer is what makes acting on a failing run safe; do not move policy logic in here.
 /// </para>
 /// <para>
 /// All state is guarded by one lock, and every read returns a copy taken under it, so a reader never

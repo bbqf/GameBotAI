@@ -631,8 +631,7 @@ namespace GameBot.Domain.Services {
       // check via CommandDispatchOutcome.SkippedDryRun (see the RequireDispatch handling further
       // down), which a blanket skip here would silently swallow (FR-010).
       if (dryRun && (IsWaitForImageStep(step)
-          || (step.StepType == SequenceStepType.Action
-              && string.Equals(step.Action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase))
+          || (step.StepType == SequenceStepType.Action && IsServiceLevelAction(step.Action))
           || (step.StepType == SequenceStepType.Action && IsDispatchedPrimitiveAction(step.Action)))) {
         result.AddStep(
             stepKey,
@@ -660,13 +659,16 @@ namespace GameBot.Domain.Services {
         return false;
       }
 
-      // ── reschedule-self action dispatch (feature 065) ─────────────────
-      // A reschedule-self action step is dispatched through the injected callback before the
-      // command fallback. The action records its outcome as the step result and NEVER early-stops
-      // the sequence (FR-012). When no dispatcher is supplied it falls through (legacy no-op).
+      // ── Service-level action dispatch (reschedule-self 065, notify 087) ─────────────────
+      // These touch no device. They are dispatched through the injected callback before the command
+      // fallback, record their outcome as the step result, and NEVER early-stop the sequence
+      // (FR-012; 087 FR-024). When no dispatcher is supplied they fall through (legacy no-op).
+      //
+      // Not early-stopping is the whole point for notify: a guard sequence that has detected an
+      // unusable screen must still finish its own recovery logic even if the alert cannot be sent.
       if (step.StepType == SequenceStepType.Action
           && actionDispatcher is not null
-          && string.Equals(step.Action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
+          && IsServiceLevelAction(step.Action)) {
         var dispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
         result.AddStep(
             stepKey,
@@ -816,6 +818,17 @@ namespace GameBot.Domain.Services {
       if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
       if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
       return false;
+    }
+
+    /// <summary>
+    /// Actions handled by the service rather than the device: <c>reschedule-self</c> (feature 065)
+    /// and <c>notify</c> (feature 087). Neither touches the emulator, so neither fails a step when
+    /// it cannot be carried out, and both run even when the device is unreachable — which for
+    /// notify is precisely the case that matters.
+    /// </summary>
+    private static bool IsServiceLevelAction(SequenceActionPayload? action) {
+      return string.Equals(action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)
+          || string.Equals(action?.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsDispatchedPrimitiveAction(SequenceActionPayload? action) {

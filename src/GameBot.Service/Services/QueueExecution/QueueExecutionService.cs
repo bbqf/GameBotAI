@@ -74,6 +74,13 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // Daily-retry bounds (delay and attempt cap) live here; defaults apply when no config is injected.
   private readonly GameBot.Domain.Config.AppConfig _config;
 
+  /// <summary>
+  /// Acts on the queue's failure policy when a cycle completes (feature 087). Optional so the many
+  /// hand-built test instances of this service keep compiling; null simply means no policy is ever
+  /// evaluated, which is also the behaviour for a queue that has not configured one.
+  /// </summary>
+  private readonly QueueFailurePolicyEvaluator? _failurePolicy;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -109,7 +116,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IDeviceClaimRegistry? deviceClaims = null,
     IGameForegroundGuard? foregroundGuard = null,
     GameBot.Domain.Commands.ISequenceRepository? sequences = null,
-    GameBot.Domain.Config.AppConfig? config = null) {
+    GameBot.Domain.Config.AppConfig? config = null,
+    QueueFailurePolicyEvaluator? failurePolicy = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -127,9 +135,25 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _foregroundGuard = foregroundGuard;
     _sequences = sequences;
     _config = config ?? new GameBot.Domain.Config.AppConfig();
+    _failurePolicy = failurePolicy;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
+
+  /// <summary>
+  /// Decides what a cancelled run should report as its stop reason (feature 087).
+  /// <para>
+  /// An operator stop and a failure-policy stop both cancel the run's single
+  /// <see cref="QueueRunHandle.Cts"/>, so the cancellation itself carries no attribution. The
+  /// handle's marker, set by the evaluator before it cancels, is the only distinguishing signal —
+  /// and the distinction matters: reporting a policy stop as <c>StoppedManually</c> would tell an
+  /// operator a person halted production when nobody did.
+  /// </para>
+  /// </summary>
+  private static QueueStopReason AttributeCancellation(QueueRunHandle handle) =>
+    handle.StopRequestedByPolicy
+      ? QueueStopReason.StoppedByFailurePolicy
+      : QueueStopReason.StoppedManually;
 
   public LiveScheduleResult ScheduleRelative(string queueId, string sequenceId, TimeSpan offset) {
     if (!_registry.TryGet(queueId, out var handle))
@@ -362,6 +386,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
               do {
                 ct.ThrowIfCancellationRequested();
+                // Failure-policy pause gate (feature 087): hold here while the run is parked. This
+                // sits BEFORE every due-ness evaluation below, which is what makes resume free —
+                // a firing that came due during the pause is simply still due (FR-018a).
+                await handle.WaitIfPausedAsync(ct).ConfigureAwait(false);
                 everyStepRanThisIteration = false;
 
                 // Cycle ledger (feature 086): open the cycle this iteration will fill. Idempotent, so
@@ -515,6 +543,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   cycles++;
                   // Publish the cycle exactly when the engine counts one (feature 086).
                   handle.Cycles.CompleteOpen(_timeProvider.GetLocalNow());
+                  // Act on the queue's failure policy, if it has one (feature 087). Never throws,
+                  // never awaits delivery, and returns immediately when no policy is configured.
+                  _failurePolicy?.OnCycleCompleted(queue, handle);
                 }
 
                 // A cycling run loops immediately (existing behavior). A non-cyclic run breaks once its
@@ -557,13 +588,15 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             failureReason = $"emulator connection lost mid-run ('{queue.EmulatorSerial}')";
           }
           catch (OperationCanceledException) {
-            reason = QueueStopReason.StoppedManually;
+            // An operator stop and a failure-policy stop cancel the same token, so the marker on
+            // the handle is the only thing that tells them apart (feature 087, FR-017).
+            reason = AttributeCancellation(handle);
           }
         }
       }
     }
     catch (OperationCanceledException) {
-      reason = QueueStopReason.StoppedManually;
+      reason = AttributeCancellation(handle);
     }
     catch (Exception ex) {
       reason = QueueStopReason.Failure;

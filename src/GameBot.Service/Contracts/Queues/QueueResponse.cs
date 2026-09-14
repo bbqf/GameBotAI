@@ -31,5 +31,11 @@ namespace GameBot.Service.Contracts.Queues {
 
     /// <summary>Display name of the linked game, resolved at response time; null when unlinked or unresolvable.</summary>
     public string? LinkedGameName { get; set; }
+
+    /// <summary>
+    /// The queue's failure policy (feature 087); null when none is configured. Inherited by
+    /// <see cref="QueueDetailResponse"/>, so it appears on both the list and the detail response.
+    /// </summary>
+    public QueueFailurePolicyDto? FailurePolicy { get; set; }
   }
 }

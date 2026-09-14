@@ -8,8 +8,10 @@ using GameBot.Domain.Games;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Service.Contracts.Queues;
+using GameBot.Service.Services.Notifications;
 using GameBot.Service.Services.QueueExecution;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace GameBot.Service.Endpoints;
 
@@ -17,12 +19,14 @@ internal static class QueuesEndpoints {
   public static IEndpointRouteBuilder MapQueueEndpoints(this IEndpointRouteBuilder app) {
     var group = app.MapGroup(ApiRoutes.Queues).WithTags("Queues");
 
-    group.MapPost("", async (CreateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime) => {
+    group.MapPost("", async (CreateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, IOptions<FailureNotificationOptions> notifyOptions) => {
       var name = req?.Name?.Trim();
       if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
       var serial = req?.EmulatorSerial?.Trim();
       if (string.IsNullOrWhiteSpace(serial)) return Error(400, "invalid_request", "emulatorSerial is required");
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
+      if (!QueueFailurePolicyMapping.TryMap(req.FailurePolicy, notifyOptions.Value, out var createPolicy, out var policyError))
+        return Error(400, "invalid_request", policyError!);
 
       var created = await repo.CreateAsync(new ExecutionQueue {
         Name = name,
@@ -31,7 +35,8 @@ internal static class QueuesEndpoints {
         PauseWhenIdle = req.PauseWhenIdle,
         IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds),
         EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName),
-        EmulatorInstanceIndex = req.EmulatorInstanceIndex
+        EmulatorInstanceIndex = req.EmulatorInstanceIndex,
+        FailurePolicy = createPolicy
       }).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("CreateQueue");
@@ -78,7 +83,7 @@ internal static class QueuesEndpoints {
       return Results.Ok(resp);
     }).WithName("GetQueueCycles");
 
-    group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime) => {
+    group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, IOptions<FailureNotificationOptions> notifyOptions) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
@@ -86,6 +91,9 @@ internal static class QueuesEndpoints {
       var name = req?.Name?.Trim();
       if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
+      if (!QueueFailurePolicyMapping.TryMap(req.FailurePolicy, notifyOptions.Value, out var updatePolicy, out var updatePolicyError))
+        return Error(400, "invalid_request", updatePolicyError!);
+      queue.FailurePolicy = updatePolicy;
       queue.Name = name;
       queue.CycleExecution = req.CycleExecution;
       queue.PauseWhenIdle = req.PauseWhenIdle;
@@ -122,7 +130,11 @@ internal static class QueuesEndpoints {
         EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName),
         EmulatorInstanceIndex = req.EmulatorInstanceIndex,
         LinkedTemplateId = source.LinkedTemplateId,
-        LinkedGameId = source.LinkedGameId
+        LinkedGameId = source.LinkedGameId,
+        // Part of the "1:1 copy of configuration" contract (feature 083): a duplicated roster that
+        // silently lost its escalation policy would be exactly the silent-failure case this
+        // feature exists to prevent. Copied by value so the two queues stay independent.
+        FailurePolicy = QueueFailurePolicyMapping.Clone(source.FailurePolicy)
       }).ConfigureAwait(false);
 
       var sourceEntries = runtime.GetEntries(id).Select(e => e.SequenceId);
@@ -241,6 +253,23 @@ internal static class QueuesEndpoints {
       loggerFactory.CreateLogger("Queues").LogQueueStopped(id);
       return Results.Ok(BuildResponse(queue, runtime));
     }).WithName("StopQueue");
+
+    // Resume a run parked by a tripped `pause` failure policy (feature 087, FR-020).
+    //
+    // Returns 200 for every known-queue case, with a `resumed` boolean the caller branches on,
+    // rather than a 409 for "known but not paused" — the contract {id}/monitor and {id}/cycles
+    // already established, so a polling or scripted client renders a state instead of handling an
+    // error. Resuming is idempotent: a second call reports resumed:false and changes nothing.
+    group.MapPost("{id}/resume", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, IQueueRunRegistry runs) => {
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+      var resumed = TryGetLiveRun(id, runtime, runs, out var handle) && handle.ResumeFromPolicyPause();
+      return Results.Ok(new QueueResumeResponse {
+        Id = id,
+        Status = runtime.GetStatus(id),
+        Resumed = resumed
+      });
+    }).WithName("ResumeQueue");
 
     // Live relative scheduling (feature 059): schedule any library sequence to fire once after a
     // relative offset from now against the queue's active run. Ephemeral; never persisted.
@@ -390,7 +419,8 @@ internal static class QueuesEndpoints {
     Status = runtime.GetStatus(queue.Id),
     EntryCount = runtime.GetEntries(queue.Id).Count,
     LinkedTemplateId = queue.LinkedTemplateId,
-    LinkedGameId = queue.LinkedGameId
+    LinkedGameId = queue.LinkedGameId,
+    FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy)
   };
 
   private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry? runs = null) {
@@ -411,7 +441,8 @@ internal static class QueuesEndpoints {
       LinkedTemplateId = queue.LinkedTemplateId,
       LinkedTemplateName = await ResolveTemplateNameAsync(queue.LinkedTemplateId, templates).ConfigureAwait(false),
       LinkedGameId = queue.LinkedGameId,
-      LinkedGameName = await ResolveGameNameAsync(queue.LinkedGameId, games).ConfigureAwait(false)
+      LinkedGameName = await ResolveGameNameAsync(queue.LinkedGameId, games).ConfigureAwait(false),
+      FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy)
     };
     foreach (var entry in entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);
@@ -419,7 +450,7 @@ internal static class QueuesEndpoints {
     }
     // Feature 086: live health for the current run, or null when there is none (never a zeroed block).
     if (runs is not null && TryGetLiveRun(queue.Id, runtime, runs, out var handle)) {
-      detail.Health = ProjectHealth(handle);
+      detail.Health = ProjectHealth(handle, queue);
     }
     return detail;
   }
@@ -485,8 +516,9 @@ internal static class QueuesEndpoints {
 
   private static string CycleStatus(bool succeeded) => succeeded ? "success" : "failure";
 
-  private static QueueHealthResponse ProjectHealth(QueueRunHandle handle) {
+  private static QueueHealthResponse ProjectHealth(QueueRunHandle handle, ExecutionQueue? queue = null) {
     var health = handle.Cycles.SnapshotHealth();
+    var notification = handle.LastNotification;
     return new QueueHealthResponse {
       RunStartedAt = handle.RunStartedAt,
       CyclesCompleted = health.CyclesCompleted,
@@ -495,7 +527,17 @@ internal static class QueuesEndpoints {
       LastCycleStatus = health.LastCycleSucceeded is { } ok ? CycleStatus(ok) : null,
       ConsecutiveFailedCycles = health.ConsecutiveFailedCycles,
       CurrentEntryIndex = health.CurrentEntryIndex,
-      CurrentSequenceId = handle.CurrentSequenceId
+      CurrentSequenceId = handle.CurrentSequenceId,
+      // Feature 087. Note PolicyPausedAt, not IdlePausedUntil: the two pauses are different states
+      // and conflating them would report a routine idle gap as a failure-policy park.
+      FailurePolicyConfigured = queue?.FailurePolicy is not null,
+      FailurePolicyTripped = handle.PolicyTripped,
+      Paused = handle.IsPolicyPaused,
+      PausedAt = handle.PolicyPausedAt,
+      PauseReason = handle.PauseReason,
+      LastNotificationAt = notification.At,
+      LastNotificationSucceeded = notification.Succeeded,
+      LastNotificationError = notification.Error
     };
   }
 

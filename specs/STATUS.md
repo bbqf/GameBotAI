@@ -121,6 +121,7 @@ Status vocabulary:
 | 084 | Execution Log Retention Default & Long-Run Rotation | Implemented |
 | 085 | Device-Scoped Image Detection | Implemented |
 | 086 | Queue Cycle Observability | Implemented |
+| 087 | Queue Failure Policy and Outbound Notification | Implemented |
 
 ## Numbering notes
 

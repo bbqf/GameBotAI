@@ -112,15 +112,22 @@ A new action type accepted wherever sequence steps are authored.
 
 ```json
 {
-  "id": "step-7",
-  "type": "action",
-  "action": {
+  "stepId": "step-7",
+  "stepType": "Action",
+  "primitiveAction": {
     "type": "notify",
-    "message": "Unrecognised screen; BACK did not dismiss it.",
-    "url": null
+    "schemaVersion": "1",
+    "payload": {
+      "message": "Unrecognised screen; BACK did not dismiss it.",
+      "url": null
+    }
   }
 }
 ```
+
+The fields live under `payload` (the action's parameter bag), matching how every other authorable
+action type — `reschedule-self`, `wait-for-image`, the primitives — is already shaped. An earlier
+draft of this document showed them as siblings of `type`; that was wrong and is corrected here.
 
 ### Validation (rejected at save time, FR-023)
 

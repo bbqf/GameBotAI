@@ -154,7 +154,9 @@ here nowhere, by construction — a contract test asserts its absence from the s
 
 ## 5. Sequence notify step (User Story 3)
 
-An action step with `type: "notify"` and payload:
+An action step with `type: "notify"` whose fields live in the action's parameter bag (`payload` on
+the wire, `SequenceActionPayload.Parameters` in the domain — the same shape every other authorable
+action type uses):
 
 | Field | Type | Rules |
 |---|---|---|
