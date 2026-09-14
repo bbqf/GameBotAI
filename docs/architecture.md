@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-14 (feature 085 device-scoped image detection)._
+_Last reviewed: 2026-09-14 (feature 086 queue cycle observability)._
 
 ## What GameBot is
 
@@ -172,6 +172,29 @@ not survive a service restart; queue *configuration* and templates are persisted
   snapshot is computed per request. When the queue is not running the endpoint returns
   `running:false` with the best-effort last outcome from the execution log. The web UI opens this
   monitor (polling ~2.5s) in place of the entry editor while a queue is Running (feature 072).
+- **Queue cycle observability** (feature 086) — evidence that a *cycling* run is doing work.
+  `QueueExecutionStatus` is only `Stopped | Running`: a start/stop flag that cannot distinguish a queue
+  cycling healthily from one failing every cycle, which once let two production queues report `Running`
+  while doing nothing for 44 hours. Each active `QueueRunHandle` now carries a `QueueCycleLedger` — an
+  in-memory, run-scoped, lock-guarded record of completed cycles, bounded to the newest **50** (oldest
+  discarded first, so a week-long run costs the same as a short one). The run loop drives it at the
+  three points it already had: it opens a cycle at the top of each loop iteration (idempotently),
+  records each sequence firing's outcome, and seals the cycle at the loop's existing cycle counter — so
+  a published cycle is exactly a cycle the engine counted. A cycle is `failure` iff any entry in it
+  failed; one interrupted by a stop is never published. The ledger is a **pure observer**: no
+  scheduling decision reads it, and the execution log is untouched (still one root record per run plus
+  one terminating record). Two read paths project it, both readable **while the run is in progress**:
+  `GET /api/queues/{id}` gains a `health` block (`runStartedAt`, `cyclesCompleted`, `lastCycleStartedAt`,
+  `lastCycleCompletedAt`, `lastCycleStatus`, `consecutiveFailedCycles`, `currentEntryIndex`,
+  `currentSequenceId`), and `GET /api/queues/{id}/cycles?limit=n` returns recent cycles newest-first
+  with their per-entry outcomes (`limit` defaults to 20, clamped to 1-50 rather than rejected; 404 for
+  an unknown queue, `running:false` with an empty list for a known but stopped one, as with `/monitor`).
+  Both gate on the **conjunction** of `GetStatus(id) == Running` *and* a registered run handle: those
+  two stores are not updated together (the handle is added before `SetStatus(Running)` and removed
+  after `SetStatus(Stopped)`), so keying off the handle alone would emit a populated `health` on a
+  response whose `status` reads `Stopped`. `health` is `null` when not running, never a zeroed block.
+  All values describe the **current run** and do not survive a service restart; the queue *list*
+  response is unchanged. Exposing `consecutiveFailedCycles` is deliberate — nothing acts on it.
 - **Idle-pause** (feature 073) — an opt-in per-queue behavior (`ExecutionQueue.PauseWhenIdle` +
   `IdleThresholdSeconds`, default 30s; exposed via the REST API and web-ui, not MCP). When a
   non-cyclic run has no sequence due and the gap to the next scheduled firing exceeds the threshold,

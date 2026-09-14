@@ -10,6 +10,12 @@ namespace GameBot.Service.Contracts.Queues {
     /// the queue is unlinked or the linked template can no longer be resolved.
     /// </summary>
     public string? LinkedTemplateName { get; set; }
+
+    /// <summary>
+    /// Live health of the current run (feature 086); null when the queue is not running. Additive —
+    /// every other field keeps its existing name and meaning.
+    /// </summary>
+    public QueueHealthResponse? Health { get; set; }
   }
 
   /// <summary>

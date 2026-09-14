@@ -42,11 +42,11 @@ internal static class QueuesEndpoints {
       return Results.Ok(resp);
     }).WithName("ListQueues");
 
-    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) => {
+    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry runs) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       await MaybeAutoLoadAsync(queue, repo, runtime, templates).ConfigureAwait(false);
-      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games, runs).ConfigureAwait(false));
     }).WithName("GetQueue");
 
     // Live monitor (feature 072): read-only snapshot of what a running queue is doing now and next.
@@ -58,6 +58,25 @@ internal static class QueuesEndpoints {
       var snapshot = await monitor.BuildAsync(id).ConfigureAwait(false);
       return Results.Ok(ProjectMonitor(snapshot));
     }).WithName("GetQueueMonitor");
+
+    // Recent completed cycles of the current run (feature 086, issue #180). Readable WHILE the queue
+    // runs — which is the whole point: the execution log's run detail only fills in after a stop, so
+    // diagnosing a cycling queue used to require destroying the condition under investigation.
+    // Same contract as {id}/monitor: 200 with running:false for a known but stopped queue (never
+    // 404/409), so a polling client renders a state instead of handling an error. Safe to poll.
+    group.MapGet("{id}/cycles", async (string id, int? limit, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueRunRegistry runs) => {
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+      var resp = new QueueCyclesResponse { QueueId = id };
+      if (TryGetLiveRun(id, runtime, runs, out var handle)) {
+        resp.Running = true;
+        var allSequences = await sequences.ListAsync().ConfigureAwait(false);
+        var namesById = allSequences.ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
+        // Out-of-range limits clamp rather than fail, so a careless caller still gets an answer.
+        ProjectCycles(resp, handle, QueueCycleLedger.ClampLimit(limit ?? QueueCycleLedger.DefaultCycleLimit), namesById);
+      }
+      return Results.Ok(resp);
+    }).WithName("GetQueueCycles");
 
     group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
@@ -374,7 +393,7 @@ internal static class QueuesEndpoints {
     LinkedGameId = queue.LinkedGameId
   };
 
-  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) {
+  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry? runs = null) {
     var entries = runtime.GetEntries(queue.Id);
     var allSequences = await sequences.ListAsync().ConfigureAwait(false);
     var namesById = allSequences.ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
@@ -397,6 +416,10 @@ internal static class QueuesEndpoints {
     foreach (var entry in entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);
       detail.Entries.Add(ProjectEntry(entry, found ? name : null));
+    }
+    // Feature 086: live health for the current run, or null when there is none (never a zeroed block).
+    if (runs is not null && TryGetLiveRun(queue.Id, runtime, runs, out var handle)) {
+      detail.Health = ProjectHealth(handle);
     }
     return detail;
   }
@@ -442,6 +465,62 @@ internal static class QueuesEndpoints {
     Repeats = item.Repeats,
     Order = item.Order
   };
+
+  // ── Queue cycle observability (feature 086, issue #180) ──────────────────────────────────────
+
+  // A run's status and its run handle live in two stores that are NOT updated together: the handle is
+  // registered before SetStatus(Running) at start, and removed after SetStatus(Stopped) at end. Keying
+  // observability off the handle alone would therefore let a response report status "Stopped" while
+  // carrying a populated health block — self-contradictory, and exactly the confusion the null health
+  // block exists to prevent. Both read paths go through this one gate so they cannot drift apart.
+  private static bool TryGetLiveRun(
+    string queueId,
+    IQueueRuntimeStore runtime,
+    IQueueRunRegistry registry,
+    out QueueRunHandle handle) {
+    handle = null!;
+    return runtime.GetStatus(queueId) == QueueExecutionStatus.Running
+      && registry.TryGet(queueId, out handle);
+  }
+
+  private static string CycleStatus(bool succeeded) => succeeded ? "success" : "failure";
+
+  private static QueueHealthResponse ProjectHealth(QueueRunHandle handle) {
+    var health = handle.Cycles.SnapshotHealth();
+    return new QueueHealthResponse {
+      RunStartedAt = handle.RunStartedAt,
+      CyclesCompleted = health.CyclesCompleted,
+      LastCycleStartedAt = health.LastCycleStartedAt,
+      LastCycleCompletedAt = health.LastCycleCompletedAt,
+      LastCycleStatus = health.LastCycleSucceeded is { } ok ? CycleStatus(ok) : null,
+      ConsecutiveFailedCycles = health.ConsecutiveFailedCycles,
+      CurrentEntryIndex = health.CurrentEntryIndex,
+      CurrentSequenceId = handle.CurrentSequenceId
+    };
+  }
+
+  private static void ProjectCycles(
+    QueueCyclesResponse resp,
+    QueueRunHandle handle,
+    int limit,
+    Dictionary<string, string> sequenceNamesById) {
+    foreach (var record in handle.Cycles.SnapshotCycles(limit)) {
+      var cycle = new QueueCycleResponse {
+        Ordinal = record.Ordinal,
+        StartedAt = record.StartedAt,
+        CompletedAt = record.CompletedAt,
+        Status = CycleStatus(record.Succeeded)
+      };
+      foreach (var entry in record.Entries) {
+        cycle.Entries.Add(new QueueCycleEntryResponse {
+          SequenceId = entry.SequenceId,
+          SequenceName = sequenceNamesById.TryGetValue(entry.SequenceId, out var name) ? name : null,
+          Status = CycleStatus(entry.Succeeded)
+        });
+      }
+      resp.Cycles.Add(cycle);
+    }
+  }
 
   private static QueueEntryResponse ProjectEntry(QueueEntry entry, string? sequenceName) => new() {
     EntryId = entry.EntryId,

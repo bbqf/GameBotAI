@@ -306,6 +306,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                 var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
                 if (!esOk) failed++;
+                handle.Cycles.RecordEntry(esEntry.SequenceId, esOk);
               }
 
               // Self-reschedule EveryStep injections (feature 065, FR-008). Snapshot first so a
@@ -315,6 +316,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                 var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, injection.Scope ?? queueScope, ct, injection.Id).ConfigureAwait(false);
                 if (!injOk) failed++;
+                handle.Cycles.RecordEntry(injection.SequenceId, injOk);
               }
             }
 
@@ -362,6 +364,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 ct.ThrowIfCancellationRequested();
                 everyStepRanThisIteration = false;
 
+                // Cycle ledger (feature 086): open the cycle this iteration will fill. Idempotent, so
+                // a non-cyclic run's trailing timer-poll iterations reuse the cycle they never
+                // complete — and it is therefore never published.
+                handle.Cycles.EnsureOpen(_timeProvider.GetLocalNow());
+
                 // (a0) Self-reschedule AtQueueStart firings (feature 065, FR-009): entries queued
                 // during the previous cycle fire at the top of the next cycle, before timers and the
                 // once-per-run pass. Count toward executed; a failed firing is non-fatal.
@@ -371,6 +378,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var nextOk = await RunOneSequenceAsync(nextCycleEntry.SequenceId, rootId, ++index, sessionId, queue.Id, nextCycleEntry.Scope ?? queueScope, ct, nextCycleEntry.Id).ConfigureAwait(false);
                   executed++;
                   if (!nextOk) failed++;
+                  handle.Cycles.RecordEntry(nextCycleEntry.SequenceId, nextOk);
                   await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
@@ -441,6 +449,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, queue.Id, queueScope, ct).ConfigureAwait(false);
                   executed++;
                   if (!liveOk) failed++;
+                  handle.Cycles.RecordEntry(due, liveOk);
                   await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
@@ -454,6 +463,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var srTimerOk = await RunOneSequenceAsync(timerFiring.SequenceId, rootId, ++index, sessionId, queue.Id, timerFiring.Scope ?? queueScope, ct, timerFiring.Id).ConfigureAwait(false);
                   executed++;
                   if (!srTimerOk) failed++;
+                  handle.Cycles.RecordEntry(timerFiring.SequenceId, srTimerOk);
                   await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
@@ -466,13 +476,16 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     foreach (var (entry, entryIndex) in oncePerRunEntries) {
                       ct.ThrowIfCancellationRequested();
                       if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                      handle.Cycles.SetCurrentEntryIndex(entryIndex);
                       var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(entry), ct).ConfigureAwait(false);
                       executed++;
                       if (!ok) failed++;
+                      handle.Cycles.RecordEntry(entry.SequenceId, ok);
                       schedule.MarkOncePerRunCompleted(entryIndex);
 
                       // Run every-step sequences after each OncePerRun step (FR-006).
                       await RunEveryStepPassAsync().ConfigureAwait(false);
+                      handle.Cycles.ClearCurrentEntryIndex();
                     }
                   }
                   else if (everyStepEntries.Count > 0 && !everyStepRanThisIteration) {
@@ -494,11 +507,14 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     var oprOk = await RunOneSequenceAsync(oprFiring.SequenceId, rootId, ++index, sessionId, queue.Id, oprFiring.Scope ?? queueScope, ct, oprFiring.Id).ConfigureAwait(false);
                     executed++;
                     if (!oprOk) failed++;
+                    handle.Cycles.RecordEntry(oprFiring.SequenceId, oprOk);
                     await RunEveryStepPassAsync().ConfigureAwait(false);
                   }
 
                   schedule.MarkOncePerRunPassDone();
                   cycles++;
+                  // Publish the cycle exactly when the engine counts one (feature 086).
+                  handle.Cycles.CompleteOpen(_timeProvider.GetLocalNow());
                 }
 
                 // A cycling run loops immediately (existing behavior). A non-cyclic run breaks once its
@@ -530,6 +546,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             else {
               // Empty template: a full pass with no work; never busy-loop when cycling (FR-017).
               cycles = 1;
+              // Still a completed cycle (feature 086), so an idle-but-alive queue stays
+              // distinguishable from a stalled one.
+              handle.Cycles.RecordEmptyCycle(_timeProvider.GetLocalNow());
             }
             reason = QueueStopReason.CompletedFullRun;
           }
