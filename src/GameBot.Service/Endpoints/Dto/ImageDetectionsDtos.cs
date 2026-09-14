@@ -46,6 +46,22 @@ namespace GameBot.Service.Endpoints.Dto {
 
     [JsonPropertyName("overlap")]
     public double? Overlap { get; set; }
+
+    /// <summary>
+    /// Optional: measure against this previously taken capture instead of whatever screen the
+    /// service would otherwise infer. Same identifier <c>/api/images/detect-all</c> accepts, and the
+    /// one returned in the <c>X-Capture-Id</c> header of <c>GET /api/emulator/screenshot</c>.
+    /// Mutually exclusive with <see cref="SessionId"/>. Blank counts as absent (feature 085).
+    /// </summary>
+    [JsonPropertyName("captureId")]
+    public string? CaptureId { get; set; }
+
+    /// <summary>
+    /// Optional: measure against this session's latest captured frame. Mutually exclusive with
+    /// <see cref="CaptureId"/>. Blank counts as absent (feature 085).
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
   }
 
   internal sealed class DetectResponse {

@@ -96,8 +96,13 @@ public sealed class ImageDetectionsEndpointTests {
   }
 
   [Fact]
-  public async Task DetectReturnsEmptyWhenNoScreenshot() {
-    // Clear screenshot env so screen source returns null.
+  public async Task DetectFailsExplicitlyWhenNoScreenshot() {
+    // Feature 085 / issue #176. This test previously asserted that an unobtainable screenshot came
+    // back as 200 with an empty match array. That was the defect, not a feature: an empty result is
+    // indistinguishable from a genuine "nothing matched", so callers using detection as an absence
+    // probe read a failed measurement as a confident zero. The endpoint now refuses explicitly.
+    //
+    // Clear screenshot env so the screen source returns null.
     Environment.SetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64", "");
     using var app = new WebApplicationFactory<Program>();
     var client = app.CreateClient();
@@ -109,11 +114,11 @@ public sealed class ImageDetectionsEndpointTests {
     uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
     var detectResp = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), new { referenceImageId = "tpl2" });
-    detectResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    // No session is running here, so the cause is "no screen at all" rather than an ambiguous one.
+    detectResp.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
     var raw = await detectResp.Content.ReadAsStringAsync();
     using var doc = System.Text.Json.JsonDocument.Parse(raw);
-    var root = doc.RootElement;
-    root.GetProperty("matches").GetArrayLength().Should().Be(0);
-    root.GetProperty("limitsHit").GetBoolean().Should().BeFalse();
+    doc.RootElement.GetProperty("code").GetString().Should().Be("emulator_unavailable");
   }
 }

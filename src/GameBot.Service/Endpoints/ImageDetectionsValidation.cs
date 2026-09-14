@@ -89,6 +89,12 @@ namespace GameBot.Service.Endpoints {
       if (req.Threshold is double t && !ValidateThreshold(t)) return (false, "invalid_request: threshold");
       if (req.Overlap is double o && !ValidateOverlap(o)) return (false, "invalid_request: overlap");
       if (req.MaxResults is int m && !ValidateMaxResults(m)) return (false, "invalid_request: maxResults");
+      // Feature 085: the two detection targets name different screens, so supplying both is
+      // ambiguous. Rejecting it is the whole point of the feature — never guess which one was meant.
+      // Blank values count as absent, so a client sending "" stays on the implicit path unchanged.
+      if (!string.IsNullOrWhiteSpace(req.CaptureId) && !string.IsNullOrWhiteSpace(req.SessionId)) {
+        return (false, "invalid_request: captureId and sessionId are mutually exclusive");
+      }
       return (true, null);
     }
   }

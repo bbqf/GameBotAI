@@ -119,6 +119,7 @@ Status vocabulary:
 | 082 | Dry-Run / Validate-Only Sequence Mode | Implemented |
 | 083 | Duplicate Queues | Implemented |
 | 084 | Execution Log Retention Default & Long-Run Rotation | Implemented |
+| 085 | Device-Scoped Image Detection | Implemented |
 
 ## Numbering notes
 
