@@ -52,4 +52,32 @@ public sealed class ExecutionLogRetentionIntegrationTests {
     var stillThere = await logRepo.GetAsync("expired-entry-001").ConfigureAwait(false);
     stillThere.Should().BeNull();
   }
+
+  [Fact] // Feature 084 (FR-001/SC-001): a deployment nobody configured keeps one week of logs.
+  public async Task UnconfiguredRetentionDefaultsToOneWeek() {
+    TestEnvironment.PrepareCleanDataDir();
+
+    using var app = new WebApplicationFactory<Program>();
+    _ = app.CreateClient();
+
+    var policy = await app.Services.GetRequiredService<IExecutionLogService>()
+      .GetRetentionAsync().ConfigureAwait(false);
+
+    policy.RetentionDays.Should().Be(7);
+    policy.Enabled.Should().BeTrue();
+  }
+
+  [Fact] // FR-002: the new default never overwrites a value someone already chose.
+  public async Task AnAlreadySavedRetentionValueSurvivesTheNewDefault() {
+    TestEnvironment.PrepareCleanDataDir();
+
+    using var app = new WebApplicationFactory<Program>();
+    _ = app.CreateClient();
+    var policyRepo = app.Services.GetRequiredService<IExecutionLogRetentionPolicyRepository>();
+
+    await policyRepo.SaveAsync(new ExecutionLogRetentionPolicy { RetentionDays = 45 }).ConfigureAwait(false);
+
+    var reread = await policyRepo.GetAsync().ConfigureAwait(false);
+    reread.RetentionDays.Should().Be(45);
+  }
 }

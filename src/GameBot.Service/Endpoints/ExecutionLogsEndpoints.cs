@@ -142,7 +142,9 @@ internal static class ExecutionLogsEndpoints {
       }).ToArray(),
       ChildCount = string.Equals(entry.ExecutionType, "sequence", StringComparison.OrdinalIgnoreCase)
         ? entry.StepOutcomes.Count
-        : 0
+        : 0,
+      RotatedToExecutionId = entry.RotatedToExecutionId,
+      RotatedFromExecutionId = entry.RotatedFromExecutionId
     };
 
   private static ExecutionTreeNodeDto ToTreeNodeDto(ExecutionTreeNodeProjection node)

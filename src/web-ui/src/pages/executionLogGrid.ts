@@ -84,6 +84,19 @@ export const composeInfo = (node: ExecutionTreeNodeDto): string => {
 export const nodeKey = (node: ExecutionTreeNodeDto, parentKey: string): string =>
   `${parentKey}/${node.executionId ?? `${node.nodeKind}-${node.order}`}`;
 
+// A run open past 24h is split into linked segments (feature 084). Naming the segment on the other
+// side of the cut is what lets an operator walk the chain; a run that never rotated adds nothing.
+const rotationNote = (entry: ExecutionLogEntryDto): string => {
+  const parts: string[] = [];
+  if (entry.rotatedFromExecutionId) {
+    parts.push(`Continued from run segment ${entry.rotatedFromExecutionId}.`);
+  }
+  if (entry.rotatedToExecutionId) {
+    parts.push(`Continues in run segment ${entry.rotatedToExecutionId}.`);
+  }
+  return parts.length > 0 ? ` ${parts.join(' ')}` : '';
+};
+
 // Projects a top-level execution onto a grid row. The timestamp is formatted by
 // the caller (exact/relative mode lives in component state).
 export const projectEntryRow = (entry: ExecutionLogEntryDto, timestamp: string): GridRow => ({
@@ -94,7 +107,7 @@ export const projectEntryRow = (entry: ExecutionLogEntryDto, timestamp: string):
   name: entry.objectRef.displayNameSnapshot,
   type: typeLabel(entry.executionType),
   status: entry.finalStatus,
-  info: entry.summary
+  info: `${entry.summary}${rotationNote(entry)}`
 });
 
 // Projects a sub-element node onto a grid row. Nodes backed by a recorded execution

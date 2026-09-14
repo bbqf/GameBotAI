@@ -118,6 +118,7 @@ Status vocabulary:
 | 081 | Loop Exit Reason & Nested Step-Outcome References | Implemented |
 | 082 | Dry-Run / Validate-Only Sequence Mode | Implemented |
 | 083 | Duplicate Queues | Implemented |
+| 084 | Execution Log Retention Default & Long-Run Rotation | Implemented |
 
 ## Numbering notes
 

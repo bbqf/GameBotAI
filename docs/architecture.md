@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-12 (feature 083 emulator-override amendment)._
+_Last reviewed: 2026-09-14 (feature 084 execution-log retention default & long-run rotation)._
 
 ## What GameBot is
 
@@ -199,7 +199,13 @@ not survive a service restart; queue *configuration* and templates are persisted
   used internally to decide whether a step executes. Still present in the domain and on the API,
   but **no longer authored as a standalone object in the UI**.
 - **Execution Log** — persisted, hierarchical record of what actually ran (queue → sequence →
-  command → primitive action) with outcomes, timings, detections, and condition traces.
+  command → primitive action) with outcomes, timings, detections, and condition traces. Entries are
+  kept for **7 days by default** (configurable; an explicitly saved retention value is never
+  overwritten by the default). A queue run open longer than **24 hours** is split into successive
+  **run segments**: at the next firing boundary — never mid-sequence — the current queue-root entry
+  is closed out and a fresh one opened, linked by `RotatedToExecutionId` /
+  `RotatedFromExecutionId` so the chain can be walked in either direction. Later firings attach to
+  the newest segment, and each segment expires independently under retention.
 
 ## Capability map (what the product does today)
 
