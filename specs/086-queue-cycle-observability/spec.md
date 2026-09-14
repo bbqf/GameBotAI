@@ -2,7 +2,7 @@
 
 **Feature Branch**: `086-queue-cycle-observability`
 **Created**: 2026-09-14
-**Status**: Draft
+**Status**: Implemented
 **Issue**: [#180](https://github.com/bbqf/GameBotAI/issues/180) (FR-003)
 **Input**: User description: "Make a running queue expose evidence of the work it is doing, so that
 'cycling healthily' can be told apart from 'failing on every cycle' without stopping the queue."

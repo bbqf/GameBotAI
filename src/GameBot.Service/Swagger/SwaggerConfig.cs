@@ -448,6 +448,14 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, QueueLiveScheduleRequest(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleRequest));
       SetResponseExample(operation, "200", QueueLiveScheduleResponse(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleResponse));
     }
+    else if (IsMethod(method, HttpMethods.Get) && path.EndsWith("/cycles", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Recent completed cycles of a running queue (newest first)";
+      operation.Description ??=
+        "Readable while the queue is running, so a repeatedly-failing queue can be diagnosed without "
+        + "stopping it. 'limit' defaults to 20 and is clamped to 1-50 rather than rejected. A known "
+        + "queue that is not running returns 200 with running:false and an empty list; an unknown "
+        + "queue returns 404.";
+    }
     else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/duplicate", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Duplicate a queue under a new name (same configuration, template, game, and entries; emulator target may be changed)";
       SetRequestExample(operation, QueueDuplicateRequest(), context, typeof(GameBot.Service.Contracts.Queues.DuplicateQueueRequest));
@@ -465,6 +473,10 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Queues + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get a queue with its ordered sequence entries";
+      operation.Description ??=
+        "Carries a 'health' block describing the current run (cycles completed, last cycle's instants "
+        + "and status, consecutive failed cycles, current entry) when the queue is running; 'health' "
+        + "is null when it is not, never a zeroed block.";
       SetResponseExample(operation, "200", QueueDetailExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueDetailResponse));
     }
   }

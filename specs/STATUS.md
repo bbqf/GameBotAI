@@ -120,6 +120,7 @@ Status vocabulary:
 | 083 | Duplicate Queues | Implemented |
 | 084 | Execution Log Retention Default & Long-Run Rotation | Implemented |
 | 085 | Device-Scoped Image Detection | Implemented |
+| 086 | Queue Cycle Observability | Implemented |
 
 ## Numbering notes
 

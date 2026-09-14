@@ -105,6 +105,15 @@ internal sealed class QueueRunHandle {
     lock (_currentLock) { _currentSequenceStartedAt = null; }
   }
 
+  // ── Cycle ledger (feature 086) ───────────────────────────────────────────────────────────────
+
+  /// <summary>
+  /// This run's bounded record of completed cycles and its derived health counters (issue #180), so a
+  /// cycling queue can be told apart from a stalled one without stopping it. Populated by the run loop
+  /// and read by the queue endpoints; a pure observer that no scheduling decision consults.
+  /// </summary>
+  public QueueCycleLedger Cycles { get; } = new();
+
   // ── Idle-pause tracking (feature 073) ────────────────────────────────────────────────────────
   // Transient run state set by the run loop while the game is backed out during an idle gap, so the
   // monitor can surface an explicit "Idle Pause" current item (with a resume time) instead of a

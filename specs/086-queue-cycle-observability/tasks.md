@@ -29,25 +29,25 @@ Single repository. Service code under `src/GameBot.Service/`, tests under `tests
 
 **⚠️ CRITICAL**: US1 and US2 both project the same ledger; it must exist and be correct first.
 
-- [ ] T001 Create `src/GameBot.Service/Services/QueueExecution/QueueCycleLedger.cs` with the records
+- [x] T001 Create `src/GameBot.Service/Services/QueueExecution/QueueCycleLedger.cs` with the records
       from data-model.md: `QueueCycleRecord` (Ordinal, StartedAt, CompletedAt, Succeeded, Entries),
       `QueueCycleEntryOutcome` (SequenceId, Succeeded), and `QueueCycleHealth` (CyclesCompleted,
       LastCycleStartedAt, LastCycleCompletedAt, LastCycleSucceeded, ConsecutiveFailedCycles,
       CurrentEntryIndex). All `internal sealed record`. XML docs on each.
-- [ ] T002 Implement the `QueueCycleLedger` class in the same file: one private lock, a private
+- [x] T002 Implement the `QueueCycleLedger` class in the same file: one private lock, a private
       `OpenCycle` holder, a `Queue<QueueCycleRecord>` of completed cycles, and the counters.
       `const int MaxRetainedCycles = 50`.
-- [ ] T003 Implement the mutators — `EnsureOpen(now)` (idempotent: no-op when a cycle is already
+- [x] T003 Implement the mutators — `EnsureOpen(now)` (idempotent: no-op when a cycle is already
       open), `RecordEntry(sequenceId, succeeded)` (no-op when none is open),
       `SetCurrentEntryIndex(index)` / `ClearCurrentEntryIndex()`, `CompleteOpen(now)` (derive
       `Succeeded` = no entry failed, assign the 1-based ordinal, update
       `CyclesCompleted`/`ConsecutiveFailedCycles`, trim the ring to 50; no-op when none is open), and
       `RecordEmptyCycle(now)`. Every mutator returns `void` and must not throw for a caller-actionable
       reason — this is what makes the ledger a pure observer (plan, FR-020).
-- [ ] T004 Implement the readers — `SnapshotHealth()` and `SnapshotCycles(limit)` (newest first, at
+- [x] T004 Implement the readers — `SnapshotHealth()` and `SnapshotCycles(limit)` (newest first, at
       most `limit`) — each copying under the lock so no reader holds it while the run loop needs it,
       mirroring `QueueRunHandle.SnapshotPendingTimerFirings()`.
-- [ ] T005 Add a `public QueueCycleLedger Cycles { get; } = new();` to
+- [x] T005 Add a `public QueueCycleLedger Cycles { get; } = new();` to
       `src/GameBot.Service/Services/QueueExecution/QueueRunHandle.cs`, in the observability region
       alongside the existing current-sequence and idle-pause state, with an XML doc pointing at this
       feature.
@@ -64,24 +64,24 @@ Single repository. Service code under `src/GameBot.Service/`, tests under `tests
 build-time Roslyn taint analyzers scale super-linearly with method body size (plan R5). Each edit
 below MUST be a single call with no new locals, no branching and no lambdas.
 
-- [ ] T006 In `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs`, call
+- [x] T006 In `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs`, call
       `handle.Cycles.EnsureOpen(_timeProvider.GetLocalNow())` at the top of each `do { … } while (true)`
       iteration, next to the existing `everyStepRanThisIteration = false;`.
-- [ ] T007 In the same file, call `handle.Cycles.RecordEntry(<sequenceId>, <ok>)` after **every**
+- [x] T007 In the same file, call `handle.Cycles.RecordEntry(<sequenceId>, <ok>)` after **every**
       `RunOneSequenceAsync` result — the at-queue-start drain, the live-schedule drain, the
       self-reschedule timer drain, the once-per-run roster loop, and the once-per-run reschedule drain
       — immediately beside each existing `executed++ / if (!ok) failed++` pair.
-- [ ] T008 In the same file, call `handle.Cycles.CompleteOpen(_timeProvider.GetLocalNow())` at the
+- [x] T008 In the same file, call `handle.Cycles.CompleteOpen(_timeProvider.GetLocalNow())` at the
       existing `cycles++` (immediately after `schedule.MarkOncePerRunPassDone()`), so a cycle is
       published exactly when the engine counts one.
-- [ ] T009 In the same file, bracket the roster-pass entry execution with
+- [x] T009 In the same file, bracket the roster-pass entry execution with
       `handle.Cycles.SetCurrentEntryIndex(entryIndex)` before `RunOneSequenceAsync` and
       `handle.Cycles.ClearCurrentEntryIndex()` after the per-entry every-step pass, so
       `currentEntryIndex` is populated only within the roster pass (spec Clarifications).
-- [ ] T010 In the same file, call `handle.Cycles.RecordEmptyCycle(_timeProvider.GetLocalNow())` in the
+- [x] T010 In the same file, call `handle.Cycles.RecordEmptyCycle(_timeProvider.GetLocalNow())` in the
       empty-template branch that sets `cycles = 1`, so an idle-but-alive queue still reports one
       completed cycle (spec Edge Cases).
-- [ ] T011 Verify by inspection that `RunEveryStepPassAsync` records its firings through T007's call
+- [x] T011 Verify by inspection that `RunEveryStepPassAsync` records its firings through T007's call
       sites (it runs sequences via the same helper), and that no ledger call sits on a path that can
       throw into the run loop.
 
@@ -96,32 +96,32 @@ below MUST be a single call with no new locals, no branching and no lambdas.
 **Independent Test**: Start a cycling queue, read it while running, watch the health advance; make
 every cycle fail and watch `consecutiveFailedCycles` climb — without stopping it.
 
-- [ ] T012 [P] [US1] Create `src/GameBot.Service/Contracts/Queues/QueueHealthResponse.cs` with the
+- [x] T012 [P] [US1] Create `src/GameBot.Service/Contracts/Queues/QueueHealthResponse.cs` with the
       fields in data-model.md — `runStartedAt` (FR-001), `cyclesCompleted`, `lastCycleStartedAt`,
       `lastCycleCompletedAt`, `lastCycleStatus`, `consecutiveFailedCycles`, `currentEntryIndex`,
       `currentSequenceId` — with `lastCycleStatus` as `"success"`/`"failure"` (not a boolean) to match
       the execution log's existing status vocabulary.
-- [ ] T013 [US1] Add a nullable `QueueHealthResponse? Health` to
+- [x] T013 [US1] Add a nullable `QueueHealthResponse? Health` to
       `src/GameBot.Service/Contracts/Queues/QueueDetailResponse.cs`, documented as null when the queue
       is not running.
-- [ ] T014 [US1] In `src/GameBot.Service/Endpoints/QueuesEndpoints.cs`, add a static
+- [x] T014 [US1] In `src/GameBot.Service/Endpoints/QueuesEndpoints.cs`, add a static
       `ProjectHealth(QueueRunHandle)` helper beside the existing `ProjectMonitor`, mapping
       `SnapshotHealth()` plus the handle's existing `CurrentSequenceId` and `RunStartedAt`.
-- [ ] T015 [US1] Add a shared static `TryGetLiveRun(id, runtime, registry, out handle)` helper in
+- [x] T015 [US1] Add a shared static `TryGetLiveRun(id, runtime, registry, out handle)` helper in
       `QueuesEndpoints.cs` implementing the FR-008a liveness gate — a run is live iff
       `runtime.GetStatus(id) == QueueExecutionStatus.Running` **and** `registry.TryGet` yields a
       handle. Both read paths MUST use this one helper so they cannot drift apart (research R8).
-- [ ] T015a [US1] Populate `Health` in `BuildDetailAsync` via `TryGetLiveRun`, leaving it **null**
+- [x] T015a [US1] Populate `Health` in `BuildDetailAsync` via `TryGetLiveRun`, leaving it **null**
       otherwise (FR-008). Add `IQueueRunRegistry` to the `GET {id}` handler's parameters.
-- [ ] T016 [P] [US1] Create `tests/unit/QueueCycleLedgerTests.cs` covering: ordinal is 1-based and
+- [x] T016 [P] [US1] Create `tests/unit/QueueCycleLedgerTests.cs` covering: ordinal is 1-based and
       keeps counting past the ring bound; `EnsureOpen` is idempotent; outcome is failure iff an entry
       failed; an entry-less cycle succeeds; `ConsecutiveFailedCycles` climbs then resets on success;
       the ring retains only the newest 50; an open cycle that never completes is never published;
       `RecordEntry` with no open cycle is a no-op.
-- [ ] T017 [P] [US1] Create `tests/contract/Queues/QueueCyclesApiContractTests.cs` with the health
+- [x] T017 [P] [US1] Create `tests/contract/Queues/QueueCyclesApiContractTests.cs` with the health
       cases: a not-running queue returns `health: null`; a running queue before its first completed
       cycle returns `cyclesCompleted: 0` with the three `lastCycle*` fields null together.
-- [ ] T018 [US1] Add the SC-003 regression test to that file: a run whose cycles all fail reports a
+- [x] T018 [US1] Add the SC-003 regression test to that file: a run whose cycles all fail reports a
       climbing `consecutiveFailedCycles` and `lastCycleStatus: "failure"` **while `status` is still
       `Running`** — the 2026-09-12 condition, now detectable.
 
@@ -137,26 +137,26 @@ the queue runs (FR-010–FR-016).
 **Independent Test**: Let several cycles complete, request the cycles mid-run, confirm per-entry
 outcomes appear newest-first and the limit is honoured.
 
-- [ ] T019 [P] [US2] Create `src/GameBot.Service/Contracts/Queues/QueueCyclesResponse.cs` containing
+- [x] T019 [P] [US2] Create `src/GameBot.Service/Contracts/Queues/QueueCyclesResponse.cs` containing
       `QueueCyclesResponse` (QueueId, Running, Cycles), `QueueCycleResponse` (Ordinal, StartedAt,
       CompletedAt, Status, Entries) and `QueueCycleEntryResponse` (SequenceId, SequenceName, Status),
       per data-model.md.
-- [ ] T020 [US2] In `QueuesEndpoints.cs`, add a static `ProjectCycles(...)` helper that maps ledger
+- [x] T020 [US2] In `QueuesEndpoints.cs`, add a static `ProjectCycles(...)` helper that maps ledger
       records to the DTOs and resolves each `SequenceName` from `ISequenceRepository` at projection
       time (null when the sequence no longer exists), keeping the endpoint lambda thin.
-- [ ] T021 [US2] Register `group.MapGet("{id}/cycles", …).WithName("GetQueueCycles")` immediately
+- [x] T021 [US2] Register `group.MapGet("{id}/cycles", …).WithName("GetQueueCycles")` immediately
       after the `{id}/monitor` route, carrying a comment that states the shared contract decision
       (200 + `running:false` rather than 404/409 for a known, stopped queue; safe to poll).
-- [ ] T022 [US2] Implement the handler: 404 for an unknown queue id; `running:false` with an empty
+- [x] T022 [US2] Implement the handler: 404 for an unknown queue id; `running:false` with an empty
       list when `TryGetLiveRun` (T015) reports no live run; otherwise the newest cycles, newest first.
       Use the same helper as US1 — do not re-derive liveness here (FR-008a).
-- [ ] T023 [US2] Implement `limit` handling — default 20, clamped to 1–50, out-of-range clamped rather
+- [x] T023 [US2] Implement `limit` handling — default 20, clamped to 1–50, out-of-range clamped rather
       than rejected (FR-014).
-- [ ] T024 [P] [US2] Extend `tests/contract/Queues/QueueCyclesApiContractTests.cs` with the cycles
+- [x] T024 [P] [US2] Extend `tests/contract/Queues/QueueCyclesApiContractTests.cs` with the cycles
       cases: completed cycles carry ordinal, both instants, status and per-entry outcomes; ordering is
       newest-first; an unknown queue is 404; a never-run queue is 200 with an empty list; `limit=0`,
       `limit=-1` and `limit=9999` are all clamped and none returns an error.
-- [ ] T025 [P] [US2] Add a ledger unit test asserting `SnapshotCycles(limit)` returns at most `limit`
+- [x] T025 [P] [US2] Add a ledger unit test asserting `SnapshotCycles(limit)` returns at most `limit`
       records, newest first, and that ordinals survive ring eviction.
 
 **Checkpoint**: An operator can identify the failing entry from the cycles alone (SC-004).
@@ -169,17 +169,17 @@ outcomes appear newest-first and the limit is honoured.
 
 **Independent Test**: The existing queue and execution-log suites pass unchanged.
 
-- [ ] T026 [US3] Add a contract test asserting a non-cycling queue reports exactly one completed cycle
+- [x] T026 [US3] Add a contract test asserting a non-cycling queue reports exactly one completed cycle
       for its single pass, and that its trailing timer-poll iterations add no further cycles (FR-019).
-- [ ] T027 [US3] Add a contract assertion that the terminating execution-log record's status and
+- [x] T027 [US3] Add a contract assertion that the terminating execution-log record's status and
       summary text for a queue run are unchanged by this feature (FR-018).
-- [ ] T028 [US3] Run the existing `tests/contract/Queues/QueuesApiContractTests.cs`,
+- [x] T028 [US3] Run the existing `tests/contract/Queues/QueuesApiContractTests.cs`,
       `QueueLiveScheduleApiContractTests.cs` and `QueueConcurrencyContractTests.cs` unchanged and
       confirm they pass — no existing field renamed or removed (FR-017).
-- [ ] T028a [US3] Add a contract test for the FR-008a gate: a queue reporting `status: "Stopped"`
+- [x] T028a [US3] Add a contract test for the FR-008a gate: a queue reporting `status: "Stopped"`
       never carries a non-null `health`, and `GET {id}` and `GET {id}/cycles` agree about whether the
       run is in progress.
-- [ ] T028b [US3] Add a contract test for the concurrent-queues edge case: two queues running on
+- [x] T028b [US3] Add a contract test for the concurrent-queues edge case: two queues running on
       different devices each report their own `health` and their own cycles, with no cross-talk
       (spec Edge Cases).
 
@@ -191,18 +191,18 @@ outcomes appear newest-first and the limit is honoured.
 
 **Purpose**: Constitution V (NON-NEGOTIABLE) and the quality gates.
 
-- [ ] T029 [P] Update `src/GameBot.Service/Swagger/SwaggerConfig.cs` to document the `{id}/cycles`
+- [x] T029 [P] Update `src/GameBot.Service/Swagger/SwaggerConfig.cs` to document the `{id}/cycles`
       route (including the `limit` parameter and its clamping) and the additive `health` block.
-- [ ] T030 Update `docs/architecture.md`: add the `health` block and the `{id}/cycles` route to the
+- [x] T030 Update `docs/architecture.md`: add the `health` block and the `{id}/cycles` route to the
       queue API surface, note that cycle history is run-scoped and does not survive a restart, and
       **refresh the "Last reviewed" date**.
-- [ ] T031 [P] Set `**Status**: Implemented` in `specs/086-queue-cycle-observability/spec.md` and add
+- [x] T031 [P] Set `**Status**: Implemented` in `specs/086-queue-cycle-observability/spec.md` and add
       the 086 row to `specs/STATUS.md`. Feature 072 (live monitor) is complemented, not superseded —
       leave its status alone.
-- [ ] T032 Build the solution and run both test projects; confirm zero warnings introduced and all
+- [x] T032 Build the solution and run both test projects; confirm zero warnings introduced and all
       tests green before committing (constitution: "an evaluation of test builds and runs results is
       necessary before each commit").
-- [ ] T033 Verify the quickstart flow in `quickstart.md` reads correctly against the implemented
+- [x] T033 Verify the quickstart flow in `quickstart.md` reads correctly against the implemented
       routes (field names, clamping behaviour, null health).
 
 ---
