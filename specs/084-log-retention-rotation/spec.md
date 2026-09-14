@@ -2,7 +2,7 @@
 
 **Feature Branch**: `084-log-retention-rotation`
 **Created**: 2026-09-14
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I want the execution logs to get cleaner. First I want to change the default of hold retention to 1 week. Second, if a queue is running for more than 24h, it's logs has to be rotated. The last entry in the previous should indicate, that log rotation took place and the continued log is available, the one being continued should indicate in the beginning, that it's the continuation of a run. The cut should happen only in between the sequences."
 
 ## Clarifications

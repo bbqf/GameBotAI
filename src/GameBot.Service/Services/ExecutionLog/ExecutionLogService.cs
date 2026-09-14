@@ -77,6 +77,7 @@ internal interface IExecutionLogService {
   Task LogSequenceFinalizeAsync(string executionId, string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task<string> LogQueueStartAsync(string queueId, string queueName, CancellationToken ct = default);
   Task LogQueueFinalizeAsync(string executionId, string queueId, string queueName, string finalStatus, string summary, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
+  Task<string> LogQueueRotateAsync(string currentRootId, string queueId, string queueName, CancellationToken ct = default);
   Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default);
   Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default);
   Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default);
@@ -381,6 +382,66 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     await _repository.UpsertAsync(entry, ct).ConfigureAwait(false);
   }
 
+  public async Task<string> LogQueueRotateAsync(string currentRootId, string queueId, string queueName, CancellationToken ct = default) {
+    var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
+    var now = DateTimeOffset.UtcNow;
+    var continuationId = Guid.NewGuid().ToString("N");
+    var existing = await _repository.GetAsync(currentRootId, ct).ConfigureAwait(false);
+    var closedTimestamp = existing?.TimestampUtc ?? now;
+
+    // The closing marker is appended last so it reads as the final entry of the segment being left
+    // behind. Capped at 9 prior details so the marker itself can never be dropped by trimming.
+    var closingDetails = (existing?.Details ?? Array.Empty<ExecutionDetailItem>()).Take(9).ToList();
+    closingDetails.Add(new ExecutionDetailItem(
+      "rotation",
+      $"Log rotation: this run segment was closed after 24 hours. The run continues in execution {continuationId}.",
+      new Dictionary<string, object?> { ["rotatedToExecutionId"] = continuationId },
+      "normal"));
+
+    var closed = new ExecutionLogEntry {
+      Id = currentRootId,
+      TimestampUtc = closedTimestamp,
+      ExecutionType = "queue",
+      // Terminal, not "running": this segment will never be finalized again (the run's eventual
+      // finalize targets the newest segment), so leaving it "running" would dangle forever.
+      FinalStatus = "success",
+      ObjectRef = existing?.ObjectRef ?? new ExecutionObjectReference("queue", queueId, queueName),
+      Navigation = existing?.Navigation ?? ExecutionNavigationBuilder.Build("queue", queueId, new ExecutionLogContext()),
+      Hierarchy = existing?.Hierarchy ?? new ExecutionHierarchyContext(currentRootId, null, 0, null),
+      Summary = TrimSummary($"Queue '{queueName}' log rotated after 24h; the run continues in a new segment."),
+      Details = closingDetails,
+      StepOutcomes = existing?.StepOutcomes ?? Array.Empty<ExecutionStepOutcome>(),
+      RetentionExpiresUtc = retention.Enabled ? closedTimestamp.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue,
+      RotatedToExecutionId = continuationId,
+      RotatedFromExecutionId = existing?.RotatedFromExecutionId
+    };
+    await _repository.UpsertAsync(closed, ct).ConfigureAwait(false);
+
+    var continuation = new ExecutionLogEntry {
+      Id = continuationId,
+      TimestampUtc = now,
+      ExecutionType = "queue",
+      FinalStatus = "running",
+      ObjectRef = new ExecutionObjectReference("queue", queueId, queueName),
+      Navigation = ExecutionNavigationBuilder.Build("queue", queueId, new ExecutionLogContext()),
+      Hierarchy = new ExecutionHierarchyContext(continuationId, null, 0, null),
+      Summary = TrimSummary($"Queue '{queueName}' running; continuation of an earlier run segment."),
+      // The opening marker is this segment's only detail at creation, so it reads first.
+      Details = new[] {
+        new ExecutionDetailItem(
+          "rotation",
+          $"Continuation of run segment {currentRootId}, which was closed by log rotation after 24 hours.",
+          new Dictionary<string, object?> { ["rotatedFromExecutionId"] = currentRootId },
+          "normal")
+      },
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue,
+      RotatedFromExecutionId = currentRootId
+    };
+    await _repository.AddAsync(continuation, ct).ConfigureAwait(false);
+
+    return continuationId;
+  }
+
   public async Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default) {
     if (string.IsNullOrWhiteSpace(executionId)) return null;
     var entries = await _repository.GetSubtreeAsync(executionId, ct).ConfigureAwait(false);
@@ -575,6 +636,24 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         entry.Hierarchy.ParentExecutionId ?? string.Empty,
         !string.IsNullOrWhiteSpace(entry.Hierarchy.ParentExecutionId),
         string.IsNullOrWhiteSpace(entry.Hierarchy.ParentExecutionId) ? "Parent execution is unavailable." : null));
+    }
+
+    if (!string.IsNullOrWhiteSpace(entry.RotatedFromExecutionId)) {
+      relatedObjects.Add(new ExecutionLogRelatedProjection(
+        "Continued from earlier run segment",
+        "execution",
+        entry.RotatedFromExecutionId!,
+        true,
+        null));
+    }
+
+    if (!string.IsNullOrWhiteSpace(entry.RotatedToExecutionId)) {
+      relatedObjects.Add(new ExecutionLogRelatedProjection(
+        "Continues in newer run segment",
+        "execution",
+        entry.RotatedToExecutionId!,
+        true,
+        null));
     }
 
     var hasSnapshot = entry.Details.Any(detail =>

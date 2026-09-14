@@ -59,6 +59,10 @@ internal sealed class ExecutionLogEntryDto {
   public required IReadOnlyList<ExecutionStepOutcomeDto> StepOutcomes { get; init; }
   /// <summary>Number of direct child executions (0 ⇒ leaf, not expandable).</summary>
   public int ChildCount { get; init; }
+  /// <summary>Set on a queue-run segment closed by log rotation: the segment continuing the run.</summary>
+  public string? RotatedToExecutionId { get; init; }
+  /// <summary>Set on a queue-run segment opened by log rotation: the segment it continues from.</summary>
+  public string? RotatedFromExecutionId { get; init; }
 }
 
 internal sealed class ExecutionTreeNodeDto {

@@ -137,6 +137,43 @@ describe('executionLogGrid helpers', () => {
       expect(row.type).toBe('Queue');
       expect(row.expandable).toBe(true);
     });
+
+    // Feature 084: rotation links let an operator walk a long run's chain of segments.
+    it('names the continuation segment on a run closed by log rotation', () => {
+      const closed = {
+        ...entry,
+        executionType: 'queue',
+        summary: "Queue 'Daily Farm' log rotated after 24h; the run continues in a new segment.",
+        rotatedToExecutionId: 'exec-2'
+      } as ExecutionLogEntryDto;
+      expect(projectEntryRow(closed, 'x').info).toContain('Continues in run segment exec-2.');
+    });
+
+    it('names the previous segment on a run opened by log rotation', () => {
+      const continuation = {
+        ...entry,
+        executionType: 'queue',
+        summary: "Queue 'Daily Farm' running; continuation of an earlier run segment.",
+        rotatedFromExecutionId: 'exec-1'
+      } as ExecutionLogEntryDto;
+      expect(projectEntryRow(continuation, 'x').info).toContain('Continued from run segment exec-1.');
+    });
+
+    it('names both neighbours on a segment in the middle of a chain', () => {
+      const middle = {
+        ...entry,
+        executionType: 'queue',
+        rotatedFromExecutionId: 'exec-1',
+        rotatedToExecutionId: 'exec-3'
+      } as ExecutionLogEntryDto;
+      const info = projectEntryRow(middle, 'x').info;
+      expect(info).toContain('Continued from run segment exec-1.');
+      expect(info).toContain('Continues in run segment exec-3.');
+    });
+
+    it('adds no rotation note to a run that never rotated', () => {
+      expect(projectEntryRow(entry, 'x').info).toBe("Sequence 'Donate' success with 7 steps executed.");
+    });
   });
 
   describe('projectNodeRow', () => {

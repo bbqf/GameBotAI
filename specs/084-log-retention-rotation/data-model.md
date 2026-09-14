@@ -21,7 +21,10 @@ Two new optional fields, populated **only** on `ExecutionType == "queue"` root e
 | `RotatedToExecutionId` | `string?` | On the segment being closed out due to rotation | Id of the new queue-root entry that continues this run. |
 | `RotatedFromExecutionId` | `string?` | On the new segment opened by rotation | Id of the previous queue-root entry this run continues from. |
 
-A segment's own `FinalStatus`/`Summary` at rotation time is also updated (via the existing upsert path) to state plainly that rotation occurred (closing side) or that this is a continuation (opening side) — see FR-008/FR-009. This reuses the entry's existing `Summary`/`Details` text fields; no new text-carrying field is introduced.
+A segment's own `FinalStatus`/`Summary`/`Details` at rotation time are also updated (via the existing upsert path) to state plainly that rotation occurred (closing side) or that this is a continuation (opening side) — see FR-008/FR-009. This reuses the entry's existing text fields; no new text-carrying field is introduced. Specifics as built:
+
+- The closed segment takes `FinalStatus = "success"` (terminal). It cannot stay `"running"`: the run's eventual finalize targets the *newest* segment, so an earlier segment left `"running"` would dangle in that state forever.
+- The closing marker is appended as the **last** `Details` item (kind `"rotation"`), and the continuation marker is the **first** `Details` item on the new segment — so the "last entry says it rotated / first entry says it continues" reading holds literally, not just in the summary. Prior details are capped at 9 on the closing side so trimming can never drop the marker.
 
 No change to `ExecutionHierarchyContext`, `ExecutionObjectReference`, `ExecutionNavigationContext`, or any sequence/command-level model — rotation is purely a queue-root-entry-to-queue-root-entry link. A rotated run's sequence entries keep pointing at whichever root id (`RootExecutionId`) was active for their own firing; they are never retroactively repointed.
 
@@ -31,8 +34,9 @@ No change to `ExecutionHierarchyContext`, `ExecutionObjectReference`, `Execution
 
 - `ExecutionLogEntryDto`: add `RotatedToExecutionId: string?` and `RotatedFromExecutionId: string?`, mirroring the domain model, so API consumers (including future tooling) can see the raw link without needing the detail endpoint.
 - `ExecutionLogDetailDto`: no new field — instead, the existing `RelatedObjects: IReadOnlyList<RelatedObjectLinkDto>` list gains an additional entry when the underlying entry has a non-null `RotatedToExecutionId`/`RotatedFromExecutionId`:
-  - Closing segment → `{ Label: "Continues in newer run segment", TargetType: "execution-log", TargetId: RotatedToExecutionId, IsAvailable: <target still resolvable>, UnavailableReason: <set if target was deleted by retention> }`
-  - Opening segment → `{ Label: "Continued from earlier run segment", TargetType: "execution-log", TargetId: RotatedFromExecutionId, IsAvailable: ..., UnavailableReason: ... }`
+  - Closing segment → `{ Label: "Continues in newer run segment", TargetType: "execution", TargetId: RotatedToExecutionId, IsAvailable: true, UnavailableReason: null }`
+  - Opening segment → `{ Label: "Continued from earlier run segment", TargetType: "execution", TargetId: RotatedFromExecutionId, IsAvailable: true, UnavailableReason: null }`
+  - `IsAvailable` reflects id presence rather than a target lookup, matching the existing "Parent execution" link built in the same pure-static projection.
 
 This reuses the existing related-object-link shape (`RelatedObjectLinkDto`) end to end rather than inventing new response shape.
 

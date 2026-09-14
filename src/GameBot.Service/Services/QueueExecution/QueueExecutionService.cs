@@ -563,7 +563,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       var result = new QueueRunResult(reason, executed, failed, cycles, failureReason);
       var finalStatus = reason == QueueStopReason.Failure ? "failure" : "success";
       try {
-        await _log.LogQueueFinalizeAsync(rootId, queue.Id, queue.Name, finalStatus, BuildSummary(queue.Name, result), ct: CancellationToken.None).ConfigureAwait(false);
+        // The newest segment, not the one this run opened: a long run may have rotated since, and the
+        // earlier segments were already closed out by the rotation itself.
+        var finalizeRootId = handle.RootExecutionId ?? rootId;
+        await _log.LogQueueFinalizeAsync(finalizeRootId, queue.Id, queue.Name, finalStatus, BuildSummary(queue.Name, result), ct: CancellationToken.None).ConfigureAwait(false);
       }
       catch (Exception ex) { QueueExecutionLog.FinalizeFailed(_logger, queue.Id, ex); }
 
@@ -608,6 +611,50 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     return $"emulator instance ('{target}') could not be started: {result.ReasonCode}";
   }
 
+  /// <summary>
+  /// How long one execution-log run segment may stay open. A run still going after this is closed
+  /// and continued in a fresh segment, so a queue left running for weeks cannot accumulate one
+  /// unbounded run in the log.
+  /// </summary>
+  private static readonly TimeSpan RunSegmentMaxAge = TimeSpan.FromHours(24);
+
+  /// <summary>
+  /// Closes the current execution-log run segment and opens a continuation when the segment has been
+  /// open longer than <see cref="RunSegmentMaxAge"/>, returning the root id later firings must use.
+  /// Called only at a firing boundary (see <see cref="RunOneSequenceAsync"/>), so a rotation can never
+  /// split one sequence's execution across two segments.
+  /// </summary>
+  private async Task<string> RotateRootIfDueAsync(string rootId, string queueId, CancellationToken ct) {
+    // A stop request aborts the upcoming firing anyway; rotating now would only strand a fresh,
+    // empty segment as the run's last word.
+    if (ct.IsCancellationRequested) return rootId;
+
+    try {
+      // The segment's own start time is its age — no separate clock to keep in sync, and it survives
+      // a service restart mid-run because it is read back from the persisted entry.
+      var current = await _log.GetAsync(rootId, CancellationToken.None).ConfigureAwait(false);
+      if (current is null) return rootId;
+      if (_timeProvider.GetUtcNow() - current.TimestampUtc <= RunSegmentMaxAge) return rootId;
+
+      // Written with CancellationToken.None so a stop landing mid-rotation cannot leave the old
+      // segment closed with no continuation to point at.
+      var continuationId = await _log
+        .LogQueueRotateAsync(rootId, queueId, current.ObjectRef.DisplayNameSnapshot, CancellationToken.None)
+        .ConfigureAwait(false);
+      if (_registry.TryGet(queueId, out var rotatedHandle)) {
+        rotatedHandle.RootExecutionId = continuationId;
+      }
+      QueueExecutionLog.ExecutionLogRotated(_logger, queueId, rootId, continuationId);
+      return continuationId;
+    }
+    catch (Exception ex) {
+      // Tidier logs are never worth losing a run over: keep firing into the current segment and let
+      // the next boundary try again.
+      QueueExecutionLog.ExecutionLogRotationFailed(_logger, queueId, ex);
+      return rootId;
+    }
+  }
+
   private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, string queueId, ParameterScope scope, CancellationToken ct, string? selfRescheduleOriginActionId = null) {
     // Watchdog: cancel a firing that overruns its bound so one stuck sequence cannot freeze the whole
     // queue. Linked to ct so a real stop request still cancels immediately.
@@ -627,6 +674,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     // firing starts (nested sequences, commands, loops, image/text conditions). Pushing it again here
     // would be redundant, so the run loop deliberately does not.
     var trackedHandle = _registry.TryGet(queueId, out var handle) ? handle : null;
+    // Rotation decision, made before any of this firing's work starts — the run loop's callers hold a
+    // root id captured at run start, so the handle (updated in place on rotation) is the live source.
+    var activeRootId = await RotateRootIfDueAsync(trackedHandle?.RootExecutionId ?? rootId, queueId, ct)
+      .ConfigureAwait(false);
     trackedHandle?.SetCurrentSequence(sequenceId, _timeProvider.GetLocalNow());
     try {
       // Foreground guard: a queue run holds one emulator for hours, and anything that pushes the
@@ -654,8 +705,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       }
 
       var parentContext = new ExecutionLogContext {
-        ParentExecutionId = rootId,
-        RootExecutionId = rootId,
+        ParentExecutionId = activeRootId,
+        RootExecutionId = activeRootId,
         Depth = 1,
         SequenceIndex = index,
         // Mark this firing as queue-originated so a self-reschedule action can target this run
@@ -851,4 +902,10 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1125, Level = LogLevel.Warning, Message = "Daily sequence {SequenceId} still failing after {MaxAttempts} retries; giving up until its next daily slot")]
   public static partial void DailyRetryExhausted(ILogger logger, string SequenceId, int MaxAttempts);
+
+  [LoggerMessage(EventId = 1126, Level = LogLevel.Information, Message = "Queue {QueueId} execution log rotated after 24h: segment {PreviousRootId} closed, run continues in {ContinuationRootId}")]
+  public static partial void ExecutionLogRotated(ILogger logger, string QueueId, string PreviousRootId, string ContinuationRootId);
+
+  [LoggerMessage(EventId = 1127, Level = LogLevel.Warning, Message = "Queue {QueueId} could not rotate its execution log; the run continues in the current segment and retries at the next firing")]
+  public static partial void ExecutionLogRotationFailed(ILogger logger, string QueueId, Exception ex);
 }

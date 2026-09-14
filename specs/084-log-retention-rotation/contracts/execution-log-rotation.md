@@ -31,7 +31,7 @@ Unchanged — request/response shape and validation (`Math.Max(1, ...)` clamp) a
 // closing segment (rotated away from)
 {
   "label": "Continues in newer run segment",
-  "targetType": "execution-log",
+  "targetType": "execution",
   "targetId": "<new segment id>",
   "isAvailable": true,
   "unavailableReason": null
@@ -42,14 +42,14 @@ Unchanged — request/response shape and validation (`Math.Max(1, ...)` clamp) a
 // opening segment (continuation)
 {
   "label": "Continued from earlier run segment",
-  "targetType": "execution-log",
+  "targetType": "execution",
   "targetId": "<previous segment id>",
-  "isAvailable": false,
-  "unavailableReason": "Deleted by retention"
+  "isAvailable": true,
+  "unavailableReason": null
 }
 ```
 
-`isAvailable`/`unavailableReason` follow the existing `RelatedObjectLinkDto` semantics already used for other related-object links (e.g. an unavailable linked sequence) — resolved by attempting to look up the target execution id and falling back to `isAvailable: false` when retention has already removed it.
+`targetType`/`isAvailable` follow the existing "Parent execution" related-object link in the same projection: `isAvailable` reflects whether the id is present, not whether the target still exists. `BuildDetailProjection` is a pure static function over a single entry with no repository access, so it cannot probe the target — a link whose target has since been removed by retention behaves exactly like a link to a deleted parent does today (the follow-up request 404s).
 
 ## `GET /api/execution-logs/{id}/subtree`
 

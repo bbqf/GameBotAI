@@ -20,6 +20,10 @@ export type ExecutionLogEntryDto = {
   childCount: number;
   objectRef: ExecutionLogObjectRefDto;
   summary: string;
+  /** Set on a queue run segment closed by log rotation: the segment continuing the run. */
+  rotatedToExecutionId?: string;
+  /** Set on a queue run segment opened by log rotation: the segment it continues from. */
+  rotatedFromExecutionId?: string;
 };
 
 export type ExecutionTreeNodeKind =

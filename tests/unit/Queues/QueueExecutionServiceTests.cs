@@ -61,11 +61,17 @@ public sealed partial class QueueExecutionServiceTests {
 
     public List<bool> DryRunFlags { get; } = new();
 
+    /// <summary>
+    /// The execution-log root id each firing attached to (feature 084). Lets rotation tests prove a
+    /// firing landed wholly in one run segment.
+    /// </summary>
+    public List<string?> RootIds { get; } = new();
+
     public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, CancellationToken ct = default)
       => ExecuteAsync(sequenceId, sessionId, parentContext, GameBot.Domain.Parameters.ParameterScope.Empty, ct: ct);
 
     public Task<SequenceExecutionResult> ExecuteAsync(string sequenceId, string? sessionId, ExecutionLogContext? parentContext, GameBot.Domain.Parameters.ParameterScope scope, bool dryRun = false, CancellationToken ct = default) {
-      lock (Executed) { Executed.Add(sequenceId); Scopes.Add((sequenceId, scope)); DryRunFlags.Add(dryRun); }
+      lock (Executed) { Executed.Add(sequenceId); Scopes.Add((sequenceId, scope)); DryRunFlags.Add(dryRun); RootIds.Add(parentContext?.RootExecutionId); }
       if (Handler is not null) return Handler(sequenceId, ct);
       return Task.FromResult(Success(sequenceId));
     }
@@ -219,15 +225,41 @@ public sealed partial class QueueExecutionServiceTests {
     // Any sequence/command-level log write. Idle-pause must add none (FR-007a/SC-007).
     public int SequenceOrCommandLogCalls { get; private set; }
 
+    /// <summary>
+    /// Clock used to stamp queue-root entries (feature 084), so a rotation test can age a run segment
+    /// past the 24h bound by advancing the same fake clock the service reads.
+    /// </summary>
+    public TimeProvider Clock { get; set; } = TimeProvider.System;
+
+    /// <summary>Every rotation the engine performed, oldest first: (closed segment, continuation).</summary>
+    public List<(string From, string To)> Rotations { get; } = new();
+
+    /// <summary>The root id the run's terminating finalize targeted.</summary>
+    public string? FinalizedExecutionId { get; private set; }
+
+    private readonly Dictionary<string, DateTimeOffset> _rootStarts = new(StringComparer.Ordinal);
+
     public Task<string> LogQueueStartAsync(string queueId, string queueName, CancellationToken ct = default) {
       QueueStarts++;
-      return Task.FromResult(Guid.NewGuid().ToString("N"));
+      var id = Guid.NewGuid().ToString("N");
+      lock (_rootStarts) { _rootStarts[id] = Clock.GetUtcNow(); }
+      return Task.FromResult(id);
     }
     public Task LogQueueFinalizeAsync(string executionId, string queueId, string queueName, string finalStatus, string summary, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) {
       QueueFinalizes++;
       FinalStatus = finalStatus;
       Summary = summary;
+      FinalizedExecutionId = executionId;
       return Task.CompletedTask;
+    }
+
+    public Task<string> LogQueueRotateAsync(string currentRootId, string queueId, string queueName, CancellationToken ct = default) {
+      var continuationId = Guid.NewGuid().ToString("N");
+      lock (_rootStarts) {
+        _rootStarts[continuationId] = Clock.GetUtcNow();
+        Rotations.Add((currentRootId, continuationId));
+      }
+      return Task.FromResult(continuationId);
     }
 
     // Unused by the queue engine in these tests.
@@ -240,7 +272,21 @@ public sealed partial class QueueExecutionServiceTests {
     public Task LogSequenceFinalizeAsync(string executionId, string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) { SequenceOrCommandLogCalls++; return Task.CompletedTask; }
     public Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default) => Task.FromResult<ExecutionSubtreeProjection?>(null);
     public Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default) => Task.FromResult(new ExecutionLogPage(Array.Empty<ExecutionLogEntry>(), null));
-    public Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult<ExecutionLogEntry?>(null);
+    public Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default) {
+      DateTimeOffset startedAt;
+      lock (_rootStarts) {
+        if (!_rootStarts.TryGetValue(id, out startedAt)) return Task.FromResult<ExecutionLogEntry?>(null);
+      }
+      return Task.FromResult<ExecutionLogEntry?>(new ExecutionLogEntry {
+        Id = id,
+        TimestampUtc = startedAt,
+        ExecutionType = "queue",
+        FinalStatus = "running",
+        ObjectRef = new ExecutionObjectReference("queue", "q", "Queue"),
+        Navigation = new ExecutionNavigationContext("/queues/q", null),
+        Hierarchy = new ExecutionHierarchyContext(id, null, 0, null)
+      });
+    }
     public Task<ExecutionLogRetentionPolicy> GetRetentionAsync(CancellationToken ct = default) => Task.FromResult(new ExecutionLogRetentionPolicy());
     public Task<ExecutionLogRetentionPolicy> UpdateRetentionAsync(bool enabled, int? retentionDays, int? cleanupIntervalMinutes, CancellationToken ct = default) => Task.FromResult(new ExecutionLogRetentionPolicy());
     public Task<int> CleanupExpiredAsync(CancellationToken ct = default) => Task.FromResult(0);
@@ -272,6 +318,7 @@ public sealed partial class QueueExecutionServiceTests {
 
     public Harness(FakeTimeProvider? clock = null, bool foregroundGuard = false, bool sequenceRepository = false, GameBot.Domain.Config.AppConfig? config = null) {
       Clock = clock;
+      if (clock is not null) Log.Clock = clock;
       Coordinator = new SelfRescheduleCoordinator(Registry, clock);
       EnsureEmulator.SessionCountProvider = () => Sessions.ActiveCount;
       if (foregroundGuard) {
@@ -1127,6 +1174,105 @@ public sealed partial class QueueExecutionServiceTests {
     await h.Service.StopAsync("q1");
 
     h.Sequences.Executed.Count(id => id == "T").Should().Be(1);
+  }
+
+  // ── Feature 084: execution-log rotation for long-running queues ───────
+
+  [Fact] // FR-005/FR-010, SC-002: a run that never reaches 24h is left exactly as it was before.
+  public async Task RunShorterThanTwentyFourHoursIsNeverRotated() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 2);
+
+    var seen = h.Sequences.Executed.Count;
+    clock.Advance(TimeSpan.FromHours(23));
+    await WaitForAsync(() => h.Sequences.Executed.Count >= seen + 3);
+    await h.Service.StopAsync("q1");
+
+    h.Log.Rotations.Should().BeEmpty();
+    h.Sequences.RootIds.Distinct().Should().HaveCount(1);
+  }
+
+  [Fact] // FR-006/FR-007, SC-004: one rotation per crossing, taken between firings.
+  public async Task RunPastTwentyFourHoursRotatesOnceAndLaterFiringsUseTheNewSegment() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 2);
+    var beforeRotation = h.Sequences.RootIds.Count;
+
+    clock.Advance(TimeSpan.FromHours(25));
+    await WaitForAsync(() => h.Log.Rotations.Count >= 1);
+    await WaitForAsync(() => h.Sequences.RootIds.Count >= beforeRotation + 2);
+    await h.Service.StopAsync("q1");
+
+    h.Log.Rotations.Should().HaveCount(1);
+    var (closedSegment, continuation) = h.Log.Rotations[0];
+    var firings = h.Sequences.RootIds.ToList();
+
+    // Every firing belongs wholly to one of the two segments, and the run crosses between them
+    // exactly once: a clean cut, with no firing landing back on the closed segment afterwards.
+    firings.Should().OnlyContain(id => id == closedSegment || id == continuation);
+    var cut = firings.IndexOf(continuation);
+    cut.Should().BeGreaterThan(0, "firings before the 24h crossing belong to the original segment");
+    firings.Take(cut).Should().AllBe(closedSegment);
+    firings.Skip(cut).Should().AllBe(continuation);
+  }
+
+  [Fact] // FR-011, SC-005: one rotation per elapsed 24h period, chained end to end.
+  public async Task RunSpanningSeveralDaysRotatesOncePerTwentyFourHourPeriod() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 2);
+
+    for (var day = 1; day <= 3; day++) {
+      clock.Advance(TimeSpan.FromHours(25));
+      var expected = day;
+      await WaitForAsync(() => h.Log.Rotations.Count >= expected);
+    }
+    await h.Service.StopAsync("q1");
+
+    h.Log.Rotations.Should().HaveCount(3);
+    // Each rotation continues the segment the previous one opened: one unbroken chain.
+    h.Log.Rotations[1].From.Should().Be(h.Log.Rotations[0].To);
+    h.Log.Rotations[2].From.Should().Be(h.Log.Rotations[1].To);
+    // The run's terminating finalize lands on the newest segment, not the one the run opened with.
+    h.Log.FinalizedExecutionId.Should().Be(h.Log.Rotations[2].To);
+  }
+
+  [Fact] // FR-012: a stop/restart starts a fresh run with its own 24h window and no rotation state.
+  public async Task RestartAfterRotationStartsAFreshUnrotatedRun() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A") }, cycle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 2);
+    clock.Advance(TimeSpan.FromHours(25));
+    await WaitForAsync(() => h.Log.Rotations.Count >= 1);
+    await h.Service.StopAsync("q1");
+
+    var rotationsFromFirstRun = h.Log.Rotations.Count;
+    var firstRunSegments = h.Sequences.RootIds.Distinct().Count();
+    var firingsInFirstRun = h.Sequences.Executed.Count;
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= firingsInFirstRun + 2);
+    // Well inside a fresh 24h window, even though the clock now sits a day past the original start.
+    clock.Advance(TimeSpan.FromHours(20));
+    await WaitForAsync(() => h.Sequences.Executed.Count >= firingsInFirstRun + 4);
+    await h.Service.StopAsync("q1");
+
+    h.Log.Rotations.Should().HaveCount(rotationsFromFirstRun);
+    h.Sequences.RootIds.Distinct().Should().HaveCount(firstRunSegments + 1);
   }
 
   [Fact]

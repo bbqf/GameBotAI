@@ -91,6 +91,18 @@ public sealed class ExecutionLogEntry {
   public IReadOnlyList<ExecutionDetailItem> Details { get; init; } = Array.Empty<ExecutionDetailItem>();
   public IReadOnlyList<ExecutionStepOutcome> StepOutcomes { get; init; } = Array.Empty<ExecutionStepOutcome>();
   public DateTimeOffset RetentionExpiresUtc { get; init; }
+
+  /// <summary>
+  /// On a queue-run root entry closed out by log rotation: the id of the root entry that continues
+  /// the run. Null on every other entry, including runs that never rotated.
+  /// </summary>
+  public string? RotatedToExecutionId { get; init; }
+
+  /// <summary>
+  /// On a queue-run root entry opened by log rotation: the id of the root entry it continues from.
+  /// Null on every other entry, including runs that never rotated.
+  /// </summary>
+  public string? RotatedFromExecutionId { get; init; }
 }
 
 public sealed class ExecutionLogQuery {
