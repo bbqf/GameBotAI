@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-14 (feature 084 execution-log retention default & long-run rotation)._
+_Last reviewed: 2026-09-14 (feature 085 device-scoped image detection)._
 
 ## What GameBot is
 
@@ -254,6 +254,15 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
   `"N device sessions are active; specify a sessionId for '<step>'"` rather than guessing.
 - `GET /api/emulator/screenshot` takes `sessionId` or `serial`; with several sessions and no selector
   it returns `409 ambiguous_session` instead of an arbitrary device.
+- `POST /api/images/detect` takes `captureId` or `sessionId` (mutually exclusive; blank counts as
+  absent) and follows the same rule, reusing the same codes: `409 ambiguous_session` when several
+  sessions are running and none is named, `404 capture_not_found` / `404 session_not_found` for an
+  unresolvable named target, `503 emulator_unavailable` when no screen is obtainable at all. Until
+  feature 085 it answered every one of these with `200 {"matches":[]}` — a fabricated "absent"
+  indistinguishable from a real one, which silently disarmed absence probes as soon as a second
+  emulator was started. **A 200 from this route now means a measurement was actually taken.** The
+  unresolved case is detected from the screen source returning null, never from counting sessions
+  first: stub hosts serve a fixed bitmap with zero sessions, so a pre-emptive count would break them.
 - `Service:Sessions:MaxConcurrentSessions` defaults to **8** (was 3); exceeding it fails a run with a
   message naming the limit and the setting.
 

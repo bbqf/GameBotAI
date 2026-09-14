@@ -13,5 +13,10 @@ namespace GameBot.Service.Endpoints {
 
     [LoggerMessage(EventId = 11003, Level = LogLevel.Warning, Message = "Detect not found: {Id}")]
     public static partial void LogDetectNotFound(this ILogger logger, string Id);
+
+    // Feature 085 (issue #176): a refusal to measure is logged rather than being reported as an
+    // empty match set. Without this, the failure the issue describes leaves no trace at all.
+    [LoggerMessage(EventId = 11004, Level = LogLevel.Warning, Message = "Detect could not resolve a screen: reason={Reason} id={Id}")]
+    public static partial void LogDetectUnresolvedScreen(this ILogger logger, string Reason, string Id);
   }
 }

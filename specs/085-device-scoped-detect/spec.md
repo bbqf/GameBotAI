@@ -2,7 +2,7 @@
 
 **Feature Branch**: `085-device-scoped-detect`
 **Created**: 2026-09-14
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue #176 — "B-009: POST /api/images/detect returns an empty match array for every template whenever more than one session is running" (https://github.com/bbqf/GameBotAI/issues/176)
 
 ## Overview

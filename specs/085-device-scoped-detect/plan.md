@@ -32,7 +32,7 @@ consulted only *after* a null frame, and only to choose which error code to repo
 
 ## Technical Context
 
-**Language/Version**: C# / .NET 8
+**Language/Version**: C# / .NET 9 (`net9.0`)
 **Primary Dependencies**: ASP.NET Core Minimal APIs, OpenCvSharp (`ITemplateMatcher`), Swashbuckle
 **Storage**: N/A — `CaptureSessionStore` is an in-memory, 10-entry, LRU-trimmed capture cache
 **Testing**: xUnit + FluentAssertions; `tests/contract` (via `WebApplicationFactory<Program>`) and `tests/unit`

@@ -41,11 +41,109 @@ namespace GameBot.Service.Endpoints {
       return endpoints;
     }
 
+    /// <summary>
+    /// Which screen a detection request should be measured against, or why none could be determined
+    /// (feature 085, issue #176).
+    /// </summary>
+    /// <remarks>
+    /// A failure is carried as a status + code + message rather than as an absent frame the caller
+    /// might quietly treat as "nothing matched". That conflation is exactly the defect this feature
+    /// fixes, so the type is shaped to make it awkward to reintroduce.
+    /// </remarks>
+    internal sealed record FrameResolution(byte[]? Png, int Status, string? Code, string? Message) {
+      /// <summary>A screen was determined; measure against this PNG.</summary>
+      public static FrameResolution Frame(byte[] png) => new(png, StatusCodes.Status200OK, null, null);
+
+      /// <summary>An explicitly named target does not resolve. Never falls back to another screen.</summary>
+      public static FrameResolution NotFound(string code, string message) =>
+        new(null, StatusCodes.Status404NotFound, code, message);
+
+      /// <summary>Several devices are in play and the request named none of them.</summary>
+      public static FrameResolution Ambiguous(string message) =>
+        new(null, StatusCodes.Status409Conflict, "ambiguous_session", message);
+
+      /// <summary>No screen is obtainable at all, however the request is phrased.</summary>
+      public static FrameResolution Unavailable(string message) =>
+        new(null, StatusCodes.Status503ServiceUnavailable, "emulator_unavailable", message);
+    }
+
+    /// <summary>
+    /// Resolves the screen a detection request means (feature 085, issue #176).
+    /// </summary>
+    /// <remarks>
+    /// An explicitly named <c>captureId</c> or <c>sessionId</c> wins outright, including over the
+    /// ambient device context. With neither named, the singleton <see cref="IScreenSource"/>
+    /// resolves the screen exactly as it always has: ambient context, then the sole running session.
+    ///
+    /// <para>The unresolved case is detected by <c>GetLatestScreenshot()</c> returning null — never
+    /// by counting sessions beforehand. Stub hosts (<c>GAMEBOT_USE_ADB=false</c>) serve a fixed
+    /// bitmap with zero sessions running, so a pre-emptive session count would fail every existing
+    /// contract test while fixing nothing about the real defect. Session state is read only after a
+    /// null frame, and only to decide which of the two failures to report.</para>
+    ///
+    /// <para>Screen sources are registered only inside the <c>OperatingSystem.IsWindows()</c> guard,
+    /// so both lookups here are optional and a missing registration reports "unavailable" rather
+    /// than throwing.</para>
+    /// </remarks>
+    /// <param name="req">The detection request, whose target fields may both be absent.</param>
+    /// <param name="captures">Store backing <c>captureId</c> lookups.</param>
+    /// <param name="sp">Used for the optional screen-source and session-manager lookups.</param>
+    /// <returns>A frame to measure, or the failure to report. Never an empty success.</returns>
+    internal static FrameResolution ResolveFrame(DetectRequest req, CaptureSessionStore captures, IServiceProvider sp) {
+      // Blank counts as absent, so a client sending "" stays on the implicit path it used before.
+      var captureId = string.IsNullOrWhiteSpace(req.CaptureId) ? null : req.CaptureId;
+      var sessionId = string.IsNullOrWhiteSpace(req.SessionId) ? null : req.SessionId;
+
+      if (captureId is not null) {
+        return captures.TryGet(captureId, out var capture) && capture is not null
+          ? FrameResolution.Frame(capture.Png)
+          : FrameResolution.NotFound("capture_not_found", "capture not found or expired");
+      }
+
+      var sessions = sp.GetService(typeof(GameBot.Emulator.Session.ISessionManager))
+        as GameBot.Emulator.Session.ISessionManager;
+
+      if (sessionId is not null) {
+        if (sessions?.GetSession(sessionId) is null) {
+          return FrameResolution.NotFound("session_not_found", "No session is known by that id.");
+        }
+        var factory = sp.GetService(typeof(GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory))
+          as GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory;
+        return ToFrame(factory?.ForSession(sessionId)?.GetLatestScreenshot())
+          ?? FrameResolution.Unavailable("No screenshot has been captured for that session yet.");
+      }
+
+      var screenSrc = sp.GetService(typeof(GameBot.Domain.Triggers.Evaluators.IScreenSource))
+        as GameBot.Domain.Triggers.Evaluators.IScreenSource;
+      var resolved = ToFrame(screenSrc?.GetLatestScreenshot());
+      if (resolved is not null) return resolved;
+
+      // Only now, with the failure already established, ask why. Same predicate as
+      // BackgroundCaptureScreenSource.ResolveSessionId, so the diagnosis matches the refusal.
+      var running = sessions?.ListSessions()
+        .Count(s => !string.IsNullOrWhiteSpace(s.DeviceSerial)
+                    && s.Status == GameBot.Domain.Sessions.SessionStatus.Running) ?? 0;
+      return running > 1
+        ? FrameResolution.Ambiguous($"{running} device sessions are active; specify sessionId or captureId.")
+        : FrameResolution.Unavailable("No running emulator session found. Start the emulator and retry.");
+    }
+
+    /// <summary>Encodes a resolved screenshot as PNG, or returns null when there was none.</summary>
+    private static FrameResolution? ToFrame(System.Drawing.Bitmap? bmp) {
+      if (bmp is null) return null;
+      using (bmp) {
+        using var ms = new System.IO.MemoryStream();
+        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+        return FrameResolution.Frame(ms.ToArray());
+      }
+    }
+
     private static async Task<IResult> DetectAsync(
         DetectRequest req,
         IReferenceImageStore store,
         ITemplateMatcher matcher,
         IOptions<GameBot.Service.Services.Detections.DetectionOptions> detOpts,
+        CaptureSessionStore captures,
         IServiceProvider sp,
         CancellationToken ct) {
       var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("GameBot.Service.ImageDetections");
@@ -74,33 +172,33 @@ namespace GameBot.Service.Endpoints {
         return Results.NotFound(new { code = "not_found", message = "reference image not found" });
       }
 
+      // Feature 085 (issue #176): decide which screen this request means *before* loading the
+      // template, so a refusal costs nothing and leaks nothing. Previously an unresolvable screen
+      // was answered with an empty match array — a fabricated "absent" indistinguishable from a real
+      // one, which silently disarmed every absence probe as soon as a second emulator was running.
+      var frame = ResolveFrame(req, captures, sp);
+      if (frame.Png is null) {
+        ImageDetectionsEndpointComponent.LogDetectUnresolvedScreen(logger, SanitizeForLog(frame.Code), safeId);
+        return Results.Json(new { code = frame.Code, message = frame.Message }, statusCode: frame.Status);
+      }
+
+      Mat screenshotMat;
+      try {
+        screenshotMat = Mat.FromImageData(frame.Png, ImreadModes.Color);
+      }
+      catch {
+        // A frame we cannot decode is still a failure to measure, never an empty match set.
+        ImageDetectionsEndpointComponent.LogDetectUnresolvedScreen(logger, "undecodable_frame", safeId);
+        return Results.Json(
+          new { code = "emulator_unavailable", message = "The screenshot for this request could not be decoded." },
+          statusCode: StatusCodes.Status503ServiceUnavailable);
+      }
+
       // Convert stored image bytes to Mat
       Mat templateMat;
-      // Convert stored bitmap to Mat
       using (var msTpl = new System.IO.MemoryStream()) {
         tplBmp.Save(msTpl, System.Drawing.Imaging.ImageFormat.Png);
         templateMat = Mat.FromImageData(msTpl.ToArray(), ImreadModes.Color);
-      }
-
-      // Acquire current screenshot from screen source via trigger infra is not directly available here;
-      // For Phase 3 MVP, if ADB screen source is registered, use it; else return empty.
-      // To avoid new dependencies, attempt to resolve IScreenSource from DI if present.
-      var screenSrc = sp.GetService(typeof(GameBot.Domain.Triggers.Evaluators.IScreenSource)) as GameBot.Domain.Triggers.Evaluators.IScreenSource;
-      if (screenSrc is null) {
-        // No screen source; return empty results (additive behavior)
-        return Results.Ok(new DetectResponse { Matches = new(), LimitsHit = false });
-      }
-
-      using var screenshotBmp = screenSrc.GetLatestScreenshot();
-      if (screenshotBmp is null) {
-        return Results.Ok(new DetectResponse { Matches = new(), LimitsHit = false });
-      }
-
-      // Convert screenshot to Mat
-      Mat screenshotMat;
-      using (var ms = new System.IO.MemoryStream()) {
-        screenshotBmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-        screenshotMat = Mat.FromImageData(ms.ToArray(), ImreadModes.Color);
       }
 
       var cfg = new TemplateMatcherConfig(threshold, maxResults, overlap);

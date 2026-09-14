@@ -378,8 +378,15 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect)) {
       operation.Summary ??= "Detect reference image matches";
+      operation.Description ??=
+        "Measures one reference image against one device's screen. Name the screen with captureId " +
+        "or sessionId (mutually exclusive); with neither, the screen is inferred from the ambient " +
+        "run context or the single running session. A 200 always means a measurement was taken, so " +
+        "an empty matches array is a real absence — when no screen can be determined the call fails " +
+        "explicitly instead (feature 085).";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
+      SetImageDetectErrorExamples(operation, context);
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetectAll)) {
       operation.Summary ??= "Detect all reference image matches against a captured screenshot";
@@ -614,8 +621,15 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect)) {
       operation.Summary ??= "Detect reference image matches";
+      operation.Description ??=
+        "Measures one reference image against one device's screen. Name the screen with captureId " +
+        "or sessionId (mutually exclusive); with neither, the screen is inferred from the ambient " +
+        "run context or the single running session. A 200 always means a measurement was taken, so " +
+        "an empty matches array is a real absence — when no screen can be determined the call fails " +
+        "explicitly instead (feature 085).";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
+      SetImageDetectErrorExamples(operation, context);
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetectAll)) {
       operation.Summary ??= "Detect all reference image matches against a captured screenshot";
@@ -1230,7 +1244,29 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["referenceImageId"] = new OpenApiString("start-screen"),
     ["threshold"] = new OpenApiDouble(0.85),
     ["maxResults"] = new OpenApiInteger(3),
-    ["overlap"] = new OpenApiDouble(0.1)
+    ["overlap"] = new OpenApiDouble(0.1),
+    ["captureId"] = new OpenApiString("cap_abc123")
+  };
+
+  /// <summary>
+  /// Documents the failure modes of <c>POST /api/images/detect</c> (feature 085, issue #176). The
+  /// route used to answer an unresolvable screen with an empty 200, so these responses are the
+  /// user-visible half of the fix and need to be discoverable from the API docs.
+  /// </summary>
+  private static void SetImageDetectErrorExamples(OpenApiOperation operation, OperationFilterContext context) {
+    SetResponseExample(operation, "400",
+      ImageDetectError("invalid_request", "invalid_request: captureId and sessionId are mutually exclusive"), context);
+    SetResponseExample(operation, "404",
+      ImageDetectError("capture_not_found", "capture not found or expired"), context);
+    SetResponseExample(operation, "409",
+      ImageDetectError("ambiguous_session", "2 device sessions are active; specify sessionId or captureId."), context);
+    SetResponseExample(operation, "503",
+      ImageDetectError("emulator_unavailable", "No running emulator session found. Start the emulator and retry."), context);
+  }
+
+  private static OpenApiObject ImageDetectError(string code, string message) => new OpenApiObject {
+    ["code"] = new OpenApiString(code),
+    ["message"] = new OpenApiString(message)
   };
 
   private static OpenApiObject ImageDetectAllRequest() => new OpenApiObject {
