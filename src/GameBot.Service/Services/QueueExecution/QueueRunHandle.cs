@@ -114,6 +114,148 @@ internal sealed class QueueRunHandle {
   /// </summary>
   public QueueCycleLedger Cycles { get; } = new();
 
+  // ── Failure policy state (feature 087) ───────────────────────────────────────────────────────
+  // Run-scoped and in-memory like everything else here: a restarted service re-arms from zero.
+  // Written by the policy evaluator on the run-loop thread and by the notifier's continuation on a
+  // thread-pool thread; read by the health projection. All lock-guarded.
+
+  private bool _policyTripped;
+  private bool _stopRequestedByPolicy;
+  private DateTimeOffset? _policyPausedAt;
+  private string? _pauseReason;
+  private DateTimeOffset? _lastNotificationAt;
+  private bool? _lastNotificationSucceeded;
+  private string? _lastNotificationError;
+  private readonly object _policyLock = new();
+
+  /// <summary>
+  /// Completes when a policy pause is released; null while the run is not paused.
+  /// <para>
+  /// A <see cref="TaskCompletionSource"/> rather than a <see cref="SemaphoreSlim"/> deliberately:
+  /// a semaphore is disposable, which would force a disposal lifetime onto this handle that the
+  /// monitor's concurrent reads make genuinely awkward to get right. Nothing here needs disposing.
+  /// </para>
+  /// </summary>
+  private TaskCompletionSource<bool>? _pauseGate;
+
+  /// <summary>
+  /// True from the moment the failure policy's threshold is crossed until a successful cycle clears
+  /// it. This single flag makes both "alert once per episode" and "re-arm after a recovery" true:
+  /// continued failures past the threshold find it already set and do nothing.
+  /// </summary>
+  public bool PolicyTripped {
+    get { lock (_policyLock) { return _policyTripped; } }
+  }
+
+  /// <summary>Marks the policy as tripped for the current failure episode.</summary>
+  public void MarkPolicyTripped() {
+    lock (_policyLock) { _policyTripped = true; }
+  }
+
+  /// <summary>Re-arms the policy after a successful cycle (or a resume).</summary>
+  public void ClearPolicyTripped() {
+    lock (_policyLock) { _policyTripped = false; }
+  }
+
+  /// <summary>
+  /// True when the failure policy — not an operator — requested this run's cancellation. Both paths
+  /// cancel the same <see cref="Cts"/>, so the terminating handler has no other way to tell them
+  /// apart, and reporting a policy stop as <c>StoppedManually</c> would say a person halted
+  /// production when nobody did.
+  /// </summary>
+  public bool StopRequestedByPolicy {
+    get { lock (_policyLock) { return _stopRequestedByPolicy; } }
+  }
+
+  /// <summary>Records that the failure policy is about to cancel this run. Set BEFORE cancelling.</summary>
+  public void MarkStopRequestedByPolicy() {
+    lock (_policyLock) { _stopRequestedByPolicy = true; }
+  }
+
+  /// <summary>When the failure policy paused this run; null when not paused.</summary>
+  public DateTimeOffset? PolicyPausedAt {
+    get { lock (_policyLock) { return _policyPausedAt; } }
+  }
+
+  /// <summary>Why the run is paused; null when not paused.</summary>
+  public string? PauseReason {
+    get { lock (_policyLock) { return _pauseReason; } }
+  }
+
+  /// <summary>
+  /// True while the run is parked by the failure policy.
+  /// <para>
+  /// <b>Distinct from <see cref="IsIdlePaused"/></b> (feature 073), which is a short, self-releasing
+  /// hold with a known resume instant. This pause has no resume instant and is released only by an
+  /// operator calling resume. The two must never be conflated in a projection.
+  /// </para>
+  /// </summary>
+  public bool IsPolicyPaused {
+    get { lock (_policyLock) { return _policyPausedAt is not null; } }
+  }
+
+  /// <summary>
+  /// Parks the run: records the pause and closes the gate the loop awaits. Idempotent — pausing an
+  /// already-paused run does not double-take the gate, which would make it unreleasable.
+  /// </summary>
+  public void EnterPolicyPause(string reason, DateTimeOffset at) {
+    lock (_policyLock) {
+      if (_policyPausedAt is not null) return;
+      _policyPausedAt = at;
+      _pauseReason = reason;
+      _pauseGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+  }
+
+  /// <summary>
+  /// Releases a policy pause and re-arms the policy. Returns false when the run was not paused, so
+  /// a caller can report <c>resumed: false</c> rather than pretending it did something.
+  /// </summary>
+  public bool ResumeFromPolicyPause() {
+    TaskCompletionSource<bool>? gate;
+    lock (_policyLock) {
+      if (_policyPausedAt is null) return false;
+      _policyPausedAt = null;
+      _pauseReason = null;
+      _policyTripped = false;
+      gate = _pauseGate;
+      _pauseGate = null;
+    }
+    // TrySet, not Set: a resume racing another resume must not throw.
+    gate?.TrySetResult(true);
+    return true;
+  }
+
+  /// <summary>
+  /// Blocks the run loop while the run is policy-paused, releasing immediately when it is not.
+  /// <para>
+  /// Called at the TOP of a loop iteration, before any due-ness is evaluated. That placement is
+  /// deliberate: on resume every still-due firing is simply due, so nothing needs a skip list or
+  /// catch-up bookkeeping (feature 087, FR-018a).
+  /// </para>
+  /// </summary>
+  public async Task WaitIfPausedAsync(CancellationToken ct) {
+    TaskCompletionSource<bool>? gate;
+    lock (_policyLock) { gate = _pauseGate; }
+    if (gate is null) return;
+    // WaitAsync observes a stop while paused, so a parked run is still stoppable (FR-021).
+    await gate.Task.WaitAsync(ct).ConfigureAwait(false);
+  }
+
+  /// <summary>Outcome of the most recent notification attempt; null until one is made.</summary>
+  public (DateTimeOffset? At, bool? Succeeded, string? Error) LastNotification {
+    get { lock (_policyLock) { return (_lastNotificationAt, _lastNotificationSucceeded, _lastNotificationError); } }
+  }
+
+  /// <summary>Records a notification attempt's outcome (called from the delivery continuation).</summary>
+  public void RecordNotification(DateTimeOffset at, bool succeeded, string? error) {
+    lock (_policyLock) {
+      _lastNotificationAt = at;
+      _lastNotificationSucceeded = succeeded;
+      _lastNotificationError = error;
+    }
+  }
+
   // ── Idle-pause tracking (feature 073) ────────────────────────────────────────────────────────
   // Transient run state set by the run loop while the game is backed out during an idle gap, so the
   // monitor can surface an explicit "Idle Pause" current item (with a resume time) instead of a

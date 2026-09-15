@@ -31,4 +31,16 @@ public static class ActionTypes {
   /// sequence into its originating queue run. No-op success when not started from a queue.
   /// </summary>
   public const string RescheduleSelf = "reschedule-self";
+
+  /// <summary>
+  /// Notify action (feature 087): raises an outbound alert carrying an author-written message, so
+  /// escalation can live inside a committed, reviewable sequence instead of in service
+  /// configuration. Performs no device interaction — which is the point: a guard that has detected
+  /// an unusable screen must still be able to say so.
+  /// <para>
+  /// Always succeeds. A delivery failure is recorded on the run's health and in the application
+  /// log, but never fails the step or the enclosing sequence.
+  /// </para>
+  /// </summary>
+  public const string Notify = "notify";
 }

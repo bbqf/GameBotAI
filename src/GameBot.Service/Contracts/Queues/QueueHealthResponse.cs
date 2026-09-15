@@ -42,5 +42,45 @@ namespace GameBot.Service.Contracts.Queues {
 
     /// <summary>Sequence executing right now; null between firings.</summary>
     public string? CurrentSequenceId { get; set; }
+
+    // ── Failure policy (feature 087, issue #181) ───────────────────────────────────────────────
+    // Feature 086 exposed ConsecutiveFailedCycles and had nothing act on it. These fields show what
+    // is now acting on it, so an operator can see the policy's state without waiting for it to fire.
+
+    /// <summary>Whether this queue has a failure policy configured at all.</summary>
+    public bool FailurePolicyConfigured { get; set; }
+
+    /// <summary>
+    /// Whether the policy has tripped for the current failure episode. Cleared by a successful
+    /// cycle, so it reads false again once the queue recovers.
+    /// </summary>
+    public bool FailurePolicyTripped { get; set; }
+
+    /// <summary>
+    /// Whether the run is parked by a tripped pause action. Distinct from feature 073's idle pause,
+    /// which is short and self-releasing; this one is released only by an explicit resume.
+    /// </summary>
+    public bool Paused { get; set; }
+
+    /// <summary>When the policy pause began; null when not paused.</summary>
+    public DateTimeOffset? PausedAt { get; set; }
+
+    /// <summary>Why the run is paused; null when not paused.</summary>
+    public string? PauseReason { get; set; }
+
+    /// <summary>When the most recent notification attempt finished; null until one is made.</summary>
+    public DateTimeOffset? LastNotificationAt { get; set; }
+
+    /// <summary>Whether that attempt succeeded; null until one is made.</summary>
+    public bool? LastNotificationSucceeded { get; set; }
+
+    /// <summary>
+    /// Why the most recent attempt failed; null on success. This is what lets an operator establish
+    /// that an alert did not get out without opening a log file on the host.
+    /// <para>
+    /// Never contains the configured auth header value or the receiver's response body.
+    /// </para>
+    /// </summary>
+    public string? LastNotificationError { get; set; }
   }
 }

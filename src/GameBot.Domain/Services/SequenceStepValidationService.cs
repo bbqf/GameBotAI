@@ -1,5 +1,6 @@
 using GameBot.Domain.Commands;
 using GameBot.Domain.Commands.SelfReschedule;
+using GameBot.Domain.Commands.Notify;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Parameters;
 using GameBot.Domain.Utils;
@@ -270,6 +271,10 @@ public sealed class SequenceStepValidationService {
         // feature 065: a self-reschedule action carries an option (+ optional Timer fields).
         ValidateRescheduleSelfPayload(step.Action, stepLabel, errors);
       }
+      else if (string.Equals(step.Action.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)) {
+        // feature 087: a notify action carries an author-written message (+ optional destination).
+        ValidateNotifyPayload(step.Action, stepLabel, errors);
+      }
       else if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
         errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type.");
       }
@@ -327,6 +332,20 @@ public sealed class SequenceStepValidationService {
 
   // feature 065: validates a reschedule-self action payload, mirroring the queue-template timer rules.
   private static readonly TimeSpan MaxRescheduleOffset = TimeSpan.FromHours(24);
+
+  /// <summary>
+  /// Validates a notify action's payload at save time (feature 087, FR-023), so a malformed step is
+  /// rejected while it is being authored rather than silently failing to alert during an outage —
+  /// the worst possible time to discover it.
+  /// </summary>
+  private static void ValidateNotifyPayload(
+      SequenceActionPayload action,
+      string stepLabel,
+      List<string> errors) {
+    if (!NotifyPayload.TryRead(action, out _, out var parseError)) {
+      errors.Add($"Step '{stepLabel}' notify action {parseError}");
+    }
+  }
 
   private static void ValidateRescheduleSelfPayload(
       SequenceActionPayload action,

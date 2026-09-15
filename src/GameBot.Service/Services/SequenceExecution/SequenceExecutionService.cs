@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Commands.SelfReschedule;
+using GameBot.Domain.Commands.Notify;
 using GameBot.Domain.Images;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Services;
@@ -47,6 +48,12 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private readonly GameBot.Domain.Sessions.IDeviceContextAccessor? _deviceContext;
   // Only used to report a failure to close an abandoned log entry. Null in tests that omit it.
   private readonly ILogger<SequenceExecutionService>? _logger;
+  // Feature 087: the `notify` action step. All three are optional so the many hand-built test
+  // instances of this service keep compiling; without a notifier a notify step is a silent no-op
+  // success, which is the same outcome as a delivery failure and therefore never surprising.
+  private readonly GameBot.Service.Services.Notifications.IFailureNotifier? _notifier;
+  private readonly GameBot.Domain.Queues.IQueueRepository? _queueRepository;
+  private readonly GameBot.Service.Services.QueueExecution.IQueueRunRegistry? _runRegistry;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -64,7 +71,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     ISessionService sessionService,
     IOcrOffsetResolver ocrOffsetResolver,
     GameBot.Domain.Sessions.IDeviceContextAccessor? deviceContext = null,
-    ILogger<SequenceExecutionService>? logger = null) {
+    ILogger<SequenceExecutionService>? logger = null,
+    GameBot.Service.Services.Notifications.IFailureNotifier? notifier = null,
+    GameBot.Domain.Queues.IQueueRepository? queueRepository = null,
+    GameBot.Service.Services.QueueExecution.IQueueRunRegistry? runRegistry = null) {
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -81,6 +91,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _ocrOffsetResolver = ocrOffsetResolver;
     _deviceContext = deviceContext;
     _logger = logger;
+    _notifier = notifier;
+    _queueRepository = queueRepository;
+    _runRegistry = runRegistry;
   }
 
   public Task<SequenceExecutionResult> ExecuteAsync(
@@ -562,6 +575,86 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   /// Otherwise it asks the coordinator to inject one ephemeral firing into the originating run and
   /// records the decision (option + resolved timing) for the execution log (FR-013).
   /// </summary>
+  /// <summary>
+  /// Handles a <c>notify</c> action step (feature 087, User Story 3): raises an outbound alert
+  /// carrying the author's message, so escalation can live in a committed sequence rather than in
+  /// service configuration.
+  /// <para>
+  /// <b>Always reports success.</b> A guard sequence that has detected an unusable screen must
+  /// still finish its own recovery logic even when the alert cannot be delivered, so a delivery
+  /// failure is reported in the step's message and recorded on the run's health — never as a failed
+  /// step (FR-024).
+  /// </para>
+  /// <para>
+  /// Unlike the queue policy's fire-and-forget delivery, this one is awaited: a sequence step has
+  /// somewhere meaningful to put the outcome (its own message), and the delivery is already bounded
+  /// by the notifier's timeout and attempt budget.
+  /// </para>
+  /// </summary>
+  private async Task<ActionDispatchResult> DispatchNotifyAsync(
+      SequenceActionPayload action,
+      string sequenceId,
+      string? originatingQueueId,
+      CancellationToken ct) {
+    if (!NotifyPayload.TryRead(action, out var payload, out var parseError) || payload is null) {
+      return new ActionDispatchResult("noop", $"notify not sent: {parseError}");
+    }
+
+    if (_notifier is null) {
+      return new ActionDispatchResult("noop", "notify not sent: no notifier configured");
+    }
+
+    var evt = new GameBot.Service.Services.Notifications.FailureNotificationEvent {
+      EventType = GameBot.Service.Services.Notifications.FailureNotificationEvent.SequenceNotifyEvent,
+      RaisedAt = DateTimeOffset.Now,
+      FailedSequenceId = sequenceId,
+      FailedSequenceName = await ResolveSequenceNameAsync(sequenceId).ConfigureAwait(false),
+      Message = payload.Message
+    };
+    await PopulateQueueContextAsync(evt, originatingQueueId).ConfigureAwait(false);
+
+    var result = await _notifier.NotifyAsync(evt, payload.Url, ct).ConfigureAwait(false);
+    if (originatingQueueId is not null
+        && _runRegistry is not null
+        && _runRegistry.TryGet(originatingQueueId, out var handle)) {
+      handle.RecordNotification(result.CompletedAt, result.Succeeded, result.Error);
+    }
+
+    return result.Succeeded
+      ? new ActionDispatchResult("success", "notification delivered")
+      : new ActionDispatchResult("success", $"notification not delivered: {result.Error}");
+  }
+
+  /// <summary>
+  /// Fills in the queue fields of a sequence-raised event. They stay null for an ad-hoc run outside
+  /// any queue, which is a legitimate state rather than an error.
+  /// </summary>
+  private async Task PopulateQueueContextAsync(
+      GameBot.Service.Services.Notifications.FailureNotificationEvent evt,
+      string? queueId) {
+    if (string.IsNullOrWhiteSpace(queueId) || _queueRepository is null) return;
+    var queue = await _queueRepository.GetAsync(queueId!).ConfigureAwait(false);
+    if (queue is null) return;
+    evt.QueueId = queue.Id;
+    evt.QueueName = queue.Name;
+    evt.EmulatorSerial = queue.EmulatorSerial;
+    if (_runRegistry is not null && _runRegistry.TryGet(queueId!, out var handle)) {
+      var health = handle.Cycles.SnapshotHealth();
+      evt.CyclesCompleted = health.CyclesCompleted;
+      evt.ConsecutiveFailedCycles = health.ConsecutiveFailedCycles;
+    }
+  }
+
+  private async Task<string?> ResolveSequenceNameAsync(string sequenceId) {
+    try {
+      var sequence = await _sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
+      return sequence?.Name;
+    }
+    catch (Exception) {
+      return null;
+    }
+  }
+
   private ActionDispatchResult DispatchSelfReschedule(
       SequenceActionPayload action,
       string sequenceId,
@@ -634,6 +727,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       CancellationToken ct) {
     if (string.Equals(action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
       return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId, sessionId));
+    }
+
+    if (string.Equals(action.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)) {
+      return DispatchNotifyAsync(action, sequenceId, originatingQueueId, ct);
     }
 
     if (string.Equals(action.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)) {

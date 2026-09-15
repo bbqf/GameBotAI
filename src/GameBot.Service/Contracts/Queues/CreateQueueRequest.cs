@@ -16,5 +16,8 @@ namespace GameBot.Service.Contracts.Queues {
 
     /// <summary>Optional LDPlayer instance index for the pre-session cold-start (feature 074). When supplied MUST be ≥ 0.</summary>
     public int? EmulatorInstanceIndex { get; set; }
+
+    /// <summary>Optional failure policy (feature 087). Absent or null → no policy, no evaluation.</summary>
+    public QueueFailurePolicyDto? FailurePolicy { get; set; }
   }
 }
