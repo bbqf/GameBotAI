@@ -56,13 +56,19 @@ A malformed composite comes back as a 400 with a path-rooted message naming the 
 
 ## 4. Prove it on the look-alike
 
-This is the step worth not skipping. Bring up the **wrong** dialog and dry-run the sequence:
+This is the step worth not skipping, and it needs a **real** run, not a dry run. `dryRun: true` never reads the live screen, so every image condition evaluates false and the guarded step reports `Skipped` whatever is on screen — which looks exactly like the guard working.
+
+An image condition also only sees the screen when the run has a capture session behind it: a session created with `POST /api/sessions/start`, not a bare `POST /api/sessions`. Without one, `imageVisible` is always false and you will again be reading a false pass.
+
+So: bring up the **wrong** dialog, run the sequence for real, and read the execution log for that step.
 
 ```bash
-curl -s -X POST http://localhost:8080/api/sequences/<id>/execute -H "Content-Type: application/json" -d "{\"dryRun\":true}"
+curl -s -X POST http://localhost:8080/api/sequences/<id>/execute -H "Content-Type: application/json" -d "{\"sessionId\":\"<capture-session-id>\"}"
 ```
 
-The guarded step must report `skipped`, with `conditionType` showing the rule and the message naming which child settled it. Then bring up the right dialog and confirm the same step runs. A guard that has only been seen passing has not been tested.
+The guarded step must report `Skipped`, with `conditionType` showing the rule (`all`) and the message naming the child that settled it — that is the line proving the *second* signal is what stopped it, not a general failure to see anything. Then bring up the right dialog and confirm the same step runs.
+
+A guard that has only been seen passing has not been tested.
 
 ## Limits
 

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `088-composite-image-conditions`
 **Created**: 2026-09-15
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue [#191](https://github.com/bbqf/GameBotAI/issues/191) — "B-011: a condition cannot require two templates together, so one button shared by two dialogs is undisambiguable"
 
 ## Problem Context

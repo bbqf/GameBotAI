@@ -114,7 +114,7 @@ Every case below is a **400** with an `errors` array. None is a 500.
 | `{"type":"all","children":[]}` | `Step 'S' condition at $: 'all' requires at least one child.` |
 | `{"type":"any"}` (no `children`) | `Step 'S' condition at $: 'any' requires at least one child.` |
 | 17 children | `Step 'S' condition at $: 'all' allows at most 16 children (found 17).` |
-| composites nested 5 deep | `Step 'S' condition at $.children[0].children[0].children[0]: condition nesting exceeds the maximum depth of 4.` |
+| composites nested 5 deep | `Step 'S' condition at $.children[0].children[0].children[0].children[0]: condition nesting exceeds the maximum depth of 4.` |
 | child `imageVisible` with no `imageId` | `Step 'S' condition at $.children[1]: imageVisible condition requires imageId.` |
 | child `minSimilarity` of `1.5` | `Step 'S' condition at $.children[0]: imageVisible minSimilarity must be within 0..1.` |
 | child `commandOutcome` with no `stepRef` | `Step 'S' condition at $.children[0]: commandOutcome condition requires stepRef.` |
@@ -129,7 +129,7 @@ When a composite guard skips a step, the existing per-step execution record carr
 
 - `conditionType`: the composite's rule — `all`, `any` or `none`
 - `conditionResult`: `false`
-- `message`: names the child that settled the result, e.g. `condition $.children[1] (imageVisible imageId=pns-gas-dialog-title) was true`
+- `message`: names the child that settled the result, e.g. `condition $.children[1] (imageVisible(imageId=pns-gas-dialog-title, minSimilarity=0.85)) settled the guard`. Absent when no single child settled it (every child agreed) and for a leaf condition, which keeps a leaf's record byte-identical to what it was before this feature.
 
 A loop break driven by a composite renders its reason as the rule and its children, e.g. `all(imageVisible(imageId=pns-disconnect-confirm, minSimilarity=0.85), NOT imageVisible(imageId=pns-gas-dialog-title, minSimilarity=0.85))`.
 

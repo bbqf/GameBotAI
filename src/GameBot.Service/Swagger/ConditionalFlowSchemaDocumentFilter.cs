@@ -26,6 +26,12 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     context.SchemaGenerator.GenerateSchema(typeof(SequenceStepConditionContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(ImageVisibleConditionContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(CommandOutcomeConditionContract), context.SchemaRepository);
+    // Feature 088: composite conditions, so the recursive children array and the three rule
+    // discriminators are discoverable from the published schema rather than only at run time.
+    context.SchemaGenerator.GenerateSchema(typeof(CompositeConditionContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(AllConditionContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(AnyConditionContract), context.SchemaRepository);
+    context.SchemaGenerator.GenerateSchema(typeof(NoneConditionContract), context.SchemaRepository);
 
     AliasSchema(context, nameof(SequenceFlowUpsertRequestDto), "SequenceFlowUpsertRequest");
     AliasSchema(context, nameof(SequenceFlowDto), "SequenceFlow");
@@ -40,6 +46,10 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     AliasSchema(context, nameof(SequenceStepConditionContract), "SequenceStepCondition");
     AliasSchema(context, nameof(ImageVisibleConditionContract), "ImageVisibleCondition");
     AliasSchema(context, nameof(CommandOutcomeConditionContract), "CommandOutcomeCondition");
+    AliasSchema(context, nameof(CompositeConditionContract), "CompositeCondition");
+    AliasSchema(context, nameof(AllConditionContract), "AllCondition");
+    AliasSchema(context, nameof(AnyConditionContract), "AnyCondition");
+    AliasSchema(context, nameof(NoneConditionContract), "NoneCondition");
   }
 
   private static void AliasSchema(DocumentFilterContext context, string sourceName, string aliasName) {

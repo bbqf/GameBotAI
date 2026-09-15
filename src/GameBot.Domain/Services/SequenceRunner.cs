@@ -507,36 +507,47 @@ namespace GameBot.Domain.Services {
         return ifEarlyStop;
       }
 
-      if (step.Condition is ImageVisibleStepCondition imageCondition) {
-        if (conditionEvaluator is null) {
+      // Feature 088: every per-step guard — leaf or composite — is answered by the shared evaluator,
+      // so a step guard and a loop guard cannot drift apart in how they combine conditions. The
+      // reporting below is unchanged for the two leaf forms: same conditionType, same conditionResult,
+      // same messages. A composite reports its rule as the conditionType and names the child that
+      // settled the result, which is what makes a false guard diagnosable.
+      if (step.Condition is not null) {
+        var conditionType = step.Condition.Type;
+        ConditionEvaluation conditionOutcome;
+
+        try {
+          conditionOutcome = await SequenceStepConditionEvaluator
+              .EvaluateAsync(step.Condition, conditionEvaluator, stepOutcomes, ct)
+              .ConfigureAwait(false);
+        }
+        catch (ConditionEvaluationException ex) {
+          var failureMessage = ex.Kind switch {
+            ConditionEvaluationFailureKind.ImageEvaluatorUnavailable =>
+              "Per-step imageVisible condition evaluator is unavailable",
+            ConditionEvaluationFailureKind.CommandOutcomeUnavailable =>
+              $"Step '{stepKey}' commandOutcome reference '{ex.Detail}' is unavailable",
+            _ => $"Step '{stepKey}' condition evaluation failed: {ex.Message}"
+          };
+
           result.AddStep(
               step.CommandId,
               0,
               "Failed",
-              conditionType: "imageVisible",
+              conditionType: conditionType,
               conditionResult: "error",
               actionOutcome: "failed",
-              message: "Per-step imageVisible condition evaluator is unavailable");
-          result.Fail("Per-step imageVisible condition evaluator is unavailable");
+              message: failureMessage);
+          result.Fail(failureMessage);
           if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
           return true;
-        }
-
-        bool conditionResult;
-        try {
-          conditionResult = await conditionEvaluator(new Condition {
-            Source = "image",
-            TargetId = imageCondition.ImageId,
-            Mode = "Present",
-            ConfidenceThreshold = imageCondition.MinSimilarity
-          }, ct).ConfigureAwait(false);
         }
         catch (Exception ex) {
           result.AddStep(
               step.CommandId,
               0,
               "Failed",
-              conditionType: "imageVisible",
+              conditionType: conditionType,
               conditionResult: "error",
               actionOutcome: "failed",
               message: $"Step '{stepKey}' condition evaluation failed: {ex.Message}");
@@ -545,48 +556,17 @@ namespace GameBot.Domain.Services {
           return true;
         }
 
-        conditionResult = imageCondition.Negate ? !conditionResult : conditionResult;
-
-        if (!conditionResult) {
+        if (!conditionOutcome.Value) {
           result.AddStep(
               step.CommandId,
               0,
               "Skipped",
-              conditionType: "imageVisible",
+              conditionType: conditionType,
               conditionResult: "false",
-              actionOutcome: "skipped");
-          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "skipped";
-          return false;
-        }
-      }
-
-      if (step.Condition is CommandOutcomeStepCondition commandOutcomeCondition) {
-        if (string.IsNullOrWhiteSpace(commandOutcomeCondition.StepRef)
-            || !stepOutcomes.TryGetValue(commandOutcomeCondition.StepRef, out var actualOutcome)) {
-          result.AddStep(
-              step.CommandId,
-              0,
-              "Failed",
-              conditionType: "commandOutcome",
-              conditionResult: "error",
-              actionOutcome: "failed",
-              message: $"Step '{stepKey}' commandOutcome reference '{commandOutcomeCondition.StepRef}' is unavailable");
-          result.Fail($"Step '{stepKey}' commandOutcome reference '{commandOutcomeCondition.StepRef}' is unavailable");
-          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
-          return true;
-        }
-
-        var outcomeMatches = string.Equals(actualOutcome, commandOutcomeCondition.ExpectedState, StringComparison.OrdinalIgnoreCase);
-        outcomeMatches = commandOutcomeCondition.Negate ? !outcomeMatches : outcomeMatches;
-
-        if (!outcomeMatches) {
-          result.AddStep(
-              step.CommandId,
-              0,
-              "Skipped",
-              conditionType: "commandOutcome",
-              conditionResult: "false",
-              actionOutcome: "skipped");
+              actionOutcome: "skipped",
+              message: conditionOutcome.DecidingPath is null
+                ? null
+                : $"condition {conditionOutcome.DecidingPath} ({conditionOutcome.DecidingDescription}) settled the guard");
           if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "skipped";
           return false;
         }
@@ -1476,28 +1456,15 @@ namespace GameBot.Domain.Services {
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         Dictionary<string, string> stepOutcomes,
         CancellationToken ct) {
-      bool result;
+      // Feature 088: shares the evaluator with the per-step guard above, so composites behave
+      // identically in a loop condition, a break condition and a step condition. The evaluator
+      // already applies Negate, and it throws ConditionEvaluationException — an InvalidOperationException
+      // carrying the same messages this method used to build — so callers see no change.
+      var evaluation = await SequenceStepConditionEvaluator
+          .EvaluateAsync(condition, conditionEvaluator, stepOutcomes, ct)
+          .ConfigureAwait(false);
 
-      if (condition is ImageVisibleStepCondition imgCond) {
-        if (conditionEvaluator is null)
-          throw new InvalidOperationException("Image-visible condition evaluator is unavailable.");
-        result = await conditionEvaluator(new Condition {
-          Source = "image",
-          TargetId = imgCond.ImageId,
-          Mode = "Present",
-          ConfidenceThreshold = imgCond.MinSimilarity
-        }, ct).ConfigureAwait(false);
-      }
-      else if (condition is CommandOutcomeStepCondition coCond) {
-        if (!stepOutcomes.TryGetValue(coCond.StepRef, out var actual))
-          throw new InvalidOperationException($"commandOutcome reference '{coCond.StepRef}' is not available.");
-        result = string.Equals(actual, coCond.ExpectedState, StringComparison.OrdinalIgnoreCase);
-      }
-      else {
-        throw new InvalidOperationException($"Unsupported loop condition type '{condition.GetType().Name}'.");
-      }
-
-      return condition.Negate ? !result : result;
+      return evaluation.Value;
     }
 
     private static (string Type, string Detail) DescribeBreakCondition(SequenceStepCondition condition) {
@@ -1506,6 +1473,11 @@ namespace GameBot.Domain.Services {
         return ("imageVisible", $"{negatePrefix}imageVisible(imageId={img.ImageId}, minSimilarity={img.MinSimilarity?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "default"})");
       if (condition is CommandOutcomeStepCondition co)
         return ("commandOutcome", $"{negatePrefix}commandOutcome(stepRef={co.StepRef}, expected={co.ExpectedState})");
+      // Feature 088: a composite renders as its rule over its children, e.g.
+      // all(imageVisible(imageId=x, ...), NOT imageVisible(imageId=y, ...)), so a break reason still
+      // says which signals were involved rather than just naming a type.
+      if (condition is CompositeStepCondition composite)
+        return (composite.Type, SequenceStepConditionEvaluator.Describe(composite));
       return (condition.GetType().Name, $"{negatePrefix}{condition.GetType().Name}");
     }
 
