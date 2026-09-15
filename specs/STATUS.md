@@ -122,6 +122,7 @@ Status vocabulary:
 | 085 | Device-Scoped Image Detection | Implemented |
 | 086 | Queue Cycle Observability | Implemented |
 | 087 | Queue Failure Policy and Outbound Notification | Implemented |
+| 088 | Composite Image Conditions | Implemented |
 
 ## Numbering notes
 

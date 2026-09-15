@@ -552,6 +552,12 @@ internal static class SequencesEndpoints {
         expectedState = commandOutcome.ExpectedState,
         negate = commandOutcome.Negate
       },
+      // Feature 088: the rule is the discriminator, and children are emitted in evaluation order.
+      CompositeStepCondition composite => new {
+        type = composite.Type,
+        children = composite.Children.Select(MapPerStepConditionToDto).Where(child => child is not null).ToArray(),
+        negate = composite.Negate
+      },
       _ => null
     };
   }
@@ -1212,7 +1218,32 @@ internal static class SequencesEndpoints {
         ExpectedState = commandOutcome.ExpectedState,
         Negate = commandOutcome.Negate
       },
+      // Feature 088: a composite maps to the domain type matching its rule, recursing through
+      // children. Child order is preserved because it is the evaluation order the author chose.
+      CompositeConditionContract composite => MapCompositeCondition(composite),
       _ => null
+    };
+  }
+
+  private static SequenceStepCondition MapCompositeCondition(CompositeConditionContract composite) {
+    var children = new List<SequenceStepCondition>();
+    if (composite.Children is not null) {
+      foreach (var child in composite.Children) {
+        var mapped = MapPerStepCondition(child);
+        if (mapped is not null) {
+          children.Add(mapped);
+        }
+      }
+    }
+
+    // Every composite contract is listed explicitly: a silent fallback to "all" would turn a future
+    // rule into the wrong guard rather than a loud failure, and a guard quietly meaning something
+    // else is the exact class of bug this feature exists to remove.
+    return composite switch {
+      AllConditionContract => new AllStepCondition { Children = children, Negate = composite.Negate },
+      AnyConditionContract => new AnyStepCondition { Children = children, Negate = composite.Negate },
+      NoneConditionContract => new NoneStepCondition { Children = children, Negate = composite.Negate },
+      _ => throw new NotSupportedException($"Unsupported composite condition contract '{composite.GetType().Name}'.")
     };
   }
 
@@ -1288,29 +1319,35 @@ internal static class SequencesEndpoints {
     var missingByImageId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
     var cache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
-    foreach (var step in steps.Where(step => step.Condition is ImageVisibleStepCondition)) {
+    // Feature 088: this walk still visits exactly the positions it visited before — top-level steps,
+    // step conditions only — but now descends into a composite found there. Widening it to break,
+    // if or loop conditions would reject stored sequences that save today, so that gap is left where
+    // it is rather than closed as a side effect of this feature (research decision D-006).
+    foreach (var step in steps) {
       ct.ThrowIfCancellationRequested();
-      var imageCondition = (ImageVisibleStepCondition)step.Condition!;
-      var imageId = imageCondition.ImageId?.Trim();
-      if (string.IsNullOrWhiteSpace(imageId)) {
-        continue;
-      }
 
-      if (!cache.TryGetValue(imageId, out var exists)) {
-        exists = await imageRepository.ExistsAsync(imageId, ct).ConfigureAwait(false);
-        cache[imageId] = exists;
-      }
+      foreach (var imageCondition in CollectImageConditions(step.Condition)) {
+        var imageId = imageCondition.ImageId?.Trim();
+        if (string.IsNullOrWhiteSpace(imageId)) {
+          continue;
+        }
 
-      if (exists) {
-        continue;
-      }
+        if (!cache.TryGetValue(imageId, out var exists)) {
+          exists = await imageRepository.ExistsAsync(imageId, ct).ConfigureAwait(false);
+          cache[imageId] = exists;
+        }
 
-      if (!missingByImageId.TryGetValue(imageId, out var stepsForImage)) {
-        stepsForImage = new List<string>();
-        missingByImageId[imageId] = stepsForImage;
-      }
+        if (exists) {
+          continue;
+        }
 
-      stepsForImage.Add(string.IsNullOrWhiteSpace(step.StepId) ? $"index:{step.Order}" : step.StepId);
+        if (!missingByImageId.TryGetValue(imageId, out var stepsForImage)) {
+          stepsForImage = new List<string>();
+          missingByImageId[imageId] = stepsForImage;
+        }
+
+        stepsForImage.Add(string.IsNullOrWhiteSpace(step.StepId) ? $"index:{step.Order}" : step.StepId);
+      }
     }
 
     foreach (var missing in missingByImageId.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
@@ -1318,6 +1355,31 @@ internal static class SequencesEndpoints {
     }
 
     return errors;
+  }
+
+  /// <summary>
+  /// Yields every <c>imageVisible</c> leaf reachable from a condition, descending through composites
+  /// (feature 088). A leaf condition yields itself, which keeps the caller's behaviour identical to
+  /// what it was before composites existed.
+  /// </summary>
+  private static IEnumerable<ImageVisibleStepCondition> CollectImageConditions(SequenceStepCondition? condition) {
+    switch (condition) {
+      case ImageVisibleStepCondition image:
+        yield return image;
+        break;
+
+      case CompositeStepCondition composite:
+        foreach (var child in composite.Children) {
+          foreach (var nested in CollectImageConditions(child)) {
+            yield return nested;
+          }
+        }
+
+        break;
+
+      default:
+        break;
+    }
   }
 
   private static DelayRangeMs? MapDelayRangeMs(DelayRangeMsContract? contract) {

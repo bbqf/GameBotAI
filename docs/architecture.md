@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-15 (feature 087 queue failure policy and outbound notification)._
+_Last reviewed: 2026-09-15 (feature 088 composite image conditions)._
 
 ## What GameBot is
 
@@ -118,7 +118,7 @@ not survive a service restart; queue *configuration* and templates are persisted
 - **Sequence** — an ordered list of steps that run **commands**, with random inter-step delays,
   conditional steps, loop/flow blocks (`SequenceFlowGraph`, `Blocks/`), and **if blocks**
   (`SequenceStepType.If`, feature 067): a condition (same model as while-loop conditions —
-  `imageVisible`/`commandOutcome` with negation, `IfConfig`), a then branch (reuses
+  `imageVisible`/`commandOutcome`/composite with negation, `IfConfig`), a then branch (reuses
   `SequenceStep.Body`), and an optional else branch (`SequenceStep.ElseBody`; `null` = absent).
   If blocks may sit at the sequence top level or inside loop bodies; branches are flat (no loops,
   no nested ifs; breaks only when the if is inside a loop, where a branch break exits the
@@ -380,6 +380,52 @@ any `Break` firing, independent of `ExitOnMaxIterations` (so it stays `true` eve
 `ExitOnMaxIterations: false` also fails the loop for that reason). Both are `false`/`null` when the
 loop finished its body/condition normally. Purely additive on the existing `/api/sequences/{id}/execute`
 response — no separate contract to update.
+
+**Composite step conditions** (feature 088): `SequenceStepCondition` has a third form alongside
+`imageVisible` and `commandOutcome` — a **composite** that owns an ordered list of child conditions
+and a combining rule. The rule is the JSON `type` discriminator, so there is one sealed type per
+rule: `AllStepCondition` (`all` — true when every child is true), `AnyStepCondition` (`any` — true
+when at least one is), and `NoneStepCondition` (`none` — true when none is), all deriving from the
+abstract `CompositeStepCondition`. A child may be any condition form, including another composite.
+The inherited `negate` applies to the composite's combined result.
+
+Why it exists: a single reference image cannot always identify a screen. Two unrelated dialogs can
+draw an identical button at identical coordinates, so one template matches both at score 1.0 and no
+threshold separates them; a guard built on that button alone acts on whichever dialog is up. A
+composite lets a guard require a second, dialog-unique signal — "this button AND that title", or
+"this button AND NOT that other dialog's title".
+
+- **Evaluation** — `SequenceStepConditionEvaluator` (Domain/Services) owns the recursion and is
+  shared by both of `SequenceRunner`'s condition sites (per-step guards and loop/break/while/
+  repeat-until conditions), so the semantics cannot drift between them. Children are evaluated in
+  author order and **short-circuit**: `all` stops at the first false child, `any` and `none` at the
+  first true one. The evaluator performs no screen capture of its own, so a composite's children
+  resolve against one screen observation from the screen source's capture cache and a two-image
+  guard costs no more capture than a one-image guard. A child that cannot be evaluated (missing
+  image evaluator, unresolvable `commandOutcome` ref) raises `ConditionEvaluationException` rather
+  than answering `false`, preserving the existing "condition error fails the step" behaviour.
+- **Limits** — at most 16 children per composite and at most 4 levels of condition nesting
+  (`CompositeStepCondition.MaxChildren` / `MaxDepth`); an empty `children` list is rejected. A
+  single-child composite is valid. These are enforced by `CompositeConditionValidator` on the save
+  path, so violations are **400s** with `$`-rooted paths (`$.children[2].children[0]`) matching the
+  convention `ConditionExpression.Validate()` already uses. `FileSequenceRepository` walks composites
+  when applying its per-leaf checks, but as a backstop only.
+- **Positions** — accepted in all five places a condition appears: step guard, break condition,
+  `if` condition, `while` condition and `repeatUntil` condition. The last two were previously never
+  validated at all (only a count loop's `Count` was); composites there are now validated, while
+  *leaf* conditions in those positions deliberately remain unvalidated so no stored sequence changes
+  status.
+- **Reporting** — a skip caused by a composite reuses the existing per-step record: `ConditionType`
+  carries the rule (`all`/`any`/`none`) and the message names the child that settled it. A composite
+  break condition renders as `all(imageVisible(imageId=…), NOT imageVisible(imageId=…))`.
+- **API and compatibility** — purely additive. The published schema gains `AllCondition`,
+  `AnyCondition`, `NoneCondition` and the shared `CompositeCondition` base with its recursive
+  `children` array. The two leaf forms are untouched in C# and in JSON, so stored sequences load,
+  evaluate and re-save byte-identically; there is no migration and no version negotiation.
+- **Not merged with `ConditionExpression`** — the block-style flow `Condition` step keeps its own
+  separate `and`/`or`/`not` tree (`ConditionExpressionDto`, `nodeType` discriminator, ≥2 children per
+  node). The two models remain distinct; converging them would change validation behaviour for
+  existing flow steps.
 
 **Widened `commandOutcome` `stepRef` scope** (feature 081): `SequenceStepValidationService`
 resolves a `commandOutcome` condition's `stepRef` against every step reachable from the sequence

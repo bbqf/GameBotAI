@@ -144,20 +144,10 @@ namespace GameBot.Domain.Commands {
           throw new InvalidOperationException($"Step '{step.StepId}' references unsupported action type '{step.Action.Type}'.");
         }
 
-        if (step.Condition is ImageVisibleStepCondition imageCondition) {
-          if (string.IsNullOrWhiteSpace(imageCondition.ImageId)) {
-            throw new InvalidOperationException($"Step '{step.StepId}' imageVisible condition requires imageId.");
-          }
-
-          if (imageCondition.MinSimilarity is < 0 or > 1) {
-            throw new InvalidOperationException($"Step '{step.StepId}' imageVisible minSimilarity must be within 0..1.");
-          }
-        }
-        else if (step.Condition is CommandOutcomeStepCondition outcomeCondition) {
-          if (string.IsNullOrWhiteSpace(outcomeCondition.StepRef)) {
-            throw new InvalidOperationException($"Step '{step.StepId}' commandOutcome condition requires stepRef.");
-          }
-        }
+        // Feature 088: walks composites so the checks below still apply to every leaf. This stays a
+        // backstop, not the gate — SequenceStepValidationService runs first and turns these same
+        // problems into a 400; anything reaching here unvalidated would otherwise become a 500.
+        GuardConditionLeaves(step.Condition, step.StepId);
       }
 
       foreach (var step in sequence.FlowSteps) {
@@ -240,6 +230,50 @@ namespace GameBot.Domain.Commands {
 
       if (watchdog > MaxWatchdogTimeoutMs) {
         throw new InvalidOperationException($"WatchdogTimeoutMs must be <= {MaxWatchdogTimeoutMs} (30 minutes).");
+      }
+    }
+
+    /// <summary>
+    /// Applies the long-standing per-leaf condition checks, descending through composites
+    /// (feature 088) so a bad leaf cannot hide inside one.
+    /// </summary>
+    /// <remarks>
+    /// Kept as a last-resort guard rather than the primary gate: the save path validates first and
+    /// returns a 400 with a path-rooted message, which is far more useful than the exception thrown
+    /// here. Removing this would silently weaken a defence that already exists for leaves.
+    /// </remarks>
+    private static void GuardConditionLeaves(SequenceStepCondition? condition, string stepId) {
+      switch (condition) {
+        case null:
+          return;
+
+        case CompositeStepCondition composite:
+          foreach (var child in composite.Children) {
+            GuardConditionLeaves(child, stepId);
+          }
+
+          return;
+
+        case ImageVisibleStepCondition imageCondition:
+          if (string.IsNullOrWhiteSpace(imageCondition.ImageId)) {
+            throw new InvalidOperationException($"Step '{stepId}' imageVisible condition requires imageId.");
+          }
+
+          if (imageCondition.MinSimilarity is < 0 or > 1) {
+            throw new InvalidOperationException($"Step '{stepId}' imageVisible minSimilarity must be within 0..1.");
+          }
+
+          return;
+
+        case CommandOutcomeStepCondition outcomeCondition:
+          if (string.IsNullOrWhiteSpace(outcomeCondition.StepRef)) {
+            throw new InvalidOperationException($"Step '{stepId}' commandOutcome condition requires stepRef.");
+          }
+
+          return;
+
+        default:
+          return;
       }
     }
   }

@@ -122,6 +122,18 @@ public sealed class SequenceStepValidationService {
       errors.Add($"Loop step '{stepLabel}' count must be zero or greater.");
     }
 
+    // Feature 088 (FR-005): while / repeat-until conditions were never inspected here — only a count
+    // loop's Count was. A malformed composite in one of them would have passed save and failed at run
+    // time, which FR-010 forbids. Scoped to composites on purpose: adding leaf validation to these two
+    // positions would reject stored sequences that validate today, which is the same reasoning that
+    // keeps the dangling-image-reference walk where it is (research decision D-006).
+    var loopCondition = step.Loop switch {
+      WhileLoopConfig whileCfg => whileCfg.Condition,
+      RepeatUntilLoopConfig repeatCfg => repeatCfg.Condition,
+      _ => null
+    };
+    CompositeConditionValidator.Validate(loopCondition, stepLabel, errors);
+
     // Validate body steps.
     var bodyStepIds = new HashSet<string>(_stepIdComparer);
     for (var bi = 0; bi < step.Body.Count; bi++) {
@@ -152,6 +164,8 @@ public sealed class SequenceStepValidationService {
             && string.IsNullOrWhiteSpace(brkImgVis.ImageId)) {
           errors.Add($"Break step '{bodyLabel}' imageVisible breakCondition requires imageId.");
         }
+        // Feature 088: a break guard may be a composite; a leaf keeps the message above.
+        CompositeConditionValidator.Validate(bodyStep.BreakCondition, bodyLabel, errors);
         continue;
       }
 
@@ -191,6 +205,10 @@ public sealed class SequenceStepValidationService {
   }
 
   private static void ValidateIfCondition(SequenceStepCondition condition, string stepLabel, List<string> errors) {
+    // Feature 088: composites are validated here (size, depth, and every child's shape). Leaves keep
+    // being checked by the rules below, so their existing messages are unchanged.
+    CompositeConditionValidator.Validate(condition, stepLabel, errors);
+
     if (condition is ImageVisibleStepCondition imageVisible && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
     }
@@ -247,6 +265,8 @@ public sealed class SequenceStepValidationService {
             && string.IsNullOrWhiteSpace(brkImgVis.ImageId)) {
           errors.Add($"Break step '{branchLabel}' imageVisible breakCondition requires imageId.");
         }
+        // Feature 088: a break guard inside an if branch may be a composite too.
+        CompositeConditionValidator.Validate(branchStep.BreakCondition, branchLabel, errors);
         continue;
       }
 
@@ -328,6 +348,12 @@ public sealed class SequenceStepValidationService {
         && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
     }
+
+    // Feature 088: composite guards on this step and on its break condition. Leaves reaching here
+    // are already covered by the checks above (and, for break conditions, by the caller), so the
+    // validator is asked to look at composites only and no message is duplicated.
+    CompositeConditionValidator.Validate(step.Condition, stepLabel, errors);
+    CompositeConditionValidator.Validate(step.BreakCondition, stepLabel, errors);
   }
 
   // feature 065: validates a reschedule-self action payload, mirroring the queue-template timer rules.

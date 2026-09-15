@@ -108,6 +108,9 @@ internal sealed record WaitForImagePayloadContract {
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ImageVisibleConditionContract), typeDiscriminator: "imageVisible")]
 [JsonDerivedType(typeof(CommandOutcomeConditionContract), typeDiscriminator: "commandOutcome")]
+[JsonDerivedType(typeof(AllConditionContract), typeDiscriminator: "all")]
+[JsonDerivedType(typeof(AnyConditionContract), typeDiscriminator: "any")]
+[JsonDerivedType(typeof(NoneConditionContract), typeDiscriminator: "none")]
 internal abstract record SequenceStepConditionContract {
   public bool Negate { get; init; }
 }
@@ -121,6 +124,31 @@ internal sealed record CommandOutcomeConditionContract : SequenceStepConditionCo
   public required string StepRef { get; init; }
   public required string ExpectedState { get; init; }
 }
+
+/// <summary>
+/// A condition combining other conditions (feature 088, issue #191), so a control that two different
+/// dialogs draw identically can be disambiguated by a second, dialog-unique signal.
+/// <para>
+/// The combining rule is the JSON <c>type</c> discriminator, which is why there is a sealed record
+/// per rule rather than one record with a rule field.
+/// </para>
+/// </summary>
+internal abstract record CompositeConditionContract : SequenceStepConditionContract {
+  /// <summary>
+  /// Child conditions in evaluation order. 1..16 entries; a child may itself be a composite, to a
+  /// total condition nesting depth of 4. An empty or absent list is rejected with a 400.
+  /// </summary>
+  public IReadOnlyList<SequenceStepConditionContract>? Children { get; init; }
+}
+
+/// <summary>True only when every child is true; stops at the first false child.</summary>
+internal sealed record AllConditionContract : CompositeConditionContract;
+
+/// <summary>True when at least one child is true; stops at the first true child.</summary>
+internal sealed record AnyConditionContract : CompositeConditionContract;
+
+/// <summary>True only when no child is true; stops at the first true child.</summary>
+internal sealed record NoneConditionContract : CompositeConditionContract;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "loopType")]
 [JsonDerivedType(typeof(CountLoopConfigContract), typeDiscriminator: "count")]
