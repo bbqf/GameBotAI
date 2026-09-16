@@ -3,7 +3,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using GameBot.Domain.Commands;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GameBot.ContractTests.Sequences;
@@ -106,6 +108,9 @@ public sealed class SequencePerStepConditionsContractTests {
   [Fact]
   public async Task CreateAndGetSequencePreserveLoopBodyCommandReferences() {
     using var app = CreateFactory();
+    // Feature 091: a sequence write rejects a commandId that names no existing command.
+    await app.Services.GetRequiredService<ICommandRepository>()
+      .AddAsync(new Command { Id = "cmd-mail", Name = "Open mailbox" }).ConfigureAwait(false);
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 

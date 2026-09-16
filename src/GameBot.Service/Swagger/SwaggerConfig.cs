@@ -220,9 +220,28 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
   };
 
+  // Feature 091 (FR-009): the write rules an author otherwise discovers only by breaking a live sequence.
+  private const string SequenceCommandReferenceRule =
+    "A command step whose payload commandId names no existing command is rejected with 400 "
+    + "(\"Command reference '<id>' does not exist (used by: <stepIds>).\"), at any depth, with or without dryRun.";
+
+  private const string SequenceCreateDescription =
+    "Set dryRun: true (per-step body shape) to validate without persisting: a valid body returns "
+    + "200 { valid: true, dryRun: true, errors: [] }, and an invalid one returns the same error a real create would. "
+    + SequenceCommandReferenceRule;
+
+  private const string SequenceUpdateDescription =
+    "Set dryRun: true (any body shape) to validate without persisting: the sequence's version and content are left "
+    + "unchanged, a valid body returns 200 { valid: true, dryRun: true, errors: [] }, and an invalid one returns the "
+    + "same 400/404/409 a real update would. "
+    + SequenceCommandReferenceRule
+    + " A commandId the stored sequence already references is tolerated even if its command was since deleted, so "
+    + "such a sequence can still be re-saved.";
+
   private static void ApplySequenceExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Sequences)) {
       operation.Summary ??= "Create a sequence";
+      operation.Description ??= SequenceCreateDescription;
       SetRequestExample(operation, SequenceCreateRequest(), context, typeof(SequenceRequestSchema));
       SetResponseExample(operation, "201", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
     }
@@ -242,11 +261,13 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Patch) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Patch a sequence";
+      operation.Description ??= SequenceUpdateDescription;
       SetRequestExample(operation, SequenceCreateRequest(), context, typeof(SequenceRequestSchema));
       SetResponseExample(operation, "200", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
     }
     else if (IsMethod(method, HttpMethods.Put) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Update a sequence";
+      operation.Description ??= SequenceUpdateDescription;
       SetRequestExample(operation, SequenceCreateRequest(), context, typeof(SequenceRequestSchema));
       SetResponseExample(operation, "200", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
     }
@@ -1561,6 +1582,9 @@ internal sealed class ActionUpdateSchema {
 internal sealed class SequenceRequestSchema {
   public string? Name { get; set; }
   public ICollection<string>? Steps { get; set; }
+
+  /// <summary>Validate only; never persist. Recognised on create (per-step body), update and patch.</summary>
+  public bool? DryRun { get; set; }
 }
 
 internal sealed class SequenceResponseSchema {

@@ -116,7 +116,7 @@ Status vocabulary:
 | 079 | Concurrent Queue Execution | Implemented |
 | 080 | Fix Sequence & Session-Input API Bugs | Implemented |
 | 081 | Loop Exit Reason & Nested Step-Outcome References | Implemented |
-| 082 | Dry-Run / Validate-Only Sequence Mode | Implemented |
+| 082 | Dry-Run / Validate-Only Sequence Mode | Implemented (iterated by 091) |
 | 083 | Duplicate Queues | Implemented |
 | 084 | Execution Log Retention Default & Long-Run Rotation | Implemented |
 | 085 | Device-Scoped Image Detection | Implemented |
@@ -125,6 +125,7 @@ Status vocabulary:
 | 088 | Composite Image Conditions | Implemented |
 | 089 | Reference Image Transparency Masks | Implemented (iterated by 090) |
 | 090 | Masked Match No-Information Rule | Implemented |
+| 091 | Sequence Update Dry Run and Command Reference Existence | Implemented |
 
 ## Numbering notes
 

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Linq;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GameBot.IntegrationTests;
@@ -172,6 +173,9 @@ public sealed class PrimitiveAuthoringFlowTests : IDisposable {
   [Fact]
   public async Task SequenceCreateReadUpdateSupportsInlinePrimitiveActions() {
     using var app = new WebApplicationFactory<Program>();
+    // Feature 091: a sequence write rejects a commandId that names no existing command.
+    await app.Services.GetRequiredService<GameBot.Domain.Commands.ICommandRepository>()
+      .AddAsync(new GameBot.Domain.Commands.Command { Id = "nested-command", Name = "Nested command" }).ConfigureAwait(false);
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 

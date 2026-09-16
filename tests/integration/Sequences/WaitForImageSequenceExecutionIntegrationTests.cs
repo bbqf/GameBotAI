@@ -3,7 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using GameBot.Domain.Commands;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GameBot.IntegrationTests.Sequences;
@@ -52,7 +54,7 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     var uploadResp = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "wait-sequence-image", data = OneByOnePngBase64 }).ConfigureAwait(false);
     uploadResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
-    var sequenceId = await CreateSequenceAsync(client, new {
+    var sequenceId = await CreateSequenceAsync(app, client, new {
       timeoutMs = 40,
       detectionTarget = new {
         referenceImageId = "wait-sequence-image",
@@ -80,7 +82,7 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 
-    var sequenceId = await CreateSequenceAsync(client, new {
+    var sequenceId = await CreateSequenceAsync(app, client, new {
       timeoutMs = 25
     }).ConfigureAwait(false);
 
@@ -103,7 +105,7 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 
-    var sequenceId = await CreateSequenceAsync(client, new {
+    var sequenceId = await CreateSequenceAsync(app, client, new {
       timeoutMs = 25,
       detectionTarget = new {
         referenceImageId = "missing-sequence-image",
@@ -123,7 +125,20 @@ public sealed class WaitForImageSequenceExecutionIntegrationTests : IDisposable 
     steps[1].GetProperty("actionOutcome").GetString().Should().Be("failed");
   }
 
-  private static async Task<string> CreateSequenceAsync(HttpClient client, object waitPayload) {
+  /// <summary>
+  /// Saves a wait step followed by a command step whose command is gone by the time the sequence runs.
+  /// Feature 091 rejects saving a reference to a command that does not exist, so the command is created
+  /// for the save and deleted straight after — the dangling-at-run-time state these tests exercise.
+  /// </summary>
+  private static async Task<string> CreateSequenceAsync(WebApplicationFactory<Program> app, HttpClient client, object waitPayload) {
+    var commands = app.Services.GetRequiredService<ICommandRepository>();
+    await commands.AddAsync(new Command { Id = "cmd-after-wait", Name = "After wait" }).ConfigureAwait(false);
+    var sequenceId = await SaveSequenceAsync(client, waitPayload).ConfigureAwait(false);
+    await commands.DeleteAsync("cmd-after-wait").ConfigureAwait(false);
+    return sequenceId;
+  }
+
+  private static async Task<string> SaveSequenceAsync(HttpClient client, object waitPayload) {
     var createPayload = new {
       name = "wait-execution-sequence",
       version = 1,

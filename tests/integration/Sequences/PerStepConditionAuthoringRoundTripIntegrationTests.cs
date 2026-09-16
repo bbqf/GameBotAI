@@ -4,7 +4,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using GameBot.Domain.Commands;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GameBot.IntegrationTests.Sequences;
@@ -92,6 +94,7 @@ public sealed class PerStepConditionAuthoringRoundTripIntegrationTests {
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
 
     using var app = new WebApplicationFactory<Program>();
+    await SeedLoopBodyCommandsAsync(app).ConfigureAwait(false);
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 
@@ -156,6 +159,7 @@ public sealed class PerStepConditionAuthoringRoundTripIntegrationTests {
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
 
     using var app = new WebApplicationFactory<Program>();
+    await SeedLoopBodyCommandsAsync(app).ConfigureAwait(false);
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
 
@@ -258,5 +262,13 @@ public sealed class PerStepConditionAuthoringRoundTripIntegrationTests {
     body[0].GetProperty("primitiveAction").GetProperty("payload").GetProperty("commandId").GetString().Should().Be("cmd-mail");
     body[1].GetProperty("primitiveAction").GetProperty("payload").GetProperty("commandId").GetString().Should().Be("cmd-rewards");
     body[1].GetProperty("primitiveAction").GetProperty("payload").GetProperty("commandId").GetString().Should().NotBe("body-step-2");
+  }
+
+  // Feature 091: a sequence write rejects a commandId that names no existing command, so the loop
+  // body's commands must exist before the sequence is saved.
+  private static async Task SeedLoopBodyCommandsAsync(WebApplicationFactory<Program> app) {
+    var commands = app.Services.GetRequiredService<ICommandRepository>();
+    await commands.AddAsync(new Command { Id = "cmd-mail", Name = "Open mailbox" }).ConfigureAwait(false);
+    await commands.AddAsync(new Command { Id = "cmd-rewards", Name = "Collect rewards" }).ConfigureAwait(false);
   }
 }
