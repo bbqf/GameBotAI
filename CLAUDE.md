@@ -7,5 +7,5 @@ When editing UTF-8 files in this repo, prefer the Edit/Write tools over `Get-Con
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/089-reference-image-alpha-mask/plan.md
+at specs/090-fix-masked-low-variance/plan.md
 <!-- SPECKIT END -->
