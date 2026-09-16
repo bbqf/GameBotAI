@@ -2,7 +2,7 @@
 
 **Feature Branch**: `091-fix-sequence-put-dryrun`  
 **Created**: 2026-09-16  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #177 (https://github.com/bbqf/GameBotAI/issues/177) — "B-008: dryRun is silently ignored on PUT /api/sequences/{id}, and the update path persists an unresolvable commandId". Closes #177.
 
 ## Background

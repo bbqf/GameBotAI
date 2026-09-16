@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-16 (feature 090 masked-match no-information rule)._
+_Last reviewed: 2026-09-16 (feature 091 sequence update dry run and command-reference existence)._
 
 ## What GameBot is
 
@@ -486,6 +486,21 @@ validity or exercise runtime branching without ever touching a real emulator.
   `POST /api/sequences/{id}/validate` response shape); failure returns the
   identical `400` error a non-dry-run create would give for the same body.
   Only recognized on the per-step request shape.
+- **Update / patch** (feature 091): `dryRun: true` on `PUT` or `PATCH
+  /api/sequences/{id}` runs every check a real update runs and returns before
+  the version bump and `ISequenceRepository.UpdateAsync`, so the stored
+  sequence is untouched. Same envelope on success; the same `400`/`404`/`409`
+  a real update would give on failure. Read from the raw request root, so it
+  applies to every body shape, legacy ones included. (It used to be silently
+  ignored, applying the update for real — issue #177.)
+- **Command references must exist** (feature 091): create, update and patch —
+  with or without `dryRun` — reject a `command` step at any depth whose payload
+  `commandId` names no existing command, with one `400` error per missing id:
+  `Command reference '<id>' does not exist (used by: <stepIds>).` On update and
+  patch, an id the stored sequence already references is tolerated even if its
+  command has since been deleted, so such a sequence (shown as
+  `isResolved: false`) can still be re-saved. Backup restore writes through the
+  repository and is not affected.
 - **Execute**: walks the sequence's real step tree — `Loop`/`If`/`Break`
   control-flow (iteration counting, `exitReason`, branch selection) executes
   exactly as a real run — but every step that would dispatch input to the
@@ -569,6 +584,12 @@ Feature 082 added, additively (see "Dry-run / validate-only sequence mode" above
 - `dryRun` on `POST /api/sequences/{id}/execute`: walks the real step tree without dispatching to
   the emulator, starting a session, or reading live capture state, reporting a new
   `actionOutcome: "skipped_dry_run"` for each step it skips.
+
+Feature 091 fixed, tightening only (see "Dry-run / validate-only sequence mode" above; issue #177):
+
+- `dryRun` on `PUT`/`PATCH /api/sequences/{id}`: validates without persisting (previously ignored).
+- `POST`/`PUT`/`PATCH` sequence writes reject a nonexistent command reference with `400`, except an id
+  the stored sequence already references.
 
 Feature 086 added, additively (see "Queue cycle observability" above):
 

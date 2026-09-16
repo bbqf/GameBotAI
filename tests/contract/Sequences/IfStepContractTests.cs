@@ -3,7 +3,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using GameBot.Domain.Commands;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GameBot.ContractTests.Sequences;
@@ -18,6 +20,14 @@ public sealed class IfStepContractTests {
     Environment.SetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT", "true");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     return new WebApplicationFactory<Program>();
+  }
+
+  // Feature 091: a sequence write rejects a commandId that names no existing command, so the commands
+  // the if-step fixtures invoke must exist first.
+  private static async Task SeedReferencedCommandsAsync(WebApplicationFactory<Program> app) {
+    var commands = app.Services.GetRequiredService<ICommandRepository>();
+    await commands.AddAsync(new Command { Id = "cmd-close", Name = "Close" }).ConfigureAwait(false);
+    await commands.AddAsync(new Command { Id = "cmd-continue", Name = "Continue" }).ConfigureAwait(false);
   }
 
   private static object IfStepPayload(object? elseBody = null) => new {
@@ -49,6 +59,7 @@ public sealed class IfStepContractTests {
   [Fact]
   public async Task CreateAndGetSequencePreserveIfStepBranches() {
     using var app = CreateFactory();
+    await SeedReferencedCommandsAsync(app).ConfigureAwait(false);
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
@@ -92,6 +103,7 @@ public sealed class IfStepContractTests {
   [Fact]
   public async Task AbsentElseBodyStaysAbsentWhileEmptyElseBodyStaysEmpty() {
     using var app = CreateFactory();
+    await SeedReferencedCommandsAsync(app).ConfigureAwait(false);
     var client = app.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 

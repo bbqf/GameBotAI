@@ -147,6 +147,46 @@ public sealed class SequenceCreateDryRunIntegrationTests {
     list.EnumerateArray().Should().NotContain(s => s.GetProperty("name").GetString() == "dry-run-bad-command-ref");
   }
 
+  /// <summary>
+  /// Feature 091 (FR-007): a well-formed but nonexistent <c>commandId</c> used to report
+  /// <c>valid: true</c> under dry run. It must fail exactly as a real create of the same body does.
+  /// </summary>
+  [Fact]
+  public async Task DryRunCreateWithNonexistentCommandIdFailsSameAsRealCreate() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    object Body(string name, bool dryRun) => new {
+      name,
+      version = 1,
+      dryRun,
+      steps = new object[] {
+        new {
+          stepId = "step-1",
+          label = "Missing command",
+          stepType = "Action",
+          primitiveAction = new { type = "command", schemaVersion = "v1", payload = new { commandId = "does-not-exist" } }
+        }
+      }
+    };
+
+    var dryRunResponse = await client.PostAsJsonAsync("/api/sequences", Body("dry-run-missing-command", dryRun: true)).ConfigureAwait(false);
+    dryRunResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var dryRunBody = await dryRunResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    dryRunBody.GetProperty("errors").EnumerateArray().Should().Contain(e => e.GetString()!.Contains("does-not-exist") && e.GetString()!.Contains("step-1"));
+
+    var realResponse = await client.PostAsJsonAsync("/api/sequences", Body("real-missing-command", dryRun: false)).ConfigureAwait(false);
+    realResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var realBody = await realResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+
+    dryRunBody.GetProperty("errors").ToString().Should().Be(realBody.GetProperty("errors").ToString());
+
+    var listResponse = await client.GetAsync(new Uri("/api/sequences", UriKind.Relative)).ConfigureAwait(false);
+    var list = await listResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    list.EnumerateArray().Should().NotContain(s => s.GetProperty("name").GetString() == "dry-run-missing-command"
+                                                 || s.GetProperty("name").GetString() == "real-missing-command");
+  }
+
   [Fact]
   public async Task CreateWithoutDryRunStillPersistsExactlyAsToday() {
     using var app = CreateFactory();

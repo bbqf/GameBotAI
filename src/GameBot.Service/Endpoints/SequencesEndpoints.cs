@@ -15,6 +15,7 @@ namespace GameBot.Service.Endpoints;
 internal static class SequencesEndpoints {
   private static readonly JsonSerializerOptions PerStepRequestJsonOptions = new() { PropertyNameCaseInsensitive = true };
   private static readonly string[] LegacyBranchingErrors = { "entryStepId and links are no longer supported. Use per-step conditions on steps[].condition." };
+  private static readonly IReadOnlySet<string> NoToleratedCommandIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
   public static IEndpointRouteBuilder MapSequenceEndpoints(this IEndpointRouteBuilder app) {
     var sequences = app.MapGroup(ApiRoutes.Sequences).WithTags("Sequences");
@@ -54,8 +55,8 @@ internal static class SequencesEndpoints {
       };
 
       var linearSteps = MapToLinearSteps(perStepRequest);
-      await EnrichCommandReferencesAsync(linearSteps, commandRepository, existingSteps: null, ct).ConfigureAwait(false);
-      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+      var commandLookup = await EnrichCommandReferencesAsync(linearSteps, commandRepository, existingSteps: null, ct).ConfigureAwait(false);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandLookup, NoToleratedCommandIds, ct).ConfigureAwait(false);
       if (perStepValidationErrors.Count > 0) {
         return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
       }
@@ -158,8 +159,9 @@ internal static class SequencesEndpoints {
     if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
       existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
       var linearSteps = MapToLinearSteps(perStepRequest);
-      await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
-      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+      var commandLookup = await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
+      var toleratedCommandIds = CollectReferencedCommandIds(existing.Steps);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandLookup, toleratedCommandIds, ct).ConfigureAwait(false);
       if (perStepValidationErrors.Count > 0) {
         return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
       }
@@ -200,6 +202,12 @@ internal static class SequencesEndpoints {
       var delayContract = JsonSerializer.Deserialize<DelayRangeMsContract>(delayrProp.GetRawText(), PerStepRequestJsonOptions);
       existing.InterStepDelayRangeMs = MapDelayRangeMs(delayContract);
     }
+    // Feature 091 (FR-001..FR-003): every failure return above precedes this point, so a dry run
+    // fails exactly as a real update would. `existing` is a private copy deserialized by GetAsync,
+    // so the mutations made above are simply discarded.
+    if (IsDryRunRequested(root)) {
+      return Results.Ok(new { valid = true, dryRun = true, errors = Array.Empty<string>() });
+    }
     existing.Version += 1;
     existing.UpdatedAt = DateTimeOffset.UtcNow;
     var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
@@ -236,8 +244,9 @@ internal static class SequencesEndpoints {
     if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
       existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
       var linearSteps = MapToLinearSteps(perStepRequest);
-      await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
-      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, ct).ConfigureAwait(false);
+      var commandLookup = await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
+      var toleratedCommandIds = CollectReferencedCommandIds(existing.Steps);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandLookup, toleratedCommandIds, ct).ConfigureAwait(false);
       if (perStepValidationErrors.Count > 0) {
         return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
       }
@@ -289,6 +298,10 @@ internal static class SequencesEndpoints {
       else if (watchdogProp.ValueKind == System.Text.Json.JsonValueKind.Null) {
         existing.WatchdogTimeoutMs = null;
       }
+    }
+    // Feature 091: same dry-run short-circuit as PUT — after every check, before anything persists.
+    if (IsDryRunRequested(root)) {
+      return Results.Ok(new { valid = true, dryRun = true, errors = Array.Empty<string>() });
     }
     existing.Version += 1;
     existing.UpdatedAt = DateTimeOffset.UtcNow;
@@ -637,6 +650,19 @@ internal static class SequencesEndpoints {
       },
       _ => null
     };
+  }
+
+  /// <summary>
+  /// Whether a write asks to be validated only (feature 091, issue #177). Read from the raw root rather
+  /// than the deserialized per-step contract so every body shape honours it — a legacy body never
+  /// deserializes to that contract, and silently applying it would repeat the original defect.
+  /// </summary>
+  /// <param name="root">The request body.</param>
+  /// <returns><c>true</c> only when <c>dryRun</c> is the JSON literal <c>true</c>.</returns>
+  private static bool IsDryRunRequested(System.Text.Json.JsonElement root) {
+    return root.ValueKind == JsonValueKind.Object
+      && root.TryGetProperty("dryRun", out var dryRunProp)
+      && dryRunProp.ValueKind == JsonValueKind.True;
   }
 
   private static bool HasLegacyBranchingFields(System.Text.Json.JsonElement root) {
@@ -1081,7 +1107,8 @@ internal static class SequencesEndpoints {
       .ToDictionary(group => group.Key, group => group.First().Name, StringComparer.OrdinalIgnoreCase);
   }
 
-  private static async Task EnrichCommandReferencesAsync(IReadOnlyList<SequenceStep> steps, ICommandRepository commandRepository, IReadOnlyList<SequenceStep>? existingSteps, CancellationToken ct) {
+  /// <summary>Annotates command steps with their command name; returns the id → name lookup it built.</summary>
+  private static async Task<IReadOnlyDictionary<string, string>> EnrichCommandReferencesAsync(IReadOnlyList<SequenceStep> steps, ICommandRepository commandRepository, IReadOnlyList<SequenceStep>? existingSteps, CancellationToken ct) {
     var commandLookup = await BuildCommandLookupAsync(commandRepository, ct).ConfigureAwait(false);
     var existingLookup = FlattenSequenceSteps(existingSteps ?? Array.Empty<SequenceStep>())
       .Where(step => IsCommandBackedStep(step))
@@ -1089,6 +1116,73 @@ internal static class SequencesEndpoints {
       .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
     EnrichCommandReferences(steps, commandLookup, existingLookup);
+    return commandLookup;
+  }
+
+  /// <summary>
+  /// The payload <c>commandId</c> a command step names explicitly, or <c>null</c> when it names none
+  /// (such a step has its own "requires a non-empty commandId" error, and its <c>CommandId</c> merely
+  /// defaults to the step id).
+  /// </summary>
+  private static string? ExplicitCommandId(SequenceStep step) {
+    if (!IsCommandBackedStep(step)
+        || step.Action is null
+        || !step.Action.Parameters.TryGetValue("commandId", out var commandId)
+        || commandId is null
+        || string.IsNullOrWhiteSpace(commandId.ToString())) {
+      return null;
+    }
+
+    return step.CommandId.Trim();
+  }
+
+  /// <summary>
+  /// Every command id a stored sequence already references, at any depth (feature 091, FR-006). An
+  /// update may carry these forward even when they no longer resolve, so a sequence whose command was
+  /// deleted after it was saved can still be re-saved.
+  /// </summary>
+  private static HashSet<string> CollectReferencedCommandIds(IEnumerable<SequenceStep> storedSteps) {
+    var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var step in FlattenSequenceSteps(storedSteps)) {
+      var commandId = ExplicitCommandId(step);
+      if (commandId is not null) ids.Add(commandId);
+    }
+
+    return ids;
+  }
+
+  /// <summary>
+  /// Reports every command step, at any depth, whose <c>commandId</c> names no existing command
+  /// (feature 091, issue #177, FR-005). Such a reference used to be stored and surface only as a
+  /// confusing failure when the sequence ran.
+  /// </summary>
+  /// <param name="steps">The steps about to be written.</param>
+  /// <param name="commandLookup">Existing commands by id (case-insensitive).</param>
+  /// <param name="toleratedIds">Unresolvable ids the stored sequence already references (FR-006).</param>
+  /// <returns>One error per missing id, ordered by id, naming every step that uses it.</returns>
+  private static List<string> ValidateCommandReferencesExist(
+    IReadOnlyList<SequenceStep> steps,
+    IReadOnlyDictionary<string, string> commandLookup,
+    IReadOnlySet<string> toleratedIds) {
+    var missingByCommandId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+    foreach (var step in FlattenSequenceSteps(steps)) {
+      var commandId = ExplicitCommandId(step);
+      if (commandId is null || commandLookup.ContainsKey(commandId) || toleratedIds.Contains(commandId)) {
+        continue;
+      }
+
+      if (!missingByCommandId.TryGetValue(commandId, out var usedBy)) {
+        usedBy = new List<string>();
+        missingByCommandId[commandId] = usedBy;
+      }
+
+      usedBy.Add(string.IsNullOrWhiteSpace(step.StepId) ? $"index:{step.Order}" : step.StepId);
+    }
+
+    return missingByCommandId
+      .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+      .Select(pair => $"Command reference '{pair.Key}' does not exist (used by: {string.Join(", ", pair.Value.Distinct(StringComparer.OrdinalIgnoreCase))}).")
+      .ToList();
   }
 
   private static void EnrichCommandReferences(IReadOnlyList<SequenceStep> steps, IReadOnlyDictionary<string, string> commandLookup, IReadOnlyDictionary<string, SequenceStep> existingLookup) {
@@ -1285,10 +1379,13 @@ internal static class SequencesEndpoints {
     List<SequenceStep> steps,
     SequenceStepValidationService stepValidationService,
     IImageRepository imageRepository,
+    IReadOnlyDictionary<string, string> commandLookup,
+    IReadOnlySet<string> toleratedCommandIds,
     CancellationToken ct) {
     var errors = new List<string>();
     errors.AddRange(stepValidationService.Validate(steps));
     errors.AddRange(await ValidatePerStepImageReferencesAsync(steps, imageRepository, ct).ConfigureAwait(false));
+    errors.AddRange(ValidateCommandReferencesExist(steps, commandLookup, toleratedCommandIds));
 
     for (var index = 0; index < steps.Count; index++) {
       ct.ThrowIfCancellationRequested();
