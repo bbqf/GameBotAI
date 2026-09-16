@@ -56,4 +56,32 @@ public sealed class MaskedTemplateMatcherBench {
     maskedMs.Should().BeLessThan(cap,
       "a masked detection that overruns the detection timeout is reported as an absence");
   }
+
+  [Fact(DisplayName = "Masked detection of a badge over a featureless frame fits the detection timeout")]
+  public async Task MaskedDetectionOnFeaturelessFrameFitsDetectionTimeout() {
+    // Feature 090 (issue #196) added a per-position cutoff, a masked compare and two clamps over
+    // the whole result map. A flat frame is the worst case for them: every one of the ~2M positions
+    // takes the suppression branch. If the fix were to cost real time, it would cost it here — and
+    // a detection that overruns the timeout is reported as an absence, which is the failure mode
+    // this whole feature exists to remove.
+    using var flat = MaskFixtures.CreateFlatFrame(1080, 1920, 200);
+    using var masked = MaskFixtures.CreateMaskedTemplate();
+
+    var matcher = new TemplateMatcher();
+    var cfg = new TemplateMatcherConfig(0.85, 5, 0.3);
+
+    await matcher.MatchAllAsync(flat, masked, cfg).ConfigureAwait(false);
+    var sw = Stopwatch.StartNew();
+    var result = await matcher.MatchAllAsync(flat, masked, cfg).ConfigureAwait(false);
+    sw.Stop();
+
+    _output.WriteLine($"masked-on-flat={sw.Elapsed.TotalMilliseconds:F1}ms suppressed={result.NoInformationPositionCount}");
+
+    result.Matches.Should().BeEmpty();
+    result.NoInformationPositionCount.Should().BeGreaterThan(0, "every position here is featureless");
+
+    var isCi = string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase);
+    var cap = isCi ? DetectionTimeoutMs * 4 : DetectionTimeoutMs;
+    sw.Elapsed.TotalMilliseconds.Should().BeLessThan(cap);
+  }
 }

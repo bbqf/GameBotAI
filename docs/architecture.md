@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-16 (feature 089 reference image transparency masks)._
+_Last reviewed: 2026-09-16 (feature 090 masked-match no-information rule)._
 
 ## What GameBot is
 
@@ -77,7 +77,8 @@ not survive a service restart; queue *configuration* and templates are persisted
   target is matched on its own pixels rather than on the scenery behind it (feature 089). Masking is
   a property of the image, not of the caller — every detection path honours it, and no sequence
   needs editing. An image with no alpha, or with an all-opaque alpha, is not masked and scores
-  exactly as it did before feature 089.
+  exactly as it did before feature 089. A masked comparison reports no match where the retained
+  region — on either side — is too featureless to correlate (the no-information rule, below).
 - **Command** — an ordered list of **steps**. Steps are **primitive actions** plus control
   structures (loops, per-step conditions). A command may carry a vestigial `TriggerId`.
 - **Primitive Action** — the unit of input/effect. Current variants: **Tap**, **Swipe**,
@@ -354,6 +355,19 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
 - Uploading a reference image whose mask retains fewer than 16 pixels is rejected with
   `400 invalid_image`: such a template correlates with almost any patch of screen, and refusing it at
   authoring time is the only point where the operator can act on it.
+- **The no-information rule** (feature 090). A normalised correlation is undefined where the thing
+  being correlated has no variation, and a masked comparison meets that case routinely: the dimmed
+  backdrop a game draws behind a modal is flat. A retained region — of the screen at a candidate
+  position, or of the reference image itself — carrying less than **1.0** shade level of standard
+  deviation is treated as carrying no information: that position scores `0`, and a reference image
+  below the cutoff reports no match at all. The cutoff is fixed and not configurable, is stated on
+  the standard deviation rather than on the accumulated variance so it does not change with the
+  retained-pixel count, and is the same number `ImageMatchEvaluator` uses to call a template
+  constant. A masked score is also clamped into `[-1, 1]` where it is produced.
+  This replaced a division that returned `±Infinity` on a flat region, which the boundary clamp
+  then reported as a perfect `1.0` — a false positive that armed a tap on modal screens (issue #196).
+  A detection suppressed by the rule is reported through the detect log (event `11006`), not in the
+  response body, which is unchanged.
 - `Service:Sessions:MaxConcurrentSessions` defaults to **8** (was 3); exceeding it fails a run with a
   message naming the limit and the setting.
 

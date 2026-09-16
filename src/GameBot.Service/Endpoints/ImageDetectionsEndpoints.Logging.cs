@@ -24,5 +24,13 @@ namespace GameBot.Service.Endpoints {
     // no existing log format is repurposed.
     [LoggerMessage(EventId = 11005, Level = LogLevel.Information, Message = "Detect mask id={Id} masked={Masked} retainedPixelCount={RetainedPixelCount}")]
     public static partial void LogDetectMask(this ILogger logger, string Id, bool Masked, int RetainedPixelCount);
+
+    // Feature 090 (issue #196): the no-information rule turns a class of spurious perfect matches
+    // into no-match. An operator whose sequence "used to match and now does not" needs to tell that
+    // apart from the target simply being absent, and the response body is frozen — so the signal
+    // goes here. Emitted only when something was actually suppressed, so its presence is the
+    // signal and the ordinary path keeps its current log volume.
+    [LoggerMessage(EventId = 11006, Level = LogLevel.Information, Message = "Detect no-information id={Id} suppressedPositions={SuppressedPositions} retainedPixelCount={RetainedPixelCount}")]
+    public static partial void LogDetectNoInformation(this ILogger logger, string Id, int SuppressedPositions, int RetainedPixelCount);
   }
 }

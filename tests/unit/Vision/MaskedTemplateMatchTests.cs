@@ -174,6 +174,27 @@ namespace GameBot.UnitTests.Vision {
         "the unmasked path must stay bit-identical or every hand-calibrated live threshold drifts");
       result.Masked.Should().BeFalse();
       result.RetainedPixelCount.Should().Be(0);
+      result.NoInformationPositionCount.Should().Be(0, "the unmasked path has no no-information rule");
+    }
+
+    [Fact(DisplayName = "Issue 196: the unmasked path is untouched even on a flat frame")]
+    public async Task UnmaskedTemplateOnFlatFrameStillScoresExactlyWhatCCoeffNormedProduces() {
+      // The flat frame is where the masked and unmasked paths previously disagreed most — one
+      // returned infinity, the other did not. Zero drift has to hold here too, and it holds
+      // structurally: this template is not masked, so none of the new code is reached.
+      using var flat = MaskFixtures.CreateFlatFrame(FrameWidth, FrameHeight, 200);
+      using var rectangular = MaskFixtures.CreateOpaqueTemplate(MaskFixtures.Backdrop.Bright);
+
+      using var graySrc = flat.CvtColor(ColorConversionCodes.BGR2GRAY);
+      using var grayTpl = rectangular.CvtColor(ColorConversionCodes.BGR2GRAY);
+      using var reference = new Mat();
+      Cv2.MatchTemplate(graySrc, grayTpl, reference, TemplateMatchModes.CCoeffNormed);
+      reference.MinMaxLoc(out _, out double expected);
+
+      var result = await new TemplateMatcher().MatchAllAsync(flat, rectangular, Config(threshold: -1.0));
+
+      result.Matches[0].Confidence.Should().Be(expected);
+      result.Masked.Should().BeFalse();
     }
 
     [Fact(DisplayName = "An all-opaque alpha channel scores identically to the same image without one")]
@@ -189,6 +210,207 @@ namespace GameBot.UnitTests.Vision {
 
       withOpaqueAlpha.Matches[0].Confidence.Should().Be(withoutAlpha.Matches[0].Confidence);
       withOpaqueAlpha.Masked.Should().BeFalse();
+    }
+
+    // ---- Issue #196 (B-013): a featureless screen region is not a perfect match ----------------
+    //
+    // The reported symptom was a score of exactly 1.0000 against a dimmed modal. The cause is that
+    // a flat region leaves the correlation with a zero denominator, and the division produced
+    // ±Infinity rather than the zero the code claimed; Normalization.ClampConfidence then turned
+    // every infinity into exactly 1.0 on the way out. These tests assert against the raw score, not
+    // just against "below threshold", because a clamp downstream is what hid this for a release.
+
+    [Fact(DisplayName = "Issue 196: a masked template reports no match on a perfectly flat frame")]
+    public async Task FlatSceneRegionReportsNoMatch() {
+      using var flat = MaskFixtures.CreateFlatFrame(FrameWidth, FrameHeight, 200);
+      using var masked = MaskFixtures.CreateMaskedTemplate();
+      var matcher = new TemplateMatcher();
+
+      var result = await matcher.MatchAllAsync(flat, masked, Config(threshold: 0.0));
+
+      foreach (var match in result.Matches) {
+        double.IsFinite(match.Confidence).Should().BeTrue(
+          "an infinite score is not a measurement, and the boundary clamp turns it into a convincing 1.0");
+        match.Confidence.Should().Be(0d,
+          "a region with nothing to correlate against carries no information, which is a score of zero (FR-015)");
+      }
+
+      var gated = await matcher.MatchAllAsync(flat, masked, Config(Gate));
+      gated.Matches.Should().BeEmpty("a flat modal backdrop must never arm a tap");
+      gated.NoInformationPositionCount.Should().BeGreaterThan(0,
+        "the suppression must be visible to an operator diagnosing a detection that stopped matching");
+    }
+
+    [Fact(DisplayName = "Issue 196: a frame that is flat but for one pixel in 1024 is still no match")]
+    public async Task NearFlatSceneRegionReportsNoMatch() {
+      // One differing pixel in a retained region is the smallest non-zero variation 8-bit content
+      // can carry — evidence of nothing.
+      using var nearFlat = MaskFixtures.CreateGradedFrame(FrameWidth, FrameHeight, 200, amplitude: 1, everyNth: 1024);
+      using var masked = MaskFixtures.CreateMaskedTemplate();
+      var matcher = new TemplateMatcher();
+
+      MaskFixtures.MeasureSceneStdUnderMask(nearFlat, masked, BadgeAt.X, BadgeAt.Y)
+        .Should().BeLessThan(1.0, "the fixture must actually sit below the cutoff for this test to mean anything");
+
+      var result = await matcher.MatchAllAsync(nearFlat, masked, Config(threshold: 0.0));
+
+      foreach (var match in result.Matches) {
+        double.IsFinite(match.Confidence).Should().BeTrue();
+        match.Confidence.Should().Be(0d);
+      }
+      (await matcher.MatchAllAsync(nearFlat, masked, Config(Gate))).Matches.Should().BeEmpty();
+    }
+
+    [Theory(DisplayName = "Issue 196: no score ever leaves the measure's range, at any scene variance")]
+    [InlineData(0, 1)]
+    [InlineData(1, 1024)]
+    [InlineData(1, 64)]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(2, 1)]
+    [InlineData(4, 1)]
+    public async Task ScoreNeverLeavesTheMeasureRange(int amplitude, int everyNth) {
+      using var frame = MaskFixtures.CreateGradedFrame(FrameWidth, FrameHeight, 200, amplitude, everyNth);
+      using var masked = MaskFixtures.CreateMaskedTemplate();
+      var matcher = new TemplateMatcher();
+
+      var result = await matcher.MatchAllAsync(frame, masked, Config(threshold: -1.0));
+
+      foreach (var match in result.Matches) {
+        double.IsNaN(match.Confidence).Should().BeFalse();
+        double.IsInfinity(match.Confidence).Should().BeFalse();
+        match.Confidence.Should().BeInRange(-1.0, 1.0,
+          "the range has to hold where the score is produced — guaranteeing it only at the API boundary is a disguise, not a guarantee");
+      }
+    }
+
+    [Fact(DisplayName = "Issue 196: a masked template with an almost-featureless retained region reports no match")]
+    public async Task MaskedTemplateWithAlmostUniformRetainedRegionReportsNoMatch() {
+      // FR-018: the mirror of the same degeneracy, on the reference-image side. The repository has
+      // met it before as the `pns-never-matches` sentinel.
+      using var almostUniform = CreateAlmostUniformMaskedTemplate();
+      using var detailed = MaskFixtures.CreateFrame(FrameWidth, FrameHeight, MaskFixtures.Backdrop.Bright, BadgeAt);
+      var matcher = new TemplateMatcher();
+
+      var result = await matcher.MatchAllAsync(detailed, almostUniform, Config(threshold: 0.0));
+
+      result.Matches.Should().BeEmpty(
+        "a reference image carrying less than one shade level of detail correlates with almost anything");
+      result.Masked.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "Issue 196: the reported degenerate region is scored normally, not suppressed and not 1.0")]
+    public async Task ReportedDegenerateSceneIsScoredNormally() {
+      // The issue's own case: a retained region with a standard deviation of about 2.4. It sits
+      // above the cutoff, so it must still be scored — and scored correctly. Reported as 1.0000
+      // before the fix; independently computed as 0.5171 on the live capture.
+      using var frame = MaskFixtures.CreateGradedFrame(FrameWidth, FrameHeight, 200, amplitude: 4);
+      using var masked = MaskFixtures.CreateMaskedTemplate();
+      var matcher = new TemplateMatcher();
+
+      var sceneStd = MaskFixtures.MeasureSceneStdUnderMask(frame, masked, BadgeAt.X, BadgeAt.Y);
+      sceneStd.Should().BeGreaterThan(1.0, "this fixture must sit above the cutoff or it tests the wrong thing");
+      sceneStd.Should().BeInRange(2.0, 3.0, "and it must reproduce the standard deviation the issue reported");
+
+      var result = await matcher.MatchAllAsync(frame, masked, Config(threshold: -1.0));
+      var atBadgePosition = result.Matches[0];
+
+      atBadgePosition.Confidence.Should().BeLessThan(0.60,
+        "there is no badge here; 1.0000 was the defect (SC-001)");
+      atBadgePosition.Confidence.Should().BeApproximately(
+        MaskFixtures.ReferenceMaskedScore(frame, masked, atBadgePosition.BBox.X, atBadgePosition.BBox.Y), 0.01,
+        "the score must agree with the measure computed independently from its definition (SC-001, FR-002)");
+      result.NoInformationPositionCount.Should().Be(0, "nothing here is below the cutoff");
+    }
+
+    [Fact(DisplayName = "Issue 196: masked accuracy on real content is unchanged by the degeneracy fix")]
+    public async Task MaskedAccuracyOnRealContentIsUnchanged() {
+      // SC-003. The whole point of the fix is that it costs nothing where the measure was working:
+      // feature 089 exists because these numbers were achievable, and #190 stays fixed only if they
+      // stay achievable.
+      using var withBadge = MaskFixtures.CreateFrame(FrameWidth, FrameHeight, MaskFixtures.Backdrop.Bright, BadgeAt);
+      using var withoutBadge = MaskFixtures.CreateFrame(FrameWidth, FrameHeight, MaskFixtures.Backdrop.Bright, badgeAt: null);
+      using var masked = MaskFixtures.CreateMaskedTemplate();
+      var matcher = new TemplateMatcher();
+
+      var present = await matcher.MatchAllAsync(withBadge, masked, Config(threshold: -1.0));
+      var absent = await matcher.MatchAllAsync(withoutBadge, masked, Config(threshold: -1.0));
+
+      present.Matches[0].Confidence.Should().BeGreaterThanOrEqualTo(0.93,
+        "a genuine badge must still score at the top of the range");
+      present.Matches[0].BBox.X.Should().Be(BadgeAt.X);
+      present.Matches[0].BBox.Y.Should().Be(BadgeAt.Y);
+
+      // SC-003 quotes 0.50-0.60 for a real city screen with no badge. This fixture scores lower
+      // (~0.11) and that is by design, not drift: MaskFixtures derives the backdrop and the badge
+      // from different hashes precisely so nothing can correlate by accident, while a real city
+      // screen shares structure with the badge drawn on it. The band asserted here is the one this
+      // fixture can honestly support — comfortably under the gate, and far under the match score.
+      absent.Matches[0].Confidence.Should().BeLessThan(0.60,
+        "a detailed screen with no badge must stay well clear of any live gate");
+      (present.Matches[0].Confidence - absent.Matches[0].Confidence).Should().BeGreaterThan(0.3,
+        "present and absent must stay clearly separated, which is what makes a threshold calibratable");
+      absent.NoInformationPositionCount.Should().Be(0, "detailed content is never suppressed");
+    }
+
+    [Theory(DisplayName = "Issue 196: the score is continuous across the no-information cutoff")]
+    [InlineData(1, 4)]
+    [InlineData(1, 2)]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(2, 1)]
+    [InlineData(3, 1)]
+    [InlineData(4, 1)]
+    public async Task ScoreIsContinuousAcrossTheCutoff(int amplitude, int everyNth) {
+      // FR-006: as the screen gains detail the score must rise smoothly out of the suppressed zero.
+      // A jump straight from "no match" to a high score would just relocate the cliff.
+      using var frame = MaskFixtures.CreateGradedFrame(FrameWidth, FrameHeight, 200, amplitude, everyNth);
+      using var masked = MaskFixtures.CreateMaskedTemplate();
+      var matcher = new TemplateMatcher();
+
+      var result = await matcher.MatchAllAsync(frame, masked, Config(threshold: -1.0));
+
+      foreach (var match in result.Matches) {
+        match.Confidence.Should().BeLessThan(0.60,
+          "no frame of undifferentiated noise should ever look like the badge, on either side of the cutoff");
+      }
+    }
+
+    [Fact(DisplayName = "Issue 196: masked scores on real content agree with the measure computed independently")]
+    public async Task MaskedScoreAgreesWithIndependentReferenceOnDetailedContent() {
+      var matcher = new TemplateMatcher();
+      using var masked = MaskFixtures.CreateMaskedTemplate();
+
+      foreach (var backdrop in new[] { MaskFixtures.Backdrop.Bright, MaskFixtures.Backdrop.Dark }) {
+        foreach (var badgeAt in new Point?[] { BadgeAt, null }) {
+          using var frame = MaskFixtures.CreateFrame(FrameWidth, FrameHeight, backdrop, badgeAt);
+          var result = await matcher.MatchAllAsync(frame, masked, Config(threshold: -1.0));
+          var top = result.Matches[0];
+
+          top.Confidence.Should().BeApproximately(
+            MaskFixtures.ReferenceMaskedScore(frame, masked, top.BBox.X, top.BBox.Y), 0.001,
+            "FR-002: within 0.001 of the same measure computed from its definition in double precision");
+        }
+      }
+    }
+
+    /// <summary>A masked template whose retained pixels vary by less than one shade level.</summary>
+    private static Mat CreateAlmostUniformMaskedTemplate() {
+      using var basis = MaskFixtures.CreateMaskedTemplate();
+      var tpl = new Mat(new Size(MaskFixtures.BadgeWidth, MaskFixtures.BadgeHeight), MatType.CV_8UC4, new Scalar(0, 0, 0, 0));
+      for (var y = 0; y < MaskFixtures.BadgeHeight; y++) {
+        for (var x = 0; x < MaskFixtures.BadgeWidth; x++) {
+          var alpha = basis.At<Vec4b>(y, x).Item3;
+          if (alpha < TemplateMask.RetainedAlphaThreshold) {
+            tpl.Set(y, x, new Vec4b(255, 0, 255, 0));
+            continue;
+          }
+          // One pixel in 512 differs by a single shade: non-zero variance, far below the cutoff.
+          var v = (byte)((((y * MaskFixtures.BadgeWidth) + x) % 512 == 0) ? 91 : 90);
+          tpl.Set(y, x, new Vec4b(v, v, v, 255));
+        }
+      }
+      return tpl;
     }
   }
 }
