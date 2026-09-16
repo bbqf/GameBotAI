@@ -50,6 +50,10 @@ public sealed class DetectImageTests {
     root.TryGetProperty("retainedPixelCount", out var retainedPixelCount).Should().BeTrue();
     retainedPixelCount.GetInt32().Should().Be(0);
 
+    // Feature 090: the no-information diagnostic is domain-only and must stay off the wire. An
+    // operator reads it from the detect log; adding it here would change a frozen contract.
+    root.TryGetProperty("noInformationPositionCount", out _).Should().BeFalse();
+
     matches.ValueKind.Should().Be(JsonValueKind.Array);
     foreach (var m in matches.EnumerateArray()) {
       m.TryGetProperty("templateId", out var templateId).Should().BeTrue();

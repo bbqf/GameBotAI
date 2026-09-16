@@ -223,6 +223,10 @@ namespace GameBot.Service.Endpoints {
       elapsedMs = (long)start.Elapsed.TotalMilliseconds;
       ImageDetectionsEndpointComponent.LogDetectResults(logger, result.Matches.Count, result.LimitsHit, elapsedMs);
       ImageDetectionsEndpointComponent.LogDetectMask(logger, safeId, result.Masked, result.RetainedPixelCount);
+      if (result.NoInformationPositionCount > 0) {
+        ImageDetectionsEndpointComponent.LogDetectNoInformation(
+          logger, safeId, result.NoInformationPositionCount, result.RetainedPixelCount);
+      }
       ImageDetectionsMetrics.Record(elapsedMs, result.Matches.Count);
 
       // Normalize bbox coordinates

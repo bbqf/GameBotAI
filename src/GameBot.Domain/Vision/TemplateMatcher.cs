@@ -34,13 +34,15 @@ namespace GameBot.Domain.Vision {
       // call untouched is what makes zero score drift structural rather than approximate.
       var masked = TemplateMask.TryCreate(templateMat, out var mask, out var retainedPixelCount);
       Mat? maskedScores = null;
+      var noInformationPositions = 0;
       if (masked) {
         using (mask) {
-          maskedScores = MaskedTemplateMatch.ComputeScoreMap(graySrc, grayTpl, mask, retainedPixelCount);
+          maskedScores = MaskedTemplateMatch.ComputeScoreMap(graySrc, grayTpl, mask, retainedPixelCount,
+                                                             out noInformationPositions);
         }
         if (maskedScores is null) {
-          // No retained pixels, or a retained region with no variation in shade: the correlation is
-          // undefined, which is an absence of evidence, not a match.
+          // No retained pixels, or a retained region carrying too little variation in shade: the
+          // correlation is undefined, which is an absence of evidence, not a match.
           return Task.FromResult(new TemplateMatchResult(Array.Empty<TemplateMatch>(), false) {
             Masked = true,
             RetainedPixelCount = retainedPixelCount
@@ -68,7 +70,8 @@ namespace GameBot.Domain.Vision {
       if (candidates.Count == 0)
         return Task.FromResult(new TemplateMatchResult(Array.Empty<TemplateMatch>(), false) {
           Masked = masked,
-          RetainedPixelCount = masked ? retainedPixelCount : 0
+          RetainedPixelCount = masked ? retainedPixelCount : 0,
+          NoInformationPositionCount = noInformationPositions
         });
 
       // Sort deterministically: confidence desc, then bbox tie-breaker (x, y, width, height asc)
@@ -88,7 +91,8 @@ namespace GameBot.Domain.Vision {
 
       return Task.FromResult(new TemplateMatchResult(pruned, limitsHit) {
         Masked = masked,
-        RetainedPixelCount = masked ? retainedPixelCount : 0
+        RetainedPixelCount = masked ? retainedPixelCount : 0,
+        NoInformationPositionCount = noInformationPositions
       });
     }
 

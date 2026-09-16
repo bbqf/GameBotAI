@@ -1,4 +1,5 @@
 using System;
+using GameBot.Domain.Vision;
 using OpenCvSharp;
 
 namespace GameBot.UnitTests.Vision {
@@ -95,6 +96,107 @@ namespace GameBot.UnitTests.Vision {
             frame.Set(badgeAt.Y + y, badgeAt.X + x, new Vec3b(7, 231, 19));
         }
       }
+    }
+
+    /// <summary>
+    /// A frame of one single shade. This is the issue-#196 scenario in its purest form: the dimmed
+    /// backdrop this game draws behind every modal is flat, and a flat region under the mask leaves
+    /// the correlation with a zero denominator.
+    /// </summary>
+    public static Mat CreateFlatFrame(int width, int height, int shade) =>
+      new(new Size(width, height), MatType.CV_8UC3, new Scalar(shade, shade, shade));
+
+    /// <summary>
+    /// A frame whose retained-region standard deviation can be dialled, for walking across the
+    /// no-information cutoff.
+    /// </summary>
+    /// <param name="amplitude">Jitter of ±amplitude shades, discrete uniform.</param>
+    /// <param name="everyNth">Apply the jitter to one pixel in <paramref name="everyNth"/>; 1 means
+    /// every pixel. Together these give σ ≈ sqrt(amplitude·(amplitude+1) / (3·everyNth)), so
+    /// (1,1)→0.82, (2,2)→1.00, (2,1)→1.41, (3,1)→2.00, (4,1)→2.58.</param>
+    /// <remarks>
+    /// Tests <b>measure</b> the achieved σ with <see cref="MeasureSceneStdUnderMask"/> rather than
+    /// trusting that formula — the mask shape and 8-bit clamping both perturb it, and a test that
+    /// asserts against a nominal σ it never checked would be asserting against a guess.
+    /// </remarks>
+    public static Mat CreateGradedFrame(int width, int height, int baseShade, int amplitude, int everyNth = 1) {
+      var frame = new Mat(new Size(width, height), MatType.CV_8UC3, new Scalar(baseShade, baseShade, baseShade));
+      if (amplitude <= 0) return frame;
+      for (var y = 0; y < height; y++) {
+        for (var x = 0; x < width; x++) {
+          if (everyNth > 1 && (((y * width) + x) % everyNth) != 0) continue;
+          var span = (2 * amplitude) + 1;
+          var jitter = (int)(Hash(x, y, 0xC2B2AE35u) % (uint)span) - amplitude;
+          var v = (byte)Math.Clamp(baseShade + jitter, 0, 255);
+          frame.Set(y, x, new Vec3b(v, v, v));
+        }
+      }
+      return frame;
+    }
+
+    /// <summary>
+    /// The standard deviation, in shade levels, of the frame region that <paramref name="maskedTemplate"/>
+    /// retains when placed at the given position — the quantity the no-information rule is stated on.
+    /// </summary>
+    public static double MeasureSceneStdUnderMask(Mat frame, Mat maskedTemplate, int atX, int atY) {
+      using var gray = frame.Channels() == 1 ? frame.Clone() : frame.CvtColor(ColorConversionCodes.BGR2GRAY);
+      double sum = 0, sumSq = 0;
+      var n = 0;
+      for (var y = 0; y < maskedTemplate.Rows; y++) {
+        for (var x = 0; x < maskedTemplate.Cols; x++) {
+          if (maskedTemplate.At<Vec4b>(y, x).Item3 < TemplateMask.RetainedAlphaThreshold) continue;
+          double v = gray.At<byte>(atY + y, atX + x);
+          sum += v;
+          sumSq += v * v;
+          n++;
+        }
+      }
+      if (n == 0) return 0;
+      var mean = sum / n;
+      return Math.Sqrt(Math.Max(0, (sumSq / n) - (mean * mean)));
+    }
+
+    /// <summary>
+    /// The masked similarity at one position, computed directly from the definition in double
+    /// precision.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately written from the textbook formula — subtract the retained means, correlate,
+    /// divide by the product of the retained norms — and <b>not</b> from the production code's
+    /// three-correlation formulation. A cross-check that mirrors the implementation it is checking
+    /// only proves the implementation agrees with itself.
+    /// </remarks>
+    public static double ReferenceMaskedScore(Mat frame, Mat maskedTemplate, int atX, int atY) {
+      using var grayFrame = frame.Channels() == 1 ? frame.Clone() : frame.CvtColor(ColorConversionCodes.BGR2GRAY);
+      using var grayTpl = maskedTemplate.CvtColor(ColorConversionCodes.BGRA2GRAY);
+
+      double sumT = 0, sumI = 0;
+      var n = 0;
+      for (var y = 0; y < maskedTemplate.Rows; y++) {
+        for (var x = 0; x < maskedTemplate.Cols; x++) {
+          if (maskedTemplate.At<Vec4b>(y, x).Item3 < TemplateMask.RetainedAlphaThreshold) continue;
+          sumT += grayTpl.At<byte>(y, x);
+          sumI += grayFrame.At<byte>(atY + y, atX + x);
+          n++;
+        }
+      }
+      if (n == 0) return 0;
+
+      var meanT = sumT / n;
+      var meanI = sumI / n;
+      double num = 0, normT = 0, normI = 0;
+      for (var y = 0; y < maskedTemplate.Rows; y++) {
+        for (var x = 0; x < maskedTemplate.Cols; x++) {
+          if (maskedTemplate.At<Vec4b>(y, x).Item3 < TemplateMask.RetainedAlphaThreshold) continue;
+          var dt = grayTpl.At<byte>(y, x) - meanT;
+          var di = grayFrame.At<byte>(atY + y, atX + x) - meanI;
+          num += dt * di;
+          normT += dt * dt;
+          normI += di * di;
+        }
+      }
+      var den = Math.Sqrt(normT * normI);
+      return den > 0 ? num / den : 0;
     }
 
     /// <summary>Counts the badge's opaque pixels, for asserting a retained-pixel count.</summary>

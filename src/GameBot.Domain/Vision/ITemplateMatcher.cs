@@ -26,6 +26,19 @@ namespace GameBot.Domain.Vision {
     /// pixels masked out. Zero when <see cref="Masked"/> is false.
     /// </summary>
     public int RetainedPixelCount { get; init; }
+
+    /// <summary>
+    /// How many candidate positions the no-information rule scored zero because the screen region
+    /// under the mask carried too little detail to correlate against (feature 090, issue #196).
+    /// Counts positions <b>suppressed</b>, never positions scored. Zero for an unmasked comparison,
+    /// and for a masked comparison over content that is everywhere detailed.
+    /// </summary>
+    /// <remarks>
+    /// Domain-only diagnostic: it is deliberately absent from every response DTO. An operator sees
+    /// it through the detect endpoint's log, so that a detection which used to match and now
+    /// correctly does not can be told apart from one that simply found nothing.
+    /// </remarks>
+    public int NoInformationPositionCount { get; init; }
   }
 
   public interface ITemplateMatcher {

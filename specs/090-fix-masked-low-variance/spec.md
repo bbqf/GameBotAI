@@ -2,7 +2,7 @@
 
 **Feature Branch**: `090-fix-masked-low-variance`
 **Created**: 2026-09-16
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Fix B-013: an alpha-masked reference image scores 1.0 against any near-uniform screen region. GitHub issue #196 — https://github.com/bbqf/GameBotAI/issues/196 — Closes #196. Regression in the masked-matching feature shipped by #190 / PR #195 (commit 0a2d5a5)."
 
 ## Context
@@ -334,6 +334,13 @@ near-featureless screen and confirm it does not fire.
   inside the overlap.
 - **A-004**: The masked path's accuracy figures quoted as "unchanged" (0.93+, 0.50–0.60) are the
   ones recorded by feature 089's verification; they are the baseline this change must hold.
+  **Verified with one documented deviation**: the 0.93+ figure holds on the synthetic fixtures, but
+  the 0.50–0.60 no-target band does not — the fixture scores ~0.11, because its backdrop and badge
+  are derived from deliberately unrelated hashes so nothing can correlate by accident, whereas a
+  real city screen shares structure with the badge drawn on it. The fixture is therefore *stricter*
+  than the field, not looser, and the test asserts the band it can honestly support (< 0.60, with
+  present and absent separated by more than 0.3) rather than a field number that does not apply to
+  it.
 - **A-005**: "Identical" for unmasked similarity means the unmasked comparison is not reached by
   this change at all — the guarantee is structural, not a numerical tolerance.
 

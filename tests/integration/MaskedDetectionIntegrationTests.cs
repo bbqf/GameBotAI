@@ -2,7 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using GameBot.Domain.Logging;
+using GameBot.Domain.Services.Logging;
+using GameBot.IntegrationTests.Helpers;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using Xunit;
 
@@ -28,6 +34,22 @@ public sealed class MaskedDetectionIntegrationTests : IDisposable {
   private readonly string? _prevDynamicPort;
   private readonly string? _prevScreen;
   private readonly string? _prevCaptureInterval;
+
+  /// <summary>
+  /// The runtime logging gate defaults every component to Warning, so an Information-level detect
+  /// event reaches no provider until the component is opened — exactly as an operator would open it
+  /// before going looking for one.
+  /// </summary>
+  private static void OpenDetectLogging(WebApplicationFactory<Program> app) {
+    var applier = app.Services.GetRequiredService<ILoggingPolicyApplier>();
+    applier.ApplyComponent(new LoggingComponentSetting {
+      Name = "GameBot.Service.ImageDetections",
+      Enabled = true,
+      EffectiveLevel = Microsoft.Extensions.Logging.LogLevel.Information,
+      DefaultLevel = Microsoft.Extensions.Logging.LogLevel.Warning,
+      Source = "test"
+    });
+  }
 
   public MaskedDetectionIntegrationTests() {
     _prevUseAdb = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
@@ -70,6 +92,73 @@ public sealed class MaskedDetectionIntegrationTests : IDisposable {
       .Should().BeGreaterThanOrEqualTo(Gate);
     rectangular.RootElement.GetProperty("matches").GetArrayLength().Should().Be(0,
       "the rectangular crop carries a backdrop this screen does not have");
+  }
+
+  [Fact(DisplayName = "Issue 196: detect over a screen that is flat under the mask reports no match, not 1.0")]
+  public async Task DetectOnFlatScreenReportsNoMatchRatherThanAPerfectScore() {
+    // The dimmed backdrop this game draws behind every modal is flat. Before the fix the masked
+    // comparison divided by zero there, and the boundary clamp reported the resulting infinity as
+    // exactly 1.0 — a perfect match on a screen where a tap must not happen.
+    Environment.SetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64", FlatFrameBase64(200));
+    using var app = new WebApplicationFactory<Program>();
+    using var client = CreateClient(app);
+
+    await UploadAsync(client, "badge-masked", MaskedTemplateBase64()).ConfigureAwait(false);
+
+    using var gated = await DetectAsync(client, "badge-masked").ConfigureAwait(false);
+    gated.RootElement.GetProperty("matches").GetArrayLength().Should().Be(0,
+      "a featureless region carries no evidence that the badge is present");
+
+    using var ungated = await DetectAsync(client, "badge-masked", threshold: 0.0).ConfigureAwait(false);
+    foreach (var match in ungated.RootElement.GetProperty("matches").EnumerateArray()) {
+      match.GetProperty("confidence").GetDouble().Should().Be(0d,
+        "the score must be zero at the source, not an infinity clamped to 1.0 on the way out");
+    }
+
+    // The suppression is diagnosable, but stays off the wire: the response shape is frozen.
+    ungated.RootElement.TryGetProperty("noInformationPositionCount", out _).Should().BeFalse(
+      "the diagnostic is domain-only and reaches an operator through the log, not the response body");
+    ungated.RootElement.GetProperty("masked").GetBoolean().Should().BeTrue();
+    ungated.RootElement.GetProperty("retainedPixelCount").GetInt32().Should().BeGreaterThan(0);
+  }
+
+  [Fact(DisplayName = "Issue 196: a suppressed detection is diagnosable from the log, not from the response")]
+  public async Task SuppressedDetectionIsVisibleInTheDetectLog() {
+    // SC-009. Without this, the fix becomes the next hard-to-diagnose bug: an operator whose
+    // sequence stopped matching cannot tell "the target was absent" from "the region was too
+    // featureless to judge".
+    Environment.SetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64", FlatFrameBase64(200));
+    using var logs = new TestLoggerProvider();
+    using var baseApp = new WebApplicationFactory<Program>();
+    using var app = baseApp
+      .WithWebHostBuilder(builder => builder.ConfigureLogging(logging => logging.AddProvider(logs)));
+    OpenDetectLogging(app);
+    using var client = CreateClient(app);
+
+    await UploadAsync(client, "badge-masked", MaskedTemplateBase64()).ConfigureAwait(false);
+    using var _ = await DetectAsync(client, "badge-masked", threshold: 0.0).ConfigureAwait(false);
+
+    logs.Entries.Should().Contain(e => e.Message.Contains("Detect no-information", StringComparison.Ordinal)
+                                    && e.Message.Contains("badge-masked", StringComparison.Ordinal),
+      "the operator's only signal that the no-information rule fired is this log line");
+  }
+
+  [Fact(DisplayName = "Issue 196: an ordinary detection logs no no-information event")]
+  public async Task OrdinaryDetectionDoesNotLogNoInformation() {
+    // The event's presence is the signal, so the common path must stay quiet.
+    using var logs = new TestLoggerProvider();
+    using var baseApp = new WebApplicationFactory<Program>();
+    using var app = baseApp
+      .WithWebHostBuilder(builder => builder.ConfigureLogging(logging => logging.AddProvider(logs)));
+    OpenDetectLogging(app);
+    using var client = CreateClient(app);
+
+    await UploadAsync(client, "badge-masked", MaskedTemplateBase64()).ConfigureAwait(false);
+    using var _ = await DetectAsync(client, "badge-masked", threshold: 0.0).ConfigureAwait(false);
+
+    logs.Entries.Should().Contain(e => e.Message.Contains("Detect results", StringComparison.Ordinal),
+      "otherwise the assertion below would pass simply because nothing was captured at all");
+    logs.Entries.Should().NotContain(e => e.Message.Contains("Detect no-information", StringComparison.Ordinal));
   }
 
   [Fact(DisplayName = "Detect reports mask state additively without changing any existing field")]
@@ -259,6 +348,11 @@ public sealed class MaskedDetectionIntegrationTests : IDisposable {
             frame.Set(BadgeY + y, BadgeX + x, BadgeColor(x, y));
     }
 
+    return Encode(frame);
+  }
+
+  private static string FlatFrameBase64(int shade) {
+    using var frame = new Mat(new Size(FrameWidth, FrameHeight), MatType.CV_8UC3, new Scalar(shade, shade, shade));
     return Encode(frame);
   }
 
