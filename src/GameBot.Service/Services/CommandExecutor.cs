@@ -648,7 +648,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
     screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
     template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
     using var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
-    using var templateMat = OpenCvSharp.Mat.FromImageData(templateMs.ToArray(), OpenCvSharp.ImreadModes.Color);
+    // Alpha-preserving template decode, so a masked reference image masks here too (feature 089).
+    using var templateMat = GameBot.Domain.Vision.TemplateImageDecoder.Decode(templateMs.ToArray());
 
     var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
     var primitiveAction = new GameBot.Domain.Actions.InputAction {

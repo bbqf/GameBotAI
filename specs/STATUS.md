@@ -123,6 +123,7 @@ Status vocabulary:
 | 086 | Queue Cycle Observability | Implemented |
 | 087 | Queue Failure Policy and Outbound Notification | Implemented |
 | 088 | Composite Image Conditions | Implemented |
+| 089 | Reference Image Transparency Masks | Implemented |
 
 ## Numbering notes
 

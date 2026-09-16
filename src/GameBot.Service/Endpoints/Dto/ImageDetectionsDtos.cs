@@ -70,6 +70,20 @@ namespace GameBot.Service.Endpoints.Dto {
 
     [JsonPropertyName("limitsHit")]
     public bool LimitsHit { get; set; }
+
+    /// <summary>
+    /// True when the reference image carried a transparency mask and only its retained pixels were
+    /// compared (feature 089). Additive: no existing field changes shape or meaning.
+    /// </summary>
+    [JsonPropertyName("masked")]
+    public bool Masked { get; set; }
+
+    /// <summary>
+    /// How many template pixels the comparison used — the pixels <b>kept</b>, never the pixels
+    /// masked out. Zero when <see cref="Masked"/> is false.
+    /// </summary>
+    [JsonPropertyName("retainedPixelCount")]
+    public int RetainedPixelCount { get; set; }
   }
 
   internal sealed class MatchResult {

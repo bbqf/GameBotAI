@@ -23,9 +23,34 @@ namespace GameBot.Domain.Vision {
 
       var resultRows = graySrc.Rows - grayTpl.Rows + 1;
       var resultCols = graySrc.Cols - grayTpl.Cols + 1;
-      using var result = new Mat(resultRows, resultCols, MatType.CV_32FC1);
 
-      Cv2.MatchTemplate(graySrc, grayTpl, result, TemplateMatchModes.CCoeffNormed);
+      // A template carrying a transparency mask is compared on its retained pixels only, so a
+      // non-rectangular target stops being scored against whatever scenery sat behind it in the
+      // source crop (feature 089, issue #190).
+      //
+      // NEVER route an unmasked template through the masked formulation. The two are algebraically
+      // equal but not bit-identical, and every detection threshold across the live queues is
+      // hand-calibrated against the exact scores the CCoeffNormed call below produces. Keeping that
+      // call untouched is what makes zero score drift structural rather than approximate.
+      var masked = TemplateMask.TryCreate(templateMat, out var mask, out var retainedPixelCount);
+      Mat? maskedScores = null;
+      if (masked) {
+        using (mask) {
+          maskedScores = MaskedTemplateMatch.ComputeScoreMap(graySrc, grayTpl, mask, retainedPixelCount);
+        }
+        if (maskedScores is null) {
+          // No retained pixels, or a retained region with no variation in shade: the correlation is
+          // undefined, which is an absence of evidence, not a match.
+          return Task.FromResult(new TemplateMatchResult(Array.Empty<TemplateMatch>(), false) {
+            Masked = true,
+            RetainedPixelCount = retainedPixelCount
+          });
+        }
+      }
+
+      using var result = maskedScores ?? new Mat(resultRows, resultCols, MatType.CV_32FC1);
+      if (maskedScores is null)
+        Cv2.MatchTemplate(graySrc, grayTpl, result, TemplateMatchModes.CCoeffNormed);
 
       // Collect candidates >= threshold, sorted by confidence desc
       var candidates = new List<TemplateMatch>();
@@ -41,7 +66,10 @@ namespace GameBot.Domain.Vision {
       }
 
       if (candidates.Count == 0)
-        return Task.FromResult(new TemplateMatchResult(Array.Empty<TemplateMatch>(), false));
+        return Task.FromResult(new TemplateMatchResult(Array.Empty<TemplateMatch>(), false) {
+          Masked = masked,
+          RetainedPixelCount = masked ? retainedPixelCount : 0
+        });
 
       // Sort deterministically: confidence desc, then bbox tie-breaker (x, y, width, height asc)
       candidates.Sort(static (a, b) => {
@@ -58,7 +86,10 @@ namespace GameBot.Domain.Vision {
       var pruned = Nms.Apply(candidates, config.Overlap, config.MaxResults);
       var limitsHit = pruned.Count >= config.MaxResults && candidates.Count > pruned.Count;
 
-      return Task.FromResult(new TemplateMatchResult(pruned, limitsHit));
+      return Task.FromResult(new TemplateMatchResult(pruned, limitsHit) {
+        Masked = masked,
+        RetainedPixelCount = masked ? retainedPixelCount : 0
+      });
     }
 
     private static Mat EnsureGrayscale(Mat m) {

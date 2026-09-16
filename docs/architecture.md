@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-15 (feature 088 composite image conditions)._
+_Last reviewed: 2026-09-16 (feature 089 reference image transparency masks)._
 
 ## What GameBot is
 
@@ -72,7 +72,12 @@ not survive a service restart; queue *configuration* and templates are persisted
     exists** — conversion is manual, documented in `specs/078-sequence-parameters/quickstart.md`.
 - **Game** — a target app (package) the bot can connect to.
 - **Image (reference image)** — a stored bitmap used as a template for on-screen detection;
-  disk-backed under `data/`.
+  disk-backed under `data/`. May carry a **transparency mask**: pixels at least half opaque
+  (alpha >= 128) are compared, the rest are excluded from the score entirely, so a non-rectangular
+  target is matched on its own pixels rather than on the scenery behind it (feature 089). Masking is
+  a property of the image, not of the caller — every detection path honours it, and no sequence
+  needs editing. An image with no alpha, or with an all-opaque alpha, is not masked and scores
+  exactly as it did before feature 089.
 - **Command** — an ordered list of **steps**. Steps are **primitive actions** plus control
   structures (loops, per-step conditions). A command may carry a vestigial `TriggerId`.
 - **Primitive Action** — the unit of input/effect. Current variants: **Tap**, **Swipe**,
@@ -336,6 +341,19 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
   emulator was started. **A 200 from this route now means a measurement was actually taken.** The
   unresolved case is detected from the screen source returning null, never from counting sessions
   first: stub hosts serve a fixed bitmap with zero sessions, so a pre-emptive count would break them.
+- `POST /api/images/detect` additionally reports `masked` and `retainedPixelCount` (feature 089) —
+  whether the reference image's transparency mask was used, and how many pixels the comparison kept.
+  Both fields are additive; `retainedPixelCount` counts pixels **kept**, not pixels masked out.
+  `POST /api/images/detect-all` honours masks too but keeps its response shape: a library-wide sweep
+  has no single mask state.
+- Matching itself is normalised cross-correlation (`TM_CCOEFF_NORMED`) on grayscale. A masked
+  template is scored by the same measure restricted to its retained pixels, computed as three
+  `TM_CCORR` correlations, so a masked score stays on the same 0..1 scale and an existing threshold
+  keeps its meaning. **Unmasked templates still run through the untouched OpenCV call**, which is
+  what guarantees no score drift for the images and thresholds already in production.
+- Uploading a reference image whose mask retains fewer than 16 pixels is rejected with
+  `400 invalid_image`: such a template correlates with almost any patch of screen, and refusing it at
+  authoring time is the only point where the operator can act on it.
 - `Service:Sessions:MaxConcurrentSessions` defaults to **8** (was 3); exceeding it fails a run with a
   message naming the limit and the setting.
 

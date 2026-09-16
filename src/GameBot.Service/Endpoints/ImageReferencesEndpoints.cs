@@ -36,6 +36,25 @@ internal static class ImageReferencesEndpoints {
                 .Replace("\n", string.Empty, StringComparison.Ordinal);
   }
 
+  /// <summary>
+  /// Refuses an upload whose transparency mask retains too few pixels to be a real target
+  /// (feature 089). Returns null when the upload may proceed.
+  /// </summary>
+  private static IResult? RejectDegenerateMask(byte[] bytes) {
+    if (ImageDetectionsValidation.ValidateMaskRetention(bytes, out var retained))
+      return null;
+
+    var minimum = GameBot.Domain.Vision.TemplateMask.MinimumRetainedPixels;
+    return Results.BadRequest(new {
+      error = new {
+        code = "invalid_image",
+        message = "Reference image mask retains too few pixels to match reliably",
+        hint = $"The transparency mask leaves {retained} opaque pixels; at least {minimum} are required. " +
+               "Erase less of the image, or upload it without transparency."
+      }
+    });
+  }
+
   public static IEndpointRouteBuilder MapImageReferenceEndpoints(this IEndpointRouteBuilder app) {
     ArgumentNullException.ThrowIfNull(app);
 
@@ -115,6 +134,9 @@ internal static class ImageReferencesEndpoints {
       }
       contentType = "image/png";
     }
+
+    var degenerate = RejectDegenerateMask(bytes);
+    if (degenerate is not null) return degenerate;
 
     var safeId = SanitizeForLog(req.Id);
     try {
@@ -222,6 +244,9 @@ internal static class ImageReferencesEndpoints {
     if (!exists) {
       return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
     }
+
+    var degenerate = RejectDegenerateMask(bytes);
+    if (degenerate is not null) return degenerate;
 
     var safeId = SanitizeForLog(id);
     try {

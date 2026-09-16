@@ -74,10 +74,20 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     using var grayTpl = tplMat.Channels() == 1 ? tplMat.Clone() : tplMat.CvtColor(ColorConversionCodes.BGR2GRAY);
     using var grayRegion = regionMat.Channels() == 1 ? regionMat.Clone() : regionMat.CvtColor(ColorConversionCodes.BGR2GRAY);
 
+    // A masked reference image must be compared on its retained pixels here too, not just on the
+    // matcher path below — otherwise an image would behave differently depending on which caller
+    // used it (feature 089). BitmapConverter already hands us the BGRA Mat when the stored PNG has
+    // an alpha channel.
+    var isMasked = Vision.TemplateMask.TryCreate(tplMat, out var mask, out var retainedPixels);
+    using var maskOwner = isMasked ? mask : null;
+    if (isMasked && retainedPixels == 0) return 0d;
+
     // CCoeffNormed degenerates when template or region is constant (zero variance after mean subtraction).
     // Also when template is exactly region-sized, the result mat is 1×1 and always 1.0.
     // In these cases, fall back to direct mean-absolute-difference comparison.
-    Cv2.MeanStdDev(grayTpl, out var tplMean, out var tplStdDev);
+    Scalar tplMean, tplStdDev;
+    if (isMasked) Cv2.MeanStdDev(grayTpl, out tplMean, out tplStdDev, mask);
+    else Cv2.MeanStdDev(grayTpl, out tplMean, out tplStdDev);
     bool tplIsConstant = tplStdDev.Val0 < 1.0;
     if (tplIsConstant || (tpl.Width == rw && tpl.Height == rh)) {
       // For same-size or constant-template: compute mean absolute difference
@@ -87,7 +97,8 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
         : grayRegion.Resize(new OpenCvSharp.Size(grayTpl.Width, grayTpl.Height));
       using var diff = new Mat();
       Cv2.Absdiff(compareRegion, grayTpl, diff);
-      var meanDiff = Cv2.Mean(diff);
+      // Averaging under the mask keeps the erased background out of the difference.
+      var meanDiff = isMasked ? Cv2.Mean(diff, mask) : Cv2.Mean(diff);
       // Normalize: 0 diff → 1.0 similarity, 255 diff → 0.0
       return Math.Max(0, 1.0 - (meanDiff.Val0 / 255.0));
     }

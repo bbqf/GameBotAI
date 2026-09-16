@@ -2,7 +2,7 @@
 
 **Feature Branch**: `089-reference-image-alpha-mask`
 **Created**: 2026-09-16
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue #190 — "B-010: reference images cannot mask out background, so a circular badge template fails on a second instance" — https://github.com/bbqf/GameBotAI/issues/190
 
 ## Context
