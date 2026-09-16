@@ -2,7 +2,7 @@
 
 **Feature Branch**: `092-fix-selfresched-atstart-queue`  
 **Created**: 2026-09-16  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #198 (https://github.com/bbqf/GameBotAI/issues/198) — B-014: a queue template with only AtQueueStart entries ignores pending reschedule-self bookings and the queue ends as 'completed'. Closes #198.
 
 ## Background

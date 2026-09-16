@@ -126,6 +126,7 @@ Status vocabulary:
 | 089 | Reference Image Transparency Masks | Implemented (iterated by 090) |
 | 090 | Masked Match No-Information Rule | Implemented |
 | 091 | Sequence Update Dry Run and Command Reference Existence | Implemented |
+| 092 | Self-reschedule Keeps AtQueueStart-only Queue Running | Implemented |
 
 ## Numbering notes
 

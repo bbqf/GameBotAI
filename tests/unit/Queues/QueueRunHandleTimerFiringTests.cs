@@ -84,4 +84,46 @@ public sealed class QueueRunHandleTimerFiringTests {
     handle.DrainDueTimerFirings(T2).Should().ContainSingle()
       .Which.FireAt.Should().Be(T2);
   }
+
+  // ── Feature 092: pending self-reschedule work opens the run's scheduling loop (#198) ──────────
+
+  [Fact]
+  public void FreshHandleHasNoPendingSelfRescheduleWork() {
+    NewHandle().HasPendingSelfRescheduleWork.Should().BeFalse();
+  }
+
+  [Fact]
+  public void PendingTimerFiringIsPendingSelfRescheduleWork() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Timer("seq-A", T1));
+    handle.HasPendingSelfRescheduleWork.Should().BeTrue();
+  }
+
+  [Fact]
+  public void PendingNextCycleStartIsPendingSelfRescheduleWork() {
+    var handle = NewHandle();
+    handle.PendingNextCycleStart.Enqueue(new("id", "seq-A", SelfRescheduleOption.AtQueueStart, null));
+    handle.HasPendingSelfRescheduleWork.Should().BeTrue();
+  }
+
+  [Fact]
+  public void PendingOncePerRunIsPendingSelfRescheduleWork() {
+    var handle = NewHandle();
+    handle.PendingOncePerRun.Enqueue(new("id", "seq-A", SelfRescheduleOption.OncePerRun, null));
+    handle.HasPendingSelfRescheduleWork.Should().BeTrue();
+  }
+
+  [Fact]
+  public void PendingLiveScheduleIsPendingSelfRescheduleWork() {
+    var handle = NewHandle();
+    handle.PendingLiveSchedules["seq-A"] = T1;
+    handle.HasPendingSelfRescheduleWork.Should().BeTrue();
+  }
+
+  [Fact]
+  public void EveryStepInjectionAloneIsNotPendingSelfRescheduleWork() {
+    var handle = NewHandle();
+    handle.EveryStepInjections["seq-A"] = new("id", "seq-A", SelfRescheduleOption.EveryStep, null);
+    handle.HasPendingSelfRescheduleWork.Should().BeFalse();
+  }
 }

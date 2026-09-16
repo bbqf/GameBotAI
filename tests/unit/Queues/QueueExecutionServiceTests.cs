@@ -1826,6 +1826,191 @@ public sealed partial class QueueExecutionServiceTests {
     h.Log.Summary.Should().Contain("stopped manually");
   }
 
+  // ── Feature 092: an AtQueueStart-only template honours its self-reschedule bookings (#198) ──
+  // Before the fix such a template never entered the scheduling loop, so bookings made during the
+  // start pass were listed as upcoming but the run ended at once as "completed full run".
+
+  [Fact] // T004 — SC-001: three start entries each book themselves +90s; the run waits and fires all three.
+  public async Task AtQueueStartOnlyTimerRescheduleKeepsNonCyclingRunAliveAndFires() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("A"), AtQueueStart("B"), AtQueueStart("C") });
+    var booked = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
+    h.Sequences.Handler = (id, ct) => {
+      if (booked.TryAdd(id, true)) {
+        h.Coordinator.ScheduleSelf("q1", id, SelfRescheduleOption.Timer, null, TimeSpan.FromSeconds(90));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => booked.Count == 3 && h.Registry.TryGet("q1", out var handle) && handle.SnapshotPendingTimerFirings().Count == 3, 10000);
+    h.Service.IsRunning("q1").Should().BeTrue();
+    h.Sequences.Executed.Should().Equal("A", "B", "C");
+
+    clock.Advance(TimeSpan.FromSeconds(90));
+    await WaitUntilStoppedAsync(h.Service, "q1", 10000);
+
+    h.Sequences.Executed.Count(id => id == "A").Should().Be(2);
+    h.Sequences.Executed.Count(id => id == "B").Should().Be(2);
+    h.Sequences.Executed.Count(id => id == "C").Should().Be(2);
+    h.Log.Summary.Should().Contain("completed full run: 6 sequence(s) executed");
+  }
+
+  [Fact] // T005 — SC-002: a start entry that re-books on every firing keeps going across generations.
+  public async Task AtQueueStartOnlyTimerRescheduleRepeatsForSeveralGenerations() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("A") });
+    var firings = 0;
+    h.Sequences.Handler = (id, ct) => {
+      h.Coordinator.ScheduleSelf("q1", "A", SelfRescheduleOption.Timer, null, TimeSpan.FromSeconds(90));
+      Interlocked.Increment(ref firings);
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    for (var generation = 1; generation <= 3; generation++) {
+      var expected = generation;
+      await WaitForAsync(() => Volatile.Read(ref firings) == expected && h.Registry.TryGet("q1", out var handle) && handle.HasPendingTimerFirings, 10000);
+      Volatile.Read(ref firings).Should().Be(expected);
+      clock.Advance(TimeSpan.FromSeconds(90));
+    }
+    await WaitForAsync(() => Volatile.Read(ref firings) >= 4, 10000);
+
+    h.Service.IsRunning("q1").Should().BeTrue();
+    await h.Service.StopAsync("q1");
+    h.Sequences.Executed.Count(id => id == "A").Should().BeGreaterThanOrEqualTo(4);
+    h.Log.Summary.Should().Contain("stopped manually");
+  }
+
+  [Fact] // T006 — FR-004: the same booking is honoured when the queue cycles.
+  public async Task AtQueueStartOnlyTimerRescheduleFiresInCyclingRun() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("A") }, cycle: true);
+    var booked = 0;
+    h.Sequences.Handler = (id, ct) => {
+      if (Interlocked.Exchange(ref booked, 1) == 0) {
+        h.Coordinator.ScheduleSelf("q1", "A", SelfRescheduleOption.Timer, null, TimeSpan.FromSeconds(90));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Registry.TryGet("q1", out var handle) && handle.HasPendingTimerFirings, 10000);
+    h.Service.IsRunning("q1").Should().BeTrue();
+
+    clock.Advance(TimeSpan.FromSeconds(90));
+    await WaitForAsync(() => h.Sequences.Executed.Count(id => id == "A") >= 2, 10000);
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Count(id => id == "A").Should().BeGreaterThanOrEqualTo(2);
+  }
+
+  [Fact] // T010 — edge case: a non-timer (once-per-run) booking from the start pass is honoured too.
+  public async Task AtQueueStartOnlyOncePerRunRescheduleFiresBeforeRunEnds() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("A") });
+    var scheduled = false;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A" && !scheduled) {
+        scheduled = true;
+        h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.OncePerRun, null, null);
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "R");
+    h.Log.Summary.Should().Contain("completed full run: 2 sequence(s) executed");
+  }
+
+  [Fact] // T011 — FR-005: stopping while waiting on a booking is prompt and not a failure.
+  public async Task AtQueueStartOnlyRescheduleWaitIsStoppableAndNotFailed() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("A") });
+    h.Sequences.Handler = (id, ct) => {
+      h.Coordinator.ScheduleSelf("q1", "A", SelfRescheduleOption.Timer, null, TimeSpan.FromHours(12));
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Registry.TryGet("q1", out var handle) && handle.HasPendingTimerFirings, 10000);
+    h.Service.IsRunning("q1").Should().BeTrue();
+
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Should().Equal("A");
+    h.Log.FinalStatus.Should().Be("success");
+    h.Log.Summary.Should().Contain("stopped manually");
+  }
+
+  [Fact] // T012 — FR-005: the wait for a distant booking uses the existing idle-pause.
+  public async Task AtQueueStartOnlyRescheduleWaitUsesIdlePause() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    h.EnsureGame.ExecutedCountProvider = () => h.Sequences.Executed.Count;
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("A") }, pauseWhenIdle: true, idleThresholdSeconds: 30);
+    var booked = 0;
+    h.Sequences.Handler = (id, ct) => {
+      if (Interlocked.Exchange(ref booked, 1) == 0) {
+        h.Coordinator.ScheduleSelf("q1", "A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sessions.HomeCount >= 1, 10000);
+    h.Registry.TryGet("q1", out var handle).Should().BeTrue();
+    handle.IsIdlePaused.Should().BeTrue();
+    h.EnsureGame.Calls.Should().Be(0);
+
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitUntilStoppedAsync(h.Service, "q1", 10000);
+
+    h.Sessions.HomeCount.Should().Be(1);
+    h.EnsureGame.Calls.Should().Be(1);
+    h.Sequences.Executed.Should().Equal("A", "A");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
+  [Theory] // T013 — FR-006: with nothing booked, an AtQueueStart-only run still completes at once, unchanged.
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task AtQueueStartOnlyWithoutReschedulesCompletesImmediately(bool cycle) {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("A"), AtQueueStart("B") }, cycle: cycle);
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Service.IsRunning("q1").Should().BeFalse();
+    h.Sequences.Executed.Should().Equal("A", "B");
+    h.Log.Summary.Should().Contain("completed full run: 2 sequence(s) executed");
+    h.Log.Summary.Should().NotContain("across");
+  }
+
+  [Fact] // T014 — research R-002: an EveryStep injection alone does not keep a non-cycling run alive.
+  public async Task AtQueueStartOnlyEveryStepInjectionDoesNotKeepRunAlive() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("A") });
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A") h.Coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.EveryStep, null, null);
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Service.IsRunning("q1").Should().BeFalse();
+    h.Sequences.Executed.Should().Equal("A", "R");
+    h.Log.FinalStatus.Should().Be("success");
+  }
+
   // ── Feature 073: idle-pause the game during queue gaps (US1) ──────────────
   // Setup pattern: a non-cyclic queue with one OncePerRun step and a distant relative timer. The
   // step runs immediately; the run then stays alive waiting for the timer, which is exactly the idle

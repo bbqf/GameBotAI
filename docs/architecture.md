@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-16 (feature 091 sequence update dry run and command-reference existence)._
+_Last reviewed: 2026-09-16 (feature 092 self-reschedule bookings keep an AtQueueStart-only queue running)._
 
 ## What GameBot is
 
@@ -176,7 +176,10 @@ not survive a service restart; queue *configuration* and templates are persisted
   option is **most-recent-wins per sequence** (feature 075): a new Timer firing replaces any pending
   Timer firing already queued for the same sequence in that run, so a self-rescheduling sequence never
   stacks duplicate future firings. The other options are unchanged — *Once Per Run* / *At Queue Start*
-  accumulate, and *After Every Step* is idempotent per sequence.
+  accumulate, and *After Every Step* is idempotent per sequence. A pending booking (or pending live
+  schedule) keeps the run's scheduling loop going **whatever schedule types the template uses** —
+  including a template of only At Queue Start entries, whose start pass would otherwise end the run
+  before its bookings fire (feature 092).
 - **Notify action** (within a sequence, feature 087) — an authorable sequence action (`notify`) that
   raises an outbound alert carrying an author-written `message` (required, ≤1000 chars) and an
   optional per-step `url`. It touches no device, which is the point: a guard that has detected an
