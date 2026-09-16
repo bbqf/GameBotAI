@@ -83,6 +83,46 @@ namespace GameBot.Service.Endpoints {
     }
     public static bool ValidateContentLength(long length) => length > 0 && length <= MaxImageBytes;
 
+    /// <summary>
+    /// Rejects an upload whose transparency mask retains too few pixels to match anything
+    /// meaningfully (feature 089, issue #190).
+    /// </summary>
+    /// <param name="bytes">The encoded upload.</param>
+    /// <param name="retainedCount">The retained pixel count, when the image carries a mask.</param>
+    /// <returns>True when the upload may proceed.</returns>
+    /// <remarks>
+    /// Only an image that is <i>actually masked</i> is inspected. An image with no alpha channel,
+    /// and an image whose alpha is uniformly opaque, are both left alone — the latter matters,
+    /// because an all-opaque alpha is not a mask and a small opaque image must keep uploading
+    /// exactly as it always has.
+    /// <para>
+    /// A mask retaining a handful of pixels correlates with almost any patch of screen. Refusing it
+    /// here is the only point where the operator can act on it; refusing it at detection time would
+    /// reproduce the silent no-match this feature exists to remove.
+    /// </para>
+    /// </remarks>
+    public static bool ValidateMaskRetention(byte[] bytes, out int retainedCount) {
+      retainedCount = 0;
+      if (bytes is null || bytes.Length == 0) return true;
+
+      OpenCvSharp.Mat? decoded = null;
+      try {
+        decoded = GameBot.Domain.Vision.TemplateImageDecoder.Decode(bytes);
+        if (!GameBot.Domain.Vision.TemplateMask.TryCreate(decoded, out var mask, out retainedCount))
+          return true;
+        mask.Dispose();
+        return retainedCount >= GameBot.Domain.Vision.TemplateMask.MinimumRetainedPixels;
+      }
+      catch (OpenCvSharp.OpenCVException) {
+        // Undecodable bytes are not this rule's business; content-type validation already ran and
+        // the repository reports its own failure.
+        return true;
+      }
+      finally {
+        decoded?.Dispose();
+      }
+    }
+
     public static (bool ok, string? error) ValidateRequest(GameBot.Service.Endpoints.Dto.DetectRequest req) {
       if (req is null) return (false, "invalid_request");
       if (string.IsNullOrWhiteSpace(req.ReferenceImageId)) return (false, "invalid_request: referenceImageId");

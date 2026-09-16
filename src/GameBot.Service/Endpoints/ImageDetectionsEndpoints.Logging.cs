@@ -18,5 +18,11 @@ namespace GameBot.Service.Endpoints {
     // empty match set. Without this, the failure the issue describes leaves no trace at all.
     [LoggerMessage(EventId = 11004, Level = LogLevel.Warning, Message = "Detect could not resolve a screen: reason={Reason} id={Id}")]
     public static partial void LogDetectUnresolvedScreen(this ILogger logger, string Reason, string Id);
+
+    // Feature 089 (issue #190): an operator comparing two scores needs to know which comparison
+    // they are looking at. Emitted as its own event rather than folded into the results message, so
+    // no existing log format is repurposed.
+    [LoggerMessage(EventId = 11005, Level = LogLevel.Information, Message = "Detect mask id={Id} masked={Masked} retainedPixelCount={RetainedPixelCount}")]
+    public static partial void LogDetectMask(this ILogger logger, string Id, bool Masked, int RetainedPixelCount);
   }
 }

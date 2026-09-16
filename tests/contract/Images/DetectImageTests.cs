@@ -43,6 +43,13 @@ public sealed class DetectImageTests {
     root.TryGetProperty("limitsHit", out var limitsHit).Should().BeTrue();
     (limitsHit.ValueKind == JsonValueKind.True || limitsHit.ValueKind == JsonValueKind.False).Should().BeTrue();
 
+    // Feature 089: additive mask reporting. An image with no transparency is not masked, and says
+    // so — every existing field above is unchanged.
+    root.TryGetProperty("masked", out var masked).Should().BeTrue();
+    masked.GetBoolean().Should().BeFalse();
+    root.TryGetProperty("retainedPixelCount", out var retainedPixelCount).Should().BeTrue();
+    retainedPixelCount.GetInt32().Should().Be(0);
+
     matches.ValueKind.Should().Be(JsonValueKind.Array);
     foreach (var m in matches.EnumerateArray()) {
       m.TryGetProperty("templateId", out var templateId).Should().BeTrue();

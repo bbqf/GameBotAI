@@ -194,11 +194,12 @@ namespace GameBot.Service.Endpoints {
           statusCode: StatusCodes.Status503ServiceUnavailable);
       }
 
-      // Convert stored image bytes to Mat
+      // Convert stored image bytes to Mat. The decode preserves a transparency channel, so a
+      // masked reference image is compared on its retained pixels only (feature 089).
       Mat templateMat;
       using (var msTpl = new System.IO.MemoryStream()) {
         tplBmp.Save(msTpl, System.Drawing.Imaging.ImageFormat.Png);
-        templateMat = Mat.FromImageData(msTpl.ToArray(), ImreadModes.Color);
+        templateMat = GameBot.Domain.Vision.TemplateImageDecoder.Decode(msTpl.ToArray());
       }
 
       var cfg = new TemplateMatcherConfig(threshold, maxResults, overlap);
@@ -221,10 +222,15 @@ namespace GameBot.Service.Endpoints {
       start.Stop();
       elapsedMs = (long)start.Elapsed.TotalMilliseconds;
       ImageDetectionsEndpointComponent.LogDetectResults(logger, result.Matches.Count, result.LimitsHit, elapsedMs);
+      ImageDetectionsEndpointComponent.LogDetectMask(logger, safeId, result.Masked, result.RetainedPixelCount);
       ImageDetectionsMetrics.Record(elapsedMs, result.Matches.Count);
 
       // Normalize bbox coordinates
-      var resp = new DetectResponse { LimitsHit = result.LimitsHit };
+      var resp = new DetectResponse {
+        LimitsHit = result.LimitsHit,
+        Masked = result.Masked,
+        RetainedPixelCount = result.RetainedPixelCount
+      };
       foreach (var m in result.Matches) {
         GameBot.Domain.Vision.Normalization.NormalizeRect(m.BBox.X, m.BBox.Y, m.BBox.Width, m.BBox.Height, screenshotMat.Cols, screenshotMat.Rows,
             out var nx, out var ny, out var nw, out var nh);
@@ -346,7 +352,7 @@ namespace GameBot.Service.Endpoints {
       catch { return (id, (TemplateMatchResult?)null); }
 
       Mat templateMat;
-      try { templateMat = Mat.FromImageData(bytes, ImreadModes.Color); }
+      try { templateMat = GameBot.Domain.Vision.TemplateImageDecoder.Decode(bytes); }
       catch { return (id, (TemplateMatchResult?)null); }
 
       TemplateMatchResult result;

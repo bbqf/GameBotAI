@@ -383,7 +383,9 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         "or sessionId (mutually exclusive); with neither, the screen is inferred from the ambient " +
         "run context or the single running session. A 200 always means a measurement was taken, so " +
         "an empty matches array is a real absence — when no screen can be determined the call fails " +
-        "explicitly instead (feature 085).";
+        "explicitly instead (feature 085). If the reference image carries a transparency mask, only " +
+        "its retained pixels are compared and the response reports masked/retainedPixelCount " +
+        "(feature 089).";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
       SetImageDetectErrorExamples(operation, context);
@@ -638,7 +640,9 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         "or sessionId (mutually exclusive); with neither, the screen is inferred from the ambient " +
         "run context or the single running session. A 200 always means a measurement was taken, so " +
         "an empty matches array is a real absence — when no screen can be determined the call fails " +
-        "explicitly instead (feature 085).";
+        "explicitly instead (feature 085). If the reference image carries a transparency mask, only " +
+        "its retained pixels are compared and the response reports masked/retainedPixelCount " +
+        "(feature 089).";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
       SetImageDetectErrorExamples(operation, context);
@@ -1301,6 +1305,10 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
 
   private static OpenApiObject ImageDetectResponse() => new OpenApiObject {
     ["limitsHit"] = new OpenApiBoolean(false),
+    // Feature 089: the count is of pixels KEPT by the reference image's transparency mask, not of
+    // pixels masked out. Zero when the image carries no mask.
+    ["masked"] = new OpenApiBoolean(true),
+    ["retainedPixelCount"] = new OpenApiInteger(1421),
     ["matches"] = new OpenApiArray
     {
       new OpenApiObject
