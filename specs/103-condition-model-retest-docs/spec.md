@@ -2,7 +2,7 @@
 
 **Feature Branch**: `103-condition-model-retest-docs`
 **Created**: 2026-09-17
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue [#193](https://github.com/bbqf/GameBotAI/issues/193) — "B-006: condition-model ceiling on nested stepRef and loop exit reason - retest owed, not confirmed closed" (`documentation`, `P3`). Closes #193.
 
 ## Context
@@ -265,11 +265,22 @@ remaining limitation are all stated there.
   time.
 - **FR-009**: Such a nested condition MUST also be subject to the same ordering
   rule: a reference to a structurally later step MUST be rejected at save time.
-- **FR-010**: A save-time rejection under FR-008 or FR-009 MUST identify both the
-  offending step and the offending condition's position within the condition
-  tree, so an author can find it in a large sequence. It MUST use the same
-  position-path convention the other composite-condition messages already use,
-  rather than a second message idiom.
+- **FR-008a**: A `commandOutcome` written **directly** in an `If` step's condition
+  MUST be subject to the same resolution and ordering rules as one written on a
+  step guard. Measurement showed that slot validates a condition's shape but omits
+  both reference rules entirely, so a reference there is accepted however wrong it
+  is. Completing the check is required; the slot already validates leaves, so this
+  is an incomplete check rather than a deliberate exemption.
+- **FR-010**: A save-time rejection under FR-008, FR-008a or FR-009 MUST identify
+  both the offending step and, where the condition is nested, the offending
+  condition's position within the condition tree, so an author can find it in a
+  large sequence. A nested rejection MUST use the same position-path convention the
+  other composite-condition messages already use, rather than a second message
+  idiom.
+- **FR-010a**: Every save-time message that enumerates the accepted outcome states
+  MUST name all five. One such message currently names three, telling an author that
+  `break` and `no_break` are invalid in a slot that accepts them — the reported
+  ceiling surviving as a message after the behaviour was fixed.
 - **FR-011**: A loop's exit reason MUST be readable as structured data — the
   identifier of the `Break` that fired, or an indication that the iteration ceiling
   was exhausted — from the **persisted run log** of a completed run, not only from
@@ -340,8 +351,12 @@ remaining limitation are all stated there.
   "confirmed gone, by these tests" or "remains, precisely here" — zero halves left
   in the "reported but not observed" state that caused the issue to be filed.
 - **SC-003**: A reference that names a nonexistent step, and a reference that
-  names a later step, are each rejected at save time in every variant from
-  FR-002 — measured as zero variants in which such a reference is accepted.
+  names a later step, are each rejected at save time in every variant from FR-002
+  and every validated slot from FR-003 — measured as zero variant-or-slot
+  combinations in which such a reference is accepted, excepting only the inherited
+  boundary named in FR-003a.
+- **SC-003a**: Every save-time message enumerating accepted outcome states names
+  five of five — measured as zero messages naming a smaller set.
 - **SC-004**: A caller can determine, from the persisted run log of a completed run
   and without reading log prose, which of the three loop exits occurred, for 100% of
   loops in that run.

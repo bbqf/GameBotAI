@@ -201,6 +201,57 @@ value into the record beside the `iterations` count it belongs with. No new conc
 2. *Parse it back out of the message prose.* Rejected: that is the failure mode, not
    a fix.
 
+### F-009: A directly-written reference in an `If` condition is never checked — **GAP**
+
+**Decision**: Fix. Apply the same two rules in the `If` condition slot.
+
+Found by measurement rather than reading (see "Measured probe" below).
+`ValidateIfStep` routes an `If` step's condition to `ValidateIfCondition`
+(`src/GameBot.Domain/Services/SequenceStepValidationService.cs:209-228`), which checks
+that `stepRef` is non-empty and that `expectedState` is known — and nothing else. The
+`positionByStepId` and `ownPosition` maps are never passed to it, so a reference in an
+`If` condition is neither resolved nor ordered. An `If` step never reaches
+`ValidateStepCondition`, because `Validate` dispatches it to `ValidateIfStep` and
+`continue`s.
+
+Measured: a dangling reference on an **action step guard** is rejected; the identical
+reference in an **`If` condition** is accepted with zero errors.
+
+Why this matters more than it first looks: feature 081's headline acceptance scenario
+was *"a sequence-creation request whose `If` condition's `stepRef` names a step nested
+inside a `Loop`/`If` body … creation succeeds"*. It does succeed — but for the wrong
+reason. Nothing in that slot checks references at all, so the scenario would have
+passed without the widening. For the `If` slot the ceiling was never lifted; it was
+never enforced. A typo'd reference there is accepted at save time and fails the run.
+
+**Distinct from the D-006 boundary in F-008**: the `If` condition slot *does* validate
+leaf conditions — the `imageVisible` `imageId` check and the `expectedState` check both
+fire there. It simply omits the two reference rules. So this is an incomplete check, not
+a deliberate exemption, and completing it is consistent with D-006 rather than a
+reversal of it.
+
+**Compatibility**: same class as F-002 — a stored sequence with a dangling `If`
+reference will be rejected on its next save, and already fails at run time when that
+condition is reached (spec A-005).
+
+### F-010: The `If` slot's outcome-state message names three of five values — **GAP**
+
+**Decision**: Fix. One string.
+
+`ValidateIfCondition` emits `commandOutcome expectedState must be one of
+success|failed|skipped` (:225) while validating against a set that includes `break` and
+`no_break`. The per-step validator's equivalent message (:345) correctly names all
+five. Measured side by side: the action-step guard says
+`success|failed|skipped|break|no_break`, the `If` condition says
+`success|failed|skipped`.
+
+So an author working on an `If` condition is told `break` is invalid by the very
+validator that accepts it. This is issue #193's half-2 complaint — *"`expectedState`
+accepted only `success|failed|skipped`"* — surviving verbatim as a message after the
+behaviour was fixed, and it is exactly the kind of stale claim the issue was filed
+about. Constitution Principle III requires actionable messages; a message listing the
+wrong permitted set is worse than none.
+
 ### F-008: A deliberate pre-existing boundary that must be respected, not "fixed"
 
 **Decision**: Assert the boundary; do not change it.
@@ -234,12 +285,38 @@ rejecting stored sequences, and is outside what issue #193 asks for.
 
 ---
 
+## Measured probe
+
+Before writing any test, a throwaway probe ran the real
+`SequenceStepValidationService` over twelve hand-built sequences, one per
+slot-and-variant combination, and printed the errors each produced. It was deleted
+once the findings below were converted into permanent tests. Its results:
+
+| # | Arrangement | Errors | Reading |
+|---|---|---|---|
+| 1 | Action guard, dangling ref, written directly | rejected | F-001 confirmed |
+| 2 | Action guard, dangling ref inside `all` | **accepted** | F-002 confirmed |
+| 3 | `If` condition, dangling ref, written directly | **accepted** | **F-009, new** |
+| 4 | `If` condition, unknown `expectedState` | names 3 of 5 values | **F-010, new** |
+| 5 | Action guard, unknown `expectedState` | names all 5 | correct |
+| 6 | Action guard, forward ref, written directly | rejected | F-001 confirmed |
+| 7 | Action guard, forward ref inside `all` | **accepted** | F-002 confirmed |
+| 8 | Action guard, nested ref, written directly | accepted | feature 081 works |
+| 9 | Action guard, nested ref inside `all` | accepted | valid case unharmed |
+| 10 | Break condition, dangling ref inside `any` | **accepted** | F-002, break slot |
+| 11 | `while` condition, dangling ref inside `all` | **accepted** | F-002, loop slot |
+| 12 | `while` condition, dangling ref as bare leaf | accepted | D-006 boundary intact |
+
+Rows 3 and 4 are why the probe was worth running: neither was visible from reading the
+composite validator, because neither is about composites. Both were found by measuring
+a slot nobody had thought to question — which is the entire argument of issue #193.
+
 ## Consolidated answer to issue #193
 
 | # | Claim under test | Status | Action |
 |---|---|---|---|
-| 1 | Nested `stepRef`, condition written directly | Confirmed gone | Regression guard |
-| 2 | Nested `stepRef`, inside `all`/`any`/`none` | **Gap** — no resolution or ordering check | Fix + failing-first tests |
+| 1 | Nested `stepRef`, condition written directly on a step guard | Confirmed gone | Regression guard |
+| 2 | Nested `stepRef`, inside `all`/`any`/`none`, any slot | **Gap** — no resolution or ordering check | Fix + failing-first tests |
 | 3 | Nested `stepRef` at run time, any variant | Confirmed gone | Regression guard |
 | 4 | `break`/`no_break` accepted by the service | Confirmed gone | Regression guard |
 | 5 | Nested `stepRef` / `break` states in the web UI | **Gap** — original ceiling intact | Fix + tests |
@@ -247,11 +324,18 @@ rejecting stored sequences, and is outside what issue #193 asks for.
 | 7 | Loop exit reason on a direct run response | Confirmed gone | Regression guard |
 | 8 | Loop exit reason semantics incl. simultaneous case | Confirmed correct | Pin with tests |
 | 9 | Loop exit reason in the persisted run log | **Gap** — dropped | Fix + failing-first test |
+| 10 | Reference written directly in an `If` condition | **Gap** — never resolved or ordered | Fix + failing-first tests |
+| 11 | The `If` slot's accepted-outcome-state message | **Gap** — names 3 of 5 | Fix + test |
 
 So the honest answer the issue asked for: **half 1 and half 2 are both delivered in
-the API and domain, and neither is gone end-to-end.** Three measured gaps remain, all
-closable within the delivered design (2, 5, 9), plus one absent capability recorded
-rather than built (6).
+the API and domain, and neither is gone end-to-end.** Five measured gaps remain, all
+closable within the delivered design (2, 5, 9, 10, 11), plus one absent capability
+recorded rather than built (6).
+
+Finding 10 sharpens the answer: for the `If` condition slot the reference rules were
+never enforced at all, so feature 081's acceptance scenario for that slot passed
+vacuously. That is precisely the "reported fixed versus observed fixed" distinction
+issue #193 was filed to force.
 
 ---
 

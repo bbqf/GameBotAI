@@ -101,6 +101,12 @@ curl -s -X POST "$BASE/api/sequences/<SEQ>/execute" \
         | { stepId: .commandId, status, iterations: (.loopIterations | length), exitReason }'
 ```
 
+A `sessionId` is needed because a `tap` body step without one fails with
+`no session available for 'tap' step`, which fails the loop — and a loop that fails early
+is recorded with **no exit reason at all**, which looks like the gap but is not it. To
+check the exit reason without a device, send `{ "dryRun": true }` instead: the run walks
+the real loop and its exit-reason bookkeeping while dispatching nothing.
+
 ```json
 { "stepId": "loop1", "status": "Succeeded", "iterations": 2,
   "exitReason": { "brokeVia": "nested-break", "exhaustedMaxIterations": false } }
@@ -125,21 +131,29 @@ Run the sequence through a queue (or any path that leaves only a log), then read
 loop step's entry:
 
 ```bash
-curl -s "$BASE/api/execution-logs?limit=1" | jq -r '.items[0].executionId'
+# The list entry's own id is `id`; its sequence is `objectRef.objectId`.
+curl -s "$BASE/api/execution-logs?limit=1" | jq -r '.items[0].id'
 curl -s "$BASE/api/execution-logs/<EXEC_ID>" \
   | jq '.details[] | select(.attributes.stepType == "loop") | .attributes
         | { stepId, iterations, status, brokeVia, exhaustedMaxIterations }'
 ```
 
 ```json
-// BEFORE: brokeVia and exhaustedMaxIterations are absent — the exit reason is gone,
-// inferable only from the prose in "message".
+// BEFORE: the attributes are absent entirely (jq renders the missing keys as null) —
+// the exit reason is gone, inferable only from the prose in "message". Verified: the
+// loop entry carried exactly
+//   stepOrder, stepType, status, actionOutcome, appliedDelayMs, stepDelayMs,
+//   interStepDelayMs, iterations, message, sequenceId, sequenceLabel, stepId, stepLabel
 { "stepId": "loop1", "iterations": 2, "status": "Succeeded",
   "brokeVia": null, "exhaustedMaxIterations": null }
 
-// AFTER:
+// AFTER, for a loop that broke:
 { "stepId": "loop1", "iterations": 2, "status": "Succeeded",
   "brokeVia": "nested-break", "exhaustedMaxIterations": false }
+
+// AFTER, for a loop that simply finished (the case the contract test pins):
+{ "stepId": "loop1", "iterations": 2, "status": "Succeeded",
+  "brokeVia": null, "exhaustedMaxIterations": false }
 ```
 
 This is the surface that matters for a queue-driven run, which has no response to
@@ -190,6 +204,31 @@ leave alone (spec FR-003a).
 
 ---
 
+## 8. The `If` condition slot — never reference-checked before (found by measuring)
+
+```bash
+# A reference written DIRECTLY in an If condition, naming a step that does not exist.
+curl -s -X POST "$BASE/api/sequences" \
+  -H 'Content-Type: application/json' \
+  -d '{ "name": "qs-if-dangling", "steps": [
+        { "stepId": "first", "primitiveAction": { "type": "tap", "schemaVersion": "v1", "payload": { "x": 10, "y": 10 } } },
+        { "stepId": "branch", "stepType": "If",
+          "if": { "condition": { "type": "commandOutcome", "stepRef": "no-such-step", "expectedState": "success" } },
+          "body": [ { "stepId": "then1", "primitiveAction": { "type": "tap", "schemaVersion": "v1", "payload": { "x": 20, "y": 20 } } } ] } ] }'
+# BEFORE: 201 Created — this slot validated a condition's shape and never checked a
+#   reference at all, so feature 081's acceptance scenario for it passed vacuously.
+# AFTER: 400 "Step 'branch' commandOutcome references unknown prior step 'no-such-step'."
+```
+
+Set `expectedState` to something invalid to see the message that also lagged:
+
+```text
+Before: Step 'branch' commandOutcome expectedState must be one of success|failed|skipped.
+After:  Step 'branch' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.
+```
+
+---
+
 ## Running the evidence
 
 ```bash
@@ -197,8 +236,16 @@ dotnet test GameBot.sln
 ```
 
 ```bash
-cd src/web-ui; npx jest src/lib/__tests__/validation.spec.ts
+cd src/web-ui; npx jest src/lib/__tests__/perStepConditionValidation.spec.ts
 ```
+
+The .NET files carrying this feature's assertions:
+`tests/unit/Sequences/ConditionReferenceScopeValidationTests.cs` (every variant and slot,
+including the D-006 boundary), `tests/contract/Sequences/CompositeConditionContractTests.cs`
+and `SequenceLoopExitReasonContractTests.cs`,
+`tests/contract/ExecutionLogs/ExecutionLogsLoopExitReasonContractTests.cs`,
+`tests/unit/Sequences/SequenceRunnerLoopTests.cs`,
+`CompositeConditionValidationTests.cs` and `CompositeConditionEvaluatorTests.cs`.
 
 The web-ui green gate is `vite build` + `jest`; `lint` and `tsc --noEmit` carry
 pre-existing failures unrelated to this feature.

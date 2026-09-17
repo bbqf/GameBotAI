@@ -148,6 +148,46 @@ public sealed class CompositeConditionValidationTests {
       .Which.Should().Be("Step 'S' condition at $.children[0]: commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
   }
 
+  // Feature 103 (issue #193, FR-004/FR-013): the reported ceiling's second half was that
+  // expectedState accepted only success|failed|skipped, with no way to ask whether a nested Break
+  // had fired. The set is pinned from both sides here — all five accepted, and the set closed
+  // against additions — because "accepts break now" was exactly the claim nobody re-measured.
+
+  [Theory]
+  [InlineData("success")]
+  [InlineData("failed")]
+  [InlineData("skipped")]
+  [InlineData("break")]
+  [InlineData("no_break")]
+  public void EveryAcceptedExpectedStateIsAcceptedInsideEveryCompositeRule(string expectedState) {
+    foreach (var rule in new[] { "all", "any", "none" }) {
+      var child = new CommandOutcomeStepCondition { StepRef = "probe", ExpectedState = expectedState };
+      CompositeStepCondition condition = rule switch {
+        "all" => new AllStepCondition { Children = new[] { child } },
+        "any" => new AnyStepCondition { Children = new[] { child } },
+        _ => new NoneStepCondition { Children = new[] { child } }
+      };
+
+      Validate(condition).Should().BeEmpty($"'{expectedState}' is accepted inside '{rule}'");
+    }
+  }
+
+  [Theory]
+  [InlineData("succeeded")]
+  [InlineData("broke")]
+  [InlineData("nobreak")]
+  [InlineData("SUCCESS ")]
+  public void AnExpectedStateOutsideTheFiveIsRejectedSoTheSetStaysClosed(string expectedState) {
+    // FR-013 forbids adding outcome states. Near-misses are the cases that would reveal an
+    // accidental widening — a trailing space or a plausible synonym slipping through.
+    var condition = new AllStepCondition {
+      Children = new SequenceStepCondition[] { new CommandOutcomeStepCondition { StepRef = "probe", ExpectedState = expectedState } }
+    };
+
+    Validate(condition).Should().ContainSingle()
+      .Which.Should().Be("Step 'S' condition at $.children[0]: commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+  }
+
   [Fact]
   public void EveryBadChildIsReportedNotJustTheFirst() {
     var condition = new AllStepCondition {
@@ -197,5 +237,44 @@ public sealed class CompositeConditionValidationTests {
   [Fact]
   public void ANullConditionProducesNoErrors() {
     Validate(null!).Should().BeEmpty();
+  }
+
+  // ---------- callers without a position index keep shape-only validation ----------
+
+  [Fact]
+  public void ACallerThatSuppliesNoPositionIndexDoesNotGetReferenceCheckedAndSoCannotNewlyReject() {
+    // Feature 103 made the reference rules available to this validator, but only to callers that can
+    // supply the authored-order index. The repository's own composite walk cannot: it validates a
+    // condition in isolation, with no sequence around it. A rejection from there surfaces as a 500,
+    // which is the failure mode this validator exists to prevent — so an unsupplied index must mean
+    // "check the shape and nothing else", not "treat every reference as unresolvable".
+    var condition = new AllStepCondition {
+      Children = new SequenceStepCondition[] {
+        new CommandOutcomeStepCondition { StepRef = "no-such-step", ExpectedState = "success" }
+      }
+    };
+
+    Validate(condition).Should().BeEmpty();
+  }
+
+  [Fact]
+  public void AnIndexWithoutAReferencingPositionResolvesButDoesNotOrder() {
+    // Resolution and ordering are separate rules, and "prior" is meaningless without knowing where
+    // the asking condition sits. Given the index alone, an absent reference is still caught while an
+    // out-of-order one is not.
+    var index = new Dictionary<string, int> { ["earlier"] = 0, ["later"] = 2 };
+
+    var resolvable = new List<string>();
+    CompositeConditionValidator.Validate(
+      new AllStepCondition { Children = new SequenceStepCondition[] { new CommandOutcomeStepCondition { StepRef = "later", ExpectedState = "success" } } },
+      "S", resolvable, positionByStepId: index);
+    resolvable.Should().BeEmpty("ordering cannot be judged without the referencing step's position");
+
+    var unresolvable = new List<string>();
+    CompositeConditionValidator.Validate(
+      new AllStepCondition { Children = new SequenceStepCondition[] { new CommandOutcomeStepCondition { StepRef = "absent", ExpectedState = "success" } } },
+      "S", unresolvable, positionByStepId: index);
+    unresolvable.Should().ContainSingle()
+      .Which.Should().Be("Step 'S' condition at $.children[0]: commandOutcome references unknown prior step 'absent'.");
   }
 }

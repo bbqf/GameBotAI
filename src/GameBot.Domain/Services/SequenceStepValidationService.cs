@@ -134,7 +134,12 @@ public sealed class SequenceStepValidationService {
       RepeatUntilLoopConfig repeatCfg => repeatCfg.Condition,
       _ => null
     };
-    CompositeConditionValidator.Validate(loopCondition, stepLabel, errors);
+    // Feature 103: a composite in this slot now has its references resolved and ordered too. The
+    // asymmetry that leaves — a composite-wrapped reference here is checked while a bare leaf one is
+    // not — is inherited from D-006 above, not introduced here, and is asserted by test.
+    CompositeConditionValidator.Validate(loopCondition, stepLabel, errors,
+        positionByStepId: positionByStepId,
+        referencingStepPosition: ownPosition.TryGetValue(step, out var loopPosition) ? loopPosition : null);
 
     // Validate body steps.
     var bodyStepIds = new HashSet<string>(_stepIdComparer);
@@ -167,7 +172,9 @@ public sealed class SequenceStepValidationService {
           errors.Add($"Break step '{bodyLabel}' imageVisible breakCondition requires imageId.");
         }
         // Feature 088: a break guard may be a composite; a leaf keeps the message above.
-        CompositeConditionValidator.Validate(bodyStep.BreakCondition, bodyLabel, errors);
+        CompositeConditionValidator.Validate(bodyStep.BreakCondition, bodyLabel, errors,
+            positionByStepId: positionByStepId,
+            referencingStepPosition: ownPosition.TryGetValue(bodyStep, out var breakPosition) ? breakPosition : null);
         continue;
       }
 
@@ -197,7 +204,12 @@ public sealed class SequenceStepValidationService {
       errors.Add($"If step '{stepLabel}' requires an if configuration with a condition.");
     }
     else {
-      ValidateIfCondition(step.If.Condition, stepLabel, errors);
+      ValidateIfCondition(
+        step.If.Condition,
+        stepLabel,
+        errors,
+        positionByStepId,
+        ownPosition.TryGetValue(step, out var ifPosition) ? ifPosition : null);
     }
 
     ValidateIfBranch(step.Body, "then", stepLabel, ownPosition, positionByStepId, errors, insideLoop);
@@ -206,10 +218,16 @@ public sealed class SequenceStepValidationService {
     }
   }
 
-  private static void ValidateIfCondition(SequenceStepCondition condition, string stepLabel, List<string> errors) {
+  private static void ValidateIfCondition(
+      SequenceStepCondition condition,
+      string stepLabel,
+      List<string> errors,
+      Dictionary<string, int> positionByStepId,
+      int? referencingStepPosition) {
     // Feature 088: composites are validated here (size, depth, and every child's shape). Leaves keep
     // being checked by the rules below, so their existing messages are unchanged.
-    CompositeConditionValidator.Validate(condition, stepLabel, errors);
+    CompositeConditionValidator.Validate(condition, stepLabel, errors,
+        positionByStepId: positionByStepId, referencingStepPosition: referencingStepPosition);
 
     if (condition is ImageVisibleStepCondition imageVisible && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
@@ -219,10 +237,25 @@ public sealed class SequenceStepValidationService {
       if (string.IsNullOrWhiteSpace(commandOutcome.StepRef)) {
         errors.Add($"Step '{stepLabel}' commandOutcome condition requires stepRef.");
       }
+      // Feature 103 (issue #193, FR-008a): this slot validated a condition's shape and stopped — it
+      // never resolved or ordered a reference. Feature 081's headline acceptance scenario was about
+      // an If condition naming a nested step, and it passed because nothing here rejected anything,
+      // not because the widening reached this far. A typo'd reference saved and failed the run.
+      else if (!positionByStepId.TryGetValue(commandOutcome.StepRef, out var referencedPosition)) {
+        errors.Add($"Step '{stepLabel}' commandOutcome references unknown prior step '{commandOutcome.StepRef}'.");
+      }
+      else if (referencingStepPosition is { } ownPosition && referencedPosition >= ownPosition) {
+        // An If's own body is authored after the condition deciding whether to enter it, so asking
+        // about a step inside that body is a forward reference.
+        errors.Add($"Step '{stepLabel}' commandOutcome stepRef '{commandOutcome.StepRef}' must reference a prior step.");
+      }
 
       if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
           || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
-        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of success|failed|skipped.");
+        // FR-010a: this message named three of the five states it validates against, telling an
+        // author that break/no_break were invalid in a slot that has accepted them since feature
+        // 081 — the reported ceiling surviving as a message after the behaviour was fixed.
+        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
       }
     }
   }
@@ -268,7 +301,9 @@ public sealed class SequenceStepValidationService {
           errors.Add($"Break step '{branchLabel}' imageVisible breakCondition requires imageId.");
         }
         // Feature 088: a break guard inside an if branch may be a composite too.
-        CompositeConditionValidator.Validate(branchStep.BreakCondition, branchLabel, errors);
+        CompositeConditionValidator.Validate(branchStep.BreakCondition, branchLabel, errors,
+            positionByStepId: positionByStepId,
+            referencingStepPosition: ownPosition.TryGetValue(branchStep, out var branchBreakPosition) ? branchBreakPosition : null);
         continue;
       }
 
@@ -354,8 +389,16 @@ public sealed class SequenceStepValidationService {
     // Feature 088: composite guards on this step and on its break condition. Leaves reaching here
     // are already covered by the checks above (and, for break conditions, by the caller), so the
     // validator is asked to look at composites only and no message is duplicated.
-    CompositeConditionValidator.Validate(step.Condition, stepLabel, errors);
-    CompositeConditionValidator.Validate(step.BreakCondition, stepLabel, errors);
+    //
+    // Feature 103 (issue #193, FR-008/FR-009): the position index and this step's own position are
+    // handed over so a reference reached through a composite is resolved and ordered by the same two
+    // rules as one written directly above. Before this, only the directly-written form was checked,
+    // so wrapping a dangling reference in an `all` was enough to save it and fail the run later.
+    var ownPositionOrNull = ownPosition.TryGetValue(step, out var position) ? position : (int?)null;
+    CompositeConditionValidator.Validate(step.Condition, stepLabel, errors,
+        positionByStepId: positionByStepId, referencingStepPosition: ownPositionOrNull);
+    CompositeConditionValidator.Validate(step.BreakCondition, stepLabel, errors,
+        positionByStepId: positionByStepId, referencingStepPosition: ownPositionOrNull);
   }
 
   // feature 065: validates a reschedule-self action payload, mirroring the queue-template timer rules.

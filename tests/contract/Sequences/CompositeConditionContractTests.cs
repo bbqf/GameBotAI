@@ -117,6 +117,15 @@ public sealed class CompositeConditionContractTests {
         "child-unknown-expected-state",
         new { type = "all", children = new object[] { new { type = "commandOutcome", stepRef = "guarded", expectedState = "maybe" } } },
         "expectedState"
+      },
+      {
+        // Feature 103 (issue #193, FR-008): before this feature a reference reached through a
+        // composite was checked for non-emptiness only, so this saved with 201 and then failed the
+        // run with "reference is not available" — the opposite of the 400-not-500 posture the rest
+        // of this file exists to enforce.
+        "child-dangling-step-ref",
+        new { type = "all", children = new object[] { new { type = "commandOutcome", stepRef = "no-such-step", expectedState = "success" } } },
+        "references unknown prior step"
       }
     };
   }
@@ -269,6 +278,99 @@ public sealed class CompositeConditionContractTests {
     var guard = JsonDocument.Parse(body).RootElement.GetProperty("steps")[0].GetProperty("condition");
     guard.GetProperty("type").GetString().Should().Be("imageVisible");
     guard.TryGetProperty("children", out _).Should().BeFalse("a leaf must not grow a children array");
+  }
+
+  // ---------- feature 103 (issue #193): reference scope at the API boundary ----------
+
+  [Fact]
+  public async Task ACompositeNestedReferenceToALaterStepIsRejectedAsNotPrior() {
+    // Reachable but authored after the condition asking about it. Resolution and ordering are two
+    // separate rules, and a fix that only resolved would leave this accepted.
+    using var app = CreateFactory();
+    var client = await ClientAsync(app).ConfigureAwait(false);
+
+    var payload = new {
+      name = $"forward-ref-{Guid.NewGuid():N}",
+      version = 1,
+      steps = new object[] {
+        Tap("gate", new { type = "all", children = new object[] { new { type = "commandOutcome", stepRef = "later", expectedState = "success" } } }),
+        Tap("later")
+      }
+    };
+
+    var response = await client.PostAsJsonAsync("/api/sequences", payload).ConfigureAwait(false);
+    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest, content);
+    content.Should().Contain("must reference a prior step");
+  }
+
+  [Fact]
+  public async Task AReferenceWrittenDirectlyInAnIfConditionIsRejectedWhenItNamesAnAbsentStep() {
+    // FR-008a. Measurement found this slot never resolved a reference at all, so feature 081's own
+    // acceptance scenario for an If condition passed vacuously.
+    using var app = CreateFactory();
+    var client = await ClientAsync(app).ConfigureAwait(false);
+
+    var payload = new {
+      name = $"if-dangling-{Guid.NewGuid():N}",
+      version = 1,
+      steps = new object[] {
+        Tap("first"),
+        new {
+          stepId = "branch",
+          stepType = "If",
+          @if = new { condition = new { type = "commandOutcome", stepRef = "no-such-step", expectedState = "success" } },
+          body = new object[] { Tap("then-step") }
+        }
+      }
+    };
+
+    var response = await client.PostAsJsonAsync("/api/sequences", payload).ConfigureAwait(false);
+    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest, content);
+    content.Should().Contain("references unknown prior step");
+  }
+
+  [Theory]
+  [InlineData("all")]
+  [InlineData("any")]
+  [InlineData("none")]
+  public async Task ACompositeNestedReferenceToAStepInsideAnEarlierLoopBodyIsAccepted(string rule) {
+    // The over-reach guard, and the headline of issue #193 at the HTTP level: the reference reaches
+    // into a loop body, expectedState is "break", and it is wrapped in a composite. All three of
+    // those were once reasons to reject; none is now.
+    using var app = CreateFactory();
+    var client = await ClientAsync(app).ConfigureAwait(false);
+
+    var payload = new {
+      name = $"nested-ok-{rule}-{Guid.NewGuid():N}",
+      version = 1,
+      steps = new object[] {
+        new {
+          stepId = "loop1",
+          stepType = "Loop",
+          loop = new { loopType = "count", count = 3 },
+          body = new object[] {
+            Tap("probe"),
+            new { stepId = "nested-break", stepType = "Break", breakCondition = Image("pns-city-hud") }
+          }
+        },
+        Tap("gate", new {
+          type = rule,
+          children = new object[] {
+            Image("a"),
+            new { type = "commandOutcome", stepRef = "nested-break", expectedState = "break" }
+          }
+        })
+      }
+    };
+
+    var response = await client.PostAsJsonAsync("/api/sequences", payload).ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(
+      HttpStatusCode.Created, await response.Content.ReadAsStringAsync().ConfigureAwait(false));
   }
 
   [Fact]

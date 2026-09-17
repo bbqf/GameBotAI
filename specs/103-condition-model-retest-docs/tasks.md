@@ -19,8 +19,8 @@ way to prove a gap was real rather than imagined — the lesson issue #193 is ab
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm the branch's baseline is green before changing anything: run `dotnet build GameBot.sln` then `dotnet test GameBot.sln`, and record the pass/fail counts in this file under Notes. A red baseline is a hard stop per the constitution's release-blocker gate.
-- [ ] T002 [P] Confirm the `web-ui` baseline: run `vite build` and `jest` in `src/web-ui`. Note that `lint` and `tsc --noEmit` carry pre-existing unrelated failures and are **not** the gate for this feature.
+- [x] T001 Confirm the branch's baseline is green before changing anything: run `dotnet build GameBot.sln` then `dotnet test GameBot.sln`, and record the pass/fail counts in this file under Notes. A red baseline is a hard stop per the constitution's release-blocker gate.
+- [x] T002 [P] Confirm the `web-ui` baseline: run `vite build` and `jest` in `src/web-ui`. Note that `lint` and `tsc --noEmit` carry pre-existing unrelated failures and are **not** the gate for this feature.
 
 ## Phase 2: Foundational
 
@@ -47,33 +47,35 @@ style the touched files already use (`AnInvalidCompositeInAWhileConditionIsRejec
 
 ### Regression guards — claims confirmed gone (must pass immediately)
 
-- [ ] T003 [P] [US1] In `tests/integration/Sequences/NestedStepOutcomeReferenceIntegrationTests.cs`, assert a `commandOutcome` condition written **directly** on a step, whose `stepRef` names a `Break` nested inside a different earlier `Loop` body, is accepted at save time (FR-001). Reuse the file's existing sequence builders rather than adding new ones.
-- [ ] T004 [P] [US1] In the same file, assert the identical reference wrapped in each composite variant — `all`, `any`, `none` — is also accepted (FR-002). Three cases; a valid nested reference must not be collateral damage of the T014/T015 fix.
-- [ ] T005 [P] [US1] In `tests/integration/Sequences/NestedStepOutcomeReferenceIntegrationTests.cs`, assert a valid nested reference inside a **composite nested within a composite** is accepted, confirming depth does not change resolution (FR-002).
-- [ ] T006 [P] [US1] In `tests/unit/Sequences/CompositeConditionValidationTests.cs`, assert `expectedState` values `break` and `no_break` are accepted on a `commandOutcome` both directly and inside each composite variant (FR-004), and that the five-value set is exactly `success|failed|skipped|break|no_break` with nothing added (FR-013).
-- [ ] T007 [P] [US1] In `tests/unit/Sequences/CompositeConditionEvaluatorTests.cs`, assert run-time evaluation of a `commandOutcome` nested inside each composite variant resolves a nested step's recorded outcome, and distinguishes a `Break` that fired (`break`) from one that did not (`no_break`) (FR-004, research F-003).
-- [ ] T008 [P] [US1] In `tests/unit/Sequences/SequenceRunnerLoopTests.cs`, assert the loop exit reason's three mutually exclusive states (FR-005): a fired `Break` gives `BrokeVia` = that `Break`'s `StepId` with `ExhaustedMaxIterations` false; a ceiling reached with no break gives null + true; a normal body/condition finish gives null + false. Cover all three loop kinds (count, while, repeat-until).
-- [ ] T009 [P] [US1] In the same file, assert the simultaneous case (FR-012a): a `Break` firing in the iteration that also reaches the ceiling reports the break by name with `ExhaustedMaxIterations` false. This pins existing behaviour — if it fails, the finding in research F-006 was wrong and must be corrected before proceeding.
-- [ ] T010 [P] [US1] In the same file, assert `BrokeVia` is the firing `Break`'s own `StepId` and never an enclosing `If`'s, using a `Break` nested inside an `If` inside the loop body (FR-005).
-- [ ] T011 [P] [US1] Create `tests/contract/Sequences/SequenceLoopExitReasonContractTests.cs` asserting `POST /api/sequences/{id}/execute` returns `exitReason: { brokeVia, exhaustedMaxIterations }` on a loop step, with exactly those field names (FR-011a). This guards the surface research F-005 corrected course on — it is already delivered and must not be moved or renamed by T025.
-- [ ] T012 [P] [US1] In `tests/unit/Sequences/CompositeConditionPositionValidationTests.cs`, extend the existing D-006 boundary coverage: assert a **bare leaf** `commandOutcome` with a dangling `stepRef` written directly in a `while` and in a `repeatUntil` loop condition is still **accepted** (FR-003a). This is the guard that stops the T022 fix from reversing feature 088's decision D-006.
-- [ ] T013 [P] [US1] In the same file, assert a composite-wrapped `commandOutcome` is reference-checked in every slot that validates conditions — step guard, `if` condition, break condition (in a loop body and in an `if` branch), and `while`/`repeatUntil` condition (FR-003). Together with T012 this pins the inherited asymmetry: wrapped is checked in the loop-condition slots, bare is not.
-- [ ] T013a [P] [US1] In `tests/unit/Sequences/CompositeConditionValidationTests.cs`, assert the **directly-written** variant's rejections explicitly: a bare `commandOutcome` step guard whose `stepRef` names a step absent from the sequence is rejected with "references unknown prior step", and one naming a structurally later step is rejected with "must reference a prior step" (FR-006). These hold today; FR-006 covers every variant from FR-002, and the directly-written one must be asserted by this feature rather than left resting on feature 081's suite.
+- [x] T003 [P] [US1] In `tests/integration/Sequences/NestedStepOutcomeReferenceIntegrationTests.cs`, assert a `commandOutcome` condition written **directly** on a step, whose `stepRef` names a `Break` nested inside a different earlier `Loop` body, is accepted at save time (FR-001). Reuse the file's existing sequence builders rather than adding new ones.
+- [x] T004 [P] [US1] In the same file, assert the identical reference wrapped in each composite variant — `all`, `any`, `none` — is also accepted (FR-002). Three cases; a valid nested reference must not be collateral damage of the T014/T015 fix.
+- [x] T005 [P] [US1] In `tests/integration/Sequences/NestedStepOutcomeReferenceIntegrationTests.cs`, assert a valid nested reference inside a **composite nested within a composite** is accepted, confirming depth does not change resolution (FR-002).
+- [x] T006 [P] [US1] In `tests/unit/Sequences/CompositeConditionValidationTests.cs`, assert `expectedState` values `break` and `no_break` are accepted on a `commandOutcome` both directly and inside each composite variant (FR-004), and that the five-value set is exactly `success|failed|skipped|break|no_break` with nothing added (FR-013).
+- [x] T007 [P] [US1] In `tests/unit/Sequences/CompositeConditionEvaluatorTests.cs`, assert run-time evaluation of a `commandOutcome` nested inside each composite variant resolves a nested step's recorded outcome, and distinguishes a `Break` that fired (`break`) from one that did not (`no_break`) (FR-004, research F-003).
+- [x] T008 [P] [US1] In `tests/unit/Sequences/SequenceRunnerLoopTests.cs`, assert the loop exit reason's three mutually exclusive states (FR-005): a fired `Break` gives `BrokeVia` = that `Break`'s `StepId` with `ExhaustedMaxIterations` false; a ceiling reached with no break gives null + true; a normal body/condition finish gives null + false. Cover all three loop kinds (count, while, repeat-until).
+- [x] T009 [P] [US1] In the same file, assert the simultaneous case (FR-012a): a `Break` firing in the iteration that also reaches the ceiling reports the break by name with `ExhaustedMaxIterations` false. This pins existing behaviour — if it fails, the finding in research F-006 was wrong and must be corrected before proceeding.
+- [x] T010 [P] [US1] In the same file, assert `BrokeVia` is the firing `Break`'s own `StepId` and never an enclosing `If`'s, using a `Break` nested inside an `If` inside the loop body (FR-005).
+- [x] T011 [P] [US1] Create `tests/contract/Sequences/SequenceLoopExitReasonContractTests.cs` asserting `POST /api/sequences/{id}/execute` returns `exitReason: { brokeVia, exhaustedMaxIterations }` on a loop step, with exactly those field names (FR-011a). This guards the surface research F-005 corrected course on — it is already delivered and must not be moved or renamed by T025.
+- [x] T012 [P] [US1] In `tests/unit/Sequences/CompositeConditionPositionValidationTests.cs`, extend the existing D-006 boundary coverage: assert a **bare leaf** `commandOutcome` with a dangling `stepRef` written directly in a `while` and in a `repeatUntil` loop condition is still **accepted** (FR-003a). This is the guard that stops the T022 fix from reversing feature 088's decision D-006.
+- [x] T013 [P] [US1] In the same file, assert a composite-wrapped `commandOutcome` is reference-checked in every slot that validates conditions — step guard, `if` condition, break condition (in a loop body and in an `if` branch), and `while`/`repeatUntil` condition (FR-003). Together with T012 this pins the inherited asymmetry: wrapped is checked in the loop-condition slots, bare is not.
+- [x] T013a [P] [US1] Create `tests/unit/Sequences/ConditionReferenceScopeValidationTests.cs` — the single home for every reference-scope assertion in this feature, driven through the public `SequenceStepValidationService.Validate` so each test asserts observable behaviour and compiles against today's code. Start it with the **directly-written** step-guard rejections: a `stepRef` naming a step absent from the sequence is rejected with "references unknown prior step", and one naming a structurally later step with "must reference a prior step" (FR-006). These hold today; FR-006 covers every variant from FR-002, and the directly-written one must be asserted by this feature rather than left resting on feature 081's suite.
 
 ### Gap tests — written to FAIL before Phase 4
 
-- [ ] T014 [P] [US1] In `tests/unit/Sequences/CompositeConditionValidationTests.cs`, add a failing test: a `commandOutcome` inside an `all` whose `stepRef` names a step absent from the whole sequence is rejected with `Step '<label>' condition at $.children[<i>]: commandOutcome references unknown prior step '<ref>'.` (FR-008, FR-010). Repeat for `any` and `none`.
-- [ ] T015 [P] [US1] In the same file, add a failing test: a `commandOutcome` inside a composite whose `stepRef` names a structurally **later** step is rejected with `... must reference a prior step.` (FR-009). Construct it so the target is reachable but authored after the referencing condition, proving ordering — not just reachability — is enforced.
-- [ ] T016 [P] [US1] In the same file, add a failing test asserting the reported path for a reference two composite levels deep renders as `$.children[2].children[0]`, matching the convention the validator's other messages already use (FR-010).
-- [ ] T017 [P] [US1] In `tests/contract/Sequences/CompositeConditionContractTests.cs`, add a failing contract test: `POST /api/sequences` with a composite-nested dangling reference returns **400**, not 201 (FR-008). Use a sequence id unique to this test and clean up — contract tests in this repo share a data directory.
-- [ ] T018 [P] [US1] Create `tests/contract/ExecutionLogs/ExecutionLogsLoopExitReasonContractTests.cs` with a failing contract test: a completed run's persisted run log entry for a loop step carries `brokeVia` and `exhaustedMaxIterations` attributes beside the existing `iterations` (FR-011). Assert all three exits, so the test covers the null/false case and not only the break case.
-- [ ] T019 [P] [US1] In `src/web-ui/src/lib/__tests__/validation.spec.ts`, add a failing test: `validatePerStepConditions` accepts a `commandOutcome` whose `stepRef` names a step nested inside a `body` or `elseBody` (FR-012). Today it reports `references unknown prior step` — the original ceiling's own message.
-- [ ] T020 [P] [US1] In the same spec file, add a failing test: `validatePerStepConditions` accepts `expectedState` values `break` and `no_break` (FR-012), and keeps rejecting a genuinely unknown value.
-- [ ] T020a [P] [US1] In the same spec file, add a failing test for the behaviour T027 newly introduces: a malformed condition on a **nested** step — an `imageVisible` with an empty `imageId` inside a `body` or `elseBody` — is reported, where today the walk never descends and reports nothing (FR-012). Also assert a nonexistent and a forward reference are still rejected once the walk is tree-aware, so widening the scope does not silently drop either rule.
+- [x] T014 [P] [US1] In `tests/unit/Sequences/ConditionReferenceScopeValidationTests.cs`, add a failing test: a `commandOutcome` inside an `all` whose `stepRef` names a step absent from the whole sequence is rejected with `Step '<label>' condition at $.children[<i>]: commandOutcome references unknown prior step '<ref>'.` (FR-008, FR-010). Repeat for `any` and `none`.
+- [x] T015 [P] [US1] In the same file, add a failing test: a `commandOutcome` inside a composite whose `stepRef` names a structurally **later** step is rejected with `... must reference a prior step.` (FR-009). Construct it so the target is reachable but authored after the referencing condition, proving ordering — not just reachability — is enforced.
+- [x] T016 [P] [US1] In the same file, add a failing test asserting the reported path for a reference two composite levels deep renders as `$.children[2].children[0]`, matching the convention the validator's other messages already use (FR-010).
+- [x] T016a [P] [US1] In `tests/unit/Sequences/ConditionReferenceScopeValidationTests.cs`, add failing tests for the `If` condition slot (FR-008a): a `commandOutcome` written **directly** in an `If` step's condition is rejected when its `stepRef` names an absent step, and when it names a structurally later step, with the per-step validator's existing wording (no `$` path — the condition is not nested). Also assert a *valid* nested reference in that slot is still accepted, so the fix does not over-reach.
+- [x] T016b [P] [US1] In `tests/unit/Sequences/ConditionReferenceScopeValidationTests.cs`, add a failing test asserting the `If` condition slot's unknown-`expectedState` message names all five values — `success|failed|skipped|break|no_break` — matching the message the per-step validator already emits (FR-010a). Today it names three, contradicting the set it validates against.
+- [x] T017 [P] [US1] In `tests/contract/Sequences/CompositeConditionContractTests.cs`, add a failing contract test: `POST /api/sequences` with a composite-nested dangling reference returns **400**, not 201 (FR-008). Use a sequence id unique to this test and clean up — contract tests in this repo share a data directory.
+- [x] T018 [P] [US1] Create `tests/contract/ExecutionLogs/ExecutionLogsLoopExitReasonContractTests.cs` with a failing contract test: a completed run's persisted run log entry for a loop step carries `brokeVia` and `exhaustedMaxIterations` attributes beside the existing `iterations` (FR-011). Assert all three exits, so the test covers the null/false case and not only the break case.
+- [x] T019 [P] [US1] In `src/web-ui/src/lib/__tests__/validation.spec.ts`, add a failing test: `validatePerStepConditions` accepts a `commandOutcome` whose `stepRef` names a step nested inside a `body` or `elseBody` (FR-012). Today it reports `references unknown prior step` — the original ceiling's own message.
+- [x] T020 [P] [US1] In the same spec file, add a failing test: `validatePerStepConditions` accepts `expectedState` values `break` and `no_break` (FR-012), and keeps rejecting a genuinely unknown value.
+- [x] T020a [P] [US1] In the same spec file, add a failing test for the behaviour T027 newly introduces: a malformed condition on a **nested** step — an `imageVisible` with an empty `imageId` inside a `body` or `elseBody` — is reported, where today the walk never descends and reports nothing (FR-012). Also assert a nonexistent and a forward reference are still rejected once the walk is tree-aware, so widening the scope does not silently drop either rule.
 
 ### Checkpoint
 
-- [ ] T021 [US1] Run `dotnet test GameBot.sln` and the `web-ui` jest suite. Confirm T003–T013a **pass** and T014–T020a **fail**, then record the exact failure messages in this file under Notes. This is the retest's measured result and the evidence issue #193 asked for. If any of T014–T020a unexpectedly passes, that gap does not exist: correct `research.md`, delete the corresponding fix task, and say so in the final report rather than inventing work.
+- [x] T021 [US1] Run `dotnet test GameBot.sln` and the `web-ui` jest suite. Confirm T003–T013a **pass** and T014–T020a **fail**, then record the exact failure messages in this file under Notes. This is the retest's measured result and the evidence issue #193 asked for. If any of T014–T020a unexpectedly passes, that gap does not exist: correct `research.md`, delete the corresponding fix task, and say so in the final report rather than inventing work.
 
 ---
 
@@ -85,13 +87,15 @@ No new condition variant, no new outcome state (FR-013).
 **Independent test**: The tests from T014–T020 pass; every test from T003–T013 still
 passes, proving nothing was widened into over-rejection or narrowed into silence.
 
-- [ ] T022 [US2] In `src/GameBot.Domain/Services/CompositeConditionValidator.cs`, add **optional** parameters carrying the step-position map and the referencing step's own authored position to `Validate`, thread them through `Walk`, and extend the `CommandOutcomeStepCondition` case with the resolution and ordering checks, worded with the `$`-rooted path (FR-008, FR-009, FR-010). Optional so existing call sites that cannot supply the maps keep today's shape-only behaviour. Document the new parameters with XML comments, and if an analyzer objects to the method's size, extract a small private helper rather than suppressing it.
-- [ ] T023 [US2] In `src/GameBot.Domain/Services/SequenceStepValidationService.cs`, pass the `positionByStepId` map and the step's own position at both `CompositeConditionValidator.Validate` call sites (`step.Condition` and `step.BreakCondition`, around line 357), and at the break-condition call inside the `if`-branch walk (around line 271). Do not duplicate the per-step leaf checks — the existing `validateLeafAtRoot: false` contract already prevents double-reporting.
-- [ ] T024 [US2] Confirm `FileSequenceRepository`'s composite walk still compiles and behaves unchanged now that the parameters exist but are unsupplied there, and add an assertion in `tests/unit/Sequences/CompositeConditionValidationTests.cs` that calling `CompositeConditionValidator.Validate` *without* the position maps still performs shape-only validation and does not newly reject a reference. A repository-layer rejection surfaces as a 500, which is exactly what the composite validator exists to prevent.
-- [ ] T025 [P] [US2] In `src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs`, add `brokeVia` and `exhaustedMaxIterations` to the loop step's `ExecutionDetailItem` attribute dictionary (around lines 413–427), read from `step.ExitReason` with nulls when absent (FR-011). Additive keys only — leave every existing attribute, and the synchronous response shape, untouched (FR-011a).
-- [ ] T026 [P] [US2] In `src/web-ui/src/types/sequenceFlow.ts`, widen `CommandOutcomeStepCondition.expectedState` from `'success' | 'failed' | 'skipped'` to include `'break' | 'no_break'` (FR-012). Leave `PerStepConditionType` alone — composites stay unauthorable in the UI by decision (FR-016a).
-- [ ] T027 [US2] In `src/web-ui/src/lib/validation.ts`, replace the flat `steps.findIndex` lookup in `validatePerStepConditions` (around lines 263–279) with a walk that flattens the step tree in authored order through `body` and `elseBody`, resolving both the existence and the ordering rule against that flattened order, and extend the `expectedState` allow-list to all five values (FR-012). Validate conditions on nested steps on the same walk, since they are currently skipped entirely.
-- [ ] T028 [US2] Re-run `dotnet test GameBot.sln` and the `web-ui` jest suite. Every test from T014–T020a must now pass with no regression in T003–T013a. Record the counts under Notes.
+- [x] T022 [US2] In `src/GameBot.Domain/Services/CompositeConditionValidator.cs`, add **optional** parameters carrying the step-position map and the referencing step's own authored position to `Validate`, thread them through `Walk`, and extend the `CommandOutcomeStepCondition` case with the resolution and ordering checks, worded with the `$`-rooted path (FR-008, FR-009, FR-010). Optional so existing call sites that cannot supply the maps keep today's shape-only behaviour. Document the new parameters with XML comments, and if an analyzer objects to the method's size, extract a small private helper rather than suppressing it.
+- [x] T023 [US2] In `src/GameBot.Domain/Services/SequenceStepValidationService.cs`, pass the `positionByStepId` map and the referencing step's own position at **all six** `CompositeConditionValidator.Validate` call sites: the loop `while`/`repeatUntil` condition (~line 137), a `Break` step's condition in a loop body (~line 170), the `if` condition (~line 212, inside `ValidateIfCondition`), a `Break` step's condition in an `if` branch (~line 271), and `step.Condition` / `step.BreakCondition` in `ValidateStepCondition` (~lines 357–358). `ValidateIfCondition` is currently static with no map parameters — thread them in. Do not duplicate the per-step leaf checks; the existing `validateLeafAtRoot: false` contract already prevents double-reporting.
+- [x] T023a [US2] In the same file's `ValidateIfCondition`, add the resolution and ordering checks for a `commandOutcome` written **directly** in an `If` condition, reusing the exact message wording `ValidateStepCondition` already emits (FR-008a). This is the slot measurement showed was never reference-checked at all.
+- [x] T023b [US2] In the same file's `ValidateIfCondition`, correct the unknown-`expectedState` message to name all five accepted values, matching `ValidateStepCondition`'s wording (FR-010a). One string; the validated set is already correct.
+- [x] T024 [US2] Confirm `FileSequenceRepository`'s composite walk still compiles and behaves unchanged now that the parameters exist but are unsupplied there, and add an assertion in `tests/unit/Sequences/CompositeConditionValidationTests.cs` that calling `CompositeConditionValidator.Validate` *without* the position maps still performs shape-only validation and does not newly reject a reference. A repository-layer rejection surfaces as a 500, which is exactly what the composite validator exists to prevent.
+- [x] T025 [P] [US2] In `src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs`, add `brokeVia` and `exhaustedMaxIterations` to the loop step's `ExecutionDetailItem` attribute dictionary (around lines 413–427), read from `step.ExitReason` with nulls when absent (FR-011). Additive keys only — leave every existing attribute, and the synchronous response shape, untouched (FR-011a).
+- [x] T026 [P] [US2] In `src/web-ui/src/types/sequenceFlow.ts`, widen `CommandOutcomeStepCondition.expectedState` from `'success' | 'failed' | 'skipped'` to include `'break' | 'no_break'` (FR-012). Leave `PerStepConditionType` alone — composites stay unauthorable in the UI by decision (FR-016a).
+- [x] T027 [US2] In `src/web-ui/src/lib/validation.ts`, replace the flat `steps.findIndex` lookup in `validatePerStepConditions` (around lines 263–279) with a walk that flattens the step tree in authored order through `body` and `elseBody`, resolving both the existence and the ordering rule against that flattened order, and extend the `expectedState` allow-list to all five values (FR-012). Validate conditions on nested steps on the same walk, since they are currently skipped entirely.
+- [x] T028 [US2] Re-run `dotnet test GameBot.sln` and the `web-ui` jest suite. Every test from T014–T020a must now pass with no regression in T003–T013a. Record the counts under Notes.
 
 ---
 
@@ -104,22 +108,22 @@ description and the project documentation alone.
 opening any test file, and the reference scope, the five outcome states, the loop
 exit-reason shape, and each remaining limitation are all stated.
 
-- [ ] T029 [P] [US3] In `src/GameBot.Service/Swagger/ConditionalFlowSchemaDocumentFilter.cs`, describe a step condition's `stepRef`: the resolution scope (any step reachable from the sequence root, nested `Loop` bodies and `If` branches included), the authored-order ordering constraint, and the inherited exception for a bare leaf in a `while`/`repeatUntil` condition (FR-014, contract C-4). Also list all five `expectedState` values and what `break`/`no_break` mean.
-- [ ] T030 [P] [US3] In the same filter, describe a loop step's `exitReason` on the run response: the `brokeVia` / `exhaustedMaxIterations` shape, the three exits it distinguishes, their mutual exclusivity, and the simultaneous-case rule (FR-015). Descriptions only — rename nothing, require nothing new.
-- [ ] T031 [US3] In `tests/contract/Sequences/SequencePerStepConditionsOpenApiTests.cs`, assert the OpenAPI document actually carries the descriptions from T029 and T030, so the documentation cannot silently rot the way the claim in issue #193 did (FR-014, FR-015).
-- [ ] T032 [US3] In `docs/architecture.md`, record the retest conclusion (FR-016, FR-017): for each half of the ceiling, its status and the tests that establish it; the three gaps closed here; and a correction of the now-misleading impression that the exit reason is only a domain-internal value. Name the test files so a reader can re-run the evidence rather than trust the prose. Refresh the `_Last reviewed:_` line at the top — this is a NON-NEGOTIABLE constitution gate.
-- [ ] T033 [US3] In the same document, state the two remaining limitations explicitly (FR-016a, FR-003a): the web UI offers no way to author a composite condition at all (absent capability, not a contradicting rule), and a bare leaf reference in a `while`/`repeatUntil` condition is deliberately unvalidated per feature 088 decision D-006 — with the resulting asymmetry that a composite-wrapped reference in those slots *is* checked.
+- [x] T029 [P] [US3] In `src/GameBot.Service/Swagger/ConditionalFlowSchemaDocumentFilter.cs`, describe a step condition's `stepRef`: the resolution scope (any step reachable from the sequence root, nested `Loop` bodies and `If` branches included), the authored-order ordering constraint, and the inherited exception for a bare leaf in a `while`/`repeatUntil` condition (FR-014, contract C-4). Also list all five `expectedState` values and what `break`/`no_break` mean.
+- [x] T030 [P] [US3] In the same filter, describe a loop step's `exitReason` on the run response: the `brokeVia` / `exhaustedMaxIterations` shape, the three exits it distinguishes, their mutual exclusivity, and the simultaneous-case rule (FR-015). Descriptions only — rename nothing, require nothing new.
+- [x] T031 [US3] In `tests/contract/Sequences/SequencePerStepConditionsOpenApiTests.cs`, assert the OpenAPI document actually carries the descriptions from T029 and T030, so the documentation cannot silently rot the way the claim in issue #193 did (FR-014, FR-015).
+- [x] T032 [US3] In `docs/architecture.md`, record the retest conclusion (FR-016, FR-017): for each half of the ceiling, its status and the tests that establish it; the three gaps closed here; and a correction of the now-misleading impression that the exit reason is only a domain-internal value. Name the test files so a reader can re-run the evidence rather than trust the prose. Refresh the `_Last reviewed:_` line at the top — this is a NON-NEGOTIABLE constitution gate.
+- [x] T033 [US3] In the same document, state the two remaining limitations explicitly (FR-016a, FR-003a): the web UI offers no way to author a composite condition at all (absent capability, not a contradicting rule), and a bare leaf reference in a `while`/`repeatUntil` condition is deliberately unvalidated per feature 088 decision D-006 — with the resulting asymmetry that a composite-wrapped reference in those slots *is* checked.
 
 ---
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T034 [P] Add a `CHANGELOG.md` entry covering the three user-visible changes: composite-nested references now validated at save time (with the compatibility note that a stored sequence carrying a dangling one will be rejected on its next save), the loop exit reason now recorded in the persisted run log, and the web UI no longer rejecting nested references or `break`/`no_break`.
-- [ ] T035 [P] Set this spec's `**Status**:` line in `specs/103-condition-model-retest-docs/spec.md` to `Implemented`, per the constitution's living-documentation principle. Leave `specs/081-loop-exit-reason-and-nested-steprefs/spec.md` as-is — this feature retests and documents that one, it does not supersede it.
-- [ ] T036 [P] Add the row for 103 to `specs/STATUS.md`, keeping it consistent with T035.
-- [ ] T037 Run the full gate: `dotnet build GameBot.sln`, `dotnet test GameBot.sln`, and `vite build` + `jest` in `src/web-ui`. All green, with no pre-existing assertion weakened or deleted to get there (SC-007). A flaky failure in `MaskedTemplateMatchTests` or `QueueTemplateLink` is known CI noise in this repo — rerun rather than "fixing".
-- [ ] T037a Record coverage for the touched areas against the constitution's Principle II baseline (≥80% line, ≥70% branch): `CompositeConditionValidator`, `SequenceStepValidationService`, and the loop branch of `SequenceExecutionService`. Note the figures under Notes. Given that this feature is overwhelmingly test additions the baseline should rise, but the constitution requires it measured, not assumed — which is this feature's whole point.
-- [ ] T038 Walk `quickstart.md` examples 2, 3, 5 and 7 against a running service and correct any request or response that does not match reality. Example 7 in particular must still return 201 — if it now returns 400, T022 crossed the D-006 boundary and must be narrowed.
+- [x] T034 [P] Add a `CHANGELOG.md` entry covering the three user-visible changes: composite-nested references now validated at save time (with the compatibility note that a stored sequence carrying a dangling one will be rejected on its next save), the loop exit reason now recorded in the persisted run log, and the web UI no longer rejecting nested references or `break`/`no_break`.
+- [x] T035 [P] Set this spec's `**Status**:` line in `specs/103-condition-model-retest-docs/spec.md` to `Implemented`, per the constitution's living-documentation principle. Leave `specs/081-loop-exit-reason-and-nested-steprefs/spec.md` as-is — this feature retests and documents that one, it does not supersede it.
+- [x] T036 [P] Add the row for 103 to `specs/STATUS.md`, keeping it consistent with T035.
+- [x] T037 Run the full gate: `dotnet build GameBot.sln`, `dotnet test GameBot.sln`, and `vite build` + `jest` in `src/web-ui`. All green, with no pre-existing assertion weakened or deleted to get there (SC-007). A flaky failure in `MaskedTemplateMatchTests` or `QueueTemplateLink` is known CI noise in this repo — rerun rather than "fixing".
+- [x] T037a Record coverage for the touched areas against the constitution's Principle II baseline (≥80% line, ≥70% branch): `CompositeConditionValidator`, `SequenceStepValidationService`, and the loop branch of `SequenceExecutionService`. Note the figures under Notes. Given that this feature is overwhelmingly test additions the baseline should rise, but the constitution requires it measured, not assumed — which is this feature's whole point.
+- [x] T038 Walk `quickstart.md` examples 2, 3, 5 and 7 against a running service and correct any request or response that does not match reality. Example 7 in particular must still return 201 — if it now returns 400, T022 crossed the D-006 boundary and must be narrowed.
 
 ---
 
@@ -204,3 +208,101 @@ repeat exactly the error issue #193 was filed about.
 
 *T001, T002, T021, T028, T037 and T037a record their measured results here as
 implementation proceeds.*
+
+**T001 baseline (2026-09-17)** — `dotnet build GameBot.sln`: succeeded, 0 warnings,
+0 errors. `dotnet test GameBot.sln`: **2133 passed, 0 failed, 1 skipped** —
+unit 1408, contract 293, integration 432 (+1 skipped). Green baseline, so the
+constitution's release-blocker gate is satisfied and implementation may proceed.
+
+**T002 baseline (2026-09-17)** — `vite build`: built in 252ms, 123 modules.
+`jest`: **658 passed** across 105 suites. Green.
+
+**Measured retest result — `ConditionReferenceScopeValidationTests`, before any fix**:
+**16 failed, 12 passed, 28 total.** The 12 passes are the regression guards, confirming
+the widening issue #193 asked about is real for a condition written directly on a step
+guard, that a valid nested reference is accepted in every composite variant and in the
+`If` slot, that `break`/`no_break` are accepted, and that the D-006 boundary holds. The
+16 failures are exactly the gap tests, in three groups:
+
+- composite-nested references unchecked — step guard (absent × all/any/none, later ×
+  all/any/none, nested-two-levels path), break condition in a loop body, break condition
+  in an `If` branch, and `while`/`repeatUntil` conditions — **11 failures**;
+- the `If` condition slot never reference-checked at all — absent, later, a reference into
+  its own body, and one reached through a composite — **4 failures**;
+- the `If` slot's `expectedState` message naming three of five values — **1 failure**.
+
+This failing state is the evidence issue #193 asked for: five gaps observed, not assumed.
+
+**T021 — full measured retest result (2026-09-17), before any fix**
+
+| Suite | Result | Reading |
+|---|---|---|
+| `ConditionReferenceScopeValidationTests` (new, unit) | 16 fail / 12 pass | composite-nested and `If`-slot references unchecked; regression guards and the D-006 boundary pass |
+| `CompositeConditionContractTests` (extended) | 4 fail / 28 pass | the same two gaps at the HTTP boundary — 201 where 400 belongs. The valid-nested-reference acceptance test passes for all three rules |
+| `SequenceLoopExitReasonContractTests` (new, contract) | **pass** | `exitReason: { brokeVia, exhaustedMaxIterations }` **is** already on the run response — the correction recorded in research F-005, verified |
+| `ExecutionLogsLoopExitReasonContractTests` (new, contract) | fail | the loop's persisted log entry carries `iterations: 2` and no exit reason at all |
+| `SequenceRunnerLoopTests` (+ simultaneous case) | **pass** | a `Break` firing on the ceiling iteration reports the break, as research F-006 predicted |
+| `CompositeConditionValidationTests` / `CompositeConditionEvaluatorTests` (extended) | **pass** | all five outcome states accepted in every composite rule; nested references resolve at run time in every rule |
+| `perStepConditionValidation.spec.ts` (new, jest) | 8 fail / 5 pass | web UI rejects nested references and `break`/`no_break`, skips nested steps entirely, and names three of five states |
+
+Two claims from feature 081 were found **already covered** and deliberately not
+duplicated: the loop exit reason's three-way outcome across all three loop kinds
+(`SequenceRunnerLoopTests`, ten tests), and `brokeVia` naming the `Break`'s own id rather
+than an enclosing `If`'s (`SequenceRunnerIfTests.BreakInsideIfThenBranchLoopExitReasonReportsBreaksOwnIdNotTheIfsId`).
+A retest confirms; it does not rebuild what already holds. Only the one genuinely
+uncovered case — the simultaneous break-and-ceiling iteration — was added there.
+
+**Deviations from the task text, and why** (the requirements are met; the files differ
+from what the task list guessed before the code was read):
+
+- **T003/T004/T005** planned integration tests in
+  `NestedStepOutcomeReferenceIntegrationTests.cs`. Written instead as unit tests in
+  `ConditionReferenceScopeValidationTests.cs` (driven through the public
+  `SequenceStepValidationService`, covering the direct form, all three composite rules
+  and composite-within-composite) **plus** an HTTP-level acceptance test in
+  `CompositeConditionContractTests.ACompositeNestedReferenceToAStepInsideAnEarlierLoopBodyIsAccepted`
+  parameterised over all three rules. FR-001 and FR-002 ask for assertions, not for a
+  particular suite; this pair covers both the validator and the wire, and adding a third
+  copy at integration level would be redundancy the constitution discourages.
+- **T008/T010** are satisfied by the existing feature-081 tests named above rather than
+  by new ones.
+- **T012/T013** landed in `ConditionReferenceScopeValidationTests.cs` rather than
+  extending `CompositeConditionPositionValidationTests.cs`, keeping every reference-scope
+  assertion — boundary included — in one file a reader can take in at once.
+
+**T037 — full gate (2026-09-17)**: `dotnet build GameBot.sln` succeeded, 0 warnings, 0
+errors. `dotnet test GameBot.sln`: **2192 passed, 0 failed, 1 skipped** (unit 1456,
+contract 304, integration 432 +1 skipped). `vite build` succeeded; `jest`: **671 passed**
+across 106 suites. No pre-existing assertion was weakened or removed, and no flaky rerun
+was needed.
+
+**T037a — coverage of the touched areas** (constitution Principle II: ≥80% line, ≥70%
+branch). Measured with coverlet over the unit-test project, scoped to the two changed
+classes. Per method, because the whole-file figure for
+`SequenceStepValidationService` (74% line / 65% branch) is dominated by pre-existing
+action-payload validation this feature never touched:
+
+| Method | Lines | Branches |
+|---|---|---|
+| `CompositeConditionValidator.Validate` | 8/8 (100%) | 6/6 (100%) |
+| `CompositeConditionValidator.Walk` | 26/28 (93%) | 22/24 (92%) |
+| `CompositeConditionValidator.ValidateStepReference` (new) | 10/10 (100%) | 8/8 (100%) |
+| `CompositeConditionValidator.ValidateComposite` | 23/25 (92%) | 8/10 (80%) |
+| `SequenceStepValidationService.ValidateIfCondition` | 22/22 (100%) | 16/18 (89%) |
+| `SequenceStepValidationService.ValidateStepCondition` | 48/50 (96%) | 40/44 (91%) |
+| `SequenceStepValidationService.ValidateLoopStep` | 41/49 (84%) | 31/38 (82%) |
+| `SequenceStepValidationService.ValidateIfBranch` | 31/35 (89%) | 19/24 (79%) |
+| `CompositeConditionValidator` (class total) | 74/79 (94%) | 47/52 (90%) |
+
+Every touched method clears both thresholds. The one method reading 0/24 in the same
+class is the unrelated `Validate(SequenceFlowGraph)` overload — the block-style flow path,
+untouched here and exercised by the integration and contract suites rather than the unit
+one. Figures are unit-tests-only and therefore conservative: the contract and integration
+suites exercise the same code again.
+
+**T028 — after the fixes (2026-09-17)**: `dotnet build GameBot.sln` succeeded with 0
+warnings, 0 errors. `dotnet test GameBot.sln`: **2190 passed, 0 failed, 1 skipped**
+(unit 1456, contract 302, integration 432 +1 skipped) — up from the 2133 baseline, with
+every previously passing test still passing. `vite build` succeeded; `jest`: **671
+passed** across 106 suites, up from 658. All 16 + 4 + 1 + 8 gap assertions now pass and
+no regression guard broke.

@@ -93,6 +93,62 @@ stated correction (spec A-005).
 
 ---
 
+## C-1a — A reference written directly in an `If` condition is reference-checked
+
+**Endpoints**: `POST /api/sequences`, `PUT /api/sequences/{id}`
+
+### Before
+
+An `If` step's condition validated its shape — a missing `imageId`, an unknown
+`expectedState` — but never resolved or ordered a `commandOutcome` reference. Both of
+these were accepted with `201 Created`:
+
+```json
+{
+  "stepId": "branch",
+  "stepType": "If",
+  "if": { "condition": { "type": "commandOutcome", "stepRef": "no-such-step", "expectedState": "success" } },
+  "body": [ { "stepId": "then1", "stepType": "Action",
+              "primitiveAction": { "type": "Command", "payload": { "commandId": "c1" } } } ]
+}
+```
+
+### After
+
+The same two rules that govern a step guard's reference apply here:
+
+```json
+{
+  "message": "...",
+  "errors": ["Step 'branch' commandOutcome references unknown prior step 'no-such-step'."]
+}
+```
+
+and for a forward reference, `Step 'branch' commandOutcome stepRef 'later' must
+reference a prior step.` — the per-step validator's existing wording, not a new one,
+since the condition is written directly rather than nested and so has no `$` path.
+
+### Also corrected
+
+The same slot's unknown-`expectedState` message named only three of the five accepted
+values:
+
+```text
+Before: Step 'branch' commandOutcome expectedState must be one of success|failed|skipped.
+After:  Step 'branch' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.
+```
+
+The validator has accepted all five since feature 081; only the message lagged. An
+author was being told `break` was invalid by the code that accepts it.
+
+### Compatibility
+
+As with C-1: a stored sequence whose `If` condition carries a dangling or forward
+reference is rejected on its next save, and already fails at run time when that
+condition is reached.
+
+---
+
 ## C-2 — A loop's exit reason is recorded in the persisted run log
 
 ### Before
