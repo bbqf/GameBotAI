@@ -135,6 +135,7 @@ Status vocabulary:
 | 098 | Resume Queues After a Service Restart | Implemented |
 | 099 | Publish Sequence Step Nesting Rules | Implemented |
 | 100 | Make a Queue's Live Roster Discoverable | Implemented |
+| 101 | Document detect vs detect-all coordinate units | Implemented |
 
 ## Numbering notes
 

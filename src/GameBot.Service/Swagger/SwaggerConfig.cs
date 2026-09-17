@@ -408,22 +408,14 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect)) {
       operation.Summary ??= "Detect reference image matches";
-      operation.Description ??=
-        "Measures one reference image against one device's screen. Name the screen with captureId " +
-        "or sessionId (mutually exclusive); with neither, the screen is inferred from the ambient " +
-        "run context or the single running session. A 200 always means a measurement was taken, so " +
-        "an empty matches array is a real absence — when no screen can be determined the call fails " +
-        "explicitly instead (feature 085). If the reference image carries a transparency mask, only " +
-        "its retained pixels are compared and the response reports masked/retainedPixelCount " +
-        "(feature 089). If the image has alternates (PUT /api/images/{id}/alternates), each alternate " +
-        "is scored too and every match reports the reference that produced it in matchedReferenceId " +
-        "(feature 097).";
+      operation.Description ??= ImageDetectDescription;
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
       SetImageDetectErrorExamples(operation, context);
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetectAll)) {
       operation.Summary ??= "Detect all reference image matches against a captured screenshot";
+      operation.Description ??= ImageDetectAllDescription;
       SetRequestExample(operation, ImageDetectAllRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectAllRequest));
       SetResponseExample(operation, "200", ImageDetectAllResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectAllResponse));
     }
@@ -711,22 +703,14 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect)) {
       operation.Summary ??= "Detect reference image matches";
-      operation.Description ??=
-        "Measures one reference image against one device's screen. Name the screen with captureId " +
-        "or sessionId (mutually exclusive); with neither, the screen is inferred from the ambient " +
-        "run context or the single running session. A 200 always means a measurement was taken, so " +
-        "an empty matches array is a real absence — when no screen can be determined the call fails " +
-        "explicitly instead (feature 085). If the reference image carries a transparency mask, only " +
-        "its retained pixels are compared and the response reports masked/retainedPixelCount " +
-        "(feature 089). If the image has alternates (PUT /api/images/{id}/alternates), each alternate " +
-        "is scored too and every match reports the reference that produced it in matchedReferenceId " +
-        "(feature 097).";
+      operation.Description ??= ImageDetectDescription;
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
       SetImageDetectErrorExamples(operation, context);
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetectAll)) {
       operation.Summary ??= "Detect all reference image matches against a captured screenshot";
+      operation.Description ??= ImageDetectAllDescription;
       SetRequestExample(operation, ImageDetectAllRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectAllRequest));
       SetResponseExample(operation, "200", ImageDetectAllResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectAllResponse));
     }
@@ -1341,6 +1325,27 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["reason"] = new OpenApiString("Image match exceeded threshold")
   };
 
+  // Shared by the two detect branches (ApplyTriggerExamples and ApplyImageExamples) so they cannot drift;
+  // the earlier branch wins because descriptions are set with ??=.
+  private const string ImageDetectDescription =
+    "Measures one reference image against one device's screen. Name the screen with captureId " +
+    "or sessionId (mutually exclusive); with neither, the screen is inferred from the ambient " +
+    "run context or the single running session. A 200 always means a measurement was taken, so " +
+    "an empty matches array is a real absence — when no screen can be determined the call fails " +
+    "explicitly instead (feature 085). If the reference image carries a transparency mask, only " +
+    "its retained pixels are compared and the response reports masked/retainedPixelCount " +
+    "(feature 089). If the image has alternates (PUT /api/images/{id}/alternates), each alternate " +
+    "is scored too and every match reports the reference that produced it in matchedReferenceId " +
+    "(feature 097). Match x/y/width/height (and bbox) are fractions 0..1 of the capture frame's " +
+    "width/height, not pixels: multiply by the capture size for pixels. POST /api/images/detect-all " +
+    "reports the same box in pixels under the same field names (feature 101).";
+
+  private const string ImageDetectAllDescription =
+    "Scores every stored reference image against one capture, named by captureId. Match " +
+    "x/y/width/height are pixels of that capture, not fractions, while POST /api/images/detect reports " +
+    "the same box as fractions 0..1 of the frame under the same field names — never compare values " +
+    "from the two routes directly (feature 101).";
+
   private static OpenApiObject ImageDetectRequest() => new OpenApiObject {
     ["referenceImageId"] = new OpenApiString("start-screen"),
     ["threshold"] = new OpenApiDouble(0.85),
@@ -1401,6 +1406,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["confidence"] = new OpenApiDouble(0.93),
         ["templateId"] = new OpenApiString("start-screen"),
         ["matchedReferenceId"] = new OpenApiString("start-screen-night"),
+        // Feature 101: fractions of the capture frame, repeated under bbox — not pixels.
+        ["x"] = new OpenApiDouble(0.15),
+        ["y"] = new OpenApiDouble(0.22),
+        ["width"] = new OpenApiDouble(0.3),
+        ["height"] = new OpenApiDouble(0.18),
         ["bbox"] = new OpenApiObject
         {
           ["x"] = new OpenApiDouble(0.15),
