@@ -18,7 +18,9 @@ public sealed class SequenceStepValidationService {
     "break",
     "no_break"
   };
-  private static readonly HashSet<string> AllowedPrimitiveActionTypes = new(PrimitiveActionTypes.All, StringComparer.OrdinalIgnoreCase);
+  // Feature 102: the one list the published OpenAPI enum also uses. reschedule-self and notify are in it too, but are
+  // routed to their own payload validators before this membership check runs.
+  private static readonly HashSet<string> AllowedPrimitiveActionTypes = new(SequenceActionTypes.All, StringComparer.OrdinalIgnoreCase);
 
   public IReadOnlyList<string> Validate(IReadOnlyList<SequenceStep> steps) {
     ArgumentNullException.ThrowIfNull(steps);
@@ -296,7 +298,7 @@ public sealed class SequenceStepValidationService {
         ValidateNotifyPayload(step.Action, stepLabel, errors);
       }
       else if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
-        errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type.");
+        errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type (expected one of {SequenceActionTypes.SupportedValuesText}).");
       }
       else if (string.Equals(step.Action.Type, PrimitiveActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)) {
         ValidateWaitForImagePayload(step.Action.Parameters, stepLabel, errors);
