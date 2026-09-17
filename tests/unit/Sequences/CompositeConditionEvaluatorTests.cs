@@ -241,6 +241,56 @@ public sealed class CompositeConditionEvaluatorTests {
     result.Value.Should().BeTrue();
   }
 
+  // Feature 103 (issue #193, FR-004): the run-time half of the reported ceiling. A reference to a
+  // step nested inside a Loop/If body must resolve from inside every composite rule, and must tell
+  // a Break that fired from one that did not. Nesting depth is irrelevant to the lookup by
+  // construction — outcomes are keyed by step id — but that is exactly the kind of "obviously fine"
+  // claim issue #193 exists to stop us asserting without measuring.
+
+  [Theory]
+  [InlineData("all", "break", true)]
+  [InlineData("any", "break", true)]
+  [InlineData("none", "break", false)]
+  [InlineData("all", "no_break", false)]
+  [InlineData("any", "no_break", false)]
+  [InlineData("none", "no_break", true)]
+  public async Task ANestedBreakReferenceResolvesInsideEveryCompositeRule(
+      string rule, string expectedState, bool expected) {
+    // "nested-break" sat inside a loop body and fired, so its recorded outcome is "break".
+    var outcomes = new Dictionary<string, string> { ["nested-break"] = "break" };
+    var child = new CommandOutcomeStepCondition { StepRef = "nested-break", ExpectedState = expectedState };
+
+    CompositeStepCondition condition = rule switch {
+      "all" => new AllStepCondition { Children = new[] { child } },
+      "any" => new AnyStepCondition { Children = new[] { child } },
+      _ => new NoneStepCondition { Children = new[] { child } }
+    };
+
+    var result = await EvaluateAsync(condition, new CountingImageEvaluator(new Dictionary<string, bool>()), outcomes);
+
+    result.Value.Should().Be(expected);
+  }
+
+  [Fact]
+  public async Task ANestedBreakReferenceResolvesThroughACompositeWithinAComposite() {
+    var outcomes = new Dictionary<string, string> { ["nested-break"] = "no_break" };
+    var evaluator = new CountingImageEvaluator(new Dictionary<string, bool> { ["a"] = true });
+    var condition = new AllStepCondition {
+      Children = new SequenceStepCondition[] {
+        Image("a"),
+        new AnyStepCondition {
+          Children = new SequenceStepCondition[] {
+            new CommandOutcomeStepCondition { StepRef = "nested-break", ExpectedState = "no_break" }
+          }
+        }
+      }
+    };
+
+    var result = await EvaluateAsync(condition, evaluator, outcomes);
+
+    result.Value.Should().BeTrue();
+  }
+
   [Fact]
   public async Task AChildThatCannotBeEvaluatedFailsRatherThanCountingAsFalse() {
     // A guard that could not be answered must not look like "the screen did not match" — that turns

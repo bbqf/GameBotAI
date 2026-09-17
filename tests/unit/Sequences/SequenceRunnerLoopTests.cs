@@ -904,6 +904,55 @@ public sealed class SequenceRunnerLoopTests {
     loopResult.ExitReason.ExhaustedMaxIterations.Should().BeTrue();
   }
 
+  // Feature 103 (issue #193, FR-012a): the one exit-reason case feature 081's coverage left open —
+  // a Break firing in the very iteration that also reaches MaxIterations. The three exits are
+  // mutually exclusive, so exactly one cause must be reported, and which one must be asserted
+  // rather than left to whichever check the implementation happens to reach first.
+
+  [Theory] // FR-012a — pins existing behaviour across both ceiling-bearing loop kinds.
+  [InlineData("while")]
+  [InlineData("repeatUntil")]
+  public async Task ABreakFiringOnTheIterationThatAlsoReachesMaxIterationsReportsTheBreak(string loopType) {
+    const int ceiling = 3;
+
+    // The loop condition keeps the loop running; the break fires only on its third check, which is
+    // the iteration that also consumes the last of MaxIterations. Distinct image ids let one
+    // evaluator answer the two conditions differently.
+    LoopConfig loop = loopType == "while"
+      ? new WhileLoopConfig { Condition = new ImageVisibleStepCondition { ImageId = "loop" }, MaxIterations = ceiling }
+      : new RepeatUntilLoopConfig { Condition = new ImageVisibleStepCondition { ImageId = "loop" }, MaxIterations = ceiling };
+
+    var loopStep = new SequenceStep {
+      Order = 0,
+      StepId = "loop",
+      StepType = SequenceStepType.Loop,
+      Loop = loop,
+      Body = new List<SequenceStep> {
+        ActionBodyStep(0, "inner"),
+        BreakBodyStep(1, new ImageVisibleStepCondition { ImageId = "brk" })
+      }
+    };
+
+    var brkChecks = 0;
+    var runner = new SequenceRunner(new StubRepo(Sequence("s", new[] { loopStep })));
+    var result = await runner.ExecuteAsync("s",
+        (_, _) => Task.CompletedTask,
+        conditionEvaluator: (cond, _) => {
+          if (cond.TargetId == "brk") return Task.FromResult(++brkChecks >= ceiling);
+          // A repeat-until loop exits when its condition is true, so it must stay false to keep
+          // iterating; a while loop needs the opposite. Either way the loop runs to the ceiling.
+          return Task.FromResult(loopType == "while");
+        });
+
+    var loopResult = result.Steps.Single(s => s.LoopIterations is not null);
+    loopResult.LoopIterations.Should().HaveCount(ceiling);
+    loopResult.ExitReason.Should().NotBeNull();
+    loopResult.ExitReason!.BrokeVia.Should().Be("break",
+      "the author's explicit Break is what ended the iteration, even though the ceiling was also reached");
+    loopResult.ExitReason.ExhaustedMaxIterations.Should().BeFalse(
+      "exactly one cause is reported, and a fired Break takes precedence over the ceiling");
+  }
+
   [Fact] // T006 (US1) — regression: exitReason is additive, existing assertions are unaffected.
   public async Task ExitReasonAdditionDoesNotAffectExistingLoopStatusOrMessageAssertions() {
     // Re-run of WhileLoopExitOnMaxIterationsGivesUpWithoutFailingTheSequence's existing assertions.

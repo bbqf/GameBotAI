@@ -133,6 +133,66 @@ public sealed class SequencePerStepConditionsOpenApiTests {
   }
 
   /// <summary>
+  /// Feature 103, FR-014/FR-015: the reference rules and the loop exit reason must be legible from
+  /// the published document.
+  /// <para>
+  /// Issue #193 exists because a delivered behaviour was recorded in a claim nobody re-checked. A
+  /// description that drifts is the same failure in a different place, so these assertions name the
+  /// specific phrases rather than merely checking that some description exists.
+  /// </para>
+  /// </summary>
+  [Fact]
+  public async Task SwaggerDocumentPublishesTheCommandOutcomeReferenceRules() {
+    using var app = CreateFactory();
+    var client = app.CreateClient();
+
+    var response = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(false);
+    response.EnsureSuccessStatusCode();
+
+    using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+    var commandOutcome = document.RootElement
+      .GetProperty("components").GetProperty("schemas").GetProperty("CommandOutcomeCondition");
+
+    var stepRefDescription = commandOutcome.GetProperty("properties").GetProperty("stepRef")
+      .GetProperty("description").GetString();
+
+    stepRefDescription.Should().NotBeNullOrWhiteSpace();
+    stepRefDescription.Should().Contain("reachable from the sequence root", "the resolution scope must be stated");
+    stepRefDescription.Should().Contain("Loop body", "nested bodies are in scope and that must be explicit");
+    stepRefDescription.Should().Contain("authored", "the ordering rule is authored order, not list index");
+    stepRefDescription.Should().Contain("$.children", "a nested rejection names the offending child by path");
+    stepRefDescription.Should().Contain("repeatUntil", "the inherited D-006 exception must be stated, not hidden");
+
+    var expectedStateDescription = commandOutcome.GetProperty("properties").GetProperty("expectedState")
+      .GetProperty("description").GetString();
+
+    // All five, named. The reported ceiling was that only the first three existed.
+    expectedStateDescription.Should().NotBeNullOrWhiteSpace();
+    foreach (var state in new[] { "success", "failed", "skipped", "break", "no_break" }) {
+      expectedStateDescription.Should().Contain(state);
+    }
+  }
+
+  [Fact]
+  public async Task SwaggerDocumentPublishesTheLoopExitReasonShape() {
+    using var app = CreateFactory();
+    var client = app.CreateClient();
+
+    var response = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(false);
+    response.EnsureSuccessStatusCode();
+
+    var raw = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+    // The run response is the domain result serialized directly, so there is no contract schema to
+    // hang this on; it is described on the execution-log entry, which is where a consumer asking
+    // "why did that loop stop" actually looks.
+    raw.Should().Contain("brokeVia");
+    raw.Should().Contain("exhaustedMaxIterations");
+    raw.Should().Contain("mutually exclusive", "the two causes cannot both be reported");
+    raw.Should().Contain("never an enclosing If", "brokeVia names the Break's own id");
+  }
+
+  /// <summary>
   /// Finds the <c>children</c> property on a schema, following a single <c>allOf</c> hop, since a
   /// derived schema commonly inherits it from the composite base rather than redeclaring it.
   /// </summary>

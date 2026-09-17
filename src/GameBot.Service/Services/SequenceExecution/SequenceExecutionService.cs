@@ -419,6 +419,13 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
             ["stepDelayMs"] = step.AppliedDelayMs,
             ["interStepDelayMs"] = step.InterStepDelayMs,
             ["iterations"] = iterCount,
+            // Feature 103 (issue #193, FR-011): why the loop stopped, beside how many times it ran.
+            // The exit reason was already on the response to a directly-invoked run, but a
+            // queue-driven firing has no caller to answer — its log is the only record it leaves, and
+            // it dropped this entirely. For the runs that matter the exit reason was therefore
+            // readable only as prose in "message", which is the standard the issue asked us to beat.
+            ["brokeVia"] = step.ExitReason?.BrokeVia,
+            ["exhaustedMaxIterations"] = step.ExitReason?.ExhaustedMaxIterations,
             ["message"] = step.Message,
             ["sequenceId"] = sequenceId,
             ["sequenceLabel"] = sequenceName,

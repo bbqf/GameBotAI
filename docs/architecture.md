@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 102 primitive action types published in OpenAPI)._
+_Last reviewed: 2026-09-17 (feature 103 condition-model ceiling retested; reference checks completed
+in composites and in the `If` slot, loop exit reason recorded in the execution log)._
 
 ## What GameBot is
 
@@ -497,7 +498,17 @@ the firing `Break` step's own `StepId` (never an enclosing `If`'s), or `null` if
 any `Break` firing, independent of `ExitOnMaxIterations` (so it stays `true` even when
 `ExitOnMaxIterations: false` also fails the loop for that reason). Both are `false`/`null` when the
 loop finished its body/condition normally. Purely additive on the existing `/api/sequences/{id}/execute`
-response — no separate contract to update.
+response — no separate contract to update: that endpoint returns the domain `SequenceExecutionResult`
+directly, so `exitReason: { brokeVia, exhaustedMaxIterations }` is serialized with no DTO in between.
+The two causes are mutually exclusive, and a `Break` firing on the same iteration that reaches the
+ceiling reports the break (`ExhaustedMaxIterations: false`).
+
+Feature 103 added a second place to read the same value: the loop step's entry in the **persisted
+execution log** carries `brokeVia` and `exhaustedMaxIterations` attributes beside the existing
+`iterations`. This matters because a queue-driven firing has no caller to answer — its log is the only
+record it leaves — so before feature 103 the exit reason was unreadable after the fact for precisely
+the runs that matter, inferable only from the prose in `message`. A loop that fails early
+(`AddLoopStep` on the early-stop path) still carries no exit reason at all.
 
 **Composite step conditions** (feature 088): `SequenceStepCondition` has a third form alongside
 `imageVisible` and `commandOutcome` — a **composite** that owns an ordered list of child conditions
@@ -558,6 +569,55 @@ validation-legal (reachable + prior) but names a step that did not execute durin
 `If` branch not taken, a loop body that ran zero iterations) still fails the referencing step and
 the run with that same "unavailable" error — unchanged, deliberately not softened into a silent
 skip. See `specs/081-loop-exit-reason-and-nested-steprefs/contracts/loop-exit-reason-and-stepref-scope.md`.
+
+**Where the reference rules apply, and the 2026-09-17 retest that established it** (feature 103,
+issue #193): feature 081's widening was reported as delivered but never re-measured. Issue #193 asked
+for either a confirmation that the whole ceiling was gone — nested `stepRef` in every condition
+variant, plus a readable loop exit reason — or a precise statement of what remained. The retest found
+both halves delivered in the API and domain and **neither gone end-to-end**, and closed the five gaps
+it measured. Current state:
+
+| Where a `commandOutcome` sits | Resolved + ordered? |
+| --- | --- |
+| Directly on a step guard | Yes (feature 081) |
+| Directly on an `If` condition | Yes — **feature 103**; this slot validated a condition's shape and never checked a reference at all, so feature 081's own acceptance scenario for it passed vacuously |
+| Directly on a `Break` condition | Yes (feature 081) |
+| Directly on a `while`/`repeatUntil` condition | **No** — deliberate, see below |
+| Inside an `all`/`any`/`none` composite, any slot the composite is validated in | Yes — **feature 103**; previously checked for non-emptiness only, so a dangling or forward reference saved with 201 and failed the run instead |
+
+`CompositeConditionValidator.Validate` takes the authored-order index and the referencing step's
+position as **optional** parameters; a caller that cannot supply them (notably
+`FileSequenceRepository`, which validates a condition with no sequence around it, and where a
+rejection would surface as a 500) keeps shape-only validation. A nested rejection reuses that
+validator's `$`-rooted path convention, so one message format covers every rule and slot.
+
+The `while`/`repeatUntil` exception is inherited from feature 088 research decision **D-006**:
+validating *leaf* conditions in those two slots would newly reject sequences that save today. The
+resulting asymmetry — a composite-wrapped reference there is checked while a bare one is not — is
+deliberate, asserted by test, and published in the OpenAPI `stepRef` description rather than left for
+a reader to discover.
+
+Feature 103 also corrected the `If` slot's `expectedState` message, which named
+`success|failed|skipped` while validating against all five values — issue #193's half-2 complaint
+surviving verbatim as a message years after the behaviour was fixed.
+
+**What remains**, stated so the row can be closed on evidence rather than assumption: the **web
+authoring UI offers no way to author a composite condition at all** — its `PerStepConditionType` is
+`imageVisible | commandOutcome`, with no `all`/`any`/`none` form. That is absent capability rather
+than a client rule contradicting the service, so feature 103 recorded it instead of building it. The
+UI's two *stale rules* were fixed: `validatePerStepConditions` now resolves a reference against the
+flattened step tree (it previously searched the top-level array only and reported the original
+"references unknown prior step" message for a legal nested reference) and accepts all five outcome
+states.
+
+The evidence is executable, not prose. `tests/unit/Sequences/ConditionReferenceScopeValidationTests.cs`
+covers every variant and slot, including the D-006 boundary; `CompositeConditionContractTests` and
+`SequenceLoopExitReasonContractTests` cover the HTTP boundary;
+`ExecutionLogsLoopExitReasonContractTests` covers the log record;
+`SequenceRunnerLoopTests`/`SequenceRunnerIfTests` cover the exit reason's three states, the
+simultaneous break-and-ceiling iteration, and `brokeVia` attribution; and
+`src/web-ui/src/lib/__tests__/perStepConditionValidation.spec.ts` covers the editor. Re-run them
+rather than trusting this paragraph.
 
 ### Dry-run / validate-only sequence mode (feature 082)
 

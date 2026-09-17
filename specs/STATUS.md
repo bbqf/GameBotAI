@@ -137,6 +137,7 @@ Status vocabulary:
 | 100 | Make a Queue's Live Roster Discoverable | Implemented |
 | 101 | Document detect vs detect-all coordinate units | Implemented |
 | 102 | Publish primitive action types and payload shapes | Implemented |
+| 103 | Retest the condition-model ceiling and document the outcome | Implemented |
 
 ## Numbering notes
 

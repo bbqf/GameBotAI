@@ -84,10 +84,17 @@ export type ImageVisibleStepCondition = {
   negate?: boolean;
 };
 
+/**
+ * The outcome states the service accepts. `break` and `no_break` ask whether a specific `Break` step
+ * fired, and have been accepted since feature 081; this type — and the validator beside it — still
+ * listed only the first three, so the editor rejected them (feature 103, issue #193).
+ */
+export type CommandOutcomeExpectedState = 'success' | 'failed' | 'skipped' | 'break' | 'no_break';
+
 export type CommandOutcomeStepCondition = {
   type: 'commandOutcome';
   stepRef: string;
-  expectedState: 'success' | 'failed' | 'skipped';
+  expectedState: CommandOutcomeExpectedState;
   negate?: boolean;
 };
 

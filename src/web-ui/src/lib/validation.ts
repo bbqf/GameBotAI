@@ -233,13 +233,57 @@ const validateConditionExpression = (expression: ConditionExpression, stepId: st
   return errors;
 };
 
+/**
+ * The outcome states the service accepts, in the same order its error message names them.
+ * `break`/`no_break` were added by feature 081; this list was not updated until feature 103, so the
+ * editor rejected what the API accepted.
+ */
+const COMMAND_OUTCOME_STATES = ['success', 'failed', 'skipped', 'break', 'no_break'];
+
+/**
+ * Flattens a step tree into authored (document) order — root steps, with each `Loop` body and each
+ * `If` branch expanded in place, recursively — mirroring the service's own index.
+ *
+ * Feature 103 (issue #193): a reference may name any step reachable from the root, so resolving
+ * against the top-level array alone reported the original ceiling's own message
+ * ("references unknown prior step") for a perfectly legal nested reference. Flattening also means
+ * conditions on nested steps get validated, which they never were.
+ */
+const flattenStepsInAuthoredOrder = (steps: SequenceLinearStep[]): SequenceLinearStep[] => {
+  const flattened: SequenceLinearStep[] = [];
+
+  const walk = (list: SequenceLinearStep[]) => {
+    for (const step of list) {
+      flattened.push(step);
+      if (step.body?.length) {
+        walk(step.body);
+      }
+      if (step.elseBody?.length) {
+        walk(step.elseBody);
+      }
+    }
+  };
+
+  walk(steps);
+  return flattened;
+};
+
 export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[] => {
   const errors: string[] = [];
   const seenStepIds = new Set<string>();
 
+  // Duplicate-id reporting stays scoped to the top level, where it always was: the service reports a
+  // duplicate nested id with its own distinct message, and raising that here would double-report.
+  const ordered = flattenStepsInAuthoredOrder(steps);
+  const positionByStepId = new Map<string, number>();
+  ordered.forEach((step, position) => {
+    if (step.stepId?.trim() && !positionByStepId.has(step.stepId)) {
+      positionByStepId.set(step.stepId, position);
+    }
+  });
+
   for (let index = 0; index < steps.length; index += 1) {
     const step = steps[index];
-    const stepLabel = step.stepId || `index:${index}`;
 
     if (!step.stepId?.trim()) {
       errors.push(`Step at index ${index} requires stepId.`);
@@ -250,6 +294,14 @@ export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[]
       errors.push(`Duplicate step id '${step.stepId}'.`);
     }
     seenStepIds.add(step.stepId);
+  }
+
+  ordered.forEach((step, position) => {
+    if (!step.stepId?.trim()) {
+      return;
+    }
+
+    const stepLabel = step.stepId;
 
     if (step.condition?.type === 'imageVisible') {
       if (!step.condition.imageId?.trim()) {
@@ -265,19 +317,23 @@ export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[]
       if (!stepRef?.trim()) {
         errors.push(`Step '${stepLabel}' commandOutcome condition requires stepRef.`);
       } else {
-        const refIndex = steps.findIndex((candidate) => candidate.stepId === stepRef);
-        if (refIndex < 0) {
+        const referencedPosition = positionByStepId.get(stepRef);
+        if (referencedPosition === undefined) {
           errors.push(`Step '${stepLabel}' commandOutcome references unknown prior step '${stepRef}'.`);
-        } else if (refIndex >= index) {
+        } else if (referencedPosition >= position) {
+          // Resolution and ordering are separate rules: widening the search must not stop enforcing
+          // that a reference points backwards.
           errors.push(`Step '${stepLabel}' commandOutcome stepRef '${stepRef}' must reference a prior step.`);
         }
       }
 
-      if (!['success', 'failed', 'skipped'].includes(step.condition.expectedState)) {
-        errors.push(`Step '${stepLabel}' commandOutcome expectedState must be one of success|failed|skipped.`);
+      if (!COMMAND_OUTCOME_STATES.includes(step.condition.expectedState)) {
+        errors.push(
+          `Step '${stepLabel}' commandOutcome expectedState must be one of ${COMMAND_OUTCOME_STATES.join('|')}.`
+        );
       }
     }
-  }
+  });
 
   return errors;
 };

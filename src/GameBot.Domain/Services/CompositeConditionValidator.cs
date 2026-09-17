@@ -45,11 +45,31 @@ public static class CompositeConditionValidator {
   /// alone, because the caller already checks it and would otherwise report the same problem twice.
   /// Children of a composite are always validated regardless.
   /// </param>
+  /// <param name="positionByStepId">
+  /// Every step id in the sequence mapped to its position in the authored (document) order walk.
+  /// Supply it to have a nested <c>commandOutcome</c>'s <c>stepRef</c> resolved, exactly as the
+  /// per-step validator resolves one written directly (feature 103, issue #193 — before that, a
+  /// reference reached through a composite was checked for non-emptiness and nothing else, so a
+  /// dangling one saved successfully and failed the run instead).
+  /// <para>
+  /// Optional because this validator is called from sites that have no such index — notably the
+  /// repository's own composite walk, where a rejection surfaces as a 500 rather than a 400. Those
+  /// callers pass nothing and keep the shape-only behaviour they have always had.
+  /// </para>
+  /// </param>
+  /// <param name="referencingStepPosition">
+  /// The position, in that same walk, of the step carrying this condition. Supply it together with
+  /// <paramref name="positionByStepId"/> to also enforce that a reference names a <em>prior</em>
+  /// step. Resolution and ordering are separate rules: given the index alone, only resolution is
+  /// checked.
+  /// </param>
   public static void Validate(
       SequenceStepCondition? condition,
       string stepLabel,
       ICollection<string> errors,
-      bool validateLeafAtRoot = false) {
+      bool validateLeafAtRoot = false,
+      IReadOnlyDictionary<string, int>? positionByStepId = null,
+      int? referencingStepPosition = null) {
     if (condition is null) {
       return;
     }
@@ -60,7 +80,7 @@ public static class CompositeConditionValidator {
       return;
     }
 
-    Walk(condition, stepLabel, "$", depth: 1, errors);
+    Walk(condition, stepLabel, "$", depth: 1, errors, positionByStepId, referencingStepPosition);
   }
 
   private static void Walk(
@@ -68,7 +88,9 @@ public static class CompositeConditionValidator {
       string stepLabel,
       string path,
       int depth,
-      ICollection<string> errors) {
+      ICollection<string> errors,
+      IReadOnlyDictionary<string, int>? positionByStepId,
+      int? referencingStepPosition) {
     if (depth > CompositeStepCondition.MaxDepth) {
       errors.Add($"Step '{stepLabel}' condition at {path}: condition nesting exceeds the maximum depth of {CompositeStepCondition.MaxDepth}.");
       return;
@@ -76,7 +98,7 @@ public static class CompositeConditionValidator {
 
     switch (condition) {
       case CompositeStepCondition composite:
-        ValidateComposite(composite, stepLabel, path, depth, errors);
+        ValidateComposite(composite, stepLabel, path, depth, errors, positionByStepId, referencingStepPosition);
         break;
 
       case ImageVisibleStepCondition imageVisible:
@@ -94,6 +116,9 @@ public static class CompositeConditionValidator {
         if (string.IsNullOrWhiteSpace(commandOutcome.StepRef)) {
           errors.Add($"Step '{stepLabel}' condition at {path}: commandOutcome condition requires stepRef.");
         }
+        else {
+          ValidateStepReference(commandOutcome.StepRef, stepLabel, path, errors, positionByStepId, referencingStepPosition);
+        }
 
         if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
             || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
@@ -108,12 +133,48 @@ public static class CompositeConditionValidator {
     }
   }
 
+  /// <summary>
+  /// Applies the two reference rules a nested <c>commandOutcome</c> is subject to, when the caller
+  /// supplied what they need (feature 103, FR-008/FR-009). Kept as its own method so the
+  /// <see cref="Walk"/> switch stays small: this repository's build-time analyzers degrade on large
+  /// methods and <c>TreatWarningsAsErrors</c> turns that into a build failure.
+  /// <para>
+  /// The messages deliberately reuse the per-step validator's wording, prefixed with this
+  /// validator's <c>$</c>-rooted path, so an author reads one format whichever rule caught the
+  /// problem and whichever slot the condition sits in.
+  /// </para>
+  /// </summary>
+  private static void ValidateStepReference(
+      string stepRef,
+      string stepLabel,
+      string path,
+      ICollection<string> errors,
+      IReadOnlyDictionary<string, int>? positionByStepId,
+      int? referencingStepPosition) {
+    if (positionByStepId is null) {
+      return;
+    }
+
+    if (!positionByStepId.TryGetValue(stepRef, out var referencedPosition)) {
+      errors.Add($"Step '{stepLabel}' condition at {path}: commandOutcome references unknown prior step '{stepRef}'.");
+      return;
+    }
+
+    // Resolution succeeded; ordering is only checked when the caller said where the referencing step
+    // sits, because "prior" is meaningless without it.
+    if (referencingStepPosition is { } ownPosition && referencedPosition >= ownPosition) {
+      errors.Add($"Step '{stepLabel}' condition at {path}: commandOutcome stepRef '{stepRef}' must reference a prior step.");
+    }
+  }
+
   private static void ValidateComposite(
       CompositeStepCondition composite,
       string stepLabel,
       string path,
       int depth,
-      ICollection<string> errors) {
+      ICollection<string> errors,
+      IReadOnlyDictionary<string, int>? positionByStepId,
+      int? referencingStepPosition) {
     var rule = RuleName(composite.Rule);
     var children = composite.Children;
 
@@ -146,7 +207,7 @@ public static class CompositeConditionValidator {
         continue;
       }
 
-      Walk(child, stepLabel, childPath, depth + 1, errors);
+      Walk(child, stepLabel, childPath, depth + 1, errors, positionByStepId, referencingStepPosition);
     }
   }
 
