@@ -899,7 +899,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       QueueRunHandle handle,
       Func<DateTimeOffset, DateTimeOffset?> computeNextDue,
       CancellationToken ct) {
-    handle.EnterIdlePause(resumeAt);
+    handle.EnterIdlePause(resumeAt, _timeProvider.GetLocalNow());
     try {
       // Background the game (best-effort): send HOME once. A failure is non-fatal — the run keeps
       // going and scheduled tasks still fire.
@@ -917,7 +917,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         var nextDue = computeNextDue(now);
         if (nextDue is not { } due || due <= now) break;
         // Reflect an earlier-arriving firing in the monitor's resume time.
-        handle.EnterIdlePause(due);
+        handle.EnterIdlePause(due, now);
         await Task.Delay(RelativeTimerPollInterval, ct).ConfigureAwait(false);
       }
 

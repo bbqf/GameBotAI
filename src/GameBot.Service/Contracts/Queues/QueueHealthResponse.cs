@@ -56,17 +56,30 @@ namespace GameBot.Service.Contracts.Queues {
     /// </summary>
     public bool FailurePolicyTripped { get; set; }
 
+    // ── Pause (features 087 + 096, issue #199) ─────────────────────────────────────────────────
+    // One set of fields for both kinds of pause, so "is this farm paused?" is a single read.
+
     /// <summary>
-    /// Whether the run is parked by a tripped pause action. Distinct from feature 073's idle pause,
-    /// which is short and self-releasing; this one is released only by an explicit resume.
+    /// Whether the run is paused right now, for either reason: an idle pause (feature 073; routine,
+    /// ends by itself when the next firing is due) or a failure-policy pause (feature 087; released
+    /// only by <c>POST /api/queues/{id}/resume</c>). <see cref="PauseKind"/> tells them apart.
     /// </summary>
     public bool Paused { get; set; }
 
-    /// <summary>When the policy pause began; null when not paused.</summary>
+    /// <summary>When the reported pause began (local clock); null when not paused.</summary>
     public DateTimeOffset? PausedAt { get; set; }
 
-    /// <summary>Why the run is paused; null when not paused.</summary>
+    /// <summary>
+    /// Why the run is paused: <c>idle pause: resumes at HH:mm</c>, or a text starting
+    /// <c>failure policy:</c>. Null when not paused.
+    /// </summary>
     public string? PauseReason { get; set; }
+
+    /// <summary>
+    /// <c>idle</c> or <c>failurePolicy</c>; null when not paused. When both pauses are in force the
+    /// failure-policy pause is the one reported, since it is the one that needs an operator.
+    /// </summary>
+    public string? PauseKind { get; set; }
 
     /// <summary>When the most recent notification attempt finished; null until one is made.</summary>
     public DateTimeOffset? LastNotificationAt { get; set; }

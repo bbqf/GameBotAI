@@ -2095,6 +2095,10 @@ public sealed partial class QueueExecutionServiceTests {
     await WaitForAsync(() => h.Registry.TryGet("q1", out var handle) && handle.IsIdlePaused, 10000);
     h.Registry.TryGet("q1", out var paused).Should().BeTrue();
     paused.IdlePausedUntil.Should().Be(FakeStart + TimeSpan.FromMinutes(10));
+    // Feature 096: the hold records when it began, on the run's own clock.
+    paused.IdlePausedAt.Should().NotBeNull();
+    paused.IdlePausedAt!.Value.Should().BeOnOrAfter(FakeStart).And.BeOnOrBefore(FakeStart + TimeSpan.FromMinutes(10));
+    paused.SnapshotPause().Kind.Should().Be(QueuePauseKinds.Idle);
     CycleHealth(h).CyclesCompleted.Should().Be(0);
 
     clock.Advance(TimeSpan.FromMinutes(10));
