@@ -144,7 +144,9 @@ internal static class ExecutionLogsEndpoints {
         ? entry.StepOutcomes.Count
         : 0,
       RotatedToExecutionId = entry.RotatedToExecutionId,
-      RotatedFromExecutionId = entry.RotatedFromExecutionId
+      RotatedFromExecutionId = entry.RotatedFromExecutionId,
+      CancellationReason = entry.CancellationReason,
+      TimeLimitMs = entry.TimeLimitMs
     };
 
   private static ExecutionTreeNodeDto ToTreeNodeDto(ExecutionTreeNodeProjection node)
@@ -188,6 +190,8 @@ internal static class ExecutionLogsEndpoints {
           DirectPath = node.DeepLink.DirectPath,
           FallbackRoute = node.DeepLink.FallbackRoute
         },
+      CancellationReason = node.CancellationReason,
+      TimeLimitMs = node.TimeLimitMs,
       Children = node.Children.Select(ToTreeNodeDto).ToArray()
     };
 
@@ -263,6 +267,8 @@ internal static class ExecutionLogsEndpoints {
       legacy.Navigation,
       legacy.Hierarchy,
       legacy.Summary,
+      legacy.CancellationReason,
+      legacy.TimeLimitMs,
       legacy.Details,
       LegacyStepOutcomes = legacy.StepOutcomes,
       detail.ExecutionId,

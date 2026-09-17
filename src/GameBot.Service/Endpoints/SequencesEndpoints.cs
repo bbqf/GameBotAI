@@ -464,7 +464,8 @@ internal static class SequencesEndpoints {
         interStepDelayRangeMs = sequence.InterStepDelayRangeMs is not null
           ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
           : null,
-        watchdogTimeoutMs = sequence.WatchdogTimeoutMs
+        watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
+        effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs)
       };
     }
 
@@ -478,6 +479,7 @@ internal static class SequencesEndpoints {
           ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
           : null,
         watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
+        effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
         parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters)
       };
     }
@@ -491,6 +493,7 @@ internal static class SequencesEndpoints {
         ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
         : null,
       watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
+      effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
       parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters)
     };
   }

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `094-sequence-time-limit-reporting`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #182 (https://github.com/bbqf/GameBotAI/issues/182) — "FR-005: a sequence cancelled at the ~240s cap is indistinguishable from one that failed, and the cap is set nowhere". Closes #182.
 
 ## Background

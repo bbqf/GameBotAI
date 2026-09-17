@@ -214,11 +214,9 @@ namespace GameBot.Domain.Commands {
     }
 
     /// <summary>
-    /// A per-sequence watchdog must be a positive duration, and is capped so a typo cannot hand one
-    /// sequence an effectively unbounded hold on its queue's emulator.
+    /// A per-sequence watchdog must be a positive duration, and is capped (<see cref="SequenceTimeLimits.MaxWatchdogTimeoutMs"/>)
+    /// so a typo cannot hand one sequence an effectively unbounded hold on its queue's emulator.
     /// </summary>
-    private const int MaxWatchdogTimeoutMs = 30 * 60 * 1000;
-
     private static void ValidateWatchdogTimeout(CommandSequence sequence) {
       if (sequence.WatchdogTimeoutMs is not { } watchdog) {
         return;
@@ -228,8 +226,8 @@ namespace GameBot.Domain.Commands {
         throw new InvalidOperationException("WatchdogTimeoutMs must be > 0 when set.");
       }
 
-      if (watchdog > MaxWatchdogTimeoutMs) {
-        throw new InvalidOperationException($"WatchdogTimeoutMs must be <= {MaxWatchdogTimeoutMs} (30 minutes).");
+      if (watchdog > SequenceTimeLimits.MaxWatchdogTimeoutMs) {
+        throw new InvalidOperationException($"WatchdogTimeoutMs must be <= {SequenceTimeLimits.MaxWatchdogTimeoutMs} (30 minutes).");
       }
     }
 

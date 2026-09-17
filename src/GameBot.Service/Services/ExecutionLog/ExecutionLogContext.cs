@@ -24,4 +24,13 @@ internal sealed class ExecutionLogContext {
   /// action's entry id for attribution in the execution log (feature 065, FR-014).
   /// </summary>
   public string? SelfRescheduleOriginActionId { get; init; }
+
+  /// <summary>
+  /// On a sequence finalize: why the platform ended the run early (feature 094), e.g.
+  /// <c>sequence_time_limit</c>. Null when it did not. Copied onto the entry as-is.
+  /// </summary>
+  public string? CancellationReason { get; init; }
+
+  /// <summary>On a sequence finalize: the time bound (ms) that applied; set together with <see cref="CancellationReason"/>.</summary>
+  public int? TimeLimitMs { get; init; }
 }

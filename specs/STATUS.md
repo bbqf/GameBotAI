@@ -128,6 +128,7 @@ Status vocabulary:
 | 091 | Sequence Update Dry Run and Command Reference Existence | Implemented |
 | 092 | Self-reschedule Keeps AtQueueStart-only Queue Running | Implemented |
 | 093 | Cycling Queue With Nothing Due Waits Instead of Spinning | Implemented |
+| 094 | Distinct Reporting of Sequence Time-Limit Cancellation | Implemented |
 
 ## Numbering notes
 

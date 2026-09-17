@@ -60,6 +60,12 @@ internal sealed record ExecutionTreeNodeProjection(
   /// Null for primitive step nodes, which have no independently recorded execution time.
   /// </summary>
   public DateTimeOffset? TimestampUtc { get; init; }
+
+  /// <summary>The recorded execution's cancellation reason (feature 094); null for step nodes.</summary>
+  public string? CancellationReason { get; init; }
+
+  /// <summary>The time bound (ms) that applied when <see cref="CancellationReason"/> is set; null otherwise.</summary>
+  public int? TimeLimitMs { get; init; }
 }
 
 internal sealed record ExecutionSubtreeProjection(
@@ -337,7 +343,9 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       Summary = TrimSummary(summary),
       Details = trimmedDetails,
       StepOutcomes = stepOutcomes,
-      RetentionExpiresUtc = retention.Enabled ? timestamp.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+      RetentionExpiresUtc = retention.Enabled ? timestamp.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue,
+      CancellationReason = context.CancellationReason,
+      TimeLimitMs = context.CancellationReason is null ? null : context.TimeLimitMs
     };
 
     await _repository.UpsertAsync(entry, ct).ConfigureAwait(false);
@@ -526,7 +534,9 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       null,
       null,
       children) {
-      TimestampUtc = entry.TimestampUtc
+      TimestampUtc = entry.TimestampUtc,
+      CancellationReason = entry.CancellationReason,
+      TimeLimitMs = entry.TimeLimitMs
     };
   }
 

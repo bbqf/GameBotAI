@@ -103,6 +103,24 @@ public sealed class ExecutionLogEntry {
   /// Null on every other entry, including runs that never rotated.
   /// </summary>
   public string? RotatedFromExecutionId { get; init; }
+
+  /// <summary>
+  /// Why the platform ended this execution early, when it did (feature 094):
+  /// <see cref="ExecutionCancellationReasons.SequenceTimeLimit"/> on a queue firing's sequence entry
+  /// that ran out of its time bound. Null for every other entry, including user stops, ordinary
+  /// failures, successes and entries written before this field existed. <see cref="FinalStatus"/>
+  /// stays <c>failure</c> either way.
+  /// </summary>
+  public string? CancellationReason { get; init; }
+
+  /// <summary>The time bound in milliseconds that applied; set exactly when <see cref="CancellationReason"/> is.</summary>
+  public int? TimeLimitMs { get; init; }
+}
+
+/// <summary>Values of <see cref="ExecutionLogEntry.CancellationReason"/>.</summary>
+public static class ExecutionCancellationReasons {
+  /// <summary>A queue firing's sequence was cut off by its time bound (the default or its <c>watchdogTimeoutMs</c>).</summary>
+  public const string SequenceTimeLimit = "sequence_time_limit";
 }
 
 public sealed class ExecutionLogQuery {

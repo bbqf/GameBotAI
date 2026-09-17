@@ -63,6 +63,10 @@ internal sealed class ExecutionLogEntryDto {
   public string? RotatedToExecutionId { get; init; }
   /// <summary>Set on a queue-run segment opened by log rotation: the segment it continues from.</summary>
   public string? RotatedFromExecutionId { get; init; }
+  /// <summary>Feature 094: <c>sequence_time_limit</c> when a queue firing's time bound ended this sequence; otherwise null.</summary>
+  public string? CancellationReason { get; init; }
+  /// <summary>Feature 094: the time bound (ms) that applied; set exactly when <see cref="CancellationReason"/> is.</summary>
+  public int? TimeLimitMs { get; init; }
 }
 
 internal sealed class ExecutionTreeNodeDto {
@@ -79,6 +83,10 @@ internal sealed class ExecutionTreeNodeDto {
   public ExecutionLogWaitForImageDetailAttributesDto? DetailAttributes { get; init; }
   public ConditionEvaluationTraceDto? ConditionTrace { get; init; }
   public AuthoringDeepLinkDto? DeepLink { get; init; }
+  /// <summary>Feature 094: <c>sequence_time_limit</c> when a queue firing's time bound ended this execution; otherwise null.</summary>
+  public string? CancellationReason { get; init; }
+  /// <summary>Feature 094: the time bound (ms) that applied; set exactly when <see cref="CancellationReason"/> is.</summary>
+  public int? TimeLimitMs { get; init; }
   public IReadOnlyList<ExecutionTreeNodeDto> Children { get; init; } = Array.Empty<ExecutionTreeNodeDto>();
 }
 

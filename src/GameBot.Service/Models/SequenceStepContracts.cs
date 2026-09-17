@@ -19,7 +19,11 @@ internal sealed record SequenceUpsertContract {
   public required IReadOnlyList<SequenceStepContract> Steps { get; init; }
   public DelayRangeMsContract? InterStepDelayRangeMs { get; init; }
 
-  /// <summary>Per-firing watchdog bound for queue runs, in ms; absent means the queue's default.</summary>
+  /// <summary>
+  /// Per-firing time bound for queue runs, in ms; absent means the default of 240000 ms (4 minutes).
+  /// Must be 1..1800000 (30 minutes). Feature 094 documents it and reports its expiry in the execution log.
+  /// </summary>
+  [System.ComponentModel.DataAnnotations.Range(1, GameBot.Domain.Commands.SequenceTimeLimits.MaxWatchdogTimeoutMs)]
   public int? WatchdogTimeoutMs { get; init; }
 
   /// <summary>Parameters this sequence accepts (feature 078); absent means unparametrized.</summary>
@@ -39,7 +43,11 @@ internal sealed record SequencePatchContract {
   public IReadOnlyList<SequenceStepContract>? Steps { get; init; }
   public DelayRangeMsContract? InterStepDelayRangeMs { get; init; }
 
-  /// <summary>Per-firing watchdog bound for queue runs, in ms; absent leaves it unchanged.</summary>
+  /// <summary>
+  /// Per-firing time bound for queue runs, in ms; absent leaves it unchanged, null clears it back to the
+  /// 240000 ms default. Must be 1..1800000 (30 minutes).
+  /// </summary>
+  [System.ComponentModel.DataAnnotations.Range(1, GameBot.Domain.Commands.SequenceTimeLimits.MaxWatchdogTimeoutMs)]
   public int? WatchdogTimeoutMs { get; init; }
 
   /// <summary>Parameters this sequence accepts (feature 078); absent leaves them unchanged.</summary>

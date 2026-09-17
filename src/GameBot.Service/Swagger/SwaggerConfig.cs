@@ -238,6 +238,12 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     + " A commandId the stored sequence already references is tolerated even if its command was since deleted, so "
     + "such a sequence can still be re-saved.";
 
+  // Feature 094 (FR-009): the time bound a queue firing runs under, readable instead of observed.
+  private static readonly string SequenceGetDescription =
+    "watchdogTimeoutMs is the stored per-sequence time bound for queue firings (null when none is set). "
+    + "effectiveWatchdogTimeoutMs is the read-only bound that actually applies: the override when set, otherwise the "
+    + $"platform default of {GameBot.Domain.Commands.SequenceTimeLimits.DefaultWatchdogTimeoutMs} ms. It is ignored on writes.";
+
   private static void ApplySequenceExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Sequences)) {
       operation.Summary ??= "Create a sequence";
@@ -257,6 +263,9 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get a sequence";
+      if (IsPath(path, ApiRoutes.Sequences + "/{sequenceId}")) {
+        operation.Description ??= SequenceGetDescription;
+      }
       SetResponseExample(operation, "200", SequenceCreateResponse(), context, typeof(SequenceResponseSchema));
     }
     else if (IsMethod(method, HttpMethods.Patch) && path.StartsWith(ApiRoutes.Sequences + "/", StringComparison.OrdinalIgnoreCase)) {
@@ -682,6 +691,13 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.ExecutionLogs + "/", StringComparison.OrdinalIgnoreCase) && !path.EndsWith("/retention", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get an execution log entry";
+      if (path.EndsWith("/subtree", StringComparison.OrdinalIgnoreCase)) {
+        // Feature 094: tree nodes carry the entry's cancellation fields; their schema can't be published
+        // (schema-id clash, see ConditionalFlowSchemaDocumentFilter), so they are described here.
+        operation.Description ??= "Every node that represents a recorded execution carries cancellationReason and "
+          + "timeLimitMs from its entry (null on step nodes). cancellationReason: "
+          + SequenceTimeLimitSchemaFilter.CancellationReasonDescription;
+      }
       SetResponseExample(operation, "200", ExecutionLogEntryResponse(), context, typeof(GameBot.Service.Models.ExecutionLogEntryDto));
     }
     else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs + "/retention")) {
@@ -1591,6 +1607,12 @@ internal sealed class SequenceResponseSchema {
   public required string Id { get; set; }
   public required string Name { get; set; }
   public ICollection<string> Steps { get; set; } = new List<string>();
+
+  /// <summary>Stored per-sequence time bound for queue firings, in ms; null when none is set.</summary>
+  public int? WatchdogTimeoutMs { get; set; }
+
+  /// <summary>Read-only: the bound that applies — the override when set, otherwise 240000 ms (feature 094).</summary>
+  public int EffectiveWatchdogTimeoutMs { get; set; }
 }
 
 internal sealed class SequenceValidateResponseSchema {

@@ -43,6 +43,8 @@ the 240000 ms default. `effectiveWatchdogTimeoutMs` in a write body is ignored a
 
 - `SequenceUpsertRequest` / `SequencePatchContract` → `watchdogTimeoutMs`: `minimum: 1`, `maximum: 1800000`, description
   mentions `240000`.
-- `ExecutionLogEntryDto` and `ExecutionTreeNodeDto` components exist, with `cancellationReason` (description lists
-  `sequence_time_limit`) and `timeLimitMs`.
+- The `ExecutionLogEntryDto` component has `cancellationReason` (its description lists `sequence_time_limit`) and
+  `timeLimitMs`. The `GET /api/execution-logs/{id}/subtree` description documents the same two fields on tree nodes.
+  `ExecutionTreeNodeDto` cannot be published as a component because its nested trace/deep-link DTOs clash on schema
+  id with the `Contracts.Sequences` DTOs of the same names.
 - The `GetSequence` operation description mentions `effectiveWatchdogTimeoutMs` and `240000`.
