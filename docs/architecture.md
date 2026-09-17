@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 093 cycling queue with nothing due waits instead of spinning empty cycles)._
+_Last reviewed: 2026-09-17 (feature 094 sequence time-limit cancellation reported distinctly; effective bound readable)._
 
 ## What GameBot is
 
@@ -132,7 +132,11 @@ not survive a service restart; queue *configuration* and templates are persisted
   step and sequence exactly like a while-loop condition error.
 - **Queue** — bound to exactly one emulator; holds ordered **entries** (sequences), a
   cycle-execution flag, and an optional **failure policy**. Runs entries against the emulator; can
-  cycle.
+  cycle. Each sequence firing runs under a **time bound** (the watchdog): the sequence's own
+  `watchdogTimeoutMs` when set (1..1,800,000 ms), otherwise the default 240,000 ms
+  (`SequenceTimeLimits`). A firing that exceeds it is cancelled and the run continues with its next
+  entry. `GET /api/sequences/{id}` reports the stored override (`watchdogTimeoutMs`) and the bound
+  that applies (`effectiveWatchdogTimeoutMs`, read-only) (feature 094).
 - **Queue failure policy** (`QueueFailurePolicy`, feature 087) — optional persisted configuration on
   a queue: a consecutive-failed-cycle threshold, a `QueueFailureAction`
   (`Notify`/`Stop`/`Pause`/`NotifyAndStop`), and an optional destination URL. Null means no policy
@@ -291,7 +295,13 @@ not survive a service restart; queue *configuration* and templates are persisted
   **run segments**: at the next firing boundary — never mid-sequence — the current queue-root entry
   is closed out and a fresh one opened, linked by `RotatedToExecutionId` /
   `RotatedFromExecutionId` so the chain can be walked in either direction. Later firings attach to
-  the newest segment, and each segment expires independently under retention.
+  the newest segment, and each segment expires independently under retention. Status is only
+  `running`/`success`/`failure`. When a queue firing's time bound cuts a sequence off, that sequence's
+  entry stays `failure` and also carries `cancellationReason: "sequence_time_limit"` and
+  `timeLimitMs`. This also applies when a step swallowed the cancellation and the run ended as an
+  ordinary failure after the bound fired. User stops, ordinary failures, successes, ad-hoc runs and
+  child command entries never carry it. The queue pushes an ambient `SequenceTimeLimitScope` with a
+  timer-only token, so the finalize can tell the bound from a stop (feature 094).
 
 ## Capability map (what the product does today)
 

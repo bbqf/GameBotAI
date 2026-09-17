@@ -92,7 +92,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // indefinitely — starving every timer-scheduled sequence behind it. A firing that exceeds this bound
   // is cancelled and treated as a non-fatal per-sequence failure so the run continues. Generous enough
   // that any legitimate tap/wait sequence completes well within it.
-  private static readonly TimeSpan SequenceWatchdogTimeout = TimeSpan.FromMinutes(4);
+  private static readonly TimeSpan SequenceWatchdogTimeout = TimeSpan.FromMilliseconds(GameBot.Domain.Commands.SequenceTimeLimits.DefaultWatchdogTimeoutMs);
 
   // Android KEYCODE_HOME. Sent to back the game out to the device home screen during an idle pause
   // (feature 073); HOME leaves the game running in the background, mirroring the go-to-home-screen
@@ -733,8 +733,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     // can exceed it on every single run, so the default would not protect that sequence but abort it
     // every time. Anything without an override keeps the default exactly as before.
     var watchdogTimeout = await ResolveWatchdogTimeoutAsync(sequenceId).ConfigureAwait(false);
-    using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(ct);
-    watchdog.CancelAfter(watchdogTimeout);
+    // The bound gets its own timer token (feature 094) so the sequence's log entry can tell "ran out of
+    // time" from "the run was stopped" — a single linked source carrying both would erase that.
+    using var watchdogTimer = new CancellationTokenSource(watchdogTimeout);
+    using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(ct, watchdogTimer.Token);
+    using var timeLimitScope = SequenceTimeLimitScope.Push((int)watchdogTimeout.TotalMilliseconds, watchdogTimer.Token, ct);
     // Sequence-level "now" tracking for the live monitor (feature 072): every firing — at-start,
     // once-per-run, every-step, timer, relative, live, self-reschedule — flows through here, so
     // set the current sequence at the top and clear it in the finally. This is purely observational
@@ -840,9 +843,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     if (_sequences is null) return SequenceWatchdogTimeout;
     try {
       var sequence = await _sequences.GetAsync(sequenceId).ConfigureAwait(false);
-      if (sequence?.WatchdogTimeoutMs is > 0 and var ms) {
-        return TimeSpan.FromMilliseconds(ms);
-      }
+      return TimeSpan.FromMilliseconds(GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence?.WatchdogTimeoutMs));
     }
     catch (Exception ex) {
       QueueExecutionLog.WatchdogTimeoutLookupFailed(_logger, sequenceId, ex);

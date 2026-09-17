@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Sequence time-limit cancellation reported distinctly (094-sequence-time-limit-reporting, #182)
+  - A queue firing cut off by its time bound still reads `finalStatus: "failure"`, but its sequence's execution-log entry now also carries `cancellationReason: "sequence_time_limit"` and `timeLimitMs`. The fields appear in the list, detail and subtree responses. A timeout can now be told apart from a sequence that reached its own failure, and that includes a step that swallowed the cancellation. User stops, ordinary failures, successes, ad-hoc runs and older entries carry neither field.
+  - `GET /api/sequences/{id}` adds read-only `effectiveWatchdogTimeoutMs`: the sequence's `watchdogTimeoutMs` when set, otherwise the 240000 ms default. It is ignored on writes.
+  - The OpenAPI document now describes `watchdogTimeoutMs` (default 240000 ms, minimum 1, maximum 1800000 ms), the effective read-out and the new execution-log fields.
 - Duplicate queues (083-duplicate-queues)
   - A new "Duplicate" action on the Queues page creates a copy of an existing queue: cycle-execution/idle-pause settings, linked template, linked game, and the queue's currently loaded entries are all copied over. The only required input is a new name, which must differ from the source queue's current name; the confirm button and the API both reject a resubmitted unchanged name.
   - The dialog also pre-fills the source queue's emulator (serial, instance name, instance index) but — unlike the name — lets it be changed or left as-is, so a duplicate can target a different emulator, which a normal edit does not allow.

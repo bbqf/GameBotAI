@@ -127,6 +127,55 @@ public sealed class SequenceWatchdogTimeoutApiIntegrationTests : IDisposable {
       .GetProperty("watchdogTimeoutMs").ValueKind.Should().Be(JsonValueKind.Null);
   }
 
+  // ── Feature 094: the effective bound is readable ──
+
+  [Fact] // Without an override the published default is what applies.
+  public async Task SequenceWithoutAnOverrideReportsTheDefaultAsEffective() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = Client(app);
+    var id = await CreateSequenceAsync(client, null).ConfigureAwait(false);
+
+    var sequence = await GetSequenceAsync(client, id).ConfigureAwait(false);
+
+    sequence.GetProperty("watchdogTimeoutMs").ValueKind.Should().Be(JsonValueKind.Null);
+    sequence.GetProperty("effectiveWatchdogTimeoutMs").GetInt32().Should().Be(240_000);
+  }
+
+  [Fact] // With an override the override is what applies.
+  public async Task SequenceWithAnOverrideReportsItAsEffective() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = Client(app);
+    var id = await CreateSequenceAsync(client, 1_200_000).ConfigureAwait(false);
+
+    var sequence = await GetSequenceAsync(client, id).ConfigureAwait(false);
+
+    sequence.GetProperty("watchdogTimeoutMs").GetInt32().Should().Be(1_200_000);
+    sequence.GetProperty("effectiveWatchdogTimeoutMs").GetInt32().Should().Be(1_200_000);
+  }
+
+  [Fact] // The effective value is read-only: sending it back never becomes a stored override.
+  public async Task EffectiveBoundInAWriteBodyIsIgnored() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = Client(app);
+    var id = await CreateSequenceAsync(client, 600_000).ConfigureAwait(false);
+
+    // PUT first: it carries version 1, which a preceding PATCH would have moved on.
+    var body = SequenceBody("Watchdog sequence", 600_000);
+    body["effectiveWatchdogTimeoutMs"] = 999;
+    (await client.PutAsJsonAsync(new Uri($"/api/sequences/{id}", UriKind.Relative), body).ConfigureAwait(false))
+      .EnsureSuccessStatusCode();
+
+    using (var patch = new HttpRequestMessage(HttpMethod.Patch, new Uri($"/api/sequences/{id}", UriKind.Relative)) {
+      Content = new StringContent("{\"effectiveWatchdogTimeoutMs\":999}", Encoding.UTF8, "application/json")
+    }) {
+      (await client.SendAsync(patch).ConfigureAwait(false)).EnsureSuccessStatusCode();
+    }
+
+    var after = await GetSequenceAsync(client, id).ConfigureAwait(false);
+    after.GetProperty("watchdogTimeoutMs").GetInt32().Should().Be(600_000);
+    after.GetProperty("effectiveWatchdogTimeoutMs").GetInt32().Should().Be(600_000);
+  }
+
   [Fact] // The cap keeps a typo from handing one sequence an unbounded hold on its emulator.
   public async Task WatchdogBeyondTheCapIsRejected() {
     using var app = new WebApplicationFactory<Program>();

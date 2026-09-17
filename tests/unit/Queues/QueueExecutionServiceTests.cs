@@ -2483,6 +2483,111 @@ public sealed partial class QueueExecutionServiceTests {
     h.Sequences.Executed.Should().Equal("A");
   }
 
+  // ── Feature 094: the firing's time-limit scope tells a timeout from a stop ──
+
+  [Fact] // A firing cut off by its bound sees an elapsed scope carrying that bound; the run continues.
+  public async Task TimedOutFiringSeesAnElapsedTimeLimitScope() {
+    var h = new Harness(sequenceRepository: true);
+    h.SequenceRepository!.SetWatchdog("A", 150);
+    h.AddQueue("q1", new[] { "A", "B" });
+    int? observedLimit = null;
+    bool? observedElapsed = null;
+    h.Sequences.Handler = async (id, ct) => {
+      if (id != "A") return FakeSequenceExecution.Success(id);
+      var scope = SequenceTimeLimitScope.Current;
+      try { await Task.Delay(Timeout.Infinite, ct); }
+      catch (OperationCanceledException) {
+        observedLimit = scope?.TimeLimitMs;
+        observedElapsed = SequenceTimeLimitScope.Current?.HasElapsed;
+        throw;
+      }
+      return FakeSequenceExecution.Success(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    observedLimit.Should().Be(150);
+    observedElapsed.Should().BeTrue();
+    h.Sequences.Executed.Should().Equal("A", "B");
+  }
+
+  [Fact] // A step that swallows the cancellation and reports a plain failure still ran out of time.
+  public async Task SwallowedCancellationStillSeesAnElapsedScope() {
+    var h = new Harness(sequenceRepository: true);
+    h.SequenceRepository!.SetWatchdog("A", 150);
+    h.AddQueue("q1", new[] { "A", "B" });
+    bool? observedElapsed = null;
+    h.Sequences.Handler = async (id, ct) => {
+      if (id != "A") return FakeSequenceExecution.Success(id);
+      try { await Task.Delay(Timeout.Infinite, ct); }
+      catch (OperationCanceledException) { /* swallowed, as a defensive step might */ }
+      observedElapsed = SequenceTimeLimitScope.Current?.HasElapsed;
+      return FakeSequenceExecution.Failure(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    observedElapsed.Should().BeTrue();
+    h.Sequences.Executed.Should().Equal("A", "B");
+  }
+
+  [Fact] // A user stop is never reported as the time bound.
+  public async Task StoppedFiringDoesNotSeeAnElapsedScope() {
+    var h = new Harness(sequenceRepository: true);
+    h.AddQueue("q1", new[] { "A" });
+    bool? observedElapsed = null;
+    h.Sequences.Handler = async (id, ct) => {
+      try { await Task.Delay(Timeout.Infinite, ct); }
+      catch (OperationCanceledException) {
+        observedElapsed = SequenceTimeLimitScope.Current?.HasElapsed;
+        throw;
+      }
+      return FakeSequenceExecution.Success(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 1);
+    await h.Service.StopAsync("q1");
+
+    observedElapsed.Should().BeFalse();
+  }
+
+  [Fact] // The scope belongs to one firing and does not outlive it.
+  public async Task TimeLimitScopeIsClearedAfterTheFiring() {
+    var h = new Harness(sequenceRepository: true);
+    h.AddQueue("q1", new[] { "A" });
+    int? observedLimit = null;
+    h.Sequences.Handler = (id, ct) => {
+      observedLimit = SequenceTimeLimitScope.Current?.TimeLimitMs;
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    observedLimit.Should().Be(240000, "a sequence without an override runs under the default bound");
+    SequenceTimeLimitScope.Current.Should().BeNull();
+  }
+
+  [Fact] // A failed lookup records the default it fell back to, which is the bound actually applied.
+  public async Task LookupFailureRecordsTheDefaultBoundInTheScope() {
+    var h = new Harness(sequenceRepository: true);
+    h.SequenceRepository!.GetThrows = new InvalidOperationException("store unavailable");
+    h.AddQueue("q1", new[] { "A" });
+    int? observedLimit = null;
+    h.Sequences.Handler = (id, ct) => {
+      observedLimit = SequenceTimeLimitScope.Current?.TimeLimitMs;
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    observedLimit.Should().Be(240000);
+  }
+
   [Fact] // Optional wiring: without a repository every sequence keeps the default bound.
   public async Task RunWithoutASequenceRepositoryIsUnaffected() {
     var h = new Harness();

@@ -32,6 +32,11 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     context.SchemaGenerator.GenerateSchema(typeof(AllConditionContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(AnyConditionContract), context.SchemaRepository);
     context.SchemaGenerator.GenerateSchema(typeof(NoneConditionContract), context.SchemaRepository);
+    // Feature 094: the execution-log entry shape carrying cancellationReason/timeLimitMs, so a consumer
+    // can find how a time-limit cancellation is reported without first hitting one. (ExecutionTreeNodeDto
+    // is not registered: its nested trace/deep-link DTOs share schema ids with the Contracts.Sequences
+    // ones above, so the subtree operation documents the same fields in its description instead.)
+    context.SchemaGenerator.GenerateSchema(typeof(ExecutionLogEntryDto), context.SchemaRepository);
 
     AliasSchema(context, nameof(SequenceFlowUpsertRequestDto), "SequenceFlowUpsertRequest");
     AliasSchema(context, nameof(SequenceFlowDto), "SequenceFlow");

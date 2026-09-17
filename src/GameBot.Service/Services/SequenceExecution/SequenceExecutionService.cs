@@ -152,7 +152,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   /// <summary>
   /// Closes a sequence entry whose run unwound before it could finalize itself, recording why. The log
   /// has exactly three statuses — success, running, failure — so an aborted run is a failure, and the
-  /// distinction between "cancelled" and "faulted" lives in the summary. Uses
+  /// distinction between "cancelled" and "faulted" lives in the summary; a run cut off by its queue
+  /// firing's time bound also carries a structured cancellation reason and the bound (feature 094). Uses
   /// <see cref="CancellationToken.None"/> deliberately: the common cause IS a cancelled token, and the
   /// write must still land. Best-effort — a logging failure here must not replace the original
   /// exception on its way up.
@@ -160,9 +161,12 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private async Task FinalizeAbandonedAsync(OpenSequenceEntry opened, Exception ex) {
     var cancelled = ex is OperationCanceledException;
     var name = opened.SequenceName ?? opened.SequenceId ?? "sequence";
-    var summary = cancelled
-      ? $"Sequence '{name}' was cancelled before it finished (it exceeded its time bound, or the run was stopped)."
-      : $"Sequence '{name}' ended early: {ex.GetType().Name}: {ex.Message}";
+    var timeLimitMs = ElapsedTimeLimitMs("failure");
+    var summary = timeLimitMs is { } limit
+      ? $"Sequence '{name}' exceeded its time limit of {limit} ms and was cancelled before it finished."
+      : cancelled
+        ? $"Sequence '{name}' was cancelled before it finished."
+        : $"Sequence '{name}' ended early: {ex.GetType().Name}: {ex.Message}";
     try {
       await _executionLogService.LogSequenceFinalizeAsync(
         opened.ExecutionId!,
@@ -173,7 +177,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         new ExecutionLogContext {
           Depth = 0,
           SequenceId = opened.SequenceId,
-          SequenceLabel = name
+          SequenceLabel = name,
+          CancellationReason = timeLimitMs is null ? null : ExecutionCancellationReasons.SequenceTimeLimit,
+          TimeLimitMs = timeLimitMs
         },
         details: new[] {
           new ExecutionDetailItem("sequence", summary, null, "normal")
@@ -183,6 +189,18 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     catch (Exception logEx) {
       if (_logger is not null) SequenceExecutionLog.AbandonedFinalizeFailed(_logger, opened.ExecutionId!, logEx);
     }
+  }
+
+  /// <summary>
+  /// The time bound that ended this run, if one did (feature 094): the queue firing's bound when it has
+  /// elapsed without a stop request and the run did not succeed; otherwise null. A run that finished
+  /// with a failure after its bound fired — a step that swallowed the cancellation — still counts, since
+  /// its verdict was reached on a budget that had already run out.
+  /// </summary>
+  /// <param name="status">The normalized final status about to be logged.</param>
+  private static int? ElapsedTimeLimitMs(string status) {
+    if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase)) return null;
+    return SequenceTimeLimitScope.Current is { HasElapsed: true } scope ? scope.TimeLimitMs : null;
   }
 
   private async Task<SequenceExecutionResult> ExecuteCoreAsync(
@@ -553,6 +571,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
         "normal"));
     }
 
+    var elapsedTimeLimitMs = ElapsedTimeLimitMs(status);
     await _executionLogService.LogSequenceFinalizeAsync(
       rootExecutionId,
       sequenceId,
@@ -562,7 +581,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       new ExecutionLogContext {
         Depth = 0,
         SequenceId = sequenceId,
-        SequenceLabel = sequenceName
+        SequenceLabel = sequenceName,
+        CancellationReason = elapsedTimeLimitMs is null ? null : ExecutionCancellationReasons.SequenceTimeLimit,
+        TimeLimitMs = elapsedTimeLimitMs
       },
       details: detailItems,
       ct).ConfigureAwait(false);
