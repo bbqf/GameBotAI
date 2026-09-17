@@ -141,6 +141,18 @@ internal sealed class QueueCycleLedger {
   }
 
   /// <summary>
+  /// Drops the open cycle if it has recorded no entries; otherwise does nothing. Called when a cycling
+  /// run's loop iteration ran no sequence (feature 093, #200): that iteration is not a cycle, and
+  /// without the discard the next cycle that does run work would inherit this one's start time and
+  /// report the whole idle wait as cycle duration. Never touches counters or completed records.
+  /// </summary>
+  public void DiscardOpenIfEmpty() {
+    lock (_lock) {
+      if (_open is { Entries.Count: 0 }) _open = null;
+    }
+  }
+
+  /// <summary>
   /// Records a single completed cycle that executed nothing — the empty-template case, where the run
   /// loop counts one cycle without iterating. Keeps an idle-but-alive queue distinguishable from a
   /// stalled one.

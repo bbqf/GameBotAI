@@ -2,7 +2,7 @@
 
 **Feature Branch**: `093-fix-empty-cycle-spin`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #200 (https://github.com/bbqf/GameBotAI/issues/200) — B-016: cycleExecution:true with only scheduled entries spins ~450,000 empty cycles/s and never idle-pauses. Closes #200.
 
 ## Background

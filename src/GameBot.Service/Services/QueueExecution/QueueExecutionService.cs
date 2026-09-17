@@ -400,6 +400,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // a non-cyclic run's trailing timer-poll iterations reuse the cycle they never
                 // complete — and it is therefore never published.
                 handle.Cycles.EnsureOpen(_timeProvider.GetLocalNow());
+                // Every sequence firing advances `index`, so an unchanged value at the end of the
+                // iteration means nothing ran (feature 093, #200).
+                var indexAtIterationStart = index;
 
                 // (a0) Self-reschedule AtQueueStart firings (feature 065, FR-009): entries queued
                 // during the previous cycle fire at the top of the next cycle, before timers and the
@@ -501,8 +504,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
                 // (b) OncePerRun steps, each followed by all EveryStep sequences (FR-006/FR-007/FR-016).
                 // A cycling run executes these every cycle; a non-cyclic run executes them once, so the
-                // relative/live timer-wait passes below never re-run the once-per-run steps.
-                if (queue.CycleExecution || !schedule.OncePerRunPassDone) {
+                // relative/live timer-wait passes below never re-run the once-per-run steps. A cycling
+                // iteration where neither this pass nor any firing above runs a sequence is not a cycle
+                // and is not counted (feature 093, #200) — it waits below instead.
+                var cycleHasWork = oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0
+                  || !handle.PendingOncePerRun.IsEmpty || index != indexAtIterationStart;
+                if (queue.CycleExecution ? cycleHasWork : !schedule.OncePerRunPassDone) {
                   schedule.BeginCycle();
                   if (oncePerRunEntries.Count > 0) {
                     foreach (var (entry, entryIndex) in oncePerRunEntries) {
@@ -552,13 +559,20 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   _failurePolicy?.OnCycleCompleted(queue, handle);
                 }
 
-                // A cycling run loops immediately (existing behavior). A non-cyclic run breaks once its
-                // once-per-run steps are done UNLESS a relative-offset timer or live schedule is still
-                // pending — in which case it stays alive, polling, until those fire or it is stopped.
-                // Without this a non-cyclic run would finish instantly and a "+10s" relative timer (or
-                // live schedule) would never become due (feature 059 fix).
-                if (queue.CycleExecution) continue;
-                if (!HasPendingRelativeOrLive()) break;
+                // A cycling run that ran something loops immediately (existing behavior). One that ran
+                // nothing falls through to the wait below instead of spinning empty cycles as fast as
+                // the host allows, and never ends on its own (feature 093, #200). A non-cyclic run
+                // breaks once its once-per-run steps are done UNLESS a relative-offset timer or live
+                // schedule is still pending — in which case it stays alive, polling, until those fire or
+                // it is stopped. Without this a non-cyclic run would finish instantly and a "+10s"
+                // relative timer (or live schedule) would never become due (feature 059 fix).
+                if (queue.CycleExecution) {
+                  if (index != indexAtIterationStart) continue;
+                  handle.Cycles.DiscardOpenIfEmpty();
+                }
+                else if (!HasPendingRelativeOrLive()) {
+                  break;
+                }
 
                 // Idle-pause (feature 073): when the queue opts in and the gap to the next firing
                 // exceeds the configured idle-detection threshold, back the game out to the home

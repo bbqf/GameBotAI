@@ -2011,6 +2011,155 @@ public sealed partial class QueueExecutionServiceTests {
     h.Log.FinalStatus.Should().Be("success");
   }
 
+  // ── Feature 093 (#200): a cycling run with nothing due waits ─────────────
+  // A cycling template of only scheduled entries used to count and seal an empty cycle on every loop
+  // iteration and never reach the idle-pause/poll wait (~450k cycles/s). The fake clock is frozen, so
+  // nothing comes due until a test advances it; the loop itself runs in real time.
+
+  private static QueueCycleHealth CycleHealth(Harness h) =>
+    h.Registry.TryGet("q1", out var handle) ? handle.Cycles.SnapshotHealth() : throw new InvalidOperationException("q1 is not running");
+
+  [Fact] // T004(a) — FR-001/FR-002: while nothing is due the run waits and counts no cycles.
+  public async Task CyclingScheduledOnlyQueueDoesNotCountEmptyCycles() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S"), RelativeTimer("T", TimeSpan.FromMinutes(10)) }, cycle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("S"), 10000);
+    await Task.Delay(500);
+
+    h.Service.IsRunning("q1").Should().BeTrue();
+    CycleHealth(h).CyclesCompleted.Should().Be(0);
+
+    await h.Service.StopAsync("q1");
+    h.Sequences.Executed.Should().Equal("S");
+  }
+
+  [Fact] // T004(b) — FR-005/FR-007: the due timer fires, its iteration is the one cycle, idle time excluded.
+  public async Task CyclingScheduledOnlyQueueFiresTimerAndCountsOneCycle() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S"), RelativeTimer("T", TimeSpan.FromMinutes(10)) }, cycle: true);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("S"), 10000);
+    await Task.Delay(300);
+
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitForAsync(() => CycleHealth(h).CyclesCompleted >= 1, 10000);
+    await Task.Delay(300);
+
+    var health = CycleHealth(h);
+    health.CyclesCompleted.Should().Be(1);
+    health.LastCycleStartedAt.Should().BeOnOrAfter(FakeStart + TimeSpan.FromMinutes(10));
+    h.Sequences.Executed.Should().Equal("S", "T");
+
+    await h.Service.StopAsync("q1");
+  }
+
+  [Fact] // T004(c) — FR-004/FR-008: waiting on a distant booking neither spins nor blocks a stop.
+  public async Task CyclingQueueWaitingOnDistantBookingIsStoppableWithoutSpinning() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S") }, cycle: true);
+    var booked = 0;
+    h.Sequences.Handler = (id, ct) => {
+      if (Interlocked.Exchange(ref booked, 1) == 0) {
+        h.Coordinator.ScheduleSelf("q1", "S", SelfRescheduleOption.Timer, null, TimeSpan.FromHours(12));
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Registry.TryGet("q1", out var handle) && handle.HasPendingTimerFirings, 10000);
+    await Task.Delay(500);
+
+    h.Service.IsRunning("q1").Should().BeTrue();
+    CycleHealth(h).CyclesCompleted.Should().Be(0);
+
+    await h.Service.StopAsync("q1");
+
+    h.Sequences.Executed.Should().Equal("S");
+    h.Log.Summary.Should().Contain("stopped manually");
+  }
+
+  [Fact] // T007(a) — FR-003: a cycling queue waiting past the threshold enters the idle-pause hold.
+  public async Task CyclingScheduledOnlyQueueEntersIdlePauseWhileWaiting() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S"), RelativeTimer("T", TimeSpan.FromMinutes(10)) },
+      cycle: true, pauseWhenIdle: true, idleThresholdSeconds: 30);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Registry.TryGet("q1", out var handle) && handle.IsIdlePaused, 10000);
+    h.Registry.TryGet("q1", out var paused).Should().BeTrue();
+    paused.IdlePausedUntil.Should().Be(FakeStart + TimeSpan.FromMinutes(10));
+    CycleHealth(h).CyclesCompleted.Should().Be(0);
+
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T"), 10000);
+    await WaitForAsync(() => h.Registry.TryGet("q1", out var handle) && !handle.IsIdlePaused, 10000);
+
+    h.Sessions.HomeCount.Should().Be(1);
+    h.EnsureGame.Calls.Should().Be(1);
+    await h.Service.StopAsync("q1");
+  }
+
+  [Fact] // T007(b) — FR-003: with idle pause off the cycling queue only polls.
+  public async Task CyclingScheduledOnlyQueueWithIdlePauseDisabledNeverPauses() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { AtQueueStart("S"), RelativeTimer("T", TimeSpan.FromMinutes(10)) },
+      cycle: true, pauseWhenIdle: false);
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("S"), 10000);
+    await Task.Delay(500);
+
+    h.Registry.TryGet("q1", out var handle).Should().BeTrue();
+    handle.IsIdlePaused.Should().BeFalse();
+    h.Sessions.HomeCount.Should().Be(0);
+    CycleHealth(h).CyclesCompleted.Should().Be(0);
+
+    await h.Service.StopAsync("q1");
+  }
+
+  [Fact] // T008(a) — FR-006: a cycling roster with once-per-run work still cycles without waiting.
+  public async Task CyclingOncePerRunQueueStillCountsACyclePerPassWithoutWaiting() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)) },
+      cycle: true, pauseWhenIdle: true, idleThresholdSeconds: 1);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(10, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    var sawIdlePause = false;
+    var sw = Stopwatch.StartNew();
+    while (h.Sequences.Executed.Count(id => id == "A") < 5 && sw.ElapsedMilliseconds < 5000) {
+      if (h.Registry.TryGet("q1", out var handle) && handle.IsIdlePaused) sawIdlePause = true;
+      await Task.Delay(5);
+    }
+
+    h.Sequences.Executed.Count(id => id == "A").Should().BeGreaterThanOrEqualTo(5);
+    CycleHealth(h).CyclesCompleted.Should().BeGreaterThanOrEqualTo(4);
+    sawIdlePause.Should().BeFalse();
+    await h.Service.StopAsync("q1");
+  }
+
+  [Fact] // T008(b) — FR-006: an every-step-only cycling roster still runs and counts each pass.
+  public async Task CyclingEveryStepOnlyQueueStillCyclesEachPass() {
+    var h = new Harness();
+    AddQueueWithEntries(h, "q1", new[] { EveryStep("E") }, cycle: true);
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(10, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 3);
+
+    CycleHealth(h).CyclesCompleted.Should().BeGreaterThanOrEqualTo(2);
+    await h.Service.StopAsync("q1");
+  }
+
   // ── Feature 073: idle-pause the game during queue gaps (US1) ──────────────
   // Setup pattern: a non-cyclic queue with one OncePerRun step and a distant relative timer. The
   // step runs immediately; the run then stays alive waiting for the timer, which is exactly the idle

@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-16 (feature 092 self-reschedule bookings keep an AtQueueStart-only queue running)._
+_Last reviewed: 2026-09-17 (feature 093 cycling queue with nothing due waits instead of spinning empty cycles)._
 
 ## What GameBot is
 
@@ -207,7 +207,11 @@ not survive a service restart; queue *configuration* and templates are persisted
   three points it already had: it opens a cycle at the top of each loop iteration (idempotently),
   records each sequence firing's outcome, and seals the cycle at the loop's existing cycle counter — so
   a published cycle is exactly a cycle the engine counted. A cycle is `failure` iff any entry in it
-  failed; one interrupted by a stop is never published. The ledger is a **pure observer**: no
+  failed; one interrupted by a stop is never published. A cycling run's loop iteration that runs no
+  sequence at all (e.g. a template of only at-queue-start and timer entries between firings) is **not**
+  a cycle: it is neither counted nor published, its open cycle is discarded, and the run waits for the
+  next due firing — the idle-pause hold when enabled and the gap exceeds the threshold, otherwise one
+  250 ms poll — instead of looping at once (feature 093, #200; previously ~450k empty cycles/s). The ledger is a **pure observer**: no
   scheduling decision reads it, and the execution log is untouched (still one root record per run plus
   one terminating record). Two read paths project it, both readable **while the run is in progress**:
   `GET /api/queues/{id}` gains a `health` block (`runStartedAt`, `cyclesCompleted`, `lastCycleStartedAt`,
