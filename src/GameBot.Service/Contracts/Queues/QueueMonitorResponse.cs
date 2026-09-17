@@ -49,7 +49,7 @@ namespace GameBot.Service.Contracts.Queues {
     /// <summary>True when the referenced sequence can no longer be resolved.</summary>
     public bool Stale { get; set; }
 
-    /// <summary>One of AtQueueStart/OncePerRun/EveryStep/TimerTimeOfDay/TimerRelative/LiveSchedule/SelfReschedule.</summary>
+    /// <summary>One of AtQueueStart/OncePerRun/EveryStep/BeforeEachRun/TimerTimeOfDay/TimerRelative/LiveSchedule/SelfReschedule.</summary>
     public string ScheduleKind { get; set; } = string.Empty;
 
     /// <summary>Human-readable schedule reason for display.</summary>

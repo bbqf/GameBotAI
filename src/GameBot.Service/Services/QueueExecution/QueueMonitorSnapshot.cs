@@ -18,6 +18,12 @@ internal enum ScheduleKind {
   /// <summary>Executed after each once-per-run step; surfaced once as "After Every Step".</summary>
   EveryStep,
 
+  /// <summary>
+  /// Executed before the first timed, live or self-rescheduled firing of a wake-up; surfaced once as
+  /// "Before Each Run" (feature 095).
+  /// </summary>
+  BeforeEachRun,
+
   /// <summary>Template Timer in time-of-day mode — fires at a wall-clock <c>HH:mm</c>.</summary>
   TimerTimeOfDay,
 

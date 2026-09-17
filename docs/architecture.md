@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 094 sequence time-limit cancellation reported distinctly; effective bound readable)._
+_Last reviewed: 2026-09-17 (feature 095 Before Each Run schedule type)._
 
 ## What GameBot is
 
@@ -160,7 +160,14 @@ not survive a service restart; queue *configuration* and templates are persisted
   `Stopped` with no execution history, since a brand-new queue ID has never been started — the
   source queue's own running/stopped state is untouched either way.
 - **Sequence schedule** (within a template) — how/when an entry runs in a queue cycle:
-  *Once per run*, *At queue start*, *After every step*, and *Scheduled* (absolute or relative time).
+  *Once per run*, *At queue start*, *After every step*, *Before each run*, and *Scheduled* (absolute or
+  relative time). *Before each run* (wire value `BeforeEachRun`, feature 095) is the mirror of *After
+  every step*: its entries run, in template order, immediately before the first timed, live-scheduled or
+  self-rescheduled firing of each scheduling-loop iteration (time-of-day timers and their daily retries,
+  relative timers, live schedules, self-reschedule Timer / At Queue Start / Once Per Run firings). The
+  pass runs at most once per iteration, and never before once-per-run, at-start or every-step
+  executions. It does not count toward executed, and its failures are non-fatal. It does not by itself
+  keep a run alive or make a cycle count as work, and the monitor lists each entry once as "Before Each Run".
 - **Entry enabled/disabled** (within a template, spec 077) — each `QueueTemplateEntry` carries an
   `Enabled` flag (bool, default `true`; absent in legacy JSON ⇒ enabled). A disabled entry stays in
   the template (position/schedule/reference intact) but is **excluded when a run is built**: the run

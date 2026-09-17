@@ -36,6 +36,18 @@ namespace GameBot.Domain.QueueTemplates {
     /// run's executed total. A failure is non-fatal (recorded in failed; the run continues),
     /// consistent with OncePerRun handling.
     /// </summary>
-    AtQueueStart = 3
+    AtQueueStart = 3,
+
+    /// <summary>
+    /// Executes immediately before each timed, live-scheduled or self-rescheduled firing — template
+    /// timers (time-of-day, their daily retries, relative), live schedules, and self-reschedule
+    /// Timer/AtQueueStart/OncePerRun firings — so every such task starts from a known state. Runs at
+    /// most once per scheduler wake-up (the first triggering firing of a loop iteration), in template
+    /// order. Template OncePerRun/AtQueueStart steps and EveryStep executions never trigger it. Does
+    /// not count toward the run's executed total; a failure is recorded in failed, is non-fatal, and
+    /// the triggering firing still runs.
+    /// Displayed to operators as "Before Each Run".
+    /// </summary>
+    BeforeEachRun = 4
   }
 }

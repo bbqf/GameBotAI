@@ -220,6 +220,21 @@ export const QueueSchedulingAreas: React.FC<QueueSchedulingAreasProps> = ({
             </div>
             <div className="scheduling-areas__right">
               <SchedulingArea
+                areaId="beforeEachRun"
+                cards={areas.beforeEachRun}
+                disabled={disabled}
+                activeId={activeId}
+                overId={overId}
+                onRemove={onRemove}
+                onReassign={handleReassign}
+                onTimerTimeChange={onTimerTimeChange}
+                onTimerModeChange={onTimerModeChange}
+                onTimerRelativeOffsetChange={onTimerRelativeOffsetChange}
+                onToggleEnabled={onToggleEnabled}
+                parametersBySequenceId={parametersBySequenceId}
+                onParameterValuesChange={onParameterValuesChange}
+              />
+              <SchedulingArea
                 areaId="afterEveryStep"
                 cards={areas.afterEveryStep}
                 disabled={disabled}

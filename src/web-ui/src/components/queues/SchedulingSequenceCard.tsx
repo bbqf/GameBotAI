@@ -35,6 +35,7 @@ const SCHEDULE_LABELS: Record<ScheduleType, string> = {
   EveryStep: 'After Every Step',
   Timer: 'Timer',
   AtQueueStart: 'At Queue Start',
+  BeforeEachRun: 'Before Each Run',
 };
 
 const pad2 = (n: number): string => n.toString().padStart(2, '0');
@@ -129,7 +130,8 @@ export const SchedulingSequenceCard: React.FC<SchedulingSequenceCardProps> = ({
         {!enabled && <span className="badge badge-muted" role="status" aria-label="Disabled"> Off</span>}
         {card.stale && <span className="badge badge-warning" role="status"> (stale)</span>}
         {areaId === 'startOfExecution' && <span className="badge badge-info" role="status" aria-label="At Queue Start"> At Queue Start</span>}
-        {areaId === 'afterEveryStep' && <span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
+        {areaId === 'beforeEachRun' && <span className="badge badge-info" role="status" aria-label="Before Each Run"> Before Each Run</span>}
+        {areaId === 'afterEveryStep' &&<span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
         {isScheduled && !isRelative && <span className="badge badge-info" role="status" aria-label="Timer"> Timer</span>}
         {(schedule.parameterValues?.length ?? 0) > 0 && (
           <span className="badge badge-param" role="status" aria-label="Has parameter overrides"> Parameters</span>

@@ -3,31 +3,34 @@ import { QueueEntryDto } from '../../services/queues';
 import { EntrySchedule } from './QueueEntryList';
 
 /**
- * Pure view-model for the four scheduling areas in the queue template editor.
+ * Pure view-model for the five scheduling areas in the queue template editor.
  *
- * The editor groups runtime entries into four labeled areas — one per `ScheduleType` —
+ * The editor groups runtime entries into five labeled areas — one per `ScheduleType` —
  * and lets the operator drag cards between areas (auto-changing the schedule option) and
  * within an area (reordering execution). All logic here is pure so the drag/reorder/reassign
  * decisions are unit-testable without simulating pointer events (jsdom cannot do real DnD).
  */
 
-export type SchedulingAreaId = 'startOfExecution' | 'oncePerRun' | 'scheduled' | 'afterEveryStep';
+export type SchedulingAreaId = 'startOfExecution' | 'beforeEachRun' | 'oncePerRun' | 'scheduled' | 'afterEveryStep';
 
 /** Operator-facing labels. The wire/stored identifier behind "After every step" stays `EveryStep`. */
 export const AREA_LABELS: Record<SchedulingAreaId, string> = {
   startOfExecution: 'Start of execution',
+  beforeEachRun: 'Before each run',
   oncePerRun: 'Once per run',
   scheduled: 'Scheduled',
   afterEveryStep: 'After every step',
 };
 
 /**
- * Fixed inter-area order used to flatten the four areas into a single linear order for
+ * Fixed inter-area order used to flatten the five areas into a single linear order for
  * display + save. Invisible to execution (each schedule type runs in its own pass); it only
- * needs to be stable so the positional template save/restore stays correct.
+ * needs to be stable so the positional template save/restore stays correct. A template with no
+ * before-each-run entries flattens exactly as it did before that area existed.
  */
 export const CANONICAL_AREA_ORDER: SchedulingAreaId[] = [
   'startOfExecution',
+  'beforeEachRun',
   'oncePerRun',
   'scheduled',
   'afterEveryStep',
@@ -35,6 +38,7 @@ export const CANONICAL_AREA_ORDER: SchedulingAreaId[] = [
 
 const AREA_TO_SCHEDULE: Record<SchedulingAreaId, ScheduleType> = {
   startOfExecution: 'AtQueueStart',
+  beforeEachRun: 'BeforeEachRun',
   oncePerRun: 'OncePerRun',
   scheduled: 'Timer',
   afterEveryStep: 'EveryStep',
@@ -42,6 +46,7 @@ const AREA_TO_SCHEDULE: Record<SchedulingAreaId, ScheduleType> = {
 
 const SCHEDULE_TO_AREA: Record<ScheduleType, SchedulingAreaId> = {
   AtQueueStart: 'startOfExecution',
+  BeforeEachRun: 'beforeEachRun',
   OncePerRun: 'oncePerRun',
   Timer: 'scheduled',
   EveryStep: 'afterEveryStep',
@@ -81,6 +86,7 @@ const scheduleOf = (schedule: Record<string, EntrySchedule>, entryId: string): E
 
 const emptyBuckets = (): Record<SchedulingAreaId, string[]> => ({
   startOfExecution: [],
+  beforeEachRun: [],
   oncePerRun: [],
   scheduled: [],
   afterEveryStep: [],
@@ -99,7 +105,7 @@ const bucketEntryIds = (
 };
 
 /**
- * Group entries into the four areas for rendering. Each entry lands in the area matching its
+ * Group entries into the five areas for rendering. Each entry lands in the area matching its
  * current `scheduleType` (default `OncePerRun`), ordered per `orderedEntryIds`. No entry is
  * lost or duplicated; ids without a matching entry are skipped.
  */
@@ -110,6 +116,7 @@ export const groupEntriesIntoAreas = (
 ): Record<SchedulingAreaId, SchedulingCard[]> => {
   const areas: Record<SchedulingAreaId, SchedulingCard[]> = {
     startOfExecution: [],
+    beforeEachRun: [],
     oncePerRun: [],
     scheduled: [],
     afterEveryStep: [],

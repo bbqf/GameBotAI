@@ -50,6 +50,7 @@ const SCHEDULE_LABELS: Record<ScheduleType, string> = {
   EveryStep: 'After Every Step',
   Timer: 'Timer',
   AtQueueStart: 'At Queue Start',
+  BeforeEachRun: 'Before Each Run',
 };
 
 const pad2 = (n: number): string => n.toString().padStart(2, '0');
@@ -94,6 +95,7 @@ export const QueueEntryList: React.FC<QueueEntryListProps> = ({
           const isTimer = schedule.scheduleType === 'Timer';
           const isEveryStep = schedule.scheduleType === 'EveryStep';
           const isAtQueueStart = schedule.scheduleType === 'AtQueueStart';
+          const isBeforeEachRun = schedule.scheduleType === 'BeforeEachRun';
           const timerMode: TimerMode = schedule.timerMode ?? (schedule.timerRelativeOffset ? 'relative' : 'timeOfDay');
           const isRelative = isTimer && timerMode === 'relative';
           const label = entry.sequenceName ?? entry.sequenceId;
@@ -111,7 +113,8 @@ export const QueueEntryList: React.FC<QueueEntryListProps> = ({
                 {label}
                 {entry.stale && <span className="badge badge-warning" role="status"> (stale)</span>}
                 {isAtQueueStart && <span className="badge badge-info" role="status" aria-label="At Queue Start"> At Queue Start</span>}
-                {isEveryStep && <span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
+                {isBeforeEachRun && <span className="badge badge-info" role="status" aria-label="Before Each Run"> Before Each Run</span>}
+                {isEveryStep &&<span className="badge badge-info" role="status" aria-label="After Every Step"> After Every Step</span>}
                 {isTimer && !isRelative && <span className="badge badge-info" role="status" aria-label="Timer"> Timer</span>}
                 {schedule.hasParameterOverrides && (
                   <span className="badge badge-param" role="status" aria-label="Has parameter overrides"> Parameters</span>

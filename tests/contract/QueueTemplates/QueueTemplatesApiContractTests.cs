@@ -163,4 +163,31 @@ public sealed class QueueTemplatesApiContractTests : IDisposable {
     body.GetProperty("error").GetProperty("code").GetString().Should().Be("invalid_request");
     body.GetProperty("error").GetProperty("message").GetString().Should().Contain("Whenever");
   }
+
+  [Fact] // feature 095 (T010): BeforeEachRun is accepted case-insensitively, round-trips, and is listed in the error
+  public async Task BeforeEachRunRoundTripsAndIsListedAmongAcceptedValues() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+    var name = "BeforeEachRun " + Guid.NewGuid().ToString("N");
+
+    var entries = new[] {
+      new { sequenceId = "seq-x", scheduleType = "BeforeEachRun" },
+      new { sequenceId = "seq-y", scheduleType = "beforeeachrun" },
+    };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name, entries, overwrite = true }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var id = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString();
+
+    var detail = JsonDocument.Parse(await (await client.GetAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    detail.GetProperty("entries")[0].GetProperty("scheduleType").GetString().Should().Be("BeforeEachRun");
+    detail.GetProperty("entries")[1].GetProperty("scheduleType").GetString().Should().Be("BeforeEachRun");
+
+    var invalid = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = name + "x", overwrite = true, entries = new[] { new { sequenceId = "seq-x", scheduleType = "BeforeSomething" } } }).ConfigureAwait(true);
+    invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var body = JsonDocument.Parse(await invalid.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    body.GetProperty("error").GetProperty("message").GetString().Should().Contain("BeforeEachRun");
+  }
 }

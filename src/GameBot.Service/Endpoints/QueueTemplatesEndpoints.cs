@@ -42,7 +42,7 @@ internal static class QueueTemplatesEndpoints {
 
         if (!TryParseScheduleType(entry.ScheduleType, out var scheduleType))
           return Error(400, "invalid_request",
-            $"entries[{i}].scheduleType '{entry.ScheduleType}' is not valid; accepted values: OncePerRun, EveryStep, Timer, AtQueueStart");
+            $"entries[{i}].scheduleType '{entry.ScheduleType}' is not valid; accepted values: OncePerRun, EveryStep, Timer, AtQueueStart, BeforeEachRun");
 
         if (scheduleType == ScheduleType.Timer) {
           var hasTimeOfDay = !string.IsNullOrWhiteSpace(entry.TimerTimeOfDay);

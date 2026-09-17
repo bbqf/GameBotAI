@@ -129,6 +129,7 @@ Status vocabulary:
 | 092 | Self-reschedule Keeps AtQueueStart-only Queue Running | Implemented |
 | 093 | Cycling Queue With Nothing Due Waits Instead of Spinning | Implemented |
 | 094 | Distinct Reporting of Sequence Time-Limit Cancellation | Implemented |
+| 095 | Before-Each-Run Schedule Type | Implemented |
 
 ## Numbering notes
 

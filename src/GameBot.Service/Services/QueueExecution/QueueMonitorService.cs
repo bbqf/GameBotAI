@@ -158,6 +158,14 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
         expectedAt: null, relativeLabel: null, repeats: Repeats(ScheduleKind.EveryStep, cycling), order: 0))
       .ToList();
 
+    // (2b) BeforeEachRun entries (feature 095), surfaced once each as "Before Each Run". Like every-step
+    // items they have no time of their own — they run ahead of whatever timed firing is next — so they
+    // trail the timed items and precede the every-step items.
+    var beforeEachRunItems = entries.Where(e => e.ScheduleType == ScheduleType.BeforeEachRun)
+      .Select(e => NewItem(e.SequenceId, names, ScheduleKind.BeforeEachRun, ReasonFor(ScheduleKind.BeforeEachRun, e),
+        expectedAt: null, relativeLabel: null, repeats: false, order: 0))
+      .ToList();
+
     // (3) Timed firings — template timers (time-of-day next-eligible; relative anchor+offset), live
     // schedules (exact), and self-reschedule Timer firings (exact) — merged, sorted by ExpectedAt.
     // Times come from the run's own schedule state, so a timer that already fired today resolves to
@@ -200,7 +208,7 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
     // trail because they have no ExpectedAt of their own; putting them ahead of the timed firings
     // would push the run's real next action down the list (the exact confusion feature 072/073 fixed
     // for the once-per-run spine).
-    return spineItems.Concat(timed).Concat(everyStepItems)
+    return spineItems.Concat(timed).Concat(beforeEachRunItems).Concat(everyStepItems)
       .Select((item, i) => item with { Order = i }).ToList();
   }
 
@@ -236,6 +244,7 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
   private static ScheduleKind KindFor(QueueTemplateEntry entry) => entry.ScheduleType switch {
     ScheduleType.AtQueueStart => ScheduleKind.AtQueueStart,
     ScheduleType.EveryStep => ScheduleKind.EveryStep,
+    ScheduleType.BeforeEachRun => ScheduleKind.BeforeEachRun,
     ScheduleType.Timer => entry.TimerTimeOfDay is not null ? ScheduleKind.TimerTimeOfDay : ScheduleKind.TimerRelative,
     _ => ScheduleKind.OncePerRun
   };
@@ -243,6 +252,7 @@ internal sealed class QueueMonitorService : IQueueMonitorService {
   private static string ReasonFor(ScheduleKind kind, QueueTemplateEntry? entry) => kind switch {
     ScheduleKind.AtQueueStart => "At queue start",
     ScheduleKind.EveryStep => "After Every Step",
+    ScheduleKind.BeforeEachRun => "Before Each Run",
     ScheduleKind.TimerTimeOfDay => entry?.TimerTimeOfDay is { } tod ? $"At {tod:HH:mm}" : "Timed",
     ScheduleKind.TimerRelative => entry?.TimerRelativeOffset is { } off ? $"+{off} after start" : "Timed",
     ScheduleKind.LiveSchedule => "Scheduled live",

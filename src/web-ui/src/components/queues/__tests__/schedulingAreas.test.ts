@@ -11,8 +11,8 @@ import { ScheduleType } from '../../../services/queueTemplates';
 import { QueueEntryDto } from '../../../services/queues';
 import { EntrySchedule } from '../QueueEntryList';
 
-const ALL_TYPES: ScheduleType[] = ['OncePerRun', 'EveryStep', 'Timer', 'AtQueueStart'];
-const ALL_AREAS: SchedulingAreaId[] = ['startOfExecution', 'oncePerRun', 'scheduled', 'afterEveryStep'];
+const ALL_TYPES: ScheduleType[] = ['OncePerRun', 'EveryStep', 'Timer', 'AtQueueStart', 'BeforeEachRun'];
+const ALL_AREAS: SchedulingAreaId[] = ['startOfExecution', 'beforeEachRun', 'oncePerRun', 'scheduled', 'afterEveryStep'];
 
 const entry = (entryId: string, over: Partial<QueueEntryDto> = {}): QueueEntryDto => ({
   entryId,
@@ -55,8 +55,39 @@ describe('schedulingAreas mapping helpers', () => {
     expect(scheduleTypeForArea('afterEveryStep')).toBe('EveryStep');
   });
 
+  it('maps BeforeEachRun↔beforeEachRun (feature 095)', () => {
+    expect(areaForScheduleType('BeforeEachRun')).toBe('beforeEachRun');
+    expect(scheduleTypeForArea('beforeEachRun')).toBe('BeforeEachRun');
+  });
+
   it('exposes the canonical area order', () => {
-    expect(CANONICAL_AREA_ORDER).toEqual(['startOfExecution', 'oncePerRun', 'scheduled', 'afterEveryStep']);
+    expect(CANONICAL_AREA_ORDER).toEqual(['startOfExecution', 'beforeEachRun', 'oncePerRun', 'scheduled', 'afterEveryStep']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Feature 095: the Before each run area
+// ---------------------------------------------------------------------------
+
+describe('beforeEachRun area', () => {
+  it('groups a BeforeEachRun entry into the beforeEachRun area', () => {
+    const schedule = { a: sched('OncePerRun'), b: sched('BeforeEachRun') };
+    const areas = groupEntriesIntoAreas(['a', 'b'], schedule, entriesById('a', 'b'));
+    expect(areas.beforeEachRun.map((x) => x.entryId)).toEqual(['b']);
+    expect(areas.oncePerRun.map((x) => x.entryId)).toEqual(['a']);
+  });
+
+  it('dragging into beforeEachRun sets BeforeEachRun and flattens in canonical order', () => {
+    const s = state(['a', 'b', 'c'], { a: sched('AtQueueStart'), b: sched('OncePerRun'), c: sched('EveryStep') });
+    const next = applyDragMove(s, { entryId: 'c', targetArea: 'beforeEachRun', targetIndex: 0 });
+    expect(next.schedule.c.scheduleType).toBe('BeforeEachRun');
+    expect(next.orderedEntryIds).toEqual(['a', 'c', 'b']);
+  });
+
+  it('dragging out of beforeEachRun restores the destination type', () => {
+    const s = state(['a'], { a: sched('BeforeEachRun') });
+    const next = applyDragMove(s, { entryId: 'a', targetArea: 'afterEveryStep', targetIndex: 0 });
+    expect(next.schedule.a.scheduleType).toBe('EveryStep');
   });
 });
 
