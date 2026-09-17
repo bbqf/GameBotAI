@@ -37,6 +37,48 @@ public class QueueCycleLedgerTests {
     health.CurrentEntryIndex.Should().BeNull();
   }
 
+  [Fact] // feature 093 (FR-007): an empty open cycle is dropped, so the next cycle starts fresh.
+  public void DiscardOpenIfEmpty_DropsEntrylessOpenCycle() {
+    var ledger = new QueueCycleLedger();
+
+    ledger.EnsureOpen(At(0));
+    ledger.DiscardOpenIfEmpty();
+    ledger.EnsureOpen(At(30));
+    ledger.RecordEntry("seq", true);
+    ledger.CompleteOpen(At(31));
+
+    var cycle = ledger.SnapshotCycles(10).Single();
+    cycle.StartedAt.Should().Be(At(30));
+    ledger.SnapshotHealth().CyclesCompleted.Should().Be(1);
+  }
+
+  [Fact]
+  public void DiscardOpenIfEmpty_KeepsOpenCycleWithEntries() {
+    var ledger = new QueueCycleLedger();
+
+    ledger.EnsureOpen(At(0));
+    ledger.RecordEntry("seq", false);
+    ledger.DiscardOpenIfEmpty();
+    ledger.EnsureOpen(At(5));
+    ledger.CompleteOpen(At(6));
+
+    var cycle = ledger.SnapshotCycles(10).Single();
+    cycle.StartedAt.Should().Be(At(0));
+    cycle.Entries.Select(e => e.SequenceId).Should().Equal("seq");
+  }
+
+  [Fact]
+  public void DiscardOpenIfEmpty_WithNoOpenCycle_ChangesNothing() {
+    var ledger = new QueueCycleLedger();
+    RunCycle(ledger, 0, false);
+
+    ledger.DiscardOpenIfEmpty();
+
+    var health = ledger.SnapshotHealth();
+    health.CyclesCompleted.Should().Be(1);
+    health.ConsecutiveFailedCycles.Should().Be(1);
+  }
+
   [Fact]
   public void CompletedCycle_RecordsOrdinalInstantsAndEntries() {
     var ledger = new QueueCycleLedger();
