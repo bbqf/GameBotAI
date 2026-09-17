@@ -98,6 +98,7 @@ internal static class GameBotServiceSetup {
       options.DocumentFilter<ConditionalFlowSchemaDocumentFilter>();
       options.SchemaFilter<SequenceTimeLimitSchemaFilter>();
       options.SchemaFilter<QueueHealthSchemaFilter>();
+      options.SchemaFilter<ImageAlternatesSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -161,7 +162,8 @@ internal static class GameBotServiceSetup {
           sp.GetRequiredService<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(),
           sp.GetRequiredService<GameBot.Domain.Vision.ITemplateMatcher>(),
           sp.GetRequiredService<GameBot.Domain.Config.AppConfig>(),
-          sp.GetService<GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory>()));
+          sp.GetService<GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory>(),
+          sp.GetService<GameBot.Domain.Images.IImageAlternatesRepository>()));
     }
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorControl, GameBot.Service.Services.EnsureEmulatorRunning.LdConsoleEmulatorControl>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorDeviceProbe, GameBot.Service.Services.EnsureEmulatorRunning.AdbEmulatorDeviceProbe>();
@@ -324,6 +326,7 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.IReferenceImageStore>(sp =>
       new GameBot.Domain.Triggers.Evaluators.ReferenceImageStore(sp.GetRequiredService<ImageStorageOptions>().Root));
     builder.Services.AddSingleton<IImageRepository>(sp => new FileImageRepository(sp.GetRequiredService<ImageStorageOptions>().Root));
+    builder.Services.AddSingleton<IImageAlternatesRepository>(sp => new FileImageAlternatesRepository(sp.GetRequiredService<ImageStorageOptions>().Root));
     builder.Services.AddSingleton<IImageCaptureMetrics, ImageCaptureMetrics>();
     builder.Services.AddSingleton<CaptureSessionStore>();
     builder.Services.AddSingleton<ImageCropper>();

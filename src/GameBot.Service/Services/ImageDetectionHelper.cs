@@ -1,6 +1,8 @@
 using System.Globalization;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Images;
 using GameBot.Domain.Triggers;
+using Microsoft.Extensions.Logging;
 
 namespace GameBot.Service.Services;
 
@@ -10,13 +12,30 @@ namespace GameBot.Service.Services;
 /// game-readiness probe run the identical detection logic.
 /// </summary>
 internal static class ImageDetectionHelper {
+  /// <summary>
+  /// Decodes a stored reference image for matching, preserving its transparency channel so a masked
+  /// reference image masks here too (feature 089). Alternates use the same decode (feature 097).
+  /// </summary>
+  public static OpenCvSharp.Mat ToTemplateMat(System.Drawing.Bitmap bitmap) {
+    using var template = new System.Drawing.Bitmap(bitmap);
+    using var templateMs = new System.IO.MemoryStream();
+    template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
+    return GameBot.Domain.Vision.TemplateImageDecoder.Decode(templateMs.ToArray());
+  }
+
+  /// <summary>
+  /// Runs one detection of <paramref name="references"/> — the named image and its alternates, any of
+  /// which counts as a match (feature 097) — against the latest screenshot.
+  /// </summary>
   public static bool TryDetect(
     GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
-    System.Drawing.Bitmap templateBmp,
+    ReferenceImageSet references,
     DetectionTarget detectionTarget,
     GameBot.Domain.Vision.ITemplateMatcher matcher,
     out PrimitiveTapResolvedPoint? resolvedPoint,
-    out double? detectionConfidence) {
+    out double? detectionConfidence,
+    ILogger? logger = null) {
+    ArgumentNullException.ThrowIfNull(references);
     resolvedPoint = null;
     detectionConfidence = null;
 
@@ -25,16 +44,13 @@ internal static class ImageDetectionHelper {
       return false;
     }
 
-    using var template = new System.Drawing.Bitmap(templateBmp);
     using var screenMs = new System.IO.MemoryStream();
-    using var templateMs = new System.IO.MemoryStream();
     screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
-    template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
     using var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
-    // Alpha-preserving template decode, so a masked reference image masks here too (feature 089).
-    using var templateMat = GameBot.Domain.Vision.TemplateImageDecoder.Decode(templateMs.ToArray());
+    using var templateMat = ToTemplateMat(references.Primary);
+    using var matcherLease = references.CreateMatcher(matcher, ToTemplateMat, logger);
 
-    var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
+    var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcherLease.Matcher);
     var primitiveAction = new GameBot.Domain.Actions.InputAction {
       Type = "tap",
       Args = new Dictionary<string, object> { ["x"] = 0, ["y"] = 0 }

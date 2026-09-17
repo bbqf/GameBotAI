@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 096 idle pause reported in queue health)._
+_Last reviewed: 2026-09-17 (feature 097 alternate reference images)._
 
 ## What GameBot is
 
@@ -29,7 +29,8 @@ backed by a REST API.
 | `src/GameBot.Service` | ASP.NET Core host: REST API (minimal-API `Endpoints/` + `SessionsController`), execution orchestration (`Services/QueueExecution`, `Services/SequenceExecution`), hosted background services, security, swagger. Serves the built Web UI. |
 | `src/web-ui` | React + TypeScript + Vite SPA. Authoring, Execution, Execution Logs, Queues, Configuration. |
 
-Persistence is **file-based** under the `data/` directory (JSON documents + stored image files);
+Persistence is **file-based** under the `data/` directory (JSON documents + stored image files;
+an image's alternates list lives beside the images as `.alternates\{id}.json`, feature 097);
 there is no database. Queue *runtime* state (loaded entries, running status) is in-memory and does
 not survive a service restart; queue *configuration* and templates are persisted.
 
@@ -396,6 +397,23 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
   then reported as a perfect `1.0` — a false positive that armed a tap on modal screens (issue #196).
   A detection suppressed by the rule is reported through the detect log (event `11006`), not in the
   response body, which is unchanged.
+- **Alternate reference images** (feature 097, issue #192). A stored image may carry an ordered list
+  of up to **8** alternates — other stored images that also count as a match for it, typically
+  night-lit crops of daylight art. GET/PUT /api/images/{id}/alternates manage the list (PUT
+  replaces it atomically, [] clears it; 400 invalid_alternates with offending ids for a
+  self-reference, duplicate, unknown/invalid id or more than 8); GET /api/images/{id}/metadata lists
+  them. Every detection that names the image — POST /api/images/detect, wait-for-image steps,
+  image-anchored taps, image-match triggers, sequence image conditions (imageVisible, inline
+  operands, break conditions) and the readiness gate — scores the image **and** each alternate with
+  the same threshold. Matching fans out through ReferenceSetTemplateMatcher (an ITemplateMatcher
+  decorator): the union of every reference's matches, ordered by score (ties: primary, then
+  alternates in order), de-duplicated by the existing overlap rule and capped at maxResults.
+  ImageMatchEvaluator takes the maximum similarity across references. Detect matches carry an
+  additive matchedReferenceId; runtime detections log the winning alternate. Alternates are never
+  expanded transitively; a deleted alternate is skipped with a warning and reads exists: false.
+  **An image without alternates never goes through the decorator**, so its scores are unchanged.
+  POST /api/images/detect-all is unaffected. Lighting normalisation was rejected: TM_CCOEFF_NORMED
+  already normalises global brightness/contrast, and any change would move every calibrated score.
 - `Service:Sessions:MaxConcurrentSessions` defaults to **8** (was 3); exceeding it fails a run with a
   message naming the limit and the setting.
 

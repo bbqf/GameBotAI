@@ -5,7 +5,14 @@ using System.Threading.Tasks;
 namespace GameBot.Domain.Vision {
   public sealed record TemplateMatcherConfig(double Threshold, int MaxResults, double Overlap);
 
-  public sealed record TemplateMatch(BoundingBox BBox, double Confidence);
+  public sealed record TemplateMatch(BoundingBox BBox, double Confidence) {
+    /// <summary>
+    /// Id of the reference image whose crop produced this match — the named image or one of its
+    /// alternates (feature 097, issue #192). Null when the match came straight from a single-template
+    /// matcher, which does not know the id of the template it was handed.
+    /// </summary>
+    public string? ReferenceId { get; init; }
+  }
 
   /// <param name="Matches">Matches at or above the configured threshold, best first.</param>
   /// <param name="LimitsHit">True when results were truncated by <c>MaxResults</c> or a timeout.</param>

@@ -14,12 +14,15 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
   private readonly IScreenSource _screen;
   private readonly ITemplateMatcher _matcher;
   private readonly ILogger<ImageMatchEvaluator>? _logger;
+  // Feature 097: alternates of the reference image also count as a match for it. Null when not wired.
+  private readonly Images.IImageAlternatesRepository? _alternates;
 
-  public ImageMatchEvaluator(IReferenceImageStore store, IScreenSource screen, ITemplateMatcher matcher, ILogger<ImageMatchEvaluator>? logger = null) {
+  public ImageMatchEvaluator(IReferenceImageStore store, IScreenSource screen, ITemplateMatcher matcher, ILogger<ImageMatchEvaluator>? logger = null, Images.IImageAlternatesRepository? alternates = null) {
     _store = store;
     _screen = screen;
     _matcher = matcher;
     _logger = logger;
+    _alternates = alternates;
   }
 
   // Backward-compatible constructor for existing tests that don't supply ITemplateMatcher
@@ -49,11 +52,35 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
     };
   }
 
+  /// <summary>
+  /// Best similarity of the reference image or any of its alternates (feature 097). With no alternates this
+  /// is exactly the reference image's own similarity.
+  /// </summary>
   private double ComputeSimilarity(ImageMatchParams p) {
-    if (!_store.TryGet(p.ReferenceImageId, out var tpl)) return 0d;
+    if (!Images.ReferenceImageSetLoader.TryLoad(_store, _alternates, p.ReferenceImageId, out var set) || set is null) return 0d;
     using var screenBmp = _screen.GetLatestScreenshot();
     if (screenBmp is null) return 0d;
 
+    var best = ComputeSimilarity(p, set.Primary, screenBmp);
+    string? bestAlternate = null;
+    foreach (var (id, image) in set.Alternates) {
+      var similarity = ComputeSimilarity(p, image, screenBmp);
+      if (similarity > best) {
+        best = similarity;
+        bestAlternate = id;
+      }
+    }
+
+    if (_logger is not null) {
+      set.LogMissingAlternates(_logger);
+      if (bestAlternate is not null && best >= p.SimilarityThreshold) {
+        ImageMatchLog.AlternateMatched(_logger, p.ReferenceImageId, bestAlternate, best, null);
+      }
+    }
+    return best;
+  }
+
+  private double ComputeSimilarity(ImageMatchParams p, Bitmap tpl, Bitmap screenBmp) {
     // Compute pixel region from normalized coordinates
     var rx = (int)Math.Round(p.Region.X * screenBmp.Width);
     var ry = (int)Math.Round(p.Region.Y * screenBmp.Height);
@@ -140,4 +167,7 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
 internal static partial class ImageMatchLog {
   [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Slow image match for '{ReferenceImageId}': {ElapsedMs}ms")]
   public static partial void SlowMatch(ILogger logger, string referenceImageId, long elapsedMs, Exception? ex);
+
+  [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Information, Message = "Image match for '{ReferenceImageId}' was satisfied by alternate reference '{AlternateId}' (similarity {Similarity:F3})")]
+  public static partial void AlternateMatched(ILogger logger, string referenceImageId, string alternateId, double similarity, Exception? ex);
 }

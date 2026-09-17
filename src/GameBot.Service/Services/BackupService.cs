@@ -14,11 +14,15 @@ internal sealed class BackupService {
   private readonly ICommandRepository _commands;
   private readonly ISequenceRepository _sequences;
   private readonly IImageRepository _images;
+  // Feature 097: an image's alternates travel with it. Null when not wired (tests).
+  private readonly IImageAlternatesRepository? _alternates;
+  private const string AlternatesPrefix = "image-alternates/";
 
-  public BackupService(ICommandRepository commands, ISequenceRepository sequences, IImageRepository images) {
+  public BackupService(ICommandRepository commands, ISequenceRepository sequences, IImageRepository images, IImageAlternatesRepository? alternates = null) {
     _commands = commands;
     _sequences = sequences;
     _images = images;
+    _alternates = alternates;
   }
 
   /// <summary>
@@ -58,6 +62,8 @@ internal sealed class BackupService {
       foreach (var imgId in ImageReferenceExtractor.ExtractImageIds(seq.Steps))
         imageIds.Add(imgId);
 
+    var alternateLists = CollectAlternates(imageIds);
+
     using var ms = new MemoryStream();
     using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true)) {
       var manifest = new {
@@ -74,6 +80,9 @@ internal sealed class BackupService {
 
       foreach (var seq in sequenceSet.Values)
         await WriteJsonEntryAsync(archive, $"sequences/{seq.Id}.json", seq, ct).ConfigureAwait(false);
+
+      foreach (var (primaryId, list) in alternateLists)
+        await WriteJsonEntryAsync(archive, $"{AlternatesPrefix}{primaryId}.json", new { alternates = list }, ct).ConfigureAwait(false);
 
       foreach (var imgId in imageIds) {
         var asset = await _images.GetAsync(imgId, ct).ConfigureAwait(false);
@@ -235,6 +244,7 @@ internal sealed class BackupService {
         using var ms = new MemoryStream(data);
         await _images.SaveAsync(imgId, ms, contentType, filename, overwrite: true, ct).ConfigureAwait(false);
       }
+      await RestoreAlternatesAsync(archive, ct).ConfigureAwait(false);
     }
     catch (Exception applyEx) {
       var rollbackError = await TryRollbackAsync(originalCommands, originalSequences, originalImageData, ct).ConfigureAwait(false);
@@ -252,6 +262,47 @@ internal sealed class BackupService {
       RestoredImages = imageEntries.Count
     };
     } // end using(archive)
+  }
+
+  /// <summary>
+  /// Feature 097: adds each selected image's stored alternates to <paramref name="imageIds"/> and returns the
+  /// alternates lists to archive, keyed by primary id. Alternates are not expanded transitively.
+  /// </summary>
+  private Dictionary<string, IReadOnlyList<string>> CollectAlternates(HashSet<string> imageIds) {
+    var lists = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+    if (_alternates is null) return lists;
+    foreach (var primaryId in imageIds.ToList()) {
+      var list = _alternates.GetAlternates(primaryId);
+      if (list.Count == 0) continue;
+      lists[primaryId] = list;
+      foreach (var altId in list) imageIds.Add(altId);
+    }
+    return lists;
+  }
+
+  /// <summary>
+  /// Feature 097: re-applies archived alternates lists after the images are saved, keeping only ids that
+  /// are stored afterwards. Primaries without an archived list keep whatever list they already have.
+  /// </summary>
+  private async Task RestoreAlternatesAsync(ZipArchive archive, CancellationToken ct) {
+    if (_alternates is null) return;
+    var stored = new HashSet<string>(await _images.ListIdsAsync(ct).ConfigureAwait(false), StringComparer.OrdinalIgnoreCase);
+    foreach (var entry in archive.Entries) {
+      if (!entry.FullName.StartsWith(AlternatesPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+      var primaryId = Path.GetFileNameWithoutExtension(entry.Name);
+      if (string.IsNullOrWhiteSpace(primaryId) || !stored.Contains(primaryId)) continue;
+      using var stream = entry.Open();
+      using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
+      if (!doc.RootElement.TryGetProperty("alternates", out var array) || array.ValueKind != JsonValueKind.Array) continue;
+      var ids = array.EnumerateArray()
+        .Where(e => e.ValueKind == JsonValueKind.String)
+        .Select(e => e.GetString()!)
+        .Where(id => stored.Contains(id) && !string.Equals(id, primaryId, StringComparison.OrdinalIgnoreCase))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Take(ImageAlternatesValidator.MaxAlternates)
+        .ToList();
+      _alternates.SetAlternates(primaryId, ids);
+    }
   }
 
   private static IEnumerable<string> CollectCommandIds(IEnumerable<SequenceStep> steps) {

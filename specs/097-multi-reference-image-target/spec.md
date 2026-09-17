@@ -2,7 +2,7 @@
 
 **Feature Branch**: `097-multi-reference-image-target`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #192 (https://github.com/bbqf/GameBotAI/issues/192) — "B-004: no multi-image detection target and no lighting robustness, so one anchor needs four hand-OR'd crops". Closes #192.
 
 ## Background

@@ -90,6 +90,13 @@ namespace GameBot.Service.Endpoints.Dto {
     [JsonPropertyName("templateId")]
     public string TemplateId { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Id of the reference that produced this match: <see cref="TemplateId"/> itself or one of its
+    /// alternates (feature 097). Additive; <see cref="TemplateId"/> keeps the requested image id.
+    /// </summary>
+    [JsonPropertyName("matchedReferenceId")]
+    public string MatchedReferenceId { get; set; } = string.Empty;
+
     [JsonPropertyName("score")]
     public double Score { get; set; }
 

@@ -1,4 +1,4 @@
-﻿using GameBot.Domain.Commands;
+using GameBot.Domain.Commands;
 using GameBot.Domain.Config;
 using GameBot.Domain.Parameters;
 using GameBot.Domain.Logging;
@@ -22,6 +22,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly TriggerEvaluationService _triggerEval;
   private readonly ILogger<CommandExecutor> _logger;
   private readonly GameBot.Domain.Triggers.Evaluators.IReferenceImageStore? _images;
+  // Feature 097: alternates of a reference image also count as a match for it. Null in fallback wiring.
+  private readonly GameBot.Domain.Images.IImageAlternatesRepository? _alternates;
   private readonly GameBot.Domain.Triggers.Evaluators.IScreenSource? _screen;
   // Feature 079: when the executor knows which session it is acting for, detection reads that
   // session's frames explicitly instead of relying on the ambient/singleton screen source.
@@ -34,7 +36,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly IEnsureEmulatorRunningActionHandler? _ensureEmulatorRunning;
   private readonly IGameReadinessProbe? _gameReadiness;
 
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null, GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory? screenFactory = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null, GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory? screenFactory = null, GameBot.Domain.Images.IImageAlternatesRepository? alternates = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -50,6 +52,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _ensureGameRunning = ensureGameRunning;
     _ensureEmulatorRunning = ensureEmulatorRunning;
     _gameReadiness = gameReadiness;
+    _alternates = alternates;
   }
 
   // Fallback constructor for environments without detection services registered (non-Windows or tests)
@@ -421,11 +424,12 @@ internal sealed class CommandExecutor : ICommandExecutor {
           return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "services_unavailable", null, null));
         }
 
-        if (!images.TryGet(primitiveDetection.ReferenceImageId, out var templateBmp) || templateBmp is null) {
+        if (!GameBot.Domain.Images.ReferenceImageSetLoader.TryLoad(images, _alternates, primitiveDetection.ReferenceImageId, out var templateSet) || templateSet is null) {
           Log.DetectionSkip(_logger, "template_not_found");
           return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_invalid_config", "template_not_found", null, null));
         }
 
+        templateSet.LogMissingAlternates(_logger);
         var baseWaitMs = _appConfig.CaptureIntervalMs;
         var retryCount = _appConfig.TapRetryCount;
         var progression = _appConfig.TapRetryProgression;
@@ -436,7 +440,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
         var tapOutcomes = new List<PrimitiveTapStepOutcome>();
         var tapAccepted = 0;
-        var detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, tapOutcomes, ref tapAccepted, 0, ct);
+        var detected = TryDetectAndTap(screenSrc, templateSet, primitiveDetection, matcher, step, sessionId, tapOutcomes, ref tapAccepted, 0, ct);
 
         if (!detected) {
           Log.TapRetryNotDetected(_logger, step.Order, 0);
@@ -448,7 +452,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
             await Task.Delay(waitMs, ct).ConfigureAwait(false);
             currentWaitMs *= progression;
 
-            detected = TryDetectAndTap(screenSrc, templateBmp, primitiveDetection, matcher, step, sessionId, tapOutcomes, ref tapAccepted, cancelCycleTracker, ct);
+            detected = TryDetectAndTap(screenSrc, templateSet, primitiveDetection, matcher, step, sessionId, tapOutcomes, ref tapAccepted, cancelCycleTracker, ct);
             if (detected) {
               Log.TapRetryDetected(_logger, step.Order, cancelCycleTracker);
               break;
@@ -537,7 +541,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
         ConfiguredConfidence: detectionTarget.Confidence);
     }
 
-    if (!images.TryGet(detectionTarget.ReferenceImageId, out var templateBmp) || templateBmp is null) {
+    if (!GameBot.Domain.Images.ReferenceImageSetLoader.TryLoad(images, _alternates, detectionTarget.ReferenceImageId, out var templateSet) || templateSet is null) {
       await WaitForTimeoutAsync(deadline, ct).ConfigureAwait(false);
       return new PrimitiveTapStepOutcome(
         step.Order,
@@ -553,7 +557,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
         ConfiguredConfidence: detectionTarget.Confidence);
     }
 
-    if (TryDetectImage(screenSrc, templateBmp, detectionTarget, matcher, out var resolvedPoint, out var detectionConfidence)) {
+    templateSet.LogMissingAlternates(_logger);
+    if (TryDetectImage(screenSrc, templateSet, detectionTarget, matcher, out var resolvedPoint, out var detectionConfidence)) {
       return new PrimitiveTapStepOutcome(
         step.Order,
         "executed",
@@ -577,7 +582,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
       var pollMs = Math.Max(1, Math.Min(_appConfig.CaptureIntervalMs, (int)Math.Ceiling(remaining.TotalMilliseconds)));
       await Task.Delay(pollMs, ct).ConfigureAwait(false);
 
-      if (TryDetectImage(screenSrc, templateBmp, detectionTarget, matcher, out resolvedPoint, out detectionConfidence)) {
+      if (TryDetectImage(screenSrc, templateSet, detectionTarget, matcher, out resolvedPoint, out detectionConfidence)) {
         return new PrimitiveTapStepOutcome(
           step.Order,
           "executed",
@@ -614,14 +619,14 @@ internal sealed class CommandExecutor : ICommandExecutor {
     }
   }
 
-  private static bool TryDetectImage(
+  private bool TryDetectImage(
     GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
-    System.Drawing.Bitmap templateBmp,
+    GameBot.Domain.Images.ReferenceImageSet templateSet,
     DetectionTarget detectionTarget,
     GameBot.Domain.Vision.ITemplateMatcher matcher,
     out PrimitiveTapResolvedPoint? resolvedPoint,
     out double? detectionConfidence)
-    => ImageDetectionHelper.TryDetect(screenSrc, templateBmp, detectionTarget, matcher, out resolvedPoint, out detectionConfidence);
+    => ImageDetectionHelper.TryDetect(screenSrc, templateSet, detectionTarget, matcher, out resolvedPoint, out detectionConfidence, _logger);
 
   /// <summary>
   /// Attempts a single screenshot-fetch â†’ template-match â†’ coordinate-resolve â†’ tap cycle.
@@ -630,7 +635,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
   /// </summary>
   private bool TryDetectAndTap(
     GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
-    System.Drawing.Bitmap templateBmp,
+    GameBot.Domain.Images.ReferenceImageSet templateSet,
     DetectionTarget primitiveDetection,
     GameBot.Domain.Vision.ITemplateMatcher matcher,
     CommandStep step,
@@ -642,16 +647,15 @@ internal sealed class CommandExecutor : ICommandExecutor {
     var screenshotBmp = screenSrc.GetLatestScreenshot();
     if (screenshotBmp is null) return false;
 
-    using var template = new System.Drawing.Bitmap(templateBmp);
     using var screenMs = new System.IO.MemoryStream();
-    using var templateMs = new System.IO.MemoryStream();
     screenshotBmp.Save(screenMs, System.Drawing.Imaging.ImageFormat.Png);
-    template.Save(templateMs, System.Drawing.Imaging.ImageFormat.Png);
     using var screenMat = OpenCvSharp.Mat.FromImageData(screenMs.ToArray(), OpenCvSharp.ImreadModes.Color);
     // Alpha-preserving template decode, so a masked reference image masks here too (feature 089).
-    using var templateMat = GameBot.Domain.Vision.TemplateImageDecoder.Decode(templateMs.ToArray());
+    using var templateMat = ImageDetectionHelper.ToTemplateMat(templateSet.Primary);
+    // Feature 097: the named image's alternates also count as a match for it.
+    using var matcherLease = templateSet.CreateMatcher(matcher, ImageDetectionHelper.ToTemplateMat, _logger);
 
-    var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcher);
+    var adapter = new GameBot.Domain.Services.ActionExecutionAdapter(matcherLease.Matcher);
     var primitiveAction = new GameBot.Domain.Actions.InputAction {
       Type = "tap",
       Args = new Dictionary<string, object> { ["x"] = 0, ["y"] = 0 }

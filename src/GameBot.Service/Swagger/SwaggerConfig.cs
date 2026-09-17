@@ -415,7 +415,9 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         "an empty matches array is a real absence — when no screen can be determined the call fails " +
         "explicitly instead (feature 085). If the reference image carries a transparency mask, only " +
         "its retained pixels are compared and the response reports masked/retainedPixelCount " +
-        "(feature 089).";
+        "(feature 089). If the image has alternates (PUT /api/images/{id}/alternates), each alternate " +
+        "is scored too and every match reports the reference that produced it in matchedReferenceId " +
+        "(feature 097).";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
       SetImageDetectErrorExamples(operation, context);
@@ -641,7 +643,40 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     return detail;
   }
 
+  /// <summary>Examples for GET/PUT /api/images/{id}/alternates (feature 097).</summary>
+  private static void ApplyImageAlternatesExamples(OpenApiOperation operation, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Put)) {
+      SetRequestExample(operation, new OpenApiObject {
+        ["alternates"] = new OpenApiArray { new OpenApiString("resource-anchor-night1"), new OpenApiString("resource-anchor-night2") }
+      }, context, typeof(GameBot.Service.Endpoints.SetImageAlternatesRequest));
+    }
+    SetResponseExample(operation, "200", new OpenApiObject {
+      ["id"] = new OpenApiString("resource-anchor"),
+      ["alternates"] = new OpenApiArray {
+        new OpenApiObject { ["id"] = new OpenApiString("resource-anchor-night1"), ["exists"] = new OpenApiBoolean(true) },
+        new OpenApiObject { ["id"] = new OpenApiString("resource-anchor-night2"), ["exists"] = new OpenApiBoolean(false) }
+      }
+    }, context, typeof(GameBot.Service.Endpoints.ImageAlternatesResponse));
+    SetResponseExample(operation, "400", new OpenApiObject {
+      ["error"] = new OpenApiObject {
+        ["code"] = new OpenApiString("invalid_alternates"),
+        ["message"] = new OpenApiString("Every alternate must be a stored image."),
+        ["hint"] = new OpenApiString("Upload the crop through POST /api/images first, then set it as an alternate."),
+        ["ids"] = new OpenApiArray { new OpenApiString("resource-anchor-night9") }
+      }
+    }, context);
+    SetResponseExample(operation, "404", new OpenApiObject {
+      ["error"] = new OpenApiObject { ["code"] = new OpenApiString("not_found"), ["message"] = new OpenApiString("Image not found") }
+    }, context);
+  }
+
   private static void ApplyImageExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    // Feature 097: the alternates routes sit under /api/images/{id}/ too, but carry their own schemas
+    // and descriptions; the catch-all image-reference examples below must not overwrite them.
+    if (path.EndsWith("/alternates", StringComparison.OrdinalIgnoreCase)) {
+      ApplyImageAlternatesExamples(operation, method, context);
+      return;
+    }
     if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Images)) {
       operation.Summary ??= "List image references";
       SetResponseExample(operation, "200", ImageReferenceListResponse(), context, typeof(IEnumerable<ImageReferenceListItemSchema>));
@@ -674,7 +709,9 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         "an empty matches array is a real absence — when no screen can be determined the call fails " +
         "explicitly instead (feature 085). If the reference image carries a transparency mask, only " +
         "its retained pixels are compared and the response reports masked/retainedPixelCount " +
-        "(feature 089).";
+        "(feature 089). If the image has alternates (PUT /api/images/{id}/alternates), each alternate " +
+        "is scored too and every match reports the reference that produced it in matchedReferenceId " +
+        "(feature 097).";
       SetRequestExample(operation, ImageDetectRequest(), context, typeof(GameBot.Service.Endpoints.Dto.DetectRequest));
       SetResponseExample(operation, "200", ImageDetectResponse(), context, typeof(GameBot.Service.Endpoints.Dto.DetectResponse));
       SetImageDetectErrorExamples(operation, context);
@@ -1353,6 +1390,8 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       new OpenApiObject
       {
         ["confidence"] = new OpenApiDouble(0.93),
+        ["templateId"] = new OpenApiString("start-screen"),
+        ["matchedReferenceId"] = new OpenApiString("start-screen-night"),
         ["bbox"] = new OpenApiObject
         {
           ["x"] = new OpenApiDouble(0.15),
