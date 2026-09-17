@@ -2,7 +2,7 @@
 
 **Feature Branch**: `095-before-each-run-schedule`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #202 (https://github.com/bbqf/GameBotAI/issues/202) — FR-006: a queue-template schedule type that runs entries BEFORE every timed or self-rescheduled entry. Closes #202
 
 ## Background

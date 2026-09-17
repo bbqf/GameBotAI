@@ -267,6 +267,24 @@ public sealed class QueueTemplatesScheduleTypeTests {
     entry.GetProperty("timerTimeOfDay").ValueKind.Should().Be(JsonValueKind.Null);
   }
 
+  [Fact] // feature 095 (T011): a BeforeEachRun entry persists and reloads with no timer fields
+  public async Task SaveBeforeEachRunEntryRoundTripsCorrectly() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    var entries = new[] { new { sequenceId = "seq-a", scheduleType = "BeforeEachRun" } };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "BeforeEachRunTemplate", entries, overwrite = true }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var id = (await BodyAsync(createResp).ConfigureAwait(true)).GetProperty("id").GetString()!;
+
+    var getResp = await client.GetAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true);
+    var entry = (await BodyAsync(getResp).ConfigureAwait(true)).GetProperty("entries")[0];
+    entry.GetProperty("scheduleType").GetString().Should().Be("BeforeEachRun");
+    entry.GetProperty("timerTimeOfDay").ValueKind.Should().Be(JsonValueKind.Null);
+    entry.GetProperty("timerRelativeOffset").ValueKind.Should().Be(JsonValueKind.Null);
+  }
+
   [Fact] // SC-001: at-queue-start entries execute before timers and normal steps in a real run
   public async Task AtQueueStartExecutesBeforeTimersAndNormalStepsInRealRun() {
     using var app = new WebApplicationFactory<Program>();

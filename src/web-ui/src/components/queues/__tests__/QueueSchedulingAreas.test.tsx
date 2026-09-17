@@ -28,10 +28,10 @@ const baseProps = () => ({
   onTimerRelativeOffsetChange: jest.fn(),
 });
 
-const AREA_LABELS = ['Start of execution', 'Once per run', 'Scheduled', 'After every step'];
+const AREA_LABELS = ['Start of execution', 'Before each run', 'Once per run', 'Scheduled', 'After every step'];
 
 describe('QueueSchedulingAreas', () => {
-  it('C1: renders exactly four labeled areas', () => {
+  it('C1: renders exactly five labeled areas', () => {
     render(<QueueSchedulingAreas entries={[]} entrySchedule={{}} {...baseProps()} />);
     for (const label of AREA_LABELS) {
       expect(screen.getByRole('region', { name: label })).toBeInTheDocument();
@@ -55,6 +55,21 @@ describe('QueueSchedulingAreas', () => {
     expect(within(oncePerRun).getByText('E')).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Scheduled' })).getByText('C')).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'After every step' })).getByText('D')).toBeInTheDocument();
+  });
+
+  it('C2b: places a BeforeEachRun entry in the Before each run area with its badge (feature 095)', () => {
+    const entries = [entry('a'), entry('b')];
+    const entrySchedule: Record<string, EntrySchedule> = {
+      a: { scheduleType: 'BeforeEachRun', timerTimeOfDay: '' },
+      b: { scheduleType: 'OncePerRun', timerTimeOfDay: '' },
+    };
+    const { container } = render(<QueueSchedulingAreas entries={entries} entrySchedule={entrySchedule} {...baseProps()} />);
+
+    const before = screen.getByRole('region', { name: 'Before each run' });
+    expect(within(before).getByText('A')).toBeInTheDocument();
+    expect(within(before).getByLabelText('Before Each Run')).toBeInTheDocument();
+    expect(within(before).queryByText('B')).not.toBeInTheDocument();
+    expect(container.querySelector('.scheduling-areas__right')).toContainElement(before);
   });
 
   it('C3: lays out the areas (full-width top + left stack + right column)', () => {

@@ -171,6 +171,39 @@ public sealed class QueueMonitorServiceTests {
     everyStep[0].Reason.Should().Be("After Every Step");
   }
 
+  [Fact] // feature 095 (T012)
+  public async Task BeforeEachRunIsSurfacedOnceAfterTimedItemsAndBeforeEveryStep() {
+    var h = new Harness();
+    h.AddQueue(cycle: true);
+    h.Entry("C", "Chore", ScheduleType.EveryStep);
+    h.Entry("B", "Establish", ScheduleType.BeforeEachRun);
+    h.Entry("T", "Task", ScheduleType.Timer, tod: new TimeOnly(15, 0));
+    h.StartHandle(cycle: true);
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Upcoming.Select(i => i.SequenceId).Should().Equal("T", "B", "C");
+    var before = snap.Upcoming.Single(i => i.ScheduleKind == ScheduleKind.BeforeEachRun);
+    before.SequenceId.Should().Be("B");
+    before.Reason.Should().Be("Before Each Run");
+    before.ExpectedAt.Should().BeNull();
+    before.Repeats.Should().BeFalse();
+  }
+
+  [Fact] // feature 095 (T012)
+  public async Task CurrentBeforeEachRunSequenceMapsToBeforeEachRunKind() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("B", "Establish", ScheduleType.BeforeEachRun);
+    var handle = h.StartHandle();
+    handle.SetCurrentSequence("B", Now);
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    snap.Current!.ScheduleKind.Should().Be(ScheduleKind.BeforeEachRun);
+    snap.Current.Reason.Should().Be("Before Each Run");
+  }
+
   [Fact]
   public async Task TimerTimeOfDayResolvesTodayWhenAheadAndDueNowWhenOverdue() {
     var h = new Harness();

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- "Before Each Run" queue schedule type (095-before-each-run-schedule, #202)
+  - New queue-template schedule type `BeforeEachRun`, shown as "Before Each Run". Its entries run immediately before every timed, live-scheduled or self-rescheduled firing: time-of-day timers and their daily retries, relative timers, live schedules, and self-reschedule Timer / At Queue Start / Once Per Run firings. Each task that wakes a queue therefore starts from a known state, even if something changed during an idle pause.
+  - Several firings due at one wake-up share a single pass, which runs before the first of them. Entries run in template order. Once-per-run steps, at-queue-start entries and after-every-step executions never trigger the pass.
+  - Accounting matches After Every Step: these runs do not count as executed, a failure is counted and is non-fatal, and the task still runs. The entries appear in the execution log and are listed once in the queue monitor as "Before Each Run".
+  - The template API accepts and returns `BeforeEachRun`, case-insensitively. The template editor has a new "Before each run" area.
+  - Perf note: a template without Before Each Run entries adds only an empty-list check per firing. Otherwise the cost is the configured sequences' own run time, once per wake-up.
 - Sequence time-limit cancellation reported distinctly (094-sequence-time-limit-reporting, #182)
   - A queue firing cut off by its time bound still reads `finalStatus: "failure"`, but its sequence's execution-log entry now also carries `cancellationReason: "sequence_time_limit"` and `timeLimitMs`. The fields appear in the list, detail and subtree responses. A timeout can now be told apart from a sequence that reached its own failure, and that includes a step that swallowed the cancellation. User stops, ordinary failures, successes, ad-hoc runs and older entries carry neither field.
   - `GET /api/sequences/{id}` adds read-only `effectiveWatchdogTimeoutMs`: the sequence's `watchdogTimeoutMs` when set, otherwise the 240000 ms default. It is ignored on writes.

@@ -32,6 +32,9 @@ namespace GameBot.Service.Services.QueueExecution;
 ///                 once-per-run pass was done (the recovery-guard starvation bug).
 ///   Timer       — evaluated at each iteration boundary; either an absolute time-of-day (fires at
 ///                 most once per calendar day) or a relative offset / live schedule (feature 059).
+///   BeforeEachRun — executed immediately before the first timed, live or self-rescheduled firing
+///                 of each loop iteration (at most once per wake-up), in template order; never before
+///                 once-per-run, at-start or every-step executions; not counted (feature 095, #202).
 ///
 /// A cycling run re-evaluates timers on every cycle. A non-cyclic run runs its once-per-run steps
 /// once and then, if any relative-offset timer or live schedule is still pending, stays alive and
@@ -278,6 +281,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         var atQueueStartEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.AtQueueStart).ToList();
         var oncePerRunEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.OncePerRun).ToList();
         var everyStepEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.EveryStep).ToList();
+        var beforeEachRunEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.BeforeEachRun).ToList();
         var timerEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.Timer).ToList();
 
         // 1.5 Feature 074: when the queue is configured with an emulator instance identifier, bring that
@@ -344,6 +348,26 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               }
             }
 
+            // Before-each-run pass (feature 095, #202): the mirror of the every-step pass. Awaited
+            // immediately before every timed, live or self-rescheduled firing, but runs at most once per
+            // loop iteration — several firings due at one wake-up share a single pass, which precedes
+            // the first of them. Accounting matches the every-step pass: not counted toward `executed`,
+            // a failure counts toward `failed` and is non-fatal, and the triggering firing still runs.
+            // It never runs the every-step pass or itself, so it cannot loop.
+            var beforeEachRunRanThisIteration = false;
+            async Task RunBeforeEachRunPassAsync() {
+              if (beforeEachRunRanThisIteration || beforeEachRunEntries.Count == 0) return;
+              beforeEachRunRanThisIteration = true;
+
+              foreach (var berEntry in beforeEachRunEntries) {
+                ct.ThrowIfCancellationRequested();
+                if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                var berOk = await RunOneSequenceAsync(berEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(berEntry), ct).ConfigureAwait(false);
+                if (!berOk) failed++;
+                handle.Cycles.RecordEntry(berEntry.SequenceId, berOk);
+              }
+            }
+
             // (0) At-queue-start pre-pass (feature 060, FR-003/FR-004/FR-007/FR-014/FR-015).
             // Run every at-queue-start entry once, in template order, BEFORE any timer evaluation
             // and before the first OncePerRun step. Runs once per run (outside the do/while, so it
@@ -395,6 +419,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // a firing that came due during the pause is simply still due (FR-018a).
                 await handle.WaitIfPausedAsync(ct).ConfigureAwait(false);
                 everyStepRanThisIteration = false;
+                beforeEachRunRanThisIteration = false;
 
                 // Cycle ledger (feature 086): open the cycle this iteration will fill. Idempotent, so
                 // a non-cyclic run's trailing timer-poll iterations reuse the cycle they never
@@ -408,6 +433,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // during the previous cycle fire at the top of the next cycle, before timers and the
                 // once-per-run pass. Count toward executed; a failed firing is non-fatal.
                 while (handle.PendingNextCycleStart.TryDequeue(out var nextCycleEntry)) {
+                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                   var nextOk = await RunOneSequenceAsync(nextCycleEntry.SequenceId, rootId, ++index, sessionId, queue.Id, nextCycleEntry.Scope ?? queueScope, ct, nextCycleEntry.Id).ConfigureAwait(false);
@@ -425,6 +451,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var today = DateOnly.FromDateTime(localNow.DateTime);
                   var now = TimeOnly.FromDateTime(localNow.DateTime);
                   if (now >= timerEntry.TimerTimeOfDay.Value && !schedule.TimeOfDayFiredOn(timerIndex, today)) {
+                    await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                     ct.ThrowIfCancellationRequested();
                     if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                     var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(timerEntry), ct).ConfigureAwait(false);
@@ -441,6 +468,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // this one flaky firing silently costs the whole day's task.
                 foreach (var (retryIndex, attempt) in schedule.DueDailyRetries(_timeProvider.GetLocalNow())) {
                   var retryEntry = schedule.Entries[retryIndex];
+                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                   QueueExecutionLog.DailyRetryFiring(_logger, retryEntry.SequenceId, attempt);
@@ -460,6 +488,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (schedule.RelativeFired(relIndex)) continue;
                   if (elapsedSinceStart < relOffset) continue;
 
+                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                   var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(relEntry), ct).ConfigureAwait(false);
@@ -479,6 +508,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                            .Select(kv => kv.Key)
                            .ToList()) {
                   if (!handle.PendingLiveSchedules.TryRemove(due, out _)) continue;
+                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                   var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, queue.Id, queueScope, ct).ConfigureAwait(false);
@@ -493,6 +523,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // failed firing is non-fatal. Entries never due before the run ends are discarded with
                 // the handle and never fail the run (FR-015).
                 foreach (var timerFiring in handle.DrainDueTimerFirings(_timeProvider.GetLocalNow())) {
+                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
                   if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                   var srTimerOk = await RunOneSequenceAsync(timerFiring.SequenceId, rootId, ++index, sessionId, queue.Id, timerFiring.Scope ?? queueScope, ct, timerFiring.Id).ConfigureAwait(false);
@@ -541,6 +572,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var oncePerRunReschedules = new List<SelfRescheduleEntry>();
                   while (handle.PendingOncePerRun.TryDequeue(out var oprEntry)) oncePerRunReschedules.Add(oprEntry);
                   foreach (var oprFiring in oncePerRunReschedules) {
+                    await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                     ct.ThrowIfCancellationRequested();
                     if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
                     var oprOk = await RunOneSequenceAsync(oprFiring.SequenceId, rootId, ++index, sessionId, queue.Id, oprFiring.Scope ?? queueScope, ct, oprFiring.Id).ConfigureAwait(false);
