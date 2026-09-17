@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Primitive action types published in the OpenAPI document (102-primitive-action-types-docs, #201)
+  - `PrimitiveAction.type` is now an enum of all eleven accepted values: `tap`, `swipe`, `key`, `command`, `connect-to-game`, `WaitForImage`, `ensure-game-running`, `go-to-home-screen`, `ensure-emulator-running`, `reschedule-self`, `notify`. It is described as case-insensitive, with a note that `POST /api/sessions/start` accepts only `connect-to-game`. The enum comes from the same domain list the step validator uses, so the two cannot drift. `reschedule-self` was previously only discoverable by probing validator errors.
+  - `PrimitiveAction.payload` now describes each type's fields, including `reschedule-self`'s `option` values, the Timer rule (exactly one of `timerTimeOfDay` or `timerRelativeOffset`, or an `ocrOffset`), its ranges, and that it has effect only inside a queue run. The sequence create/update/get examples include a `reschedule-self` Timer step.
+  - An unsupported or missing action type is still rejected with 400, and the message now ends with `(expected one of ...)`, listing the supported values; the leading text is unchanged.
+  - No action type's acceptance, payload rules or runtime behaviour changed.
 - Detection coordinate units documented in the OpenAPI document (101-detect-coordinate-units-docs, #188)
   - `POST /api/images/detect` match `x`/`y`/`width`/`height` and `bbox.*` are now described as fractions 0..1 of the capture frame's width/height (clamped, not pixels), and `bbox` as repeating the top-level box. `POST /api/images/detect-all` match `x`/`y`/`width`/`height` are described as pixels. Both operation descriptions state the difference and warn against comparing values from the two routes directly.
   - `templateId` (detect) and `imageId` (detect-all) are described as the same reference image identifier. The detect example now shows the top-level coordinates it really returns.

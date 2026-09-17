@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 101 detect coordinate units documented in OpenAPI)._
+_Last reviewed: 2026-09-17 (feature 102 primitive action types published in OpenAPI)._
 
 ## What GameBot is
 
@@ -480,7 +480,13 @@ tree node kind `if` (web-ui grid label "If"). Branch steps log themselves like l
 enforces — a Loop body may hold Action, If and Break steps but not another Loop; an If branch may hold
 only Action steps, plus Break when the If sits in a Loop body (no If-inside-If, no Loop); a top-level
 Break is rejected — are published on the OpenAPI `SequenceStep` schema and its `body`/`elseBody`
-properties by `SequenceNestingRulesSchemaFilter` (feature 099, issue #178).
+properties by `SequenceNestingRulesSchemaFilter` (feature 099, issue #178). The accepted
+`primitiveAction.type` values — `SequenceActionTypes.All`: tap, swipe, key, command, connect-to-game,
+WaitForImage, ensure-game-running, go-to-home-screen, ensure-emulator-running, reschedule-self, notify,
+matched case-insensitively — are the single list behind the step validator, `ActionPayloadValidationService`
+and the OpenAPI `PrimitiveAction.type` enum. `PrimitiveActionSchemaFilter` describes each type's payload fields
+on `PrimitiveAction.payload`, and an unsupported type is rejected with 400 whose message appends
+`(expected one of ...)` (feature 102, issue #201).
 
 **Loop exit reason** (feature 081): a `Loop` step's `StepResult` carries a structured
 `ExitReason { BrokeVia: string?, ExhaustedMaxIterations: bool }` alongside the existing

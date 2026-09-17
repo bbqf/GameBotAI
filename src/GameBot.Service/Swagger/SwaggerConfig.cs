@@ -998,6 +998,20 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
             }
           }
         }
+      },
+      RescheduleSelfExampleStep()
+    }
+  };
+
+  // Feature 102 (issue #201): shows a reschedule-self step, which the document never mentioned.
+  private static OpenApiObject RescheduleSelfExampleStep() => new OpenApiObject {
+    ["stepId"] = new OpenApiString("reschedule-in-30m"),
+    ["primitiveAction"] = new OpenApiObject {
+      ["type"] = new OpenApiString("reschedule-self"),
+      ["schemaVersion"] = new OpenApiString("v1"),
+      ["payload"] = new OpenApiObject {
+        ["option"] = new OpenApiString("Timer"),
+        ["timerRelativeOffset"] = new OpenApiString("00:30:00")
       }
     }
   };
@@ -1087,7 +1101,8 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
             }
           }
         }
-      }
+      },
+      RescheduleSelfExampleStep()
     }
   };
 

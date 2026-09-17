@@ -5,10 +5,7 @@ namespace GameBot.Domain.Services;
 
 public sealed class ActionPayloadValidationService {
   private readonly HashSet<string> _supportedActionTypes =
-    new(PrimitiveActionTypes.All, StringComparer.OrdinalIgnoreCase) {
-      ActionTypes.RescheduleSelf,
-      ActionTypes.Notify
-    };
+    new(SequenceActionTypes.All, StringComparer.OrdinalIgnoreCase);
 
   public IReadOnlyCollection<string> SupportedActionTypes => _supportedActionTypes;
 

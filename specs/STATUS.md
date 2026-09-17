@@ -136,6 +136,7 @@ Status vocabulary:
 | 099 | Publish Sequence Step Nesting Rules | Implemented |
 | 100 | Make a Queue's Live Roster Discoverable | Implemented |
 | 101 | Document detect vs detect-all coordinate units | Implemented |
+| 102 | Publish primitive action types and payload shapes | Implemented |
 
 ## Numbering notes
 

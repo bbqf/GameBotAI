@@ -2,7 +2,7 @@
 
 **Feature Branch**: `102-primitive-action-types-docs`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #201 — https://github.com/bbqf/GameBotAI/issues/201 — Closes #201. "B-017: reschedule-self (and every non-command primitiveAction.type) is missing from the OpenAPI document."
 
 ## Background

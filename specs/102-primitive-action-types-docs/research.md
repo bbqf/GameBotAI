@@ -34,6 +34,10 @@ and silently include future non-step keys); reading `ActionPayloadValidationServ
 description that `POST /api/sessions/start` accepts only `connect-to-game` (`SessionsController.StartSession` rejects
 others with 400 "primitiveAction.type must be connect-to-game.").
 
+**Verified (T001)**: the served document has both `PrimitiveAction` and `PrimitiveActionRequest` (same object);
+`type` is `string, nullable`, `payload` is `object, additionalProperties: {}`, neither described;
+`StartSessionRequest.properties.primitiveAction` is a bare `$ref` to `PrimitiveActionRequest`.
+
 **Rationale**: `StartSessionRequest` and `SequenceStepContract` reference the same component; OpenAPI cannot carry two
 enums for one component without splitting the schema, which the spec rules out.
 
