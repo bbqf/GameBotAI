@@ -119,6 +119,59 @@ public sealed class QueuesApiContractTests : IDisposable {
     (await client.DeleteAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
   }
 
+  [Fact] // feature 098: resumeOnServiceStart round-trips via create/update/get/list and defaults to false
+  public async Task ResumeOnServiceStartRoundTripsAndDefaultsToFalse() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var plainResp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative),
+      new { name = "ResumeDefault", emulatorSerial = "emu-1" }).ConfigureAwait(true);
+    plainResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var plain = JsonDocument.Parse(await plainResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    plain.GetProperty("resumeOnServiceStart").GetBoolean().Should().BeFalse();
+    var plainId = plain.GetProperty("id").GetString();
+
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative),
+      new { name = "ResumeOn", emulatorSerial = "emu-1", resumeOnServiceStart = true }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = JsonDocument.Parse(await createResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    created.GetProperty("resumeOnServiceStart").GetBoolean().Should().BeTrue();
+    var id = created.GetProperty("id").GetString();
+
+    var detail = JsonDocument.Parse(await (await client.GetAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    detail.GetProperty("resumeOnServiceStart").GetBoolean().Should().BeTrue();
+
+    var list = JsonDocument.Parse(await (await client.GetAsync(new Uri("/api/queues", UriKind.Relative)).ConfigureAwait(true)).Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    list.EnumerateArray().Single(q => q.GetProperty("id").GetString() == id)
+      .GetProperty("resumeOnServiceStart").GetBoolean().Should().BeTrue();
+
+    var updateResp = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}", UriKind.Relative),
+      new { name = "ResumeOn", cycleExecution = false, resumeOnServiceStart = false }).ConfigureAwait(true);
+    updateResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    JsonDocument.Parse(await updateResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement
+      .GetProperty("resumeOnServiceStart").GetBoolean().Should().BeFalse();
+
+    (await client.DeleteAsync(new Uri($"/api/queues/{id}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+    (await client.DeleteAsync(new Uri($"/api/queues/{plainId}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+  }
+
+  [Fact] // feature 098: the option is published in the OpenAPI document on every queue body that carries it
+  public async Task ResumeOnServiceStartIsInTheOpenApiSchemas() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    var resp = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(true);
+    resp.EnsureSuccessStatusCode();
+
+    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true));
+    var schemas = doc.RootElement.GetProperty("components").GetProperty("schemas");
+    foreach (var schemaName in new[] { "CreateQueueRequest", "UpdateQueueRequest", "QueueResponse" }) {
+      var schema = schemas.EnumerateObject().Single(s => s.Name == schemaName || s.Name.EndsWith("." + schemaName, StringComparison.Ordinal)).Value;
+      schema.GetProperty("properties").GetProperty("resumeOnServiceStart").GetProperty("type").GetString()
+        .Should().Be("boolean", $"{schemaName} must publish resumeOnServiceStart");
+    }
+  }
+
   [Fact] // T012 — feature 074: emulator-instance fields round-trip; negative index rejected; default null
   public async Task EmulatorInstanceConfigRoundTripsAndValidatesIndex() {
     using var app = new WebApplicationFactory<Program>();

@@ -14,6 +14,8 @@ export type QueueFormValue = {
   emulatorInstanceName: string;
   /** Optional LDPlayer instance index for the pre-session cold-start (feature 074); null means unset. */
   emulatorInstanceIndex: number | null;
+  /** Opt-in: start the queue again after a service restart if it was running (feature 098). */
+  resumeOnServiceStart: boolean;
 };
 
 type QueueFormProps = {
@@ -146,6 +148,24 @@ export const QueueForm: React.FC<QueueFormProps> = ({
           />
         </div>
       )}
+
+      {/* Row 2b': Resume after a service restart (feature 098) */}
+      <div className="field">
+        <label>
+          <input
+            type="checkbox"
+            checked={value.resumeOnServiceStart}
+            onChange={(e) => onChange({ ...value, resumeOnServiceStart: e.target.checked })}
+            disabled={submitting}
+            aria-label="Resume after service restart"
+            aria-describedby="queue-resume-help"
+          />
+          {' '}Resume after service restart
+        </label>
+        <div id="queue-resume-help" className="form-hint">
+          If the queue is running when the service stops, start it again when the service comes back.
+        </div>
+      </div>
 
       {/* Row 2c: Emulator cold-start (feature 074). Optional instance identifier; when set, the queue
           starts this LDPlayer instance before binding its session, so it can self-start from cold. */}

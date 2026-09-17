@@ -6,7 +6,7 @@ jest.mock('../../../services/useAdbDevices', () => ({
   useAdbDevices: () => ({ devices: [{ serial: 'emu-1' }, { serial: 'emu-2' }], loading: false, error: undefined, refresh: () => {} }),
 }));
 
-const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null };
+const baseValue: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false };
 
 const renderForm = (overrides: Partial<React.ComponentProps<typeof QueueForm>> = {}) => {
   const onChange = jest.fn();
@@ -113,6 +113,16 @@ describe('QueueForm', () => {
     expect(threshold).toHaveValue(30);
     fireEvent.change(threshold, { target: { value: '45' } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ idleThresholdSeconds: 45 }));
+  });
+
+  // ── Feature 098: resume after a service restart ─────────────────────────────
+
+  it('reflects and toggles resume-after-service-restart', () => {
+    const { onChange } = renderForm({ value: { ...baseValue, resumeOnServiceStart: true } });
+    const box = screen.getByLabelText('Resume after service restart') as HTMLInputElement;
+    expect(box).toBeChecked();
+    fireEvent.click(box);
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ resumeOnServiceStart: false }));
   });
 
   // ── Feature 074: emulator-instance cold-start config controls ───────────────

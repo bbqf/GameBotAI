@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Resume queues after a service restart (098-resume-queues-on-restart, #203)
+  - New per-queue option `resumeOnServiceStart` ("Resume after service restart" in the queue form), off by default. A queue that has it on and was Running when the service stopped is started again automatically once the service is back up. That covers a graceful restart, an upgrade, a host reboot and a crash.
+  - Only queues that were really running come back. An operator stop, a run that completed or failed on its own, and a failure-policy stop all keep the queue Stopped, and queues without the option stay Stopped as before.
+  - The resumed run is an ordinary fresh start from the linked template: At Queue Start and Timer entries behave as on any start, and the previous run's self-reschedules, live schedules and daily retries are not restored. One attempt per queue per service start, with each outcome in the service log (events 7300–7304).
+  - The service keeps the ids of running queues in `<data>/queue-run-state.json`, written when a run starts and cleared when it ends outside a shutdown.
+  - Perf note: one small file write per queue start and per run end, and one read at service start.
 - Alternate reference images (097-multi-reference-image-target, #192)
   - A stored reference image can now carry up to 8 alternates: other stored images that also count as a match for it, such as night-lit crops of the same daylight art. Manage them with GET/PUT /api/images/{id}/alternates. PUT replaces the whole list and [] clears it. GET /api/images/{id}/metadata lists them too.
   - Every detection that names the image also scores its alternates, with the same threshold and without any change to the sequence. That covers sequence image conditions, wait-for-image steps, image-anchored taps, image-match triggers, the readiness gate and POST /api/images/detect. One image can therefore cover both day and night renderings, replacing hand-OR'd Break steps.

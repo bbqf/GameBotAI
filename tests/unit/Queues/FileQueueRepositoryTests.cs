@@ -169,6 +169,29 @@ public sealed class FileQueueRepositoryTests : IDisposable {
     loaded.EmulatorInstanceIndex.Should().BeNull();
   }
 
+  [Fact] // feature 098: the resume-after-restart opt-in round-trips through persistence
+  public async Task CreatePersistsResumeOnServiceStart() {
+    var repo = NewRepo();
+    var created = await repo.CreateAsync(new ExecutionQueue { Name = "A", EmulatorSerial = "emu-1", ResumeOnServiceStart = true }).ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync(created.Id).ConfigureAwait(true);
+    loaded!.ResumeOnServiceStart.Should().BeTrue();
+  }
+
+  [Fact] // feature 098: a queue JSON written before the option existed does not resume
+  public async Task LegacyQueueJsonWithoutResumeOnServiceStartLoadsAsOff() {
+    var repo = NewRepo();
+    var dir = Path.Combine(_root, "queues");
+    Directory.CreateDirectory(dir);
+    await File.WriteAllTextAsync(Path.Combine(dir, "legacy4.json"),
+      "{\"Id\":\"legacy4\",\"Name\":\"Old\",\"EmulatorSerial\":\"emu-1\",\"CycleExecution\":true}").ConfigureAwait(true);
+
+    var loaded = await repo.GetAsync("legacy4").ConfigureAwait(true);
+
+    loaded.Should().NotBeNull();
+    loaded!.ResumeOnServiceStart.Should().BeFalse();
+  }
+
   [Fact]
   public async Task GetWithUnsafeIdReturnsNull() {
     var repo = NewRepo();

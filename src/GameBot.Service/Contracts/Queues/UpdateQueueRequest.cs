@@ -24,5 +24,8 @@ namespace GameBot.Service.Contracts.Queues {
     /// how every other field on this request replaces rather than merges.
     /// </summary>
     public QueueFailurePolicyDto? FailurePolicy { get; set; }
+
+    /// <summary>Opt-in: start the queue again after a service restart if it was running (feature 098). Absent → false.</summary>
+    public bool ResumeOnServiceStart { get; set; }
   }
 }

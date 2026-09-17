@@ -179,6 +179,7 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<ISequenceRepository>(_ => new FileSequenceRepository(storageRoot));
     builder.Services.AddSingleton<GameBot.Domain.Queues.IQueueRepository>(_ => new GameBot.Domain.Queues.FileQueueRepository(storageRoot));
     builder.Services.AddSingleton<GameBot.Domain.Queues.IQueueRuntimeStore, GameBot.Domain.Queues.QueueRuntimeStore>();
+    builder.Services.AddSingleton<GameBot.Domain.Queues.IQueueRunStateStore>(_ => new GameBot.Domain.Queues.FileQueueRunStateStore(storageRoot));
     builder.Services.AddSingleton<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>(_ => new GameBot.Domain.QueueTemplates.FileQueueTemplateRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
@@ -426,6 +427,8 @@ internal static class GameBotServiceSetup {
     builder.Services.AddHostedService<GameBot.Service.Hosted.ExecutionLogRetentionCleanupService>();
     // Brings a queue back when its emulator dies mid-run; nothing else notices that case.
     builder.Services.AddHostedService<GameBot.Service.Hosted.QueueDeviceWatchdogService>();
+    // Starts opted-in queues that were Running when the service last stopped (feature 098).
+    builder.Services.AddHostedService<GameBot.Service.Hosted.QueueResumeOnStartupService>();
   }
 
   // In CI/tests (or when explicitly requested), avoid fixed ports to prevent socket bind conflicts
