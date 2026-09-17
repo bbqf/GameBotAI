@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Alternate reference images (097-multi-reference-image-target, #192)
+  - A stored reference image can now carry up to 8 alternates: other stored images that also count as a match for it, such as night-lit crops of the same daylight art. Manage them with GET/PUT /api/images/{id}/alternates. PUT replaces the whole list and [] clears it. GET /api/images/{id}/metadata lists them too.
+  - Every detection that names the image also scores its alternates, with the same threshold and without any change to the sequence. That covers sequence image conditions, wait-for-image steps, image-anchored taps, image-match triggers, the readiness gate and POST /api/images/detect. One image can therefore cover both day and night renderings, replacing hand-OR'd Break steps.
+  - POST /api/images/detect matches gain an additive matchedReferenceId; 	emplateId keeps the requested id. With several references, matches are merged by score, with ties going to the image itself and then to alternates in order, and de-duplicated by overlap. Runtime detections log the alternate that matched.
+  - Deleting an alternate never breaks detection: it is skipped with a warning and reported as exists: false. Deleting an image removes its own alternates list. Backups include alternate images and their lists, and restore re-applies them.
+  - Unchanged: images without alternates (same scores, never routed through the new matcher), POST /api/images/detect-all, and thresholds.
+  - Perf note: an image without alternates costs one extra sidecar-file existence check per detection. With N alternates, detection takes about N+1 single matches: measured 43.8 ms for one reference and 173.2 ms for four on a 1280×720 frame.
 - "Before Each Run" queue schedule type (095-before-each-run-schedule, #202)
   - New queue-template schedule type `BeforeEachRun`, shown as "Before Each Run". Its entries run immediately before every timed, live-scheduled or self-rescheduled firing: time-of-day timers and their daily retries, relative timers, live schedules, and self-reschedule Timer / At Queue Start / Once Per Run firings. Each task that wakes a queue therefore starts from a known state, even if something changed during an idle pause.
   - Several firings due at one wake-up share a single pass, which runs before the first of them. Entries run in template order. Once-per-run steps, at-queue-start entries and after-every-step executions never trigger the pass.

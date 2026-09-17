@@ -13,13 +13,16 @@ internal sealed class GameReadinessProbe : IGameReadinessProbe {
   private readonly IReferenceImageStore _images;
   private readonly ITemplateMatcher _matcher;
   private readonly AppConfig _appConfig;
+  // Feature 097: alternates of the readiness image also satisfy the gate. Null when not wired.
+  private readonly GameBot.Domain.Images.IImageAlternatesRepository? _alternates;
 
-  public GameReadinessProbe(IScreenSource screen, IReferenceImageStore images, ITemplateMatcher matcher, AppConfig appConfig, IScreenSourceFactory? screenFactory = null) {
+  public GameReadinessProbe(IScreenSource screen, IReferenceImageStore images, ITemplateMatcher matcher, AppConfig appConfig, IScreenSourceFactory? screenFactory = null, GameBot.Domain.Images.IImageAlternatesRepository? alternates = null) {
     _screen = screen;
     _images = images;
     _matcher = matcher;
     _appConfig = appConfig;
     _screenFactory = screenFactory;
+    _alternates = alternates;
   }
 
   public async Task<GameReadinessResult> WaitUntilReadyAsync(DetectionTarget readinessImage, int timeoutMs, string? sessionId = null, CancellationToken ct = default) {
@@ -31,7 +34,7 @@ internal sealed class GameReadinessProbe : IGameReadinessProbe {
       return new GameReadinessResult(false, "unavailable");
     }
 
-    if (!_images.TryGet(readinessImage.ReferenceImageId, out var templateBmp) || templateBmp is null) {
+    if (!GameBot.Domain.Images.ReferenceImageSetLoader.TryLoad(_images, _alternates, readinessImage.ReferenceImageId, out var templateBmp) || templateBmp is null) {
       return new GameReadinessResult(false, "missing");
     }
 

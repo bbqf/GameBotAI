@@ -174,10 +174,10 @@ internal static class ImageReferencesEndpoints {
     return Results.Stream(stream, contentType: meta.ContentType, lastModified: meta.UpdatedAtUtc, enableRangeProcessing: true);
   }
 
-  private static async Task<IResult> GetImageMetadataAsync(string id, IImageRepository repo) {
+  private static async Task<IResult> GetImageMetadataAsync(string id, IImageRepository repo, IImageAlternatesRepository alternates) {
     var meta = await repo.GetAsync(id).ConfigureAwait(false);
     if (meta is null) return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
-    return Results.Ok(new { id = meta.Id, contentType = meta.ContentType, sizeBytes = meta.SizeBytes, filename = meta.Filename, createdAtUtc = meta.CreatedAtUtc, updatedAtUtc = meta.UpdatedAtUtc });
+    return Results.Ok(new { id = meta.Id, contentType = meta.ContentType, sizeBytes = meta.SizeBytes, filename = meta.Filename, createdAtUtc = meta.CreatedAtUtc, updatedAtUtc = meta.UpdatedAtUtc, alternates = alternates.GetAlternates(id) });
   }
 
   private static async Task<IResult> OverwriteImageAsync(string id, HttpRequest http, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
@@ -261,7 +261,7 @@ internal static class ImageReferencesEndpoints {
     }
   }
 
-  private static async Task<IResult> DeleteImageAsync(string id, IImageRepository repo, IImageReferenceRepository refs, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
+  private static async Task<IResult> DeleteImageAsync(string id, IImageRepository repo, IImageReferenceRepository refs, IImageAlternatesRepository alternates, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
     ArgumentNullException.ThrowIfNull(id);
     var safeId = SanitizeForLog(id);
     if (!ReferenceImageIdValidator.IsValid(id)) {
@@ -285,6 +285,9 @@ internal static class ImageReferencesEndpoints {
       return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
     }
 
+    // The image's own alternates list goes with it (feature 097); lists naming it as an alternate are
+    // kept and report it as missing, so deleting one crop never breaks another image's detection.
+    alternates.DeleteAlternates(id);
     logger.LogImageDeleted(safeId);
     ImageReferencesMetrics.RecordDeleteSuccess();
     return Results.NoContent();

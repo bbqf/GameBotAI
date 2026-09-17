@@ -131,6 +131,7 @@ Status vocabulary:
 | 094 | Distinct Reporting of Sequence Time-Limit Cancellation | Implemented |
 | 095 | Before-Each-Run Schedule Type | Implemented |
 | 096 | Report Idle Pause in Queue Health | Implemented |
+| 097 | Alternate Reference Images for One Detection Target | Implemented |
 
 ## Numbering notes
 

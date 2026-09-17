@@ -167,10 +167,13 @@ namespace GameBot.Service.Endpoints {
       var safeId = SanitizeForLog(id);
       ImageDetectionsEndpointComponent.LogDetectStart(logger, safeId, threshold, maxResults, overlap);
 
-      if (!store.TryGet(id, out var tplBmp) || tplBmp is null) {
+      // Feature 097: the named image plus its stored alternates, which all count as a match for it.
+      var alternatesRepo = sp.GetService<IImageAlternatesRepository>();
+      if (!ReferenceImageSetLoader.TryLoad(store, alternatesRepo, id, out var referenceSet) || referenceSet is null) {
         ImageDetectionsEndpointComponent.LogDetectNotFound(logger, safeId);
         return Results.NotFound(new { code = "not_found", message = "reference image not found" });
       }
+      var tplBmp = referenceSet.Primary;
 
       // Feature 085 (issue #176): decide which screen this request means *before* loading the
       // template, so a refusal costs nothing and leaks nothing. Previously an unresolvable screen
@@ -196,11 +199,9 @@ namespace GameBot.Service.Endpoints {
 
       // Convert stored image bytes to Mat. The decode preserves a transparency channel, so a
       // masked reference image is compared on its retained pixels only (feature 089).
-      Mat templateMat;
-      using (var msTpl = new System.IO.MemoryStream()) {
-        tplBmp.Save(msTpl, System.Drawing.Imaging.ImageFormat.Png);
-        templateMat = GameBot.Domain.Vision.TemplateImageDecoder.Decode(msTpl.ToArray());
-      }
+      var templateMat = ToTemplateMat(tplBmp);
+      referenceSet.LogMissingAlternates(logger);
+      using var matcherLease = referenceSet.CreateMatcher(matcher, ToTemplateMat, logger);
 
       var cfg = new TemplateMatcherConfig(threshold, maxResults, overlap);
       var start = System.Diagnostics.Stopwatch.StartNew();
@@ -209,7 +210,7 @@ namespace GameBot.Service.Endpoints {
       try {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1, detOpts.Value.TimeoutMs)));
-        result = await matcher.MatchAllAsync(screenshotMat, templateMat, cfg, timeoutCts.Token).ConfigureAwait(false);
+        result = await matcherLease.Matcher.MatchAllAsync(screenshotMat, templateMat, cfg, timeoutCts.Token).ConfigureAwait(false);
       }
       catch (OperationCanceledException) {
         start.Stop();
@@ -240,6 +241,7 @@ namespace GameBot.Service.Endpoints {
             out var nx, out var ny, out var nw, out var nh);
         resp.Matches.Add(new MatchResult {
           TemplateId = id,
+          MatchedReferenceId = m.ReferenceId ?? id,
           Score = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
           Confidence = GameBot.Domain.Vision.Normalization.ClampConfidence(m.Confidence),
           X = nx,
@@ -252,6 +254,17 @@ namespace GameBot.Service.Endpoints {
       }
 
       return Results.Ok(resp);
+    }
+
+    /// <summary>
+    /// Decodes a stored reference image for matching. The decode preserves a transparency channel, so
+    /// a masked reference image is compared on its retained pixels only (feature 089); alternates go
+    /// through the same decode as the primary (feature 097).
+    /// </summary>
+    private static Mat ToTemplateMat(System.Drawing.Bitmap bitmap) {
+      using var ms = new System.IO.MemoryStream();
+      bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+      return GameBot.Domain.Vision.TemplateImageDecoder.Decode(ms.ToArray());
     }
 
     private static async Task<IResult> DetectAllAsync(

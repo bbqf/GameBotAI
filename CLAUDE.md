@@ -7,5 +7,5 @@ When editing UTF-8 files in this repo, prefer the Edit/Write tools over `Get-Con
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/096-idle-pause-health-paused/plan.md
+at specs/097-multi-reference-image-target/plan.md
 <!-- SPECKIT END -->
