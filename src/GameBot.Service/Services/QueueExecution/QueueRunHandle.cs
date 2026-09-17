@@ -334,6 +334,18 @@ internal sealed class QueueRunHandle {
   public bool HasPendingTimerFirings {
     get { lock (_timerLock) { return _pendingTimerFirings.Count > 0; } }
   }
+
+  /// <summary>
+  /// True while this run holds booked work that only the scheduling loop drains: a self-reschedule
+  /// Timer, next-cycle-start or once-per-run firing, or a live schedule (feature 092, #198). Lets a
+  /// template with only AtQueueStart entries enter the loop when its start pass booked something.
+  /// EveryStep injections are excluded — the every-step pass after each firing already runs them.
+  /// </summary>
+  public bool HasPendingSelfRescheduleWork =>
+    HasPendingTimerFirings
+    || !PendingNextCycleStart.IsEmpty
+    || !PendingOncePerRun.IsEmpty
+    || !PendingLiveSchedules.IsEmpty;
 }
 
 /// <summary>

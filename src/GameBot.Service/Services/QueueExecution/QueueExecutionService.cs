@@ -383,7 +383,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               return handle.HasPendingTimerFirings;
             }
 
-            if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0) {
+            // The loop also runs when the at-queue-start pass booked work only the loop drains
+            // (self-reschedule / live schedules): otherwise an AtQueueStart-only template would take the
+            // empty-template branch and silently drop those bookings (feature 092, #198).
+            if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0
+                || handle.HasPendingSelfRescheduleWork) {
               do {
                 ct.ThrowIfCancellationRequested();
                 // Failure-policy pause gate (feature 087): hold here while the run is parked. This
