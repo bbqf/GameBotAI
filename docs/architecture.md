@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 097 alternate reference images)._
+_Last reviewed: 2026-09-17 (feature 098 resume queues after a service restart)._
 
 ## What GameBot is
 
@@ -286,6 +286,23 @@ not survive a service restart; queue *configuration* and templates are persisted
   `pauseReason: "idle pause: resumes at HH:mm"`, `pauseKind: "idle"`. Both pause kinds go through one
   `QueueRunHandle.SnapshotPause()`, which reports the failure-policy pause when both are in force.
   Disabled queues are byte-for-byte unchanged.
+- **Resume after a service restart** (feature 098, #203) — an opt-in per-queue flag,
+  `ExecutionQueue.ResumeOnServiceStart` (default `false`; absent in older JSON ⇒ off; on queue
+  create/update/response, copied by duplicate, a checkbox in the web-ui queue form). Queue run state
+  is otherwise in-memory, so before this a restart, upgrade or host reboot left every queue `Stopped`.
+  `IQueueRunStateStore` (`FileQueueRunStateStore`, `<data>/queue-run-state.json`,
+  `{ "runningQueueIds": [...] }`) is the one durable piece of run state: `QueueExecutionService.StartAsync`
+  records the id after the device claim and before the run launches (so a crash still leaves it
+  recorded), and the run's `finally` removes it **unless the host's `ApplicationStopping` token is
+  cancelled** — an operator stop, completion, run-level failure and failure-policy stop all forget it,
+  a service shutdown does not. `QueueResumeOnStartupService` (hosted) waits for `ApplicationStarted`,
+  reads the record once, and for each id starts the queue through the normal `StartAsync` when it
+  exists and opts in, otherwise drops the record; one attempt per queue per service start, no retry,
+  each outcome logged (event ids 7300–7304). The resumed run is an ordinary fresh start from the linked
+  template — self-reschedules, live schedules and daily-retry state of the previous run are not
+  restored. Store writes are serialized and atomic (temp file + replace); a corrupt record makes the
+  resume pass log and resume nothing, while the next start/stop overwrites it. A store failure never
+  fails a start or a run teardown (logged, event ids 1128/1129).
 - **Pre-session emulator cold-start** (feature 074) — an opt-in per-queue behavior
   (`ExecutionQueue.EmulatorInstanceName` / `EmulatorInstanceIndex`, both optional/null by default;
   exposed via the REST API and web-ui). When set, the queue run brings the target **LDPlayer**
@@ -665,6 +682,12 @@ Feature 087 added, additively (see "Queue failure policy and outbound notificati
   (`schemaVersion: 1`). Documented in
   `specs/087-queue-failure-policy/contracts/notification-payload.md` — a receiver is written against
   it, so it is a published contract, not an internal shape.
+
+Feature 098 added, additively (see "Resume after a service restart" above):
+
+- `resumeOnServiceStart` (bool) on queue create/update/list/detail responses, carried by
+  `POST /api/queues/{id}/duplicate`. Absent ⇒ `false`.
+- A new persisted file, `<data>/queue-run-state.json`, recording the ids of queues with a live run.
 
 ## Legacy / removed (don't be misled by old specs)
 

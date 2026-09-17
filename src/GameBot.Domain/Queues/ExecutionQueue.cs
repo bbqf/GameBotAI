@@ -82,6 +82,15 @@ namespace GameBot.Domain.Queues {
     /// </summary>
     public QueueFailurePolicy? FailurePolicy { get; set; }
 
+    /// <summary>
+    /// When true, a queue that was Running when the service stopped (restart, upgrade, host reboot or
+    /// crash) is started again automatically once the service is back up (feature 098, #203). The
+    /// resumed run is an ordinary fresh start from the linked template; runtime-only bookings of the
+    /// previous run are not restored. Opt-in; <c>false</c> (also what JSON stored before this field
+    /// existed deserializes to) keeps a queue Stopped after a restart, as before.
+    /// </summary>
+    public bool ResumeOnServiceStart { get; set; }
+
     public DateTimeOffset? CreatedAt { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }

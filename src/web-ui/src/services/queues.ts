@@ -15,6 +15,8 @@ export type QueueDto = {
   emulatorInstanceName?: string | null;
   /** Optional LDPlayer instance index for the pre-session cold-start (feature 074); null when unset. */
   emulatorInstanceIndex?: number | null;
+  /** When true, the queue is started again after a service restart if it was running (feature 098). */
+  resumeOnServiceStart?: boolean;
   status: QueueStatus;
   entryCount: number;
   linkedTemplateId: string | null;
@@ -43,6 +45,7 @@ export type QueueCreate = {
   idleThresholdSeconds?: number;
   emulatorInstanceName?: string | null;
   emulatorInstanceIndex?: number | null;
+  resumeOnServiceStart?: boolean;
 };
 
 export type QueueUpdate = {
@@ -52,6 +55,7 @@ export type QueueUpdate = {
   idleThresholdSeconds?: number;
   emulatorInstanceName?: string | null;
   emulatorInstanceIndex?: number | null;
+  resumeOnServiceStart?: boolean;
 };
 
 const base = '/api/queues';

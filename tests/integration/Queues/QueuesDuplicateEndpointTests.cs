@@ -112,6 +112,22 @@ public sealed class QueuesDuplicateEndpointTests {
     dup.GetProperty("entryCount").GetInt32().Should().Be(1);
   }
 
+  [Fact] // feature 098: the resume-after-restart opt-in is part of the 1:1 configuration copy
+  public async Task DuplicateCopiesResumeOnServiceStart() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var create = await client.PostAsJsonAsync(new Uri("/api/queues", UriKind.Relative),
+      new { name = "Resumable", emulatorSerial = "emu-1", resumeOnServiceStart = true }).ConfigureAwait(true);
+    create.StatusCode.Should().Be(HttpStatusCode.Created);
+    var sourceId = JsonDocument.Parse(await create.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("id").GetString()!;
+
+    var resp = await DuplicateAsync(client, sourceId, "Resumable 2").ConfigureAwait(true);
+
+    resp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var dup = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    dup.GetProperty("resumeOnServiceStart").GetBoolean().Should().BeTrue();
+  }
+
   [Fact]
   public async Task DuplicateOfQueueWithNoTemplateOrGameCopiesTheAbsence() {
     using var app = new WebApplicationFactory<Program>();

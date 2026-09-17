@@ -2,7 +2,7 @@
 
 **Feature Branch**: `098-resume-queues-on-restart`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #203 (https://github.com/bbqf/GameBotAI/issues/203) — "FR-007: restart queues that were Running when the service stopped". Closes #203
 
 ## Context

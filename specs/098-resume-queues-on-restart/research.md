@@ -15,6 +15,7 @@
 ## R3. When to resume
 
 - **Decision**: A `BackgroundService` whose `ExecuteAsync` awaits `IHostApplicationLifetime.ApplicationStarted`, then runs one pass; dependencies are resolved from `IServiceProvider` at that point.
+- **Implementation note**: `IQueueExecutionService` is resolved only when a queue is actually about to be started (`ResumeAsync` takes a factory). Resolving it unconditionally at startup built the device/screen-capture graph eagerly, which broke `ImageDetectionsStressTests.TimeoutReturnsOkWithLimitsHit` (the stub screen source captured its env var before the test set it) — found by the full integration run.
 - **Rationale**: FR-011 — resume only once the host has fully started (Kestrel listening, other hosted initializers done), the same state a manual API start runs in. Lazy resolution mirrors `QueueDeviceWatchdogService`, which avoids building the whole queue-execution graph during host construction.
 - **Alternatives considered**: `IHostedService.StartAsync` (runs before the server is listening and before later hosted services start); an `app.Lifetime.ApplicationStarted.Register` callback in `Program.cs` (constitution/memory: keep `Program.cs` thin; not unit-testable).
 

@@ -37,5 +37,8 @@ namespace GameBot.Service.Contracts.Queues {
     /// <see cref="QueueDetailResponse"/>, so it appears on both the list and the detail response.
     /// </summary>
     public QueueFailurePolicyDto? FailurePolicy { get; set; }
+
+    /// <summary>Whether the queue is started again after a service restart if it was running (feature 098).</summary>
+    public bool ResumeOnServiceStart { get; set; }
   }
 }

@@ -84,6 +84,13 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// </summary>
   private readonly QueueFailurePolicyEvaluator? _failurePolicy;
 
+  /// <summary>
+  /// Durable record of live runs, read at the next service start to resume opted-in queues (feature
+  /// 098, #203). Optional for the same reason as <see cref="_failurePolicy"/>: null simply records
+  /// nothing, which is how the service behaved before the feature existed.
+  /// </summary>
+  private readonly IQueueRunStateStore? _runState;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -120,7 +127,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IGameForegroundGuard? foregroundGuard = null,
     GameBot.Domain.Commands.ISequenceRepository? sequences = null,
     GameBot.Domain.Config.AppConfig? config = null,
-    QueueFailurePolicyEvaluator? failurePolicy = null) {
+    QueueFailurePolicyEvaluator? failurePolicy = null,
+    IQueueRunStateStore? runState = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -139,6 +147,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _sequences = sequences;
     _config = config ?? new GameBot.Domain.Config.AppConfig();
     _failurePolicy = failurePolicy;
+    _runState = runState;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -222,8 +231,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       _runtime.SetEntries(queueId, template.Entries.Select(e => e.SequenceId));
     }
 
+    // Recorded before the run launches, not at shutdown, so a crash or host reboot still leaves the
+    // queue recorded as Running for the next service start to resume (feature 098).
+    await RecordRunningAsync(queueId).ConfigureAwait(false);
+
     _runtime.SetStatus(queueId, QueueExecutionStatus.Running);
-    handle.RunTask = Task.Run(() => RunAsync(queue, template, handle, cts.Token), CancellationToken.None);
+    handle.RunTask =Task.Run(() => RunAsync(queue, template, handle, cts.Token), CancellationToken.None);
     return QueueStartOutcome.Started;
   }
 
@@ -673,6 +686,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       catch (Exception ex) { QueueExecutionLog.FinalizeFailed(_logger, queue.Id, ex); }
 
       _runtime.SetStatus(queue.Id, QueueExecutionStatus.Stopped);
+      await ForgetRunningUnlessShuttingDownAsync(queue.Id).ConfigureAwait(false);
       _registry.Remove(queue.Id, out _);
       // Feature 079 (FR-011): the device becomes claimable again however this run ended — completed,
       // stopped, failed, cancelled, or torn down by host shutdown.
@@ -682,9 +696,37 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   }
 
   /// <summary>
-  /// Runs one sequence as a child of the queue run. Per-sequence failures are non-fatal (FR-008):
-  /// returns false on a failed/unresolved sequence so the run can continue.
+  /// Records the queue as Running for the resume pass of the next service start (feature 098). A store
+  /// failure is logged and swallowed: resume is a convenience on top of the start, never a reason for
+  /// the start itself to fail.
   /// </summary>
+  private async Task RecordRunningAsync(string queueId) {
+    if (_runState is null) return;
+    try {
+      await _runState.MarkRunningAsync(queueId).ConfigureAwait(false);
+    }
+    catch (Exception ex) {
+      QueueExecutionLog.RunStateRecordFailed(_logger, queueId, ex);
+    }
+  }
+
+  /// <summary>
+  /// Forgets the queue's Running record when its run ends (feature 098) — unless the host is shutting
+  /// down, which is the one ending a restart should undo. An operator stop, a completed run, a run-level
+  /// failure and a failure-policy stop all end while the host keeps running, so none of them is resumed.
+  /// Host shutdown cancels the run through the same linked token, which is why the host's own stopping
+  /// token, not the stop reason, makes the call. Never throws, like the rest of the run's teardown.
+  /// </summary>
+  private async Task ForgetRunningUnlessShuttingDownAsync(string queueId) {
+    if (_runState is null || _appStopping.IsCancellationRequested) return;
+    try {
+      await _runState.ClearAsync(queueId).ConfigureAwait(false);
+    }
+    catch (Exception ex) {
+      QueueExecutionLog.RunStateClearFailed(_logger, queueId, ex);
+    }
+  }
+
   /// <summary>
   /// Feature 074: pre-session emulator cold-start. Returns <c>null</c> when no emulator work is needed
   /// (no instance identifier configured, or no handler injected) or when the instance ends up healthy
@@ -757,6 +799,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     }
   }
 
+  /// <summary>
+  /// Runs one sequence as a child of the queue run. Per-sequence failures are non-fatal (FR-008):
+  /// returns false on a failed/unresolved sequence so the run can continue.
+  /// </summary>
   private async Task<bool> RunOneSequenceAsync(string sequenceId, string rootId, int index, string sessionId, string queueId, ParameterScope scope, CancellationToken ct, string? selfRescheduleOriginActionId = null) {
     // Watchdog: cancel a firing that overruns its bound so one stuck sequence cannot freeze the whole
     // queue. Linked to ct so a real stop request still cancels immediately.
@@ -1011,4 +1057,10 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1127, Level = LogLevel.Warning, Message = "Queue {QueueId} could not rotate its execution log; the run continues in the current segment and retries at the next firing")]
   public static partial void ExecutionLogRotationFailed(ILogger logger, string QueueId, Exception ex);
+
+  [LoggerMessage(EventId = 1128, Level = LogLevel.Warning, Message = "Queue {QueueId} started, but could not be recorded as running; it will not be resumed if the service restarts during this run")]
+  public static partial void RunStateRecordFailed(ILogger logger, string QueueId, Exception ex);
+
+  [LoggerMessage(EventId = 1129, Level = LogLevel.Warning, Message = "Queue {QueueId} run ended, but its running record could not be cleared; the next service start may resume it")]
+  public static partial void RunStateClearFailed(ILogger logger, string QueueId, Exception ex);
 }

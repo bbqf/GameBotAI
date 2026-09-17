@@ -36,7 +36,8 @@ internal static class QueuesEndpoints {
         IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds),
         EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName),
         EmulatorInstanceIndex = req.EmulatorInstanceIndex,
-        FailurePolicy = createPolicy
+        FailurePolicy = createPolicy,
+        ResumeOnServiceStart = req.ResumeOnServiceStart
       }).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("CreateQueue");
@@ -100,6 +101,7 @@ internal static class QueuesEndpoints {
       queue.IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds);
       queue.EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName);
       queue.EmulatorInstanceIndex = req.EmulatorInstanceIndex;
+      queue.ResumeOnServiceStart = req.ResumeOnServiceStart;
       var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
       return Results.Ok(BuildResponse(saved, runtime));
     }).WithName("UpdateQueue");
@@ -134,7 +136,8 @@ internal static class QueuesEndpoints {
         // Part of the "1:1 copy of configuration" contract (feature 083): a duplicated roster that
         // silently lost its escalation policy would be exactly the silent-failure case this
         // feature exists to prevent. Copied by value so the two queues stay independent.
-        FailurePolicy = QueueFailurePolicyMapping.Clone(source.FailurePolicy)
+        FailurePolicy = QueueFailurePolicyMapping.Clone(source.FailurePolicy),
+        ResumeOnServiceStart = source.ResumeOnServiceStart
       }).ConfigureAwait(false);
 
       var sourceEntries = runtime.GetEntries(id).Select(e => e.SequenceId);
@@ -420,7 +423,8 @@ internal static class QueuesEndpoints {
     EntryCount = runtime.GetEntries(queue.Id).Count,
     LinkedTemplateId = queue.LinkedTemplateId,
     LinkedGameId = queue.LinkedGameId,
-    FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy)
+    FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy),
+    ResumeOnServiceStart = queue.ResumeOnServiceStart
   };
 
   private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry? runs = null) {
@@ -442,7 +446,8 @@ internal static class QueuesEndpoints {
       LinkedTemplateName = await ResolveTemplateNameAsync(queue.LinkedTemplateId, templates).ConfigureAwait(false),
       LinkedGameId = queue.LinkedGameId,
       LinkedGameName = await ResolveGameNameAsync(queue.LinkedGameId, games).ConfigureAwait(false),
-      FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy)
+      FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy),
+      ResumeOnServiceStart = queue.ResumeOnServiceStart
     };
     foreach (var entry in entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);

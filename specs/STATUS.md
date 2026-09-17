@@ -132,6 +132,7 @@ Status vocabulary:
 | 095 | Before-Each-Run Schedule Type | Implemented |
 | 096 | Report Idle Pause in Queue Health | Implemented |
 | 097 | Alternate Reference Images for One Detection Target | Implemented |
+| 098 | Resume Queues After a Service Restart | Implemented |
 
 ## Numbering notes
 
