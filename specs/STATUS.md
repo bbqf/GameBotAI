@@ -134,6 +134,7 @@ Status vocabulary:
 | 097 | Alternate Reference Images for One Detection Target | Implemented |
 | 098 | Resume Queues After a Service Restart | Implemented |
 | 099 | Publish Sequence Step Nesting Rules | Implemented |
+| 100 | Make a Queue's Live Roster Discoverable | Implemented |
 
 ## Numbering notes
 

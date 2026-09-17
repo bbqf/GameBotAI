@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 099 sequence step nesting rules in OpenAPI)._
+_Last reviewed: 2026-09-17 (feature 100 queue roster documented in OpenAPI)._
 
 ## What GameBot is
 
@@ -148,6 +148,12 @@ not survive a service restart; queue *configuration* and templates are persisted
 - **Queue Template** — a named, persisted snapshot of a queue's ordered entries and their
   **schedules**. A queue links to 0..1 templates (auto-loaded when the queue opens); a template can
   be shared across queues.
+- **Queue roster** — a queue's own ordered entries, read from `GET /api/queues/{id}` `entries`
+  (always an array). It comes from the runtime store, so it can differ from the linked template's
+  entries (a running queue keeps the entries it started with). There is no
+  `GET /api/queues/{id}/entries`; the entries path only has POST/PUT/DELETE writes. The OpenAPI
+  document describes `entries` and each entry's fields via `QueueRosterSchemaFilter`, and the write
+  operations point at the read path (feature 100, issue #179).
 - **Queue duplication** (feature 083, amended 2026-09-12) — `POST /api/queues/{id}/duplicate`
   creates a near-1:1 copy of an existing queue: every configuration field (cycle-execution,
   idle-pause, linked template reference, linked game reference) plus the source's *currently
