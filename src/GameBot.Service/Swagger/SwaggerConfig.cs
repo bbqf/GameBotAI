@@ -466,6 +466,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Post) && path.Contains("/entries", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Append a sequence entry to a queue";
+      operation.Description ??= QueueRosterReadPointer;
       SetRequestExample(operation, QueueEntryAddRequest(), context, typeof(GameBot.Service.Contracts.Queues.AddQueueEntryRequest));
       SetResponseExample(operation, "201", QueueEntryExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueEntryResponse));
     }
@@ -497,6 +498,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Put) && path.Contains("/entries", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Replace a queue's entries (used to load a template)";
+      operation.Description ??= QueueRosterReadPointer;
       SetRequestExample(operation, QueueEntriesReplaceRequest(), context, typeof(GameBot.Service.Contracts.Queues.ReplaceQueueEntriesRequest));
       SetResponseExample(operation, "200", QueueDetailExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueDetailResponse));
     }
@@ -505,10 +507,12 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, QueueUpdateRequest(), context, typeof(GameBot.Service.Contracts.Queues.UpdateQueueRequest));
       SetResponseExample(operation, "200", QueueResponseExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueResponse));
     }
-    else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Queues + "/", StringComparison.OrdinalIgnoreCase)) {
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Queues + "/{id}")) {
       operation.Summary ??= "Get a queue with its ordered sequence entries";
       operation.Description ??=
-        "Carries a 'health' block describing the current run (cycles completed, last cycle's instants "
+        "'entries' is the queue's current roster in run order (its own entries, not its linked template's); "
+        + "this is how a queue's roster is read. "
+        + "Carries a 'health' block describing the current run (cycles completed, last cycle's instants "
         + "and status, consecutive failed cycles, current entry) when the queue is running; 'health' "
         + "is null when it is not, never a zeroed block. 'health.paused' is true during either kind of "
         + "pause, an idle pause between firings or a failure-policy pause, and 'health.pauseKind' "
@@ -516,6 +520,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetResponseExample(operation, "200", QueueDetailExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueDetailResponse));
     }
   }
+
+  // Feature 100 (issue #179): the entries path has no GET, so its write operations point at the read path.
+  private const string QueueRosterReadPointer =
+    "To read a queue's roster, use GET /api/queues/{id} and its 'entries' field; there is no "
+    + "GET /api/queues/{id}/entries.";
 
   private static OpenApiObject QueueCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Daily Farm"),

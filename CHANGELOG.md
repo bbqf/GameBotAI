@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Queue roster documented in the OpenAPI document (100-queue-roster-openapi-docs, #179)
+  - `QueueDetailResponse.entries` now says it is the queue's current roster in run order, always an array and never null, and the queue's own entries rather than its linked template's. It also says that `GET /api/queues/{id}` is how the roster is read (there is no `GET /api/queues/{id}/entries`). It is no longer published as nullable.
+  - The `QueueEntryResponse` fields are described: `entryId` for `DELETE /api/queues/{id}/entries/{entryId}`, and `sequenceName` null / `stale` true when the sequence no longer exists. The `POST`/`PUT /api/queues/{id}/entries` operations now point to the read path.
+  - `GET /api/queues/{id}/monitor` no longer carries the single-queue summary, description and example it wrongly shared before.
+  - Documentation only: routes, response bodies and status codes are unchanged.
 - Sequence step nesting rules in the OpenAPI document (099-sequence-nesting-rules-docs, #178)
   - The `SequenceStep` schema and its `body`/`elseBody` properties now state the nesting rules the service enforces: a Loop body may hold Action, If and Break steps but not another Loop, an If branch may hold only Action steps plus Break when the If sits in a Loop body (an If inside an If branch is rejected), and a top-level Break is rejected. These were previously learned only from a 400 on save.
   - Documentation only: validation, its error messages and execution are unchanged.

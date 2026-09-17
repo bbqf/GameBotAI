@@ -26,6 +26,12 @@ All Technical Context items were known; no NEEDS CLARIFICATION remained. The dec
 - **Rationale**: Queue operation summaries and examples already live there, set with `??=`; putting the text anywhere else would split one operation's docs across two places. `QueueHealthOpenApiTests.GetQueueOperationPointsAtPauseKind` already pins the health text on the same description and keeps guarding it.
 - **Alternatives considered**: `.WithDescription(...)` on the minimal-API route in `QueuesEndpoints.cs` — mixes documentation into endpoint wiring and bypasses the `??=` convention used for every other queue operation.
 
+## R7 — The `GET /api/queues/{id}` branch also matched `/monitor` (found during implementation)
+
+- **Decision**: Narrow the `GET /api/queues/{id}` branch in `ApplyQueueExamples` to the exact path (`IsPath(path, ApiRoutes.Queues + "/{id}")`).
+- **Rationale**: The branch used `path.StartsWith(ApiRoutes.Queues + "/")`, so `GET /api/queues/{id}/monitor` (which has no branch of its own) was published with the single-queue summary, health description, `QueueDetailResponse` schema and example. Adding the roster sentence there would have told readers the monitor is "the way to read the roster" (violating FR-009). With the exact match, the monitor operation publishes no summary/description/example instead of wrong ones; its runtime response is unchanged. No test pinned the monitor's documentation.
+- **Alternatives considered**: Documenting the monitor operation properly (its own summary, schema, example) — correct but beyond issue #179; left as a follow-up.
+
 ## R5 — `required` on `entries`
 
 - **Decision**: Do not add a `required` list (clarification Q2).

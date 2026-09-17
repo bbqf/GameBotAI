@@ -2,7 +2,7 @@
 
 **Feature Branch**: `100-queue-roster-openapi-docs`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #179 (https://github.com/bbqf/GameBotAI/issues/179) — "B-002: QueueDetailResponse.entries is undocumented, and there is no GET /api/queues/{id}/entries". Closes #179.
 
 ## Background
