@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Detection coordinate units documented in the OpenAPI document (101-detect-coordinate-units-docs, #188)
+  - `POST /api/images/detect` match `x`/`y`/`width`/`height` and `bbox.*` are now described as fractions 0..1 of the capture frame's width/height (clamped, not pixels), and `bbox` as repeating the top-level box. `POST /api/images/detect-all` match `x`/`y`/`width`/`height` are described as pixels. Both operation descriptions state the difference and warn against comparing values from the two routes directly.
+  - `templateId` (detect) and `imageId` (detect-all) are described as the same reference image identifier. The detect example now shows the top-level coordinates it really returns.
+  - Documentation only: response values, field names and status codes are unchanged.
 - Queue roster documented in the OpenAPI document (100-queue-roster-openapi-docs, #179)
   - `QueueDetailResponse.entries` now says it is the queue's current roster in run order, always an array and never null, and the queue's own entries rather than its linked template's. It also says that `GET /api/queues/{id}` is how the roster is read (there is no `GET /api/queues/{id}/entries`). It is no longer published as nullable.
   - The `QueueEntryResponse` fields are described: `entryId` for `DELETE /api/queues/{id}/entries/{entryId}`, and `sequenceName` null / `stale` true when the sequence no longer exists. The `POST`/`PUT /api/queues/{id}/entries` operations now point to the read path.

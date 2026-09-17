@@ -2,7 +2,7 @@
 
 **Feature Branch**: `101-detect-coordinate-units-docs`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #188 — https://github.com/bbqf/GameBotAI/issues/188 — Closes #188. "B-012: detect returns normalised coordinates and detect-all returns pixels, under the same field names."
 
 ## Background

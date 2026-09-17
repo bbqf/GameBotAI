@@ -101,6 +101,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<ImageAlternatesSchemaFilter>();
       options.SchemaFilter<SequenceNestingRulesSchemaFilter>();
       options.SchemaFilter<QueueRosterSchemaFilter>();
+      options.SchemaFilter<ImageDetectCoordinatesSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());

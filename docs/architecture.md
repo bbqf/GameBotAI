@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 100 queue roster documented in OpenAPI)._
+_Last reviewed: 2026-09-17 (feature 101 detect coordinate units documented in OpenAPI)._
 
 ## What GameBot is
 
@@ -399,6 +399,13 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
   Both fields are additive; `retainedPixelCount` counts pixels **kept**, not pixels masked out.
   `POST /api/images/detect-all` honours masks too but keeps its response shape: a library-wide sweep
   has no single mask state.
+- **The two detection routes use different coordinate units under the same field names.**
+  `POST /api/images/detect` reports match `x`/`y`/`width`/`height` (repeated under `bbox`) as
+  fractions 0..1 of the capture frame's width/height, clamped; `POST /api/images/detect-all` reports
+  the same box in whole pixels. The reference image is `templateId` on detect and `imageId` on
+  detect-all. This is stated in the OpenAPI document (`ImageDetectCoordinatesSchemaFilter` plus both
+  operation descriptions) rather than changed, so existing callers that convert keep working
+  (feature 101, issue #188).
 - Matching itself is normalised cross-correlation (`TM_CCOEFF_NORMED`) on grayscale. A masked
   template is scored by the same measure restricted to its retained pixels, computed as three
   `TM_CCORR` correlations, so a masked score stays on the same 0..1 scale and an existing threshold
