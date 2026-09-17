@@ -519,6 +519,7 @@ internal static class QueuesEndpoints {
   private static QueueHealthResponse ProjectHealth(QueueRunHandle handle, ExecutionQueue? queue = null) {
     var health = handle.Cycles.SnapshotHealth();
     var notification = handle.LastNotification;
+    var pause = handle.SnapshotPause();
     return new QueueHealthResponse {
       RunStartedAt = handle.RunStartedAt,
       CyclesCompleted = health.CyclesCompleted,
@@ -528,13 +529,16 @@ internal static class QueuesEndpoints {
       ConsecutiveFailedCycles = health.ConsecutiveFailedCycles,
       CurrentEntryIndex = health.CurrentEntryIndex,
       CurrentSequenceId = handle.CurrentSequenceId,
-      // Feature 087. Note PolicyPausedAt, not IdlePausedUntil: the two pauses are different states
-      // and conflating them would report a routine idle gap as a failure-policy park.
       FailurePolicyConfigured = queue?.FailurePolicy is not null,
       FailurePolicyTripped = handle.PolicyTripped,
-      Paused = handle.IsPolicyPaused,
-      PausedAt = handle.PolicyPausedAt,
-      PauseReason = handle.PauseReason,
+      // Feature 096 (issue #199): `paused` covers BOTH the idle pause (073) and the failure-policy
+      // pause (087), read in one snapshot. Reporting only the policy pause made an idle-paused queue
+      // read as not paused while /monitor showed Idle Pause; `pauseKind` keeps a routine idle gap
+      // from being mistaken for a park that needs a resume.
+      Paused = pause.Paused,
+      PausedAt = pause.PausedAt,
+      PauseReason = pause.Reason,
+      PauseKind = pause.Kind,
       LastNotificationAt = notification.At,
       LastNotificationSucceeded = notification.Succeeded,
       LastNotificationError = notification.Error

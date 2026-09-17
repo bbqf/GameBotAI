@@ -32,6 +32,13 @@ All notable changes to this project will be documented in this file.
   - A break whose condition **cannot be evaluated** (a runtime error) is now treated exactly like a false condition — a non-influential "No break" — so execution continues and the run no longer fails. This reverses the previous behavior where a break-condition error aborted the run. The same guarantee applies to a loop-level `breakOn` condition on a while block, whose evaluation errors are now guarded.
   - A break that **fires** is reported as a success (fixing a latent miscolor where a fired break could fall through to the red "failure" styling). A non-firing break never marks the enclosing loop, sequence, or run as failed and is excluded from failure counts. No change to break authoring, break firing behavior, or the persisted log format — only the reported *outcome* of a break changes.
 
+### Fixed
+- Queue health now reports an Idle Pause (096-idle-pause-health-paused, #199)
+  - While a running queue was in an idle pause, `GET /api/queues/{id}` returned `health.paused: false` with a null `pausedAt` and `pauseReason`, even as `/monitor` reported `IdlePause` for the same queue. `health.paused` now covers both kinds of pause. During an idle pause, `pausedAt` is when the hold began, and `pauseReason` reads `idle pause: resumes at HH:mm`.
+  - Added `health.pauseKind` (`idle` | `failurePolicy` | null), so a routine idle pause can be told apart from a failure-policy park that needs `POST /api/queues/{id}/resume`. If both were in force at once, the failure-policy pause is reported. Failure-policy pause values are unchanged, and `/resume` still releases only a failure-policy pause.
+  - The OpenAPI document now describes `paused`, `pausedAt`, `pauseReason` and `pauseKind`.
+  - Perf note: a health read takes at most two extra uncontended locks. The idle-pause poll loop is unchanged.
+
 ## [0.7.0] - 2026-06-02
 
 ### Added

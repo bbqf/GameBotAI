@@ -508,7 +508,9 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       operation.Description ??=
         "Carries a 'health' block describing the current run (cycles completed, last cycle's instants "
         + "and status, consecutive failed cycles, current entry) when the queue is running; 'health' "
-        + "is null when it is not, never a zeroed block.";
+        + "is null when it is not, never a zeroed block. 'health.paused' is true during either kind of "
+        + "pause, an idle pause between firings or a failure-policy pause, and 'health.pauseKind' "
+        + "('idle' | 'failurePolicy') tells them apart.";
       SetResponseExample(operation, "200", QueueDetailExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueDetailResponse));
     }
   }

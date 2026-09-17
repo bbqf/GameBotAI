@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 095 Before Each Run schedule type)._
+_Last reviewed: 2026-09-17 (feature 096 idle pause reported in queue health)._
 
 ## What GameBot is
 
@@ -280,7 +280,11 @@ not survive a service restart; queue *configuration* and templates are persisted
   best-effort (a failure is non-fatal) and a stop takes effect within one poll interval. While paused,
   the `QueueRunHandle` carries an idle-pause register that the monitor projects as a synthetic current
   item (`ScheduleKind.IdlePause`, `SequenceName` "Idle Pause", with the resume time), so an idle queue
-  never reads as hung. Disabled queues are byte-for-byte unchanged.
+  never reads as hung. The same register, which also records when the hold began, feeds the queue
+  detail's `health` block (feature 096): `paused: true`, `pausedAt`,
+  `pauseReason: "idle pause: resumes at HH:mm"`, `pauseKind: "idle"`. Both pause kinds go through one
+  `QueueRunHandle.SnapshotPause()`, which reports the failure-policy pause when both are in force.
+  Disabled queues are byte-for-byte unchanged.
 - **Pre-session emulator cold-start** (feature 074) — an opt-in per-queue behavior
   (`ExecutionQueue.EmulatorInstanceName` / `EmulatorInstanceIndex`, both optional/null by default;
   exposed via the REST API and web-ui). When set, the queue run brings the target **LDPlayer**
@@ -630,7 +634,9 @@ Feature 087 added, additively (see "Queue failure policy and outbound notificati
   `Service:Notifications:DefaultUrl`.
 - Eight fields on the `health` block: `failurePolicyConfigured`, `failurePolicyTripped`, `paused`,
   `pausedAt`, `pauseReason`, `lastNotificationAt`, `lastNotificationSucceeded`,
-  `lastNotificationError`.
+  `lastNotificationError`. Feature 096 widened `paused`/`pausedAt`/`pauseReason` to cover the idle
+  pause too and added `pauseKind` (`idle` | `failurePolicy` | null); their meaning is published on the
+  `QueueHealthResponse` schema by `QueueHealthSchemaFilter`.
 - `POST /api/queues/{id}/resume` — releases a policy pause. 200 with `resumed: true|false` for every
   known queue (not 409 for "running but not paused"), 404 for an unknown one. Idempotent.
 - A `notify` action type on sequence steps (`{ message, url? }`), validated at save time.

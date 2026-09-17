@@ -369,6 +369,8 @@ public sealed class QueueFailurePolicyRunTests {
     paused!.Value.GetProperty("paused").GetBoolean().Should().BeTrue();
     paused.Value.GetProperty("pausedAt").ValueKind.Should().NotBe(JsonValueKind.Null);
     paused.Value.GetProperty("pauseReason").GetString().Should().Contain("failure policy");
+    paused.Value.GetProperty("pauseKind").GetString().Should().Be("failurePolicy",
+      "feature 096: a policy park is told apart from a routine idle pause");
 
     var status = (await GetJsonAsync(client, $"/api/queues/{id}").ConfigureAwait(true))
       .GetProperty("status").GetString();

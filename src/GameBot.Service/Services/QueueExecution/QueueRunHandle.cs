@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Commands.SelfReschedule;
@@ -263,6 +264,7 @@ internal sealed class QueueRunHandle {
   // monitor on a different thread than the run loop that writes it, so it is lock-guarded.
 
   private DateTimeOffset? _idlePausedUntil;
+  private DateTimeOffset? _idlePausedAt;
   private readonly object _idleLock = new();
 
   /// <summary>Resume instant while the run is idle-paused; <c>null</c> when not paused. Concurrency-safe.</summary>
@@ -270,19 +272,60 @@ internal sealed class QueueRunHandle {
     get { lock (_idleLock) { return _idlePausedUntil; } }
   }
 
+  /// <summary>
+  /// When the current, continuous idle pause began (local clock); <c>null</c> when not paused
+  /// (feature 096). Resume-time updates within the same hold do not move it.
+  /// </summary>
+  public DateTimeOffset? IdlePausedAt {
+    get { lock (_idleLock) { return _idlePausedAt; } }
+  }
+
   /// <summary>True while the run is in an idle pause (<see cref="IdlePausedUntil"/> is set).</summary>
   public bool IsIdlePaused {
     get { lock (_idleLock) { return _idlePausedUntil is not null; } }
   }
 
-  /// <summary>Marks the run as idle-paused until <paramref name="resumeAt"/> (set when the hold begins).</summary>
-  public void EnterIdlePause(DateTimeOffset resumeAt) {
-    lock (_idleLock) { _idlePausedUntil = resumeAt; }
+  /// <summary>
+  /// Marks the run as idle-paused until <paramref name="resumeAt"/>. Called when the hold begins and
+  /// again on each poll tick to move the resume time; <paramref name="at"/> is recorded as the pause's
+  /// start only on the first call of a hold.
+  /// </summary>
+  public void EnterIdlePause(DateTimeOffset resumeAt, DateTimeOffset at) {
+    lock (_idleLock) {
+      _idlePausedUntil = resumeAt;
+      _idlePausedAt ??= at;
+    }
   }
 
   /// <summary>Clears the idle-pause indicator (when the hold ends or is cancelled).</summary>
   public void ClearIdlePause() {
-    lock (_idleLock) { _idlePausedUntil = null; }
+    lock (_idleLock) {
+      _idlePausedUntil = null;
+      _idlePausedAt = null;
+    }
+  }
+
+  // ── Combined pause projection (feature 096, issue #199) ──────────────────────────────────────
+
+  /// <summary>
+  /// The pause the run is in right now, of either kind, for <c>health.paused</c>. The failure-policy
+  /// pause wins when both are in force, because it is the one that needs an operator's resume; the
+  /// idle pause is read from the same register the monitor projects as its "Idle Pause" item, so the
+  /// two views cannot disagree.
+  /// </summary>
+  public QueuePauseSnapshot SnapshotPause() {
+    lock (_policyLock) {
+      if (_policyPausedAt is not null) {
+        return new QueuePauseSnapshot(true, _policyPausedAt, _pauseReason, QueuePauseKinds.FailurePolicy);
+      }
+    }
+    lock (_idleLock) {
+      if (_idlePausedUntil is { } until) {
+        var reason = string.Format(CultureInfo.InvariantCulture, "idle pause: resumes at {0:HH:mm}", until);
+        return new QueuePauseSnapshot(true, _idlePausedAt, reason, QueuePauseKinds.Idle);
+      }
+    }
+    return default;
   }
 
   private readonly List<SelfRescheduleEntry> _pendingTimerFirings = new();

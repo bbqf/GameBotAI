@@ -97,6 +97,7 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSwaggerGen(options => {
       options.DocumentFilter<ConditionalFlowSchemaDocumentFilter>();
       options.SchemaFilter<SequenceTimeLimitSchemaFilter>();
+      options.SchemaFilter<QueueHealthSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());

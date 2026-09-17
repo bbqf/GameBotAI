@@ -2,7 +2,7 @@
 
 **Feature Branch**: `096-idle-pause-health-paused`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #199 (https://github.com/bbqf/GameBotAI/issues/199) — "B-015: health.paused stays false during an Idle Pause that /monitor reports". Closes #199.
 
 ## Background

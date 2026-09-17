@@ -450,7 +450,7 @@ public sealed class QueueMonitorServiceTests {
     h.Entry("A", "Alpha");
     var handle = h.StartHandle();
     var resumeAt = Now + TimeSpan.FromMinutes(20);
-    handle.EnterIdlePause(resumeAt);
+    handle.EnterIdlePause(resumeAt, Now);
 
     var snap = await h.Service.BuildAsync("q1");
 
@@ -473,7 +473,7 @@ public sealed class QueueMonitorServiceTests {
     h.Entry("A", "Alpha");
     var handle = h.StartHandle();
     handle.SetCurrentSequence("A", Now);
-    handle.EnterIdlePause(Now + TimeSpan.FromMinutes(20)); // ignored while a sequence is executing
+    handle.EnterIdlePause(Now + TimeSpan.FromMinutes(20), Now); // ignored while a sequence is executing
 
     var snap = await h.Service.BuildAsync("q1");
 
@@ -598,7 +598,7 @@ public sealed class QueueMonitorServiceTests {
     schedule.MarkOncePerRunPassDone();
     schedule.MarkRelativeFired(2);         // Tavern's +30s one-shot already fired
     var resumeAt = new DateTimeOffset(2026, 1, 1, 22, 30, 0, TimeSpan.Zero);
-    handle.EnterIdlePause(resumeAt);
+    handle.EnterIdlePause(resumeAt, Now);
 
     var snap = await h.Service.BuildAsync("q1");
 
