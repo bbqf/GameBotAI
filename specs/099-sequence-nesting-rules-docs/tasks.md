@@ -15,7 +15,7 @@ description: "Task list for publishing sequence step nesting rules in the OpenAP
 
 ## Phase 1: Setup
 
-- [ ] T001 Re-verify the nesting rules in src/GameBot.Domain/Services/SequenceStepValidationService.cs (`Validate`, `ValidateLoopStep`, `ValidateIfBranch`) and the stepType parsing in src/GameBot.Service/Endpoints/SequencesEndpoints.cs (`ParseStepType`) still match specs/099-sequence-nesting-rules-docs/data-model.md; correct data-model.md and contracts/openapi-sequence-step-descriptions.md if anything differs
+- [X] T001 Re-verify the nesting rules in src/GameBot.Domain/Services/SequenceStepValidationService.cs (`Validate`, `ValidateLoopStep`, `ValidateIfBranch`) and the stepType parsing in src/GameBot.Service/Endpoints/SequencesEndpoints.cs (`ParseStepType`) still match specs/099-sequence-nesting-rules-docs/data-model.md; correct data-model.md and contracts/openapi-sequence-step-descriptions.md if anything differs
 
 ## Phase 2: Foundational
 
@@ -31,13 +31,13 @@ No blocking prerequisites: the published step schema (`SequenceStepContract`, al
 
 ### Tests for User Story 1
 
-- [ ] T002 [US1] Create tests/contract/Sequences/SequenceNestingRulesOpenApiTests.cs (namespace `GameBot.ContractTests.Sequences`, same `WebApplicationFactory<Program>` harness and env vars as tests/contract/Sequences/SequenceTimeLimitOpenApiTests.cs) with a `[Theory]` over schema keys `SequenceStep` and `SequenceStepContract` asserting, using the literal canonical sentences from the "Canonical sentences" table in specs/099-sequence-nesting-rules-docs/contracts/openapi-sequence-step-descriptions.md: (a) schema `description` contains all six sentences (`StepTypesRule`, `LoopBodyRule`, `IfBranchRule`, `NoNestedIfRule`, `BreakRule`, `MaxDepthRule`); (b) `properties.body.description` contains `LoopBodyRule`, `IfBranchRule`, `NoNestedIfRule`; (c) `properties.elseBody.description` contains `IfBranchRule`, `NoNestedIfRule`. Run it and confirm it FAILS before T003
+- [X] T002 [US1] Create tests/contract/Sequences/SequenceNestingRulesOpenApiTests.cs (namespace `GameBot.ContractTests.Sequences`, same `WebApplicationFactory<Program>` harness and env vars as tests/contract/Sequences/SequenceTimeLimitOpenApiTests.cs) with a `[Theory]` over schema keys `SequenceStep` and `SequenceStepContract` asserting, using the literal canonical sentences from the "Canonical sentences" table in specs/099-sequence-nesting-rules-docs/contracts/openapi-sequence-step-descriptions.md: (a) schema `description` contains all six sentences (`StepTypesRule`, `LoopBodyRule`, `IfBranchRule`, `NoNestedIfRule`, `BreakRule`, `MaxDepthRule`); (b) `properties.body.description` contains `LoopBodyRule`, `IfBranchRule`, `NoNestedIfRule`; (c) `properties.elseBody.description` contains `IfBranchRule`, `NoNestedIfRule`. Run it and confirm it FAILS before T003
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] Create src/GameBot.Service/Swagger/SequenceNestingRulesSchemaFilter.cs: `internal sealed class SequenceNestingRulesSchemaFilter : ISchemaFilter` (XML summary citing feature 099 / issue #178 and that the service does not feed XML comments to Swagger), with the six `internal const string` canonical sentences (`StepTypesRule`, `LoopBodyRule`, `IfBranchRule`, `NoNestedIfRule`, `BreakRule`, `MaxDepthRule`) verbatim from the contract's "Canonical sentences" table, composed into `StepDescription`, `BodyDescription`, `ElseBodyDescription` exactly as the contract specifies; `Apply` matches `context.Type == typeof(SequenceStepContract)`, sets `schema.Description = StepDescription` and describes the `body` and `elseBody` properties (same `Describe` helper shape as src/GameBot.Service/Swagger/SequenceTimeLimitSchemaFilter.cs)
-- [ ] T004 [US1] Register `options.SchemaFilter<SequenceNestingRulesSchemaFilter>();` next to the other schema filters in src/GameBot.Service/GameBotServiceSetup.cs
-- [ ] T005 [US1] Build the service and run `dotnet test C:\src\GameBot\tests\contract\GameBot.ContractTests.csproj --filter FullyQualifiedName~SequenceNestingRulesOpenApiTests`; T002 must now pass. Fix wording/assertions until green without weakening the rule coverage
+- [X] T003 [US1] Create src/GameBot.Service/Swagger/SequenceNestingRulesSchemaFilter.cs: `internal sealed class SequenceNestingRulesSchemaFilter : ISchemaFilter` (XML summary citing feature 099 / issue #178 and that the service does not feed XML comments to Swagger), with the six `internal const string` canonical sentences (`StepTypesRule`, `LoopBodyRule`, `IfBranchRule`, `NoNestedIfRule`, `BreakRule`, `MaxDepthRule`) verbatim from the contract's "Canonical sentences" table, composed into `StepDescription`, `BodyDescription`, `ElseBodyDescription` exactly as the contract specifies; `Apply` matches `context.Type == typeof(SequenceStepContract)`, sets `schema.Description = StepDescription` and describes the `body` and `elseBody` properties (same `Describe` helper shape as src/GameBot.Service/Swagger/SequenceTimeLimitSchemaFilter.cs)
+- [X] T004 [US1] Register `options.SchemaFilter<SequenceNestingRulesSchemaFilter>();` next to the other schema filters in src/GameBot.Service/GameBotServiceSetup.cs
+- [X] T005 [US1] Build the service and run `dotnet test C:\src\GameBot\tests\contract\GameBot.ContractTests.csproj --filter FullyQualifiedName~SequenceNestingRulesOpenApiTests`; T002 must now pass. Fix wording/assertions until green without weakening the rule coverage
 
 **Checkpoint**: The nesting rules are discoverable from the published document.
 
@@ -49,8 +49,8 @@ No blocking prerequisites: the published step schema (`SequenceStepContract`, al
 
 **Independent Test**: Removing the filter registration makes SequenceNestingRulesOpenApiTests fail; existing If/Loop validation tests pass unchanged.
 
-- [ ] T006 [US2] Temporarily comment out the T004 registration in src/GameBot.Service/GameBotServiceSetup.cs, run SequenceNestingRulesOpenApiTests and confirm it fails (SC-003), then restore the registration and re-run it to confirm it passes again before T007 (`git diff src/GameBot.Service/GameBotServiceSetup.cs` shows only the T004 line added)
-- [ ] T007 [P] [US2] Run the unchanged behaviour guards: `dotnet test C:\src\GameBot\tests\unit\GameBot.UnitTests.csproj --filter "FullyQualifiedName~IfValidationTests|FullyQualifiedName~LoopValidationTests"` and `dotnet test C:\src\GameBot\tests\contract\GameBot.ContractTests.csproj --filter "FullyQualifiedName~IfStepContractTests|FullyQualifiedName~SequenceTimeLimitOpenApiTests"`; all must pass with no test edits (FR-008, SC-004)
+- [X] T006 [US2] Temporarily comment out the T004 registration in src/GameBot.Service/GameBotServiceSetup.cs, run SequenceNestingRulesOpenApiTests and confirm it fails (SC-003), then restore the registration and re-run it to confirm it passes again before T007 (`git diff src/GameBot.Service/GameBotServiceSetup.cs` shows only the T004 line added)
+- [X] T007 [P] [US2] Run the unchanged behaviour guards: `dotnet test C:\src\GameBot\tests\unit\GameBot.UnitTests.csproj --filter "FullyQualifiedName~IfValidationTests|FullyQualifiedName~LoopValidationTests"` and `dotnet test C:\src\GameBot\tests\contract\GameBot.ContractTests.csproj --filter "FullyQualifiedName~IfStepContractTests|FullyQualifiedName~SequenceTimeLimitOpenApiTests"`; all must pass with no test edits (FR-008, SC-004)
 
 **Checkpoint**: Both stories verified.
 
@@ -58,10 +58,10 @@ No blocking prerequisites: the published step schema (`SequenceStepContract`, al
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T008 [P] Update docs/architecture.md: in the sequence step / If / Loop section, note that the nesting rules (Loop body: Action/If/Break; If branches: Action + loop-scoped Break; no If-in-If; no nested Loop; top-level Break rejected) are published on the `SequenceStep` OpenAPI schema by `SequenceNestingRulesSchemaFilter`; refresh the "Last reviewed" date to 2026-09-17
-- [ ] T009 [P] Add an Unreleased entry to CHANGELOG.md: OpenAPI now documents sequence step nesting rules on `SequenceStep` (issue #178)
-- [ ] T010 [P] Add a 099 row to specs/STATUS.md and set `**Status**: Implemented` in specs/099-sequence-nesting-rules-docs/spec.md (matching the format of the 098 row)
-- [ ] T011 Full gate: `dotnet build C:\src\GameBot\GameBot.sln` with zero new warnings/errors, then run the full contract test project `dotnet test C:\src\GameBot\tests\contract\GameBot.ContractTests.csproj` (rerun once if a known flaky test such as QueueTemplateLink fails); all green before commit
+- [X] T008 [P] Update docs/architecture.md: in the sequence step / If / Loop section, note that the nesting rules (Loop body: Action/If/Break; If branches: Action + loop-scoped Break; no If-in-If; no nested Loop; top-level Break rejected) are published on the `SequenceStep` OpenAPI schema by `SequenceNestingRulesSchemaFilter`; refresh the "Last reviewed" date to 2026-09-17
+- [X] T009 [P] Add an Unreleased entry to CHANGELOG.md: OpenAPI now documents sequence step nesting rules on `SequenceStep` (issue #178)
+- [X] T010 [P] Add a 099 row to specs/STATUS.md and set `**Status**: Implemented` in specs/099-sequence-nesting-rules-docs/spec.md (matching the format of the 098 row)
+- [X] T011 Full gate: `dotnet build C:\src\GameBot\GameBot.sln` with zero new warnings/errors, then run the full contract test project `dotnet test C:\src\GameBot\tests\contract\GameBot.ContractTests.csproj` (rerun once if a known flaky test such as QueueTemplateLink fails); all green before commit
 
 ---
 

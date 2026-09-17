@@ -133,6 +133,7 @@ Status vocabulary:
 | 096 | Report Idle Pause in Queue Health | Implemented |
 | 097 | Alternate Reference Images for One Detection Target | Implemented |
 | 098 | Resume Queues After a Service Restart | Implemented |
+| 099 | Publish Sequence Step Nesting Rules | Implemented |
 
 ## Numbering notes
 

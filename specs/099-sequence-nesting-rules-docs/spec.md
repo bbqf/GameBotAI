@@ -2,7 +2,7 @@
 
 **Feature Branch**: `099-sequence-nesting-rules-docs`  
 **Created**: 2026-09-17  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #178 (https://github.com/bbqf/GameBotAI/issues/178) — "nested If steps are rejected at runtime, but the constraint is not in the published schema". Closes #178.
 
 ## Background

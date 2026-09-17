@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 098 resume queues after a service restart)._
+_Last reviewed: 2026-09-17 (feature 099 sequence step nesting rules in OpenAPI)._
 
 ## What GameBot is
 
@@ -463,7 +463,11 @@ tree node kind `if` (web-ui grid label "If"). Branch steps log themselves like l
 **Sequence step API schema** (`POST/PATCH /api/sequences`): if steps use
 `stepType: "If"` with `if: { condition: {...} }`, `body: [...]` (then branch), and optional
 `elseBody: [...]` (null/absent = no else; `[]` = present but empty). See
-`specs/067-sequence-if-conditions/contracts/sequences-api.md`.
+`specs/067-sequence-if-conditions/contracts/sequences-api.md`. The nesting rules the step validator
+enforces — a Loop body may hold Action, If and Break steps but not another Loop; an If branch may hold
+only Action steps, plus Break when the If sits in a Loop body (no If-inside-If, no Loop); a top-level
+Break is rejected — are published on the OpenAPI `SequenceStep` schema and its `body`/`elseBody`
+properties by `SequenceNestingRulesSchemaFilter` (feature 099, issue #178).
 
 **Loop exit reason** (feature 081): a `Loop` step's `StepResult` carries a structured
 `ExitReason { BrokeVia: string?, ExhaustedMaxIterations: bool }` alongside the existing

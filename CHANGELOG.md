@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Sequence step nesting rules in the OpenAPI document (099-sequence-nesting-rules-docs, #178)
+  - The `SequenceStep` schema and its `body`/`elseBody` properties now state the nesting rules the service enforces: a Loop body may hold Action, If and Break steps but not another Loop, an If branch may hold only Action steps plus Break when the If sits in a Loop body (an If inside an If branch is rejected), and a top-level Break is rejected. These were previously learned only from a 400 on save.
+  - Documentation only: validation, its error messages and execution are unchanged.
 - Resume queues after a service restart (098-resume-queues-on-restart, #203)
   - New per-queue option `resumeOnServiceStart` ("Resume after service restart" in the queue form), off by default. A queue that has it on and was Running when the service stopped is started again automatically once the service is back up. That covers a graceful restart, an upgrade, a host reboot and a crash.
   - Only queues that were really running come back. An operator stop, a run that completed or failed on its own, and a failure-policy stop all keep the queue Stopped, and queues without the option stay Stopped as before.
