@@ -105,13 +105,27 @@ public sealed partial class QueueExecutionServiceTests {
     public int ActiveCount { get { lock (_sessions) { return _sessions.Count; } } }
     public bool CanCreateSession => true;
 
+    // How many sessions were ever bound — a re-bind (#217) shows up as a second one.
+    private int _created;
+    public int Created => Volatile.Read(ref _created);
+
     public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) {
       if (CreateThrows is not null) throw CreateThrows;
       var session = new EmulatorSession { Id = Guid.NewGuid().ToString("N"), GameId = gameIdOrPath, DeviceSerial = preferredDeviceSerial, Status = SessionStatus.Running };
       lock (_sessions) { _sessions[session.Id] = session; }
+      Interlocked.Increment(ref _created);
       Connected = true;
       return session;
     }
+
+    /// <summary>
+    /// Removes a session the way the idle sweep does (#217): the device stays attached
+    /// (<see cref="Connected"/> untouched) and nothing is recorded as stopped.
+    /// </summary>
+    public void Evict(string id) { lock (_sessions) { _sessions.Remove(id); } }
+
+    /// <summary>The id of the only live session; the tests that use it run one queue.</summary>
+    public string SingleSessionId() { lock (_sessions) { return _sessions.Keys.Single(); } }
 
     public EmulatorSession? GetSession(string id) {
       if (!Connected) return null;
@@ -874,9 +888,13 @@ public sealed partial class QueueExecutionServiceTests {
   public async Task ConnectionLostMidRunFailsTheRun() {
     var h = new Harness();
     h.AddQueue("q1", new[] { "A", "B" });
-    // Drop the session right after the first sequence runs.
+    // Drop the session right after the first sequence runs, with the device genuinely gone: since
+    // #217 a missing session is re-bound, so only a device that cannot be bound again fails the run.
     h.Sequences.Handler = (id, ct) => {
-      if (id == "A") h.Sessions.Connected = false;
+      if (id == "A") {
+        h.Sessions.CreateThrows = new KeyNotFoundException("ADB device 'emu-1' not found");
+        h.Sessions.Connected = false;
+      }
       return Task.FromResult(FakeSequenceExecution.Success(id));
     };
 
@@ -886,6 +904,115 @@ public sealed partial class QueueExecutionServiceTests {
     h.Sequences.Executed.Should().Equal("A"); // B never runs
     h.Log.FinalStatus.Should().Be("failure");
     h.Log.Summary.Should().Contain("connection lost");
+  }
+
+  // ── #217: queue sessions survive idle gaps ────────────────────────────
+
+  [Fact]
+  public async Task QueueMarksItsSessionAsOwnedByTheQueue() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A" });
+    h.Sequences.Handler = async (id, ct) => { await Task.Delay(Timeout.Infinite, ct); return FakeSequenceExecution.Success(id); };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Count >= 1);
+
+    h.Sessions.ListSessions().Should().ContainSingle().Which.OwnerQueueId.Should().Be("q1");
+
+    await h.Service.StopAsync("q1");
+  }
+
+  [Fact]
+  public async Task SessionEvictedBetweenFiringsIsReboundAndTheRunContinues() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A", "B" });
+    string? oldId = null;
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A") {
+        oldId = h.Sessions.SingleSessionId();
+        h.Sessions.Evict(oldId);
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A", "B");
+    h.Log.FinalStatus.Should().Be("success");
+    h.Sessions.Created.Should().Be(2);
+    // Teardown stops the re-bound session, not the evicted one.
+    h.Sessions.Stopped.Should().ContainSingle().Which.Should().NotBe(oldId);
+  }
+
+  [Fact]
+  public async Task ReboundSessionIsOwnedByTheQueue() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A", "B" });
+    h.Sequences.Handler = async (id, ct) => {
+      if (id == "A") h.Sessions.Evict(h.Sessions.SingleSessionId());
+      if (id == "B") await Task.Delay(Timeout.Infinite, ct);
+      return FakeSequenceExecution.Success(id);
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("B"));
+
+    h.Sessions.Created.Should().Be(2);
+    h.Sessions.ListSessions().Should().ContainSingle().Which.OwnerQueueId.Should().Be("q1");
+
+    await h.Service.StopAsync("q1");
+  }
+
+  [Fact]
+  public async Task ReboundFailsOnCapacityFailsTheRun() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A", "B" });
+    h.Sequences.Handler = (id, ct) => {
+      if (id == "A") {
+        h.Sessions.CreateThrows = new InvalidOperationException(SessionManager.CapacityExceededMessage(8, 8));
+        h.Sessions.Evict(h.Sessions.SingleSessionId());
+      }
+      return Task.FromResult(FakeSequenceExecution.Success(id));
+    };
+
+    await h.Service.StartAsync("q1");
+    await WaitUntilStoppedAsync(h.Service, "q1");
+
+    h.Sequences.Executed.Should().Equal("A");
+    h.Log.FinalStatus.Should().Be("failure");
+    h.Log.Summary.Should().Contain("connection lost");
+  }
+
+  [Fact]
+  public async Task ReboundMovesBackgroundCaptureToTheNewSession() {
+    var h = new Harness();
+    h.AddQueue("q1", new[] { "A", "B" });
+    using var capture = new BackgroundScreenCaptureService(_ => new NullCaptureProvider(), 500, NullLogger<BackgroundScreenCaptureService>.Instance);
+    var service = new QueueExecutionService(h.Queues, h.Runtime, h.Templates, h.Sequences, h.Sessions, h.Log, NullLogger<QueueExecutionService>.Instance, h.Registry, captureService: capture);
+    string? oldId = null;
+    h.Sequences.Handler = async (id, ct) => {
+      if (id == "A") {
+        oldId = h.Sessions.SingleSessionId();
+        h.Sessions.Evict(oldId);
+      }
+      if (id == "B") await Task.Delay(Timeout.Infinite, ct);
+      return FakeSequenceExecution.Success(id);
+    };
+
+    await service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("B"));
+
+    var newId = h.Sessions.SingleSessionId();
+    newId.Should().NotBe(oldId);
+    capture.GetCaptureMetrics(newId).Should().NotBeNull();
+    capture.GetCaptureMetrics(oldId!).Should().BeNull();
+
+    await service.StopAsync("q1");
+  }
+
+  private sealed class NullCaptureProvider : GameBot.Emulator.Session.IAdbScreenCaptureProvider {
+    public Task<byte[]?> CaptureScreenshotPngAsync(CancellationToken ct) => Task.FromResult<byte[]?>(null);
   }
 
   // ── US2 (spec): EveryStep scheduling ─────────────────────────────────────

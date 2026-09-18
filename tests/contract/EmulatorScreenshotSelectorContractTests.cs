@@ -132,7 +132,12 @@ public sealed class EmulatorScreenshotSelectorContractTests : IDisposable {
     var resp = await ScreenshotAsync(client, "?serial=emu-does-not-exist").ConfigureAwait(true);
 
     resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true))
-      .RootElement.GetProperty("error").GetString().Should().Be("session_not_found");
+    var body = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    body.GetProperty("error").GetString().Should().Be("session_not_found");
+    // #217: the message must read as "nothing is bound to this device" and say how to bind one, not
+    // as "no such device" — operators hit it for a device ADB still listed.
+    body.GetProperty("message").GetString().Should()
+      .Contain("No running session is bound to device 'emu-does-not-exist'")
+      .And.Contain("POST /api/sessions/start");
   }
 }

@@ -13,4 +13,11 @@ public sealed class EmulatorSession {
   public int CapacitySlot { get; set; }
   public DateTimeOffset LastActivity { get; set; } = DateTimeOffset.UtcNow;
   public string? DeviceSerial { get; set; }
+
+  /// <summary>
+  /// Id of the queue that bound this session, or <c>null</c> for an ad-hoc session. A queue-owned
+  /// session is never retired by the idle-timeout sweep: it ends only when its queue's run stops it
+  /// (#217). Ad-hoc sessions keep the idle eviction.
+  /// </summary>
+  public string? OwnerQueueId { get; set; }
 }

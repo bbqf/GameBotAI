@@ -29,7 +29,7 @@ internal static class EmulatorImageEndpoints {
       else if (!string.IsNullOrWhiteSpace(serial)) {
         session = FindSessionBySerial(sessions, serial);
         if (session is null) {
-          return Results.Json(new { error = "session_not_found", message = $"No running session is bound to device '{serial}'." }, statusCode: StatusCodes.Status404NotFound);
+          return Results.Json(new { error = "session_not_found", message = $"No running session is bound to device '{serial}'. Start a session (POST /api/sessions/start) or a queue on that device to bind one." }, statusCode: StatusCodes.Status404NotFound);
         }
       }
       else {

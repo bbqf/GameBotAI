@@ -303,7 +303,11 @@ public sealed partial class QueueExecutionServiceTests {
     var h = new Harness(clock);
     AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)), BeforeEachRun("B") });
     h.Sequences.Handler = (id, ct) => {
-      if (id == "A") h.Sessions.Connected = false;
+      // The device is genuinely gone, so the #217 re-bind cannot recover the session.
+      if (id == "A") {
+        h.Sessions.CreateThrows = new System.Collections.Generic.KeyNotFoundException("ADB device 'emu-1' not found");
+        h.Sessions.Connected = false;
+      }
       return Task.FromResult(FakeSequenceExecution.Success(id));
     };
 
@@ -315,6 +319,46 @@ public sealed partial class QueueExecutionServiceTests {
 
     h.Sequences.Executed.Should().Equal("A");
     h.Log.FinalStatus.Should().Be("failure");
+  }
+
+  [Fact] // #217: the reported failure — the session vanished during the idle gap, the device did not
+  public async Task SessionEvictedDuringIdleIsReboundBeforeBeforeEachRun() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    // T2 keeps the non-cycling run alive after T, so "still running" is observable.
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T", TimeSpan.FromMinutes(10)), RelativeTimer("T2", TimeSpan.FromMinutes(60)), BeforeEachRun("B") });
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    await Task.Delay(100);
+    h.Sessions.Evict(h.Sessions.SingleSessionId());
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T"));
+
+    h.Sequences.Executed.Should().Equal("A", "B", "T");
+    h.Sessions.Created.Should().Be(2);
+    h.Service.IsRunning("q1").Should().BeTrue();
+
+    await h.Service.StopAsync("q1");
+    h.Log.Summary.Should().Contain("stopped manually");
+  }
+
+  [Fact] // #217: several firings due at one wake-up share a single re-bind
+  public async Task SeveralFiringsDueAtOneWakeUpRebindOnce() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var h = new Harness(clock);
+    AddQueueWithEntries(h, "q1", new[] { OncePerRun("A"), RelativeTimer("T1", TimeSpan.FromMinutes(10)), RelativeTimer("T2", TimeSpan.FromMinutes(10)), RelativeTimer("T3", TimeSpan.FromMinutes(60)), BeforeEachRun("B") });
+
+    await h.Service.StartAsync("q1");
+    await WaitForAsync(() => h.Sequences.Executed.Contains("A"));
+    await Task.Delay(100);
+    h.Sessions.Evict(h.Sessions.SingleSessionId());
+    clock.Advance(TimeSpan.FromMinutes(10));
+    await WaitForAsync(() => h.Sequences.Executed.Contains("T1") && h.Sequences.Executed.Contains("T2"));
+
+    h.Sessions.Created.Should().Be(2);
+
+    await h.Service.StopAsync("q1");
   }
 
   [Fact] // T008(h)

@@ -310,12 +310,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         else {
           // 2. Connect to the bound emulator (FR-003/FR-004).
           try {
-            var session = _sessions.CreateSession($"queue:{queue.Id}", queue.EmulatorSerial);
-            sessionId = session.Id;
+            sessionId = BindQueueSession(queue);
             handle.SessionId = sessionId;
-            if (_captureService is not null && !string.IsNullOrWhiteSpace(session.DeviceSerial)) {
-              _captureService.StartCapture(session.Id, session.DeviceSerial);
-            }
           }
           catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) {
             reason = QueueStopReason.Failure;
@@ -327,6 +323,27 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         if (sessionId is not null) {
           try {
             var index = 0;
+
+            // Pre-firing session check (#217, FR-003/FR-004). The session is normally still there —
+            // queue-owned sessions are exempt from the idle sweep — but if it has gone for any other
+            // reason while the device is still attached, bind a fresh one on the same serial (once)
+            // and carry on with it. Only a device that cannot be re-bound fails the run.
+            void EnsureSessionBound() {
+              if (_sessions.GetSession(sessionId) is not null) return;
+              var lostId = sessionId!;
+              try { _captureService?.StopCapture(lostId); }
+              catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
+              string reboundId;
+              try {
+                reboundId = BindQueueSession(queue);
+              }
+              catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) {
+                throw new QueueConnectionLostException(ex.Message, ex);
+              }
+              sessionId = reboundId;
+              handle.SessionId = reboundId;
+              QueueExecutionLog.SessionRebound(_logger, queue.Id, queue.EmulatorSerial, lostId, reboundId);
+            }
 
             // Every-step pass: run each template EveryStep entry, then each self-reschedule EveryStep
             // injection, once. Called after EVERY firing the run performs (at-start, once-per-run,
@@ -344,7 +361,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
               foreach (var esEntry in everyStepEntries) {
                 ct.ThrowIfCancellationRequested();
-                if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                EnsureSessionBound();
                 var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
                 if (!esOk) failed++;
                 handle.Cycles.RecordEntry(esEntry.SequenceId, esOk);
@@ -354,7 +371,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               // firing's own re-registration cannot grow the pass (loop-safe).
               foreach (var injection in handle.EveryStepInjections.Values.ToList()) {
                 ct.ThrowIfCancellationRequested();
-                if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                EnsureSessionBound();
                 var injOk = await RunOneSequenceAsync(injection.SequenceId, rootId, ++index, sessionId, queue.Id, injection.Scope ?? queueScope, ct, injection.Id).ConfigureAwait(false);
                 if (!injOk) failed++;
                 handle.Cycles.RecordEntry(injection.SequenceId, injOk);
@@ -374,7 +391,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
               foreach (var berEntry in beforeEachRunEntries) {
                 ct.ThrowIfCancellationRequested();
-                if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                EnsureSessionBound();
                 var berOk = await RunOneSequenceAsync(berEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(berEntry), ct).ConfigureAwait(false);
                 if (!berOk) failed++;
                 handle.Cycles.RecordEntry(berEntry.SequenceId, berOk);
@@ -388,7 +405,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // non-fatal (recorded in `failed`, run continues), consistent with OncePerRun handling.
             foreach (var startEntry in atQueueStartEntries) {
               ct.ThrowIfCancellationRequested();
-              if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+              EnsureSessionBound();
               var startOk = await RunOneSequenceAsync(startEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(startEntry), ct).ConfigureAwait(false);
               executed++;
               if (!startOk) failed++;
@@ -448,7 +465,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 while (handle.PendingNextCycleStart.TryDequeue(out var nextCycleEntry)) {
                   await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
-                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  EnsureSessionBound();
                   var nextOk = await RunOneSequenceAsync(nextCycleEntry.SequenceId, rootId, ++index, sessionId, queue.Id, nextCycleEntry.Scope ?? queueScope, ct, nextCycleEntry.Id).ConfigureAwait(false);
                   executed++;
                   if (!nextOk) failed++;
@@ -466,7 +483,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (now >= timerEntry.TimerTimeOfDay.Value && !schedule.TimeOfDayFiredOn(timerIndex, today)) {
                     await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                     ct.ThrowIfCancellationRequested();
-                    if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                    EnsureSessionBound();
                     var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(timerEntry), ct).ConfigureAwait(false);
                     if (!timerOk) failed++;
                     // Timer executions do not count toward `executed` (SC-002 analogue for timers)
@@ -483,7 +500,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var retryEntry = schedule.Entries[retryIndex];
                   await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
-                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  EnsureSessionBound();
                   QueueExecutionLog.DailyRetryFiring(_logger, retryEntry.SequenceId, attempt);
                   var retryOk = await RunOneSequenceAsync(retryEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(retryEntry), ct).ConfigureAwait(false);
                   if (!retryOk) failed++;
@@ -503,7 +520,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
                   await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
-                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  EnsureSessionBound();
                   var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(relEntry), ct).ConfigureAwait(false);
                   executed++;
                   if (!relOk) failed++;
@@ -523,7 +540,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (!handle.PendingLiveSchedules.TryRemove(due, out _)) continue;
                   await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
-                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  EnsureSessionBound();
                   var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, queue.Id, queueScope, ct).ConfigureAwait(false);
                   executed++;
                   if (!liveOk) failed++;
@@ -538,7 +555,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 foreach (var timerFiring in handle.DrainDueTimerFirings(_timeProvider.GetLocalNow())) {
                   await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
-                  if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                  EnsureSessionBound();
                   var srTimerOk = await RunOneSequenceAsync(timerFiring.SequenceId, rootId, ++index, sessionId, queue.Id, timerFiring.Scope ?? queueScope, ct, timerFiring.Id).ConfigureAwait(false);
                   executed++;
                   if (!srTimerOk) failed++;
@@ -558,7 +575,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (oncePerRunEntries.Count > 0) {
                     foreach (var (entry, entryIndex) in oncePerRunEntries) {
                       ct.ThrowIfCancellationRequested();
-                      if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                      EnsureSessionBound();
                       handle.Cycles.SetCurrentEntryIndex(entryIndex);
                       var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(entry), ct).ConfigureAwait(false);
                       executed++;
@@ -587,7 +604,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   foreach (var oprFiring in oncePerRunReschedules) {
                     await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                     ct.ThrowIfCancellationRequested();
-                    if (_sessions.GetSession(sessionId) is null) throw new QueueConnectionLostException();
+                    EnsureSessionBound();
                     var oprOk = await RunOneSequenceAsync(oprFiring.SequenceId, rootId, ++index, sessionId, queue.Id, oprFiring.Scope ?? queueScope, ct, oprFiring.Id).ConfigureAwait(false);
                     executed++;
                     if (!oprOk) failed++;
@@ -693,6 +710,23 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       _deviceClaims.Release(queue.EmulatorSerial, queue.Id);
       handle.Cts.Dispose();
     }
+  }
+
+  /// <summary>
+  /// Binds a new emulator session for <paramref name="queue"/> on its serial, marks it as owned by the
+  /// queue so the idle-timeout sweep never retires it (#217), and starts background capture for it.
+  /// Used at run start and for a re-bind before a firing.
+  /// </summary>
+  /// <returns>The new session's id.</returns>
+  /// <exception cref="InvalidOperationException">No ADB devices, or session capacity reached.</exception>
+  /// <exception cref="KeyNotFoundException">The queue's serial is not listed by ADB.</exception>
+  private string BindQueueSession(ExecutionQueue queue) {
+    var session = _sessions.CreateSession($"queue:{queue.Id}", queue.EmulatorSerial);
+    session.OwnerQueueId = queue.Id;
+    if (_captureService is not null && !string.IsNullOrWhiteSpace(session.DeviceSerial)) {
+      _captureService.StartCapture(session.Id, session.DeviceSerial);
+    }
+    return session.Id;
   }
 
   /// <summary>
@@ -1063,4 +1097,7 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1129, Level = LogLevel.Warning, Message = "Queue {QueueId} run ended, but its running record could not be cleared; the next service start may resume it")]
   public static partial void RunStateClearFailed(ILogger logger, string QueueId, Exception ex);
+
+  [LoggerMessage(EventId = 1131, Level = LogLevel.Warning, Message = "Queue {QueueId} found its emulator session {OldSessionId} gone before a firing and re-bound device {Serial} as session {NewSessionId}; the run continues")]
+  public static partial void SessionRebound(ILogger logger, string QueueId, string Serial, string OldSessionId, string NewSessionId);
 }

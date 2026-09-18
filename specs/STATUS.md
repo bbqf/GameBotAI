@@ -138,6 +138,7 @@ Status vocabulary:
 | 101 | Document detect vs detect-all coordinate units | Implemented |
 | 102 | Publish primitive action types and payload shapes | Implemented |
 | 103 | Retest the condition-model ceiling and document the outcome | Implemented |
+| 104 | Queue sessions survive idle gaps between scheduled runs | Implemented |
 
 ## Numbering notes
 
