@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-17 (feature 103 condition-model ceiling retested; reference checks completed
-in composites and in the `If` slot, loop exit reason recorded in the execution log)._
+_Last reviewed: 2026-09-18 (feature 104: queue-owned sessions exempt from the idle-timeout sweep and
+re-bound at a firing when missing, #217)._
 
 ## What GameBot is
 
@@ -321,6 +321,15 @@ not survive a service restart; queue *configuration* and templates are persisted
   (recovery timeout / instance-not-found) fails the run with an actionable reason and creates **no**
   session. No new emulator-tuning configuration is introduced (feature-070 timeouts apply). Queues
   with the fields unset perform no emulator management (byte-for-byte unchanged).
+- **Queue session lifetime** (feature 104, #217) — the session a queue run binds carries
+  `EmulatorSession.OwnerQueueId` and is **exempt from the idle-timeout sweep**
+  (`Service:Sessions:IdleTimeoutSeconds`, default 1800 s); it ends only when the run's teardown stops
+  it. Ad-hoc API sessions are still idle-evicted. Before every firing the run checks its session; if
+  it is missing it makes one attempt to bind a new owned session on the same serial (moving
+  background capture to it, logged as event 1131 `SessionRebound`) and continues. Only a failed
+  re-bind — serial not listed by ADB, no devices, or session capacity reached — fails the run with
+  `emulator connection lost mid-run ('<serial>')`. Before this, a queue idle for over 30 minutes lost
+  its own session to the sweep and failed its next scheduled firing.
 - **Trigger** — an evaluation construct (image-visible / text-match / time / delay / schedule),
   used internally to decide whether a step executes. Still present in the domain and on the API,
   but **no longer authored as a standalone object in the UI**.
@@ -385,7 +394,8 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
   with none supplied, exactly one running session is used; several running sessions fail the step with
   `"N device sessions are active; specify a sessionId for '<step>'"` rather than guessing.
 - `GET /api/emulator/screenshot` takes `sessionId` or `serial`; with several sessions and no selector
-  it returns `409 ambiguous_session` instead of an arbitrary device.
+  it returns `409 ambiguous_session` instead of an arbitrary device. A `serial` with no bound session
+  returns `404 session_not_found`, whose message says to start a session or a queue on that device.
 - `POST /api/images/detect` takes `captureId` or `sessionId` (mutually exclusive; blank counts as
   absent) and follows the same rule, reusing the same codes: `409 ambiguous_session` when several
   sessions are running and none is named, `404 capture_not_found` / `404 session_not_found` for an

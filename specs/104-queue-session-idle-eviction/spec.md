@@ -2,7 +2,7 @@
 
 **Feature Branch**: `104-queue-session-idle-eviction`  
 **Created**: 2026-09-18  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #217 (https://github.com/bbqf/GameBotAI/issues/217) — "B-018: a queue idle for ~an hour fails its next scheduled run with emulator connection lost, while ADB still has the device." Closes #217.
 
 ## Background

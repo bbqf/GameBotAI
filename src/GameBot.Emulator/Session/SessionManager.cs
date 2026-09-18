@@ -427,6 +427,10 @@ public sealed class SessionManager : ISessionManager {
   private void CleanupIdleSessions() {
     var now = DateTimeOffset.UtcNow;
     foreach (var kv in _sessions.ToArray()) {
+      // A queue-owned session is never abandoned while its queue runs, and a queue idle between
+      // scheduled firings touches nothing for the whole gap — retiring it here killed the queue's
+      // next firing (#217). The queue stops it itself when its run ends.
+      if (kv.Value.OwnerQueueId is not null) continue;
       var last = kv.Value.LastActivity;
       if (now - last > IdleTimeout) {
         if (_sessions.TryRemove(kv.Key, out _)) {
