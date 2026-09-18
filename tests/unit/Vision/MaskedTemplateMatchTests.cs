@@ -86,9 +86,22 @@ namespace GameBot.UnitTests.Vision {
       var before = await matcher.MatchAllAsync(frame, masked, Config());
       var after = await matcher.MatchAllAsync(repainted, masked, Config());
 
-      after.Matches[0].Confidence.Should().BeApproximately(before.Matches[0].Confidence, 1e-9,
+      // The masked score is computed in float32 through OpenCV's correlation, whose rounding mixes in
+      // every frame pixel and depends on the CPU's vector path: repainting the masked-out region moves
+      // the score by up to a few 1e-6 on some CI runners (0.999997 vs 1.0 observed). 1e-9 sat below
+      // float32 resolution and failed intermittently. 1e-5 matches the border-mask test below and is
+      // still orders of magnitude under what a leak would cause — the control asserts that.
+      after.Matches[0].Confidence.Should().BeApproximately(before.Matches[0].Confidence, 1e-5,
         "masked-out pixels must contribute to neither the correlation nor its normalisation");
       after.Matches[0].BBox.X.Should().Be(before.Matches[0].BBox.X);
+
+      // Control: the same repaint under an unmasked template (which does see those pixels) moves its
+      // score far beyond the tolerance, so the assertion above would catch a real leak.
+      using var opaque = MaskFixtures.CreateOpaqueTemplate(MaskFixtures.Backdrop.Bright);
+      var opaqueBefore = await matcher.MatchAllAsync(frame, opaque, Config(-1.0));
+      var opaqueAfter = await matcher.MatchAllAsync(repainted, opaque, Config(-1.0));
+      System.Math.Abs(opaqueAfter.Matches[0].Confidence - opaqueBefore.Matches[0].Confidence)
+        .Should().BeGreaterThan(0.01, "the repaint must be large enough that leakage would be visible");
     }
 
     [Fact(DisplayName = "A masked template with a uniform retained region reports no match")]
