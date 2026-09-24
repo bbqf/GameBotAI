@@ -2,6 +2,8 @@
 
 For multi-line text passed to a native command — a commit message, a PR body — never use a PowerShell here-string (`git commit -m @'...'@`). Windows PowerShell 5.1 re-splits native-command arguments, so git receives the message body as a pathspec and fails with `error: pathspec '<rest of the message>' did not match any file(s) known to git`. Nothing is committed. Write the text to a file outside the repo (the session scratchpad directory) and pass it by path instead: `git commit -F "<absolute\path\to\msg.txt>"`, `gh pr create --body-file "<path>"`.
 
+Write all new or changed text in ASD-STE100 Simplified Technical English (STE): specs, plans, tasks, docs, commit messages, PR titles and descriptions, code comments, and user-facing messages. Code, identifiers, commands, paths, tool output, and quotations stay as they are. See Principle VI in `.specify/memory/constitution.md` for the full rules.
+
 When editing UTF-8 files in this repo, prefer the Edit/Write tools over `Get-Content`/`Set-Content`: PS 5.1 reads as ANSI and writes a BOM, which turns em-dashes and arrows into mojibake.
 
 <!-- SPECKIT START -->

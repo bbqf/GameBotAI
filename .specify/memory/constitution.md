@@ -1,16 +1,18 @@
 <!--
 Sync Impact Report
-Version change: 1.1.0 → 1.2.0
+Version change: 1.2.0 → 1.3.0
 Modified principles: N/A
-Added sections: Core Principle V (Living Documentation); Definition of Done bullet for living docs
+Added sections: Core Principle VI (Simplified Technical English); Definition of Done bullet for STE;
+  Review bullet for STE
 Removed sections: N/A
-New artifacts introduced alongside this amendment:
-- docs/architecture.md — living current-state source of truth
-- specs/STATUS.md — roll-up of every spec's Status line
-- Per-spec **Status** lines normalized across specs/001..064
 Templates requiring updates:
-- .specify/templates/spec-template.md ⚠ pending (Status line vocabulary could be documented)
+- .specify/templates/plan-template.md ✅ updated (STE gate in Constitution Check)
+- CLAUDE.md ✅ updated (STE rule for agent-written text outside speckit, e.g. commits and PRs)
+- .specify/templates/spec-template.md ✅ no change needed (principle applies to all text it produces)
+- .specify/templates/tasks-template.md ✅ no change needed
+- .specify/templates/spec-template.md ⚠ pending (Status line vocabulary could be documented; from 1.2.0)
 Follow-up TODOs:
+- Existing artifacts are not retrofitted; text converts to STE when it is changed
 - TODO(RATIFICATION_DATE): Original adoption date unknown — project owner to provide
 - Delete orphaned web-ui trigger code (TriggersPage.tsx, services/triggers.ts, TriggerPicker.tsx)
 -->
@@ -85,6 +87,32 @@ Rationale: Stale or mislabelled documentation actively misleads humans and AI ag
 than no documentation. Separating "what is true now" (architecture) from "why we got here"
 (specs) keeps both trustworthy.
 
+### VI. Simplified Technical English (NON-NEGOTIABLE)
+
+All text that you write or change MUST obey ASD-STE100 Simplified Technical English (STE):
+- Scope: specs, plans, tasks, checklists, research notes, data models, contracts, quickstarts,
+  docs, changelog entries, commit messages, PR titles and descriptions, code comments, and
+  user-facing text (error messages, log messages, UI text, and API descriptions).
+- Write procedural sentences of 20 words or fewer. Write descriptive sentences of 25 words or
+  fewer.
+- Write one instruction in each sentence. Use the imperative form for instructions.
+- Use the active voice. Use only the simple present, simple past, and simple future tenses.
+- Use approved STE words, each with its approved meaning only. Use a technical name or a
+  technical verb only when no approved word has that meaning.
+- Use the same term for the same thing in all text. Do not use synonyms for variety.
+- Do not use the "-ing" form of a verb, except in a technical name.
+- Write paragraphs of 6 sentences or fewer. Put one topic in each paragraph.
+- Do not omit words (such as "a", "the", or "is") to make text shorter.
+- Exceptions: code, identifiers, commands, file paths, tool output, and quotations stay as
+  they are. The requirement keywords MUST, SHOULD, and MAY are permitted.
+- Existing text: you do not have to rewrite text that you do not change. When you change a
+  sentence, write the new sentence in STE.
+- Enforcement: reviewers and `/speckit-analyze` MUST report STE violations in new or changed
+  text as constitution violations. You MUST correct them before the change is Done.
+
+Rationale: STE removes ambiguity. Short and direct text is easier for humans and AI agents to
+read, translate, and check. One term for one thing prevents incorrect interpretation.
+
 ## Quality Gates and Definition of Done
 
 A change is Done only when all gates pass:
@@ -98,12 +126,14 @@ A change is Done only when all gates pass:
 - Living docs: `docs/architecture.md` updated (with refreshed "Last reviewed" date) for any change
   to the domain model, capabilities, API surface, or persistence; touched specs carry an accurate
   `Status` line and `specs/STATUS.md` is consistent.
+- Language: all new or changed text in artifacts, commits, PRs, comments, and user-facing
+  messages obeys Principle VI (STE).
 
 ## Development Workflow and Review Process
 
 - Propose: open a plan/spec referencing goals, UX, tests, and performance budgets.
 - Implement: small, reviewable PRs; keep commits logically grouped and well-described.
-- Review: reviewers MUST check against this constitution (quality, tests, UX, performance) and request evidence as needed.
+- Review: reviewers MUST check against this constitution (quality, tests, UX, performance, STE) and request evidence as needed.
 - Gate: CI enforces quality/test gates; red build/test states block progression; maintainers may approve explicit, time-bound waivers with follow-up tasks.
 - Traceability: link PRs to plans/specs and record decisions in the PR description.
 
@@ -114,4 +144,4 @@ A change is Done only when all gates pass:
 - Versioning: Semantic versioning for this document: MAJOR (principle removals/redefinitions), MINOR (new sections/principles), PATCH (clarifications).
 - Compliance: Periodic audits review adherence. Non-compliance requires remediation tasks prioritized in the next cycle.
 
-**Version**: 1.2.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-06-22
+**Version**: 1.3.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-09-24
