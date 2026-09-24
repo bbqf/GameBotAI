@@ -15,21 +15,30 @@ The web UI does not change, so `npm` steps are not necessary.
 
 ## 2. Save a daily task with a `lastRun` guard
 
-Put the guard in the first step. The guard breaks the run when the task already succeeded in the current "training day" (11:00 to 11:00 on the next day).
+Put the guard in the first step of a count loop of one iteration. A Break step is valid only in a loop body, so a Break step at the top level gets a 400. The guard breaks the loop, and thus stops the work, when the task already succeeded in the current "training day" (11:00 to 11:00 on the next day).
 
 ```json
 {
   "name": "Daily Training",
   "steps": [
     {
-      "stepId": "done-today",
-      "stepType": "Break",
-      "breakCondition": { "type": "lastRun", "sequence": "self", "status": "success", "since": "11:00" }
-    },
-    { "stepId": "do-work", "stepType": "Action", "commandReference": { "commandId": "<command id of the real work>" } }
+      "stepId": "daily",
+      "stepType": "Loop",
+      "loop": { "loopType": "count", "count": 1 },
+      "body": [
+        {
+          "stepId": "done-today",
+          "stepType": "Break",
+          "breakCondition": { "type": "lastRun", "sequence": "self", "status": "success", "since": "11:00" }
+        },
+        { "stepId": "do-work", "stepType": "Action", "commandReference": { "commandId": "<command id of the real work>" } }
+      ]
+    }
   ]
 }
 ```
+
+A second form, with no loop: put the guard on the work step as a step condition with `"negate": true`. The work step is then skipped when the task already succeeded in the window.
 
 Check it first with `dryRun`:
 
@@ -82,7 +91,7 @@ Run the sequence with `POST /api/sequences/{id}/execute`. The guard is `false` (
 
 Open `http://localhost:8080/swagger/v1/swagger.json`. Find:
 
-- the schema `LastRunCondition`, and the value `lastRun` in the `SequenceStepCondition` discriminator;
+- the schema `LastRunCondition`. Its description names the discriminator value `type: "lastRun"`. The document does not publish a `discriminator` block on `SequenceStepCondition` for any condition type, so the schema description carries the value;
 - the schema `QueueSequenceStatsResponse`, and the property `sequenceStats` on `QueueDetailResponse`.
 
 ## Known limit

@@ -31,6 +31,8 @@ This file records the design decisions for the plan. Each section gives the deci
 
 **Rationale**: FR-006 says that a stop by hand, a failure-policy stop and the sequence time limit (watchdog) are `cancelled`. It also says that a Break is `success`. The spec edge case says that a run that the service stop interrupts has no end and is not recorded. The host shutdown cancels the same linked token as an operator stop, so `_appStopping.IsCancellationRequested` is the only signal that tells them apart. A failure-policy stop also cancels the run token. It counts as `cancelled`, because the queue stopped the run and the run did not fail by itself.
 
+Note: the failure-policy row is a safety rule. The failure policy acts between runs (`QueueExecutionService.OnCycleCompleted`), so at this time it never cancels a sequence that runs. If a later change lets the policy stop a run that is in progress, the row gives `cancelled`. The unit test simulates this row with a cancel of the stop token while the policy flag is set.
+
 **Alternatives considered**:
 - Use `SequenceExecutionResult.StartedAt`/`EndedAt`. Rejected: a run that a Break step ends returns without a call to `Complete()`, so `EndedAt` stays `default`. The queue takes both times from its `TimeProvider` instead (see R-006).
 

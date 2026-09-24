@@ -34,7 +34,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 **Purpose**: Make sure that the start point is green.
 
-- [ ] T001 Build `C:\src\GameBot\GameBot.sln` and run all tests. Record each test that fails before this feature starts. The constitution blocks progress on a red build. Do not change code in this task.
+- [X] T001 Build `C:\src\GameBot\GameBot.sln` and run all tests. Record each test that fails before this feature starts. The constitution blocks progress on a red build. Do not change code in this task.
 
 ---
 
@@ -46,13 +46,13 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 ### Tests for the foundation
 
-- [ ] T002 [P] Write unit tests for `SequenceRunStatistics.Apply` and `HasRunInWindow` in `tests/unit/Queues/SequenceRunStatisticsTests.cs`. Test these cases:
+- [X] T002 [P] Write unit tests for `SequenceRunStatistics.Apply` and `HasRunInWindow` in `tests/unit/Queues/SequenceRunStatisticsTests.cs`. Test these cases:
   - One record sets the last-run fields and one counter.
   - 101 records keep 100 records (the oldest record is removed), and the counters show 101.
   - `LastSuccessAt` does not change on a `failure` or `cancelled` record.
   - The window check includes both ends (`from <= EndedAt <= to`).
   - A record with the wrong status does not match.
-- [ ] T003 [P] Write unit tests for `FileSequenceRunStatisticsStore` in `tests/unit/Queues/FileSequenceRunStatisticsStoreTests.cs`. Use a new temp folder for each test. Test these cases:
+- [X] T003 [P] Write unit tests for `FileSequenceRunStatisticsStore` in `tests/unit/Queues/FileSequenceRunStatisticsStoreTests.cs`. Use a new temp folder for each test. Test these cases:
   - Record, then `GetAsync` and `GetForQueueAsync`.
   - A new store instance on the same folder reads the same values (service restart).
   - An absent file gives an empty map.
@@ -62,7 +62,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - A returned copy does not change the cache.
   - A `queueId` with a path separator or `..` throws `ArgumentException`.
   - The file uses lower-case status text.
-- [ ] T004 [P] Write unit tests for `LastRunConditionRules` in `tests/unit/Sequences/LastRunConditionRulesTests.cs`. Test these cases:
+- [X] T004 [P] Write unit tests for `LastRunConditionRules` in `tests/unit/Sequences/LastRunConditionRulesTests.cs`. Test these cases:
   - `TryParseSince` accepts `00:00`, `11:00` and `23:59`. It rejects `9:00`, `24:00`, `11:00:00` and empty text.
   - `TryParseWithin` reads `24:00:00` as 24 hours (not 24 days). It reads `1.00:00:00` as 24 hours.
   - `TryParseWithin` accepts `366.00:00:00` as the maximum.
@@ -73,7 +73,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
     - both `since` and `within`, and neither,
     - bad `since`, and bad `within`.
   - `Validate` accepts `status` in upper case, lower case and mixed case.
-- [ ] T005 [P] Extend `tests/unit/Sequences/CompositeConditionSerializationTests.cs` with JSON round trips (the domain type and the discriminator `lastRun`). Test these cases:
+- [X] T005 [P] Extend `tests/unit/Sequences/CompositeConditionSerializationTests.cs` with JSON round trips (the domain type and the discriminator `lastRun`). Test these cases:
   - A `lastRun` condition with `since`.
   - A `lastRun` condition with `within` and `negate: true`.
   - The same conditions as a child of `all`, `any` and `none`.
@@ -81,14 +81,14 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 ### Implementation for the foundation
 
-- [ ] T006 [P] Create the enum `SequenceRunStatus` (`Success`, `Failure`, `Cancelled`) in `src/GameBot.Domain/Queues/SequenceRunStatus.cs`. Add XML docs (data model section 1).
-- [ ] T007 Create `SequenceRunRecord` and `SequenceRunStatistics` in `src/GameBot.Domain/Queues/SequenceRunStatistics.cs` (data model sections 2 and 3; depends on T006). Add these members:
+- [X] T006 [P] Create the enum `SequenceRunStatus` (`Success`, `Failure`, `Cancelled`) in `src/GameBot.Domain/Queues/SequenceRunStatus.cs`. Add XML docs (data model section 1).
+- [X] T007 Create `SequenceRunRecord` and `SequenceRunStatistics` in `src/GameBot.Domain/Queues/SequenceRunStatistics.cs` (data model sections 2 and 3; depends on T006). Add these members:
   - `MaxRecentRuns = 100`,
   - `Apply(SequenceRunRecord)`,
   - `HasRunInWindow(SequenceRunStatus, DateTimeOffset, DateTimeOffset)`,
   - a deep-copy method.
-- [ ] T008 Create the interface `ISequenceRunStatisticsStore` in `src/GameBot.Domain/Queues/ISequenceRunStatisticsStore.cs` (data model section 5; depends on T007). Add `RecordAsync`, `GetForQueueAsync`, `GetAsync` and `DeleteQueueAsync`.
-- [ ] T009 Create `FileSequenceRunStatisticsStore` in `src/GameBot.Domain/Queues/FileSequenceRunStatisticsStore.cs` (data model sections 4 and 5, research R-003 and R-004; depends on T008). Use these parts:
+- [X] T008 Create the interface `ISequenceRunStatisticsStore` in `src/GameBot.Domain/Queues/ISequenceRunStatisticsStore.cs` (data model section 5; depends on T007). Add `RecordAsync`, `GetForQueueAsync`, `GetAsync` and `DeleteQueueAsync`.
+- [X] T009 Create `FileSequenceRunStatisticsStore` in `src/GameBot.Domain/Queues/FileSequenceRunStatisticsStore.cs` (data model sections 4 and 5, research R-003 and R-004; depends on T008). Use these parts:
   - The folder `<dataRoot>/queue-sequence-stats/`, with one `<queueId>.json` for each queue and `schemaVersion: 1`.
   - An in-memory cache.
   - One `SemaphoreSlim` for disk reads and writes.
@@ -99,22 +99,22 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - `IDisposable`.
 
   Make T002 and T003 pass.
-- [ ] T010 Register `FileSequenceRunStatisticsStore` as the singleton `ISequenceRunStatisticsStore` with `storageRoot` (depends on T009). Do this in `GameBotServiceSetup.RegisterRepositories` in `src/GameBot.Service/GameBotServiceSetup.cs`.
-- [ ] T011 Add `LastRunStepCondition` to `src/GameBot.Domain/Commands/SequenceStepCondition.cs` (data model section 6). Add these parts:
+- [X] T010 Register `FileSequenceRunStatisticsStore` as the singleton `ISequenceRunStatisticsStore` with `storageRoot` (depends on T009). Do this in `GameBotServiceSetup.RegisterRepositories` in `src/GameBot.Service/GameBotServiceSetup.cs`.
+- [X] T011 Add `LastRunStepCondition` to `src/GameBot.Domain/Commands/SequenceStepCondition.cs` (data model section 6). Add these parts:
   - the fields `Sequence`, `Status`, `Since` and `Within`, and the inherited `Negate`,
   - `[JsonDerivedType(typeof(LastRunStepCondition), "lastRun")]` on `SequenceStepCondition`,
   - the `[JsonIgnore]` override of `Type` that the other leaf types use.
-- [ ] T012 Create the static class `LastRunConditionRules` in `src/GameBot.Domain/Commands/LastRunConditionRules.cs` (depends on T011). Add these methods:
+- [X] T012 Create the static class `LastRunConditionRules` in `src/GameBot.Domain/Commands/LastRunConditionRules.cs` (depends on T011). Add these methods:
   - `Validate(LastRunStepCondition)`,
   - `TryParseSince(string, out TimeOnly)`,
   - `TryParseWithin(string, out TimeSpan)`.
 
   Use the strict patterns of research R-008 and R-009, not `TimeSpan.Parse`. Use the exact message tails of research R-011. Make T004 pass.
-- [ ] T013 Add the `LastRunStepCondition` case to `GuardConditionLeaves` in `src/GameBot.Domain/Commands/FileSequenceRepository.cs` (depends on T012). The case calls `LastRunConditionRules.Validate`. It throws `InvalidOperationException` on the first error. This guard is the last guard only.
-- [ ] T014 Add `LastRunConditionContract` to `src/GameBot.Service/Models/SequenceStepContracts.cs` (data model section 7; depends on T011). Add these parts:
+- [X] T013 Add the `LastRunStepCondition` case to `GuardConditionLeaves` in `src/GameBot.Domain/Commands/FileSequenceRepository.cs` (depends on T012). The case calls `LastRunConditionRules.Validate`. It throws `InvalidOperationException` on the first error. This guard is the last guard only.
+- [X] T014 Add `LastRunConditionContract` to `src/GameBot.Service/Models/SequenceStepContracts.cs` (data model section 7; depends on T011). Add these parts:
   - the `string?` fields `Sequence`, `Status`, `Since` and `Within`, and `Negate`,
   - its `JsonDerivedType` value `lastRun` on `SequenceStepConditionContract`.
-- [ ] T015 In `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, map `LastRunConditionContract` to `LastRunStepCondition` in `MapPerStepCondition` (depends on T014). Map it back in `MapPerStepConditionToDto`. Leave out `since` or `within` when it is null. Make T005 pass.
+- [X] T015 In `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, map `LastRunConditionContract` to `LastRunStepCondition` in `MapPerStepCondition` (depends on T014). Map it back in `MapPerStepConditionToDto`. Leave out `since` or `within` when it is null. Make T005 pass.
 
 **Checkpoint**: The store persists statistics, and the service can save and read a `lastRun` condition. User story work can start.
 
@@ -128,7 +128,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Write unit tests for the status classification in `tests/unit/Queues/QueueExecutionServiceRunStatisticsTests.cs`. Use the table of research R-002. Use the current harness style of `tests/unit/Queues/QueueExecutionServiceTests.cs`. Test these cases:
+- [X] T016 [P] [US1] Write unit tests for the status classification in `tests/unit/Queues/QueueExecutionServiceRunStatisticsTests.cs`. Use the table of research R-002. Use the current harness style of `tests/unit/Queues/QueueExecutionServiceTests.cs`. Test these cases:
   - `Succeeded` gives `success`.
   - A run that a Break step ends gives `success`.
   - `Failed` gives `failure`. An exception gives `failure`.
@@ -141,13 +141,16 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - `startedAt` and `endedAt` come from the `FakeTimeProvider`.
   - Two entries of the same sequence share one statistics entry.
   - A guard sequence (`EveryStep`, `BeforeEachRun`) gets its own entry.
-- [ ] T017 [US1] Write a unit test for queue restart in `tests/unit/Queues/QueueExecutionServiceRunStatisticsTests.cs` (FR-004, FR-014). Do this task after T016, because both tasks change the same file. Do these steps:
+  - A failure-policy stop acts between runs (`QueueExecutionService` calls `OnCycleCompleted` after a cycle), so at this time it never cancels a sequence that runs. The test simulates this row: it sets the policy flag on the handle and cancels the run token. A test comment says so (analyze finding A1; research R-002 has a note that this row is a safety rule).
+
+  **Note (analyze finding I1)**: `QueueExecutionService.StopAsync` waits for `handle.RunTask`, and `RunOneSequenceAsync` awaits `RecordRunAsync` before it returns or rethrows. Thus a stop returns only after the record is written, and `DELETE /api/queues/{id}` (409 while the queue runs) cannot come before the record. The test `RunStats_AStopByHandGivesCancelledAndTheStopWaitsForTheRecord` proves the wait with a slow store. As a second guard, `FileSequenceRunStatisticsStore` ignores a record for a queue that it deleted (`ARecordAfterTheDeleteOfTheQueueMakesNoOrphanFile`).
+- [X] T017 [US1] Write a unit test for queue restart in `tests/unit/Queues/QueueExecutionServiceRunStatisticsTests.cs` (FR-004, FR-014). Do this task after T016, because both tasks change the same file. Do these steps:
   - Record runs, stop the queue and start it again.
   - Make sure that the statistics are the same.
   - Before the stop, let a `reschedule-self` run add a time slot.
   - After the restart, make sure that the runtime entries are equal to the template entries.
   - Make sure that the time slot that `reschedule-self` added before the restart is gone.
-- [ ] T018 [P] [US1] Write contract tests in `tests/contract/Queues/QueueSequenceStatsContractTests.cs`. Each test creates its own queue with a new ID (shared bin data folder). Test these cases:
+- [X] T018 [P] [US1] Write contract tests in `tests/contract/Queues/QueueSequenceStatsContractTests.cs`. Each test creates its own queue with a new ID (shared bin data folder). Test these cases:
   - `GET /api/queues/{id}` returns `sequenceStats: {}` for a new queue.
   - The test writes records through the registered `ISequenceRunStatisticsStore`. Then the read returns the entry keyed by sequence ID.
   - The entry has `sequenceName`, the times, a lower-case `lastRunStatus` and the counts.
@@ -158,7 +161,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - Record a run, then call `PUT /api/queues/{id}/entries` without that sequence. The entry of that sequence is still in `sequenceStats` (spec edge case "Sequence removed from the queue template").
   - A damaged statistics file gives `{}` and not a 500.
   - A sequence that no longer exists gives `sequenceName: null`.
-- [ ] T019 [P] [US1] Write OpenAPI tests in `tests/contract/Queues/QueueSequenceStatsOpenApiTests.cs`. Use the style of `tests/contract/Queues/QueueHealthOpenApiTests.cs`. Test these cases:
+- [X] T019 [P] [US1] Write OpenAPI tests in `tests/contract/Queues/QueueSequenceStatsOpenApiTests.cs`. Use the style of `tests/contract/Queues/QueueHealthOpenApiTests.cs`. Test these cases:
   - The schema `QueueSequenceStatsResponse` exists, and each field has a description.
   - `lastRunStatus` has the enum `success`, `failure`, `cancelled`.
   - `QueueDetailResponse.sequenceStats` is an object with a description. Its `additionalProperties` is `QueueSequenceStatsResponse`.
@@ -166,7 +169,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] Change `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs` (research R-002). Do these steps:
+- [X] T020 [US1] Change `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs` (research R-002). Do these steps:
   - Add `ISequenceRunStatisticsStore?` as an optional last constructor parameter (default null).
   - In `RunOneSequenceAsync`, take `startedAt` from `_timeProvider.GetLocalNow()` just before `_sequenceExecution.ExecuteAsync`.
   - After the call and in each `catch`, compute the status with the table of research R-002.
@@ -177,27 +180,27 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - Keep the new lines in `RunOneSequenceAsync` to a minimum (analyzer cost).
 
   Make T016 and T017 pass.
-- [ ] T021 [US1] Add a Warning log message for a failed statistics write, with the next free EventId (depends on T020). Add it to the `QueueExecutionLog` class in `src/GameBot.Service/Services/QueueExecution/`.
-- [ ] T022 [P] [US1] Create `QueueSequenceStatsResponse` in `src/GameBot.Service/Contracts/Queues/QueueSequenceStatsResponse.cs` (data model section 11). Add these fields:
+- [X] T021 [US1] Add a Warning log message for a failed statistics write, with the next free EventId (depends on T020). Add it to the `QueueExecutionLog` class in `src/GameBot.Service/Services/QueueExecution/`.
+- [X] T022 [P] [US1] Create `QueueSequenceStatsResponse` in `src/GameBot.Service/Contracts/Queues/QueueSequenceStatsResponse.cs` (data model section 11). Add these fields:
   - `sequenceName`,
   - `lastRunStartedAt` and `lastRunEndedAt`,
   - `lastRunStatus` as lower-case text,
   - `lastSuccessAt`,
   - `successCount`, `failureCount` and `cancelledCount`.
-- [ ] T023 [US1] Add `SequenceStats` to `src/GameBot.Service/Contracts/Queues/QueueDetailResponse.cs` (depends on T022). Use `SortedDictionary<string, QueueSequenceStatsResponse>` with an ordinal comparer. Use the JSON name `sequenceStats`. The value is never null.
-- [ ] T024 [US1] Change `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T023). Do these steps:
+- [X] T023 [US1] Add `SequenceStats` to `src/GameBot.Service/Contracts/Queues/QueueDetailResponse.cs` (depends on T022). Use `SortedDictionary<string, QueueSequenceStatsResponse>` with an ordinal comparer. Use the JSON name `sequenceStats`. The value is never null.
+- [X] T024 [US1] Change `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T023). Do these steps:
   - Give `BuildDetailAsync` an `ISequenceRunStatisticsStore` parameter.
   - Fill `SequenceStats` from `GetForQueueAsync`, with `sequenceName` from the `namesById` lookup.
   - Add the parameter to the handler signatures of each caller: GET, PUT entries, PUT template and PUT game.
   - In `DELETE /api/queues/{id}`, call `DeleteQueueAsync(id)` after `repo.DeleteAsync`.
 
   Make T018 pass.
-- [ ] T025 [US1] Create `QueueSequenceStatsSchemaFilter` (ISchemaFilter) in `src/GameBot.Service/Swagger/QueueSequenceStatsSchemaFilter.cs` (depends on T022). Add these parts:
+- [X] T025 [US1] Create `QueueSequenceStatsSchemaFilter` (ISchemaFilter) in `src/GameBot.Service/Swagger/QueueSequenceStatsSchemaFilter.cs` (depends on T022). Add these parts:
   - a description for each field of `QueueSequenceStatsResponse`,
   - the `lastRunStatus` enum,
   - the description of `QueueDetailResponse.sequenceStats`, with the key and the rules of `contracts/queue-sequence-stats.md`,
   - `additionalProperties` on `sequenceStats`.
-- [ ] T026 [US1] Register `QueueSequenceStatsSchemaFilter` next to `QueueHealthSchemaFilter` in `src/GameBot.Service/GameBotServiceSetup.cs` (depends on T025). In `src/GameBot.Service/Swagger/SwaggerConfig.cs`, extend the `GET /api/queues/{id}` operation description. Also add one `sequenceStats` entry to `QueueDetailExample()`. Make T019 pass.
+- [X] T026 [US1] Register `QueueSequenceStatsSchemaFilter` next to `QueueHealthSchemaFilter` in `src/GameBot.Service/GameBotServiceSetup.cs` (depends on T025). In `src/GameBot.Service/Swagger/SwaggerConfig.cs`, extend the `GET /api/queues/{id}` operation description. Also add one `sequenceStats` entry to `QueueDetailExample()`. Make T019 pass.
 
 **Checkpoint**: User Story 1 is complete. A script can read the last status and last success time of each sequence with one queue read.
 
@@ -211,7 +214,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] Write unit tests for `LastRunWindow.SinceStart` in `tests/unit/Sequences/LastRunWindowTests.cs`. Test these cases:
+- [X] T027 [P] [US2] Write unit tests for `LastRunWindow.SinceStart` in `tests/unit/Sequences/LastRunWindowTests.cs`. Test these cases:
   - Now 14:00 and `since` 11:00 gives 11:00 on the same day.
   - Now 10:00 gives 11:00 on the previous day.
   - Now exactly 11:00 gives now.
@@ -219,7 +222,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - A fall-back day with `since` in the repeated hour gives the most recent real instant at or before now.
 
   Use a real zone with DST, for example "W. Europe Standard Time" or "Europe/Berlin". Use the zone that the host resolves.
-- [ ] T028 [P] [US2] Write unit tests for `LastRunConditionEvaluator` in `tests/unit/Sequences/LastRunConditionEvaluatorTests.cs`. Use a `FakeTimeProvider` and an in-memory or temp-folder store. Test these cases:
+- [X] T028 [P] [US2] Write unit tests for `LastRunConditionEvaluator` in `tests/unit/Sequences/LastRunConditionEvaluatorTests.cs`. Use a `FakeTimeProvider` and an in-memory or temp-folder store. Test these cases:
   - Spec User Story 2 scenarios 1 to 5:
     - 14:00/12:00 gives true,
     - 10:00/previous 12:00 gives true,
@@ -230,18 +233,20 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - Another sequence ID.
   - An unknown ID gives false.
   - A record from before a queue restart (new store instance) still gives true (scenario 6).
-- [ ] T029 [P] [US2] Extend `tests/unit/Sequences/CompositeConditionEvaluatorTests.cs` for `SequenceStepConditionEvaluator.EvaluateAsync`. Test these cases:
+  - A stored bad `since` or `within` (and a stored bad `status`, both fields, or no field) makes the evaluation throw `ConditionEvaluationException` with kind `UnsupportedCondition` (analyze finding G1).
+- [X] T029 [P] [US2] Extend `tests/unit/Sequences/CompositeConditionEvaluatorTests.cs` for `SequenceStepConditionEvaluator.EvaluateAsync`. Test these cases:
   - A `lastRun` leaf calls the delegate.
   - With no delegate, the leaf is false and nothing throws (FR-012).
   - `negate: true` inverts the result.
   - A `lastRun` child in `all`, `any` and `none` gives the correct result (scenario 7).
   - `Describe` gives `lastRun(sequence=self, status=success, since=11:00)`.
   - `Describe` gives `NOT lastRun(sequence=seq-daily-train, status=failure, within=24:00:00)`.
-- [ ] T030 [P] [US2] Extend `tests/unit/Sequences/CompositeConditionRunnerTests.cs`. Test these cases:
+- [X] T030 [P] [US2] Extend `tests/unit/Sequences/CompositeConditionRunnerTests.cs`. Test these cases:
   - Push a `SequenceRunContext`. Then a `lastRun` condition reads the context delegate in each of these places:
     - a step condition,
     - an If condition,
     - a `while` loop condition,
+    - a `repeatUntil` loop condition (analyze finding G2: both loop kinds call `EvaluateLoopConditionAsync`, and a test pins each kind),
     - a Break condition.
   - Run a sequence with a `lastRun` Break condition in a loop body. When the delegate gives true, the loop stops at the Break. When it gives false, the loop body continues.
   - Run a sequence with a `lastRun` Break condition in an If branch in a loop body. When the delegate gives true, the loop stops at the Break. When it gives false, the loop body continues after the branch.
@@ -250,17 +255,17 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - The Break reason in the execution log uses the `Describe` text.
   - The step-guard entry in the execution log has `conditionType: "lastRun"` (`contracts/lastrun-condition.md`, section "Execution log").
   - `SequenceRunContext.Current` is null again after the run.
-- [ ] T031 [P] [US2] Write unit tests for the context push in `SequenceExecutionService` in `tests/unit/Sequences/SequenceRunContextTests.cs`. Test these cases:
+- [X] T031 [P] [US2] Write unit tests for the context push in `SequenceExecutionService` in `tests/unit/Sequences/SequenceRunContextTests.cs`. Test these cases:
   - A queue run (`OriginatingQueueId` set, `dryRun` false) pushes a context with the queue ID and the sequence ID.
   - An ad-hoc run and a dry-run push no context.
   - A simulated nested run pushes its own context with the nested sequence ID. Thus `self` names the nested sequence (spec edge case "Nested sequence run"). No step type runs another sequence at this time. Thus the test makes a second direct `Push` or `ExecuteAsync` call inside the outer run. Write this in a test comment.
   - The outer context comes back after the simulated nested run.
   - `Push(...).Dispose()` puts back the earlier value.
   - With no evaluator registered, no context is pushed.
-- [ ] T032 [P] [US2] Write an integration test in `tests/integration/Queues/QueueLastRunGuardRestartTests.cs` (SC-002, User Story 2 scenario 6). Use the harness style of `tests/integration/Queues/QueueFailurePolicyRunTests.cs`. Do these steps:
+- [X] T032 [P] [US2] Write an integration test in `tests/integration/Queues/QueueLastRunGuardRestartTests.cs` (SC-002, User Story 2 scenario 6). Use the harness style of `tests/integration/Queues/QueueFailurePolicyRunTests.cs`. Do these steps:
   - Create a queue and a sequence, each with a new ID.
-  - Make the first step a Break step with the guard `lastRun`, `self`, `success`, `since: "11:00"`.
-  - Make a later step do the work. Count each run of the work step.
+  - Make the first step a Break step with the guard `lastRun`, `self`, `success`, `since: "11:00"`. A Break step is valid only in a loop body, so the sequence is a count loop of one iteration with the Break step first in its body.
+  - Make a later step do the work. Count each run of the work step with a concrete method (analyze finding U1): the work step is a `notify` action, and the test replaces `IFailureNotifier` with a recorder in DI. Each run of the work step is one recorded `SequenceNotifyEvent`.
   - Clock: add a private nested `TimeProvider` subclass to the test file. Copy the shape of `tests/unit/Queues/FakeTimeProvider.cs` (that class is internal to the unit test project). Its `LocalTimeZone` is UTC.
   - In `WithWebHostBuilder(...).ConfigureServices`, remove the registered `TimeProvider` singleton and add the test clock. Use the same method that `QueueFailurePolicyRunTests.NewApp` uses for `IFailureNotifier`. `QueueExecutionService` gets `TimeProvider` from DI, so the queue uses the test clock.
   - Schedule mode: link a template with one `OncePerRun` entry, and create the queue with `cycleExecution: false`. Each start then runs the sequence one time, and the queue stops itself (`CompletedFullRun`). The run loop does not wait for the clock, so a clock that does not move does not block it.
@@ -276,14 +281,14 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 ### Implementation for User Story 2
 
-- [ ] T033 [P] [US2] Create `SequenceRunContext` in `src/GameBot.Domain/Services/SequenceRunContext.cs` (data model section 8). Add these members:
+- [X] T033 [P] [US2] Create `SequenceRunContext` in `src/GameBot.Domain/Services/SequenceRunContext.cs` (data model section 8). Add these members:
   - `QueueId`, `SequenceId` and `LastRunEvaluator`,
   - static `Current` on `AsyncLocal<T>`,
   - static `Push`, which returns an `IDisposable`.
 
   Use the same pattern as `SequenceTimeLimitScope` in `src/GameBot.Service/Services/SequenceExecution/SequenceTimeLimitScope.cs`.
-- [ ] T034 [P] [US2] Create the pure static method `LastRunWindow.SinceStart(DateTimeOffset now, TimeOnly since, TimeZoneInfo zone)` in `src/GameBot.Domain/Services/LastRunWindow.cs`. Use the algorithm of research R-007 (at most two days back). Make T027 pass.
-- [ ] T035 [US2] Create `LastRunConditionEvaluator` in `src/GameBot.Domain/Services/LastRunConditionEvaluator.cs` (data model section 9; depends on T034). Do these steps:
+- [X] T034 [P] [US2] Create the pure static method `LastRunWindow.SinceStart(DateTimeOffset now, TimeOnly since, TimeZoneInfo zone)` in `src/GameBot.Domain/Services/LastRunWindow.cs`. Use the algorithm of research R-007 (at most two days back). Make T027 pass.
+- [X] T035 [US2] Create `LastRunConditionEvaluator` in `src/GameBot.Domain/Services/LastRunConditionEvaluator.cs` (data model section 9; depends on T034). Do these steps:
   - Take `ISequenceRunStatisticsStore` and `TimeProvider` as dependencies.
   - Add `EvaluateAsync(queueId, ownSequenceId, condition, ct)`.
   - Use `LastRunConditionRules.TryParseSince` and `LastRunConditionRules.TryParseWithin`.
@@ -291,28 +296,28 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - Do not apply `Negate` here.
 
   Make T028 pass.
-- [ ] T036 [US2] Change `src/GameBot.Domain/Services/SequenceStepConditionEvaluator.cs` (depends on T011). Do these steps:
+- [X] T036 [US2] Change `src/GameBot.Domain/Services/SequenceStepConditionEvaluator.cs` (depends on T011). Do these steps:
   - Add the optional parameter `Func<LastRunStepCondition, CancellationToken, Task<bool>>? lastRunEvaluator = null` to `EvaluateAsync`.
   - Pass the parameter down the private walk.
   - Add the `LastRunStepCondition` leaf case. The case gives false when the delegate is null.
   - Add the `Describe` case of `contracts/lastrun-condition.md`, section "Execution log".
 
   Make T029 pass.
-- [ ] T037 [US2] Change `src/GameBot.Domain/Services/SequenceRunner.cs` (research R-005; depends on T033 and T036). Do these steps:
+- [X] T037 [US2] Change `src/GameBot.Domain/Services/SequenceRunner.cs` (research R-005; depends on T033 and T036). Do these steps:
   - Pass `SequenceRunContext.Current?.LastRunEvaluator` at the two calls of `SequenceStepConditionEvaluator.EvaluateAsync`.
   - These two calls are the step guard and `EvaluateLoopConditionAsync`.
   - In `DescribeBreakCondition`, use `SequenceStepConditionEvaluator.Describe` for a `LastRunStepCondition`.
   - Do not add a parameter to other private methods.
 
   Make T030 pass.
-- [ ] T038 [US2] Change `src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs` (depends on T035, T037). Do these steps:
+- [X] T038 [US2] Change `src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs` (depends on T035, T037). Do these steps:
   - Add `LastRunConditionEvaluator?` as an optional last constructor parameter (default null).
   - In `ExecuteCoreAsync`, after the device scope, push `SequenceRunContext` with a small private helper.
   - Push the context only when `OriginatingQueueId` is not empty, `dryRun` is false and the evaluator is not null.
   - Do not add a statistics record here. Only the queue records runs. A later nested run is also not recorded (spec edge case "Nested sequence run").
 
   Make T031 pass.
-- [ ] T039 [US2] Register `LastRunConditionEvaluator` as a singleton in `src/GameBot.Service/GameBotServiceSetup.cs` (depends on T038). Make sure that the DI container gives it to `SequenceExecutionService`. Make T032 pass (T032 also needs T020).
+- [X] T039 [US2] Register `LastRunConditionEvaluator` as a singleton in `src/GameBot.Service/GameBotServiceSetup.cs` (depends on T038). Make sure that the DI container gives it to `SequenceExecutionService`. Make T032 pass (T032 also needs T020).
 
 **Checkpoint**: User Stories 1 and 2 work. A daily task with a `since` guard runs its work one time in each window, also after a queue restart.
 
@@ -326,7 +331,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 ### Tests for User Story 3
 
-- [ ] T040 [P] [US3] Extend `tests/unit/Sequences/CompositeConditionValidationTests.cs`. Test these cases:
+- [X] T040 [P] [US3] Extend `tests/unit/Sequences/CompositeConditionValidationTests.cs`. Test these cases:
   - Each message of the table in `contracts/lastrun-condition.md`, with the `Step '<label>' condition at <path>: ` prefix.
   - Each message at the root (`$`) of each of the six slots:
     - step condition,
@@ -339,7 +344,7 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - A correct `lastRun` passes.
   - The composite limits (16 children, depth 4) still apply with `lastRun` children.
   - `imageVisible` and `commandOutcome` root leaves keep their current messages (no double message).
-- [ ] T041 [P] [US3] Write contract tests in `tests/contract/Sequences/LastRunConditionContractTests.cs`. Test these cases:
+- [X] T041 [P] [US3] Write contract tests in `tests/contract/Sequences/LastRunConditionContractTests.cs`. Test these cases:
   - `POST /api/sequences` with `dryRun: true` and a correct `lastRun` returns `valid: true`.
   - POST, PUT and PATCH with each bad input of the contract table return 400 with the message tail. They never return 500. The bad inputs are:
     - no `sequence`,
@@ -350,9 +355,11 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
     - `within: "00:00:00"`, `within: "400.00:00:00"` and `within: "abc"`.
   - A saved condition reads back with the same `since` or `within` text. The field that is not set is not in the response.
   - A `lastRun` condition in a composite saves and reads back.
-- [ ] T042 [P] [US3] Write OpenAPI tests in `tests/contract/Sequences/LastRunConditionOpenApiTests.cs`. Test these cases:
+- [X] T042 [P] [US3] Write OpenAPI tests in `tests/contract/Sequences/LastRunConditionOpenApiTests.cs`. Test these cases:
   - The schema `LastRunCondition` exists.
   - The `SequenceStepCondition` discriminator maps `lastRun` to it.
+
+  **Note**: the document publishes no `discriminator` block on `SequenceStepCondition` for any condition type (Swashbuckle polymorphism is not on). The test uses the same rule as `SequencePerStepConditionsOpenApiTests`: when a mapping exists, it must map `lastRun`; when it does not, the `LastRunCondition` description must name `type: "lastRun"`. The schema filter writes that text.
   - Each field has a description.
   - `status` has the enum `success`, `failure`, `cancelled`.
   - `since` and `within` have the patterns of `contracts/lastrun-condition.md`.
@@ -360,13 +367,13 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 ### Implementation for User Story 3
 
-- [ ] T043 [US3] Change `src/GameBot.Domain/Services/CompositeConditionValidator.cs` (research R-011). Do these steps:
+- [X] T043 [US3] Change `src/GameBot.Domain/Services/CompositeConditionValidator.cs` (research R-011). Do these steps:
   - Add a `LastRunStepCondition` case to `Walk`. The case calls one small helper.
   - In the helper, call `LastRunConditionRules.Validate`, and add each error with the path.
   - Change the root gate to `condition is not CompositeStepCondition and not LastRunStepCondition && !validateLeafAtRoot`.
 
   Make T040 pass.
-- [ ] T044 [US3] Check the validation path of the six slots (depends on T043). Do these checks:
+- [X] T044 [US3] Check the validation path of the six slots (depends on T043). Do these checks:
   - In `src/GameBot.Domain/Services/SequenceStepValidationService.cs`, make sure that each of the six slots goes through `CompositeConditionValidator.Validate`.
   - In `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`, make sure that the create, update, PATCH and `dryRun` paths turn the errors into a 400.
   - Make sure that each path does this before `FileSequenceRepository` runs.
@@ -374,12 +381,17 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - Write the result of each check as a note under this task.
 
   Make T041 pass.
-- [ ] T045 [P] [US3] Create `LastRunConditionSchemaFilter` (ISchemaFilter) in `src/GameBot.Service/Swagger/LastRunConditionSchemaFilter.cs`. Add these parts:
+
+  **Result of the checks** (no fix was necessary):
+  - `SequenceStepValidationService`: all six slots call `CompositeConditionValidator.Validate`. Step condition and step Break condition: `ValidateStepCondition`. If condition: `ValidateIfCondition`. Loop condition: `ValidateLoopStep`. Loop-body Break condition: `ValidateLoopStep`. If-branch Break condition: `ValidateIfBranch`. With the new root gate, a `lastRun` leaf at the root of each slot is walked one time. The unit test `EachOfTheSixSlotsReportsALastRunMessageAtTheRoot` proves each slot.
+  - `SequencesEndpoints`: create (`CreateSequenceAsync`), update (`UpdateSequenceAsync`) and PATCH (`PatchSequenceAsync`) call `ValidatePerStepForPersistenceAsync`, which calls `SequenceStepValidationService.Validate`, and return 400 on an error. The `dryRun` exit comes after this check. Each path validates before `repo.CreateAsync` / `repo.UpdateAsync`, so `FileSequenceRepository.GuardConditionLeaves` is only the last guard. `LastRunConditionContractTests` proves a 400 on POST, POST with `dryRun`, PUT and PATCH for each bad input.
+  - Known gap, not changed: the old "domain shape" fallback of `CreateSequenceAsync` (a body that is not a per-step request) does not call the step validator, the same as for the other condition types. The repository guard then rejects a bad `lastRun` there.
+- [X] T045 [P] [US3] Create `LastRunConditionSchemaFilter` (ISchemaFilter) in `src/GameBot.Service/Swagger/LastRunConditionSchemaFilter.cs`. Add these parts:
   - the field descriptions,
   - the `status` enum,
   - the `since` and `within` patterns,
   - the schema description of the two rules.
-- [ ] T046 [US3] In `src/GameBot.Service/Swagger/ConditionalFlowSchemaDocumentFilter.cs`, add a `GenerateSchema` call for `LastRunConditionContract` (depends on T045). Add the alias `LastRunCondition`. Register `LastRunConditionSchemaFilter` in `src/GameBot.Service/GameBotServiceSetup.cs`. Make T042 pass.
+- [X] T046 [US3] In `src/GameBot.Service/Swagger/ConditionalFlowSchemaDocumentFilter.cs`, add a `GenerateSchema` call for `LastRunConditionContract` (depends on T045). Add the alias `LastRunCondition`. Register `LastRunConditionSchemaFilter` in `src/GameBot.Service/GameBotServiceSetup.cs`. Make T042 pass.
 
 **Checkpoint**: All user stories work independently.
 
@@ -389,14 +401,14 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
 
 **Purpose**: Documentation, full test run and hand check.
 
-- [ ] T047 [P] Update `docs/architecture.md` with these items:
+- [X] T047 [P] Update `docs/architecture.md` with these items:
   - the `lastRun` condition (domain model and capability),
   - `sequenceStats` on the queue read (API surface),
   - the folder `queue-sequence-stats/` (persistence layout),
   - a new "Last reviewed" date.
-- [ ] T048 [P] Add an `Added` entry to `CHANGELOG.md` for the run statistics and the `lastRun` condition. Include the web UI limit (research R-016): write `lastRun` conditions through the API.
-- [ ] T049 [P] Add row 105 to `specs/STATUS.md`.
-- [ ] T050 Build `C:\src\GameBot\GameBot.sln` and run all tests. Fix each failure that this feature causes. Compare with the list of T001. If a known flaky test fails (for example `MaskedTemplateMatchTests`), run it again. Then measure the performance goal of the plan:
+- [X] T048 [P] Add an `Added` entry to `CHANGELOG.md` for the run statistics and the `lastRun` condition. Include the web UI limit (research R-016): write `lastRun` conditions through the API.
+- [X] T049 [P] Add row 105 to `specs/STATUS.md`.
+- [X] T050 Build `C:\src\GameBot\GameBot.sln` and run all tests. Fix each failure that this feature causes. Compare with the list of T001. If a known flaky test fails (for example `MaskedTemplateMatchTests`), run it again. Then measure the performance goal of the plan:
   - Make a store with one queue of 50 sequences at 100 records each.
   - Measure the time of 20 `RecordAsync` calls with a `Stopwatch`.
   - Make sure that the p95 is below 50 ms.
@@ -411,8 +423,16 @@ description: "Task list for feature 105: per-sequence run statistics per queue"
   - Fix each problem in the changed files. Write the result of the two commands as a note under this task.
 
   For code coverage (constitution Principle II), the CI coverage gate is the check. Optionally, collect local coverage for the new files with `dotnet test --collect "XPlat Code Coverage"`. Write the result as a note under this task.
-- [ ] T051 Do the steps of `specs/105-sequence-run-statistics/quickstart.md` against a local service on port 8080 where possible. Record the result.
-- [ ] T052 Set **Status** to `Implemented` in `specs/105-sequence-run-statistics/spec.md` (depends on T050).
+
+  **Results (2026-09-24)**:
+  - Performance (Release build, temporary probe test, then removed): a queue file of 50 sequences at 100 records is 806,868 bytes (indented JSON, more than the 500 KB estimate). 20 `RecordAsync` calls: p50 5.18 ms, p95 7.43 ms, max 8.92 ms (goal: p95 below 50 ms). One `LastRunConditionEvaluator.EvaluateAsync` over 100 records after a warm-up: 0.062 ms (goal: below 1 ms).
+  - `dotnet build GameBot.sln -c Release -warnaserror`: 0 warnings, 0 errors.
+  - `dotnet format whitespace ... --verify-no-changes --include <changed .cs files>`: the new files first had LF line ends; they now have CRLF and pass. The command still reports `WHITESPACE` errors in `SequenceRunner.cs` (lines 267, 269, 936, 937), `QueuesEndpoints.cs` (lines 220 to 252) and `QueueExecutionService.cs` (line 247). None of these lines is in the diff of this feature (they were there before), so they are not changed here.
+  - Coverage: not collected locally; the CI coverage gate is the check.
+- [X] T051 Do the steps of `specs/105-sequence-run-statistics/quickstart.md` against a local service on port 8080 where possible. Record the result.
+
+  **Result**: port 8080 runs the installed production service (a separate, older binary under `%LOCALAPPDATA%\GameBot`), not this build. A hand check there is not possible before a repackage, and it would change production queues. The quickstart steps are covered by automated tests on this build instead: steps 2 and 3 (`dryRun`, 400 messages) by `LastRunConditionContractTests`; steps 4 to 6 (guard in a queue, `sequenceStats`, queue and service restart) by `QueueLastRunGuardRestartTests` and `QueueSequenceStatsContractTests`; step 7 (ad-hoc run gives false) by `WithNoContextALastRunGuardIsFalseAndTheRunDoesNotFail` and `SequenceRunContextTests`; step 8 (OpenAPI) by the two OpenAPI test classes. The quickstart example had a Break step at the top level, which the service rejects with 400; it now puts the Break step in a count loop of one iteration. Step 8 now says that the document has no discriminator block. Do the hand check after the next deploy.
+- [X] T052 Set **Status** to `Implemented` in `specs/105-sequence-run-statistics/spec.md` (depends on T050).
 
 ---
 

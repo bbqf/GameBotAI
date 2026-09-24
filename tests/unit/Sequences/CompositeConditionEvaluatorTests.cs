@@ -384,4 +384,88 @@ public sealed class CompositeConditionEvaluatorTests {
 
     description.Should().Be("all(imageVisible(imageId=confirm, minSimilarity=default), NOT imageVisible(imageId=gas-title, minSimilarity=default))");
   }
+
+  // ---------- lastRun (feature 105) ----------
+
+  private static LastRunStepCondition LastRun(string sequence = "self", bool negate = false) =>
+    new() { Sequence = sequence, Status = "success", Since = "11:00", Negate = negate };
+
+  private static Task<ConditionEvaluation> EvaluateWithLastRunAsync(
+      SequenceStepCondition condition,
+      Func<LastRunStepCondition, CancellationToken, Task<bool>>? lastRun,
+      CountingImageEvaluator? images = null) =>
+    SequenceStepConditionEvaluator.EvaluateAsync(
+      condition,
+      (images ?? new CountingImageEvaluator(new Dictionary<string, bool>())).EvaluateAsync,
+      new Dictionary<string, string>(),
+      lastRun,
+      CancellationToken.None);
+
+  [Fact]
+  public async Task ALastRunLeafCallsTheDelegate() {
+    var asked = new List<string>();
+    Task<bool> Delegate(LastRunStepCondition c, CancellationToken ct) { asked.Add(c.Sequence); return Task.FromResult(true); }
+
+    var result = await EvaluateWithLastRunAsync(LastRun("seq-x"), Delegate);
+
+    result.Value.Should().BeTrue();
+    asked.Should().Equal("seq-x");
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task ALastRunLeafWithNoDelegateIsFalseAndDoesNotThrow(bool negate) {
+    // FR-012: no queue means false. Negate still applies to that false.
+    var result = await EvaluateWithLastRunAsync(LastRun(negate: negate), lastRun: null);
+
+    result.Value.Should().Be(negate);
+  }
+
+  [Fact]
+  public async Task TheOldOverloadTreatsALastRunLeafAsFalse() {
+    var result = await SequenceStepConditionEvaluator.EvaluateAsync(
+      LastRun(), null, new Dictionary<string, string>(), CancellationToken.None);
+
+    result.Value.Should().BeFalse();
+  }
+
+  [Theory]
+  [InlineData(true, false)]
+  [InlineData(false, true)]
+  public async Task NegateInvertsALastRunLeaf(bool delegateResult, bool expected) {
+    var result = await EvaluateWithLastRunAsync(LastRun(negate: true), (_, _) => Task.FromResult(delegateResult));
+
+    result.Value.Should().Be(expected);
+  }
+
+  [Theory]
+  [InlineData("all", true, true, true)]
+  [InlineData("all", true, false, false)]
+  [InlineData("any", false, true, true)]
+  [InlineData("any", false, false, false)]
+  [InlineData("none", false, false, true)]
+  [InlineData("none", true, false, false)]
+  public async Task ALastRunChildInACompositeGivesTheCorrectResult(string rule, bool lastRunValue, bool imageValue, bool expected) {
+    // Spec User Story 2, scenario 7.
+    var images = new CountingImageEvaluator(new Dictionary<string, bool> { ["a"] = imageValue });
+    var children = new SequenceStepCondition[] { LastRun(), Image("a") };
+    SequenceStepCondition condition = rule switch {
+      "any" => new AnyStepCondition { Children = children },
+      "none" => new NoneStepCondition { Children = children },
+      _ => new AllStepCondition { Children = children }
+    };
+
+    var result = await EvaluateWithLastRunAsync(condition, (_, _) => Task.FromResult(lastRunValue), images);
+
+    result.Value.Should().Be(expected);
+  }
+
+  [Fact]
+  public void DescribeRendersALastRunCondition() {
+    SequenceStepConditionEvaluator.Describe(new LastRunStepCondition { Sequence = "self", Status = "success", Since = "11:00" })
+      .Should().Be("lastRun(sequence=self, status=success, since=11:00)");
+    SequenceStepConditionEvaluator.Describe(new LastRunStepCondition { Sequence = "seq-daily-train", Status = "failure", Within = "24:00:00", Negate = true })
+      .Should().Be("NOT lastRun(sequence=seq-daily-train, status=failure, within=24:00:00)");
+  }
 }

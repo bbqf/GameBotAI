@@ -91,6 +91,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// </summary>
   private readonly IQueueRunStateStore? _runState;
 
+  /// <summary>
+  /// Keeps the run statistics of each sequence that the queue runs (feature 105). Optional, so the
+  /// test harnesses keep their constructor calls. When it is null, the queue records no statistics.
+  /// </summary>
+  private readonly ISequenceRunStatisticsStore? _runStatistics;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -128,7 +134,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     GameBot.Domain.Commands.ISequenceRepository? sequences = null,
     GameBot.Domain.Config.AppConfig? config = null,
     QueueFailurePolicyEvaluator? failurePolicy = null,
-    IQueueRunStateStore? runState = null) {
+    IQueueRunStateStore? runState = null,
+    ISequenceRunStatisticsStore? runStatistics = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -148,6 +155,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _config = config ?? new GameBot.Domain.Config.AppConfig();
     _failurePolicy = failurePolicy;
     _runState = runState;
+    _runStatistics = runStatistics;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -864,6 +872,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     var activeRootId = await RotateRootIfDueAsync(trackedHandle?.RootExecutionId ?? rootId, queueId, ct)
       .ConfigureAwait(false);
     trackedHandle?.SetCurrentSequence(sequenceId, _timeProvider.GetLocalNow());
+    // Feature 105: set just before the sequence starts. Null means "no sequence run", so a fault
+    // before that point records nothing.
+    DateTimeOffset? startedAt = null;
     try {
       // Foreground guard: a queue run holds one emulator for hours, and anything that pushes the
       // game out of the foreground in that window (a recovery loop pressing BACK off the game's top
@@ -899,25 +910,60 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         OriginatingQueueId = queueId,
         SelfRescheduleOriginActionId = selfRescheduleOriginActionId
       };
+      startedAt = _timeProvider.GetLocalNow();
       var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, scope, ct: watchdog.Token).ConfigureAwait(false);
-      return string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
+      var succeeded = string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
+      await RecordRunAsync(queueId, sequenceId, startedAt, ClassifyResult(succeeded, ct, watchdogTimer.Token)).ConfigureAwait(false);
+      return succeeded;
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+      await RecordRunAsync(queueId, sequenceId, startedAt, SequenceRunStatus.Cancelled).ConfigureAwait(false);
       throw; // a stop request must propagate to abort the run
     }
     catch (OperationCanceledException) {
       // Watchdog fired: the sequence overran its bound. Non-fatal — record it and let the run continue
       // so the timeout releases the queue instead of hanging it (FR-008/008b analogue).
       QueueExecutionLog.SequenceWatchdogTimedOut(_logger, sequenceId, (int)watchdogTimeout.TotalSeconds);
+      await RecordRunAsync(queueId, sequenceId, startedAt, SequenceRunStatus.Cancelled).ConfigureAwait(false);
       return false;
     }
     catch (Exception ex) {
       // Unexpected per-sequence error (e.g. a stale/unresolved reference): non-fatal (FR-008/008b).
       QueueExecutionLog.SequenceFaulted(_logger, sequenceId, ex);
+      await RecordRunAsync(queueId, sequenceId, startedAt, SequenceRunStatus.Failure).ConfigureAwait(false);
       return false;
     }
     finally {
       trackedHandle?.ClearCurrentSequence();
+    }
+  }
+
+  /// <summary>
+  /// The status of a sequence run that returned a result (feature 105, research R-002). A Break step
+  /// ends a run with <c>Succeeded</c>, so it is a success. A failed result after a stop or after the
+  /// time limit fired is <c>cancelled</c>: the queue stopped the run, the run did not fail by itself.
+  /// </summary>
+  private static SequenceRunStatus ClassifyResult(bool succeeded, CancellationToken stop, CancellationToken watchdogTimer) {
+    if (succeeded) return SequenceRunStatus.Success;
+    return stop.IsCancellationRequested || watchdogTimer.IsCancellationRequested
+      ? SequenceRunStatus.Cancelled
+      : SequenceRunStatus.Failure;
+  }
+
+  /// <summary>
+  /// Records one completed sequence run in the run statistics (feature 105). Records nothing when no
+  /// store is set, when the sequence did not start (<paramref name="startedAt"/> is null), or when
+  /// the host is in shutdown: a run that the service stop interrupts has no end. Never throws: a
+  /// statistics failure must not change the result of the run.
+  /// </summary>
+  private async Task RecordRunAsync(string queueId, string sequenceId, DateTimeOffset? startedAt, SequenceRunStatus status) {
+    if (_runStatistics is null || startedAt is not { } started || _appStopping.IsCancellationRequested) return;
+    try {
+      var record = new SequenceRunRecord { StartedAt = started, EndedAt = _timeProvider.GetLocalNow(), Status = status };
+      await _runStatistics.RecordAsync(queueId, sequenceId, record, CancellationToken.None).ConfigureAwait(false);
+    }
+    catch (Exception ex) {
+      QueueExecutionLog.RunStatisticsRecordFailed(_logger, queueId, sequenceId, ex);
     }
   }
 
@@ -1100,4 +1146,7 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1131, Level = LogLevel.Warning, Message = "Queue {QueueId} found its emulator session {OldSessionId} gone before a firing and re-bound device {Serial} as session {NewSessionId}; the run continues")]
   public static partial void SessionRebound(ILogger logger, string QueueId, string Serial, string OldSessionId, string NewSessionId);
+
+  [LoggerMessage(EventId = 1132, Level = LogLevel.Warning, Message = "Queue {QueueId} could not record the run statistics of sequence {SequenceId}. The run continues.")]
+  public static partial void RunStatisticsRecordFailed(ILogger logger, string QueueId, string SequenceId, Exception ex);
 }

@@ -568,6 +568,7 @@ internal static class SequencesEndpoints {
         expectedState = commandOutcome.ExpectedState,
         negate = commandOutcome.Negate
       },
+      LastRunStepCondition lastRun => MapLastRunConditionToDto(lastRun),
       // Feature 088: the rule is the discriminator, and children are emitted in evaluation order.
       CompositeStepCondition composite => new {
         type = composite.Type,
@@ -577,6 +578,15 @@ internal static class SequencesEndpoints {
       _ => null
     };
   }
+
+  /// <summary>
+  /// Feature 105: the response leaves out the window field that is not set, so a read gives back the
+  /// same fields that the author wrote.
+  /// </summary>
+  private static object MapLastRunConditionToDto(LastRunStepCondition lastRun) =>
+    lastRun.Since is not null
+      ? new { type = "lastRun", sequence = lastRun.Sequence, status = lastRun.Status, since = lastRun.Since, negate = lastRun.Negate }
+      : new { type = "lastRun", sequence = lastRun.Sequence, status = lastRun.Status, within = lastRun.Within, negate = lastRun.Negate };
 
   private static object MapStepToDto(SequenceStep step, IReadOnlyDictionary<string, string> commandLookup) {
     var stepType = step.StepType switch {
@@ -1314,6 +1324,13 @@ internal static class SequencesEndpoints {
         StepRef = commandOutcome.StepRef,
         ExpectedState = commandOutcome.ExpectedState,
         Negate = commandOutcome.Negate
+      },
+      LastRunConditionContract lastRun => new LastRunStepCondition {
+        Sequence = lastRun.Sequence ?? string.Empty,
+        Status = lastRun.Status ?? string.Empty,
+        Since = lastRun.Since,
+        Within = lastRun.Within,
+        Negate = lastRun.Negate
       },
       // Feature 088: a composite maps to the domain type matching its rule, recursing through
       // children. Child order is preserved because it is the evaluation order the author chose.

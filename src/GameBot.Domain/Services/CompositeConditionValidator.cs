@@ -76,7 +76,9 @@ public static class CompositeConditionValidator {
 
     System.ArgumentNullException.ThrowIfNull(errors);
 
-    if (condition is not CompositeStepCondition && !validateLeafAtRoot) {
+    // Feature 105: a lastRun leaf at the root is walked too. No slot checks it by itself, so this one
+    // gate covers all six slots and no message is written two times.
+    if (condition is not CompositeStepCondition and not LastRunStepCondition && !validateLeafAtRoot) {
       return;
     }
 
@@ -127,6 +129,10 @@ public static class CompositeConditionValidator {
 
         break;
 
+      case LastRunStepCondition lastRun:
+        ValidateLastRun(lastRun, stepLabel, path, errors);
+        break;
+
       default:
         errors.Add($"Step '{stepLabel}' condition at {path}: unsupported condition type '{condition.Type}'.");
         break;
@@ -164,6 +170,16 @@ public static class CompositeConditionValidator {
     // sits, because "prior" is meaningless without it.
     if (referencingStepPosition is { } ownPosition && referencedPosition >= ownPosition) {
       errors.Add($"Step '{stepLabel}' condition at {path}: commandOutcome stepRef '{stepRef}' must reference a prior step.");
+    }
+  }
+
+  /// <summary>
+  /// Feature 105: adds each problem of a <c>lastRun</c> leaf with the path. The rules and the message
+  /// tails live in <see cref="LastRunConditionRules"/>, so the repository guard uses the same text.
+  /// </summary>
+  private static void ValidateLastRun(LastRunStepCondition lastRun, string stepLabel, string path, ICollection<string> errors) {
+    foreach (var problem in LastRunConditionRules.Validate(lastRun)) {
+      errors.Add($"Step '{stepLabel}' condition at {path}: {problem}");
     }
   }
 

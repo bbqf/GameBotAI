@@ -518,7 +518,7 @@ namespace GameBot.Domain.Services {
 
         try {
           conditionOutcome = await SequenceStepConditionEvaluator
-              .EvaluateAsync(step.Condition, conditionEvaluator, stepOutcomes, ct)
+              .EvaluateAsync(step.Condition, conditionEvaluator, stepOutcomes, SequenceRunContext.Current?.LastRunEvaluator, ct)
               .ConfigureAwait(false);
         }
         catch (ConditionEvaluationException ex) {
@@ -1460,8 +1460,9 @@ namespace GameBot.Domain.Services {
       // identically in a loop condition, a break condition and a step condition. The evaluator
       // already applies Negate, and it throws ConditionEvaluationException — an InvalidOperationException
       // carrying the same messages this method used to build — so callers see no change.
+      // Feature 105: the ambient queue context answers a lastRun leaf; with no context it is false.
       var evaluation = await SequenceStepConditionEvaluator
-          .EvaluateAsync(condition, conditionEvaluator, stepOutcomes, ct)
+          .EvaluateAsync(condition, conditionEvaluator, stepOutcomes, SequenceRunContext.Current?.LastRunEvaluator, ct)
           .ConfigureAwait(false);
 
       return evaluation.Value;
@@ -1478,6 +1479,8 @@ namespace GameBot.Domain.Services {
       // says which signals were involved rather than just naming a type.
       if (condition is CompositeStepCondition composite)
         return (composite.Type, SequenceStepConditionEvaluator.Describe(composite));
+      if (condition is LastRunStepCondition lastRun)
+        return (lastRun.Type, SequenceStepConditionEvaluator.Describe(lastRun));
       return (condition.GetType().Name, $"{negatePrefix}{condition.GetType().Name}");
     }
 

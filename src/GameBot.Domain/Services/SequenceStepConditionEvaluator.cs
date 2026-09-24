@@ -97,35 +97,68 @@ public static class SequenceStepConditionEvaluator {
       SequenceStepCondition condition,
       Func<Condition, CancellationToken, Task<bool>>? imageEvaluator,
       IReadOnlyDictionary<string, string> stepOutcomes,
+      CancellationToken ct = default)
+    => EvaluateAsync(condition, imageEvaluator, stepOutcomes, lastRunEvaluator: null, ct);
+
+  /// <summary>
+  /// Evaluates <paramref name="condition"/>, recursing through composites, with a delegate for the
+  /// <c>lastRun</c> leaves (feature 105).
+  /// </summary>
+  /// <param name="condition">The condition to evaluate.</param>
+  /// <param name="imageEvaluator">Resolves an <c>imageVisible</c> leaf. See the other overload.</param>
+  /// <param name="stepOutcomes">Outcomes recorded by earlier steps, keyed by step id.</param>
+  /// <param name="lastRunEvaluator">
+  /// Resolves a <c>lastRun</c> leaf for the current queue run. When it is null (an ad-hoc run or a
+  /// dry-run), a <c>lastRun</c> leaf is false and nothing throws (FR-012).
+  /// </param>
+  /// <param name="ct">Cancellation token.</param>
+  /// <returns>The result plus, for a composite, which child settled it.</returns>
+  /// <exception cref="ConditionEvaluationException">The condition could not be evaluated.</exception>
+  public static Task<ConditionEvaluation> EvaluateAsync(
+      SequenceStepCondition condition,
+      Func<Condition, CancellationToken, Task<bool>>? imageEvaluator,
+      IReadOnlyDictionary<string, string> stepOutcomes,
+      Func<LastRunStepCondition, CancellationToken, Task<bool>>? lastRunEvaluator,
       CancellationToken ct = default) {
     ArgumentNullException.ThrowIfNull(condition);
     ArgumentNullException.ThrowIfNull(stepOutcomes);
 
-    return EvaluateNodeAsync(condition, "$", imageEvaluator, stepOutcomes, ct);
+    return EvaluateNodeAsync(condition, "$", new LeafEvaluators(imageEvaluator, lastRunEvaluator), stepOutcomes, ct);
   }
+
+  /// <summary>The delegates that answer the leaves which need the outside world.</summary>
+  private readonly record struct LeafEvaluators(
+      Func<Condition, CancellationToken, Task<bool>>? Image,
+      Func<LastRunStepCondition, CancellationToken, Task<bool>>? LastRun);
 
   private static async Task<ConditionEvaluation> EvaluateNodeAsync(
       SequenceStepCondition condition,
       string path,
-      Func<Condition, CancellationToken, Task<bool>>? imageEvaluator,
+      LeafEvaluators evaluators,
       IReadOnlyDictionary<string, string> stepOutcomes,
       CancellationToken ct) {
     ct.ThrowIfCancellationRequested();
 
     if (condition is CompositeStepCondition composite) {
-      return await EvaluateCompositeAsync(composite, path, imageEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+      return await EvaluateCompositeAsync(composite, path, evaluators, stepOutcomes, ct).ConfigureAwait(false);
     }
 
-    var leafResult = await EvaluateLeafAsync(condition, imageEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+    var leafResult = await EvaluateLeafAsync(condition, evaluators, stepOutcomes, ct).ConfigureAwait(false);
     return new ConditionEvaluation(condition.Negate ? !leafResult : leafResult, null, null);
   }
 
   private static async Task<bool> EvaluateLeafAsync(
       SequenceStepCondition condition,
-      Func<Condition, CancellationToken, Task<bool>>? imageEvaluator,
+      LeafEvaluators evaluators,
       IReadOnlyDictionary<string, string> stepOutcomes,
       CancellationToken ct) {
+    var imageEvaluator = evaluators.Image;
     switch (condition) {
+      case LastRunStepCondition lastRun:
+        // Feature 105 (FR-012): no queue means no statistics, so the leaf is false. It does not throw.
+        return evaluators.LastRun is not null
+          && await evaluators.LastRun(lastRun, ct).ConfigureAwait(false);
+
       case ImageVisibleStepCondition image:
         if (imageEvaluator is null) {
           throw new ConditionEvaluationException(
@@ -163,7 +196,7 @@ public static class SequenceStepConditionEvaluator {
   private static async Task<ConditionEvaluation> EvaluateCompositeAsync(
       CompositeStepCondition composite,
       string path,
-      Func<Condition, CancellationToken, Task<bool>>? imageEvaluator,
+      LeafEvaluators evaluators,
       IReadOnlyDictionary<string, string> stepOutcomes,
       CancellationToken ct) {
     // An empty child list is rejected at save time; reaching one here means a caller bypassed
@@ -192,7 +225,7 @@ public static class SequenceStepConditionEvaluator {
     for (var index = 0; index < children.Count; index++) {
       var childPath = string.Format(CultureInfo.InvariantCulture, "{0}.children[{1}]", path, index);
       var child = children[index];
-      var childResult = await EvaluateNodeAsync(child, childPath, imageEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+      var childResult = await EvaluateNodeAsync(child, childPath, evaluators, stepOutcomes, ct).ConfigureAwait(false);
 
       if (childResult.Value != settlingChildValue) {
         continue;
@@ -229,6 +262,10 @@ public static class SequenceStepConditionEvaluator {
 
       case CommandOutcomeStepCondition outcome:
         return $"{negatePrefix}commandOutcome(stepRef={outcome.StepRef}, expected={outcome.ExpectedState})";
+
+      case LastRunStepCondition lastRun:
+        var window = lastRun.Since is not null ? $"since={lastRun.Since}" : $"within={lastRun.Within}";
+        return $"{negatePrefix}lastRun(sequence={lastRun.Sequence}, status={lastRun.Status}, {window})";
 
       case CompositeStepCondition composite:
         var rendered = new List<string>(composite.Children?.Count ?? 0);

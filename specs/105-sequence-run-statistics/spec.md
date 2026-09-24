@@ -2,7 +2,7 @@
 
 **Feature Branch**: `105-sequence-run-statistics`  
 **Created**: 2026-09-24  
-**Status**: Draft  
+**Status**: Implemented  
 **Issue**: [#224](https://github.com/bbqf/GameBotAI/issues/224) (Closes #224). Source: row FR-008 of the external request list (`docs/api-feature-requests.md` in the repository that holds the PNS automation). Note: that row is not FR-008 of this spec.  
 **Input**: User description: "Per-sequence run statistics per queue, readable by the API and by a sequence condition."
 

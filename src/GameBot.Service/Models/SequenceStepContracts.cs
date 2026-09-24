@@ -119,6 +119,7 @@ internal sealed record WaitForImagePayloadContract {
 [JsonDerivedType(typeof(AllConditionContract), typeDiscriminator: "all")]
 [JsonDerivedType(typeof(AnyConditionContract), typeDiscriminator: "any")]
 [JsonDerivedType(typeof(NoneConditionContract), typeDiscriminator: "none")]
+[JsonDerivedType(typeof(LastRunConditionContract), typeDiscriminator: "lastRun")]
 internal abstract record SequenceStepConditionContract {
   public bool Negate { get; init; }
 }
@@ -131,6 +132,17 @@ internal sealed record ImageVisibleConditionContract : SequenceStepConditionCont
 internal sealed record CommandOutcomeConditionContract : SequenceStepConditionContract {
   public required string StepRef { get; init; }
   public required string ExpectedState { get; init; }
+}
+
+/// <summary>
+/// A condition on the earlier runs of a sequence in the current queue (feature 105). All fields are
+/// optional in JSON, so an absent field gives a 400 from validation and not a JSON read error.
+/// </summary>
+internal sealed record LastRunConditionContract : SequenceStepConditionContract {
+  public string? Sequence { get; init; }
+  public string? Status { get; init; }
+  public string? Since { get; init; }
+  public string? Within { get; init; }
 }
 
 /// <summary>

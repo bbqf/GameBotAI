@@ -277,4 +277,134 @@ public sealed class CompositeConditionValidationTests {
     unresolvable.Should().ContainSingle()
       .Which.Should().Be("Step 'S' condition at $.children[0]: commandOutcome references unknown prior step 'absent'.");
   }
+
+  // ---------- lastRun (feature 105) ----------
+
+  public static TheoryData<LastRunStepCondition, string> BadLastRunConditions => new() {
+    { new LastRunStepCondition { Sequence = "", Status = "success", Since = "11:00" }, "lastRun condition requires sequence ('self' or a sequence id)." },
+    { new LastRunStepCondition { Sequence = "self", Status = "failed", Since = "11:00" }, "lastRun status must be one of success|failure|cancelled." },
+    { new LastRunStepCondition { Sequence = "self", Status = "success", Since = "11:00", Within = "01:00:00" }, "lastRun condition accepts only one of since or within, not both." },
+    { new LastRunStepCondition { Sequence = "self", Status = "success" }, "lastRun condition requires one of since or within." },
+    { new LastRunStepCondition { Sequence = "self", Status = "success", Since = "24:00" }, "lastRun since must be a time of day in HH:mm format (00:00 to 23:59)." },
+    { new LastRunStepCondition { Sequence = "self", Status = "success", Within = "400.00:00:00" }, "lastRun within must be a duration more than zero and not more than 366 days, in hh:mm:ss or d.hh:mm:ss format." }
+  };
+
+  private static LastRunStepCondition GoodLastRun() => new() { Sequence = "self", Status = "success", Since = "11:00" };
+
+  [Theory]
+  [MemberData(nameof(BadLastRunConditions))]
+  public void ALastRunLeafAtTheRootGivesItsMessageWithThePrefix(LastRunStepCondition condition, string tail) {
+    Validate(condition).Should().ContainSingle().Which.Should().Be($"Step 'S' condition at $: {tail}");
+  }
+
+  [Theory]
+  [MemberData(nameof(BadLastRunConditions))]
+  public void ALastRunChildGivesItsMessageAtItsOwnPath(LastRunStepCondition condition, string tail) {
+    foreach (var composite in new CompositeStepCondition[] {
+      new AllStepCondition { Children = new SequenceStepCondition[] { Image(), condition } },
+      new AnyStepCondition { Children = new SequenceStepCondition[] { Image(), condition } },
+      new NoneStepCondition { Children = new SequenceStepCondition[] { Image(), condition } }
+    }) {
+      Validate(composite).Should().ContainSingle().Which.Should().Be($"Step 'S' condition at $.children[1]: {tail}");
+    }
+  }
+
+  [Fact]
+  public void ACorrectLastRunPassesAtTheRootAndInAComposite() {
+    Validate(GoodLastRun()).Should().BeEmpty();
+    Validate(new LastRunStepCondition { Sequence = "seq-x", Status = "Cancelled", Within = "1.00:00:00", Negate = true }).Should().BeEmpty();
+    Validate(new AnyStepCondition { Children = new SequenceStepCondition[] { GoodLastRun(), Image() } }).Should().BeEmpty();
+  }
+
+  [Fact]
+  public void TheCompositeLimitsStillApplyWithLastRunChildren() {
+    var sixteen = Enumerable.Range(0, 16).Select(_ => (SequenceStepCondition)GoodLastRun()).ToArray();
+    Validate(new AllStepCondition { Children = sixteen }).Should().BeEmpty();
+
+    var seventeen = Enumerable.Range(0, 17).Select(_ => (SequenceStepCondition)GoodLastRun()).ToArray();
+    Validate(new AllStepCondition { Children = seventeen }).Should().ContainSingle()
+      .Which.Should().Contain("allows at most 16 children");
+
+    SequenceStepCondition deep = GoodLastRun();
+    for (var level = 1; level < 5; level++) deep = new AllStepCondition { Children = new[] { deep } };
+    Validate(deep).Should().ContainSingle().Which.Should().Contain("maximum depth of 4");
+  }
+
+  [Fact]
+  public void ImageVisibleAndCommandOutcomeRootLeavesKeepTheirCurrentSingleMessage() {
+    var steps = new[] {
+      Action("s1", new ImageVisibleStepCondition { ImageId = "" }),
+      Action("s2", new CommandOutcomeStepCondition { StepRef = "s1", ExpectedState = "maybe" })
+    };
+
+    var errors = new SequenceStepValidationService().Validate(steps);
+
+    errors.Should().BeEquivalentTo(
+      "Step 's1' imageVisible condition requires imageId.",
+      "Step 's2' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+  }
+
+  private static SequenceStep Action(string stepId, SequenceStepCondition? condition = null, int order = 0) => new() {
+    Order = order,
+    StepId = stepId,
+    Action = new SequenceActionPayload { Type = "tap", Parameters = { ["x"] = 1, ["y"] = 1 } },
+    Condition = condition
+  };
+
+  private static SequenceStep BreakStep(string stepId, SequenceStepCondition condition) =>
+    new() { StepId = stepId, StepType = SequenceStepType.Break, BreakCondition = condition };
+
+  /// <summary>One sequence for each of the six slots that accept a step condition, with the step label the message names.</summary>
+  private static IEnumerable<(string Slot, string Label, SequenceStep[] Steps)> SixSlots(SequenceStepCondition bad) {
+    yield return ("step condition", "s1", new[] { Action("s1", bad) });
+
+    var withBreak = Action("s1");
+    withBreak.BreakCondition = bad;
+    yield return ("Break condition", "s1", new[] { withBreak });
+
+    yield return ("If condition", "if1", new[] {
+      new SequenceStep { StepId = "if1", StepType = SequenceStepType.If, If = new IfConfig { Condition = bad }, Body = new[] { Action("then1") } }
+    });
+
+    yield return ("loop condition", "loop1", new[] {
+      new SequenceStep { StepId = "loop1", StepType = SequenceStepType.Loop, Loop = new WhileLoopConfig { MaxIterations = 2, Condition = bad }, Body = new[] { Action("body1") } }
+    });
+
+    yield return ("loop-body Break condition", "brk", new[] {
+      new SequenceStep { StepId = "loop1", StepType = SequenceStepType.Loop, Loop = new CountLoopConfig { Count = 2 }, Body = new[] { BreakStep("brk", bad) } }
+    });
+
+    yield return ("If-branch Break condition", "ibrk", new[] {
+      new SequenceStep {
+        StepId = "loop1",
+        StepType = SequenceStepType.Loop,
+        Loop = new CountLoopConfig { Count = 2 },
+        Body = new[] {
+          new SequenceStep {
+            StepId = "if1",
+            StepType = SequenceStepType.If,
+            If = new IfConfig { Condition = new ImageVisibleStepCondition { ImageId = "a" } },
+            Body = new[] { BreakStep("ibrk", bad) }
+          }
+        }
+      }
+    });
+  }
+
+  [Theory]
+  [MemberData(nameof(BadLastRunConditions))]
+  public void EachOfTheSixSlotsReportsALastRunMessageAtTheRoot(LastRunStepCondition condition, string tail) {
+    foreach (var (slot, label, steps) in SixSlots(condition)) {
+      var errors = new SequenceStepValidationService().Validate(steps);
+
+      errors.Should().ContainSingle(slot).Which.Should().Be($"Step '{label}' condition at $: {tail}", slot);
+    }
+  }
+
+  [Fact]
+  public void EachOfTheSixSlotsAcceptsACorrectLastRun() {
+    foreach (var (slot, _, steps) in SixSlots(GoodLastRun())) {
+      new SequenceStepValidationService().Validate(steps).Should().BeEmpty(slot);
+    }
+  }
 }

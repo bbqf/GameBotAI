@@ -54,6 +54,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private readonly GameBot.Service.Services.Notifications.IFailureNotifier? _notifier;
   private readonly GameBot.Domain.Queues.IQueueRepository? _queueRepository;
   private readonly GameBot.Service.Services.QueueExecution.IQueueRunRegistry? _runRegistry;
+  // Feature 105: answers a lastRun condition in a queue run. Optional, so the hand-built test instances
+  // keep compiling; without it a lastRun condition is false.
+  private readonly LastRunConditionEvaluator? _lastRunEvaluator;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -74,7 +77,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     ILogger<SequenceExecutionService>? logger = null,
     GameBot.Service.Services.Notifications.IFailureNotifier? notifier = null,
     GameBot.Domain.Queues.IQueueRepository? queueRepository = null,
-    GameBot.Service.Services.QueueExecution.IQueueRunRegistry? runRegistry = null) {
+    GameBot.Service.Services.QueueExecution.IQueueRunRegistry? runRegistry = null,
+    LastRunConditionEvaluator? lastRunEvaluator = null) {
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -94,6 +98,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     _notifier = notifier;
     _queueRepository = queueRepository;
     _runRegistry = runRegistry;
+    _lastRunEvaluator = lastRunEvaluator;
   }
 
   public Task<SequenceExecutionResult> ExecuteAsync(
@@ -203,6 +208,19 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     return SequenceTimeLimitScope.Current is { HasElapsed: true } scope ? scope.TimeLimitMs : null;
   }
 
+  /// <summary>
+  /// Feature 105: makes the queue and the sequence of this run ambient, so a <c>lastRun</c> condition
+  /// can read the run statistics of the queue. Only a queue run gets a context. An ad-hoc run, a
+  /// dry-run, or a service with no evaluator gets none, and a <c>lastRun</c> condition is then false.
+  /// This method records no statistics: only the queue records runs.
+  /// </summary>
+  internal static IDisposable? PushRunContext(LastRunConditionEvaluator? evaluator, string sequenceId, string? originatingQueueId, bool dryRun) {
+    if (dryRun || string.IsNullOrWhiteSpace(originatingQueueId) || evaluator is null) return null;
+    var queueId = originatingQueueId;
+    return SequenceRunContext.Push(new SequenceRunContext(
+      queueId, sequenceId, (condition, ct) => evaluator.EvaluateAsync(queueId, sequenceId, condition, ct)));
+  }
+
   private async Task<SequenceExecutionResult> ExecuteCoreAsync(
       string sequenceId,
       string? sessionId,
@@ -218,6 +236,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       ? null
       : _deviceContext.Push(GameBot.Domain.Sessions.DeviceContext.For(
           sessionId!, _sessionManager.GetSession(sessionId!)?.DeviceSerial));
+    using var runContext = PushRunContext(_lastRunEvaluator, sequenceId, parentContext?.OriginatingQueueId, dryRun);
 
     // Create the in-progress root entry up front so invoked commands can be linked to it
     // (and the sequence shows as a single top-level entry while it runs). When a parent

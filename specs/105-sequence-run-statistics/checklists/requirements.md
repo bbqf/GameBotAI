@@ -1,6 +1,6 @@
 # Specification Quality Checklist: Per-Sequence Run Statistics per Queue
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Purpose**: Validate the completeness and quality of the specification before the plan starts.
 **Created**: 2026-09-24
 **Feature**: [spec.md](../spec.md)
 
