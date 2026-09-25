@@ -98,12 +98,14 @@ internal static class GameBotServiceSetup {
       options.DocumentFilter<ConditionalFlowSchemaDocumentFilter>();
       options.SchemaFilter<SequenceTimeLimitSchemaFilter>();
       options.SchemaFilter<QueueHealthSchemaFilter>();
+      options.SchemaFilter<QueueSequenceStatsSchemaFilter>();
       options.SchemaFilter<ImageAlternatesSchemaFilter>();
       options.SchemaFilter<SequenceNestingRulesSchemaFilter>();
       options.SchemaFilter<QueueRosterSchemaFilter>();
       options.SchemaFilter<ImageDetectCoordinatesSchemaFilter>();
       options.SchemaFilter<PrimitiveActionSchemaFilter>();
       options.SchemaFilter<ConditionReferenceScopeSchemaFilter>();
+      options.SchemaFilter<LastRunConditionSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -185,6 +187,9 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Domain.Queues.IQueueRepository>(_ => new GameBot.Domain.Queues.FileQueueRepository(storageRoot));
     builder.Services.AddSingleton<GameBot.Domain.Queues.IQueueRuntimeStore, GameBot.Domain.Queues.QueueRuntimeStore>();
     builder.Services.AddSingleton<GameBot.Domain.Queues.IQueueRunStateStore>(_ => new GameBot.Domain.Queues.FileQueueRunStateStore(storageRoot));
+    // Feature 105: run statistics of each sequence in each queue, one file for each queue.
+    builder.Services.AddSingleton<GameBot.Domain.Queues.ISequenceRunStatisticsStore>(sp => new GameBot.Domain.Queues.FileSequenceRunStatisticsStore(
+      storageRoot, sp.GetService<ILogger<GameBot.Domain.Queues.FileSequenceRunStatisticsStore>>()));
     builder.Services.AddSingleton<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>(_ => new GameBot.Domain.QueueTemplates.FileQueueTemplateRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
@@ -196,6 +201,8 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLogService, GameBot.Service.Services.ExecutionLog.ExecutionLogService>();
     builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.ISequenceExecutionService, GameBot.Service.Services.SequenceExecution.SequenceExecutionService>();
     builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+    // Feature 105: answers a lastRun condition in a queue run, from the run statistics of the queue.
+    builder.Services.AddSingleton<GameBot.Domain.Services.LastRunConditionEvaluator>();
     // Self-reschedule (feature 065): the run registry breaks the SequenceExecutionService ↔
     // QueueExecutionService DI cycle; the coordinator injects ephemeral run-scoped firings.
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueRunRegistry, GameBot.Service.Services.QueueExecution.QueueRunRegistry>();

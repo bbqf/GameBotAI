@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace GameBot.Service.Contracts.Queues {
@@ -16,6 +18,12 @@ namespace GameBot.Service.Contracts.Queues {
     /// every other field keeps its existing name and meaning.
     /// </summary>
     public QueueHealthResponse? Health { get; set; }
+
+    /// <summary>
+    /// The run statistics of each sequence that the queue ran (feature 105), keyed by sequence ID in
+    /// ordinal order. Never null: an empty object when the queue has no recorded run.
+    /// </summary>
+    public SortedDictionary<string, QueueSequenceStatsResponse> SequenceStats { get; } = new(StringComparer.Ordinal);
   }
 
   /// <summary>

@@ -119,5 +119,61 @@ public sealed class CompositeConditionSerializationTests {
     JsonSerializer.Deserialize<SequenceStepCondition>(outcome, WebOptions).Should().BeOfType<CommandOutcomeStepCondition>();
   }
 
+  [Fact]
+  public void ALastRunConditionWithSinceRoundTrips() {
+    var json = JsonSerializer.Serialize<SequenceStepCondition>(
+      new LastRunStepCondition { Sequence = "self", Status = "success", Since = "11:00" }, WebOptions);
+
+    JsonNode.Parse(json)!["type"]!.GetValue<string>().Should().Be("lastRun");
+    var restored = JsonSerializer.Deserialize<SequenceStepCondition>(json, WebOptions)
+      .Should().BeOfType<LastRunStepCondition>().Subject;
+    restored.Sequence.Should().Be("self");
+    restored.Status.Should().Be("success");
+    restored.Since.Should().Be("11:00");
+    restored.Within.Should().BeNull();
+    restored.Negate.Should().BeFalse();
+    System.Text.RegularExpressions.Regex.Matches(json, "\"type\"").Should().HaveCount(1);
+  }
+
+  [Fact]
+  public void ALastRunConditionWithWithinAndNegateRoundTripsWithTheTextAsWritten() {
+    var json = JsonSerializer.Serialize<SequenceStepCondition>(
+      new LastRunStepCondition { Sequence = "seq-daily-train", Status = "Failure", Within = "24:00:00", Negate = true }, WebOptions);
+
+    var restored = JsonSerializer.Deserialize<SequenceStepCondition>(json, WebOptions)
+      .Should().BeOfType<LastRunStepCondition>().Subject;
+    restored.Within.Should().Be("24:00:00");
+    restored.Status.Should().Be("Failure");
+    restored.Since.Should().BeNull();
+    restored.Negate.Should().BeTrue();
+  }
+
+  [Theory]
+  [InlineData("all")]
+  [InlineData("any")]
+  [InlineData("none")]
+  public void ALastRunChildOfACompositeRoundTrips(string rule) {
+    var children = new SequenceStepCondition[] {
+      new LastRunStepCondition { Sequence = "self", Status = "success", Since = "11:00" },
+      new LastRunStepCondition { Sequence = "other", Status = "cancelled", Within = "1.00:00:00", Negate = true }
+    };
+    SequenceStepCondition original = rule switch {
+      "any" => new AnyStepCondition { Children = children },
+      "none" => new NoneStepCondition { Children = children },
+      _ => new AllStepCondition { Children = children }
+    };
+
+    var json = JsonSerializer.Serialize(original, WebOptions);
+    var restored = JsonSerializer.Deserialize<SequenceStepCondition>(json, WebOptions)
+      .Should().BeAssignableTo<CompositeStepCondition>().Subject;
+
+    restored.Type.Should().Be(rule);
+    var first = restored.Children[0].Should().BeOfType<LastRunStepCondition>().Subject;
+    first.Since.Should().Be("11:00");
+    var second = restored.Children[1].Should().BeOfType<LastRunStepCondition>().Subject;
+    second.Within.Should().Be("1.00:00:00");
+    second.Negate.Should().BeTrue();
+  }
+
   private static ImageVisibleStepCondition Image(string id) => new() { ImageId = id };
 }

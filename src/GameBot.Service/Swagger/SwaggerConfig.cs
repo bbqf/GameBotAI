@@ -508,7 +508,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         + "and status, consecutive failed cycles, current entry) when the queue is running; 'health' "
         + "is null when it is not, never a zeroed block. 'health.paused' is true during either kind of "
         + "pause, an idle pause between firings or a failure-policy pause, and 'health.pauseKind' "
-        + "('idle' | 'failurePolicy') tells them apart.";
+        + "('idle' | 'failurePolicy') tells them apart. "
+        + "'sequenceStats' gives the run statistics of each sequence that the queue ran, keyed by sequence ID: "
+        + "the last run start and end, the last run status (success | failure | cancelled), the last success "
+        + "time and the total counts. It is {} when the queue has no recorded run. The values stay after a "
+        + "queue restart and a service restart.";
       SetResponseExample(operation, "200", QueueDetailExample(), context, typeof(GameBot.Service.Contracts.Queues.QueueDetailResponse));
     }
   }
@@ -639,6 +643,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["sequenceId"] = new OpenApiString("sequence-removed"),
         ["sequenceName"] = new OpenApiNull(),
         ["stale"] = new OpenApiBoolean(true)
+      }
+    };
+    // Feature 105: one entry of the run statistics, keyed by sequence ID.
+    detail["sequenceStats"] = new OpenApiObject {
+      ["sequence-wait-home"] = new OpenApiObject {
+        ["sequenceName"] = new OpenApiString("Wait for image sequence"),
+        ["lastRunStartedAt"] = new OpenApiString("2026-09-24T12:00:03+02:00"),
+        ["lastRunEndedAt"] = new OpenApiString("2026-09-24T12:01:10+02:00"),
+        ["lastRunStatus"] = new OpenApiString("failure"),
+        ["lastSuccessAt"] = new OpenApiString("2026-09-24T11:30:40+02:00"),
+        ["successCount"] = new OpenApiLong(2),
+        ["failureCount"] = new OpenApiLong(1),
+        ["cancelledCount"] = new OpenApiLong(0)
       }
     };
     return detail;

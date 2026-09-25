@@ -270,6 +270,15 @@ namespace GameBot.Domain.Commands {
 
           return;
 
+        case LastRunStepCondition lastRunCondition:
+          // Feature 105: the last guard only. The save path gives a 400 before this point.
+          var lastRunErrors = LastRunConditionRules.Validate(lastRunCondition);
+          if (lastRunErrors.Count > 0) {
+            throw new InvalidOperationException($"Step '{stepId}' {lastRunErrors[0]}");
+          }
+
+          return;
+
         default:
           return;
       }

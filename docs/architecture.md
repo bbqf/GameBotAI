@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-18 (feature 104: queue-owned sessions exempt from the idle-timeout sweep and
-re-bound at a firing when missing, #217)._
+_Last reviewed: 2026-09-24 (feature 105: run statistics of each sequence in each queue, and the
+`lastRun` step condition, #224)._
 
 ## What GameBot is
 
@@ -310,6 +310,19 @@ not survive a service restart; queue *configuration* and templates are persisted
   restored. Store writes are serialized and atomic (temp file + replace); a corrupt record makes the
   resume pass log and resume nothing, while the next start/stop overwrites it. A store failure never
   fails a start or a run teardown (logged, event ids 1128/1129).
+- **Sequence run statistics** (feature 105, #224) — the queue records each sequence run that it
+  starts (all schedule types, guard sequences too) in `ISequenceRunStatisticsStore`
+  (`FileSequenceRunStatisticsStore`, `<data>/queue-sequence-stats/<queueId>.json`, `schemaVersion: 1`).
+  For each (queue, sequence) pair the store keeps `SequenceRunStatistics`: the last-run start, end and
+  status (`success` | `failure` | `cancelled`), the last success time, three total counters, and the
+  100 most recent `SequenceRunRecord`s. `QueueExecutionService.RunOneSequenceAsync` takes the start
+  time just before `ExecuteAsync` and records after it through `RecordRunAsync`. A Break end is
+  `success`; a stop by hand, a failure-policy stop and the sequence time limit are `cancelled`; a run
+  that a host shutdown interrupts, and a fault before the sequence starts, are not recorded. A store
+  failure is logged (event 1132) and never changes the run. The store keeps an in-memory copy, writes
+  atomically (temp file + replace), and reads a damaged file as empty with one warning. `DELETE
+  /api/queues/{id}` deletes the file, and a record for a deleted queue is ignored. A queue stop waits
+  for the run that is in progress, including its record.
 - **Pre-session emulator cold-start** (feature 074) — an opt-in per-queue behavior
   (`ExecutionQueue.EmulatorInstanceName` / `EmulatorInstanceIndex`, both optional/null by default;
   exposed via the REST API and web-ui). When set, the queue run brings the target **LDPlayer**
@@ -629,6 +642,26 @@ simultaneous break-and-ceiling iteration, and `brokeVia` attribution; and
 `src/web-ui/src/lib/__tests__/perStepConditionValidation.spec.ts` covers the editor. Re-run them
 rather than trusting this paragraph.
 
+### The `lastRun` step condition (feature 105, #224)
+
+`LastRunStepCondition` (discriminator `lastRun`; fields `sequence` = `self` or a sequence ID,
+`status` = `success|failure|cancelled`, exactly one of `since` = `HH:mm` or `within` =
+`[d.]hh:mm:ss`, and `negate`) is true when the named sequence has a kept run record in the
+**current queue** with that status, and the end time of that run is in the window. The window ends
+now. `since` starts it at the most recent real occurrence of that service-local time of day
+(`LastRunWindow.SinceStart`, daylight-saving safe); `within` starts it at now minus the duration
+(`24:00:00` is 24 hours). It is permitted in every condition slot and as a child of `all`/`any`/`none`.
+
+The queue context reaches the runner through the ambient `SequenceRunContext` (`AsyncLocal`, the same
+pattern as the device context and `SequenceTimeLimitScope`). `SequenceExecutionService` pushes it only
+for a queue run (`OriginatingQueueId` set, not a dry-run); its delegate calls
+`LastRunConditionEvaluator` (store + `TimeProvider`). `SequenceStepConditionEvaluator` answers a
+`lastRun` leaf with that delegate, and with `false` when there is no context (ad-hoc run, dry-run).
+`LastRunConditionRules` holds the field rules and the strict parsers for both save-time validation
+(`CompositeConditionValidator` walks a `lastRun` leaf at the root of all six slots, so each bad field
+is a 400 with a `Step '<id>' condition at <path>:` message) and evaluation. The web UI does not know
+this type: authors write `lastRun` conditions through the API.
+
 ### Dry-run / validate-only sequence mode (feature 082)
 
 `dryRun: true` on the per-step `POST /api/sequences` create request and on
@@ -781,6 +814,18 @@ Feature 098 added, additively (see "Resume after a service restart" above):
 - `resumeOnServiceStart` (bool) on queue create/update/list/detail responses, carried by
   `POST /api/queues/{id}/duplicate`. Absent ⇒ `false`.
 - A new persisted file, `<data>/queue-run-state.json`, recording the ids of queues with a live run.
+
+Feature 105 added, additively (see "Sequence run statistics" and "The `lastRun` step condition" above):
+
+- `sequenceStats` on every queue detail response (`GET /api/queues/{id}`, `PUT .../entries`,
+  `PUT .../template`, `PUT .../game`): an object keyed by sequence ID (ordinal order), `{}` when the
+  queue has no recorded run. Each value is `QueueSequenceStatsResponse` (`sequenceName`,
+  `lastRunStartedAt`, `lastRunEndedAt`, `lastRunStatus`, `lastSuccessAt`, `successCount`,
+  `failureCount`, `cancelledCount`), described by `QueueSequenceStatsSchemaFilter`. The list, monitor
+  and cycles reads do not change, and a duplicate does not copy the statistics.
+- The `lastRun` step condition on sequence create/update/PATCH/`dryRun`, with the schema
+  `LastRunCondition` described by `LastRunConditionSchemaFilter`.
+- A new persisted folder, `<data>/queue-sequence-stats/`, with one `<queueId>.json` for each queue.
 
 ## Legacy / removed (don't be misled by old specs)
 

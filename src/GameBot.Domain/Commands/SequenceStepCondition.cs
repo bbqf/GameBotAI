@@ -10,6 +10,7 @@ namespace GameBot.Domain.Commands;
 [JsonDerivedType(typeof(AllStepCondition), typeDiscriminator: "all")]
 [JsonDerivedType(typeof(AnyStepCondition), typeDiscriminator: "any")]
 [JsonDerivedType(typeof(NoneStepCondition), typeDiscriminator: "none")]
+[JsonDerivedType(typeof(LastRunStepCondition), typeDiscriminator: "lastRun")]
 public abstract class SequenceStepCondition {
   public abstract string Type { get; }
   public bool Negate { get; set; }
@@ -33,6 +34,36 @@ public sealed class CommandOutcomeStepCondition : SequenceStepCondition {
   public override string Type => "commandOutcome";
   public string StepRef { get; set; } = string.Empty;
   public string ExpectedState { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// True when the named sequence has a completed run with the given status in the current queue, and
+/// the end time of that run is in the window (feature 105). The window starts at the last occurrence
+/// of a local time of day (<see cref="Since"/>) or at now minus a duration (<see cref="Within"/>), and
+/// ends now. In a run that has no queue, the condition is false.
+/// <para>
+/// The text fields stay as the author wrote them, so a read returns the same text.
+/// <see cref="LastRunConditionRules"/> holds the field rules and the parsers.
+/// </para>
+/// </summary>
+public sealed class LastRunStepCondition : SequenceStepCondition {
+  /// <summary>The value of <see cref="Sequence"/> that names the sequence that contains the step.</summary>
+  public const string SelfSequence = "self";
+
+  [JsonIgnore]
+  public override string Type => "lastRun";
+
+  /// <summary><c>self</c>, or a sequence ID.</summary>
+  public string Sequence { get; set; } = string.Empty;
+
+  /// <summary><c>success</c>, <c>failure</c> or <c>cancelled</c> (not case-sensitive).</summary>
+  public string Status { get; set; } = string.Empty;
+
+  /// <summary>A local time of day in <c>HH:mm</c> format. Set exactly one of this field and <see cref="Within"/>.</summary>
+  public string? Since { get; set; }
+
+  /// <summary>A duration in <c>hh:mm:ss</c> or <c>d.hh:mm:ss</c> format. Set exactly one of this field and <see cref="Since"/>.</summary>
+  public string? Within { get; set; }
 }
 
 /// <summary>

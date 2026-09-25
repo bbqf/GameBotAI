@@ -48,11 +48,11 @@ internal static class QueuesEndpoints {
       return Results.Ok(resp);
     }).WithName("ListQueues");
 
-    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry runs) => {
+    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry runs, ISequenceRunStatisticsStore stats) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       await MaybeAutoLoadAsync(queue, repo, runtime, templates).ConfigureAwait(false);
-      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games, runs).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games, stats, runs).ConfigureAwait(false));
     }).WithName("GetQueue");
 
     // Live monitor (feature 072): read-only snapshot of what a running queue is doing now and next.
@@ -146,12 +146,14 @@ internal static class QueuesEndpoints {
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("DuplicateQueue");
 
-    group.MapDelete("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime) => {
+    group.MapDelete("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRunStatisticsStore stats) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
         return Error(409, "queue_running", "Stop the queue before deleting.");
       await repo.DeleteAsync(id).ConfigureAwait(false);
+      // Feature 105: the statistics of a deleted queue go too.
+      await stats.DeleteQueueAsync(id).ConfigureAwait(false);
       runtime.Remove(id);
       return Results.NoContent();
     }).WithName("DeleteQueue");
@@ -166,16 +168,16 @@ internal static class QueuesEndpoints {
       return Results.Created($"{ApiRoutes.Queues}/{id}/entries/{entry.EntryId}", ProjectEntry(entry, resolved?.Name));
     }).WithName("AddQueueEntry");
 
-    group.MapPut("{id}/entries", async (string id, ReplaceQueueEntriesRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) => {
+    group.MapPut("{id}/entries", async (string id, ReplaceQueueEntriesRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, ISequenceRunStatisticsStore stats) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
         return Error(409, "queue_running", "Stop the queue before loading a template.");
       runtime.SetEntries(id, req?.SequenceIds ?? Array.Empty<string>());
-      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games, stats).ConfigureAwait(false));
     }).WithName("ReplaceQueueEntries");
 
-    group.MapPut("{id}/template", async (string id, SetQueueTemplateLinkRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) => {
+    group.MapPut("{id}/template", async (string id, SetQueueTemplateLinkRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, ISequenceRunStatisticsStore stats) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       var templateId = req?.TemplateId;
@@ -183,10 +185,10 @@ internal static class QueuesEndpoints {
         return Error(400, "invalid_request", "template not found");
       queue.LinkedTemplateId = string.IsNullOrEmpty(templateId) ? null : templateId;
       var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
-      return Results.Ok(await BuildDetailAsync(saved, runtime, sequences, templates, games).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(saved, runtime, sequences, templates, games, stats).ConfigureAwait(false));
     }).WithName("SetQueueTemplateLink");
 
-    group.MapPut("{id}/game", async (string id, SetQueueGameLinkRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games) => {
+    group.MapPut("{id}/game", async (string id, SetQueueGameLinkRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, ISequenceRunStatisticsStore stats) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       var gameId = req?.GameId;
@@ -194,7 +196,7 @@ internal static class QueuesEndpoints {
         return Error(400, "invalid_request", "game not found");
       queue.LinkedGameId = string.IsNullOrEmpty(gameId) ? null : gameId;
       var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
-      return Results.Ok(await BuildDetailAsync(saved, runtime, sequences, templates, games).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(saved, runtime, sequences, templates, games, stats).ConfigureAwait(false));
     }).WithName("SetQueueGameLink");
 
     group.MapDelete("{id}/entries/{entryId}", async (string id, string entryId, IQueueRepository repo, IQueueRuntimeStore runtime) => {
@@ -427,7 +429,7 @@ internal static class QueuesEndpoints {
     ResumeOnServiceStart = queue.ResumeOnServiceStart
   };
 
-  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry? runs = null) {
+  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, ISequenceRunStatisticsStore stats, IQueueRunRegistry? runs = null) {
     var entries = runtime.GetEntries(queue.Id);
     var allSequences = await sequences.ListAsync().ConfigureAwait(false);
     var namesById = allSequences.ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
@@ -457,8 +459,36 @@ internal static class QueuesEndpoints {
     if (runs is not null && TryGetLiveRun(queue.Id, runtime, runs, out var handle)) {
       detail.Health = ProjectHealth(handle, queue);
     }
+    await AddSequenceStatsAsync(detail, stats, namesById).ConfigureAwait(false);
     return detail;
   }
+
+  /// <summary>
+  /// Feature 105: fills the run statistics of each sequence that the queue ran. A damaged statistics
+  /// file gives an empty map in the store, so this never makes the queue read fail.
+  /// </summary>
+  private static async Task AddSequenceStatsAsync(QueueDetailResponse detail, ISequenceRunStatisticsStore stats, Dictionary<string, string> namesById) {
+    var entries = await stats.GetForQueueAsync(detail.Id).ConfigureAwait(false);
+    foreach (var (sequenceId, entry) in entries) {
+      detail.SequenceStats[sequenceId] = new QueueSequenceStatsResponse {
+        SequenceName = namesById.TryGetValue(sequenceId, out var name) ? name : null,
+        LastRunStartedAt = entry.LastRunStartedAt,
+        LastRunEndedAt = entry.LastRunEndedAt,
+        LastRunStatus = entry.LastRunStatus is { } status ? StatusText(status) : null,
+        LastSuccessAt = entry.LastSuccessAt,
+        SuccessCount = entry.SuccessCount,
+        FailureCount = entry.FailureCount,
+        CancelledCount = entry.CancelledCount
+      };
+    }
+  }
+
+  private static string StatusText(SequenceRunStatus status) => status switch {
+    SequenceRunStatus.Success => "success",
+    SequenceRunStatus.Failure => "failure",
+    SequenceRunStatus.Cancelled => "cancelled",
+    _ => status.ToString()
+  };
 
   private static async Task<string?> ResolveTemplateNameAsync(string? templateId, IQueueTemplateRepository templates) {
     if (string.IsNullOrEmpty(templateId)) return null;
