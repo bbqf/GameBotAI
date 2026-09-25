@@ -7,7 +7,9 @@ using GameBot.Domain.Commands;
 using GameBot.Domain.Games;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
+using GameBot.Emulator.Session;
 using GameBot.Service.Contracts.Queues;
+using GameBot.Service.Services.Liveness;
 using GameBot.Service.Services.Notifications;
 using GameBot.Service.Services.QueueExecution;
 using Microsoft.Extensions.Logging;
@@ -48,11 +50,11 @@ internal static class QueuesEndpoints {
       return Results.Ok(resp);
     }).WithName("ListQueues");
 
-    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry runs, ISequenceRunStatisticsStore stats) => {
+    group.MapGet("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, IQueueRunRegistry runs, ISequenceRunStatisticsStore stats, ISessionManager sessionManager, ISessionLivenessService liveness, TimeProvider time) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       await MaybeAutoLoadAsync(queue, repo, runtime, templates).ConfigureAwait(false);
-      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games, stats, runs).ConfigureAwait(false));
+      return Results.Ok(await BuildDetailAsync(queue, runtime, sequences, templates, games, stats, runs, new DeviceLivenessReader(sessionManager, liveness, time)).ConfigureAwait(false));
     }).WithName("GetQueue");
 
     // Live monitor (feature 072): read-only snapshot of what a running queue is doing now and next.
@@ -429,7 +431,7 @@ internal static class QueuesEndpoints {
     ResumeOnServiceStart = queue.ResumeOnServiceStart
   };
 
-  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, ISequenceRunStatisticsStore stats, IQueueRunRegistry? runs = null) {
+  private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, ISequenceRunStatisticsStore stats, IQueueRunRegistry? runs = null, DeviceLivenessReader? liveness = null) {
     var entries = runtime.GetEntries(queue.Id);
     var allSequences = await sequences.ListAsync().ConfigureAwait(false);
     var namesById = allSequences.ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
@@ -458,6 +460,7 @@ internal static class QueuesEndpoints {
     // Feature 086: live health for the current run, or null when there is none (never a zeroed block).
     if (runs is not null && TryGetLiveRun(queue.Id, runtime, runs, out var handle)) {
       detail.Health = ProjectHealth(handle, queue);
+      detail.Health.DeviceLiveness = liveness?.Project(handle);
     }
     await AddSequenceStatsAsync(detail, stats, namesById).ConfigureAwait(false);
     return detail;

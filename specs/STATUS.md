@@ -140,6 +140,7 @@ Status vocabulary:
 | 103 | Retest the condition-model ceiling and document the outcome | Implemented |
 | 104 | Queue sessions survive idle gaps between scheduled runs | Implemented |
 | 105 | Per-sequence run statistics per queue and the `lastRun` condition | Implemented |
+| 106 | Make a wedged emulator visible to the API | Implemented |
 
 ## Numbering notes
 

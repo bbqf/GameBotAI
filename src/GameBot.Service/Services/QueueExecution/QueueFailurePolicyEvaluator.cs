@@ -64,9 +64,10 @@ internal sealed class QueueFailurePolicyEvaluator {
       // `>=` rather than `==`: a threshold crossed by more than one would otherwise be missed
       // forever. The trip flag is what bounds this to one action per episode (FR-009).
       if (health.ConsecutiveFailedCycles < policy.ConsecutiveFailedCycles) return;
-      if (handle.PolicyTripped) return;
+      // Feature 106: one atomic check and mark. The liveness watch and the run loop can call this
+      // method at the same time, and only one of them may act.
+      if (!handle.TryMarkPolicyTripped()) return;
 
-      handle.MarkPolicyTripped();
       Act(queue, handle, policy, health.ConsecutiveFailedCycles, health.CyclesCompleted);
     }
     catch (Exception) {

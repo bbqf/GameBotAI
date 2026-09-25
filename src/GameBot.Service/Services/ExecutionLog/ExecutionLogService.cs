@@ -84,6 +84,12 @@ internal interface IExecutionLogService {
   Task<string> LogQueueStartAsync(string queueId, string queueName, CancellationToken ct = default);
   Task LogQueueFinalizeAsync(string executionId, string queueId, string queueName, string finalStatus, string summary, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task<string> LogQueueRotateAsync(string currentRootId, string queueId, string queueName, CancellationToken ct = default);
+
+  /// <summary>
+  /// Feature 106 (FR-017, research R-014): writes one failed <c>queue</c> entry for a device fault
+  /// episode, as a depth-1 child of the run root, with the summary <c>device_not_live: &lt;reason&gt;</c>.
+  /// </summary>
+  Task LogQueueDeviceFaultAsync(string rootExecutionId, string queueId, string queueName, string reason, CancellationToken ct = default);
   Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default);
   Task<ExecutionLogPage> QueryAsync(ExecutionLogQuery query, CancellationToken ct = default);
   Task<ExecutionLogEntry?> GetAsync(string id, CancellationToken ct = default);
@@ -448,6 +454,34 @@ internal sealed class ExecutionLogService : IExecutionLogService {
     await _repository.AddAsync(continuation, ct).ConfigureAwait(false);
 
     return continuationId;
+  }
+
+  public async Task LogQueueDeviceFaultAsync(string rootExecutionId, string queueId, string queueName, string reason, CancellationToken ct = default) {
+    var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
+    var now = DateTimeOffset.UtcNow;
+    var context = new ExecutionLogContext {
+      ParentExecutionId = rootExecutionId,
+      RootExecutionId = rootExecutionId,
+      Depth = 1
+    };
+    var entry = new ExecutionLogEntry {
+      TimestampUtc = now,
+      ExecutionType = "queue",
+      FinalStatus = "failure",
+      ObjectRef = new ExecutionObjectReference("queue", queueId, queueName),
+      Navigation = ExecutionNavigationBuilder.Build("queue", queueId, new ExecutionLogContext()),
+      Hierarchy = ExecutionHierarchyBuilder.Build(context),
+      Summary = TrimSummary($"device_not_live: {reason}"),
+      Details = new[] {
+        new ExecutionDetailItem(
+          "device",
+          $"The device of queue '{queueName}' is not live ({reason}). The queue holds the firings that need the device, and runs them when the device is live again.",
+          new Dictionary<string, object?> { ["reason"] = reason },
+          "normal")
+      },
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+    };
+    await _repository.AddAsync(entry, ct).ConfigureAwait(false);
   }
 
   public async Task<ExecutionSubtreeProjection?> GetSubtreeAsync(string executionId, CancellationToken ct = default) {
