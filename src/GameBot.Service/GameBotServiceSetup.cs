@@ -98,6 +98,7 @@ internal static class GameBotServiceSetup {
       options.DocumentFilter<ConditionalFlowSchemaDocumentFilter>();
       options.SchemaFilter<SequenceTimeLimitSchemaFilter>();
       options.SchemaFilter<QueueHealthSchemaFilter>();
+      options.SchemaFilter<DeviceLivenessSchemaFilter>();
       options.SchemaFilter<QueueSequenceStatsSchemaFilter>();
       options.SchemaFilter<ImageAlternatesSchemaFilter>();
       options.SchemaFilter<SequenceNestingRulesSchemaFilter>();
@@ -117,10 +118,11 @@ internal static class GameBotServiceSetup {
                       .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     builder.Services.AddCors(options => {
       options.AddPolicy("WebUiCors", policy => {
+        // Feature 106: the staleness headers are exposed next to X-Capture-Id.
         if (corsOrigins.Length > 0)
-          policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Capture-Id");
+          policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders(GameBot.Service.Services.Liveness.CaptureHeaders.ExposedHeaders);
         else
-          policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Capture-Id");
+          policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod().WithExposedHeaders(GameBot.Service.Services.Liveness.CaptureHeaders.ExposedHeaders);
       });
     });
     // Serialize enums as strings for API responses to match tests and readability
@@ -139,6 +141,7 @@ internal static class GameBotServiceSetup {
       var raw = envTimeout ?? cfgTimeout;
       options.TimeoutSeconds = int.TryParse(raw, out var seconds) ? Math.Max(1, seconds) : 30;
     });
+    RegisterDeviceLivenessServices(builder);
     builder.Services.AddSingleton<ISessionManager, SessionManager>();
     builder.Services.AddSingleton<ISessionContextCache, SessionContextCache>();
     // Feature 079: ambient "which device is this execution flow acting on" context. A queue run pushes
@@ -177,6 +180,20 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEnsureEmulatorRunningActionHandler, GameBot.Service.Services.EnsureEmulatorRunning.EnsureEmulatorRunningActionHandler>();
     builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();
     builder.Services.AddSingleton<GameBot.Service.Services.BackupService>();
+  }
+
+  /// <summary>
+  /// Feature 106: the liveness options, the tracker (always, also in stub mode), and the liveness service
+  /// with its transport check and direct capture.
+  /// </summary>
+  private static void RegisterDeviceLivenessServices(WebApplicationBuilder builder) {
+    builder.Services.Configure<GameBot.Domain.Sessions.DeviceLivenessOptions>(
+      builder.Configuration.GetSection(GameBot.Domain.Sessions.DeviceLivenessOptions.SectionName));
+    builder.Services.AddSingleton<GameBot.Domain.Sessions.IDeviceLivenessTracker>(sp =>
+      new GameBot.Domain.Sessions.DeviceLivenessTracker(sp.GetService<TimeProvider>()));
+    builder.Services.AddSingleton<GameBot.Service.Services.Liveness.ISessionTransportCheck, GameBot.Service.Services.Liveness.AdbSessionTransportCheck>();
+    builder.Services.AddSingleton<GameBot.Service.Services.Liveness.ISessionDirectCapture, GameBot.Service.Services.Liveness.AdbSessionDirectCapture>();
+    builder.Services.AddSingleton<GameBot.Service.Services.Liveness.ISessionLivenessService, GameBot.Service.Services.Liveness.SessionLivenessService>();
   }
 
   private static void RegisterRepositories(WebApplicationBuilder builder, string storageRoot) {
@@ -382,8 +399,11 @@ internal static class GameBotServiceSetup {
         var adbLogger = sp.GetRequiredService<ILogger<GameBot.Emulator.Adb.AdbClient>>();
         Func<string, GameBot.Emulator.Session.IAdbScreenCaptureProvider> factory = serial =>
           new GameBot.Emulator.Session.AdbScreenCaptureProvider(serial, adbLogger);
+        // Feature 106: the loops write their capture data to the tracker, with the capture time limit.
+        var livenessOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GameBot.Domain.Sessions.DeviceLivenessOptions>>().Value.Normalized();
         return new GameBot.Emulator.Session.BackgroundScreenCaptureService(
-          factory, appConfig.CaptureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>());
+          factory, appConfig.CaptureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>(),
+          sp.GetRequiredService<GameBot.Domain.Sessions.IDeviceLivenessTracker>(), livenessOptions);
       });
       // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain).
       // Feature 079: the ambient device context decides which session it observes, so concurrent

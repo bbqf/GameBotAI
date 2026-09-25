@@ -37,6 +37,8 @@ internal sealed class QueueHealthSchemaFilter : ISchemaFilter {
     Describe(schema, "paused", PausedDescription);
     Describe(schema, "pausedAt", PausedAtDescription);
     Describe(schema, "pauseReason", PauseReasonDescription);
+    // Feature 106: the device liveness of the run.
+    Describe(schema, "deviceLiveness", DeviceLivenessSchemaFilter.QueueDeviceLivenessDescription);
     if (schema.Properties.TryGetValue("pauseKind", out var pauseKind)) {
       pauseKind.Description = PauseKindDescription;
       pauseKind.Enum = new List<IOpenApiAny> {

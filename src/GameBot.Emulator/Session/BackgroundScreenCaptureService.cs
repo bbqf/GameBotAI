@@ -22,6 +22,9 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
   private readonly Func<string, IAdbScreenCaptureProvider> _captureProviderFactory;
   private volatile int _captureIntervalMs;
   private readonly ILogger<BackgroundScreenCaptureService> _logger;
+  // Feature 106: the liveness data of each session, and the time limit of one capture.
+  private readonly IDeviceLivenessTracker? _tracker;
+  private readonly int _captureTimeoutMs;
   private bool _disposed;
 
   /// <summary>
@@ -30,13 +33,19 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
   /// <param name="captureProviderFactory">Factory that creates an ADB capture provider for a given device serial.</param>
   /// <param name="captureIntervalMs">Target capture interval in milliseconds (minimum 50ms).</param>
   /// <param name="logger">Logger instance.</param>
+  /// <param name="tracker">Optional. Receives the capture data of each loop (feature 106).</param>
+  /// <param name="livenessOptions">Optional. Gives the time limit of one capture (feature 106).</param>
   public BackgroundScreenCaptureService(
       Func<string, IAdbScreenCaptureProvider> captureProviderFactory,
       int captureIntervalMs,
-      ILogger<BackgroundScreenCaptureService> logger) {
+      ILogger<BackgroundScreenCaptureService> logger,
+      IDeviceLivenessTracker? tracker = null,
+      DeviceLivenessOptions? livenessOptions = null) {
     _captureProviderFactory = captureProviderFactory ?? throw new ArgumentNullException(nameof(captureProviderFactory));
     _captureIntervalMs = Math.Max(50, captureIntervalMs);
     _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    _tracker = tracker;
+    _captureTimeoutMs = (livenessOptions ?? new DeviceLivenessOptions()).Normalized().CaptureTimeoutMs;
   }
 
   /// <summary>Starts a background capture loop for the given session and device.</summary>
@@ -52,8 +61,10 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
     }
 
     var provider = _captureProviderFactory(deviceSerial);
-    var loop = new SessionCaptureLoop(sessionId, deviceSerial, provider, _captureIntervalMs, _logger);
+    var loop = new SessionCaptureLoop(sessionId, deviceSerial, provider, _captureIntervalMs, _logger, _tracker, _captureTimeoutMs);
     _loops[sessionId] = loop;
+    // Before the loop starts, so that the first capture finds a running loop in the tracker.
+    _tracker?.LoopStarted(sessionId);
     loop.Start();
     BackgroundCaptureLog.LoopStarted(_logger, sessionId, deviceSerial, _captureIntervalMs);
   }
@@ -62,6 +73,7 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
   public void StopCapture(string sessionId) {
     if (string.IsNullOrWhiteSpace(sessionId)) return;
     if (_loops.TryRemove(sessionId, out var loop)) {
+      _tracker?.LoopStopped(sessionId);
       loop.Dispose();
       BackgroundCaptureLog.LoopStopped(_logger, sessionId);
     }
@@ -92,6 +104,7 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
   public void StopAll() {
     foreach (var kvp in _loops.ToArray()) {
       if (_loops.TryRemove(kvp.Key, out var loop)) {
+        _tracker?.LoopStopped(kvp.Key);
         loop.Dispose();
       }
     }
@@ -134,6 +147,8 @@ internal sealed class SessionCaptureLoop : IDisposable {
   private volatile int _intervalMs;
   private readonly ILogger _logger;
   private readonly CancellationTokenSource _cts = new();
+  private readonly IDeviceLivenessTracker? _tracker;
+  private readonly int _captureTimeoutMs;
 
   // Rolling FPS: circular buffer of last 10 capture durations
   private const int RollingWindowSize = 10;
@@ -155,12 +170,16 @@ internal sealed class SessionCaptureLoop : IDisposable {
       string deviceSerial,
       IAdbScreenCaptureProvider provider,
       int intervalMs,
-      ILogger logger) {
+      ILogger logger,
+      IDeviceLivenessTracker? tracker = null,
+      int captureTimeoutMs = 10000) {
     _sessionId = sessionId;
     _deviceSerial = deviceSerial;
     _provider = provider;
     _intervalMs = intervalMs;
     _logger = logger;
+    _tracker = tracker;
+    _captureTimeoutMs = Math.Max(1, captureTimeoutMs);
   }
 
   public void Start() {
@@ -199,8 +218,12 @@ internal sealed class SessionCaptureLoop : IDisposable {
   private async Task RunLoopAsync(CancellationToken ct) {
     while (!ct.IsCancellationRequested) {
       var sw = Stopwatch.StartNew();
+      // Feature 106 (research R-009): each capture gets its own time limit. One hung screencap then
+      // is one failed capture, and the loop continues. Before, it stopped the loop for all time.
+      using var captureLimit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+      captureLimit.CancelAfter(_captureTimeoutMs);
       try {
-        var png = await _provider.CaptureScreenshotPngAsync(ct).ConfigureAwait(false);
+        var png = await _provider.CaptureScreenshotPngAsync(captureLimit.Token).ConfigureAwait(false);
         if (png is not null && !ct.IsCancellationRequested) {
           Bitmap? bitmap = null;
           try {
@@ -215,14 +238,23 @@ internal sealed class SessionCaptureLoop : IDisposable {
             throw;
           }
 
+          // Feature 106 (research R-003): "no change" means the same PNG bytes as the current frame.
+          // The first frame of a loop is always a change.
+          var previous = CurrentFrame;
+          var changed = previous is null || !previous.PngBytes.AsSpan().SequenceEqual(png);
           var frame = new CachedFrame(png, bitmap, DateTimeOffset.UtcNow, bitmap.Width, bitmap.Height);
           var oldFrame = Interlocked.Exchange(ref _currentFrame, frame);
           oldFrame?.Bitmap.Dispose();
           Interlocked.Increment(ref _frameCount);
+          _tracker?.RecordCapture(_sessionId, changed);
         }
       }
       catch (OperationCanceledException) when (ct.IsCancellationRequested) {
         break;
+      }
+      catch (OperationCanceledException ex) {
+        // The capture time limit fired, not the loop token: a failed capture. The loop continues.
+        BackgroundCaptureLog.CaptureTimedOut(_logger, _sessionId, _captureTimeoutMs, ex);
       }
       catch (Exception ex) {
         BackgroundCaptureLog.CaptureError(_logger, _sessionId, ex);
@@ -272,4 +304,7 @@ internal static partial class BackgroundCaptureLog {
 
   [LoggerMessage(EventId = 5004, Level = LogLevel.Debug, Message = "Background capture failed for session {SessionId}")]
   public static partial void CaptureError(ILogger logger, string sessionId, Exception ex);
+
+  [LoggerMessage(EventId = 5005, Level = LogLevel.Debug, Message = "Background capture for session {SessionId} did not complete in {TimeoutMs} ms. The loop continues.")]
+  public static partial void CaptureTimedOut(ILogger logger, string sessionId, int timeoutMs, Exception ex);
 }

@@ -165,6 +165,25 @@ internal sealed class QueueCycleLedger {
     }
   }
 
+  /// <summary>
+  /// Seals one failed cycle with no entries for a device fault episode (feature 106, data-model section
+  /// 9). It adds one to the consecutive-failure count. It does not touch the open cycle, so the work of
+  /// the run loop is not changed.
+  /// </summary>
+  public void RecordFaultCycle(DateTimeOffset startedAt, DateTimeOffset now) {
+    lock (_lock) {
+      _cyclesCompleted++;
+      _consecutiveFailedCycles++;
+      _completed.Enqueue(new QueueCycleRecord(
+        _cyclesCompleted,
+        startedAt,
+        now,
+        false,
+        Array.Empty<QueueCycleEntryOutcome>()));
+      while (_completed.Count > MaxRetainedCycles) _completed.Dequeue();
+    }
+  }
+
   /// <summary>Point-in-time health values for the run. Caller must not hold the lock.</summary>
   public QueueCycleHealth SnapshotHealth() {
     lock (_lock) {

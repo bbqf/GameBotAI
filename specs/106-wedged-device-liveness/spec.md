@@ -2,7 +2,7 @@
 
 **Feature Branch**: `106-wedged-device-liveness`  
 **Created**: 2026-09-25  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #220 (B-019): "a wedged emulator is invisible to the API - health is green, inputs report dispatched, screenshots return a stale frame". Full description: see the issue and the feature description that started this spec.
 
 ## Background

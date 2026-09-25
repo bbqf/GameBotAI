@@ -48,8 +48,8 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 **Purpose**: Prepare the projects and record the baseline.
 
-- [ ] T001 Add `<ItemGroup><InternalsVisibleTo Include="GameBot.UnitTests" /></ItemGroup>` to `src/GameBot.Emulator/GameBot.Emulator.csproj`. Make sure that the unit test assembly name is `GameBot.UnitTests` (see `tests/unit/*.csproj`).
-- [ ] T002 Run `dotnet build "C:\src\GameBot\GameBot.sln"` and `dotnet test "C:\src\GameBot\GameBot.sln"` on the branch before a code change. Write down the tests that fail before the change (if any). Later gates compare with this baseline.
+- [X] T001 Add `<ItemGroup><InternalsVisibleTo Include="GameBot.UnitTests" /></ItemGroup>` to `src/GameBot.Emulator/GameBot.Emulator.csproj`. Make sure that the unit test assembly name is `GameBot.UnitTests` (see `tests/unit/*.csproj`).
+- [X] T002 Run `dotnet build "C:\src\GameBot\GameBot.sln"` and `dotnet test "C:\src\GameBot\GameBot.sln"` on the branch before a code change. Write down the tests that fail before the change (if any). Later gates compare with this baseline.
 
 ---
 
@@ -61,26 +61,26 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### Liveness model (FR-001 to FR-006, FR-019)
 
-- [ ] T003 [P] Create `DeviceLivenessOptions` in `src/GameBot.Domain/Sessions/DeviceLivenessOptions.cs`:
+- [X] T003 [P] Create `DeviceLivenessOptions` in `src/GameBot.Domain/Sessions/DeviceLivenessOptions.cs`:
   - Add `SectionName = "Service:DeviceLiveness"`.
   - Add the seven properties with the defaults and minimums of data-model section 1.
   - Add `Normalized()`. It returns a copy with each value set to at least its minimum. It never throws.
   - Add XML docs in STE.
-- [ ] T004 [P] Create the constants in `src/GameBot.Domain/Sessions/DeviceLivenessStates.cs`:
+- [X] T004 [P] Create the constants in `src/GameBot.Domain/Sessions/DeviceLivenessStates.cs`:
   - Static class `DeviceLivenessStates`: `Live = "live"`, `NotLive = "not_live"`, `Unknown = "unknown"`.
   - Static class `DeviceLivenessReasons`: `CaptureStalled`, `InputTimeout`, `NoChangeAfterInput`, `TransportNotReady`, with snake-case values.
   - In `DeviceLivenessReasons`, add the set `Hard` with `capture_stalled`, `input_timeout` and `transport_not_ready` (research R-011).
   - Enum `InputOutcome`: `Pending`, `Completed`, `TimedOut`, `Failed`, `Cancelled`.
   - Helper `InputOutcomes.ToWire(InputOutcome)`. It returns `pending`, `completed`, `timed_out`, `failed` or `cancelled`.
-- [ ] T005 [P] Create the record `DeviceLivenessSample` in `src/GameBot.Domain/Sessions/DeviceLivenessSample.cs`. Use the fields of data-model section 3 (with `FirstInputAfterChangeAt`).
-- [ ] T006 [P] Create the record `DeviceLivenessReport` in `src/GameBot.Domain/Sessions/DeviceLivenessReport.cs`. Use the fields of data-model section 4 (`State`, `Reason`, `FrameAgeMs`, `UnchangedMs`, `Stale`, `LastInputAt`, `LastInputOutcome`, `NeedsProbe`).
-- [ ] T007 Create the static pure class `DeviceLivenessEvaluator` in `src/GameBot.Domain/Sessions/DeviceLivenessEvaluator.cs` (depends on T003 to T006):
+- [X] T005 [P] Create the record `DeviceLivenessSample` in `src/GameBot.Domain/Sessions/DeviceLivenessSample.cs`. Use the fields of data-model section 3 (with `FirstInputAfterChangeAt`).
+- [X] T006 [P] Create the record `DeviceLivenessReport` in `src/GameBot.Domain/Sessions/DeviceLivenessReport.cs`. Use the fields of data-model section 4 (`State`, `Reason`, `FrameAgeMs`, `UnchangedMs`, `Stale`, `LastInputAt`, `LastInputOutcome`, `NeedsProbe`).
+- [X] T007 Create the static pure class `DeviceLivenessEvaluator` in `src/GameBot.Domain/Sessions/DeviceLivenessEvaluator.cs` (depends on T003 to T006):
   - Its method is `Evaluate(DeviceLivenessSample sample, DeviceLivenessOptions options, DateTimeOffset now)`.
   - Apply the seven rules of data-model section 4 in their order. The first match wins.
   - Compute `FrameAgeMs`, `UnchangedMs` and `Stale` (FR-006) for all rules.
   - Rule 5 and `Stale` apply only while `CaptureLoopRunning` is `true`.
   - The class has no I/O and no clock.
-- [ ] T008 Create the tracker (depends on T004, T005):
+- [X] T008 Create the tracker (depends on T004, T005):
   - Create `IDeviceLivenessTracker` in `src/GameBot.Domain/Sessions/IDeviceLivenessTracker.cs`.
   - Create `DeviceLivenessTracker` in `src/GameBot.Domain/Sessions/DeviceLivenessTracker.cs` with the constructor `DeviceLivenessTracker(TimeProvider? timeProvider = null)`.
   - Keep one internal record for each session ID behind one lock.
@@ -89,11 +89,11 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - Only `LoopStarted` and `RecordInputStarted` create a record. The other write methods do nothing for an unknown session ID.
   - `RecordCapture` does nothing for a stopped loop.
   - `HasCaptureData` returns `true` when a record exists and `LoopStartedAt` has a value. The snapshot headers use it.
-- [ ] T009 [P] Write `DeviceLivenessOptionsTests` in `tests/unit/Sessions/DeviceLivenessOptionsTests.cs`. Cases:
+- [X] T009 [P] Write `DeviceLivenessOptionsTests` in `tests/unit/Sessions/DeviceLivenessOptionsTests.cs`. Cases:
   - The defaults equal the spec Assumptions.
   - The options clamp values below the minimum (0 and negative values).
   - `Normalized()` does not change the source object.
-- [ ] T010 [P] Write `DeviceLivenessEvaluatorTests` in `tests/unit/Sessions/DeviceLivenessEvaluatorTests.cs`. Write one test for each rule of the table. Add tests for these cases:
+- [X] T010 [P] Write `DeviceLivenessEvaluatorTests` in `tests/unit/Sessions/DeviceLivenessEvaluatorTests.cs`. Write one test for each rule of the table. Add tests for these cases:
   - Rule order: transport before input, input before stall, stall before no-change.
   - An input with the outcome `Pending` for longer than `InputTimeoutMs` gives `input_timeout`.
   - A frame change after a timed-out input clears `input_timeout`. A later completed input also clears it.
@@ -106,7 +106,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - A static screen with no input gives `live` and `stale: true` (SC-006).
   - Frames that change give `live` and `stale: false`.
   - No device gives `unknown`. No loop and no data give `unknown` with `NeedsProbe: true`.
-- [ ] T011 [P] Write `DeviceLivenessTrackerTests` in `tests/unit/Sessions/DeviceLivenessTrackerTests.cs` with `FakeTimeProvider`. Cases:
+- [X] T011 [P] Write `DeviceLivenessTrackerTests` in `tests/unit/Sessions/DeviceLivenessTrackerTests.cs` with `FakeTimeProvider`. Cases:
   - `LoopStarted` clears the earlier data (edge case "Capture loop restarted").
   - `LoopStopped` keeps the data.
   - `RecordCapture` with a change and with no change.
@@ -123,14 +123,14 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### ADB time limits (FR-009, FR-011, FR-012)
 
-- [ ] T012 Change `ExecAsync` and `GetScreenshotPngAsync` in `src/GameBot.Emulator/Adb/AdbClient.cs` (research R-004):
+- [X] T012 Change `ExecAsync` and `GetScreenshotPngAsync` in `src/GameBot.Emulator/Adb/AdbClient.cs` (research R-004):
   - After `proc.Start()`, register the kill on the token before the first read: `using var reg = ct.Register(() => TryKill(proc));`.
   - Add the private static helper `TryKill(Process proc)`. It calls `proc.Kill(entireProcessTree: true)` when the process did not exit.
   - `TryKill` ignores `InvalidOperationException` and `Win32Exception`.
   - Put the reads and the wait in a `try` block. In `GetScreenshotPngAsync`, these are `CopyToAsync` and `WaitForExitAsync`. In `ExecAsync`, this is `WaitForExitAsync`.
   - In `catch`, when `ct.IsCancellationRequested` is `true`, throw `OperationCanceledException(ct)`. After the kill, the read can fail with an `IOException`.
   - Keep all signatures.
-- [ ] T013 [P] Write `AdbClientCancellationTests` in `tests/unit/Emulator/AdbClientCancellationTests.cs` (`[SupportedOSPlatform("windows")]`):
+- [X] T013 [P] Write `AdbClientCancellationTests` in `tests/unit/Emulator/AdbClientCancellationTests.cs` (`[SupportedOSPlatform("windows")]`):
   - Setup: copy `%SystemRoot%\System32\ping.exe` to a new temporary folder as `fake-adb-<guid>.exe`.
   - Build `new AdbClient(<path of the copy>)`.
   - Call `ExecAsync("-n 30 127.0.0.1", token)` with a token that cancels after 200 ms.
@@ -138,7 +138,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - Make sure that no process with the name `fake-adb-<guid>` is alive. Use `Process.GetProcessesByName`, and poll for up to 2 s.
   - The unique name makes sure that other `ping` processes cannot make the test fail.
   - Delete the folder in `Dispose`.
-- [ ] T014 Add a Windows test for `GetScreenshotPngAsync` in `tests/unit/Emulator/AdbClientCancellationTests.cs` (the file of T013, so after T013):
+- [X] T014 Add a Windows test for `GetScreenshotPngAsync` in `tests/unit/Emulator/AdbClientCancellationTests.cs` (the file of T013, so after T013):
   - `AdbClient` always adds the arguments `exec-out screencap -p`, so the fake is a batch file.
   - Write `fake-adb-<guid>.cmd` in the temporary folder of T013 with one line: `@"<folder>\fake-adb-<guid>.exe" -n 30 127.0.0.1 >nul`.
   - The batch file stays silent and keeps the output pipe open for 30 s.
@@ -149,9 +149,9 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### ADB seam and input records in `SessionManager` (FR-001, FR-014)
 
-- [ ] T015 Add the optional last positional parameter `bool TimedOut = false` to `InputActionResult` in `src/GameBot.Emulator/Session/ISessionManager.cs` (data-model section 6). The current three-argument calls must still compile.
-- [ ] T016 Create the internal interface `IAdbSessionClient` in `src/GameBot.Emulator/Adb/IAdbSessionClient.cs`. Give it `TapAsync`, `SwipeAsync`, `KeyEventAsync` and `GetScreenshotPngAsync`, with the signatures of `AdbClient`. Make `AdbClient` in `src/GameBot.Emulator/Adb/AdbClient.cs` implement it (see "Decision: the ADB seam").
-- [ ] T017 Change `src/GameBot.Emulator/Session/SessionManager.cs` (depends on T008, T015, T016):
+- [X] T015 Add the optional last positional parameter `bool TimedOut = false` to `InputActionResult` in `src/GameBot.Emulator/Session/ISessionManager.cs` (data-model section 6). The current three-argument calls must still compile.
+- [X] T016 Create the internal interface `IAdbSessionClient` in `src/GameBot.Emulator/Adb/IAdbSessionClient.cs`. Give it `TapAsync`, `SwipeAsync`, `KeyEventAsync` and `GetScreenshotPngAsync`, with the signatures of `AdbClient`. Make `AdbClient` in `src/GameBot.Emulator/Adb/AdbClient.cs` implement it (see "Decision: the ADB seam").
+- [X] T017 Change `src/GameBot.Emulator/Session/SessionManager.cs` (depends on T008, T015, T016):
   - Add the optional parameters `IDeviceLivenessTracker? liveness = null` and `IOptions<DeviceLivenessOptions>? livenessOptions = null` at the end of the public constructor.
   - Add the internal test constructor with `Func<string, IAdbSessionClient> clientFactory`.
   - Add the helper `CreateDeviceClient(string serial)`. Use it in `SendInputsAsync`, `SendInputsWithResultsAsync` and `GetSnapshotAsync`.
@@ -164,7 +164,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - Use the helper for tap, swipe and key in both input paths. Only ADB mode records data. Stub mode records nothing.
   - Call `tracker.Remove(id)` in `StopSession`, and in `CleanupIdleSessions` when it evicts a session.
   - `SendInputsAsync` gets no time limit (clarification 5).
-- [ ] T018 [P] Write `SessionManagerInputLivenessTests` in `tests/unit/Emulator/SessionManagerInputLivenessTests.cs`. Use the internal test constructor, a fake `IAdbSessionClient` and a real `DeviceLivenessTracker` on `FakeTimeProvider`. Cases:
+- [X] T018 [P] Write `SessionManagerInputLivenessTests` in `tests/unit/Emulator/SessionManagerInputLivenessTests.cs`. Use the internal test constructor, a fake `IAdbSessionClient` and a real `DeviceLivenessTracker` on `FakeTimeProvider`. Cases:
   - A completed tap records `completed`.
   - A tap that returns a non-zero exit code on all attempts records `failed`.
   - `SendInputsAsync` (the sequence path) records the input data too. Its return value does not change.
@@ -175,14 +175,14 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### Capture loop (FR-001, FR-003, FR-006)
 
-- [ ] T019 Change `src/GameBot.Emulator/Session/BackgroundScreenCaptureService.cs` (depends on T008):
+- [X] T019 Change `src/GameBot.Emulator/Session/BackgroundScreenCaptureService.cs` (depends on T008):
   - Add the optional constructor parameters `IDeviceLivenessTracker? tracker = null` and `DeviceLivenessOptions? livenessOptions = null`. Pass them to each `SessionCaptureLoop`.
   - `StartCapture` calls `tracker.LoopStarted`. `StopCapture` and `StopAll` call `tracker.LoopStopped`.
   - In `SessionCaptureLoop.RunLoopAsync`, give each capture a linked token with `CancelAfter(CaptureTimeoutMs)` (research R-009).
   - A time-out of this token (not the loop token) is a failed capture (Debug log). The loop continues.
   - After a completed capture, compare the new bytes with the bytes of the current frame: `previous.PngBytes.AsSpan().SequenceEqual(png)`.
   - The first frame is a change. Then call `tracker.RecordCapture(sessionId, changed)` (research R-003).
-- [ ] T020 [P] Extend `tests/unit/BackgroundScreenCaptureServiceTests.cs`. Use a fake `IAdbScreenCaptureProvider`. Cases:
+- [X] T020 [P] Extend `tests/unit/BackgroundScreenCaptureServiceTests.cs`. Use a fake `IAdbScreenCaptureProvider`. Cases:
   - The same bytes two times give `changed: false` on the second capture.
   - New bytes give `changed: true`.
   - A provider that hangs until its token is cancelled does not stop the loop.
@@ -191,15 +191,15 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### Liveness service, probes and service registration (FR-007 to FR-010)
 
-- [ ] T021 [P] Create `ISessionTransportCheck` in `src/GameBot.Service/Services/Liveness/ISessionTransportCheck.cs` and `AdbSessionTransportCheck` in `src/GameBot.Service/Services/Liveness/AdbSessionTransportCheck.cs`:
+- [X] T021 [P] Create `ISessionTransportCheck` in `src/GameBot.Service/Services/Liveness/ISessionTransportCheck.cs` and `AdbSessionTransportCheck` in `src/GameBot.Service/Services/Liveness/AdbSessionTransportCheck.cs`:
   - `CheckAsync(string deviceSerial, CancellationToken ct)` runs `adb get-state` with the caller token.
   - It returns `SessionTransportCheckResult(Ok, Stdout, Stderr, Error)` (data-model section 7).
   - Move the current `adb get-state` logic of `GetSessionHealth` here. Keep the same `ok`, `stdout`, `stderr` and `error` values.
-- [ ] T022 [P] Create `ISessionDirectCapture` in `src/GameBot.Service/Services/Liveness/ISessionDirectCapture.cs` and `AdbSessionDirectCapture` in `src/GameBot.Service/Services/Liveness/AdbSessionDirectCapture.cs`:
+- [X] T022 [P] Create `ISessionDirectCapture` in `src/GameBot.Service/Services/Liveness/ISessionDirectCapture.cs` and `AdbSessionDirectCapture` in `src/GameBot.Service/Services/Liveness/AdbSessionDirectCapture.cs`:
   - `TryCaptureAsync(string deviceSerial, CancellationToken ct)` returns `true` only for a PNG with at least one byte.
   - An exception (not the caller cancel) or an empty PNG gives `false`.
   - Do not use `SessionManager.GetSnapshotAsync` (research R-007).
-- [ ] T023 Create `ISessionLivenessService` in `src/GameBot.Service/Services/Liveness/ISessionLivenessService.cs` and `SessionLivenessService` in `src/GameBot.Service/Services/Liveness/SessionLivenessService.cs` (depends on T007, T008, T021, T022):
+- [X] T023 Create `ISessionLivenessService` in `src/GameBot.Service/Services/Liveness/ISessionLivenessService.cs` and `SessionLivenessService` in `src/GameBot.Service/Services/Liveness/SessionLivenessService.cs` (depends on T007, T008, T021, T022):
   - `Options`: the normalized options.
   - `Evaluate(EmulatorSession session)`: data only, no I/O.
   - `ProbeAsync(EmulatorSession session, CancellationToken ct)` returns `SessionLivenessProbeResult(Adb, Liveness)`.
@@ -209,20 +209,20 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - `ProbeAsync` step 3: when `NeedsProbe` (rule 7), one direct capture with `CancelAfter(CaptureTimeoutMs)`.
   - Success gives `live` with `FrameAgeMs = 0`. Failure or time-out gives `not_live`, `capture_stalled`.
   - A session with no device serial gives `unknown` and no `adb` call.
-- [ ] T024 [P] Create `CaptureHeaders` in `src/GameBot.Service/Services/Liveness/CaptureHeaders.cs`:
+- [X] T024 [P] Create `CaptureHeaders` in `src/GameBot.Service/Services/Liveness/CaptureHeaders.cs`:
   - Constants `CaptureId`, `AgeMs`, `UnchangedMs`, `Stale`.
   - The array `ExposedHeaders` with the four names.
   - `Apply(HttpResponse response, long ageMs, long unchangedMs, bool stale)`. It writes the three new headers with invariant culture and `true`/`false` in lower case.
   - A pure helper `FromReport(DeviceLivenessReport report, bool directCapture)`. It gives the values of contract `screenshot-snapshot.md`.
   - For a direct capture, the age is `0`. With no loop data, the unchanged time is `0` and stale is `false`.
-- [ ] T025 Change `src/GameBot.Service/GameBotServiceSetup.cs` (depends on T017, T019, T023, T024):
+- [X] T025 Change `src/GameBot.Service/GameBotServiceSetup.cs` (depends on T017, T019, T023, T024):
   - Add `builder.Services.Configure<DeviceLivenessOptions>(builder.Configuration.GetSection(DeviceLivenessOptions.SectionName))`.
   - Register `IDeviceLivenessTracker` as a singleton with the registered `TimeProvider`. Register it always, also in stub mode.
   - Register `ISessionTransportCheck`, `ISessionDirectCapture` and `ISessionLivenessService` as singletons.
   - In `RegisterWindowsScreenCapture`, pass the tracker and the normalized options to the `BackgroundScreenCaptureService` constructor.
   - At both CORS policies, replace `WithExposedHeaders("X-Capture-Id")` with `WithExposedHeaders(CaptureHeaders.ExposedHeaders)`.
   - Keep `Program.cs` thin (build-time analyzers).
-- [ ] T026 Run `dotnet build "C:\src\GameBot\GameBot.sln"`. Then run `dotnet test "C:\src\GameBot\GameBot.sln" --filter "FullyQualifiedName~Liveness|FullyQualifiedName~BackgroundScreenCapture|FullyQualifiedName~SessionManager|FullyQualifiedName~AdbClient"`. Fix all failures before Phase 3.
+- [X] T026 Run `dotnet build "C:\src\GameBot\GameBot.sln"`. Then run `dotnet test "C:\src\GameBot\GameBot.sln" --filter "FullyQualifiedName~Liveness|FullyQualifiedName~BackgroundScreenCapture|FullyQualifiedName~SessionManager|FullyQualifiedName~AdbClient"`. Fix all failures before Phase 3.
 
 **Checkpoint**: The model, the data writers and the liveness service work. The user stories can start.
 
@@ -236,36 +236,36 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### Tests for User Story 1 (write first, make sure they fail)
 
-- [ ] T027 [P] [US1] Write `SessionLivenessServiceTests` in `tests/unit/Liveness/SessionLivenessServiceTests.cs`. Use fake `ISessionTransportCheck` and `ISessionDirectCapture` objects. Cases:
+- [X] T027 [P] [US1] Write `SessionLivenessServiceTests` in `tests/unit/Liveness/SessionLivenessServiceTests.cs`. Use fake `ISessionTransportCheck` and `ISessionDirectCapture` objects. Cases:
   - A transport check that hangs gives `not_live` `transport_not_ready`. The call returns in less than `TransportCheckTimeoutMs + 1 s`.
   - A transport result `Ok = false` gives `transport_not_ready`.
   - No capture data and a direct capture that succeeds give `live` with `frameAgeMs: 0`.
   - A direct capture that fails or hangs gives `not_live` `capture_stalled` in bounded time (US1 scenario 6).
   - Data in the tracker gives no direct capture.
   - A stub session gives `unknown` and no call to the fakes.
-- [ ] T028 [P] [US1] Write `SessionHealthLivenessContractTests` in `tests/contract/Sessions/SessionHealthLivenessContractTests.cs`. Cases:
+- [X] T028 [P] [US1] Write `SessionHealthLivenessContractTests` in `tests/contract/Sessions/SessionHealthLivenessContractTests.cs`. Cases:
   - A stub session gives `liveness.state: "unknown"` with all seven fields.
   - The fields `id`, `mode`, `deviceSerial` and `adb` do not change.
   - Use a fake `ISessionManager` session with a device serial and a fake `ISessionTransportCheck` that fails. The result is `adb.ok: false` and `liveness` `not_live` / `transport_not_ready`.
   - The same session with a fake tracker state of "no change after input" gives `no_change_after_input` (US1 scenario 3).
   - `404` does not change.
-- [ ] T029 [P] [US1] Create `tests/contract/DeviceLivenessOpenApiTests.cs` with tests for the session health schema:
+- [X] T029 [P] [US1] Create `tests/contract/DeviceLivenessOpenApiTests.cs` with tests for the session health schema:
   - `SessionHealthSchema` has the property `liveness`.
   - `SessionLivenessSchema` has the seven fields.
   - `state`, `reason` and `lastInputOutcome` have the enum values of contract `session-health.md` and a description.
 
 ### Implementation for User Story 1
 
-- [ ] T030 [US1] Change `GetSessionHealth` in `src/GameBot.Service/Endpoints/SessionsEndpoints.cs` (depends on T023):
+- [X] T030 [US1] Change `GetSessionHealth` in `src/GameBot.Service/Endpoints/SessionsEndpoints.cs` (depends on T023):
   - Call `ISessionLivenessService.ProbeAsync` with the request token.
   - Keep the current `adb` block values and form.
   - Add the `liveness` block (contract `session-health.md`). A small static helper `BuildLivenessBlock(DeviceLivenessReport)` builds it.
   - Write `lastInputAt` as an ISO date-time and `lastInputOutcome` as the wire string.
-- [ ] T031 [US1] Change `src/GameBot.Service/Swagger/SwaggerConfig.cs` (FR-020):
+- [X] T031 [US1] Change `src/GameBot.Service/Swagger/SwaggerConfig.cs` (FR-020):
   - Add the class `SessionLivenessSchema` and the property `Liveness` on `SessionHealthSchema`.
   - Add a `liveness` block to the health example.
-- [ ] T032 [US1] Create `DeviceLivenessSchemaFilter` (`ISchemaFilter`) in `src/GameBot.Service/Swagger/DeviceLivenessSchemaFilter.cs`. Give it STE descriptions and `enum` values for `SessionLivenessSchema`. Register it next to `QueueHealthSchemaFilter` in `src/GameBot.Service/GameBotServiceSetup.cs`.
-- [ ] T033 [US1] Run the US1 tests (T027 to T029) and the current session tests (`--filter "FullyQualifiedName~Session"`). All must pass.
+- [X] T032 [US1] Create `DeviceLivenessSchemaFilter` (`ISchemaFilter`) in `src/GameBot.Service/Swagger/DeviceLivenessSchemaFilter.cs`. Give it STE descriptions and `enum` values for `SessionLivenessSchema`. Register it next to `QueueHealthSchemaFilter` in `src/GameBot.Service/GameBotServiceSetup.cs`.
+- [X] T033 [US1] Run the US1 tests (T027 to T029) and the current session tests (`--filter "FullyQualifiedName~Session"`). All must pass.
 
 **Checkpoint**: The session health reports the device liveness. This is the MVP.
 
@@ -279,16 +279,16 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### Tests for User Story 2 (write first, make sure they fail)
 
-- [ ] T034 [P] [US2] Write `CaptureHeadersTests` in `tests/unit/Liveness/CaptureHeadersTests.cs`. Cases:
+- [X] T034 [P] [US2] Write `CaptureHeadersTests` in `tests/unit/Liveness/CaptureHeadersTests.cs`. Cases:
   - `FromReport` for a cached frame gives the report age, the unchanged time and the stale flag.
   - `FromReport` for a direct capture gives age `0`.
   - `FromReport` with no loop data gives unchanged `0` and stale `false`.
   - `Apply` writes invariant-culture integers and lower-case `true`/`false`.
-- [ ] T035 [P] [US2] Write `SessionManagerSnapshotTimeoutTests` in `tests/unit/Emulator/SessionManagerSnapshotTimeoutTests.cs` with the internal test constructor:
+- [X] T035 [P] [US2] Write `SessionManagerSnapshotTimeoutTests` in `tests/unit/Emulator/SessionManagerSnapshotTimeoutTests.cs` with the internal test constructor:
   - Use a fake `IAdbSessionClient.GetScreenshotPngAsync` that hangs until its token is cancelled.
   - Cancel the caller token. `GetSnapshotAsync` must throw `OperationCanceledException`.
   - It must not return the 1x1 stub PNG (research R-008).
-- [ ] T036 [P] [US2] Write `CaptureHeadersContractTests` in `tests/contract/Sessions/CaptureHeadersContractTests.cs`. Cases:
+- [X] T036 [P] [US2] Write `CaptureHeadersContractTests` in `tests/contract/Sessions/CaptureHeadersContractTests.cs`. Cases:
   - A direct capture on the screenshot endpoint has `X-Capture-Id`, `X-Capture-Age-Ms: 0`, `X-Capture-Unchanged-Ms` and `X-Capture-Stale: false`.
   - Register a `BackgroundScreenCaptureService` with a fake provider factory in `ConfigureTestServices`.
   - A cached frame that did not change for longer than a small `StaleLimitMs` gives `X-Capture-Stale: true` (US2 scenario 2).
@@ -297,24 +297,24 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - Both calls return in less than `CaptureTimeoutMs + 2 s` (SC-004). Use a small `CaptureTimeoutMs`.
   - A CORS request has `Access-Control-Expose-Headers` with the four names.
   - `404`, `409` and `503 emulator_unavailable` do not change.
-- [ ] T037 [US2] Extend `tests/contract/DeviceLivenessOpenApiTests.cs`. Make sure that `GET /api/emulator/screenshot` and `GET /api/sessions/{id}/snapshot` document the three headers and a `504` response.
+- [X] T037 [US2] Extend `tests/contract/DeviceLivenessOpenApiTests.cs`. Make sure that `GET /api/emulator/screenshot` and `GET /api/sessions/{id}/snapshot` document the three headers and a `504` response.
 
 ### Implementation for User Story 2
 
-- [ ] T038 [US2] Change the screenshot endpoint in `src/GameBot.Service/Endpoints/EmulatorImageEndpoints.cs` (depends on T023, T024):
+- [X] T038 [US2] Change the screenshot endpoint in `src/GameBot.Service/Endpoints/EmulatorImageEndpoints.cs` (depends on T023, T024):
   - On the cached-frame path, add the headers from `ISessionLivenessService.Evaluate(session)` and `CaptureHeaders`.
   - On the direct path, call `GetSnapshotAsync` with a linked token of the request token and `CancelAfter(CaptureTimeoutMs)`.
   - Add the headers after a direct capture that succeeds.
   - Map a time-out of the limit (not the request token) to `504` `{ "error": "capture_timeout", "message": ... }`.
   - Keep `emulator_unavailable` for other failures.
   - Put the new logic in small private helpers.
-- [ ] T039 [US2] Change `GetSnapshot` in `src/GameBot.Service/Endpoints/SessionsEndpoints.cs`:
+- [X] T039 [US2] Change `GetSnapshot` in `src/GameBot.Service/Endpoints/SessionsEndpoints.cs`:
   - Use a linked token with `CancelAfter(CaptureTimeoutMs)`.
   - A time-out of the limit gives `504` `{ "error": { "code": "capture_timeout", "message": ..., "hint": ... } }`.
   - Add the headers only when `tracker.HasCaptureData(session.Id)` is `true` (FR-010).
   - A cancel by the client stays as it is now.
-- [ ] T040 [US2] Change `src/GameBot.Service/Swagger/SwaggerConfig.cs` (FR-020). Document the headers `X-Capture-Age-Ms`, `X-Capture-Unchanged-Ms` and `X-Capture-Stale`. Document the `504 capture_timeout` responses of the screenshot and snapshot operations.
-- [ ] T041 [US2] Run the US2 tests (T034 to T037) and the current screenshot and image tests (`--filter "FullyQualifiedName~Screenshot|FullyQualifiedName~EmulatorImage|FullyQualifiedName~Snapshot"`). All must pass.
+- [X] T040 [US2] Change `src/GameBot.Service/Swagger/SwaggerConfig.cs` (FR-020). Document the headers `X-Capture-Age-Ms`, `X-Capture-Unchanged-Ms` and `X-Capture-Stale`. Document the `504 capture_timeout` responses of the screenshot and snapshot operations.
+- [X] T041 [US2] Run the US2 tests (T034 to T037) and the current screenshot and image tests (`--filter "FullyQualifiedName~Screenshot|FullyQualifiedName~EmulatorImage|FullyQualifiedName~Snapshot"`). All must pass.
 
 **Checkpoint**: Screenshots and snapshots tell staleness and never hang.
 
@@ -328,7 +328,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### Tests for User Story 3 (write first, make sure they fail)
 
-- [ ] T042 [P] [US3] Write `SessionManagerInputTimeoutTests` in `tests/unit/Emulator/SessionManagerInputTimeoutTests.cs`. Use the internal test constructor and a small `InputTimeoutMs` (for example 300). Cases:
+- [X] T042 [P] [US3] Write `SessionManagerInputTimeoutTests` in `tests/unit/Emulator/SessionManagerInputTimeoutTests.cs`. Use the internal test constructor and a small `InputTimeoutMs` (for example 300). Cases:
   - A tap that hangs until its token is cancelled gives `InputActionResult(0, false, "tap: device did not answer in 300 ms", TimedOut: true)`.
   - The fake gets no call for the actions after it. The fake counts the calls.
   - The call returns in less than the limit plus 2 s.
@@ -336,7 +336,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - A cancel of the caller token before the limit does not give `TimedOut` in the result.
   - The tracker outcome is then `cancelled`, not `pending`.
   - The ADB retries of one action share the one limit.
-- [ ] T043 [P] [US3] Write `SessionInputsLivenessContractTests` in `tests/contract/Sessions/SessionInputsLivenessContractTests.cs`. Use a fake `ISessionManager` and a fake `ISessionLivenessService`. Cases:
+- [X] T043 [P] [US3] Write `SessionInputsLivenessContractTests` in `tests/contract/Sessions/SessionInputsLivenessContractTests.cs`. Use a fake `ISessionManager` and a fake `ISessionLivenessService`. Cases:
   - No actions give `400 invalid_request`. The fake gets no dispatch call (SC-007).
   - A session that does not exist gives `409 not_running`.
   - A result with `TimedOut: true` gives `504`, `error.code: "device_timeout"` and the `results` array.
@@ -345,17 +345,17 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - In the `503` case, all results are `dispatched: false` with `failureReason: "device_not_live: <reason>"`.
   - A live report gives `202` with the current body.
   - No dispatched action gives `400 invalid_input_actions`.
-- [ ] T044 [US3] Extend `tests/contract/DeviceLivenessOpenApiTests.cs`. Make sure that `POST /api/sessions/{id}/inputs` documents the `503` and `504` responses with examples.
+- [X] T044 [US3] Extend `tests/contract/DeviceLivenessOpenApiTests.cs`. Make sure that `POST /api/sessions/{id}/inputs` documents the `503` and `504` responses with examples.
 
 ### Implementation for User Story 3
 
-- [ ] T045 [US3] Change `SendInputsWithResultsAsync` in `src/GameBot.Emulator/Session/SessionManager.cs` (depends on T017):
+- [X] T045 [US3] Change `SendInputsWithResultsAsync` in `src/GameBot.Emulator/Session/SessionManager.cs` (depends on T017):
   - For each action, create a linked token with `CancelAfter(InputTimeoutMs)`. Pass it to `DispatchOneInputAsync`.
   - Catch `OperationCanceledException` when the action token fired and the caller token did not.
   - Then record the outcome `TimedOut`.
   - Add `InputActionResult(index, false, "<type>: device did not answer in <N> ms", TimedOut: true)`, and stop the loop (research R-005).
   - The delay between actions keeps the caller token.
-- [ ] T046 [US3] Change the inputs endpoint in `src/GameBot.Service/Endpoints/SessionsEndpoints.cs` (depends on T023, T045):
+- [X] T046 [US3] Change the inputs endpoint in `src/GameBot.Service/Endpoints/SessionsEndpoints.cs` (depends on T023, T045):
   - Keep the current `400 invalid_request` check for a request with no actions. It comes before the dispatch.
   - After the dispatch, get the data-only report with `ISessionLivenessService.Evaluate`.
   - Apply the rule order of contract `session-inputs.md` in a static helper `MapDispatchResult(dispatch, report, sessionId)`.
@@ -363,8 +363,8 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - For `504`, keep the `dispatched` value of the actions before the timed-out action (FR-013).
   - For `503`, rewrite the results to `dispatched: false`.
   - Use the current session error form with `message` and `hint` in STE.
-- [ ] T047 [US3] Change `src/GameBot.Service/Swagger/SwaggerConfig.cs` (FR-020). Add the `503 device_not_live` and `504 device_timeout` response examples for `POST /api/sessions/{id}/inputs`.
-- [ ] T048 [US3] Run the US3 tests (T042 to T044) and the current input tests (`--filter "FullyQualifiedName~Input"`). All must pass.
+- [X] T047 [US3] Change `src/GameBot.Service/Swagger/SwaggerConfig.cs` (FR-020). Add the `503 device_not_live` and `504 device_timeout` response examples for `POST /api/sessions/{id}/inputs`.
+- [X] T048 [US3] Run the US3 tests (T042 to T044) and the current input tests (`--filter "FullyQualifiedName~Input"`). All must pass.
 
 **Checkpoint**: Inputs are bounded and tell the truth about a wedged device.
 
@@ -378,7 +378,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 ### Tests for User Story 4 (write first, make sure they fail)
 
-- [ ] T049 [P] [US4] Write `QueueLivenessEpisodeTests` in `tests/unit/Queues/QueueLivenessEpisodeTests.cs`. Cases:
+- [X] T049 [P] [US4] Write `QueueLivenessEpisodeTests` in `tests/unit/Queues/QueueLivenessEpisodeTests.cs`. Cases:
   - `not_live` opens an episode with `NotLiveSince = now`. This applies to each reason.
   - A second `not_live` keeps the start time.
   - `live` and `unknown` close the episode and clear all episode data.
@@ -389,11 +389,11 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - `TryClaimFaultCycle` returns `true` also after gate entries in the episode.
   - A new episode after a close can record gate entries and a fault cycle again.
   - `Snapshot` gives a copy with `GatedFirings`.
-- [ ] T050 [P] [US4] Write `QueueCycleLedgerFaultCycleTests` in `tests/unit/Queues/QueueCycleLedgerFaultCycleTests.cs`. Cases:
+- [X] T050 [P] [US4] Write `QueueCycleLedgerFaultCycleTests` in `tests/unit/Queues/QueueCycleLedgerFaultCycleTests.cs`. Cases:
   - `RecordFaultCycle` seals one failed cycle with no entries.
   - It increments `ConsecutiveFailedCycles`.
   - It does not change the open cycle.
-- [ ] T051 [P] [US4] Write `QueueLivenessGateTests` in `tests/unit/Queues/QueueLivenessGateTests.cs`. Use a fake session manager, a fake `ISessionLivenessService`, the fake `RecordingExecutionLog` and `FakeTimeProvider`.
+- [X] T051 [P] [US4] Write `QueueLivenessGateTests` in `tests/unit/Queues/QueueLivenessGateTests.cs`. Use a fake session manager, a fake `ISessionLivenessService`, the fake `RecordingExecutionLog` and `FakeTimeProvider`.
   - First, move `RecordingExecutionLog` out of `tests/unit/Queues/QueueExecutionServiceTests.cs` (today a private nested class at line 234). Put it in its own file `tests/unit/Queues/RecordingExecutionLog.cs` as an `internal sealed class` in the same namespace.
   - `QueueExecutionServiceTests`, `QueueLivenessGateTests` and `QueueLivenessWatchTests` all use this shared fake. Do not change its current behavior.
   - Cases:
@@ -425,7 +425,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - After a recovery, the held firings run. The self-reschedule chain continues at its original cadence, not every 30 s.
   - The reason `no_change_after_input` does not hold. The sequence and its guard sequences run.
   - `live` and `unknown` run the sequence and its guard sequences as before.
-- [ ] T052 [US4] Write `QueueLivenessWatchTests` in `tests/unit/Queues/QueueLivenessWatchTests.cs` (after T051, because it uses the shared `RecordingExecutionLog`). Cases:
+- [X] T052 [US4] Write `QueueLivenessWatchTests` in `tests/unit/Queues/QueueLivenessWatchTests.cs` (after T051, because it uses the shared `RecordingExecutionLog`). Cases:
   - Not live for longer than the grace period gives one `queue` log entry.
   - It also gives one fault cycle and one call to the failure policy.
   - Still not live on the next checks gives no second entry and no second fault cycle.
@@ -440,20 +440,20 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - After the fault cycle, the evaluator marks the stop as a policy stop (`MarkStopRequestedByPolicy`) and cancels the run. The watch code calls no stop and no cancel.
   - A cancel stops the watch.
   - Also add a case to `tests/unit/Queues/QueueFailurePolicyEvaluatorTests.cs`: two concurrent `OnCycleCompleted` calls on a failed cycle past the threshold give one notification (one `Act`).
-- [ ] T053 [P] [US4] Write `QueueDeviceLivenessContractTests` in `tests/contract/Queues/QueueDeviceLivenessContractTests.cs` (own data folder). Cases:
+- [X] T053 [P] [US4] Write `QueueDeviceLivenessContractTests` in `tests/contract/Queues/QueueDeviceLivenessContractTests.cs` (own data folder). Cases:
   - A queue that runs on a stub session has `health.deviceLiveness` with `state: "unknown"` and `gatedFirings: 0`.
   - Use a fake `ISessionLivenessService` that returns `not_live` with a hard reason. Set small `QueueGracePeriodMs` and `QueueCheckIntervalMs` values with `PostConfigure`.
   - `health.deviceLiveness` has `state`, `reason`, `notLiveSince`, `stale`, `frameAgeMs`, `unchangedMs` and `gatedFirings`.
   - A failed execution-log entry with `device_not_live` appears.
   - `health.consecutiveFailedCycles` increases after the grace period.
   - The queue status stays `Running`.
-- [ ] T054 [US4] Extend `tests/contract/DeviceLivenessOpenApiTests.cs`:
+- [X] T054 [US4] Extend `tests/contract/DeviceLivenessOpenApiTests.cs`:
   - `QueueHealthResponse` has `deviceLiveness`.
   - `QueueDeviceLivenessResponse` has the seven fields, the `state` and `reason` enums, and descriptions.
 
 ### Implementation for User Story 4
 
-- [ ] T055 [P] [US4] Create `QueueLivenessEpisode` in `src/GameBot.Service/Services/QueueExecution/QueueLivenessEpisode.cs` (data-model section 8):
+- [X] T055 [P] [US4] Create `QueueLivenessEpisode` in `src/GameBot.Service/Services/QueueExecution/QueueLivenessEpisode.cs` (data-model section 8):
   - Use one lock.
   - Add `Observe`, `RecordGatedFiring`, `TryClaimFaultCycle` and `Snapshot`.
   - Keep the two records separate: `GateLoggedSequences` for the gate, and `FaultCycleRecorded` for the watch.
@@ -462,15 +462,15 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - `RearmTimerFiring` uses `_timerLock`. It adds the entry only when the register has no Timer firing for that sequence (research R-011).
   - Also add the method `bool TryMarkPolicyTripped()` to `QueueRunHandle`. Under `_policyLock`, it sets the flag and returns `true` only when the flag was `false` (research R-012).
   - In `src/GameBot.Service/Services/QueueExecution/QueueFailurePolicyEvaluator.cs`, replace the read of `handle.PolicyTripped` and the call to `MarkPolicyTripped` (lines 67 to 69) with `if (!handle.TryMarkPolicyTripped()) return;`. Thus the watch and the run loop cannot both act for one episode.
-- [ ] T056 [P] [US4] Add `RecordFaultCycle(DateTimeOffset startedAt, DateTimeOffset now)` to `src/GameBot.Service/Services/QueueExecution/QueueCycleLedger.cs` (data-model section 9). Use the current lock.
-- [ ] T057 [US4] Add the execution-log method for the fault episode (research R-014):
+- [X] T056 [P] [US4] Add `RecordFaultCycle(DateTimeOffset startedAt, DateTimeOffset now)` to `src/GameBot.Service/Services/QueueExecution/QueueCycleLedger.cs` (data-model section 9). Use the current lock.
+- [X] T057 [US4] Add the execution-log method for the fault episode (research R-014):
   - Add `Task LogQueueDeviceFaultAsync(string rootExecutionId, string queueId, string queueName, string reason, CancellationToken ct = default)` to `IExecutionLogService`. This `internal interface` is in `src/GameBot.Service/Services/ExecutionLog/ExecutionLogService.cs` (line 76). No separate interface file exists.
   - Implement it in `ExecutionLogService` in the same file.
   - The entry has `ExecutionType = "queue"`, `FinalStatus = "failure"` and the queue `ObjectRef`.
   - The entry is a depth-1 child of the run root, with `Summary = "device_not_live: <reason>"`.
   - Update the fake `FakeExecutionLog` in `tests/unit/Queues/QueueMonitorServiceTests.cs`.
   - Update the shared fake `RecordingExecutionLog` in `tests/unit/Queues/RecordingExecutionLog.cs` (T051 moved it there from `QueueExecutionServiceTests.cs`), so that it records the call.
-- [ ] T058 [US4] Change `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs` (research R-011; depends on T055):
+- [X] T058 [US4] Change `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs` (research R-011; depends on T055):
   - Add the optional last constructor parameter `ISessionLivenessService? liveness = null`.
   - Add the private helper `TryGateOnLivenessAsync` (about 25 lines). It evaluates and calls `handle.Liveness.Observe`.
   - The helper holds only for `not_live` with a reason in `DeviceLivenessReasons.Hard`. For all other reports, it returns `false`.
@@ -488,7 +488,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - It then runs `RunOneSequenceAsync` and the EveryStep pass, as now, and returns the result.
   - Use `FireGroupAsync` at all nine main firing sites. For a firing that ran, keep the counters and marks of each site.
   - Gate the standalone EveryStep pass (no once-per-run entries) one time. Use its first sequence as the main sequence.
-- [ ] T059 [US4] Add the hold rules to the firing sites in `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs` (research R-011; depends on T058):
+- [X] T059 [US4] Add the hold rules to the firing sites in `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs` (research R-011; depends on T058):
   - For a held firing, do not change `executed` or `failed`.
   - For a held firing, do not call `RecordEntry`, `MarkTimeOfDayFired`, `ArmOrClearDailyRetry`, `MarkRelativeFired` or `MarkOncePerRunCompleted`.
   - Thus a held timer stays due, and a held daily retry keeps its attempt number.
@@ -510,7 +510,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - When `held` is `true`, do not complete the cycle. Do not call `MarkOncePerRunPassDone`, `CompleteOpen` or `OnCycleCompleted`.
   - When `held` is `true`, wait `QueueCheckIntervalMs` with `TimeProvider` and the stop token. Then start the next iteration.
   - When `held` is `true`, skip the idle pause. Also skip the `break` check for a queue with `cycleExecution: false`.
-- [ ] T060 [US4] Create `QueueLivenessWatch` in `src/GameBot.Service/Services/QueueExecution/QueueLivenessWatch.cs` (research R-012; depends on T055, T056, T057):
+- [X] T060 [US4] Create `QueueLivenessWatch` in `src/GameBot.Service/Services/QueueExecution/QueueLivenessWatch.cs` (research R-012; depends on T055, T056, T057):
   - Use a loop with a `TimeProvider` delay of `QueueCheckIntervalMs`.
   - Evaluate the current `handle.SessionId`, and call `Observe`.
   - When `TryClaimFaultCycle(now, QueueGracePeriodMs)` is `true`, call `LogQueueDeviceFaultAsync` with `CancellationToken.None`.
@@ -519,17 +519,17 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - Do these steps also when the gate wrote entries in the episode.
   - Log each exception at Warning level and continue.
   - Never stop the run directly. A stop policy that the operator configured acts through the evaluator (FR-018).
-- [ ] T061 [US4] In `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs`, start the `QueueLivenessWatch` task after the run binds its session (depends on T060):
+- [X] T061 [US4] In `src/GameBot.Service/Services/QueueExecution/QueueExecutionService.cs`, start the `QueueLivenessWatch` task after the run binds its session (depends on T060):
   - Start it only when the liveness service is not null.
   - In the `finally` block of the run, cancel the task and await it before the session stops.
-- [ ] T062 [P] [US4] Create `QueueDeviceLivenessResponse` in `src/GameBot.Service/Contracts/Queues/QueueDeviceLivenessResponse.cs` (data-model section 10, with `GatedFirings`). Add the property `DeviceLiveness` to `src/GameBot.Service/Contracts/Queues/QueueHealthResponse.cs`.
-- [ ] T063 [US4] Change `ProjectHealth` in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T055, T062):
+- [X] T062 [P] [US4] Create `QueueDeviceLivenessResponse` in `src/GameBot.Service/Contracts/Queues/QueueDeviceLivenessResponse.cs` (data-model section 10, with `GatedFirings`). Add the property `DeviceLiveness` to `src/GameBot.Service/Contracts/Queues/QueueHealthResponse.cs`.
+- [X] T063 [US4] Change `ProjectHealth` in `src/GameBot.Service/Endpoints/QueuesEndpoints.cs` (depends on T055, T062):
   - Take `ISessionLivenessService?`.
   - When the handle has a session, evaluate it and call `handle.Liveness.Observe`.
   - Fill `DeviceLiveness` from the snapshot, with `gatedFirings`. Write `notLiveSince` in service-local time.
   - `DeviceLiveness` is null when no session is bound yet.
-- [ ] T064 [US4] Extend `src/GameBot.Service/Swagger/DeviceLivenessSchemaFilter.cs` with descriptions and enums for `QueueDeviceLivenessResponse`. Add the description of `deviceLiveness` to `src/GameBot.Service/Swagger/QueueHealthSchemaFilter.cs` (FR-020).
-- [ ] T065 [US4] Run the US4 tests (T049 to T054) and all current queue tests (`--filter "FullyQualifiedName~Queue"`). All must pass. Do not change `src/GameBot.Service/Hosted/QueueDeviceWatchdogService.cs` (research R-017).
+- [X] T064 [US4] Extend `src/GameBot.Service/Swagger/DeviceLivenessSchemaFilter.cs` with descriptions and enums for `QueueDeviceLivenessResponse`. Add the description of `deviceLiveness` to `src/GameBot.Service/Swagger/QueueHealthSchemaFilter.cs` (FR-020).
+- [X] T065 [US4] Run the US4 tests (T049 to T054) and all current queue tests (`--filter "FullyQualifiedName~Queue"`). All must pass. Do not change `src/GameBot.Service/Hosted/QueueDeviceWatchdogService.cs` (research R-017).
 
 **Checkpoint**: All four user stories work and can be tested independently.
 
@@ -539,7 +539,7 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
 
 **Purpose**: Documentation, the full quality gate and the performance note.
 
-- [ ] T066 [P] Update `docs/architecture.md` in STE:
+- [X] T066 [P] Update `docs/architecture.md` in STE:
   - Add the liveness model (tracker, evaluator, rules).
   - Add the configuration section `Service:DeviceLiveness` with the defaults.
   - Add the new health block and the capture headers.
@@ -550,25 +550,25 @@ This is the smallest seam that lets unit tests simulate a hung tap, a failed tap
   - Add the watch: one entry and one fault cycle for each episode.
   - Add the kill of `adb` processes on cancel and the detection limit of an idle pause.
   - Set a new "Last reviewed" date.
-- [ ] T067 [P] Add entries to `CHANGELOG.md` under the unreleased section, in STE. Refer to issue #220.
+- [X] T067 [P] Add entries to `CHANGELOG.md` under the unreleased section, in STE. Refer to issue #220.
   - `Added`: the session health `liveness` block and the three capture headers.
   - `Added`: queue `health.deviceLiveness` with `gatedFirings`, the hold of firings, and the fault-episode entries.
   - `Added`: the configuration section `Service:DeviceLiveness`.
   - `Changed`: `POST /api/sessions/{id}/inputs` can now return `503 device_not_live` and `504 device_timeout`.
   - `Changed`: screenshot and snapshot can return `504 capture_timeout`.
   - `Changed`: the service kills an `adb` process when its call times out.
-- [ ] T068 [P] Add row 106 to `specs/STATUS.md`. Set **Status** to `Implemented` in `specs/106-wedged-device-liveness/spec.md`.
-- [ ] T069 Update the API contract snapshot in `tests/contract/ApiContractSnapshots/` only if a current snapshot test fails because of the new responses. Do not change other snapshot content.
-- [ ] T070 Measure the byte compare of the capture loop:
+- [X] T068 [P] Add row 106 to `specs/STATUS.md`. Set **Status** to `Implemented` in `specs/106-wedged-device-liveness/spec.md`.
+- [X] T069 Update the API contract snapshot in `tests/contract/ApiContractSnapshots/` only if a current snapshot test fails because of the new responses. Do not change other snapshot content.
+- [X] T070 Measure the byte compare of the capture loop:
   - Compare two 3 MB byte arrays with `SequenceEqual`.
   - Use a short measurement in a scratch unit test or a benchmark run. Do not commit it.
   - Write the result in the perf note for the PR description. The goal is below 1 ms.
-- [ ] T071 Run the full quality gate:
+- [X] T071 Run the full quality gate:
   - Run `dotnet build "C:\src\GameBot\GameBot.sln"` and `dotnet test "C:\src\GameBot\GameBot.sln"`.
   - All tests must pass, or fail only as in the T002 baseline.
   - A flaky test from the known list can fail (for example `MaskedTemplateMatchTests` or `QueueTemplateLink`). Then run it again.
   - If a file under `src/web-ui` changed, also run `vite build` and `jest` in `src/web-ui`.
-- [ ] T072 Do the steps of `specs/106-wedged-device-liveness/quickstart.md` section 7:
+- [X] T072 Do the steps of `specs/106-wedged-device-liveness/quickstart.md` section 7:
   - Its filter selects all test classes of this feature.
   - The filter names are `Liveness`, `AdbClientCancellation`, `BackgroundScreenCapture`, `SessionManagerInputTimeout`, `SessionManagerSnapshotTimeout`, `CaptureHeaders` and `QueueCycleLedgerFaultCycle`.
   - Then read the quickstart again. Make sure that each field, header and error name agrees with the code.

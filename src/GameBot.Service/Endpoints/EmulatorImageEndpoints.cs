@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.Versioning;
+using GameBot.Service.Services.Liveness;
 using System.IO;
 using System.Linq;
 using GameBot.Domain.Images;
@@ -17,7 +19,7 @@ internal static class EmulatorImageEndpoints {
 
   public static IEndpointRouteBuilder MapEmulatorImageEndpoints(this IEndpointRouteBuilder app) {
     // Capture emulator screenshot (served from background capture service cache)
-    app.MapGet(ApiRoutes.EmulatorScreenshot, async (HttpContext ctx, ISessionManager sessions, CaptureSessionStore captures, ILogger<EmulatorImageLoggingTag> logger, string? sessionId = null, string? serial = null) => {
+    app.MapGet(ApiRoutes.EmulatorScreenshot, async (HttpContext ctx, ISessionManager sessions, CaptureSessionStore captures, ISessionLivenessService liveness, ILogger<EmulatorImageLoggingTag> logger, string? sessionId = null, string? serial = null) => {
       var captureService = ctx.RequestServices.GetService<BackgroundScreenCaptureService>();
       // Feature 079 (FR-022..FR-024): resolve the device explicitly. Before this, an unqualified
       // request with several sessions open returned an arbitrary one, so an operator could crop a
@@ -48,22 +50,14 @@ internal static class EmulatorImageEndpoints {
       var frame = captureService?.GetCachedFrame(session.Id);
       if (frame is not null) {
         var capture = captures.Add(frame.PngBytes);
-        ctx.Response.Headers["X-Capture-Id"] = capture.Id;
+        ctx.Response.Headers[CaptureHeaders.CaptureId] = capture.Id;
+        ApplyCachedFrameHeaders(ctx.Response, frame, liveness.Evaluate(session));
         EmulatorImageLog.CaptureSucceeded(logger, capture.Id, capture.Width, capture.Height);
         return Results.File(frame.PngBytes, "image/png");
       }
 
       // Fallback: direct ADB capture (before background loop starts, or when service unavailable)
-      try {
-        var pngBytes = await sessions.GetSnapshotAsync(session.Id).ConfigureAwait(false);
-        var capture = captures.Add(pngBytes);
-        ctx.Response.Headers["X-Capture-Id"] = capture.Id;
-        EmulatorImageLog.CaptureSucceeded(logger, capture.Id, capture.Width, capture.Height);
-        return Results.File(pngBytes, "image/png");
-      }
-      catch {
-        return Results.Json(new { error = "emulator_unavailable", hint = "No cached screenshot available and direct capture failed." }, statusCode: StatusCodes.Status503ServiceUnavailable);
-      }
+      return await DirectScreenshotAsync(ctx, sessions, captures, liveness, logger, session).ConfigureAwait(false);
     }).WithName("GetEmulatorScreenshot").WithTags("Emulators");
 
     // Crop and save image
@@ -113,6 +107,50 @@ internal static class EmulatorImageEndpoints {
     }).WithName("CropImage").WithTags("Images");
 
     return app;
+  }
+
+  /// <summary>
+  /// Feature 106 (FR-010): the staleness headers of a cached frame. The age comes from the frame itself;
+  /// the unchanged time and the stale flag come from the liveness report of the session.
+  /// </summary>
+  private static void ApplyCachedFrameHeaders(HttpResponse response, GameBot.Domain.Sessions.CachedFrame frame, GameBot.Domain.Sessions.DeviceLivenessReport report) {
+    var fromReport = CaptureHeaders.FromReport(report, directCapture: false);
+    var ageMs = Math.Max(0L, (long)(DateTimeOffset.UtcNow - frame.Timestamp).TotalMilliseconds);
+    CaptureHeaders.Apply(response, fromReport with { AgeMs = ageMs });
+  }
+
+  /// <summary>
+  /// A direct capture with the limit <c>CaptureTimeoutMs</c> (feature 106, FR-011). A time-out of the limit
+  /// gives <c>504 capture_timeout</c>; each other failure keeps the <c>503 emulator_unavailable</c> answer.
+  /// </summary>
+  private static async Task<IResult> DirectScreenshotAsync(
+      HttpContext ctx,
+      ISessionManager sessions,
+      CaptureSessionStore captures,
+      ISessionLivenessService liveness,
+      ILogger logger,
+      GameBot.Domain.Sessions.EmulatorSession session) {
+    var limitMs = liveness.Options.CaptureTimeoutMs;
+    using var limit = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+    limit.CancelAfter(limitMs);
+    try {
+      var pngBytes = await sessions.GetSnapshotAsync(session.Id, limit.Token).WaitAsync(limit.Token).ConfigureAwait(false);
+      var capture = captures.Add(pngBytes);
+      ctx.Response.Headers[CaptureHeaders.CaptureId] = capture.Id;
+      CaptureHeaders.Apply(ctx.Response, CaptureHeaders.FromReport(liveness.Evaluate(session), directCapture: true));
+      EmulatorImageLog.CaptureSucceeded(logger, capture.Id, capture.Width, capture.Height);
+      return Results.File(pngBytes, "image/png");
+    }
+    catch (OperationCanceledException) when (limit.IsCancellationRequested && !ctx.RequestAborted.IsCancellationRequested) {
+      return Results.Json(new {
+        error = "capture_timeout",
+        message = string.Format(CultureInfo.InvariantCulture,
+          "The device did not return a screenshot in {0} ms. Check the emulator, or restart it.", limitMs)
+      }, statusCode: StatusCodes.Status504GatewayTimeout);
+    }
+    catch {
+      return Results.Json(new { error = "emulator_unavailable", hint = "No cached screenshot available and direct capture failed." }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
   }
 
   /// <summary>
