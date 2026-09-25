@@ -39,6 +39,7 @@ autonomously, using `/speckit-pipeline` for the actual specify -> plan -> tasks
    with backslashes. No `&&` chaining (PowerShell 5.1); use `;` or separate
    calls. Write files with the Write tool, not `Set-Content` (it mangles UTF-8).
 6. Temporary files go in the session scratchpad directory, never in the repo.
+7. Execute Step 1 in its own Sub-Agent, Steps 2-4 in another one and the Step 5 in its own Sub-Agent again. Continue in this session from Step 6 on.
 
 ## Step 1 - Preflight and resume check
 
