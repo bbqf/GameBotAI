@@ -142,6 +142,7 @@ Status vocabulary:
 | 105 | Per-sequence run statistics per queue and the `lastRun` condition | Implemented |
 | 106 | Make a wedged emulator visible to the API | Implemented |
 | 107 | Log each command step under its own step ID | Implemented |
+| 108 | Detect does not report a time-limited measurement as an absence | Implemented |
 
 ## Numbering notes
 

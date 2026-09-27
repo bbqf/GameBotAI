@@ -19,6 +19,22 @@ namespace GameBot.Service.Endpoints {
     public static bool ValidateThreshold(double value) => value >= 0 && value <= 1;
     public static bool ValidateOverlap(double value) => value >= 0 && value <= 1;
     public static bool ValidateMaxResults(int value) => value >= 1 && value <= MaxResultsLimit;
+
+    /// <summary>
+    /// Calculates the time limit of one detect call (issue #223). Each reference that the call
+    /// scores (the named image and each alternate that loaded) gets the full configured limit.
+    /// </summary>
+    /// <remarks>
+    /// The service scores the references one after the other. With one shared limit, an image with
+    /// alternates went past the limit in some calls only, and the call then looked like an absence.
+    /// </remarks>
+    /// <param name="timeoutMs">The configured limit for one reference. A value below 1 counts as 1.</param>
+    /// <param name="referenceCount">The number of references to score. A value below 1 counts as 1.</param>
+    /// <returns>The limit for the call, not more than <see cref="int.MaxValue"/> milliseconds.</returns>
+    public static TimeSpan DetectionTimeLimit(int timeoutMs, int referenceCount) {
+      var total = (long)Math.Max(1, timeoutMs) * Math.Max(1, referenceCount);
+      return TimeSpan.FromMilliseconds(Math.Min(total, int.MaxValue));
+    }
     public static bool ValidateContentType(string? value) {
       if (string.IsNullOrWhiteSpace(value)) return false;
       var normalized = NormalizeContentType(value);

@@ -1461,7 +1461,10 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     "is scored too and every match reports the reference that produced it in matchedReferenceId " +
     "(feature 097). Match x/y/width/height (and bbox) are fractions 0..1 of the capture frame's " +
     "width/height, not pixels: multiply by the capture size for pixels. POST /api/images/detect-all " +
-    "reports the same box in pixels under the same field names (feature 101).";
+    "reports the same box in pixels under the same field names (feature 101). The call has a time " +
+    "limit of Service:Detections:TimeoutMs for each reference: the image and each alternate. When the " +
+    "limit expires, the call fails with 504 detection_timeout, and no matches are reported (issue #223). " +
+    "In a 200, limitsHit is true only when maxResults cut the list of matches.";
 
   private const string ImageDetectAllDescription =
     "Scores every stored reference image against one capture, named by captureId. Match " +
@@ -1491,6 +1494,10 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       ImageDetectError("ambiguous_session", "2 device sessions are active; specify sessionId or captureId."), context);
     SetResponseExample(operation, "503",
       ImageDetectError("emulator_unavailable", "No running emulator session found. Start the emulator and retry."), context);
+    // Issue #223: an expired time limit is an explicit failure, not an empty match list.
+    SetResponseExample(operation, "504",
+      ImageDetectError(GameBot.Service.Endpoints.ImageDetectionsEndpoints.DetectionTimeoutCode,
+        GameBot.Service.Endpoints.ImageDetectionsEndpoints.DetectionTimeoutMessage), context);
   }
 
   private static OpenApiObject ImageDetectError(string code, string message) => new OpenApiObject {

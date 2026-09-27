@@ -2,7 +2,7 @@
 
 **Feature Branch**: `master-y1x20e` (spec number 108)  
 **Created**: 2026-09-27  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #223: "POST /api/images/detect returns an empty result with limitsHit:true for an image with alternates". Full description: see the issue and the feature description that started this spec.
 
 ## Background

@@ -8,6 +8,11 @@ namespace GameBot.Service.Endpoints {
     [LoggerMessage(EventId = 11001, Level = LogLevel.Information, Message = "Detect results count={Count} limitsHit={LimitsHit} durationMs={DurationMs}")]
     public static partial void LogDetectResults(this ILogger logger, int Count, bool LimitsHit, long DurationMs);
 
+    // Issue #223: the call fails with 504 detection_timeout when its time limit expires. This entry
+    // tells an operator how many references the call had and how long it ran.
+    [LoggerMessage(EventId = 11007, Level = LogLevel.Warning, Message = "Detect time limit expired id={Id} references={ReferenceCount} limitMs={LimitMs} durationMs={DurationMs}")]
+    public static partial void LogDetectTimeLimitExpired(this ILogger logger, string Id, int ReferenceCount, long LimitMs, long DurationMs);
+
     [LoggerMessage(EventId = 11002, Level = LogLevel.Warning, Message = "Detect invalid request: {Error}")]
     public static partial void LogDetectInvalid(this ILogger logger, string Error);
 
