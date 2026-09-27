@@ -141,6 +141,7 @@ Status vocabulary:
 | 104 | Queue sessions survive idle gaps between scheduled runs | Implemented |
 | 105 | Per-sequence run statistics per queue and the `lastRun` condition | Implemented |
 | 106 | Make a wedged emulator visible to the API | Implemented |
+| 107 | Log each command step under its own step ID | Implemented |
 
 ## Numbering notes
 

@@ -537,7 +537,8 @@ namespace GameBot.Domain.Services {
               conditionType: conditionType,
               conditionResult: "error",
               actionOutcome: "failed",
-              message: failureMessage);
+              message: failureMessage,
+              stepId: step.StepId);
           result.Fail(failureMessage);
           if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
           return true;
@@ -550,7 +551,8 @@ namespace GameBot.Domain.Services {
               conditionType: conditionType,
               conditionResult: "error",
               actionOutcome: "failed",
-              message: $"Step '{stepKey}' condition evaluation failed: {ex.Message}");
+              message: $"Step '{stepKey}' condition evaluation failed: {ex.Message}",
+              stepId: step.StepId);
           result.Fail($"Step '{stepKey}' condition evaluation failed: {ex.Message}");
           if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
           return true;
@@ -566,7 +568,8 @@ namespace GameBot.Domain.Services {
               actionOutcome: "skipped",
               message: conditionOutcome.DecidingPath is null
                 ? null
-                : $"condition {conditionOutcome.DecidingPath} ({conditionOutcome.DecidingDescription}) settled the guard");
+                : $"condition {conditionOutcome.DecidingPath} ({conditionOutcome.DecidingDescription}) settled the guard",
+              stepId: step.StepId);
           if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "skipped";
           return false;
         }
@@ -725,7 +728,8 @@ namespace GameBot.Domain.Services {
             conditionType: step.Condition is null ? null : step.Condition.Type,
             conditionResult: step.Condition is null ? null : "true",
             actionOutcome: "failed",
-            message: reason);
+            message: reason,
+            stepId: step.StepId);
         result.Fail(reason);
         if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
         return true;
@@ -750,7 +754,8 @@ namespace GameBot.Domain.Services {
               conditionType: step.Condition is null ? null : step.Condition.Type,
               conditionResult: step.Condition is null ? null : "true",
               actionOutcome: DryRunOutcomes.SkippedDryRun,
-              message: "dry run: command was not dispatched");
+              message: "dry run: command was not dispatched",
+              stepId: step.StepId);
           if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = DryRunOutcomes.SkippedDryRun;
           if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
           return false;
@@ -768,7 +773,8 @@ namespace GameBot.Domain.Services {
               conditionType: step.Condition is null ? null : step.Condition.Type,
               conditionResult: step.Condition is null ? null : "true",
               actionOutcome: "not_executed",
-              message: failure);
+              message: failure,
+              stepId: step.StepId);
           result.Fail(failure);
           if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
           if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
@@ -782,7 +788,8 @@ namespace GameBot.Domain.Services {
             conditionType: step.Condition is null ? null : step.Condition.Type,
             conditionResult: step.Condition is null ? null : "true",
             actionOutcome: "not_executed",
-            message: missReason);
+            message: missReason,
+            stepId: step.StepId);
         if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "not_executed";
         if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
         return false;
@@ -794,7 +801,8 @@ namespace GameBot.Domain.Services {
           "Succeeded",
           conditionType: step.Condition is null ? null : step.Condition.Type,
           conditionResult: step.Condition is null ? null : "true",
-          actionOutcome: "executed");
+          actionOutcome: "executed",
+          stepId: step.StepId);
       if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
       if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
       return false;
@@ -2192,9 +2200,11 @@ namespace GameBot.Domain.Services {
         string? conditionResult = null,
         string? actionOutcome = null,
         string? message = null,
-        WaitForImageStepResultDetails? waitForImageDetails = null) {
+        WaitForImageStepResultDetails? waitForImageDetails = null,
+        string? stepId = null) {
       _steps.Add(new StepResult {
         CommandId = commandId,
+        StepId = stepId,
         Status = status,
         Attempts = 1,
         DurationMs = 0,
@@ -2265,6 +2275,12 @@ namespace GameBot.Domain.Services {
   public class StepResult {
     public int Order { get; set; }
     public string CommandId { get; set; } = string.Empty;
+    /// <summary>
+    /// The StepId of the sequence step that ran (issue #221). The execution log uses it to find the
+    /// correct step when two or more steps use the same command. It is not in the JSON response.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? StepId { get; set; }
     public string Status { get; set; } = "Succeeded";
     public int Attempts { get; set; }
     public int DurationMs { get; set; }

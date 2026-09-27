@@ -2,7 +2,7 @@
 
 **Feature Branch**: `claude/resolve-github-issue-6ldqb3` (spec number 107)  
 **Created**: 2026-09-27  
-**Status**: Draft (active)  
+**Status**: Implemented  
 **Input**: GitHub issue #221 (B-020): "the execution log names a command step by the stepId of the first step that uses the same command". Full description: see the issue and the feature description that started this spec.
 
 ## Background
