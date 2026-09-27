@@ -19,12 +19,54 @@ public sealed class SessionManager : ISessionManager {
   private readonly ILogger<SessionManager> _logger;
   private readonly ILogger<AdbClient> _adbLogger;
   private readonly SessionOptions _options;
+  // ADB for session creation (the `adb devices` lookup).
   private readonly bool _useAdb;
+  // ADB for the inputs and the snapshot of a session with a device serial. Equal to _useAdb in
+  // production; the internal test constructor sets only this one (feature 106).
+  private readonly bool _useAdbForDevice;
   private readonly GameBot.Domain.Config.AppConfig _appConfig;
+  // Feature 106: the liveness data of each session, and the input time limit.
+  private readonly IDeviceLivenessTracker? _liveness;
+  private readonly DeviceLivenessOptions _livenessOptions;
+  private readonly Func<string, IAdbSessionClient> _clientFactory;
   private TimeSpan IdleTimeout => TimeSpan.FromSeconds(Math.Max(1, _options.IdleTimeoutSeconds));
   private static readonly char[] LineSplit = new[] { '\r', '\n' };
 
-  public SessionManager(IOptions<SessionOptions> options, ILogger<SessionManager> logger, ILogger<AdbClient> adbLogger, GameBot.Domain.Config.AppConfig? appConfig = null) {
+  public SessionManager(
+      IOptions<SessionOptions> options,
+      ILogger<SessionManager> logger,
+      ILogger<AdbClient> adbLogger,
+      GameBot.Domain.Config.AppConfig? appConfig = null,
+      IDeviceLivenessTracker? liveness = null,
+      IOptions<DeviceLivenessOptions>? livenessOptions = null)
+      : this(options, logger, adbLogger, appConfig, liveness, livenessOptions, clientFactory: null, useAdbForDevice: null) { }
+
+  /// <summary>
+  /// Test constructor (feature 106). The inputs and the snapshot use <paramref name="clientFactory"/>
+  /// for each session with a device serial, with no <c>GAMEBOT_USE_ADB</c> check. Session creation
+  /// stays in stub mode, so no <c>adb devices</c> call occurs.
+  /// </summary>
+  internal SessionManager(
+      IOptions<SessionOptions> options,
+      ILogger<SessionManager> logger,
+      ILogger<AdbClient> adbLogger,
+      GameBot.Domain.Config.AppConfig? appConfig,
+      IDeviceLivenessTracker? liveness,
+      IOptions<DeviceLivenessOptions>? livenessOptions,
+      Func<string, IAdbSessionClient> clientFactory)
+      : this(options, logger, adbLogger, appConfig, liveness, livenessOptions, clientFactory, useAdbForDevice: true) {
+    ArgumentNullException.ThrowIfNull(clientFactory);
+  }
+
+  private SessionManager(
+      IOptions<SessionOptions> options,
+      ILogger<SessionManager> logger,
+      ILogger<AdbClient> adbLogger,
+      GameBot.Domain.Config.AppConfig? appConfig,
+      IDeviceLivenessTracker? liveness,
+      IOptions<DeviceLivenessOptions>? livenessOptions,
+      Func<string, IAdbSessionClient>? clientFactory,
+      bool? useAdbForDevice) {
     ArgumentNullException.ThrowIfNull(options);
     ArgumentNullException.ThrowIfNull(logger);
     ArgumentNullException.ThrowIfNull(adbLogger);
@@ -32,11 +74,28 @@ public sealed class SessionManager : ISessionManager {
     _logger = logger;
     _adbLogger = adbLogger;
     _appConfig = appConfig ?? new GameBot.Domain.Config.AppConfig();
-    // Always attempt ADB on Windows by default; allow disabling (tests/CI) with GAMEBOT_USE_ADB=false
-    var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
-    _useAdb = OperatingSystem.IsWindows() && !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
+    _liveness = liveness;
+    _livenessOptions = (livenessOptions?.Value ?? new DeviceLivenessOptions()).Normalized();
+    _clientFactory = clientFactory ?? (serial => new AdbClient(_adbLogger).WithSerial(serial));
+    if (useAdbForDevice is { } forced) {
+      _useAdb = false;
+      _useAdbForDevice = forced;
+    }
+    else {
+      // Always attempt ADB on Windows by default; allow disabling (tests/CI) with GAMEBOT_USE_ADB=false
+      var useAdbEnv = Environment.GetEnvironmentVariable("GAMEBOT_USE_ADB");
+      _useAdb = OperatingSystem.IsWindows() && !string.Equals(useAdbEnv, "false", StringComparison.OrdinalIgnoreCase);
+      _useAdbForDevice = _useAdb;
+    }
     Log.SessionManagerStarted(_logger, _options.MaxConcurrentSessions, _options.IdleTimeoutSeconds);
   }
+
+  /// <summary>The ADB client of one device. Tests replace it through the internal constructor.</summary>
+  private IAdbSessionClient CreateDeviceClient(string serial) => _clientFactory(serial);
+
+  /// <summary>True when the inputs and the snapshot of <paramref name="s"/> go to a real device.</summary>
+  private bool UsesDevice(EmulatorSession s) =>
+    _useAdbForDevice && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial);
 
   public int ActiveCount => _sessions.Count;
   public bool CanCreateSession => ActiveCount < _options.MaxConcurrentSessions;
@@ -115,6 +174,7 @@ public sealed class SessionManager : ISessionManager {
     if (_sessions.TryGetValue(id, out var s)) {
       s.Status = SessionStatus.Stopping;
       _sessions.TryRemove(id, out _);
+      _liveness?.Remove(id);
       Log.SessionStopped(_logger, id);
       return true;
     }
@@ -135,28 +195,17 @@ public sealed class SessionManager : ISessionManager {
     }
 
     // If ADB enabled and we have a bound device, execute via ADB
-    if (_useAdb && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial)) {
-      var adb = new AdbClient(_adbLogger).WithSerial(s.DeviceSerial);
+    if (UsesDevice(s)) {
+      var adb = CreateDeviceClient(s.DeviceSerial!);
       var executed = 0;
       foreach (var a in actionList) {
         try {
           if (string.Equals(a.Type, "tap", StringComparison.OrdinalIgnoreCase)) {
             var x = GetInt(a.Args, "x");
             var y = GetInt(a.Args, "y");
-            bool ok;
-            if (_useAdb && OperatingSystem.IsWindows()) {
-              ok = false;
-              for (var attempt = 0; ; attempt++) {
-                var (code, _, _) = await adb.TapAsync(x, y, ct).ConfigureAwait(false);
-                if (code == 0) { ok = true; break; }
-                if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) break;
-                Log.AdbRetry(_logger, id, "tap", attempt + 1);
-                if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
-              }
-            }
-            else {
-              ok = true; // stub success in non-Windows or non-ADB mode
-            }
+            // Feature 106: sequence input records its start and outcome too (FR-014). It gets no new
+            // time limit, so the step results of sequences do not change.
+            var ok = await SendRecordedInputAsync(id, "tap", t => adb.TapAsync(x, y, t), ct).ConfigureAwait(false);
             if (ok) executed++;
           }
           else if (string.Equals(a.Type, "swipe", StringComparison.OrdinalIgnoreCase)) {
@@ -165,20 +214,7 @@ public sealed class SessionManager : ISessionManager {
             var x2 = GetInt(a.Args, "x2");
             var y2 = GetInt(a.Args, "y2");
             var duration = a.DurationMs;
-            bool ok;
-            if (_useAdb && OperatingSystem.IsWindows()) {
-              ok = false;
-              for (var attempt = 0; ; attempt++) {
-                var (code, _, _) = await adb.SwipeAsync(x1, y1, x2, y2, duration, ct).ConfigureAwait(false);
-                if (code == 0) { ok = true; break; }
-                if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) break;
-                Log.AdbRetry(_logger, id, "swipe", attempt + 1);
-                if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
-              }
-            }
-            else {
-              ok = true;
-            }
+            var ok = await SendRecordedInputAsync(id, "swipe", t => adb.SwipeAsync(x1, y1, x2, y2, duration, t), ct).ConfigureAwait(false);
             if (ok) executed++;
           }
           else if (string.Equals(a.Type, "key", StringComparison.OrdinalIgnoreCase)) {
@@ -194,20 +230,7 @@ public sealed class SessionManager : ISessionManager {
             else {
               throw new KeyNotFoundException("keyCode or key is required for key action");
             }
-            bool ok;
-            if (_useAdb && OperatingSystem.IsWindows()) {
-              ok = false;
-              for (var attempt = 0; ; attempt++) {
-                var (code, _, _) = await adb.KeyEventAsync(keyCode, ct).ConfigureAwait(false);
-                if (code == 0) { ok = true; break; }
-                if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) break;
-                Log.AdbRetry(_logger, id, "key", attempt + 1);
-                if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
-              }
-            }
-            else {
-              ok = true;
-            }
+            var ok = await SendRecordedInputAsync(id, "key", t => adb.KeyEventAsync(keyCode, t), ct).ConfigureAwait(false);
             if (ok) executed++;
           }
           // Per-action delay handling (cancellable)
@@ -257,15 +280,17 @@ public sealed class SessionManager : ISessionManager {
       ApplyTapJitter(a);
     }
 
-    var useRealAdb = _useAdb && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial);
-    var adb = useRealAdb ? new AdbClient(_adbLogger).WithSerial(s.DeviceSerial) : null;
+    var adb = UsesDevice(s) ? CreateDeviceClient(s.DeviceSerial!) : null;
     var results = new List<InputActionResult>(actionList.Count);
 
     for (var index = 0; index < actionList.Count; index++) {
       var a = actionList[index];
-      var (dispatched, failureReason) = await DispatchOneInputAsync(id, a, adb, ct).ConfigureAwait(false);
-      results.Add(new InputActionResult(index, dispatched, failureReason));
+      var result = await DispatchWithTimeLimitAsync(id, index, a, adb, ct).ConfigureAwait(false);
+      results.Add(result);
+      // Feature 106 (research R-005): the device did not answer, so the actions after it are not sent.
+      if (result.TimedOut) break;
 
+      // The delay between actions keeps the caller token, not the action time limit.
       if (a.DelayMs.HasValue && a.DelayMs.Value > 0) {
         await Task.Delay(a.DelayMs.Value, ct).ConfigureAwait(false);
       }
@@ -276,21 +301,82 @@ public sealed class SessionManager : ISessionManager {
     return new SessionInputDispatchResult(SessionFound: true, Results: results);
   }
 
-  private async Task<(bool Dispatched, string? FailureReason)> DispatchOneInputAsync(string id, InputAction a, AdbClient? adb, CancellationToken ct) {
+  /// <summary>
+  /// Dispatches one action of the session-input route. In ADB mode the action gets the input time
+  /// limit (feature 106, FR-012). The ADB retries of the action share this one limit. When the limit
+  /// (not the caller) stops the action, the result has <c>TimedOut</c>.
+  /// </summary>
+  private async Task<InputActionResult> DispatchWithTimeLimitAsync(string id, int index, InputAction a, IAdbSessionClient? adb, CancellationToken ct) {
+    if (adb is null) {
+      var (stubDispatched, stubReason) = await DispatchOneInputAsync(id, a, null, ct, CancellationToken.None).ConfigureAwait(false);
+      return new InputActionResult(index, stubDispatched, stubReason);
+    }
+
+    var limitMs = _livenessOptions.InputTimeoutMs;
+    using var limit = new CancellationTokenSource(TimeSpan.FromMilliseconds(limitMs));
+    using var actionCts = CancellationTokenSource.CreateLinkedTokenSource(ct, limit.Token);
+    try {
+      var (dispatched, failureReason) = await DispatchOneInputAsync(id, a, adb, actionCts.Token, limit.Token).ConfigureAwait(false);
+      return new InputActionResult(index, dispatched, failureReason);
+    }
+    catch (OperationCanceledException) when (limit.IsCancellationRequested && !ct.IsCancellationRequested) {
+      Log.InputTimedOut(_logger, id, index, limitMs);
+      return new InputActionResult(
+        index,
+        false,
+        string.Format(CultureInfo.InvariantCulture, "{0}: device did not answer in {1} ms", a.Type, limitMs),
+        TimedOut: true);
+    }
+  }
+
+  /// <summary>
+  /// Sends one ADB input command with its retries, and records its start and its outcome in the
+  /// liveness tracker (feature 106, research R-010). A cancel never leaves the outcome pending: an
+  /// input that ran for longer than the input time limit, or that <paramref name="timeLimit"/>
+  /// stopped, records <c>TimedOut</c>; a shorter one records <c>Cancelled</c>.
+  /// </summary>
+  /// <returns>True when the device accepted the command.</returns>
+  private async Task<bool> SendRecordedInputAsync(
+      string id,
+      string operation,
+      Func<CancellationToken, Task<(int ExitCode, string StdOut, string StdErr)>> send,
+      CancellationToken ct,
+      CancellationToken timeLimit = default) {
+    var tracker = _liveness;
+    var startedAt = tracker?.Now;
+    tracker?.RecordInputStarted(id);
+    var outcome = InputOutcome.Failed;
+    try {
+      for (var attempt = 0; ; attempt++) {
+        var (code, _, _) = await send(ct).ConfigureAwait(false);
+        if (code == 0) {
+          outcome = InputOutcome.Completed;
+          return true;
+        }
+        if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) return false;
+        Log.AdbRetry(_logger, id, operation, attempt + 1);
+        if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
+      }
+    }
+    catch (OperationCanceledException) {
+      var ranTooLong = tracker is not null && startedAt is { } started
+        && (tracker.Now - started).TotalMilliseconds > _livenessOptions.InputTimeoutMs;
+      outcome = timeLimit.IsCancellationRequested || ranTooLong ? InputOutcome.TimedOut : InputOutcome.Cancelled;
+      throw;
+    }
+    finally {
+      tracker?.RecordInputCompleted(id, outcome);
+    }
+  }
+
+  private async Task<(bool Dispatched, string? FailureReason)> DispatchOneInputAsync(string id, InputAction a, IAdbSessionClient? adb, CancellationToken ct, CancellationToken timeLimit) {
     try {
       if (string.Equals(a.Type, "tap", StringComparison.OrdinalIgnoreCase)) {
         var x = GetInt(a.Args, "x");
         var y = GetInt(a.Args, "y");
         if (adb is null) return (true, null);
-        for (var attempt = 0; ; attempt++) {
-          var (code, _, _) = await adb.TapAsync(x, y, ct).ConfigureAwait(false);
-          if (code == 0) return (true, null);
-          if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) {
-            return (false, "tap: device did not accept the action");
-          }
-          Log.AdbRetry(_logger, id, "tap", attempt + 1);
-          if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
-        }
+        var ok = await SendRecordedInputAsync(id, "tap", t => adb.TapAsync(x, y, t), ct, timeLimit).ConfigureAwait(false);
+        return ok ? (true, null) : (false, "tap: device did not accept the action");
       }
 
       if (string.Equals(a.Type, "swipe", StringComparison.OrdinalIgnoreCase)) {
@@ -299,15 +385,8 @@ public sealed class SessionManager : ISessionManager {
         var x2 = GetInt(a.Args, "x2");
         var y2 = GetInt(a.Args, "y2");
         if (adb is null) return (true, null);
-        for (var attempt = 0; ; attempt++) {
-          var (code, _, _) = await adb.SwipeAsync(x1, y1, x2, y2, a.DurationMs, ct).ConfigureAwait(false);
-          if (code == 0) return (true, null);
-          if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) {
-            return (false, "swipe: device did not accept the action");
-          }
-          Log.AdbRetry(_logger, id, "swipe", attempt + 1);
-          if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
-        }
+        var ok = await SendRecordedInputAsync(id, "swipe", t => adb.SwipeAsync(x1, y1, x2, y2, a.DurationMs, t), ct, timeLimit).ConfigureAwait(false);
+        return ok ? (true, null) : (false, "swipe: device did not accept the action");
       }
 
       if (string.Equals(a.Type, "key", StringComparison.OrdinalIgnoreCase)) {
@@ -323,15 +402,8 @@ public sealed class SessionManager : ISessionManager {
           return (false, "key: missing required argument 'keyCode' or 'key'");
         }
         if (adb is null) return (true, null);
-        for (var attempt = 0; ; attempt++) {
-          var (code, _, _) = await adb.KeyEventAsync(keyCode, ct).ConfigureAwait(false);
-          if (code == 0) return (true, null);
-          if (attempt >= _appConfig.AdbRetries || ct.IsCancellationRequested) {
-            return (false, "key: device did not accept the action");
-          }
-          Log.AdbRetry(_logger, id, "key", attempt + 1);
-          if (_appConfig.AdbRetryDelayMs > 0) await Task.Delay(_appConfig.AdbRetryDelayMs, ct).ConfigureAwait(false);
-        }
+        var ok = await SendRecordedInputAsync(id, "key", t => adb.KeyEventAsync(keyCode, t), ct, timeLimit).ConfigureAwait(false);
+        return ok ? (true, null) : (false, "key: device did not accept the action");
       }
 
       return (false, $"unsupported action type '{a.Type}'");
@@ -392,9 +464,11 @@ public sealed class SessionManager : ISessionManager {
     if (!_sessions.TryGetValue(id, out var s)) throw new KeyNotFoundException("Session not found");
     s.LastActivity = DateTimeOffset.UtcNow;
     // If ADB enabled and we have a device bound, try real screenshot
-    if (_useAdb && OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial)) {
+    // A cancel (for example the capture time limit of the caller, feature 106) goes to the caller as
+    // OperationCanceledException. It must never become the stub PNG below.
+    if (UsesDevice(s)) {
       try {
-        var adb = new AdbClient(_adbLogger).WithSerial(s.DeviceSerial);
+        var adb = CreateDeviceClient(s.DeviceSerial!);
         var swReal = Stopwatch.StartNew();
         byte[] png;
         var attempt = 0;
@@ -434,6 +508,7 @@ public sealed class SessionManager : ISessionManager {
       var last = kv.Value.LastActivity;
       if (now - last > IdleTimeout) {
         if (_sessions.TryRemove(kv.Key, out _)) {
+          _liveness?.Remove(kv.Key);
           Log.SessionEvicted(_logger, kv.Key, _options.IdleTimeoutSeconds);
         }
       }
@@ -633,4 +708,10 @@ internal static class Log {
   public static void AdbSnapshotFailed(ILogger l, string id, Exception ex) => _adbSnapshotFailed(l, id, ex);
   public static void AdbNoDevice(ILogger l, string id) => _adbNoDeviceLog(l, id, null);
   public static void AdbRetry(ILogger l, string id, string operation, int attempt) => _adbRetry(l, id, operation, attempt, null);
+
+  private static readonly Action<ILogger, string, int, int, Exception?> _inputTimedOut =
+      LoggerMessage.Define<string, int, int>(LogLevel.Warning, new EventId(25, nameof(InputTimedOut)),
+          "Session {Id}: the device did not answer input action {Index} in {LimitMs} ms. The service did not send the actions after it.");
+
+  public static void InputTimedOut(ILogger l, string id, int index, int limitMs) => _inputTimedOut(l, id, index, limitMs, null);
 }

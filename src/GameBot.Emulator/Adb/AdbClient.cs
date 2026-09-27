@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace GameBot.Emulator.Adb;
 
 [SupportedOSPlatform("windows")]
-public sealed class AdbClient {
+public sealed class AdbClient : IAdbSessionClient {
   private readonly string _adb;
   private readonly string? _serial;
   private readonly ILogger? _logger;
@@ -44,10 +44,18 @@ public sealed class AdbClient {
     proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
 
     if (!proc.Start()) throw new InvalidOperationException("Failed to start adb process");
+    // Feature 106 (research R-004): a cancel kills the adb process. Without this, each timed-out
+    // command leaves an adb process alive, and a wedged device collects them without limit.
+    using var killOnCancel = ct.Register(() => TryKill(proc));
     proc.BeginOutputReadLine();
     proc.BeginErrorReadLine();
 
-    await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+    try {
+      await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException && ct.IsCancellationRequested) {
+      throw new OperationCanceledException(ct);
+    }
     var so = stdout.ToString().TrimEnd();
     var se = stderr.ToString().TrimEnd();
     Log.ExecEnd(_logger, proc.ExitCode, args, Trunc(so), Trunc(se));
@@ -123,9 +131,20 @@ public sealed class AdbClient {
     };
     using var proc = new Process { StartInfo = psi };
     if (!proc.Start()) throw new InvalidOperationException("Failed to start adb process");
+    // Feature 106 (research R-004): register the kill before the first read. On Windows the output
+    // pipe is synchronous, so a cancel does not stop CopyToAsync. The kill closes the pipe, and the
+    // blocked read returns.
+    using var killOnCancel = ct.Register(() => TryKill(proc));
     using var ms = new MemoryStream();
-    await proc.StandardOutput.BaseStream.CopyToAsync(ms, ct).ConfigureAwait(false);
-    await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+    try {
+      await proc.StandardOutput.BaseStream.CopyToAsync(ms, ct).ConfigureAwait(false);
+      await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException && ct.IsCancellationRequested) {
+      throw new OperationCanceledException(ct);
+    }
+    // The kill can make the read return early with no exception.
+    ct.ThrowIfCancellationRequested();
     var png = ms.ToArray();
     if (png.Length == 0) {
       var err = await proc.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
@@ -133,6 +152,15 @@ public sealed class AdbClient {
     }
     Log.ScreencapEnd(_logger, png.Length);
     return png;
+  }
+
+  /// <summary>Kills the process and its children when it did not exit. Ignores a process that already ended.</summary>
+  private static void TryKill(Process proc) {
+    try {
+      if (!proc.HasExited) proc.Kill(entireProcessTree: true);
+    }
+    catch (InvalidOperationException) { /* the process ended or never started */ }
+    catch (System.ComponentModel.Win32Exception) { /* the process ends now, or access was refused */ }
   }
 
   private static string Trunc(string s) {

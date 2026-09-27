@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-24 (feature 105: run statistics of each sequence in each queue, and the
-`lastRun` step condition, #224)._
+_Last reviewed: 2026-09-25 (feature 106: the device liveness of a session and of a queue, the capture
+staleness headers, and the time limits of ADB calls, #220)._
 
 ## What GameBot is
 
@@ -662,6 +662,89 @@ for a queue run (`OriginatingQueueId` set, not a dry-run); its delegate calls
 is a 400 with a `Step '<id>' condition at <path>:` message) and evaluation. The web UI does not know
 this type: authors write `lastRun` conditions through the API.
 
+### Device liveness (feature 106, #220)
+
+A wedged emulator can answer `adb` but not apply the inputs, or stop its captures. Before feature 106,
+the API reported such a device as healthy. Now the API shows the fault.
+
+**Data.** `DeviceLivenessTracker` (`GameBot.Domain/Sessions`, a singleton, always registered) keeps
+one record for each session ID behind one lock: the capture-loop state, the time of the last capture
+and of the last frame change, the first input after the last frame change, and the last input with
+its outcome (`pending`, `completed`, `timed_out`, `failed`, `cancelled`). The capture loop writes the
+capture data. It compares the PNG bytes of each capture with the current frame (`SequenceEqual`), and
+the first frame of a loop is a change. `SessionManager` writes the input data for each ADB input, in
+both input paths. Stub mode records nothing. `StopSession` and the idle eviction remove the record.
+
+**Rules.** `DeviceLivenessEvaluator` is pure. The first rule that applies gives the state:
+
+1. No device serial: `unknown`.
+2. The transport check failed: `not_live`, `transport_not_ready`.
+3. The last input timed out, or it is pending for longer than `InputTimeoutMs`, and no frame change
+   came after its start: `not_live`, `input_timeout`.
+4. A capture loop runs, and no capture completed for longer than `CaptureStallLimitMs`:
+   `not_live`, `capture_stalled`.
+5. A capture loop runs, the frame did not change for longer than `StaleLimitMs`, and the first input
+   after the last change is older than `StaleLimitMs`: `not_live`, `no_change_after_input`.
+6. A capture loop runs and has a capture: `live`.
+7. All other cases: `unknown`. The health call then does one direct capture.
+
+The `stale` flag is separate: a capture loop runs, and the frame did not change for longer than
+`StaleLimitMs` or no capture completed for longer than `CaptureStallLimitMs`. A static screen is stale
+but live.
+
+**Configuration.** Section `Service:DeviceLiveness` (`DeviceLivenessOptions`, all values in ms; a
+value below its minimum is set to the minimum): `StaleLimitMs` 300000, `CaptureStallLimitMs` 60000,
+`InputTimeoutMs` 10000, `CaptureTimeoutMs` 10000, `TransportCheckTimeoutMs` 5000,
+`QueueGracePeriodMs` 120000, `QueueCheckIntervalMs` 30000.
+
+**Session API.** `GET /api/sessions/{id}/health` adds a `liveness` block. `SessionLivenessService`
+runs `adb get-state` with `TransportCheckTimeoutMs`, evaluates the data, and, for rule 7, does one
+direct capture with `CaptureTimeoutMs`. The worst time is the sum of the two limits. The screenshot and
+snapshot responses add `X-Capture-Age-Ms`, `X-Capture-Unchanged-Ms` and `X-Capture-Stale`
+(`CaptureHeaders`; CORS exposes them). A direct capture that does not complete in `CaptureTimeoutMs`
+gives `504 capture_timeout`. `POST /api/sessions/{id}/inputs` gives each action the limit
+`InputTimeoutMs`: a hung action gives `504 device_timeout`, and the service does not send the actions
+after it. When the data-only report after the dispatch is `not_live`, the service gives
+`503 device_not_live` and reports each result as not dispatched. Sequence inputs get no new time limit.
+
+**ADB processes.** `AdbClient.ExecAsync` and `GetScreenshotPngAsync` register a kill of the `adb`
+process tree on the token before the first read. A cancel or a time-out thus stops the process, also
+when the read of the synchronous screenshot pipe is blocked. Each capture of the capture loop has the
+limit `CaptureTimeoutMs`, so one hung `screencap` does not stop the loop.
+
+**Queue gate.** `QueueExecutionService` evaluates the data-only report one time for each firing
+group (the main firing, its before-each-run pass and its every-step pass; a standalone every-step pass
+is a group too). It holds the group only for `not_live` with a hard reason (`capture_stalled`,
+`input_timeout`, `transport_not_ready`). `no_change_after_input` does not hold, because the inputs of
+the firing can clear it. A held firing does not run and does not fail. It stays due:
+
+- A time-of-day or relative timer is not marked fired. A daily retry keeps its attempt number.
+- A self-reschedule Timer firing goes back with its original `FireAt` (`RearmTimerFiring`).
+- A live schedule goes back with `TryAdd`, so a newer schedule from the API wins.
+- Next-cycle-start and once-per-run self-reschedule entries go back into their registers. Their order
+  can change.
+- A held at-queue-start entry and the at-start entries after it move to the next-cycle-start register
+  (`at-queue-start:<index>`), so the run enters the loop and does not end.
+- A held once-per-run pass continues later with the first entry that did not run.
+
+After the first hold of a loop iteration, the other due firings of the iteration are held with the
+same report (hold-only mode). A held iteration completes no cycle, does no idle pause and does not end
+a non-cycling run. It waits `QueueCheckIntervalMs`. Only the first held firing of each sequence in a
+fault episode writes one failed sequence entry (`device_not_live: <reason>`, depth 1 under the current
+root segment) and one `failure` run in the statistics. Known limit: a time-of-day firing held past
+midnight is lost for that day.
+
+**Queue watch.** `QueueLivenessWatch` runs with each queue run (started after the session binds,
+stopped before the session stops). Every `QueueCheckIntervalMs` it evaluates the device and updates
+`QueueLivenessEpisode`. When the device stays `not_live` (each reason) for longer than
+`QueueGracePeriodMs`, it writes one failed `queue` entry, seals one failed cycle
+(`QueueCycleLedger.RecordFaultCycle`) and calls the failure policy evaluator, one time for each
+episode. `QueueRunHandle.TryMarkPolicyTripped` makes the policy act one time also when the watch and
+the run loop call it at the same time. The new code never stops the run or recovers the device; a
+failure policy that the operator configured can. `QueueDeviceWatchdogService` does not change.
+Detection limit: during an idle pause the queue sends no input, so a wedged device whose captures
+still complete is found only when the captures stop or after the next firing.
+
 ### Dry-run / validate-only sequence mode (feature 082)
 
 `dryRun: true` on the per-step `POST /api/sequences` create request and on
@@ -826,6 +909,18 @@ Feature 105 added, additively (see "Sequence run statistics" and "The `lastRun` 
 - The `lastRun` step condition on sequence create/update/PATCH/`dryRun`, with the schema
   `LastRunCondition` described by `LastRunConditionSchemaFilter`.
 - A new persisted folder, `<data>/queue-sequence-stats/`, with one `<queueId>.json` for each queue.
+
+Feature 106 added and changed (see "Device liveness" above; issue #220):
+
+- `liveness` on `GET /api/sessions/{id}/health` (`state`, `reason`, `frameAgeMs`, `unchangedMs`,
+  `stale`, `lastInputAt`, `lastInputOutcome`), described by `DeviceLivenessSchemaFilter`.
+- `X-Capture-Age-Ms`, `X-Capture-Unchanged-Ms` and `X-Capture-Stale` on `GET /api/emulator/screenshot`
+  and, when the session has capture data, on `GET /api/sessions/{id}/snapshot`.
+- `504 capture_timeout` on the screenshot and snapshot endpoints.
+- `503 device_not_live` and `504 device_timeout` on `POST /api/sessions/{id}/inputs`.
+- `health.deviceLiveness` on `GET /api/queues/{id}` (`state`, `reason`, `notLiveSince`, `stale`,
+  `frameAgeMs`, `unchangedMs`, `gatedFirings`).
+- A new configuration section, `Service:DeviceLiveness`. No new persisted file.
 
 ## Legacy / removed (don't be misled by old specs)
 

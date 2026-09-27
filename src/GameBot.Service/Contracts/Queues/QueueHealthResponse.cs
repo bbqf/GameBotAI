@@ -95,5 +95,10 @@ namespace GameBot.Service.Contracts.Queues {
     /// </para>
     /// </summary>
     public string? LastNotificationError { get; set; }
+
+    /// <summary>
+    /// The device liveness of the run session (feature 106). Null before the run binds a session.
+    /// </summary>
+    public QueueDeviceLivenessResponse? DeviceLiveness { get; set; }
   }
 }

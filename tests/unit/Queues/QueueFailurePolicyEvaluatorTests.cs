@@ -347,6 +347,31 @@ public class QueueFailurePolicyEvaluatorTests {
     act.Should().NotThrow();
   }
 
+  /// <summary>
+  /// Feature 106 (research R-012): the liveness watch and the run loop can both call the evaluator at
+  /// the same time. The check and the mark of the trip flag are one step, so only one call acts.
+  /// </summary>
+  [Fact]
+  public async Task TwoConcurrentCallsOnAFailedCycleNotifyOneTime() {
+    for (var round = 0; round < 20; round++) {
+      var (evaluator, notifier) = NewEvaluator();
+      var queue = QueueWith(QueueFailureAction.Notify, threshold: 1);
+      var handle = NewHandle();
+      RunCycle(handle, false);
+      using var start = new ManualResetEventSlim(false);
+
+      var calls = Enumerable.Range(0, 2).Select(_ => Task.Run(() => {
+        start.Wait();
+        evaluator.OnCycleCompleted(queue, handle);
+      })).ToArray();
+      start.Set();
+      await Task.WhenAll(calls).ConfigureAwait(false);
+
+      await Task.Delay(30).ConfigureAwait(false);
+      (await SettledAsync(notifier, 1).ConfigureAwait(false)).Should().ContainSingle();
+    }
+  }
+
   private sealed class ThrowingNotifier : IFailureNotifier {
     public Task<FailureNotificationResult> NotifyAsync(
       FailureNotificationEvent evt, string? overrideUrl, CancellationToken ct = default) =>

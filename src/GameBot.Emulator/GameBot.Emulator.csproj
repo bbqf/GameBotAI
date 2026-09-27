@@ -14,4 +14,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="*" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.3" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="GameBot.UnitTests" />
+  </ItemGroup>
 </Project>

@@ -140,7 +140,98 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyExecutionLogExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
     ApplyBackupRestoreExamples(operation, path, method, context);
+    ApplyCaptureStalenessDocs(operation, path, method, context);
+    ApplySessionInputErrorDocs(operation, path, method, context);
   }
+
+  // ── Feature 106 (FR-020): capture staleness headers and device errors ───────────────────────
+
+  private static void ApplyCaptureStalenessDocs(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!IsMethod(method, HttpMethods.Get)) return;
+    var isScreenshot = IsPath(path, ApiRoutes.EmulatorScreenshot);
+    var isSnapshot = IsPath(path, ApiRoutes.Sessions + "/{id}/snapshot");
+    if (!isScreenshot && !isSnapshot) return;
+
+    if (!operation.Responses.TryGetValue("200", out var ok)) {
+      ok = new OpenApiResponse { Description = "Success" };
+      operation.Responses["200"] = ok;
+    }
+    ok.Headers ??= new Dictionary<string, OpenApiHeader>();
+    var when = isSnapshot
+      ? " The snapshot is a direct capture; it has this header only when a capture loop runs, or ran, for the session."
+      : string.Empty;
+    ok.Headers["X-Capture-Age-Ms"] = CaptureHeader(
+      "Milliseconds since the frame was captured, as an integer. 0 for a direct capture." + when, "integer");
+    ok.Headers["X-Capture-Unchanged-Ms"] = CaptureHeader(
+      "Milliseconds since the frame bytes last changed, as an integer. 0 for a direct capture when no capture loop runs." + when, "integer");
+    ok.Headers["X-Capture-Stale"] = CaptureHeader(
+      "'true' or 'false': the stale flag of the session liveness (see GET /api/sessions/{id}/health). 'false' for a "
+      + "direct capture when no capture loop runs. A stale frame alone does not mean that the device is not live." + when, "string");
+
+    var timeoutExample = isScreenshot
+      ? new OpenApiObject {
+        ["error"] = new OpenApiString("capture_timeout"),
+        ["message"] = new OpenApiString("The device did not return a screenshot in 10000 ms. Check the emulator, or restart it.")
+      }
+      : SessionError("capture_timeout", "The device did not return a screenshot in 10000 ms.", "Check the emulator, or restart it.");
+    SetResponseExample(operation, "504", timeoutExample, context);
+    operation.Responses["504"].Description =
+      "capture_timeout: the direct capture did not complete in CaptureTimeoutMs (configuration Service:DeviceLiveness). "
+      + "The service stopped the adb process.";
+  }
+
+  private static OpenApiHeader CaptureHeader(string description, string type) => new() {
+    Description = description,
+    Schema = new OpenApiSchema { Type = type }
+  };
+
+  private static void ApplySessionInputErrorDocs(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!IsMethod(method, HttpMethods.Post) || !IsPath(path, ApiRoutes.Sessions + "/{id}/inputs")) return;
+
+    SetResponseExample(operation, "503", new OpenApiObject {
+      ["error"] = new OpenApiObject {
+        ["code"] = new OpenApiString("device_not_live"),
+        ["reason"] = new OpenApiString("no_change_after_input"),
+        ["message"] = new OpenApiString("The device is not live (no_change_after_input). The inputs were sent, but the device does not apply them."),
+        ["hint"] = new OpenApiString("Get GET /api/sessions/{id}/health for details. Restart the emulator if the fault stays.")
+      },
+      ["results"] = new OpenApiArray {
+        InputResult(0, false, "device_not_live: no_change_after_input")
+      }
+    }, context);
+    operation.Responses["503"].Description =
+      "device_not_live: the service sent the inputs, but the device liveness is not_live. error.reason gives the reason. "
+      + "Each result is dispatched: false.";
+
+    SetResponseExample(operation, "504", new OpenApiObject {
+      ["error"] = new OpenApiObject {
+        ["code"] = new OpenApiString("device_timeout"),
+        ["message"] = new OpenApiString("The device did not answer action 1 in 10000 ms. The actions after it were not sent."),
+        ["hint"] = new OpenApiString("Get GET /api/sessions/{id}/health to see the device liveness.")
+      },
+      ["results"] = new OpenApiArray {
+        InputResult(0, true, null),
+        InputResult(1, false, "tap: device did not answer in 10000 ms")
+      }
+    }, context);
+    operation.Responses["504"].Description =
+      "device_timeout: one action did not complete in InputTimeoutMs (configuration Service:DeviceLiveness). The service "
+      + "stopped the adb process and did not send the actions after it. The results before it keep their dispatched value.";
+  }
+
+  private static OpenApiObject InputResult(int index, bool dispatched, string? failureReason) => new() {
+    ["index"] = new OpenApiInteger(index),
+    ["dispatched"] = new OpenApiBoolean(dispatched),
+    ["failureReason"] = failureReason is null ? new OpenApiNull() : new OpenApiString(failureReason)
+  };
+
+  private static OpenApiObject SessionError(string code, string message, string hint) => new() {
+    ["error"] = new OpenApiObject {
+      ["code"] = new OpenApiString(code),
+      ["message"] = new OpenApiString(message),
+      ["hint"] = new OpenApiString(hint)
+    }
+  };
 
   private static void ApplyInstallerExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Post) && IsPath(path, "/installer/compare")) {
@@ -1623,6 +1714,16 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       ["ok"] = new OpenApiBoolean(true),
       ["stdout"] = new OpenApiString("device"),
       ["stderr"] = new OpenApiString(string.Empty)
+    },
+    // Feature 106: the device answers adb, but its screen does not change after the inputs.
+    ["liveness"] = new OpenApiObject {
+      ["state"] = new OpenApiString("not_live"),
+      ["reason"] = new OpenApiString("no_change_after_input"),
+      ["frameAgeMs"] = new OpenApiInteger(480),
+      ["unchangedMs"] = new OpenApiInteger(412000),
+      ["stale"] = new OpenApiBoolean(true),
+      ["lastInputAt"] = new OpenApiString("2026-09-25T09:41:07.113+00:00"),
+      ["lastInputOutcome"] = new OpenApiString("completed")
     }
   };
 
@@ -1735,6 +1836,23 @@ internal sealed class SessionHealthSchema {
   public string? Mode { get; set; }
   public string? DeviceSerial { get; set; }
   public SessionHealthAdbSchema? Adb { get; set; }
+
+  /// <summary>Feature 106: the device liveness of the session.</summary>
+  public SessionLivenessSchema? Liveness { get; set; }
+}
+
+/// <summary>
+/// Feature 106 (FR-007, FR-020): the <c>liveness</c> block of the session health response.
+/// <see cref="DeviceLivenessSchemaFilter"/> adds the descriptions and the enum values.
+/// </summary>
+internal sealed class SessionLivenessSchema {
+  public required string State { get; set; }
+  public string? Reason { get; set; }
+  public long? FrameAgeMs { get; set; }
+  public long? UnchangedMs { get; set; }
+  public bool Stale { get; set; }
+  public DateTimeOffset? LastInputAt { get; set; }
+  public string? LastInputOutcome { get; set; }
 }
 
 internal sealed class SessionHealthAdbSchema {

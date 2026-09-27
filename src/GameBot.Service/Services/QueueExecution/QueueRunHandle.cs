@@ -115,6 +115,12 @@ internal sealed class QueueRunHandle {
   /// </summary>
   public QueueCycleLedger Cycles { get; } = new();
 
+  /// <summary>
+  /// The device-liveness fault episode of this run (feature 106). The gate before each firing group, the
+  /// periodic watch and the health projection write to it.
+  /// </summary>
+  public QueueLivenessEpisode Liveness { get; } = new();
+
   // ── Failure policy state (feature 087) ───────────────────────────────────────────────────────
   // Run-scoped and in-memory like everything else here: a restarted service re-arms from zero.
   // Written by the policy evaluator on the run-loop thread and by the notifier's continuation on a
@@ -151,6 +157,19 @@ internal sealed class QueueRunHandle {
   /// <summary>Marks the policy as tripped for the current failure episode.</summary>
   public void MarkPolicyTripped() {
     lock (_policyLock) { _policyTripped = true; }
+  }
+
+  /// <summary>
+  /// Marks the policy as tripped and returns true only when it was not tripped before, in one step
+  /// (feature 106, research R-012). Thus the liveness watch and the run loop cannot both act for one
+  /// failure episode.
+  /// </summary>
+  public bool TryMarkPolicyTripped() {
+    lock (_policyLock) {
+      if (_policyTripped) return false;
+      _policyTripped = true;
+      return true;
+    }
   }
 
   /// <summary>Re-arms the policy after a successful cycle (or a resume).</summary>
@@ -351,6 +370,19 @@ internal sealed class QueueRunHandle {
   public void AddTimerFiring(SelfRescheduleEntry entry) {
     lock (_timerLock) {
       _pendingTimerFirings.RemoveAll(x => string.Equals(x.SequenceId, entry.SequenceId, StringComparison.Ordinal));
+      _pendingTimerFirings.Add(entry);
+    }
+  }
+
+  /// <summary>
+  /// Puts back a held self-reschedule Timer firing with its original <c>FireAt</c> (feature 106, research
+  /// R-011). It adds the entry only when the register has no Timer firing for that sequence, so a newer
+  /// firing that the sequence booked during the hold wins.
+  /// </summary>
+  public void RearmTimerFiring(SelfRescheduleEntry entry) {
+    ArgumentNullException.ThrowIfNull(entry);
+    lock (_timerLock) {
+      if (_pendingTimerFirings.Exists(x => string.Equals(x.SequenceId, entry.SequenceId, StringComparison.Ordinal))) return;
       _pendingTimerFirings.Add(entry);
     }
   }

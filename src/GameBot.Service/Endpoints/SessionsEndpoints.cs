@@ -6,6 +6,7 @@ using GameBot.Emulator.Adb;
 using Microsoft.Extensions.Options;
 using System.Threading.Tasks;
 using GameBot.Service.Services;
+using GameBot.Service.Services.Liveness;
 using Microsoft.Extensions.Logging;
 
 namespace GameBot.Service.Endpoints;
@@ -67,7 +68,7 @@ internal static class SessionsEndpoints {
           });
     }).WithName("GetSessionDevice").WithTags("Sessions");
 
-    group.MapPost("{id}/inputs", async (string id, InputActionsRequest req, ISessionManager mgr, CancellationToken ct) => {
+    group.MapPost("{id}/inputs", async (string id, InputActionsRequest req, ISessionManager mgr, ISessionLivenessService liveness, CancellationToken ct) => {
       if (req.Actions is null || req.Actions.Count == 0)
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "No actions provided.", hint = (string?)null } });
 
@@ -75,47 +76,54 @@ internal static class SessionsEndpoints {
       // to be misreported as "not_running" (409) — the two failure modes are now distinguished by
       // checking whether the session was found at all, rather than by whether anything dispatched.
       var dispatch = await mgr.SendInputsWithResultsAsync(id, req.Actions.Select(a => new GameBot.Emulator.Session.InputAction(a.Type, a.Args, a.DelayMs, a.DurationMs)), ct).ConfigureAwait(false);
-      if (!dispatch.SessionFound) return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
-
-      var resultsDto = dispatch.Results.Select(r => new { index = r.Index, dispatched = r.Dispatched, failureReason = r.FailureReason }).ToArray();
-      var accepted = resultsDto.Count(r => r.dispatched);
-      if (accepted == 0) {
-        return Results.Json(
-          new { error = new { code = "invalid_input_actions", message = "No posted actions could be dispatched.", hint = (string?)null }, results = resultsDto },
-          statusCode: StatusCodes.Status400BadRequest);
-      }
-
-      return Results.Accepted($"{ApiRoutes.Sessions}/{id}", new { accepted, results = resultsDto });
+      // Feature 106 (FR-013): the data-only liveness report, after the dispatch. No probe, so a live
+      // device gets no extra delay.
+      var session = dispatch.SessionFound ? mgr.GetSession(id) : null;
+      var report = session is null ? null : liveness.Evaluate(session);
+      return MapDispatchResult(dispatch, report, id, liveness.Options.InputTimeoutMs);
     }).WithName("SendInputs").WithTags("Sessions");
 
-    // Session health endpoint (checks ADB connectivity if applicable)
-    group.MapGet("{id}/health", async (string id, ISessionManager mgr, ILogger<AdbClient> adbLogger, CancellationToken ct) => {
+    // Session health endpoint: the ADB transport, and the device liveness (feature 106). The probe is
+    // bounded: at most TransportCheckTimeoutMs + CaptureTimeoutMs.
+    group.MapGet("{id}/health", async (string id, ISessionManager mgr, ISessionLivenessService liveness, CancellationToken ct) => {
       var s = mgr.GetSession(id);
       if (s is null)
         return Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
 
-      if (OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(s.DeviceSerial)) {
-        try {
-          var adb = new GameBot.Emulator.Adb.AdbClient(adbLogger).WithSerial(s.DeviceSerial);
-          var (code, stdout, stderr) = await adb.ExecAsync("get-state", ct).ConfigureAwait(false);
-          var ok = code == 0 && stdout.Trim().Equals("device", StringComparison.OrdinalIgnoreCase);
-          return Results.Ok(new { id = s.Id, mode = "ADB", deviceSerial = s.DeviceSerial, adb = new { ok, stdout, stderr } });
-        }
-        catch (InvalidOperationException ex) {
-          return Results.Ok(new { id = s.Id, mode = "ADB", deviceSerial = s.DeviceSerial, adb = new { ok = false, error = ex.Message } });
-        }
+      var probe = await liveness.ProbeAsync(s, ct).ConfigureAwait(false);
+      var livenessBlock = BuildLivenessBlock(probe.Liveness);
+      if (probe.Adb is { } adb) {
+        object adbBlock = adb.Error is not null
+          ? new { ok = false, error = adb.Error }
+          : new { ok = adb.Ok, stdout = adb.Stdout, stderr = adb.Stderr };
+        return Results.Ok(new { id = s.Id, mode = "ADB", deviceSerial = s.DeviceSerial, adb = adbBlock, liveness = livenessBlock });
       }
 
-      return Results.Ok(new { id = s.Id, mode = "STUB", deviceSerial = (string?)null, adb = new { ok = true } });
+      return Results.Ok(new { id = s.Id, mode = "STUB", deviceSerial = (string?)null, adb = new { ok = true }, liveness = livenessBlock });
     }).WithName("GetSessionHealth").WithTags("Sessions");
 
-    group.MapGet("{id}/snapshot", async (string id, ISessionManager mgr, CancellationToken ct) => {
+    group.MapGet("{id}/snapshot", async (string id, HttpContext ctx, ISessionManager mgr, ISessionLivenessService liveness, IDeviceLivenessTracker tracker, CancellationToken ct) => {
+      // Feature 106 (FR-011): the direct capture gets the limit CaptureTimeoutMs. A cancel by the
+      // client (ct) is not a 504 and keeps its current behavior.
+      var limitMs = liveness.Options.CaptureTimeoutMs;
+      using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+      limit.CancelAfter(limitMs);
       try {
-        var png = await mgr.GetSnapshotAsync(id, ct).ConfigureAwait(false);
+        var png = await mgr.GetSnapshotAsync(id, limit.Token).WaitAsync(limit.Token).ConfigureAwait(false);
+        ApplySnapshotHeaders(ctx.Response, mgr, liveness, tracker, id);
         return Results.File(png, contentType: "image/png");
       }
       catch (KeyNotFoundException) {
         return Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
+      }
+      catch (OperationCanceledException) when (limit.IsCancellationRequested && !ct.IsCancellationRequested) {
+        return Results.Json(new {
+          error = new {
+            code = "capture_timeout",
+            message = string.Format(System.Globalization.CultureInfo.InvariantCulture, "The device did not return a screenshot in {0} ms.", limitMs),
+            hint = "Check the emulator, or restart it."
+          }
+        }, statusCode: StatusCodes.Status504GatewayTimeout);
       }
     }).WithName("GetSnapshot").WithTags("Sessions");
 
@@ -127,6 +135,84 @@ internal static class SessionsEndpoints {
 
     return app;
   }
+
+  /// <summary>
+  /// Feature 106 (FR-012, FR-013, contract <c>session-inputs.md</c>): the answer of the inputs endpoint
+  /// after the dispatch. The rule order is 409 <c>not_running</c>, 504 <c>device_timeout</c>,
+  /// 503 <c>device_not_live</c>, 400 <c>invalid_input_actions</c>, 202. The 504 rule keeps the
+  /// <c>dispatched</c> values of the actions before the timed-out action. The 503 rule reports each
+  /// result as not dispatched, because the device does not apply the inputs.
+  /// </summary>
+  internal static IResult MapDispatchResult(SessionInputDispatchResult dispatch, DeviceLivenessReport? report, string sessionId, int inputTimeoutMs) {
+    if (!dispatch.SessionFound) {
+      return Results.Conflict(new { error = new { code = "not_running", message = "Session not running.", hint = (string?)null } });
+    }
+
+    var timedOut = dispatch.Results.FirstOrDefault(r => r.TimedOut);
+    if (timedOut is not null) {
+      var message = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+        "The device did not answer action {0} in {1} ms. The actions after it were not sent.", timedOut.Index, inputTimeoutMs);
+      return Results.Json(new {
+        error = new {
+          code = "device_timeout",
+          message,
+          hint = $"Get GET {ApiRoutes.Sessions}/{sessionId}/health to see the device liveness."
+        },
+        results = ToDto(dispatch.Results)
+      }, statusCode: StatusCodes.Status504GatewayTimeout);
+    }
+
+    var accepted = dispatch.Results.Count(r => r.Dispatched);
+    if (accepted > 0 && report is { State: DeviceLivenessStates.NotLive } notLive) {
+      var reason = notLive.Reason ?? "unknown";
+      var rewritten = dispatch.Results.Select(r => r.Dispatched
+        ? new { index = r.Index, dispatched = false, failureReason = (string?)$"device_not_live: {reason}" }
+        : new { index = r.Index, dispatched = false, failureReason = r.FailureReason }).ToArray();
+      return Results.Json(new {
+        error = new {
+          code = "device_not_live",
+          reason,
+          message = $"The device is not live ({reason}). The inputs were sent, but the device does not apply them.",
+          hint = $"Get GET {ApiRoutes.Sessions}/{sessionId}/health for details. Restart the emulator if the fault stays."
+        },
+        results = rewritten
+      }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    var resultsDto = ToDto(dispatch.Results);
+    if (accepted == 0) {
+      return Results.Json(
+        new { error = new { code = "invalid_input_actions", message = "No posted actions could be dispatched.", hint = (string?)null }, results = resultsDto },
+        statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    return Results.Accepted($"{ApiRoutes.Sessions}/{sessionId}", new { accepted, results = resultsDto });
+  }
+
+  private static object[] ToDto(IReadOnlyList<InputActionResult> results) =>
+    results.Select(r => (object)new { index = r.Index, dispatched = r.Dispatched, failureReason = r.FailureReason }).ToArray();
+
+  /// <summary>
+  /// Feature 106 (FR-010): the staleness headers of a snapshot. The snapshot is always a direct capture,
+  /// so the headers come only when a capture loop runs, or ran, for the session.
+  /// </summary>
+  private static void ApplySnapshotHeaders(HttpResponse response, ISessionManager mgr, ISessionLivenessService liveness, IDeviceLivenessTracker tracker, string id) {
+    if (!tracker.HasCaptureData(id)) return;
+    var session = mgr.GetSession(id);
+    if (session is null) return;
+    CaptureHeaders.Apply(response, CaptureHeaders.FromReport(liveness.Evaluate(session), directCapture: true));
+  }
+
+  /// <summary>The <c>liveness</c> block of the session health response (feature 106, contract <c>session-health.md</c>).</summary>
+  internal static object BuildLivenessBlock(DeviceLivenessReport report) => new {
+    state = report.State,
+    reason = report.Reason,
+    frameAgeMs = report.FrameAgeMs,
+    unchangedMs = report.UnchangedMs,
+    stale = report.Stale,
+    lastInputAt = report.LastInputAt,
+    lastInputOutcome = report.LastInputOutcome
+  };
 }
 
 internal static partial class SessionsLog {

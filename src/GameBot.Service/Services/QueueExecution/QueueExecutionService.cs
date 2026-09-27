@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 using GameBot.Domain.Parameters;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
+using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
 using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.ExecutionLog;
+using GameBot.Service.Services.Liveness;
 using GameBot.Service.Services.SequenceExecution;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -97,6 +99,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// </summary>
   private readonly ISequenceRunStatisticsStore? _runStatistics;
 
+  /// <summary>
+  /// The device liveness of the run session (feature 106). Optional, so the test harnesses keep their
+  /// constructor calls. When it is null, the queue has no liveness gate and no liveness watch.
+  /// </summary>
+  private readonly ISessionLivenessService? _liveness;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -114,6 +122,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   // (feature 073); HOME leaves the game running in the background, mirroring the go-to-home-screen
   // sequence step.
   private const int AndroidKeyCodeHome = 3;
+
+  // Feature 106: the ID prefix of an at-queue-start entry that a liveness hold moved to the
+  // next-cycle-start register. No self-reschedule action made such an entry.
+  private const string AtQueueStartHoldIdPrefix = "at-queue-start:";
 
   public QueueExecutionService(
     IQueueRepository queues,
@@ -135,7 +147,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     GameBot.Domain.Config.AppConfig? config = null,
     QueueFailurePolicyEvaluator? failurePolicy = null,
     IQueueRunStateStore? runState = null,
-    ISequenceRunStatisticsStore? runStatistics = null) {
+    ISequenceRunStatisticsStore? runStatistics = null,
+    ISessionLivenessService? liveness = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -156,6 +169,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _failurePolicy = failurePolicy;
     _runState = runState;
     _runStatistics = runStatistics;
+    _liveness = liveness;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -274,6 +288,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     var failed = 0;
     var cycles = 0;
     string? sessionId = null;
+    // Feature 106: the liveness watch of this run; started after the session binds.
+    CancellationTokenSource? watchCts = null;
+    Task? watchTask = null;
 
     try {
       // 1. Template was resolved once by StartAsync (FR-002) and reused here for the whole run.
@@ -320,6 +337,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
           try {
             sessionId = BindQueueSession(queue);
             handle.SessionId = sessionId;
+            if (_liveness is not null) {
+              watchCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+              watchTask = StartLivenessWatch(queue, handle, rootId, watchCts.Token);
+            }
           }
           catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) {
             reason = QueueStopReason.Failure;
@@ -406,18 +427,69 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               }
             }
 
+            // Feature 106 (FR-016, research R-011): the liveness gate acts one time for each firing
+            // group. After the first hold of a loop iteration (`held`), each other due firing of the
+            // iteration is held in hold-only mode with the same report: no new evaluation, no run.
+            var held = false;
+            DeviceLivenessReport? holdReport = null;
+            // A held template once-per-run pass continues later with the first entry that did not run.
+            var oncePerRunPassHeld = false;
+
+            // True when the gate holds the firing group of `sequenceId`.
+            async Task<bool> HoldIfNotLiveAsync(string sequenceId) {
+              if (_liveness is null) return false;
+              var hold = await TryGateOnLivenessAsync(queue, handle, rootId, sessionId, sequenceId, held ? holdReport : null, () => ++index).ConfigureAwait(false);
+              if (hold is null) return false;
+              held = true;
+              holdReport = hold;
+              return true;
+            }
+
+            // One firing group without its every-step pass: the gate, the before-each-run pass (for
+            // the kinds that have one) and the main sequence. Returns null when the gate held it; the
+            // site then keeps the firing due and does not run its every-step pass.
+            async Task<bool?> FireGroupAsync(string sequenceId, GameBot.Domain.Parameters.ParameterScope scope, bool beforeEachRun, string? originActionId = null) {
+              if (await HoldIfNotLiveAsync(sequenceId).ConfigureAwait(false)) return null;
+              if (beforeEachRun) await RunBeforeEachRunPassAsync().ConfigureAwait(false);
+              ct.ThrowIfCancellationRequested();
+              EnsureSessionBound();
+              return await RunOneSequenceAsync(sequenceId, rootId, ++index, sessionId, queue.Id, scope, ct, originActionId).ConfigureAwait(false);
+            }
+
             // (0) At-queue-start pre-pass (feature 060, FR-003/FR-004/FR-007/FR-014/FR-015).
             // Run every at-queue-start entry once, in template order, BEFORE any timer evaluation
             // and before the first OncePerRun step. Runs once per run (outside the do/while, so it
             // never repeats on a cycling queue). Each firing COUNTS toward `executed`; a failure is
             // non-fatal (recorded in `failed`, run continues), consistent with OncePerRun handling.
-            foreach (var startEntry in atQueueStartEntries) {
+            for (var startPos = 0; startPos < atQueueStartEntries.Count; startPos++) {
+              var startEntry = atQueueStartEntries[startPos];
               ct.ThrowIfCancellationRequested();
               EnsureSessionBound();
-              var startOk = await RunOneSequenceAsync(startEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(startEntry), ct).ConfigureAwait(false);
+              var startOk = await FireGroupAsync(startEntry.SequenceId, EntryScope(startEntry), beforeEachRun: false).ConfigureAwait(false);
+              if (startOk is null) {
+                // Feature 106: this pass runs one time and has no register. The held entry and the
+                // at-start entries after it move to the next-cycle-start register, in template order,
+                // so the run enters the loop (also for an AtQueueStart-only template) and runs them
+                // after a recovery.
+                await MoveHeldAtStartEntriesAsync(startPos).ConfigureAwait(false);
+                break;
+              }
               executed++;
-              if (!startOk) failed++;
+              if (startOk == false) failed++;
               await RunEveryStepPassAsync().ConfigureAwait(false);
+            }
+
+            async Task MoveHeldAtStartEntriesAsync(int fromPos) {
+              for (var pos = fromPos; pos < atQueueStartEntries.Count; pos++) {
+                var entry = atQueueStartEntries[pos];
+                if (pos > fromPos) await HoldIfNotLiveAsync(entry.SequenceId).ConfigureAwait(false);
+                handle.PendingNextCycleStart.Enqueue(new SelfRescheduleEntry(
+                  AtQueueStartHoldIdPrefix + allEntries.IndexOf(entry).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                  entry.SequenceId,
+                  GameBot.Domain.Commands.SelfReschedule.SelfRescheduleOption.AtQueueStart,
+                  null,
+                  EntryScope(entry)));
+              }
             }
 
             // Per-run scheduling state (FR-003/FR-012, feature 059 FR-005): the relative-offset anchor
@@ -458,6 +530,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 await handle.WaitIfPausedAsync(ct).ConfigureAwait(false);
                 everyStepRanThisIteration = false;
                 beforeEachRunRanThisIteration = false;
+                held = false;
+                holdReport = null;
 
                 // Cycle ledger (feature 086): open the cycle this iteration will fill. Idempotent, so
                 // a non-cyclic run's trailing timer-poll iterations reuse the cycle they never
@@ -471,13 +545,22 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // during the previous cycle fire at the top of the next cycle, before timers and the
                 // once-per-run pass. Count toward executed; a failed firing is non-fatal.
                 while (handle.PendingNextCycleStart.TryDequeue(out var nextCycleEntry)) {
-                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
-                  ct.ThrowIfCancellationRequested();
-                  EnsureSessionBound();
-                  var nextOk = await RunOneSequenceAsync(nextCycleEntry.SequenceId, rootId, ++index, sessionId, queue.Id, nextCycleEntry.Scope ?? queueScope, ct, nextCycleEntry.Id).ConfigureAwait(false);
+                  // An at-start entry that a liveness hold moved here came from no self-reschedule action.
+                  var originActionId = nextCycleEntry.Id.StartsWith(AtQueueStartHoldIdPrefix, StringComparison.Ordinal) ? null : nextCycleEntry.Id;
+                  var nextOk = await FireGroupAsync(nextCycleEntry.SequenceId, nextCycleEntry.Scope ?? queueScope, beforeEachRun: true, originActionId).ConfigureAwait(false);
+                  if (nextOk is null) {
+                    // Feature 106: hold the rest of the register too, then put all back in order and
+                    // stop the drain, so that no entry fires again in the same drain.
+                    var rest = new List<SelfRescheduleEntry>();
+                    while (handle.PendingNextCycleStart.TryDequeue(out var more)) rest.Add(more);
+                    foreach (var more in rest) await HoldIfNotLiveAsync(more.SequenceId).ConfigureAwait(false);
+                    handle.PendingNextCycleStart.Enqueue(nextCycleEntry);
+                    foreach (var more in rest) handle.PendingNextCycleStart.Enqueue(more);
+                    break;
+                  }
                   executed++;
-                  if (!nextOk) failed++;
-                  handle.Cycles.RecordEntry(nextCycleEntry.SequenceId, nextOk);
+                  if (nextOk == false) failed++;
+                  handle.Cycles.RecordEntry(nextCycleEntry.SequenceId, nextOk.Value);
                   await RunEveryStepPassAsync().ConfigureAwait(false);
                 }
 
@@ -489,10 +572,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var today = DateOnly.FromDateTime(localNow.DateTime);
                   var now = TimeOnly.FromDateTime(localNow.DateTime);
                   if (now >= timerEntry.TimerTimeOfDay.Value && !schedule.TimeOfDayFiredOn(timerIndex, today)) {
-                    await RunBeforeEachRunPassAsync().ConfigureAwait(false);
-                    ct.ThrowIfCancellationRequested();
-                    EnsureSessionBound();
-                    var timerOk = await RunOneSequenceAsync(timerEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(timerEntry), ct).ConfigureAwait(false);
+                    var timerResult = await FireGroupAsync(timerEntry.SequenceId, EntryScope(timerEntry), beforeEachRun: true).ConfigureAwait(false);
+                    // Feature 106: a held timer is not marked fired and arms no retry, so it stays due.
+                    if (timerResult is not { } timerOk) continue;
                     if (!timerOk) failed++;
                     // Timer executions do not count toward `executed` (SC-002 analogue for timers)
                     schedule.MarkTimeOfDayFired(timerIndex, today);
@@ -506,6 +588,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // this one flaky firing silently costs the whole day's task.
                 foreach (var (retryIndex, attempt) in schedule.DueDailyRetries(_timeProvider.GetLocalNow())) {
                   var retryEntry = schedule.Entries[retryIndex];
+                  // Feature 106: a held retry stays armed with the same attempt number.
+                  if (await HoldIfNotLiveAsync(retryEntry.SequenceId).ConfigureAwait(false)) continue;
                   await RunBeforeEachRunPassAsync().ConfigureAwait(false);
                   ct.ThrowIfCancellationRequested();
                   EnsureSessionBound();
@@ -526,10 +610,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   if (schedule.RelativeFired(relIndex)) continue;
                   if (elapsedSinceStart < relOffset) continue;
 
-                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
-                  ct.ThrowIfCancellationRequested();
-                  EnsureSessionBound();
-                  var relOk = await RunOneSequenceAsync(relEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(relEntry), ct).ConfigureAwait(false);
+                  var relResult = await FireGroupAsync(relEntry.SequenceId, EntryScope(relEntry), beforeEachRun: true).ConfigureAwait(false);
+                  // Feature 106: a held relative timer is not marked fired, so it stays due.
+                  if (relResult is not { } relOk) continue;
                   executed++;
                   if (!relOk) failed++;
                   schedule.MarkRelativeFired(relIndex);
@@ -545,11 +628,14 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                            .Where(kv => kv.Value <= liveNow)
                            .Select(kv => kv.Key)
                            .ToList()) {
-                  if (!handle.PendingLiveSchedules.TryRemove(due, out _)) continue;
-                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
-                  ct.ThrowIfCancellationRequested();
-                  EnsureSessionBound();
-                  var liveOk = await RunOneSequenceAsync(due, rootId, ++index, sessionId, queue.Id, queueScope, ct).ConfigureAwait(false);
+                  if (!handle.PendingLiveSchedules.TryRemove(due, out var liveDueAt)) continue;
+                  var liveResult = await FireGroupAsync(due, queueScope, beforeEachRun: true).ConfigureAwait(false);
+                  if (liveResult is not { } liveOk) {
+                    // Feature 106: put the held schedule back with its original due time. A newer
+                    // schedule that the API wrote during the hold wins (TryAdd does nothing).
+                    handle.PendingLiveSchedules.TryAdd(due, liveDueAt);
+                    continue;
+                  }
                   executed++;
                   if (!liveOk) failed++;
                   handle.Cycles.RecordEntry(due, liveOk);
@@ -561,10 +647,13 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // failed firing is non-fatal. Entries never due before the run ends are discarded with
                 // the handle and never fail the run (FR-015).
                 foreach (var timerFiring in handle.DrainDueTimerFirings(_timeProvider.GetLocalNow())) {
-                  await RunBeforeEachRunPassAsync().ConfigureAwait(false);
-                  ct.ThrowIfCancellationRequested();
-                  EnsureSessionBound();
-                  var srTimerOk = await RunOneSequenceAsync(timerFiring.SequenceId, rootId, ++index, sessionId, queue.Id, timerFiring.Scope ?? queueScope, ct, timerFiring.Id).ConfigureAwait(false);
+                  var srTimerResult = await FireGroupAsync(timerFiring.SequenceId, timerFiring.Scope ?? queueScope, beforeEachRun: true, timerFiring.Id).ConfigureAwait(false);
+                  if (srTimerResult is not { } srTimerOk) {
+                    // Feature 106: put the held firing back with its original FireAt, so the chain
+                    // keeps its cadence after a recovery.
+                    handle.RearmTimerFiring(timerFiring);
+                    continue;
+                  }
                   executed++;
                   if (!srTimerOk) failed++;
                   handle.Cycles.RecordEntry(timerFiring.SequenceId, srTimerOk);
@@ -579,13 +668,21 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 var cycleHasWork = oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0
                   || !handle.PendingOncePerRun.IsEmpty || index != indexAtIterationStart;
                 if (queue.CycleExecution ? cycleHasWork : !schedule.OncePerRunPassDone) {
-                  schedule.BeginCycle();
+                  // Feature 106: a pass after a held pass continues the same cycle, so the entries
+                  // that ran do not run again.
+                  if (!oncePerRunPassHeld) schedule.BeginCycle();
                   if (oncePerRunEntries.Count > 0) {
                     foreach (var (entry, entryIndex) in oncePerRunEntries) {
+                      if (oncePerRunPassHeld && schedule.OncePerRunCompletedThisCycle(entryIndex)) continue;
                       ct.ThrowIfCancellationRequested();
                       EnsureSessionBound();
                       handle.Cycles.SetCurrentEntryIndex(entryIndex);
-                      var ok = await RunOneSequenceAsync(entry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(entry), ct).ConfigureAwait(false);
+                      var result = await FireGroupAsync(entry.SequenceId, EntryScope(entry), beforeEachRun: false).ConfigureAwait(false);
+                      if (result is not { } ok) {
+                        // Held: no mark, so the entry runs after a recovery.
+                        handle.Cycles.ClearCurrentEntryIndex();
+                        continue;
+                      }
                       executed++;
                       if (!ok) failed++;
                       handle.Cycles.RecordEntry(entry.SequenceId, ok);
@@ -596,10 +693,15 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                       handle.Cycles.ClearCurrentEntryIndex();
                     }
                   }
-                  else if (everyStepEntries.Count > 0 && !everyStepRanThisIteration) {
+                  else if (everyStepEntries.Count > 0 && !everyStepRanThisIteration && !held) {
                     // FR-009: no OncePerRun entries — EveryStep still runs at least once per cycle,
                     // unless a firing earlier in this iteration already triggered a pass.
-                    await RunEveryStepPassAsync().ConfigureAwait(false);
+                    // Feature 106: this standalone pass is a firing group too; its main sequence is
+                    // the first every-step sequence. After a hold earlier in the iteration, the held
+                    // firing owns this pass, so the pass gets no gate entry of its own.
+                    if (!await HoldIfNotLiveAsync(everyStepEntries[0].SequenceId).ConfigureAwait(false)) {
+                      await RunEveryStepPassAsync().ConfigureAwait(false);
+                    }
                   }
 
                   // OncePerRun self-reschedule firings (feature 065, FR-007), and the non-cycling
@@ -609,24 +711,40 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   // (further generations fire next cycle / are abandoned at run end — FR-015).
                   var oncePerRunReschedules = new List<SelfRescheduleEntry>();
                   while (handle.PendingOncePerRun.TryDequeue(out var oprEntry)) oncePerRunReschedules.Add(oprEntry);
+                  var heldReschedules = new List<SelfRescheduleEntry>();
                   foreach (var oprFiring in oncePerRunReschedules) {
-                    await RunBeforeEachRunPassAsync().ConfigureAwait(false);
-                    ct.ThrowIfCancellationRequested();
-                    EnsureSessionBound();
-                    var oprOk = await RunOneSequenceAsync(oprFiring.SequenceId, rootId, ++index, sessionId, queue.Id, oprFiring.Scope ?? queueScope, ct, oprFiring.Id).ConfigureAwait(false);
+                    var oprResult = await FireGroupAsync(oprFiring.SequenceId, oprFiring.Scope ?? queueScope, beforeEachRun: true, oprFiring.Id).ConfigureAwait(false);
+                    if (oprResult is not { } oprOk) {
+                      heldReschedules.Add(oprFiring);
+                      continue;
+                    }
                     executed++;
                     if (!oprOk) failed++;
                     handle.Cycles.RecordEntry(oprFiring.SequenceId, oprOk);
                     await RunEveryStepPassAsync().ConfigureAwait(false);
                   }
+                  // Feature 106: held once-per-run firings stay queued.
+                  foreach (var heldFiring in heldReschedules) handle.PendingOncePerRun.Enqueue(heldFiring);
 
-                  schedule.MarkOncePerRunPassDone();
-                  cycles++;
-                  // Publish the cycle exactly when the engine counts one (feature 086).
-                  handle.Cycles.CompleteOpen(_timeProvider.GetLocalNow());
-                  // Act on the queue's failure policy, if it has one (feature 087). Never throws,
-                  // never awaits delivery, and returns immediately when no policy is configured.
-                  _failurePolicy?.OnCycleCompleted(queue, handle);
+                  // Feature 106: a held iteration does not complete the cycle.
+                  oncePerRunPassHeld = held;
+                  if (!held) {
+                    schedule.MarkOncePerRunPassDone();
+                    cycles++;
+                    // Publish the cycle exactly when the engine counts one (feature 086).
+                    handle.Cycles.CompleteOpen(_timeProvider.GetLocalNow());
+                    // Act on the queue's failure policy, if it has one (feature 087). Never throws,
+                    // never awaits delivery, and returns immediately when no policy is configured.
+                    _failurePolicy?.OnCycleCompleted(queue, handle);
+                  }
+                }
+
+                // Feature 106 (research R-011): a held iteration does not end the run (also with
+                // cycleExecution: false) and does no idle pause. It waits QueueCheckIntervalMs and then
+                // checks the device again. The held firings stay due.
+                if (held) {
+                  await Task.Delay(HeldIterationWait(), _timeProvider, ct).ConfigureAwait(false);
+                  continue;
                 }
 
                 // A cycling run that ran something loops immediately (existing behavior). One that ran
@@ -692,6 +810,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       QueueExecutionLog.RunFaulted(_logger, queue.Id, ex);
     }
     finally {
+      // Feature 106: stop the liveness watch before the session stops.
+      await StopLivenessWatchAsync(watchCts, watchTask).ConfigureAwait(false);
+      watchCts?.Dispose();
       // Always disconnect the session (FR-020/FR-023).
       if (sessionId is not null) {
         try { _captureService?.StopCapture(sessionId); }
@@ -717,6 +838,110 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // stopped, failed, cancelled, or torn down by host shutdown.
       _deviceClaims.Release(queue.EmulatorSerial, queue.Id);
       handle.Cts.Dispose();
+    }
+  }
+
+  /// <summary>
+  /// The liveness gate of one firing group (feature 106, FR-016, research R-011). It evaluates the
+  /// data-only liveness report of the run session and gives it to the fault episode. It holds the firing
+  /// only for the state <c>not_live</c> with a hard reason (<see cref="DeviceLivenessReasons.Hard"/>).
+  /// <para>
+  /// In hold-only mode (<paramref name="holdOnlyReport"/> is set) it does not evaluate again: it uses the
+  /// report of the first hold of the loop iteration.
+  /// </para>
+  /// <para>
+  /// On a hold, it adds one held firing to the episode. Only the first held firing of each sequence in
+  /// the episode writes one failed sequence entry and one failure run in the statistics. The gate does
+  /// not wait; the run loop does.
+  /// </para>
+  /// </summary>
+  /// <returns>The report of the hold, or null when the firing group must run.</returns>
+  private async Task<DeviceLivenessReport?> TryGateOnLivenessAsync(
+      ExecutionQueue queue,
+      QueueRunHandle handle,
+      string rootId,
+      string? sessionId,
+      string sequenceId,
+      DeviceLivenessReport? holdOnlyReport,
+      Func<int> nextIndex) {
+    if (_liveness is null) return null;
+    var report = holdOnlyReport;
+    if (report is null) {
+      var session = sessionId is null ? null : _sessions.GetSession(sessionId);
+      if (session is null) return null;
+      report = _liveness.Evaluate(session);
+      handle.Liveness.Observe(report, _timeProvider.GetLocalNow());
+      // no_change_after_input, live and unknown: the firing runs. Its inputs can clear the fault.
+      if (!report.IsHardNotLive) return null;
+    }
+
+    if (handle.Liveness.RecordGatedFiring(sequenceId)) {
+      await RecordHeldFiringAsync(queue, handle, rootId, sequenceId, report, nextIndex()).ConfigureAwait(false);
+    }
+    return report;
+  }
+
+  /// <summary>
+  /// Writes the one failed sequence entry and the one statistics failure of a held firing (feature 106).
+  /// The entry goes under the current root segment. Never throws.
+  /// </summary>
+  private async Task RecordHeldFiringAsync(ExecutionQueue queue, QueueRunHandle handle, string rootId, string sequenceId, DeviceLivenessReport report, int sequenceIndex) {
+    var reason = report.Reason ?? DeviceLivenessStates.NotLive;
+    var now = _timeProvider.GetLocalNow();
+    QueueLivenessLog.FiringHeld(_logger, queue.Id, sequenceId, reason);
+    try {
+      var root = handle.RootExecutionId ?? rootId;
+      var context = new ExecutionLogContext {
+        ParentExecutionId = root,
+        RootExecutionId = root,
+        Depth = 1,
+        SequenceIndex = sequenceIndex,
+        OriginatingQueueId = queue.Id
+      };
+      var name = await ResolveSequenceNameAsync(sequenceId).ConfigureAwait(false);
+      await _log.LogSequenceExecutionAsync(sequenceId, name, "failure", $"device_not_live: {reason}", context, ct: CancellationToken.None).ConfigureAwait(false);
+    }
+    catch (Exception ex) {
+      QueueLivenessLog.GateRecordFailed(_logger, queue.Id, sequenceId, ex);
+    }
+    await RecordRunAsync(queue.Id, sequenceId, now, SequenceRunStatus.Failure).ConfigureAwait(false);
+  }
+
+  /// <summary>The display name of a sequence, or its ID when the name cannot be read.</summary>
+  private async Task<string> ResolveSequenceNameAsync(string sequenceId) {
+    if (_sequences is null) return sequenceId;
+    try {
+      var sequence = await _sequences.GetAsync(sequenceId).ConfigureAwait(false);
+      return sequence?.Name ?? sequenceId;
+    }
+    catch (Exception) {
+      return sequenceId;
+    }
+  }
+
+  /// <summary>The wait of the run loop after a held iteration: <c>QueueCheckIntervalMs</c> (feature 106).</summary>
+  private TimeSpan HeldIterationWait() =>
+    TimeSpan.FromMilliseconds(Math.Max(1, _liveness?.Options.QueueCheckIntervalMs ?? 1000));
+
+  /// <summary>
+  /// Starts the liveness watch of the run (feature 106), or returns null when the service has no
+  /// liveness service.
+  /// </summary>
+  private Task? StartLivenessWatch(ExecutionQueue queue, QueueRunHandle handle, string rootId, CancellationToken ct) {
+    if (_liveness is null) return null;
+    var watch = new QueueLivenessWatch(queue, handle, rootId, _sessions, _liveness, _log, _failurePolicy, _timeProvider, _logger);
+    return Task.Run(() => watch.RunAsync(ct), CancellationToken.None);
+  }
+
+  /// <summary>Stops the liveness watch and waits for it. Never throws.</summary>
+  private static async Task StopLivenessWatchAsync(CancellationTokenSource? watchCts, Task? watchTask) {
+    if (watchCts is null) return;
+    try {
+      await watchCts.CancelAsync().ConfigureAwait(false);
+      if (watchTask is not null) await watchTask.ConfigureAwait(false);
+    }
+    catch (Exception) {
+      // The watch logs its own faults; its end must never change the end of the run.
     }
   }
 

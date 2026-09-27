@@ -154,6 +154,14 @@ internal sealed class QueueRunSchedule {
     lock (_gate) { _oncePerRunDoneThisCycle.Add(index); }
   }
 
+  /// <summary>
+  /// True when the once-per-run entry at <paramref name="index"/> ran in this cycle (feature 106). A held
+  /// once-per-run pass continues later with the first entry that did not run.
+  /// </summary>
+  public bool OncePerRunCompletedThisCycle(int index) {
+    lock (_gate) { return _oncePerRunDoneThisCycle.Contains(index); }
+  }
+
   /// <summary>Records that the once-per-run/every-step pass has run (it repeats only when cycling).</summary>
   public void MarkOncePerRunPassDone() {
     lock (_gate) { _oncePerRunPassDone = true; }

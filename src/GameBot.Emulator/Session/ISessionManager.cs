@@ -33,4 +33,6 @@ public sealed record SessionInputDispatchResult(bool SessionFound, IReadOnlyList
 /// <param name="Dispatched">Whether this action reached the device/emulator layer.</param>
 /// <param name="FailureReason">Set only when <see cref="Dispatched"/> is false; a short, stable
 /// reason — never a raw exception message or stack trace.</param>
-public sealed record InputActionResult(int Index, bool Dispatched, string? FailureReason);
+/// <param name="TimedOut">True only when the input time limit stopped this action (feature 106). The
+/// service then did not send the actions after it.</param>
+public sealed record InputActionResult(int Index, bool Dispatched, string? FailureReason, bool TimedOut = false);
