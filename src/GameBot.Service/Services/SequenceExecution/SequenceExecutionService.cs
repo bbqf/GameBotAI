@@ -415,8 +415,16 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
 
     var stepOrder = 1;
     foreach (var step in res.Steps) {
-      flowStepsByCommandRef.TryGetValue(step.CommandId, out var flowStep);
-      sequenceStepsByCommandId.TryGetValue(step.CommandId, out var sequenceStep);
+      // Issue #221: two or more steps can use the same command. A lookup by command ID finds only the
+      // first of these steps, so find the step that ran by its StepId first. Use the lookup by command
+      // ID only when the result has no StepId, or when no step has that StepId.
+      FlowStep? flowStep = null;
+      SequenceStep? sequenceStep = null;
+      if (string.IsNullOrWhiteSpace(step.StepId)
+          || !sequenceStepsByStepId.TryGetValue(step.StepId, out sequenceStep)) {
+        flowStepsByCommandRef.TryGetValue(step.CommandId, out flowStep);
+        sequenceStepsByCommandId.TryGetValue(step.CommandId, out sequenceStep);
+      }
       var stepId = flowStep?.StepId ?? sequenceStep?.StepId ?? step.CommandId;
       var stepLabel = flowStep?.Label ?? sequenceStep?.Label ?? sequenceStep?.StepId ?? step.CommandId;
 
@@ -1101,11 +1109,14 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
   private static IEnumerable<SequenceStep> FlattenSequenceSteps(IEnumerable<SequenceStep> steps) {
     foreach (var step in steps) {
       yield return step;
-      if (step.Body.Count == 0) {
-        continue;
-      }
       foreach (var child in FlattenSequenceSteps(step.Body)) {
         yield return child;
+      }
+      // Issue #221: also find the steps of an If else branch.
+      if (step.ElseBody is not null) {
+        foreach (var child in FlattenSequenceSteps(step.ElseBody)) {
+          yield return child;
+        }
       }
     }
   }
