@@ -74,8 +74,9 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
 
   /// <summary>
   /// Resolves a Timer option to an absolute fire instant. A relative offset resolves to
-  /// <c>now + offset</c>; a time-of-day resolves to today at that time, collapsing to <c>now</c>
-  /// when already past so it fires at the next iteration boundary (FR-005/FR-006).
+  /// <c>now + offset</c>. A time of day resolves to its next occurrence on the local clock: today
+  /// when it is later than the local time now, else the next day (feature 109, issue #227). The
+  /// offset is the offset of the local time zone for that date and time.
   /// </summary>
   private DateTimeOffset ResolveTimerFireAt(TimeOnly? timeOfDay, TimeSpan? relativeOffset) {
     var now = _timeProvider.GetLocalNow();
@@ -83,11 +84,23 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
       return now + offset;
     }
     if (timeOfDay is { } tod) {
-      var candidate = new DateTimeOffset(
-        now.Year, now.Month, now.Day, tod.Hour, tod.Minute, tod.Second, now.Offset);
-      return candidate < now ? now : candidate;
+      return NextOccurrence(now, tod, _timeProvider.LocalTimeZone);
     }
     // Defensive: a Timer with no field should have been rejected by validation; fire next boundary.
     return now;
+  }
+
+  /// <summary>
+  /// Gives the next occurrence of <paramref name="tod"/> after <paramref name="now"/> on the local
+  /// clock of <paramref name="zone"/>. A time of day that is equal to or earlier than the local time
+  /// now gives the next day. A booking for "now" makes the sequence run again immediately.
+  /// </summary>
+  private static DateTimeOffset NextOccurrence(DateTimeOffset now, TimeOnly tod, TimeZoneInfo zone) {
+    var localNow = DateTime.SpecifyKind(now.DateTime, DateTimeKind.Unspecified);
+    var local = DateOnly.FromDateTime(localNow).ToDateTime(tod, DateTimeKind.Unspecified);
+    if (local <= localNow) {
+      local = local.AddDays(1);
+    }
+    return new DateTimeOffset(local, zone.GetUtcOffset(local));
   }
 }

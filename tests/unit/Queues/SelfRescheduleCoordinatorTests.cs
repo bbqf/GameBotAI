@@ -85,16 +85,92 @@ public sealed class SelfRescheduleCoordinatorTests {
     handle.DrainDueTimerFirings(clock.GetLocalNow()).Should().ContainSingle();
   }
 
-  [Fact] // T031 — time-of-day already past collapses to now (fires next boundary).
-  public void TimerPastTimeOfDayCollapsesToNow() {
-    var clock = new FakeTimeProvider(FakeStart); // local 12:00 (or offset)
+  // ── Feature 109 (#227): a time of day that has passed books that time on the next day ──────────
+
+  private static readonly TimeZoneInfo UtcPlusTwo =
+    TimeZoneInfo.CreateCustomTimeZone("Test+02", TimeSpan.FromHours(2), "Test+02", "Test+02");
+
+  /// <summary>A test zone with the CET/CEST rules: +01:00, and +02:00 in summer.</summary>
+  private static TimeZoneInfo CentralEuropean() {
+    var start = TimeZoneInfo.TransitionTime.CreateFloatingDateRule(new DateTime(1, 1, 1, 2, 0, 0), 3, 5, DayOfWeek.Sunday);
+    var end = TimeZoneInfo.TransitionTime.CreateFloatingDateRule(new DateTime(1, 1, 1, 3, 0, 0), 10, 5, DayOfWeek.Sunday);
+    var rule = TimeZoneInfo.AdjustmentRule.CreateAdjustmentRule(
+      DateTime.MinValue.Date, DateTime.MaxValue.Date, TimeSpan.FromHours(1), start, end);
+    return TimeZoneInfo.CreateCustomTimeZone("TestCET", TimeSpan.FromHours(1), "TestCET", "TestCET", "TestCEST", new[] { rule });
+  }
+
+  [Fact] // T003 (feature 109) — the probe of issue #227.
+  public void TimerPastTimeOfDayBooksNextDay() {
+    var now = new DateTimeOffset(2026, 9, 24, 14, 55, 41, TimeSpan.FromHours(2));
+    var clock = new FakeTimeProvider(now.ToUniversalTime(), UtcPlusTwo);
     var (_, handle, coordinator) = Setup(clock: clock);
-    var pastTime = TimeOnly.FromDateTime(clock.GetLocalNow().DateTime).AddHours(-1);
 
-    var result = coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, pastTime, null);
+    var result = coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, new TimeOnly(14, 55), null);
 
-    result.FireAt.Should().BeOnOrBefore(clock.GetLocalNow());
-    handle.DrainDueTimerFirings(clock.GetLocalNow()).Should().ContainSingle();
+    var expected = new DateTimeOffset(2026, 9, 25, 14, 55, 0, TimeSpan.FromHours(2));
+    result.FireAt.Should().Be(expected);
+    result.FireAt!.Value.Offset.Should().Be(TimeSpan.FromHours(2));
+    handle.DrainDueTimerFirings(now).Should().BeEmpty();
+    handle.DrainDueTimerFirings(new DateTimeOffset(2026, 9, 24, 23, 59, 59, TimeSpan.FromHours(2))).Should().BeEmpty();
+    handle.DrainDueTimerFirings(expected).Should().ContainSingle();
+  }
+
+  [Fact] // T004 (feature 109) — a time of day equal to now is not ahead any more.
+  public void TimerTimeOfDayEqualToNowBooksNextDay() {
+    var clock = new FakeTimeProvider(FakeStart); // local 12:00:00 (UTC)
+    var (_, _, coordinator) = Setup(clock: clock);
+
+    var result = coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, new TimeOnly(12, 0), null);
+
+    result.FireAt.Should().Be(new DateTimeOffset(2026, 1, 2, 12, 0, 0, TimeSpan.Zero));
+  }
+
+  [Theory] // T005 (feature 109) — the first and the last second of the day.
+  [InlineData(0, 0, 0)]
+  [InlineData(23, 59, 59)]
+  public void TimerTimeOfDayAtDayEdgesBooksNextDay(int hour, int minute, int second) {
+    var clock = new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, hour, minute, second, TimeSpan.Zero));
+    var (_, _, coordinator) = Setup(clock: clock);
+
+    var result = coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, new TimeOnly(hour, minute, second), null);
+
+    result.FireAt.Should().Be(new DateTimeOffset(2026, 1, 2, hour, minute, second, TimeSpan.Zero));
+  }
+
+  [Fact] // T006 (feature 109) — the clock goes back between today and the next day.
+  public void TimerNextDayUsesOffsetOfThatDay() {
+    var now = new DateTimeOffset(2026, 10, 24, 12, 0, 0, TimeSpan.FromHours(2));
+    var clock = new FakeTimeProvider(now.ToUniversalTime(), CentralEuropean());
+    var (_, _, coordinator) = Setup(clock: clock);
+
+    var result = coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, new TimeOnly(11, 0), null);
+
+    result.FireAt.Should().Be(new DateTimeOffset(2026, 10, 25, 11, 0, 0, TimeSpan.FromHours(1)));
+    result.FireAt!.Value.Offset.Should().Be(TimeSpan.FromHours(1));
+  }
+
+  [Fact] // T006 (feature 109) — a next-day clock time in the gap when the clock goes forward.
+  public void TimerNextDayInClockGapUsesStandardOffset() {
+    var now = new DateTimeOffset(2026, 3, 28, 12, 0, 0, TimeSpan.FromHours(1));
+    var clock = new FakeTimeProvider(now.ToUniversalTime(), CentralEuropean());
+    var (_, _, coordinator) = Setup(clock: clock);
+
+    var result = coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, new TimeOnly(2, 30), null);
+
+    result.FireAt.Should().Be(new DateTimeOffset(2026, 3, 29, 2, 30, 0, TimeSpan.FromHours(1)));
+    result.FireAt!.Value.Offset.Should().Be(TimeSpan.FromHours(1));
+  }
+
+  [Fact] // T010 (feature 109) — a time of day that is still ahead keeps today (the probe at 14:52:11).
+  public void TimerFutureTimeOfDayKeepsToday() {
+    var now = new DateTimeOffset(2026, 9, 24, 14, 52, 11, TimeSpan.FromHours(2));
+    var clock = new FakeTimeProvider(now.ToUniversalTime(), UtcPlusTwo);
+    var (_, _, coordinator) = Setup(clock: clock);
+
+    var result = coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, new TimeOnly(14, 55), null);
+
+    result.FireAt.Should().Be(new DateTimeOffset(2026, 9, 24, 14, 55, 0, TimeSpan.FromHours(2)));
+    result.FireAt!.Value.Offset.Should().Be(TimeSpan.FromHours(2));
   }
 
   [Fact] // T031 — future time-of-day fires at that instant, not before.

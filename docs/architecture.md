@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-27 (feature 108: the time limit of `POST /api/images/detect` for each
-reference, and the `504 detection_timeout` failure, #223)._
+_Last reviewed: 2026-09-27 (feature 109: a `reschedule-self` Timer time of day that has passed
+books that time on the next day, #227)._
 
 ## What GameBot is
 
@@ -194,7 +194,9 @@ not survive a service restart; queue *configuration* and templates are persisted
   injects the ephemeral firing, which the queue run loop drains at the matching boundary. The **Timer**
   option is **most-recent-wins per sequence** (feature 075): a new Timer firing replaces any pending
   Timer firing already queued for the same sequence in that run, so a self-rescheduling sequence never
-  stacks duplicate future firings. The other options are unchanged — *Once Per Run* / *At Queue Start*
+  stacks duplicate future firings. A Timer `timerTimeOfDay` that is not later than the local time
+  now books that time on the next local day, with the offset of the local time zone for that day
+  (feature 109, #227). The other options are unchanged — *Once Per Run* / *At Queue Start*
   accumulate, and *After Every Step* is idempotent per sequence. A pending booking (or pending live
   schedule) keeps the run's scheduling loop going **whatever schedule types the template uses** —
   including a template of only At Queue Start entries, whose start pass would otherwise end the run

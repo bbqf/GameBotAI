@@ -57,7 +57,8 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
       [ActionTypes.RescheduleSelf] =
         "option, string, required: one of AtQueueStart, OncePerRun, Timer, EveryStep (case-insensitive). With Timer, "
         + "exactly one of timerTimeOfDay (HH:mm:ss, service-local time of day) or timerRelativeOffset (HH:mm:ss, "
-        + "between 00:00:00 and 24:00:00) is required, unless ocrOffset is given. ocrOffset, object, Timer only: "
+        + "between 00:00:00 and 24:00:00) is required, unless ocrOffset is given. A timerTimeOfDay that is not later "
+        + "than the current time books that time on the next day. ocrOffset, object, Timer only: "
         + "region {x, y, width, height} (required, positive width and height) is OCR-read for a countdown that "
         + "becomes the offset; fallback (HH:mm:ss, required, between 00:00:00 and 24:00:00) is used when the read "
         + "fails; min and max (HH:mm:ss, optional, defaults 00:00:01 and 24:00:00, min must be less than max) bound "

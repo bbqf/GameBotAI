@@ -2,7 +2,7 @@
 
 **Feature Branch**: `claude/resolve-github-issue-uxxlah` (spec number 109)  
 **Created**: 2026-09-27  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #227: "a reschedule-self step with a timerTimeOfDay that has already passed today books the sequence for now, not for that time on the next day". Full description: see the issue and the feature description that started this spec.
 
 ## Background
