@@ -18,6 +18,7 @@ namespace GameBot.UnitTests.Sequences;
 /// </summary>
 public sealed class SequenceRunnerStepIdTests {
   private const string SharedCommand = "cmd-shared";
+  private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
 
   private sealed class StubRepo : ISequenceRepository {
     private readonly CommandSequence _seq;
@@ -151,7 +152,7 @@ public sealed class SequenceRunnerStepIdTests {
     var result = SequenceExecutionResult.Start("s");
     result.AddStep(SharedCommand, 0, actionOutcome: "executed", stepId: "a");
 
-    var json = JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    var json = JsonSerializer.Serialize(result, WebJsonOptions);
 
     using var doc = JsonDocument.Parse(json);
     var step = doc.RootElement.GetProperty("steps")[0];

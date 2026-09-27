@@ -16,6 +16,7 @@ namespace GameBot.IntegrationTests.ExecutionLogs;
 [Collection("ConfigIsolation")]
 public sealed class SharedCommandStepAttributionIntegrationTests : IDisposable {
   private const string SharedCommandName = "shared-cmd";
+  private static readonly string[] ControlFlowStepIds = { "if-false", "if-true", "if-else", "loop-1" };
 
   private readonly string? _prevUseAdb;
   private readonly string? _prevDynamicPort;
@@ -211,6 +212,6 @@ public sealed class SharedCommandStepAttributionIntegrationTests : IDisposable {
     AllNodes(root).Select(DeepLinkStepIdOf).Should().NotContain("body-false");
 
     // If and Loop nodes keep their own ids.
-    AllNodes(root).Select(DeepLinkStepIdOf).Should().Contain(new[] { "if-false", "if-true", "if-else", "loop-1" });
+    AllNodes(root).Select(DeepLinkStepIdOf).Should().Contain(ControlFlowStepIds);
   }
 }
