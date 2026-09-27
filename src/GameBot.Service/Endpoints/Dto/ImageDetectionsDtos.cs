@@ -68,6 +68,10 @@ namespace GameBot.Service.Endpoints.Dto {
     [JsonPropertyName("matches")]
     public System.Collections.ObjectModel.Collection<MatchResult> Matches { get; set; } = new();
 
+    /// <summary>
+    /// True when maxResults cut the list of matches, so more matches can exist. An expired time
+    /// limit does not set this flag: the call fails with 504 detection_timeout (issue #223).
+    /// </summary>
     [JsonPropertyName("limitsHit")]
     public bool LimitsHit { get; set; }
 

@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-25 (feature 106: the device liveness of a session and of a queue, the capture
-staleness headers, and the time limits of ADB calls, #220)._
+_Last reviewed: 2026-09-27 (feature 108: the time limit of `POST /api/images/detect` for each
+reference, and the `504 detection_timeout` failure, #223)._
 
 ## What GameBot is
 
@@ -418,6 +418,13 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
   emulator was started. **A 200 from this route now means a measurement was actually taken.** The
   unresolved case is detected from the screen source returning null, never from counting sessions
   first: stub hosts serve a fixed bitmap with zero sessions, so a pre-emptive count would break them.
+- `POST /api/images/detect` has a time limit of `Service:Detections:TimeoutMs` (500 ms by default)
+  for each reference that it scores: the image and each alternate that loaded. When the limit
+  expires, the call fails with `504 detection_timeout`. Until feature 108 the call returned
+  `200 {"matches":[],"limitsHit":true}`, and all references had one shared limit, so an image with
+  alternates looked absent in some calls only (#223). In a `200`, `limitsHit` is true only when
+  `maxResults` cut the list of matches. Sequence conditions, image-anchored taps and
+  `POST /api/images/detect-all` do not use this limit.
 - `POST /api/images/detect` additionally reports `masked` and `retainedPixelCount` (feature 089) —
   whether the reference image's transparency mask was used, and how many pixels the comparison kept.
   Both fields are additive; `retainedPixelCount` counts pixels **kept**, not pixels masked out.

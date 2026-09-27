@@ -268,6 +268,8 @@ Response:
 ```
 When `limitsHit=true`, more raw matches existed but were truncated after sorting by confidence. Raise `maxResults` or refine the template to reduce oversaturation.
 
+Time limit: each reference (the image and each alternate) has `Service__Detections__TimeoutMs`. When the limit expires, the call fails with `504` and `{ "code": "detection_timeout", "message": "..." }`. Send the request again. A `200` with an empty `matches` array always means that the image is not on the screen.
+
 Metrics & resource monitoring:
 - Duration and result count recorded internally (histogram/counter).
 - Process memory: `GET /api/metrics/process` → `{ workingSetMB, managedMemoryMB, budgetMB }` for headroom tracking.
@@ -275,7 +277,7 @@ Metrics & resource monitoring:
 Configuration overrides (env or saved config snapshot):
 - `Service__Detections__Threshold` (default: 0.8)
 - `Service__Detections__MaxResults` (default: 5)
-- `Service__Detections__TimeoutMs` (default: 500)
+- `Service__Detections__TimeoutMs` (default: 500, for each reference: the image and each alternate)
 - `Service__Detections__Overlap` (default: 0.45)
 Set via environment using double underscores, e.g.:
 ```powershell

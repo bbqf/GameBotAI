@@ -88,6 +88,10 @@ All notable changes to this project will be documented in this file.
   - A break that **fires** is reported as a success (fixing a latent miscolor where a fired break could fall through to the red "failure" styling). A non-firing break never marks the enclosing loop, sequence, or run as failed and is excluded from failure counts. No change to break authoring, break firing behavior, or the persisted log format — only the reported *outcome* of a break changes.
 
 ### Fixed
+- `POST /api/images/detect` does not report a time-limited measurement as an absence (108-detect-timeout-alternates, #223)
+  - When the time limit of a call (`Service:Detections:TimeoutMs`, 500 ms by default) expired, the call returned a `200` with an empty `matches` array and `limitsHit: true`. A caller read this as a real absence. An image with alternates met the limit in some calls only, because the image and all its alternates had one shared limit.
+  - Now each reference (the image and each alternate that loaded) gets the full `TimeoutMs`. An image without alternates keeps the same limit.
+  - When the limit expires, the call fails with `504` and `{ "code": "detection_timeout", "message": "..." }`. A `200` with an empty `matches` array is now always a real absence, and `limitsHit` is true only when `maxResults` cut the list of matches. Sequence conditions, image-anchored taps and `POST /api/images/detect-all` do not use this limit and do not change.
 - The execution log names each command step by its own step ID (107-command-step-log-attribution, #221)
   - When two or more steps of a sequence ran the same command, each command node in the execution log had the `stepId` of the first step that uses that command. This occurred in `message`, `stepId`, `stepLabel` and `deepLink.stepId`. A step that did not run (for example, the body of an `If` whose condition was false) thus appeared to run.
   - Now each command node has the `stepId` of the step that ran it. This applies at the top level and in `If` bodies, `If` else branches and `Loop` bodies. `If` and `Loop` nodes do not change. The API shape and the message format do not change.

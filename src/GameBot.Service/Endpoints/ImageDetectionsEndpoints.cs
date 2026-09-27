@@ -23,6 +23,13 @@ namespace GameBot.Service.Endpoints {
   // analyzers (CA3xxx) analyze lambdas as part of the containing method, and
   // their cost grows super-linearly with method body size.
   internal static class ImageDetectionsEndpoints {
+    /// <summary>Error code of the 504 that a detect call returns when its time limit expires (issue #223).</summary>
+    internal const string DetectionTimeoutCode = "detection_timeout";
+
+    /// <summary>Error message of the 504 that a detect call returns when its time limit expires (issue #223).</summary>
+    internal const string DetectionTimeoutMessage =
+      "The detection did not complete in its time limit, so the service did not measure the screen. Send the request again.";
+
     private static string SanitizeForLog(string? value) {
       if (string.IsNullOrEmpty(value)) return string.Empty;
       return value.Replace("\r", string.Empty, StringComparison.Ordinal)
@@ -204,21 +211,29 @@ namespace GameBot.Service.Endpoints {
       using var matcherLease = referenceSet.CreateMatcher(matcher, ToTemplateMat, logger);
 
       var cfg = new TemplateMatcherConfig(threshold, maxResults, overlap);
+      // Issue #223: the service scores the named image and each alternate that loaded, one after the
+      // other. Each of these references gets the full configured time limit.
+      var referenceCount = 1 + referenceSet.Alternates.Count;
+      var timeLimit = ImageDetectionsValidation.DetectionTimeLimit(detOpts.Value.TimeoutMs, referenceCount);
       var start = System.Diagnostics.Stopwatch.StartNew();
       TemplateMatchResult result;
       long elapsedMs;
       try {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1, detOpts.Value.TimeoutMs)));
+        timeoutCts.CancelAfter(timeLimit);
         result = await matcherLease.Matcher.MatchAllAsync(screenshotMat, templateMat, cfg, timeoutCts.Token).ConfigureAwait(false);
       }
-      catch (OperationCanceledException) {
+      catch (OperationCanceledException) when (!ct.IsCancellationRequested) {
+        // Issue #223: the time limit expired, so the service did not measure the screen. Do not
+        // return a 200 with an empty match list, because a caller reads that as a real absence.
         start.Stop();
         elapsedMs = (long)start.Elapsed.TotalMilliseconds;
-        ImageDetectionsEndpointComponent.LogDetectResults(logger, 0, true, elapsedMs);
+        ImageDetectionsEndpointComponent.LogDetectTimeLimitExpired(
+          logger, safeId, referenceCount, (long)timeLimit.TotalMilliseconds, elapsedMs);
         ImageDetectionsMetrics.Record(elapsedMs, 0);
-        var empty = new DetectResponse { LimitsHit = true };
-        return Results.Ok(empty);
+        return Results.Json(
+          new { code = DetectionTimeoutCode, message = DetectionTimeoutMessage },
+          statusCode: StatusCodes.Status504GatewayTimeout);
       }
       start.Stop();
       elapsedMs = (long)start.Elapsed.TotalMilliseconds;

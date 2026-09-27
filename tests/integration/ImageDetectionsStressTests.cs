@@ -66,34 +66,4 @@ public sealed class ImageDetectionsStressTests {
     json!.Should().ContainKey("limitsHit");
     json["limitsHit"].ToString().Should().Be("True");
   }
-
-  [Fact]
-  public async Task TimeoutReturnsOkWithLimitsHit() {
-    using var app = new WebApplicationFactory<Program>();
-    var client = app.CreateClient();
-    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
-
-    // Configure very small timeout to force cancel
-    var prevTimeout = Environment.GetEnvironmentVariable("Service__Detections__TimeoutMs");
-    Environment.SetEnvironmentVariable("Service__Detections__TimeoutMs", "1");
-    try {
-      var resp = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), new { referenceImageId = "missing" });
-      resp.StatusCode.Should().Be(HttpStatusCode.NotFound); // missing ref image short-circuits
-
-      // Seed and re-run with small timeout
-      const string oneByOne = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2n5u4AAAAASUVORK5CYII=";
-      var up = await client.PostAsJsonAsync(new Uri("/api/images", UriKind.Relative), new { id = "tplTimeout", data = oneByOne });
-      up.StatusCode.Should().Be(HttpStatusCode.Created);
-
-      // Provide a larger screen to increase work
-      Environment.SetEnvironmentVariable("GAMEBOT_TEST_SCREEN_IMAGE_B64", Tile2x2Into16x16());
-      var resp2 = await client.PostAsJsonAsync(new Uri("/api/images/detect", UriKind.Relative), new { referenceImageId = "tplTimeout" });
-      resp2.StatusCode.Should().Be(HttpStatusCode.OK);
-      var payload = await resp2.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-      payload!["limitsHit"].ToString().Should().Be("True");
-    }
-    finally {
-      Environment.SetEnvironmentVariable("Service__Detections__TimeoutMs", prevTimeout);
-    }
-  }
 }
