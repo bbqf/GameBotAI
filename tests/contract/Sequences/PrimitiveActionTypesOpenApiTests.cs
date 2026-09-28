@@ -21,7 +21,7 @@ public sealed class PrimitiveActionTypesOpenApiTests {
 
   private static readonly string[] RescheduleSelfStatements = {
     "option", "AtQueueStart", "OncePerRun", "Timer", "EveryStep", "timerTimeOfDay", "timerRelativeOffset",
-    "24:00:00", "exactly one", "ocrOffset", "region", "fallback", "min", "max", "any other option", "queue"
+    "24:00:00", "exactly one", "ocrOffset", "region", "fallback", "min", "max", "any other option", "queue", "next day"
   };
 
   private static WebApplicationFactory<Program> CreateFactory() {

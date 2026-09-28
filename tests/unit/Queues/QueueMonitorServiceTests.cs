@@ -289,6 +289,23 @@ public sealed class QueueMonitorServiceTests {
     item.ExpectedAt.Should().Be(fireAt);
   }
 
+  [Fact] // T011 (feature 109, #227) — a time of day that has passed shows on the next day.
+  public async Task SelfRescheduleTimeOfDayThatPassedShowsNextDay() {
+    var h = new Harness();
+    h.AddQueue();
+    h.Entry("A", "Alpha");
+    h.Sequences.Add("R", "Rescheduled");
+    h.StartHandle();
+    var coordinator = new SelfRescheduleCoordinator(h.Registry, h.Clock); // local 12:00 (UTC)
+    coordinator.ScheduleSelf("q1", "R", SelfRescheduleOption.Timer, new TimeOnly(11, 0), null);
+
+    var snap = await h.Service.BuildAsync("q1");
+
+    var item = snap.Upcoming.Single(i => i.SequenceId == "R");
+    item.ScheduleKind.Should().Be(ScheduleKind.SelfReschedule);
+    item.ExpectedAt.Should().Be(new DateTimeOffset(2026, 1, 2, 11, 0, 0, TimeSpan.Zero));
+  }
+
   [Fact]
   public async Task TimedItemsAreSortedAscendingByExpectedAt() {
     var h = new Harness();

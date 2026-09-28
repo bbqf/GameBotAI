@@ -88,6 +88,10 @@ All notable changes to this project will be documented in this file.
   - A break that **fires** is reported as a success (fixing a latent miscolor where a fired break could fall through to the red "failure" styling). A non-firing break never marks the enclosing loop, sequence, or run as failed and is excluded from failure counts. No change to break authoring, break firing behavior, or the persisted log format — only the reported *outcome* of a break changes.
 
 ### Fixed
+- A `reschedule-self` time of day that has passed books the next day (109-reschedule-timeofday-nextday, #227)
+  - A `reschedule-self` step with `option: Timer` and a `timerTimeOfDay` that had passed today booked the sequence for the current moment. The queue then ran the sequence again immediately, and again after each run, until the operator stopped the queue.
+  - Now a time of day that is not later than the local time now books that time on the next local day, as the template `Timer` entry does. The offset is the offset of the local time zone for that day. A time of day that is still ahead today books today, as before.
+  - `GET /api/queues/{id}/monitor` shows the `SelfReschedule` item at the next-day instant. `timerRelativeOffset`, `ocrOffset`, the other options and the template `Timer` entry do not change.
 - `POST /api/images/detect` does not report a time-limited measurement as an absence (108-detect-timeout-alternates, #223)
   - When the time limit of a call (`Service:Detections:TimeoutMs`, 500 ms by default) expired, the call returned a `200` with an empty `matches` array and `limitsHit: true`. A caller read this as a real absence. An image with alternates met the limit in some calls only, because the image and all its alternates had one shared limit.
   - Now each reference (the image and each alternate that loaded) gets the full `TimeoutMs`. An image without alternates keeps the same limit.
