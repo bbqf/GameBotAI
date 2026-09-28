@@ -18,7 +18,7 @@ The plan adds two image keys to `CommandStepFieldPaths`, with a save rule "one w
 **Target Platform**: Windows service (CI on `windows-latest`). The changed code has no platform dependency. An image id with no image gives the current missing-image result of the step type: a `WaitForImage` step gives `image_unavailable`, and its step detail shows the resolved id; a `PrimitiveTap` step gives `skipped_invalid_config` (`template_not_found` on Windows, `primitive_tap_detection_windows_only` on other hosts). For a tap step, the tests read the resolved value from the `parameters` log item.  
 **Project Type**: Web service with a web UI (the web UI gets no new controls)  
 **Performance Goals**: No measurable change on the run path. The condition resolver returns the same instance when no leaf has a placeholder. A template save reads each referenced sequence and its reachable commands one time for each entry, and checks each distinct image id one time.  
-**Constraints**: Numeric `fieldTemplates` keys keep their behavior (FR-013). Inline placeholders keep their behavior (FR-004). Current tests pass with no change (SC-005), except a test that compares the old text "numeric field" (none found). Break conditions keep the feature 066 error rule.  
+**Constraints**: Numeric `fieldTemplates` keys keep their behavior (FR-013). Inline placeholders keep their behavior (FR-004). Current tests pass with no change (SC-005), except a test that compares the old text "numeric field" (none found). Break conditions keep the error rule of feature 066 FR-002a and FR-010.  
 **Scale/Scope**: About 10 production files in `GameBot.Domain` and `GameBot.Service`, 1 new Swagger filter, 4 new test files and 3 extended test files, docs.
 
 ## Constitution Check

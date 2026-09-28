@@ -74,7 +74,7 @@ Link a queue to the template and start it. For each entry:
 - The guard looks for the image of the entry. When the image is not on the screen, the step is skipped.
 - The tap looks for the same image. The execution-log step detail has the item `parameters` with `novaOption` and its value.
 
-When an image is deleted after the save, the step gets `image_unavailable`, the same as a literal id.
+When an image is deleted after the save, the step gets the current missing-image result of its step type, the same as a literal id: the guard and a `waitForImage` step give `image_unavailable`, and the tap gets `skipped_invalid_config`. No device input occurs.
 
 ## 6. Check the change
 

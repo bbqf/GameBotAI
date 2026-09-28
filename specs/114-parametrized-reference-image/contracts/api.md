@@ -123,7 +123,7 @@ A literal `imageId` in a step condition keeps the current existence check ("Imag
 
 ## 3. Run time
 
-- A tap or wait step with the image key uses the resolved value as the image id. The execution-log step detail has the item `parameters` with `novaOption = <value>` and its scope layer (current feature 078 format). The step detail of a `WaitForImage` step also has `referenceImageId` with the resolved id. A `PrimitiveTap` step detail does not name the image id; the `parameters` item holds the value.
+- A tap or wait step with the image key uses the resolved value as the image id. The execution-log step detail has the item `parameters` with `novaOption = <value>` and its scope layer (current feature 078 format). The step detail of a `WaitForImage` step also has `referenceImageId` with the resolved id. A `PrimitiveTap` step detail does not always name the image id (for example, the `skipped_invalid_config` outcome has no `referenceImageId`). For a tap step, the `parameters` item holds the value.
 - An `imageVisible` leaf with a placeholder uses the resolved id. The log text of the condition shows the resolved id, for example `imageVisible(imageId=option-b, minSimilarity=default)`.
 - A name with no value in scope:
   - command step: outcome `skipped_parameter_unresolved` with the message `Step '<order>': parameter 'novaOption' used by field 'primitiveTap.detectionTarget.referenceImageId' could not be resolved from any scope.` No input goes to the device.
