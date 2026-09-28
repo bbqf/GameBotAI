@@ -464,6 +464,106 @@ public sealed class CommandExecutorPrimitiveTapTests {
     sessions.Inputs.Should().BeEmpty();
   }
 
+  // Feature 112 (issue #222): a "not executed" outcome must mean that no input went to the device.
+  [Fact]
+  public async Task PrimitiveTapErrorAfterDispatchReportsExecutedWithAcceptedCount() {
+    var sessions = new FaultySessionManagerStub(FaultySessionManagerStub.Fault.ReadBackError);
+    var executor = CreateStepExecutor(sessions, matchFound: true);
+
+    var result = await executor.ForceExecuteStepAsync("sess-1", CreatePrimitiveTapStep(), CancellationToken.None);
+
+    sessions.SendCalls.Should().Be(1);
+    result.Accepted.Should().Be(1);
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.Status.Should().Be("executed");
+    outcome.Reason.Should().Be("executed_then_error");
+    outcome.ResolvedPoint.Should().Be(new PrimitiveTapResolvedPoint(0, 0));
+    outcome.ExecutedPoint.Should().BeNull();
+  }
+
+  [Fact]
+  public async Task PrimitiveTapCancellationAfterDispatchReportsExecutedWithAcceptedCount() {
+    var sessions = new FaultySessionManagerStub(FaultySessionManagerStub.Fault.ReadBackCancellation);
+    var executor = CreateStepExecutor(sessions, matchFound: true);
+
+    var result = await executor.ForceExecuteStepAsync("sess-1", CreatePrimitiveTapStep(), CancellationToken.None);
+
+    sessions.SendCalls.Should().Be(1);
+    result.Accepted.Should().Be(1);
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.Status.Should().Be("executed");
+    outcome.Status.Should().NotBe("cancelled").And.NotBe("skipped_detection_failed");
+    outcome.Reason.Should().Be("executed_then_cancelled");
+    outcome.ResolvedPoint.Should().Be(new PrimitiveTapResolvedPoint(0, 0));
+  }
+
+  [Fact]
+  public async Task PrimitiveTapErrorDuringDispatchReportsDispatchUnknown() {
+    var sessions = new FaultySessionManagerStub(FaultySessionManagerStub.Fault.DispatchError);
+    var executor = CreateStepExecutor(sessions, matchFound: true);
+
+    var result = await executor.ForceExecuteStepAsync("sess-1", CreatePrimitiveTapStep(), CancellationToken.None);
+
+    sessions.SendCalls.Should().Be(1);
+    result.Accepted.Should().Be(0);
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.Status.Should().Be("dispatch_unknown");
+    outcome.Reason.Should().Be("dispatch_error");
+    outcome.ResolvedPoint.Should().Be(new PrimitiveTapResolvedPoint(0, 0));
+  }
+
+  [Fact]
+  public async Task PrimitiveTapCancellationDuringDispatchReportsDispatchUnknown() {
+    var sessions = new FaultySessionManagerStub(FaultySessionManagerStub.Fault.DispatchCancellation);
+    var executor = CreateStepExecutor(sessions, matchFound: true);
+
+    var result = await executor.ForceExecuteStepAsync("sess-1", CreatePrimitiveTapStep(), CancellationToken.None);
+
+    sessions.SendCalls.Should().Be(1);
+    result.Accepted.Should().Be(0);
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.Status.Should().Be("dispatch_unknown");
+    outcome.Reason.Should().Be("dispatch_cancelled");
+    outcome.ResolvedPoint.Should().Be(new PrimitiveTapResolvedPoint(0, 0));
+  }
+
+  [Fact]
+  public async Task PrimitiveTapDetectionFailureOnEveryAttemptSendsNoInput() {
+    var sessions = new FaultySessionManagerStub(FaultySessionManagerStub.Fault.None);
+    var executor = CreateStepExecutor(sessions, matchFound: false);
+
+    var result = await executor.ForceExecuteStepAsync("sess-1", CreatePrimitiveTapStep(), CancellationToken.None);
+
+    result.Accepted.Should().Be(0);
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.Status.Should().Be("skipped_detection_failed");
+    outcome.Reason.Should().Be("detection_failed_after_3_retries");
+    sessions.SendCalls.Should().Be(0);
+  }
+
+  private static CommandStep CreatePrimitiveTapStep() => new() {
+    Type = CommandStepType.PrimitiveTap,
+    TargetId = string.Empty,
+    Order = 0,
+    PrimitiveTap = new PrimitiveTapConfig {
+      DetectionTarget = new DetectionTarget("img-1", 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence)
+    }
+  };
+
+  private static CommandExecutor CreateStepExecutor(ISessionManager sessions, bool matchFound) {
+    var bmp = CreateOneByOneBitmap();
+    var matches = matchFound ? new[] { new TemplateMatch(new BoundingBox(0, 0, 1, 1), 0.95) } : Array.Empty<TemplateMatch>();
+    return new CommandExecutor(
+      new CommandRepoStub(CreatePrimitiveTapCommand()),
+      sessions,
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      NullLogger<CommandExecutor>.Instance,
+      new ReferenceImageStoreStub(("img-1", bmp)), new ScreenSourceStub(bmp), new TemplateMatcherStub(matches),
+      new SessionContextCache(),
+      new AppConfig { CaptureIntervalMs = 10, TapRetryCount = 3, TapRetryProgression = 1.0 });
+  }
+
   private static (CommandExecutor Executor, RecordingSessionManagerStub Sessions) CreateExecutorWithRecordingSessions(Command command, bool matchFound) {
     var bmp = CreateOneByOneBitmap();
     var matches = matchFound ? new[] { new TemplateMatch(new BoundingBox(0, 0, 1, 1), 0.95) } : Array.Empty<TemplateMatch>();
@@ -585,6 +685,67 @@ public sealed class CommandExecutorPrimitiveTapTests {
         return Task.FromResult(new TemplateMatchResult(Array.Empty<TemplateMatch>(), false));
       return Task.FromResult(new TemplateMatchResult(_matches, false));
     }
+  }
+
+  /// <summary>
+  /// Feature 112: a session stub that counts the dispatches and makes a given fault. A read-back fault puts a
+  /// value in <c>x1</c> that the executor cannot convert, so the fault occurs in the real code after the dispatch.
+  /// </summary>
+  private sealed class FaultySessionManagerStub : ISessionManager {
+    public enum Fault { None, ReadBackError, ReadBackCancellation, DispatchError, DispatchCancellation }
+
+    private readonly EmulatorSession _session = new() { Id = "sess-1", Status = SessionStatus.Running, GameId = "game-1" };
+    private readonly Fault _fault;
+    public FaultySessionManagerStub(Fault fault) => _fault = fault;
+    public int SendCalls { get; private set; }
+    public int ActiveCount => 1;
+    public bool CanCreateSession => true;
+    public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) => _session;
+    public EmulatorSession? GetSession(string id) => id == _session.Id ? _session : null;
+    public IReadOnlyCollection<EmulatorSession> ListSessions() => new[] { _session };
+    public bool StopSession(string id) => true;
+    public Task<int> SendInputsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) {
+      SendCalls++;
+      var list = actions.ToList();
+      switch (_fault) {
+        case Fault.DispatchError:
+          throw new InvalidOperationException("adb_failed");
+        case Fault.DispatchCancellation:
+          throw new OperationCanceledException("dispatch_cancelled");
+        case Fault.ReadBackError:
+          foreach (var a in list) a.Args["x1"] = new ThrowingConvertible(new InvalidOperationException("read_back_failed"));
+          break;
+        case Fault.ReadBackCancellation:
+          foreach (var a in list) a.Args["x1"] = new ThrowingConvertible(new OperationCanceledException("read_back_cancelled"));
+          break;
+      }
+      return Task.FromResult(list.Count);
+    }
+    public Task<GameBot.Emulator.Session.SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) => Task.FromResult(new GameBot.Emulator.Session.SessionInputDispatchResult(true, Array.Empty<GameBot.Emulator.Session.InputActionResult>()));
+    public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
+  }
+
+  /// <summary>A value that throws the given exception for each conversion.</summary>
+  private sealed class ThrowingConvertible : IConvertible {
+    private readonly Exception _exception;
+    public ThrowingConvertible(Exception exception) => _exception = exception;
+    public TypeCode GetTypeCode() => TypeCode.Object;
+    public bool ToBoolean(IFormatProvider? provider) => throw _exception;
+    public byte ToByte(IFormatProvider? provider) => throw _exception;
+    public char ToChar(IFormatProvider? provider) => throw _exception;
+    public DateTime ToDateTime(IFormatProvider? provider) => throw _exception;
+    public decimal ToDecimal(IFormatProvider? provider) => throw _exception;
+    public double ToDouble(IFormatProvider? provider) => throw _exception;
+    public short ToInt16(IFormatProvider? provider) => throw _exception;
+    public int ToInt32(IFormatProvider? provider) => throw _exception;
+    public long ToInt64(IFormatProvider? provider) => throw _exception;
+    public sbyte ToSByte(IFormatProvider? provider) => throw _exception;
+    public float ToSingle(IFormatProvider? provider) => throw _exception;
+    public string ToString(IFormatProvider? provider) => throw _exception;
+    public object ToType(Type conversionType, IFormatProvider? provider) => throw _exception;
+    public ushort ToUInt16(IFormatProvider? provider) => throw _exception;
+    public uint ToUInt32(IFormatProvider? provider) => throw _exception;
+    public ulong ToUInt64(IFormatProvider? provider) => throw _exception;
   }
 
   #endregion

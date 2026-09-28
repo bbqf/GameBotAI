@@ -283,6 +283,14 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   private static void ApplyStepExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Post) && path.Contains(ApiRoutes.Steps + "/execute", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Execute a single recorded step against the emulator";
+      // Feature 112 (issue #222): the outcome contract and the execution-log entry.
+      operation.Description ??= "Executes one step on the session. "
+        + "A \"not executed\" status (skipped_* or cancelled) means that the service sent no input to the device for the step. "
+        + "The status executed with the reason executed_then_error or executed_then_cancelled means that the input was sent and a problem occurred after that. "
+        + "The status dispatch_unknown means that an error or a cancellation occurred during the dispatch, so the device can have the input. "
+        + "Each call that passes the session check writes one execution-log entry of the type step, with the session id as the object id. "
+        + "A timeout (status timeout) also writes an execution-log entry. "
+        + "Read the entries with GET /api/execution-logs?objectType=step&objectId={sessionId}.";
       SetRequestExample(operation, StepExecuteRequest(), context, typeof(GameBot.Service.Endpoints.ExecuteStepRequest));
       SetResponseExample(operation, "202", StepExecuteResponse(), context, typeof(CommandExecuteResponseSchema));
     }

@@ -5,6 +5,8 @@ using GameBot.Service.Services;
 namespace GameBot.Service.Endpoints;
 
 internal static class StepsEndpoints {
+  private static readonly TimeSpan StepExecutionTimeout = TimeSpan.FromSeconds(10);
+
   public static IEndpointRouteBuilder MapStepEndpoints(this IEndpointRouteBuilder app) {
     app.MapPost(ApiRoutes.Steps + "/execute", async (ExecuteStepRequest req, ICommandExecutor exec, CancellationToken requestCt) => {
       if (req.Step.Type == CommandStepTypeDto.Command) {
@@ -26,17 +28,15 @@ internal static class StepsEndpoints {
 
       var domainStep = ToDomainStep(req.Step);
 
-      using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-      using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(requestCt, timeoutCts.Token);
-
       try {
-        var result = await exec.ForceExecuteStepAsync(req.SessionId, domainStep, linkedCts.Token).ConfigureAwait(false);
+        // Feature 112 (issue #222): the executor owns the 10-second limit and writes the execution-log entry.
+        var result = await exec.ForceExecuteStepAsync(req.SessionId, domainStep, StepExecutionTimeout, requestCt).ConfigureAwait(false);
         return Results.Accepted((string?)null, new {
           accepted = result.Accepted,
           stepOutcomes = result.StepOutcomes.Select(ToResponseOutcome).ToArray()
         });
       }
-      catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested) {
+      catch (TimeoutException) {
         return Results.Ok(new {
           accepted = 0,
           stepOutcomes = new[] {
