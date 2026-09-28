@@ -88,6 +88,13 @@ All notable changes to this project will be documented in this file.
   - A break that **fires** is reported as a success (fixing a latent miscolor where a fired break could fall through to the red "failure" styling). A non-firing break never marks the enclosing loop, sequence, or run as failed and is excluded from failure counts. No change to break authoring, break firing behavior, or the persisted log format — only the reported *outcome* of a break changes.
 
 ### Fixed
+- A `condition` on a `Loop` step is a guard that the runtime obeys (110-loop-step-condition, #232)
+  - `POST /api/sequences` (also with `dryRun: true`) accepted a `condition` on a top-level `Loop` step, but the service did not keep it, and the runner did not evaluate it. The loop ran when its condition was false, and the execution log showed no condition result for the loop.
+  - Now the save endpoints keep the `condition` of a `Loop` step and return it on read. The runner evaluates it one time, before the first iteration, with the same rules as the guard of an `Action` step. When it is false, the loop body does not run, the loop entry has status `Skipped` with no iterations, and a later `commandOutcome` reads the loop as `skipped`. When the evaluation fails, the step fails and the sequence stops.
+  - The loop entry of the run result and of the execution log has `conditionType` and `conditionResult` (`true`, `false` or `error`) when the loop has a guard.
+  - Save-time validation checks the guard of a `Loop` step with the rules for the guard of an `Action` step. An incorrect guard gets a 400 that names the step. A `commandOutcome` reference to a body step of the same loop is not a prior step.
+  - The OpenAPI description of the sequence step tells the guard rule.
+  - **Web UI limit**: the web sequence editor does not show the guard of a `Loop` step. Write it through the API. If you save such a sequence in the web UI, the guard is removed.
 - A `reschedule-self` time of day that has passed books the next day (109-reschedule-timeofday-nextday, #227)
   - A `reschedule-self` step with `option: Timer` and a `timerTimeOfDay` that had passed today booked the sequence for the current moment. The queue then ran the sequence again immediately, and again after each run, until the operator stopped the queue.
   - Now a time of day that is not later than the local time now books that time on the next local day, as the template `Timer` entry does. The offset is the offset of the local time zone for that day. A time of day that is still ahead today books today, as before.

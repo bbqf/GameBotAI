@@ -64,7 +64,7 @@
 
 **Decision**:
 
-- `SequenceNestingRulesSchemaFilter` describes the `condition` property of `SequenceStepContract`: a step guard; on an `Action` step, a false guard skips the step; on a `Loop` step, the guard is evaluated one time before the first iteration and a false guard skips the full loop; `If` and `Break` steps use `if.condition` and `breakCondition`.
+- `SequenceNestingRulesSchemaFilter` adds a guard rule to the description of the `SequenceStepContract` schema (the `condition` property is a `$ref`, and the OpenAPI writer drops a description beside a `$ref`): a step guard; on an `Action` step, a false guard skips the step; on a `Loop` step, the guard is evaluated one time before the first iteration and a false guard skips the full loop; `If` and `Break` steps use `if.condition` and `breakCondition`.
 - `docs/architecture.md`: add one sentence to the **Sequence** item and set a new "Last reviewed" line.
 - `CHANGELOG.md`: add an item under `### Fixed` in `[Unreleased]`.
 - `specs/STATUS.md`: add row 110.
@@ -78,4 +78,4 @@
 - Unit (`tests/unit/Sequences/LoopValidationTests.cs`): a `Loop` guard with an unknown `commandOutcome` reference, a reference to its own body step, and an `imageVisible` leaf without `imageId` give errors; a correct guard gives no error.
 - Contract (`tests/contract/Sequences/SequenceLoopGuardContractTests.cs`, new): `POST /api/sequences` keeps the guard on read; `dryRun: true` with an unknown `commandOutcome` reference returns 400 that names the step.
 - Contract (`tests/contract/ExecutionLogs/ExecutionLogsLoopGuardContractTests.cs`, new): an executed sequence with a false `lastRun` guard (false in an ad-hoc run) writes a `Loop` entry with `status` `Skipped`, `iterations` 0, `conditionType` and `conditionResult` `false`; with `none(lastRun ...)` (true) the entry has `conditionResult` `true` and 2 iterations.
-- Contract (`tests/contract/Sequences/SequencePerStepConditionsOpenApiTests.cs` or a new test): the OpenAPI `condition` property of the step schema has the new description.
+- Contract (`tests/contract/Sequences/SequenceLoopGuardContractTests.cs`): the description of the step schema has the guard rule.

@@ -144,6 +144,7 @@ Status vocabulary:
 | 107 | Log each command step under its own step ID | Implemented |
 | 108 | Detect does not report a time-limited measurement as an absence | Implemented |
 | 109 | A reschedule-self time of day that has passed books the next day | Implemented |
+| 110 | A condition on a Loop step is a guard that the runtime obeys | Implemented |
 
 ## Numbering notes
 

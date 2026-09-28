@@ -54,4 +54,4 @@ The detail item with `attributes.stepType` `loop` has two new attributes, `condi
 
 ## OpenAPI
 
-The `condition` property of the `SequenceStepContract` schema has a description that tells: the guard on an `Action` step skips the step when it is false; the guard on a `Loop` step is evaluated one time before the first iteration and skips the full loop when it is false; `If` and `Break` steps use `if.condition` and `breakCondition`.
+The description of the `SequenceStepContract` schema (and of its alias `SequenceStep`) has a guard rule that tells: the guard on an `Action` step skips the step when it is false; the guard on a `Loop` step is evaluated one time before the first iteration and skips the full loop when it is false; `If` and `Break` steps use `if.condition` and `breakCondition`. The rule is on the schema and not on the `condition` property, because that property is a `$ref`, and the OpenAPI writer drops a description beside a `$ref`.

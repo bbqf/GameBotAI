@@ -70,7 +70,7 @@ src/GameBot.Domain/Services/SequenceRunner.cs
 src/GameBot.Service/Services/SequenceExecution/SequenceExecutionService.cs
     # Loop log entry: conditionType and conditionResult attributes
 src/GameBot.Service/Swagger/SequenceNestingRulesSchemaFilter.cs
-    # description of the step condition property
+    # guard rule in the description of the step schema
 
 tests/unit/Sequences/SequenceRunnerLoopGuardTests.cs              # new: runner guard behavior
 tests/unit/Sequences/LoopValidationTests.cs                       # guard validation

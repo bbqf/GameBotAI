@@ -471,7 +471,7 @@ namespace GameBot.Domain.Services {
 
       // ── Loop step dispatch ────────────────────────────────────────────
       if (step.StepType == SequenceStepType.Loop) {
-        return await ExecuteLoopStepAsync(
+        return await ExecuteGuardedLoopStepAsync(
             step,
             executeCommandAsync,
             commandDispatcher,
@@ -513,65 +513,24 @@ namespace GameBot.Domain.Services {
       // same messages. A composite reports its rule as the conditionType and names the child that
       // settled the result, which is what makes a false guard diagnosable.
       if (step.Condition is not null) {
-        var conditionType = step.Condition.Type;
-        ConditionEvaluation conditionOutcome;
-
-        try {
-          conditionOutcome = await SequenceStepConditionEvaluator
-              .EvaluateAsync(step.Condition, conditionEvaluator, stepOutcomes, SequenceRunContext.Current?.LastRunEvaluator, ct)
-              .ConfigureAwait(false);
-        }
-        catch (ConditionEvaluationException ex) {
-          var failureMessage = ex.Kind switch {
-            ConditionEvaluationFailureKind.ImageEvaluatorUnavailable =>
-              "Per-step imageVisible condition evaluator is unavailable",
-            ConditionEvaluationFailureKind.CommandOutcomeUnavailable =>
-              $"Step '{stepKey}' commandOutcome reference '{ex.Detail}' is unavailable",
-            _ => $"Step '{stepKey}' condition evaluation failed: {ex.Message}"
-          };
-
-          result.AddStep(
-              step.CommandId,
-              0,
-              "Failed",
-              conditionType: conditionType,
-              conditionResult: "error",
-              actionOutcome: "failed",
-              message: failureMessage,
-              stepId: step.StepId);
-          result.Fail(failureMessage);
-          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
-          return true;
-        }
-        catch (Exception ex) {
-          result.AddStep(
-              step.CommandId,
-              0,
-              "Failed",
-              conditionType: conditionType,
-              conditionResult: "error",
-              actionOutcome: "failed",
-              message: $"Step '{stepKey}' condition evaluation failed: {ex.Message}",
-              stepId: step.StepId);
-          result.Fail($"Step '{stepKey}' condition evaluation failed: {ex.Message}");
-          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
-          return true;
-        }
-
-        if (!conditionOutcome.Value) {
-          result.AddStep(
-              step.CommandId,
-              0,
-              "Skipped",
-              conditionType: conditionType,
-              conditionResult: "false",
-              actionOutcome: "skipped",
-              message: conditionOutcome.DecidingPath is null
-                ? null
-                : $"condition {conditionOutcome.DecidingPath} ({conditionOutcome.DecidingDescription}) settled the guard",
-              stepId: step.StepId);
-          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "skipped";
-          return false;
+        var guard = await EvaluateStepGuardAsync(
+            step.Condition,
+            stepKey,
+            conditionEvaluator,
+            stepOutcomes,
+            result,
+            (status, conditionType, conditionResult, detail) => result.AddStep(
+                step.CommandId,
+                0,
+                status,
+                conditionType: conditionType,
+                conditionResult: conditionResult,
+                actionOutcome: string.Equals(status, "Failed", StringComparison.Ordinal) ? "failed" : "skipped",
+                message: detail,
+                stepId: step.StepId),
+            ct).ConfigureAwait(false);
+        if (guard != StepGuardDecision.Run) {
+          return guard == StepGuardDecision.Fail;
         }
       }
 
@@ -952,6 +911,153 @@ namespace GameBot.Domain.Services {
     // Loop step execution (T011 / T019 / T021 / T023)
     // ══════════════════════════════════════════════════════════════════════
 
+    /// <summary>What the guard (the step condition) of a step tells the runner to do.</summary>
+    private enum StepGuardDecision {
+      /// <summary>The guard is true. Run the step.</summary>
+      Run,
+      /// <summary>The guard is false. The step is recorded as skipped. The sequence continues.</summary>
+      Skip,
+      /// <summary>The guard evaluation failed. The step is recorded as failed. The sequence stops.</summary>
+      Fail
+    }
+
+    /// <summary>
+    /// Evaluates the guard of a step with the shared condition evaluator. The <c>Action</c> path and the
+    /// <c>Loop</c> path both use this method, so the two guards have the same rules (issue #232).
+    /// For <see cref="StepGuardDecision.Skip"/> and <see cref="StepGuardDecision.Fail"/>, the method calls
+    /// <paramref name="record"/> with (status, conditionType, conditionResult, detail) and sets the step
+    /// outcome. For a skip, detail names the composite child that settled the guard, or is null. For a
+    /// failure, detail is the failure message, and the method also fails the run result.
+    /// </summary>
+    private static async Task<StepGuardDecision> EvaluateStepGuardAsync(
+        SequenceStepCondition condition,
+        string? stepKey,
+        Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+        Dictionary<string, string> stepOutcomes,
+        SequenceExecutionResult result,
+        Action<string, string, string, string?> record,
+        CancellationToken ct) {
+      var conditionType = condition.Type;
+      ConditionEvaluation conditionOutcome;
+
+      try {
+        conditionOutcome = await SequenceStepConditionEvaluator
+            .EvaluateAsync(condition, conditionEvaluator, stepOutcomes, SequenceRunContext.Current?.LastRunEvaluator, ct)
+            .ConfigureAwait(false);
+      }
+      catch (ConditionEvaluationException ex) {
+        var failureMessage = ex.Kind switch {
+          ConditionEvaluationFailureKind.ImageEvaluatorUnavailable =>
+            "Per-step imageVisible condition evaluator is unavailable",
+          ConditionEvaluationFailureKind.CommandOutcomeUnavailable =>
+            $"Step '{stepKey}' commandOutcome reference '{ex.Detail}' is unavailable",
+          _ => $"Step '{stepKey}' condition evaluation failed: {ex.Message}"
+        };
+        return FailGuard(failureMessage);
+      }
+      catch (Exception ex) {
+        return FailGuard($"Step '{stepKey}' condition evaluation failed: {ex.Message}");
+      }
+
+      if (conditionOutcome.Value) {
+        return StepGuardDecision.Run;
+      }
+
+      record(
+          "Skipped",
+          conditionType,
+          "false",
+          conditionOutcome.DecidingPath is null
+            ? null
+            : $"condition {conditionOutcome.DecidingPath} ({conditionOutcome.DecidingDescription}) settled the guard");
+      if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "skipped";
+      return StepGuardDecision.Skip;
+
+      StepGuardDecision FailGuard(string failureMessage) {
+        record("Failed", conditionType, "error", failureMessage);
+        result.Fail(failureMessage);
+        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+        return StepGuardDecision.Fail;
+      }
+    }
+
+    /// <summary>
+    /// Executes a top-level <see cref="SequenceStepType.Loop"/> step and first obeys its guard (issue #232).
+    /// Before this fix, the runner did not look at the condition of a Loop step, so the loop also ran
+    /// when its condition was false. Now the guard is evaluated one time, before the first iteration,
+    /// with the same rules as the guard of an Action step. A false guard gives a Skipped Loop entry
+    /// with no iterations. A failed evaluation fails the step and stops the sequence. A true guard runs
+    /// the loop as before; the Loop entry then shows the guard type and the result "true".
+    /// Returns <c>true</c> when the sequence must stop.
+    /// </summary>
+    private async Task<bool> ExecuteGuardedLoopStepAsync(
+        SequenceStep step,
+        Func<string, ParameterScope, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task<CommandDispatchOutcome>>? commandDispatcher,
+        Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+        Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+        DelayRangeMs interStepDelayRange,
+        Dictionary<string, string> stepOutcomes,
+        SequenceExecutionResult result,
+        string sequenceId,
+        int globalMaxIterations,
+        Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        ParameterScope scope,
+        bool dryRun,
+        CancellationToken ct) {
+      var loopKey = LoopStepKey(step);
+
+      if (step.Condition is not null) {
+        var guard = await EvaluateStepGuardAsync(
+            step.Condition,
+            loopKey,
+            conditionEvaluator,
+            stepOutcomes,
+            result,
+            (status, conditionType, conditionResult, detail) => result.AddLoopStep(
+                loopKey,
+                status,
+                Array.Empty<LoopIterResult>(),
+                message: string.Equals(status, "Skipped", StringComparison.Ordinal)
+                  ? (detail is null
+                    ? $"Loop '{loopKey}' skipped: its condition is false."
+                    : $"Loop '{loopKey}' skipped: its condition is false; {detail}.")
+                  : detail,
+                conditionType: conditionType,
+                conditionResult: conditionResult),
+            ct).ConfigureAwait(false);
+        if (guard != StepGuardDecision.Run) {
+          return guard == StepGuardDecision.Fail;
+        }
+      }
+
+      var earlyStop = await ExecuteLoopStepAsync(
+          step,
+          executeCommandAsync,
+          commandDispatcher,
+          gateEvaluator,
+          conditionEvaluator,
+          interStepDelayRange,
+          stepOutcomes,
+          result,
+          sequenceId,
+          globalMaxIterations,
+          actionDispatcher,
+          scope,
+          dryRun,
+          ct).ConfigureAwait(false);
+
+      if (step.Condition is not null) {
+        result.SetConditionForLatestLoopStep(loopKey, step.Condition.Type, "true");
+      }
+
+      return earlyStop;
+    }
+
+    /// <summary>The key of a Loop step in the run result and in the step outcomes.</summary>
+    private static string LoopStepKey(SequenceStep step)
+        => !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"loop@{step.Order}";
+
     /// <summary>
     /// Executes a <see cref="SequenceStepType.Loop"/> step.  Returns <c>true</c> when the
     /// outer sequence should stop early (failure), <c>false</c> otherwise.
@@ -973,7 +1079,7 @@ namespace GameBot.Domain.Services {
         ParameterScope scope,
         bool dryRun,
         CancellationToken ct) {
-      var stepKey = !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"loop@{step.Order}";
+      var stepKey = LoopStepKey(step);
       var maxIterations = step.Loop?.MaxIterations ?? globalMaxIterations;
 
       switch (step.Loop) {
@@ -2242,15 +2348,37 @@ namespace GameBot.Domain.Services {
         string status,
         IReadOnlyList<LoopIterResult> iterResults,
         string? message = null,
-        LoopExitReason? exitReason = null) {
+        LoopExitReason? exitReason = null,
+        string? conditionType = null,
+        string? conditionResult = null) {
       _steps.Add(new StepResult {
         CommandId = stepId,
         Status = status,
         Attempts = 1,
         LoopIterations = iterResults,
         Message = message,
-        ExitReason = exitReason
+        ExitReason = exitReason,
+        ConditionType = conditionType,
+        ConditionResult = conditionResult
       });
+    }
+
+    /// <summary>
+    /// Sets the guard type and the guard result on the last Loop entry with the given key (issue #232).
+    /// The runner calls this after a Loop step with a true guard has run. Does nothing when no such
+    /// entry exists.
+    /// </summary>
+    public void SetConditionForLatestLoopStep(string stepKey, string? conditionType, string? conditionResult) {
+      for (var index = _steps.Count - 1; index >= 0; index--) {
+        var step = _steps[index];
+        if (step.LoopIterations is null || !string.Equals(step.CommandId, stepKey, StringComparison.Ordinal)) {
+          continue;
+        }
+
+        step.ConditionType = conditionType;
+        step.ConditionResult = conditionResult;
+        return;
+      }
     }
 
     public void Complete() {

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `claude/resolve-github-issue-wp4ek5` (spec number 110)  
 **Created**: 2026-09-28  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #232 (B-026): "a condition on a Loop step is accepted and ignored at run time". Full description: see the issue and the feature description that started this spec.
 
 ## Background
@@ -132,4 +132,4 @@ An author saves a sequence with `POST /api/sequences`. The service keeps the `co
 - Only top-level steps can be `Loop` steps. Loops inside loop bodies and inside `If` branches are not permitted, and this does not change.
 - The guard is evaluated at the position of the `Loop` step, after the prior step completes, at the same point in the step flow as the guard of an `Action` step.
 - Before this fix, the save endpoints did not keep the `condition` of a `Loop` step. Thus a stored sequence has such a condition only when a person wrote it into the stored file. The guard then operates, which is the intended behavior.
-- The web authoring UI does not need a change for this fix. A web UI editor for the guard is not in scope.
+- The web authoring UI does not need a change for this fix. A web UI editor for the guard is not in scope. The web sequence editor does not send the `condition` of a `Loop` step, so a save in the web UI removes the guard. The changelog tells this limit.
