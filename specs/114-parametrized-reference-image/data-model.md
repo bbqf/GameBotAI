@@ -34,7 +34,7 @@ Rules:
 - `ImageId` can hold an inline placeholder, for example `{{novaOption}}` or `nova-{{option}}`.
 - Positions: `SequenceStep.Condition`, `IfConfig.Condition`, `WhileLoopConfig.Condition`, `RepeatUntilLoopConfig.Condition`, `SequenceStep.BreakCondition`, and each child of `all`, `any` and `none` in these positions.
 - Save: a parametrized `ImageId` skips the image existence check and gives the warning `static_check_skipped`. Each name must be declared by the sequence, be a queue built-in, or be `iteration` inside a loop. Otherwise the save gives `unresolvable_parameter_reference`.
-- Run: the runner resolves `ImageId` against the scope in effect for the step before the evaluation.
+- Run: the runner resolves `ImageId` against the scope of the call site before the evaluation (see the table in "SequenceStepConditionResolver").
 
 ## ParameterReference (changed record)
 
@@ -71,16 +71,16 @@ static bool TryResolve(
 
 `fieldPathPrefix` for each call site in `SequenceRunner` (six call sites):
 
-| Call site | Method | Prefix |
-|-----------|--------|--------|
-| step guard of an action step | `EvaluateStepGuardAsync` | `condition` |
-| step guard of a loop step | `EvaluateStepGuardAsync` | `condition` |
-| while condition | `EvaluateLoopConditionAsync` | `loop.condition` |
-| repeat-until condition | `EvaluateLoopConditionAsync` | `loop.condition` |
-| `If` condition | `EvaluateLoopConditionAsync` | `if.condition` |
-| break condition | `EvaluateLoopConditionAsync` | `breakCondition` |
+| Call site | Method | Prefix | Scope | Failure message |
+|-----------|--------|--------|-------|-----------------|
+| step guard of an action step | `EvaluateStepGuardAsync` | `condition` | the scope of the step (`scope`, or `iterScope` in a loop body) | `ParameterResolutionError.ToMessage(stepKey)` exactly |
+| step guard of a loop step | `EvaluateStepGuardAsync` | `condition` | the scope of the step (`scope`, or `iterScope` in a loop body) | `ParameterResolutionError.ToMessage(stepKey)` exactly |
+| while condition | `EvaluateLoopConditionAsync` | `loop.condition` | `scope.WithIteration(iterations + 1)`: the iteration that is about to run (the condition runs before `iterCtx` exists) | `Loop '<key>' condition evaluation failed: ` + resolution message |
+| repeat-until condition | `EvaluateLoopConditionAsync` | `loop.condition` | `iterCtx`: the iteration that just ran | `Loop '<key>' exit condition evaluation failed: ` + resolution message |
+| `If` condition | `EvaluateLoopConditionAsync` | `if.condition` | the scope of the step (`iterScope` argument of the `If` path) | `If '<key>' condition evaluation failed: ` + resolution message |
+| break condition | `EvaluateLoopConditionAsync` | `breakCondition` | `iterScope` | "No break", with the resolution message as the error detail in the log |
 
-These paths are the same as the field paths of the save scan.
+These paths are the same as the field paths of the save scan. With these scopes, `{{iteration}}` in a while condition gives the number of the next iteration (1 before the first iteration), and in a repeat-until condition it gives the number of the iteration that just ran.
 
 ## ConditionEvaluationFailureKind (changed enum)
 
@@ -109,10 +109,14 @@ These paths are the same as the field paths of the save scan.
 
 `ParameterValidationService.FindImageValueCandidates(entry, entryIndex, sequence, reachableCommands)` returns the distinct candidates of one entry. A field text with a name that has no known value gives no candidate.
 
-Known value rules:
-- A known value is the entry value, or else a declaration default in the `ParameterScope` order of the run: for a reference inside a command, the default of that command first, and then the outer (sequence) default. For a reference in the sequence, the sequence default.
-- Binding rule: when the sequence step that calls a command has a non-null `parameterBindings` entry for a parameter, the image fields of that command and of the commands that it reaches get no known value for that parameter (the binding outranks the entry at run time). Thus they give no candidate for it.
-- A binding to `{{otherName}}` is not followed. This is a known limit; the run-time check (FR-009) applies.
+Scanned fields: each reference that the scanner marks `DefeatsStaticCheck` in the sequence or in a reachable command. This includes `imageVisible.imageId` in each condition position, the inline image fields of command steps (also an inline `ensureGameRunning.readinessImage.referenceImageId` placeholder), the two `fieldTemplates` image keys, and `detection.referenceImageId` of a command.
+
+Known value rules (for each call path):
+- A call path is: sequence step, then command, then each nested command step. The method rebuilds the paths from the sequence and the `Command` objects. A field in the sequence has the path "sequence" only.
+- Binding rule: at each call site on the path (the sequence step and each nested command step above the field), a non-null `parameterBindings` entry for the name covers the name. The path then gives no candidate for it (the binding outranks the entry at run time). A literal binding is not checked. A binding to `{{otherName}}` is not followed. This is a known limit; the run-time check (FR-009) applies.
+- Else, if the entry supplies the name, the known value is the entry value.
+- Else, the known value is the default of the innermost declaration layer outward along the path: the nested command, then the command that calls it, and so on, and then the sequence.
+- A field gets one candidate for each path that reaches it. The candidates have no duplicates. Example: a command that two sequence steps reach, where one step binds `novaOption` and the other step does not, gets a candidate from the path of the step with no binding.
 
 ## Sequence write response (changed)
 

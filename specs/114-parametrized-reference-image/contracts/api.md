@@ -124,10 +124,14 @@ A literal `imageId` in a step condition keeps the current existence check ("Imag
 ## 3. Run time
 
 - A tap or wait step with the image key uses the resolved value as the image id. The execution-log step detail has the item `parameters` with `novaOption = <value>` and its scope layer (current feature 078 format). The step detail of a `WaitForImage` step also has `referenceImageId` with the resolved id. A `PrimitiveTap` step detail does not always name the image id (for example, the `skipped_invalid_config` outcome has no `referenceImageId`). For a tap step, the `parameters` item holds the value.
-- An `imageVisible` leaf with a placeholder uses the resolved id. The log text of the condition shows the resolved id, for example `imageVisible(imageId=option-b, minSimilarity=default)`.
+- An `imageVisible` leaf with a placeholder uses the resolved id. The scope of each position: a step guard and an `If` condition use the scope of the step; a while condition uses the scope of the iteration that is about to run (`{{iteration}}` is 1 before the first iteration); a repeat-until condition uses the scope of the iteration that just ran; a break condition uses the scope of the current iteration. The log text of the condition shows the resolved id, for example `imageVisible(imageId=option-b, minSimilarity=default)`.
 - A name with no value in scope:
   - command step: outcome `skipped_parameter_unresolved` with the message `Step '<order>': parameter 'novaOption' used by field 'primitiveTap.detectionTarget.referenceImageId' could not be resolved from any scope.` No input goes to the device.
-  - step guard, `If` condition, while or repeat-until condition: the step fails, and the sequence stops. The message is `Step '<stepKey>': parameter 'novaOption' used by field 'condition.imageId' could not be resolved from any scope.`
+  - step guard (of an action step or a loop step): the step fails, and the sequence stops. The message is exactly `Step '<stepKey>': parameter 'novaOption' used by field 'condition.imageId' could not be resolved from any scope.`
+  - while, repeat-until or `If` condition: the step fails, and the sequence stops. The message keeps the current prefix of the position, then the resolution message:
+    - while: `Loop '<key>' condition evaluation failed: Step '<key>': parameter 'novaOption' used by field 'loop.condition.imageId' could not be resolved from any scope.`
+    - repeat-until: `Loop '<key>' exit condition evaluation failed: Step '<key>': parameter 'novaOption' used by field 'loop.condition.imageId' could not be resolved from any scope.`
+    - `If`: `If '<key>' condition evaluation failed: Step '<key>': parameter 'novaOption' used by field 'if.condition.imageId' could not be resolved from any scope.`
   - break condition: "No break" with the same message as the error detail (feature 066 FR-002a and FR-010).
 - An id with no image: the current missing-image result of each step type or position, the same as for a literal id. No device input occurs in each case.
   - `WaitForImage` step: fails with `image_unavailable`.
@@ -167,10 +171,12 @@ Response: `400 Bad Request`. The service saves nothing.
 ```
 
 Rules:
-- The check uses the entry value, or else a declaration default in the scope order of the run: for a field inside a command, the default of that command first, and then the sequence default. For a field in the sequence, the sequence default.
-- Binding rule: when the sequence step that calls a command has a non-null `parameterBindings` entry for a parameter, the check does not use the entry value or a default for that parameter in the image fields of that command and of the commands that it reaches. The binding outranks the entry at run time. For example, an entry supplies `novaOption = no-such-image` and the step binds the `novaOption` of the command to `option-b`: the save does not reject the entry value for the image fields of that command.
-- A binding to `{{otherName}}` is not followed. This is a known limit; the run-time check applies (section 3).
-- The check looks at each image field of the sequence and of each command that the sequence can reach: `imageVisible.imageId` in each condition position, the inline image fields of command steps, the two image keys of `fieldTemplates`, and `detection.referenceImageId` of a command.
+- The check looks at each image field that the reference scanner marks `DefeatsStaticCheck` in the sequence and in each command that the sequence can reach: `imageVisible.imageId` in each condition position, the inline image fields of command steps (`primitiveTap.detectionTarget.referenceImageId`, `waitForImage.detectionTarget.referenceImageId`, and an inline `ensureGameRunning.readinessImage.referenceImageId` placeholder), the two image keys of `fieldTemplates`, and the inline `detection.referenceImageId` of a command.
+- The check finds the known value of a name for each call path: sequence step, then command, then each nested command step. A field in the sequence has the path "sequence" only.
+  1. Binding rule: at each call site on the path (the sequence step and each nested command step above the field), a non-null `parameterBindings` entry for the name covers it. The path then gives no value to check for that name. The binding outranks the entry at run time. A literal binding is not checked. A binding to `{{otherName}}` is not followed. This is a known limit; the run-time check applies (section 3). Example: an entry supplies `novaOption = no-such-image` and the step binds the `novaOption` of the command to `option-b`: the save does not reject the entry value for the image fields of that command.
+  2. Else, if the entry supplies the name, the check uses the entry value.
+  3. Else, the check uses the default of the innermost declaration layer outward along the path: the nested command, then the command that calls it, and so on, and then the sequence.
+- A field gets one check for each path that reaches it. Duplicate values are checked one time. Example: two sequence steps call the same command; one step binds `novaOption` and the other does not. The check uses the path of the step with no binding.
 - A field whose text has a name with no known value (for example a queue built-in) is not checked.
 - The check applies to each entry, also a disabled entry.
 - An entry whose sequence does not exist is not checked.
