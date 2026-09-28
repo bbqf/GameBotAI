@@ -32,8 +32,16 @@ internal sealed class SequenceNestingRulesSchemaFilter : ISchemaFilter {
     "The deepest permitted nesting is Loop > If > Action or Break. A sequence that breaks these rules is rejected "
     + "with 400 on create, update and patch.";
 
+  // Issue #232: the condition of a Loop step is a guard, with the same rules as on an Action step.
+  internal const string GuardRule =
+    "condition is a guard. On an Action step, a false condition skips the step. On a Loop step, the condition is "
+    + "evaluated one time before the first iteration; a false condition skips the full loop, and the Loop entry has "
+    + "status Skipped, no iterations, and conditionResult false. If and Break steps use if.condition and "
+    + "breakCondition.";
+
   internal const string StepDescription =
-    StepTypesRule + " " + LoopBodyRule + " " + IfBranchRule + " " + NoNestedIfRule + " " + BreakRule + " " + MaxDepthRule;
+    StepTypesRule + " " + LoopBodyRule + " " + IfBranchRule + " " + NoNestedIfRule + " " + BreakRule + " " + MaxDepthRule
+    + " " + GuardRule;
 
   internal const string BodyDescription =
     "For a Loop step this is the loop body. " + LoopBodyRule

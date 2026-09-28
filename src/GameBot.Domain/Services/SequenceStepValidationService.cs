@@ -141,6 +141,12 @@ public sealed class SequenceStepValidationService {
         positionByStepId: positionByStepId,
         referencingStepPosition: ownPosition.TryGetValue(step, out var loopPosition) ? loopPosition : null);
 
+    // Issue #232: the condition of the Loop step itself is a guard, evaluated one time before the
+    // first iteration. It has an effect, so check it with the same rules as the guard of an Action
+    // step. A reference to a body step of this loop is not a prior step, because the body comes
+    // after the Loop step in document order.
+    ValidateStepCondition(step, stepLabel, ownPosition, positionByStepId, errors, insideLoop);
+
     // Validate body steps.
     var bodyStepIds = new HashSet<string>(_stepIdComparer);
     for (var bi = 0; bi < step.Body.Count; bi++) {

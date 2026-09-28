@@ -905,7 +905,10 @@ internal static class SequencesEndpoints {
           Label = step.Label,
           StepType = SequenceStepType.Loop,
           Loop = MapLoopConfig(step.Loop),
-          Body = MapBodySteps(step.Body)
+          Body = MapBodySteps(step.Body),
+          // Issue #232: keep the guard of a Loop step. Before this fix it was dropped here, so the
+          // save validation did not see it and the runner never evaluated it.
+          Condition = MapPerStepCondition(step.Condition)
         };
         result.Add(mapped);
         continue;
@@ -1411,17 +1414,20 @@ internal static class SequencesEndpoints {
       ct.ThrowIfCancellationRequested();
       var step = steps[index];
       var stepLabel = string.IsNullOrWhiteSpace(step.StepId) ? $"index:{index}" : step.StepId;
+
+      // Issue #232: this check comes before the action test, so that it also applies to the guard
+      // of a Loop step, which has no action.
+      if (step.Condition is ImageVisibleStepCondition imageVisible
+          && imageVisible.MinSimilarity is < 0 or > 1) {
+        errors.Add($"Step '{stepLabel}' imageVisible minSimilarity must be within 0..1.");
+      }
+
       if (step.Action is null) {
         continue;
       }
 
       if (string.IsNullOrWhiteSpace(step.Action.Type)) {
         errors.Add($"Step '{stepLabel}' action type is required.");
-      }
-
-      if (step.Condition is ImageVisibleStepCondition imageVisible
-          && imageVisible.MinSimilarity is < 0 or > 1) {
-        errors.Add($"Step '{stepLabel}' imageVisible minSimilarity must be within 0..1.");
       }
     }
 

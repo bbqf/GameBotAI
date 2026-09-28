@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-27 (feature 109: a `reschedule-self` Timer time of day that has passed
-books that time on the next day, #227)._
+_Last reviewed: 2026-09-28 (feature 110: a `condition` on a top-level `Loop` step is a guard that
+the runner obeys, #232)._
 
 ## What GameBot is
 
@@ -131,7 +131,12 @@ not survive a service restart; queue *configuration* and templates are persisted
   If blocks may sit at the sequence top level or inside loop bodies; branches are flat (no loops,
   no nested ifs; breaks only when the if is inside a loop, where a branch break exits the
   enclosing loop). The condition is evaluated once per encounter; a condition error fails the
-  step and sequence exactly like a while-loop condition error.
+  step and sequence exactly like a while-loop condition error. A `condition` on a top-level
+  `Loop` step is a guard with the same rules as the guard of an `Action` step (feature 110, #232):
+  it is evaluated one time, before the first iteration. When it is false, the loop does not run,
+  and its entry has status `Skipped`, no iterations and `conditionResult` `false`; a later
+  `commandOutcome` reads the loop as `skipped`. The loop entry of the run result and of the
+  execution log has `conditionType` and `conditionResult` when the loop has a guard.
 - **Queue** — bound to exactly one emulator; holds ordered **entries** (sequences), a
   cycle-execution flag, and an optional **failure policy**. Runs entries against the emulator; can
   cycle. Each sequence firing runs under a **time bound** (the watchdog): the sequence's own

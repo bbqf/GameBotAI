@@ -329,4 +329,63 @@ public sealed class LoopValidationTests {
 
     errors.Should().ContainSingle(e => e.Contains("must be one of success|failed|skipped|break|no_break"));
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Issue #232 (spec 110): the guard (step condition) of a Loop step
+  // ──────────────────────────────────────────────────────────────────────────
+
+  private static SequenceStep GuardedLoop(SequenceStepCondition guard)
+      => new() {
+        Order = 1,
+        StepId = "loop",
+        StepType = SequenceStepType.Loop,
+        Loop = new CountLoopConfig { Count = 2 },
+        Condition = guard,
+        Body = new List<SequenceStep> { ActionStep("inner") }
+      };
+
+  [Fact]
+  public void LoopGuardWithUnknownCommandOutcomeReferenceIsRejected() {
+    var steps = new List<SequenceStep> {
+      ActionStep("first"),
+      GuardedLoop(new CommandOutcomeStepCondition { StepRef = "nope", ExpectedState = "success" })
+    };
+
+    var errors = Svc.Validate(steps);
+
+    errors.Should().ContainSingle(e => e.Contains("'loop'") && e.Contains("unknown prior step 'nope'"));
+  }
+
+  [Fact]
+  public void LoopGuardReferencingOwnBodyStepIsRejected() {
+    var steps = new List<SequenceStep> {
+      ActionStep("first"),
+      GuardedLoop(new CommandOutcomeStepCondition { StepRef = "inner", ExpectedState = "success" })
+    };
+
+    var errors = Svc.Validate(steps);
+
+    errors.Should().ContainSingle(e => e.Contains("'loop'") && e.Contains("must reference a prior step"));
+  }
+
+  [Fact]
+  public void LoopGuardImageVisibleWithoutImageIdIsRejected() {
+    var steps = new List<SequenceStep> {
+      GuardedLoop(new ImageVisibleStepCondition { ImageId = "" })
+    };
+
+    var errors = Svc.Validate(steps);
+
+    errors.Should().ContainSingle(e => e.Contains("'loop'") && e.Contains("imageVisible condition requires imageId"));
+  }
+
+  [Fact]
+  public void LoopGuardReferencingPriorStepIsAccepted() {
+    var steps = new List<SequenceStep> {
+      ActionStep("first"),
+      GuardedLoop(new CommandOutcomeStepCondition { StepRef = "first", ExpectedState = "success" })
+    };
+
+    Svc.Validate(steps).Should().BeEmpty();
+  }
 }

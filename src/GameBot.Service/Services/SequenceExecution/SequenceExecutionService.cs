@@ -453,6 +453,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
             // readable only as prose in "message", which is the standard the issue asked us to beat.
             ["brokeVia"] = step.ExitReason?.BrokeVia,
             ["exhaustedMaxIterations"] = step.ExitReason?.ExhaustedMaxIterations,
+            // Issue #232: the guard of the Loop step, as for If entries and guarded Action entries.
+            // Both are null when the Loop step has no guard.
+            ["conditionType"] = step.ConditionType,
+            ["conditionResult"] = step.ConditionResult,
             ["message"] = step.Message,
             ["sequenceId"] = sequenceId,
             ["sequenceLabel"] = sequenceName,
