@@ -156,20 +156,28 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         // Report both the pre-jitter target (ResolvedPoint) and the post-jitter executed point
         // when they differ; keep the original single-point text when no jitter was applied.
         var executed = outcome.ExecutedPoint;
-        var text = executed is not null && executed != outcome.ResolvedPoint
-          ? $"Tap targeted ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}), executed at ({executed.X},{executed.Y})."
-          : $"Tap executed at ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}).";
-        details.Add(new ExecutionDetailItem(
-          "tap",
-          text,
-          new Dictionary<string, object?> {
-            ["x"] = outcome.ResolvedPoint.X,
-            ["y"] = outcome.ResolvedPoint.Y,
-            ["executedX"] = (executed ?? outcome.ResolvedPoint).X,
-            ["executedY"] = (executed ?? outcome.ResolvedPoint).Y,
-            ["confidence"] = outcome.DetectionConfidence
-          },
-          "normal"));
+        var moved = executed is not null && executed != outcome.ResolvedPoint;
+        var tapAttributes = new Dictionary<string, object?> {
+          ["x"] = outcome.ResolvedPoint.X,
+          ["y"] = outcome.ResolvedPoint.Y,
+          ["executedX"] = (executed ?? outcome.ResolvedPoint).X,
+          ["executedY"] = (executed ?? outcome.ResolvedPoint).Y,
+          ["confidence"] = outcome.DetectionConfidence
+        };
+        string text;
+        if (outcome.HoldMs is > 0 and var holdMs) {
+          // Feature 111: a press and hold shows the point and the hold duration.
+          text = moved
+            ? $"Press and hold targeted ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}), executed at ({executed!.X},{executed.Y}) for {holdMs} ms."
+            : $"Press and hold at ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}) for {holdMs} ms.";
+          tapAttributes["holdMs"] = holdMs;
+        }
+        else {
+          text = moved
+            ? $"Tap targeted ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}), executed at ({executed!.X},{executed.Y})."
+            : $"Tap executed at ({outcome.ResolvedPoint.X},{outcome.ResolvedPoint.Y}).";
+        }
+        details.Add(new ExecutionDetailItem("tap", text, tapAttributes, "normal"));
       }
       else if (string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) && outcome.ExecutedSwipe is not null) {
         var target = outcome.TargetSwipe;

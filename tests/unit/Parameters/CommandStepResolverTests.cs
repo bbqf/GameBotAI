@@ -206,6 +206,27 @@ public sealed class CommandStepResolverTests {
     resolved.PrimitiveTap.DetectionTarget.OffsetY.Should().Be(5);
   }
 
+  // Feature 111 (issue #235): the resolver makes a new tap configuration, so it must keep the hold duration.
+  [Fact]
+  public void DetectionTargetResolutionKeepsTheHoldDuration() {
+    var step = new CommandStep {
+      Type = CommandStepType.PrimitiveTap,
+      Order = 0,
+      PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("{{img}}", 0.9), HoldMs = 700 }
+    };
+
+    CommandStepResolver.TryResolve(step, ScopeWith(("img", "claim-button")), out var resolved, out _, out _)
+        .Should().BeTrue();
+
+    resolved!.PrimitiveTap!.DetectionTarget.ReferenceImageId.Should().Be("claim-button");
+    resolved.PrimitiveTap.HoldMs.Should().Be(700);
+  }
+
+  [Fact]
+  public void HoldDurationIsNotASupportedFieldTemplatePath() {
+    CommandStepFieldPaths.IsSupported("primitiveTap.holdMs").Should().BeFalse();
+  }
+
   [Fact]
   public void SupportedFieldTemplatePathsCoverTheDocumentedSet() {
     CommandStepFieldPaths.IsSupported("swipe.startX").Should().BeTrue();

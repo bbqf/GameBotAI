@@ -31,7 +31,8 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
               confidence: (s.primitiveTap?.detectionTarget ?? dto.detection!).confidence !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).confidence) : undefined,
               offsetX: (s.primitiveTap?.detectionTarget ?? dto.detection!).offsetX !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).offsetX) : undefined,
               offsetY: (s.primitiveTap?.detectionTarget ?? dto.detection!).offsetY !== undefined ? String((s.primitiveTap?.detectionTarget ?? dto.detection!).offsetY) : undefined,
-            }
+            },
+            holdMs: s.primitiveTap?.holdMs !== undefined && s.primitiveTap.holdMs !== null ? String(s.primitiveTap.holdMs) : undefined,
           }
           : undefined,
         waitForImage: s.waitForImage
@@ -86,7 +87,10 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
           offsetY: s.primitiveTap?.detectionTarget.offsetY !== undefined && s.primitiveTap.detectionTarget.offsetY !== ''
             ? Number(s.primitiveTap.detectionTarget.offsetY)
             : undefined,
-        }
+        },
+        holdMs: s.primitiveTap?.holdMs !== undefined && s.primitiveTap.holdMs.trim() !== ''
+          ? Number(s.primitiveTap.holdMs)
+          : undefined,
       }
     };
   }

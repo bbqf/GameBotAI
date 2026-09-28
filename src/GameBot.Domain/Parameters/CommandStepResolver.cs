@@ -103,7 +103,7 @@ public static class CommandStepResolver {
     if (step.PrimitiveTap is not null) {
       if (!TryDetection(step, step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget",
               context, scope, used, ref error, out var target)) return false;
-      primitiveTap = new PrimitiveTapConfig { DetectionTarget = target! };
+      primitiveTap = new PrimitiveTapConfig { DetectionTarget = target!, HoldMs = step.PrimitiveTap.HoldMs };
     }
 
     WaitForImageConfig? waitForImage = step.WaitForImage;

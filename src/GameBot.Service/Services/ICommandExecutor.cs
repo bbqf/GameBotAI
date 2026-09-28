@@ -62,7 +62,8 @@ internal sealed record PrimitiveTapStepOutcome(
   PrimitiveTapResolvedPoint? ExecutedPoint = null,
   PrimitiveSwipePoints? TargetSwipe = null,
   PrimitiveSwipePoints? ExecutedSwipe = null,
-  IReadOnlyList<ResolvedParameter>? ResolvedParameters = null);
+  IReadOnlyList<ResolvedParameter>? ResolvedParameters = null,
+  int? HoldMs = null);
 
 internal sealed record CommandForceExecutionResult(int Accepted, IReadOnlyList<PrimitiveTapStepOutcome> StepOutcomes);
 

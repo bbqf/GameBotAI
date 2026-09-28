@@ -39,7 +39,25 @@ public sealed class EnsureGameRunningConfig {
 }
 
 public sealed class PrimitiveTapConfig {
+  /// <summary>The smallest permitted <see cref="HoldMs"/> (feature 111).</summary>
+  public const int MinHoldMs = 0;
+
+  /// <summary>The largest permitted <see cref="HoldMs"/> (feature 111).</summary>
+  public const int MaxHoldMs = 5000;
+
+  /// <summary>The duration in milliseconds of a single tap. The tap is a swipe to the same point.</summary>
+  public const int DefaultTapDurationMs = 200;
+
   public required DetectionTarget DetectionTarget { get; init; }
+
+  /// <summary>
+  /// Optional hold duration in milliseconds (feature 111), from <see cref="MinHoldMs"/> to
+  /// <see cref="MaxHoldMs"/>. Absent or 0 gives a single tap. More than 0 gives a press and hold
+  /// at the detected point (plus the offsets) for this duration. Null is not written to storage.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(
+      Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public int? HoldMs { get; init; }
 }
 
 public sealed class KeyInputConfig {

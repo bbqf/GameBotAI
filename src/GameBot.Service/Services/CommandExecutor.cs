@@ -681,8 +681,10 @@ internal sealed class CommandExecutor : ICommandExecutor {
       return false;
 
     // Use swipe-to-same-point so the tap has a hold duration; more reliable on slow emulators.
-    var tapArgs = new Dictionary<string, object> { ["x1"] = x, ["y1"] = y, ["x2"] = x, ["y2"] = y };
-    var sessionInput = new GameBot.Emulator.Session.InputAction("swipe", tapArgs, null, 200);
+    // Feature 111: a step with a hold duration more than 0 holds the point for that duration.
+    var holdMs = PrimitiveTapInput.EffectiveHoldMs(step.PrimitiveTap?.HoldMs);
+    var sessionInput = PrimitiveTapInput.Create(x, y, holdMs);
+    var tapArgs = sessionInput.Args;
     var accepted = _sessions.SendInputsAsync(sessionId, new[] { sessionInput }, ct).GetAwaiter().GetResult();
     totalAccepted += accepted;
 
@@ -697,7 +699,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     var reason = retryAttempt > 0 ? $"detected_after_{retryAttempt}_retries" : null;
     stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", reason, new PrimitiveTapResolvedPoint(x, y), detectionConfidence,
-      ExecutedPoint: new PrimitiveTapResolvedPoint(executedX, executedY)));
+      ExecutedPoint: new PrimitiveTapResolvedPoint(executedX, executedY), HoldMs: holdMs));
     return true;
   }
 

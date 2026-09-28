@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Press and hold at a detected point (111-anchored-long-press, #235)
+  - A `PrimitiveTap` command step has a new optional field, `primitiveTap.holdMs` (integer, 0 to 5000). The service keeps it on `POST /api/commands`, `PATCH /api/commands/{id}` and `POST /api/steps/execute`, and returns it on read. Before, the service dropped the field. A value outside 0 to 5000 gets a 400 with "primitiveTap.holdMs must be between 0 and 5000". `holdMs` does not take a parameter placeholder.
+  - With `holdMs` more than 0, the step finds its image as before and then presses and holds at the detected point (plus the offsets) for `holdMs`: one ADB swipe with the same start and end point and a duration of `holdMs`. The tap-point jitter applies as for a tap.
+  - The step outcome of the execute responses has `holdMs` for a press and hold. The execution-log `tap` detail tells "Press and hold at (x,y) for N ms." (or "Press and hold targeted (x,y), executed at (x2,y2) for N ms.") and has the attribute `holdMs`.
+  - The OpenAPI document shows `holdMs` on `PrimitiveTapConfigDto` (minimum 0, maximum 5000) and on `StepExecutionOutcomeDto`. The tap editor of the web UI has a "Hold duration (ms)" input.
+  - **Compatibility**: a step without `holdMs`, or with `holdMs: 0`, sends the same single tap as before, and its stored JSON, response and log do not change.
 - The API shows a wedged emulator (106-wedged-device-liveness, #220)
   - `GET /api/sessions/{id}/health` has a new `liveness` block: `state` (`live`, `not_live`, `unknown`), `reason` (`capture_stalled`, `input_timeout`, `no_change_after_input`, `transport_not_ready`), `frameAgeMs`, `unchangedMs`, `stale`, `lastInputAt` and `lastInputOutcome`. The call has a time limit: `adb get-state` has `TransportCheckTimeoutMs`, and one direct capture, when necessary, has `CaptureTimeoutMs`. The `adb` block does not change.
   - `GET /api/emulator/screenshot` and `GET /api/sessions/{id}/snapshot` have three new headers: `X-Capture-Age-Ms`, `X-Capture-Unchanged-Ms` and `X-Capture-Stale`. The snapshot has them only when a capture loop runs, or ran, for the session. CORS exposes them.

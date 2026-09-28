@@ -26,6 +26,8 @@ export type StepEntry = {
   targetId?: string;
   primitiveTap?: {
     detectionTarget: DetectionTargetForm;
+    /** Hold duration in ms. Empty or absent gives a single tap. */
+    holdMs?: string;
   };
   waitForImage?: {
     detectionTarget?: DetectionTargetForm;
@@ -74,10 +76,11 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
       const imageId = step.primitiveTap?.detectionTarget.referenceImageId ?? '(missing image)';
       const offsetX = step.primitiveTap?.detectionTarget.offsetX ?? '0';
       const offsetY = step.primitiveTap?.detectionTarget.offsetY ?? '0';
+      const holdMs = Number(step.primitiveTap?.holdMs?.trim() || '0');
       return {
         id: step.id,
         label: `Tap: ${imageId}`,
-        description: `Offset (${offsetX}, ${offsetY})`,
+        description: holdMs > 0 ? `Offset (${offsetX}, ${offsetY}), hold ${holdMs} ms` : `Offset (${offsetX}, ${offsetY})`,
       };
     }
 
@@ -335,11 +338,15 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
         {pendingActionType === 'PrimitiveTap' && (
           <TapPanel
-            initialValue={editingStep?.primitiveTap?.detectionTarget}
-            onConfirm={(tapValue) =>
+            initialValue={
+              editingStep?.primitiveTap
+                ? { ...editingStep.primitiveTap.detectionTarget, holdMs: editingStep.primitiveTap.holdMs }
+                : undefined
+            }
+            onConfirm={({ holdMs, ...detectionTarget }) =>
               handlePanelConfirm({
                 type: 'PrimitiveTap',
-                primitiveTap: { detectionTarget: tapValue },
+                primitiveTap: { detectionTarget, holdMs },
               })
             }
             onCancel={handlePanelCancel}

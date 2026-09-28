@@ -109,4 +109,69 @@ public sealed class CommandExecutionLoggingIntegrationTests {
       Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", previousAuthToken);
     }
   }
+  // Feature 111 (issue #235): the tap detail of a press and hold shows the point and the hold duration.
+  [Fact]
+  public async Task PressAndHoldDetailShowsTheTargetTheExecutedPointAndTheHoldDuration() {
+    var tap = await LogOneTapAndReadDetailAsync("cmd-hold-moved",
+      new PrimitiveTapStepOutcome(0, "executed", null, new PrimitiveTapResolvedPoint(11, 22), 0.95,
+        ExecutedPoint: new PrimitiveTapResolvedPoint(13, 20), HoldMs: 700)).ConfigureAwait(false);
+
+    tap.GetProperty("message").GetString().Should().Be("Press and hold targeted (11,22), executed at (13,20) for 700 ms.");
+    var attributes = tap.GetProperty("attributes");
+    attributes.GetProperty("holdMs").GetInt32().Should().Be(700);
+    attributes.GetProperty("x").GetInt32().Should().Be(11);
+    attributes.GetProperty("y").GetInt32().Should().Be(22);
+    attributes.GetProperty("executedX").GetInt32().Should().Be(13);
+    attributes.GetProperty("executedY").GetInt32().Should().Be(20);
+  }
+
+  [Fact]
+  public async Task PressAndHoldDetailAtTheTargetPointShowsThePointAndTheHoldDuration() {
+    var tap = await LogOneTapAndReadDetailAsync("cmd-hold-same",
+      new PrimitiveTapStepOutcome(0, "executed", null, new PrimitiveTapResolvedPoint(11, 22), 0.95,
+        ExecutedPoint: new PrimitiveTapResolvedPoint(11, 22), HoldMs: 700)).ConfigureAwait(false);
+
+    tap.GetProperty("message").GetString().Should().Be("Press and hold at (11,22) for 700 ms.");
+    tap.GetProperty("attributes").GetProperty("holdMs").GetInt32().Should().Be(700);
+  }
+
+  [Fact]
+  public async Task TapDetailWithoutHoldDurationDoesNotChange() {
+    var tap = await LogOneTapAndReadDetailAsync("cmd-tap-plain",
+      new PrimitiveTapStepOutcome(0, "executed", null, new PrimitiveTapResolvedPoint(11, 22), 0.95,
+        ExecutedPoint: new PrimitiveTapResolvedPoint(11, 22))).ConfigureAwait(false);
+
+    tap.GetProperty("message").GetString().Should().Be("Tap executed at (11,22).");
+    tap.GetProperty("attributes").TryGetProperty("holdMs", out _).Should().BeFalse();
+  }
+
+  private static async Task<JsonElement> LogOneTapAndReadDetailAsync(string commandId, PrimitiveTapStepOutcome outcome) {
+    var previousAuthToken = Environment.GetEnvironmentVariable("GAMEBOT_AUTH_TOKEN");
+    Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
+    TestEnvironment.PrepareCleanDataDir();
+    try {
+      using var app = new WebApplicationFactory<Program>();
+      var client = app.CreateClient();
+      client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+      var logService = app.Services.GetRequiredService<IExecutionLogService>();
+
+      await logService.LogCommandExecutionAsync(commandId, "Hold Command", "success", new[] { outcome },
+        new ExecutionLogContext { Depth = 0 }).ConfigureAwait(false);
+
+      var listResp = await client.GetAsync(new Uri($"/api/execution-logs?objectType=command&objectId={commandId}&pageSize=1", UriKind.Relative)).ConfigureAwait(false);
+      listResp.EnsureSuccessStatusCode();
+      using var listDoc = JsonDocument.Parse(await listResp.Content.ReadAsStringAsync().ConfigureAwait(false));
+      var id = listDoc.RootElement.GetProperty("items")[0].GetProperty("id").GetString();
+
+      var detailResp = await client.GetAsync(new Uri($"/api/execution-logs/{id}", UriKind.Relative)).ConfigureAwait(false);
+      detailResp.EnsureSuccessStatusCode();
+      using var detailDoc = JsonDocument.Parse(await detailResp.Content.ReadAsStringAsync().ConfigureAwait(false));
+      var tap = detailDoc.RootElement.GetProperty("details").EnumerateArray()
+        .First(item => item.GetProperty("kind").GetString() == "tap");
+      return tap.Clone();
+    }
+    finally {
+      Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", previousAuthToken);
+    }
+  }
 }

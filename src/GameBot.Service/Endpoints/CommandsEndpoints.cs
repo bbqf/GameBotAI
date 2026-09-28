@@ -50,12 +50,12 @@ internal static class CommandsEndpoints {
     if (dto is null) return null;
     var detection = ToDomainDetection(dto.DetectionTarget);
     if (detection is null) return null;
-    return new PrimitiveTapConfig { DetectionTarget = detection };
+    return new PrimitiveTapConfig { DetectionTarget = detection, HoldMs = dto.HoldMs };
   }
 
   private static PrimitiveTapConfigDto? ToResponsePrimitiveTap(PrimitiveTapConfig? cfg) {
     if (cfg is null) return null;
-    return new PrimitiveTapConfigDto { DetectionTarget = ToResponseDetection(cfg.DetectionTarget)! };
+    return new PrimitiveTapConfigDto { DetectionTarget = ToResponseDetection(cfg.DetectionTarget)!, HoldMs = cfg.HoldMs };
   }
 
   private static WaitForImageConfig? ToDomainWaitForImage(WaitForImageConfigDto? dto) {
@@ -99,12 +99,21 @@ internal static class CommandsEndpoints {
     };
   }
 
+  /// <summary>
+  /// Feature 111: checks the hold duration of a PrimitiveTap step. Absent is permitted. A value outside
+  /// the permitted range gives an error text for HTTP 400.
+  /// </summary>
+  internal static string? ValidateHoldMs(int? holdMs) =>
+    holdMs is < PrimitiveTapConfig.MinHoldMs or > PrimitiveTapConfig.MaxHoldMs
+      ? $"primitiveTap.holdMs must be between {PrimitiveTapConfig.MinHoldMs} and {PrimitiveTapConfig.MaxHoldMs}"
+      : null;
+
   private static string? ValidateStep(CommandStepDto step) {
     if (step.Type == CommandStepTypeDto.PrimitiveTap) {
       if (step.PrimitiveTap is null || step.PrimitiveTap.DetectionTarget is null || string.IsNullOrWhiteSpace(step.PrimitiveTap.DetectionTarget.ReferenceImageId)) {
         return "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
       }
-      return null;
+      return ValidateHoldMs(step.PrimitiveTap.HoldMs);
     }
 
     if (step.Type == CommandStepTypeDto.WaitForImage) {
@@ -256,7 +265,8 @@ internal static class CommandsEndpoints {
     ResolvedPoint = ToResolvedPointDto(outcome.ResolvedPoint),
     ExecutedPoint = ToResolvedPointDto(outcome.ExecutedPoint),
     TargetSwipe = ToSwipePointsDto(outcome.TargetSwipe),
-    ExecutedSwipe = ToSwipePointsDto(outcome.ExecutedSwipe)
+    ExecutedSwipe = ToSwipePointsDto(outcome.ExecutedSwipe),
+    HoldMs = outcome.HoldMs
   };
 
   private static ResolvedPointDto? ToResolvedPointDto(PrimitiveTapResolvedPoint? point) =>

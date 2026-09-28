@@ -65,6 +65,8 @@ export type SwipeConfigDto = {
 
 export type PrimitiveTapConfigDto = {
   detectionTarget: DetectionTargetDto;
+  /** Hold duration in ms, 0 to 5000. More than 0 gives a press and hold at the detected point. Absent or 0 gives a single tap. */
+  holdMs?: number;
 };
 
 export type WaitForImageConfigDto = {
