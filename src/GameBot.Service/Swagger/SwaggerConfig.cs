@@ -324,9 +324,13 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     "A command step whose payload commandId names no existing command is rejected with 400 "
     + "(\"Command reference '<id>' does not exist (used by: <stepIds>).\"), at any depth, with or without dryRun.";
 
+  // Issue #242: dryRun applies to each body shape, and a malformed step gets a 400 that names it.
   private const string SequenceCreateDescription =
-    "Set dryRun: true (per-step body shape) to validate without persisting: a valid body returns "
+    "Set dryRun: true (any body shape) to validate without persisting: the service never stores a sequence, a valid body returns "
     + "200 { valid: true, dryRun: true, errors: [] }, and an invalid one returns the same error a real create would. "
+    + "When one or more steps is an object, the service reads each step as a step object. A step that breaks the step "
+    + "shape rules (for example, an Action step without primitiveAction) is rejected with 400, and the error starts with "
+    + "\"steps[<index>] (stepId '<id>')\". The service never stores a sequence with fewer steps or parameters than the request declares. "
     + SequenceCommandReferenceRule;
 
   private const string SequenceUpdateDescription =
