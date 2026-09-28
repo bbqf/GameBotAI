@@ -516,6 +516,7 @@ namespace GameBot.Domain.Services {
         var guard = await EvaluateStepGuardAsync(
             step.Condition,
             stepKey,
+            scope,
             conditionEvaluator,
             stepOutcomes,
             result,
@@ -932,6 +933,7 @@ namespace GameBot.Domain.Services {
     private static async Task<StepGuardDecision> EvaluateStepGuardAsync(
         SequenceStepCondition condition,
         string? stepKey,
+        ParameterScope scope,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         Dictionary<string, string> stepOutcomes,
         SequenceExecutionResult result,
@@ -941,12 +943,16 @@ namespace GameBot.Domain.Services {
       ConditionEvaluation conditionOutcome;
 
       try {
+        // Feature 114: the guard uses the scope of the step, so a placeholder in an imageVisible
+        // leaf gets the value of this step.
+        var resolved = ResolveCondition(condition, scope, "condition", stepKey);
         conditionOutcome = await SequenceStepConditionEvaluator
-            .EvaluateAsync(condition, conditionEvaluator, stepOutcomes, SequenceRunContext.Current?.LastRunEvaluator, ct)
+            .EvaluateAsync(resolved, conditionEvaluator, stepOutcomes, SequenceRunContext.Current?.LastRunEvaluator, ct)
             .ConfigureAwait(false);
       }
       catch (ConditionEvaluationException ex) {
         var failureMessage = ex.Kind switch {
+          ConditionEvaluationFailureKind.ParameterUnresolved => ex.Message,
           ConditionEvaluationFailureKind.ImageEvaluatorUnavailable =>
             "Per-step imageVisible condition evaluator is unavailable",
           ConditionEvaluationFailureKind.CommandOutcomeUnavailable =>
@@ -1011,6 +1017,7 @@ namespace GameBot.Domain.Services {
         var guard = await EvaluateStepGuardAsync(
             step.Condition,
             loopKey,
+            scope,
             conditionEvaluator,
             stepOutcomes,
             result,
@@ -1187,8 +1194,11 @@ namespace GameBot.Domain.Services {
 
         bool condResult;
         try {
+          // Feature 114: the condition runs before the iteration, so {{iteration}} is the number of
+          // the iteration that is about to run.
           condResult = await EvaluateLoopConditionAsync(
-              cfg.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+              cfg.Condition, scope.WithIteration(iterations + 1), "loop.condition", stepKey,
+              conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
         }
         catch (Exception ex) {
           result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' condition evaluation failed: {ex.Message}");
@@ -1317,8 +1327,10 @@ namespace GameBot.Domain.Services {
         // Evaluate exit condition after body executes
         bool exitCond;
         try {
+          // Feature 114: {{iteration}} is the number of the iteration that just ran.
           exitCond = await EvaluateLoopConditionAsync(
-              cfg.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+              cfg.Condition, iterCtx, "loop.condition", stepKey,
+              conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
         }
         catch (Exception ex) {
           result.AddLoopStep(stepKey, "Failed", iterResults, $"Loop '{stepKey}' exit condition evaluation failed: {ex.Message}");
@@ -1372,8 +1384,12 @@ namespace GameBot.Domain.Services {
 
       bool condResult;
       try {
-        condResult = await EvaluateLoopConditionAsync(
-            step.If.Condition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+        // Feature 114: resolve against the scope of the step, and describe the resolved condition,
+        // so that the log shows the image id that the run used.
+        var resolvedIf = ResolveCondition(step.If.Condition, iterScope, "if.condition", stepKey);
+        condDesc = DescribeBreakCondition(resolvedIf);
+        condResult = await EvaluateResolvedConditionAsync(
+            resolvedIf, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
       }
       catch (Exception ex) {
         result.AddStep(stepKey, 0, "Failed",
@@ -1466,8 +1482,12 @@ namespace GameBot.Domain.Services {
           bool breakCond;
           var evalError = false;
           try {
-            breakCond = await EvaluateLoopConditionAsync(
-                step.BreakCondition, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
+            // Feature 114: an unresolved name is an evaluation error, so it gives "No break" as
+            // feature 066 FR-002a requires.
+            var resolvedBreak = ResolveCondition(step.BreakCondition, iterScope, "breakCondition", brkKey);
+            condDesc = DescribeBreakCondition(resolvedBreak);
+            breakCond = await EvaluateResolvedConditionAsync(
+                resolvedBreak, conditionEvaluator, stepOutcomes, ct).ConfigureAwait(false);
           }
           catch (Exception ex) {
             // FR-002a: a break-condition evaluation error is treated exactly like a false
@@ -1562,10 +1582,47 @@ namespace GameBot.Domain.Services {
     }
 
     /// <summary>
-    /// Evaluates a <see cref="SequenceStepCondition"/> within a loop context.
+    /// Evaluates a <see cref="SequenceStepCondition"/> within a loop context. First resolves the
+    /// placeholders of the condition against <paramref name="scope"/> (feature 114).
+    /// Throws when a placeholder has no value, or when the evaluator is unavailable or throws.
+    /// </summary>
+    private static Task<bool> EvaluateLoopConditionAsync(
+        SequenceStepCondition condition,
+        ParameterScope scope,
+        string fieldPathPrefix,
+        string stepKey,
+        Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+        Dictionary<string, string> stepOutcomes,
+        CancellationToken ct) {
+      var resolved = ResolveCondition(condition, scope, fieldPathPrefix, stepKey);
+      return EvaluateResolvedConditionAsync(resolved, conditionEvaluator, stepOutcomes, ct);
+    }
+
+    /// <summary>
+    /// Resolves each <c>imageVisible.imageId</c> placeholder of <paramref name="condition"/> against
+    /// <paramref name="scope"/> (feature 114). Throws <see cref="ConditionEvaluationException"/> with
+    /// <see cref="ConditionEvaluationFailureKind.ParameterUnresolved"/> when a name has no value.
+    /// </summary>
+    private static SequenceStepCondition ResolveCondition(
+        SequenceStepCondition condition,
+        ParameterScope scope,
+        string fieldPathPrefix,
+        string? stepKey) {
+      if (SequenceStepConditionResolver.TryResolve(condition, scope, fieldPathPrefix, out var resolved, out var error, out _)) {
+        return resolved;
+      }
+
+      throw new ConditionEvaluationException(
+          ConditionEvaluationFailureKind.ParameterUnresolved,
+          error!.ParameterName,
+          error.ToMessage(stepKey ?? string.Empty));
+    }
+
+    /// <summary>
+    /// Evaluates a condition that has no placeholders left.
     /// Throws when the evaluator is unavailable or throws.
     /// </summary>
-    private static async Task<bool> EvaluateLoopConditionAsync(
+    private static async Task<bool> EvaluateResolvedConditionAsync(
         SequenceStepCondition condition,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         Dictionary<string, string> stepOutcomes,

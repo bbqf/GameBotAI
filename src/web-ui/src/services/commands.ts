@@ -37,8 +37,10 @@ export type CommandStepDto = {
   swipe?: SwipeConfigDto;
   ensureEmulatorRunning?: EnsureEmulatorRunningConfigDto;
   /**
-   * Placeholders for this step's numeric fields, keyed by dotted path (feature 078), e.g.
-   * `{ 'swipe.startX': '{{originX}}' }`. String fields carry their placeholder inline instead.
+   * Placeholders for fields of this step, keyed by dotted path (features 078 and 114), e.g.
+   * `{ 'swipe.startX': '{{originX}}' }`. The keys are the numeric fields and the two image keys
+   * `primitiveTap.detectionTarget.referenceImageId` and `waitForImage.detectionTarget.referenceImageId`.
+   * The value of an image key must be one whole placeholder. Other text fields keep their placeholder inline.
    */
   fieldTemplates?: Record<string, string>;
   /** Values bound for the invoked command's parameters; only meaningful on a Command step. */

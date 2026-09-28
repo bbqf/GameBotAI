@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Images;
 using GameBot.Domain.Parameters;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Domain.Services;
@@ -28,7 +30,13 @@ internal static class QueueTemplatesEndpoints {
       return Results.Ok(await BuildDetailAsync(template, sequences).ConfigureAwait(false));
     }).WithName("GetQueueTemplate");
 
-    group.MapPost("", async (SaveQueueTemplateRequest? req, IQueueTemplateRepository repo, ISequenceRepository sequences) => {
+    group.MapPost("", async (
+        SaveQueueTemplateRequest? req,
+        IQueueTemplateRepository repo,
+        ISequenceRepository sequences,
+        ICommandRepository commands,
+        IImageRepository images,
+        CancellationToken ct) => {
       var name = req?.Name?.Trim();
       var nameError = ValidateName(name);
       if (nameError is not null) return Error(400, "invalid_request", nameError);
@@ -115,6 +123,12 @@ internal static class QueueTemplatesEndpoints {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(nameErrors));
       }
 
+      // Feature 114 (FR-010): a known value that goes to an image field must name an image.
+      var imageErrors = await FindUnknownImageReferencesAsync(target, sequences, commands, images, ct).ConfigureAwait(false);
+      if (imageErrors.Count > 0) {
+        return Results.BadRequest(ParameterDtoMapper.ToErrorBody(imageErrors));
+      }
+
       if (existing is null) {
         var created = await repo.CreateAsync(target).ConfigureAwait(false);
         var detail = await BuildDetailAsync(created, sequences).ConfigureAwait(false);
@@ -132,6 +146,46 @@ internal static class QueueTemplatesEndpoints {
     }).WithName("DeleteQueueTemplate");
 
     return app;
+  }
+
+  /// <summary>
+  /// Finds each known value of the template that goes to an image field and names no image
+  /// (feature 114, FR-010). The check looks at each entry, also a disabled entry, because an operator
+  /// can enable it later. An entry whose sequence does not exist is not checked. Each distinct image
+  /// id is checked one time.
+  /// </summary>
+  private static async Task<List<ParameterValidationIssue>> FindUnknownImageReferencesAsync(
+      QueueTemplate template,
+      ISequenceRepository sequences,
+      ICommandRepository commands,
+      IImageRepository images,
+      CancellationToken ct) {
+    var issues = new List<ParameterValidationIssue>();
+    var exists = new Dictionary<string, bool>(StringComparer.Ordinal);
+
+    for (var index = 0; index < template.Entries.Count; index++) {
+      var entry = template.Entries[index];
+      var sequence = await sequences.GetAsync(entry.SequenceId).ConfigureAwait(false);
+      if (sequence is null) continue;
+
+      var reachable = await QueuesEndpoints.CollectReachableCommandsAsync(sequence, commands).ConfigureAwait(false);
+      foreach (var candidate in ParameterValidationService.FindImageValueCandidates(entry, index, sequence, reachable)) {
+        if (!exists.TryGetValue(candidate.ImageId, out var found)) {
+          found = await images.ExistsAsync(candidate.ImageId, ct).ConfigureAwait(false);
+          exists[candidate.ImageId] = found;
+        }
+
+        if (found) continue;
+        issues.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.UnknownImageReference,
+            $"Entry {candidate.EntryIndex}: parameter '{candidate.ParameterName}' gives the image id '{candidate.ImageId}' to field '{candidate.FieldPath}', but no image has that id.",
+            candidate.FieldPath,
+            candidate.ParameterName,
+            candidate.EntryIndex));
+      }
+    }
+
+    return issues;
   }
 
   private static readonly System.Text.RegularExpressions.Regex NamePattern =

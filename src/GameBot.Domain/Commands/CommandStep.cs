@@ -84,15 +84,17 @@ public sealed class CommandStep {
   public int Order { get; init; }
 
   /// <summary>
-  /// Parameter placeholders for this step's <b>numeric</b> configuration fields (feature 078), keyed
+  /// Parameter placeholders for configuration fields of this step (features 078 and 114), keyed
   /// by dotted field path — for example <c>{"swipe.startX": "{{originX}}"}</c>.
   /// <para>
-  /// String-typed fields (adb serial, instance name, key, image reference id) carry their placeholder
-  /// inline and never appear here; this overlay exists only because a placeholder cannot be stored in
-  /// an <c>int</c>. See <see cref="CommandStepFieldPaths"/> for the supported keys — an unsupported
-  /// key is rejected at save time so a typo cannot silently do nothing.
+  /// The numeric keys exist because a placeholder cannot be stored in an <c>int</c>. The two image
+  /// keys (<c>primitiveTap.detectionTarget.referenceImageId</c> and
+  /// <c>waitForImage.detectionTarget.referenceImageId</c>) let a parameter replace the inline image
+  /// id at dispatch. The value of an image key must be one whole placeholder. Other text fields
+  /// keep their placeholder inline. See <see cref="CommandStepFieldPaths"/> for the supported keys.
+  /// The save rejects an unsupported key, so a typo cannot silently do nothing.
   /// </para>
-  /// <para><c>null</c> or empty means no numeric field is parametrized, which is the pre-feature state.</para>
+  /// <para><c>null</c> or empty means no field is parametrized through this overlay.</para>
   /// </summary>
   [System.Text.Json.Serialization.JsonIgnore(
       Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -110,7 +112,7 @@ public sealed class CommandStep {
 
 /// <summary>
 /// The complete set of dotted field paths accepted by <see cref="CommandStep.FieldTemplates"/>
-/// (feature 078), paired with whether the target is a whole number or a fraction.
+/// (features 078 and 114): the numeric paths, with the numeric kind of each target, and the image paths.
 /// </summary>
 public static class CommandStepFieldPaths {
   /// <summary>Supported path → true when the target field is an integer, false when it is a double.</summary>
@@ -132,8 +134,23 @@ public static class CommandStepFieldPaths {
         ["ensureGameRunning.readinessImage.offsetY"] = true
       };
 
-  /// <summary>True when <paramref name="path"/> is a supported overlay key.</summary>
+  /// <summary>
+  /// The image paths (feature 114). The value of an image path must be one whole placeholder. At
+  /// dispatch, the resolved value replaces the inline image id.
+  /// </summary>
+  public static IReadOnlySet<string> SupportedImagePaths { get; } =
+      new HashSet<string>(System.StringComparer.Ordinal) {
+        "primitiveTap.detectionTarget.referenceImageId",
+        "waitForImage.detectionTarget.referenceImageId"
+      };
+
+  /// <summary>True when <paramref name="path"/> is a supported numeric key or image key.</summary>
   /// <param name="path">Dotted field path to check.</param>
   public static bool IsSupported(string? path) =>
-      path is not null && SupportedNumericPaths.ContainsKey(path);
+      path is not null && (SupportedNumericPaths.ContainsKey(path) || SupportedImagePaths.Contains(path));
+
+  /// <summary>True when <paramref name="path"/> is a supported image key.</summary>
+  /// <param name="path">Dotted field path to check.</param>
+  public static bool IsImagePath(string? path) =>
+      path is not null && SupportedImagePaths.Contains(path);
 }

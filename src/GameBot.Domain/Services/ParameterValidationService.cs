@@ -15,8 +15,20 @@ public static class ParameterValidationCodes {
   /// <summary>A numeric declaration's default does not parse as a whole number.</summary>
   public const string InvalidDefault = "invalid_parameter_default";
 
-  /// <summary>A field-template key is not one of the supported numeric field paths.</summary>
+  /// <summary>A field-template key is not one of the supported field paths.</summary>
   public const string UnknownFieldTemplatePath = "unknown_field_template_path";
+
+  /// <summary>
+  /// The value of a field-template image key is not one whole placeholder, for example <c>{{name}}</c>
+  /// (feature 114).
+  /// </summary>
+  public const string InvalidFieldTemplateValue = "invalid_field_template_value";
+
+  /// <summary>
+  /// A known template entry value (or default) goes to an image field, but no image has that id
+  /// (feature 114).
+  /// </summary>
+  public const string UnknownImageReference = "unknown_image_reference";
 
   /// <summary>A reference names something neither declared here nor a queue built-in.</summary>
   public const string UnresolvableReference = "unresolvable_parameter_reference";
@@ -55,6 +67,20 @@ public sealed record ParameterValidationIssue(
     string? FieldPath = null,
     string? ParameterName = null,
     int? EntryIndex = null);
+
+/// <summary>
+/// An image id that a queue template entry gives to an image field, when the save can know the value
+/// (feature 114). The save checks that an image has this id.
+/// </summary>
+/// <param name="EntryIndex">Index of the template entry.</param>
+/// <param name="ParameterName">The parameter whose known value goes to the image field.</param>
+/// <param name="ImageId">The image id after the substitution.</param>
+/// <param name="FieldPath">The image field, for example <c>primitiveTap.detectionTarget.referenceImageId</c>.</param>
+public sealed record ImageValueCandidate(
+    int EntryIndex,
+    string ParameterName,
+    string ImageId,
+    string FieldPath);
 
 /// <summary>Errors block the operation; warnings are reported but never block.</summary>
 /// <param name="Errors">Blocking problems.</param>
@@ -252,6 +278,225 @@ public static class ParameterValidationService {
         .ToList();
   }
 
+  /// <summary>
+  /// Finds the image ids that a queue template entry gives to image fields, when the save can know
+  /// the value (feature 114, FR-010). The caller checks that an image has each id.
+  /// <para>
+  /// The method looks at each field that the scanner marks <see cref="ParameterReference.DefeatsStaticCheck"/>
+  /// in the sequence and in each command that the sequence can reach. It follows each call path:
+  /// sequence step, then command, then each nested command step. For each path and each name:
+  /// </para>
+  /// <list type="number">
+  /// <item>A non-null <c>parameterBindings</c> entry for the name at a call site on the path covers
+  /// the name. The path gives no candidate for it. A literal binding is not checked, and a binding to
+  /// <c>{{otherName}}</c> is not followed (a known limit; the run-time check applies).</item>
+  /// <item>Else, the entry value, if the entry supplies the name.</item>
+  /// <item>Else, the default of the innermost declaration layer outward along the path.</item>
+  /// </list>
+  /// <para>A field with a name that has no known value (for example a queue built-in) gives no candidate.</para>
+  /// </summary>
+  /// <param name="entry">The template entry.</param>
+  /// <param name="entryIndex">Index of the entry, for the message.</param>
+  /// <param name="sequence">The sequence of the entry.</param>
+  /// <param name="reachableCommands">Each command that the sequence can reach.</param>
+  /// <returns>The distinct candidates of the entry.</returns>
+  public static IReadOnlyList<ImageValueCandidate> FindImageValueCandidates(
+      QueueTemplateEntry entry,
+      int entryIndex,
+      CommandSequence sequence,
+      IReadOnlyCollection<Command> reachableCommands) {
+    ArgumentNullException.ThrowIfNull(entry);
+    ArgumentNullException.ThrowIfNull(sequence);
+    ArgumentNullException.ThrowIfNull(reachableCommands);
+
+    var entryValues = new Dictionary<string, string>(StringComparer.Ordinal);
+    foreach (var binding in entry.ParameterValues) {
+      if (binding?.Name is null || binding.Value is null) continue;
+      entryValues.TryAdd(binding.Name, binding.Value);
+    }
+
+    var commandsById = new Dictionary<string, Command>(StringComparer.OrdinalIgnoreCase);
+    foreach (var command in reachableCommands) {
+      if (command?.Id is not null) commandsById.TryAdd(command.Id, command);
+    }
+
+    var walk = new ImageValueWalk(entryIndex, entryValues, commandsById);
+    var sequenceLayer = new[] { (IEnumerable<ParameterDeclaration>)sequence.Parameters };
+
+    // A field in the sequence has the path "sequence" only.
+    walk.AddCandidates(ParameterReferenceScanner.Scan(sequence), BindingSet.Empty, sequenceLayer);
+
+    foreach (var step in FlattenSteps(sequence.Steps)) {
+      if (string.IsNullOrWhiteSpace(step.CommandId)) continue;
+      walk.WalkCommand(step.CommandId, BindingSet.Empty.With(step.ParameterBindings), sequenceLayer,
+          ImmutableAncestors.Empty);
+    }
+
+    return walk.Candidates;
+  }
+
+  /// <summary>The names that a non-null binding covers on one call path.</summary>
+  private sealed class BindingSet {
+    private readonly HashSet<string> _names;
+
+    private BindingSet(HashSet<string> names) => _names = names;
+
+    public static BindingSet Empty { get; } = new(new HashSet<string>(StringComparer.Ordinal));
+
+    public bool Covers(string name) => _names.Contains(name);
+
+    public BindingSet With(IEnumerable<ParameterBinding>? bindings) {
+      if (bindings is null) return this;
+      var names = new HashSet<string>(_names, StringComparer.Ordinal);
+      foreach (var binding in bindings) {
+        if (binding?.Name is not null && binding.Value is not null) names.Add(binding.Name);
+      }
+
+      return names.Count == _names.Count ? this : new BindingSet(names);
+    }
+  }
+
+  /// <summary>The command ids above the current command on one call path, to stop at a cycle.</summary>
+  private sealed class ImmutableAncestors {
+    private readonly HashSet<string> _ids;
+
+    private ImmutableAncestors(HashSet<string> ids) => _ids = ids;
+
+    public static ImmutableAncestors Empty { get; } = new(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+    public bool Contains(string id) => _ids.Contains(id);
+
+    public ImmutableAncestors With(string id) =>
+        new(new HashSet<string>(_ids, StringComparer.OrdinalIgnoreCase) { id });
+  }
+
+  /// <summary>The state of one <see cref="FindImageValueCandidates"/> call.</summary>
+  private sealed class ImageValueWalk(
+      int entryIndex,
+      IReadOnlyDictionary<string, string> entryValues,
+      IReadOnlyDictionary<string, Command> commandsById) {
+    private readonly List<ImageValueCandidate> _candidates = new();
+    private readonly HashSet<ImageValueCandidate> _seen = new();
+
+    public IReadOnlyList<ImageValueCandidate> Candidates => _candidates;
+
+    public void WalkCommand(
+        string commandId,
+        BindingSet covered,
+        IReadOnlyList<IEnumerable<ParameterDeclaration>> outerLayers,
+        ImmutableAncestors ancestors) {
+      if (ancestors.Contains(commandId)) return; // a cycle; the save of the command rejects it
+      if (!commandsById.TryGetValue(commandId, out var command)) return;
+
+      // Innermost declaration layer first, as ParameterScope looks at defaults.
+      var layers = new List<IEnumerable<ParameterDeclaration>>(outerLayers.Count + 1) { command.Parameters };
+      layers.AddRange(outerLayers);
+
+      AddCandidates(CommandImageReferences(command), covered, layers);
+
+      var inner = ancestors.With(commandId);
+      foreach (var step in command.Steps) {
+        if (step.Type != CommandStepType.Command || string.IsNullOrWhiteSpace(step.TargetId)) continue;
+        WalkCommand(step.TargetId, covered.With(step.ParameterBindings), layers, inner);
+      }
+    }
+
+    public void AddCandidates(
+        IEnumerable<ParameterReference> references,
+        BindingSet covered,
+        IReadOnlyList<IEnumerable<ParameterDeclaration>> layers) {
+      // One field can hold more than one name, so the scanner gives one reference for each name.
+      // Look at each field one time.
+      var fields = references
+          .Where(r => r.DefeatsStaticCheck && r.SourceText is not null)
+          .Select(r => (r.FieldPath, r.StepLabel, SourceText: r.SourceText!))
+          .Distinct();
+
+      foreach (var (fieldPath, _, sourceText) in fields) {
+        var keys = TemplateSubstitutor.ExtractKeys(sourceText);
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        var known = true;
+        foreach (var key in keys) {
+          if (!TryKnownValue(key, covered, layers, out var value)) {
+            known = false;
+            break;
+          }
+
+          values[key] = value;
+        }
+
+        if (!known || keys.Count == 0) continue;
+        var imageId = TemplateSubstitutor.Substitute(sourceText, values);
+        if (string.IsNullOrWhiteSpace(imageId)) continue;
+
+        var candidate = new ImageValueCandidate(entryIndex, keys[0], imageId.Trim(), fieldPath);
+        if (_seen.Add(candidate)) _candidates.Add(candidate);
+      }
+    }
+
+    private bool TryKnownValue(
+        string name,
+        BindingSet covered,
+        IReadOnlyList<IEnumerable<ParameterDeclaration>> layers,
+        out string value) {
+      value = string.Empty;
+      if (covered.Covers(name)) return false;
+      if (ParameterNameRules.IsBuiltIn(name)
+          || string.Equals(name, ParameterNameRules.IterationName, StringComparison.Ordinal)) {
+        return false;
+      }
+
+      if (entryValues.TryGetValue(name, out var entryValue)) {
+        value = entryValue;
+        return true;
+      }
+
+      foreach (var layer in layers) {
+        var declaration = layer.FirstOrDefault(d => d is not null
+            && string.Equals(d.Name, name, StringComparison.Ordinal)
+            && d.Default is not null);
+        if (declaration is null) continue;
+        value = declaration.Default!;
+        return true;
+      }
+
+      return false;
+    }
+
+    /// <summary>
+    /// The references of a command, less an inline image id that an overlay image key replaces at
+    /// dispatch. The run does not use that inline id, so the save does not check it.
+    /// </summary>
+    private static IEnumerable<ParameterReference> CommandImageReferences(Command command) {
+      var references = ParameterReferenceScanner.Scan(command);
+      var replaced = new HashSet<(string StepLabel, string FieldPath, string SourceText)>();
+      foreach (var step in command.Steps) {
+        if (step.FieldTemplates is null) continue;
+        var label = step.Order.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        AddReplaced(replaced, label, step, "primitiveTap.detectionTarget.referenceImageId",
+            step.PrimitiveTap?.DetectionTarget?.ReferenceImageId);
+        AddReplaced(replaced, label, step, "waitForImage.detectionTarget.referenceImageId",
+            step.WaitForImage?.DetectionTarget?.ReferenceImageId);
+      }
+
+      return replaced.Count == 0
+          ? references
+          : references.Where(r => r.SourceText is null || !replaced.Contains((r.StepLabel, r.FieldPath, r.SourceText)));
+    }
+
+    private static void AddReplaced(
+        HashSet<(string StepLabel, string FieldPath, string SourceText)> replaced,
+        string label,
+        CommandStep step,
+        string imagePath,
+        string? inlineText) {
+      if (inlineText is null || step.FieldTemplates is null) return;
+      if (!step.FieldTemplates.TryGetValue(imagePath, out var overlay)) return;
+      if (string.Equals(overlay, inlineText, StringComparison.Ordinal)) return;
+      replaced.Add((label, imagePath, inlineText));
+    }
+  }
+
   private static IEnumerable<ParameterDeclaration> AllDeclarations(
       CommandSequence? sequence,
       IReadOnlyList<ParameterDeclaration> reachableDeclarations) {
@@ -275,13 +520,30 @@ public static class ParameterValidationService {
 
   private static void ValidateFieldTemplateKeys(CommandStep step, List<ParameterValidationIssue> errors) {
     if (step.FieldTemplates is null) return;
-    foreach (var path in step.FieldTemplates.Keys) {
-      if (CommandStepFieldPaths.IsSupported(path)) continue;
-      errors.Add(new ParameterValidationIssue(
-          ParameterValidationCodes.UnknownFieldTemplatePath,
-          $"Step {step.Order}: '{path}' is not a parametrizable numeric field.",
-          path));
+    foreach (var (path, value) in step.FieldTemplates) {
+      if (!CommandStepFieldPaths.IsSupported(path)) {
+        errors.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.UnknownFieldTemplatePath,
+            $"Step {step.Order}: '{path}' is not a parametrizable field.",
+            path));
+        continue;
+      }
+
+      // Feature 114: the value of an image key must be one whole placeholder. The numeric keys get
+      // no check here, so that their behavior does not change (FR-013).
+      if (CommandStepFieldPaths.IsImagePath(path) && !IsWholePlaceholder(value)) {
+        errors.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.InvalidFieldTemplateValue,
+            $"Step {step.Order}: the value of '{path}' must be one whole placeholder, for example {{{{name}}}}.",
+            path));
+      }
     }
+  }
+
+  /// <summary>True when <paramref name="value"/> is exactly one placeholder, for example <c>{{name}}</c>.</summary>
+  private static bool IsWholePlaceholder(string? value) {
+    var keys = TemplateSubstitutor.ExtractKeys(value);
+    return keys.Count == 1 && string.Equals(value!.Trim(), $"{{{{{keys[0]}}}}}", StringComparison.Ordinal);
   }
 
   private static void AddReferenceIssues(

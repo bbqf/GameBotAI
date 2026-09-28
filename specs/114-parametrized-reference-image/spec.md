@@ -2,7 +2,7 @@
 
 **Feature Branch**: `ccr-843497ee-pjzcth` (spec number 114)  
 **Created**: 2026-09-28  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #243 (FR-011): "let a parameter choose the reference image of a detection target (fieldTemplates on referenceImageId)". Closes #243. Full description: see the issue and the feature description that started this spec.
 
 ## Background

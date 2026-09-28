@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-28 (feature 113: `POST /api/sequences` rejects a malformed step with a 400
-that names the step, and a create dry run never stores a sequence, #242)._
+_Last reviewed: 2026-09-28 (feature 114: a parameter can choose the reference image of a tap, a
+wait and an `imageVisible` condition, and a queue template save checks the known image ids, #243)._
 
 ## What GameBot is
 
@@ -64,6 +64,20 @@ not survive a service restart; queue *configuration* and templates are persisted
     dotted-path overlay (e.g. `swipe.startX`), because a placeholder cannot live in an `int`, and must
     be a whole-field reference so the result parses. Command and sequence **references** are
     deliberately NOT substitutable, which keeps the dangling-reference validation exact.
+  - **Parametrized reference image** (feature 114): `FieldTemplates` also accepts two image keys,
+    `primitiveTap.detectionTarget.referenceImageId` and `waitForImage.detectionTarget.referenceImageId`.
+    The value must be one whole placeholder (else `400 invalid_field_template_value`). At dispatch the
+    resolved value replaces the inline image id, and the inline value is not resolved. An
+    `imageVisible.imageId` can hold an inline placeholder in each condition position (`condition`,
+    `if.condition`, `loop.condition`, `breakCondition`, and each composite child).
+    `SequenceStepConditionResolver` resolves it against the scope of the call site before each
+    evaluation: the step scope for a step guard and an `If` condition, the next iteration for a
+    while condition, the iteration that just ran for a repeat-until condition, and the current
+    iteration for a break condition. An unresolved name fails the step (a break condition gives
+    "No break"). A parametrized image field skips the save-time existence check and gives the
+    warning `static_check_skipped`. A queue template save checks each known value (entry value or
+    default) that goes to an image field, and gives `400 unknown_image_reference` when no image has
+    that id. A non-null step binding of the name covers it, so the save does not check it.
   - **Validation** splits three ways (`ParameterValidationService`): declaration well-formedness and
     statically-unresolvable references block a save (400); unsatisfied required parameters and unused
     ad-hoc values are reported as warnings on a template save; starting a queue is refused with
@@ -867,6 +881,19 @@ Feature 078 added, all additively (absent members mean pre-feature behaviour):
   entries and parameter names, before any session or device work.
 - Execution-log step details gain a `parameters` item recording each resolved value and the scope
   layer it came from; a parameter whose *name* looks like a secret has its value masked.
+
+Feature 114 added, all additively:
+
+- Two image keys in a command step `fieldTemplates`: `primitiveTap.detectionTarget.referenceImageId`
+  and `waitForImage.detectionTarget.referenceImageId`. The value must be one whole placeholder, else
+  `400 invalid_field_template_value`. The message of `unknown_field_template_path` is now "is not a
+  parametrizable field."
+- A placeholder in `imageVisible.imageId` in each condition position of a sequence.
+- `POST`, `PUT` and `PATCH /api/sequences` with a per-step body add a `warnings` member (for example
+  `static_check_skipped`) when the parameter check gives warnings. The member is not present
+  otherwise, and a dry run does not change.
+- `POST /api/queue-templates` answers `400 unknown_image_reference` when a known value goes to an
+  image field and no image has that id. The service saves nothing.
 
 Feature 080 fixed three platform bugs, additively/tightening only (no route removed or renamed):
 
