@@ -2,7 +2,7 @@
 
 **Feature Branch**: `claude/resolve-github-issue-fr-009-3y4vaw` (spec number 111)  
 **Created**: 2026-09-28  
-**Status**: Draft (active)  
+**Status**: Implemented  
 **Input**: GitHub issue #235 (FR-009): "press and hold at a detected point (anchored long press)". Full description: see the issue and the feature description that started this spec.
 
 ## Background

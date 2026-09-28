@@ -106,6 +106,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<ImageDetectCoordinatesSchemaFilter>();
       options.SchemaFilter<PrimitiveActionSchemaFilter>();
       options.SchemaFilter<ConditionReferenceScopeSchemaFilter>();
+      options.SchemaFilter<PrimitiveTapHoldSchemaFilter>();
       options.SchemaFilter<LastRunConditionSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {

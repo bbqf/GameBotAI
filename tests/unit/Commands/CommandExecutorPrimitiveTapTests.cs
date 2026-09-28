@@ -24,7 +24,7 @@ public sealed class CommandExecutorPrimitiveTapTests {
     return bmp;
   }
 
-  private static Command CreatePrimitiveTapCommand(string commandId = "cmd-primitive", string imageId = "img-1") => new() {
+  private static Command CreatePrimitiveTapCommand(string commandId = "cmd-primitive", string imageId = "img-1", int? holdMs = null) => new() {
     Id = commandId,
     Name = "Primitive",
     TriggerId = null,
@@ -34,7 +34,8 @@ public sealed class CommandExecutorPrimitiveTapTests {
         TargetId = string.Empty,
         Order = 0,
         PrimitiveTap = new PrimitiveTapConfig {
-          DetectionTarget = new DetectionTarget(imageId, 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence)
+          DetectionTarget = new DetectionTarget(imageId, 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence),
+          HoldMs = holdMs
         }
       }
     }
@@ -415,7 +416,90 @@ public sealed class CommandExecutorPrimitiveTapTests {
     outcome.ExecutedPoint.Should().Be(outcome.ResolvedPoint);
   }
 
+  // Feature 111 (issue #235): a step with a hold duration presses and holds at the detected point.
+  [Fact]
+  public async Task PrimitiveTapWithHoldDurationSendsAPressAndHoldAtTheDetectedPoint() {
+    var command = CreatePrimitiveTapCommand(holdMs: 700);
+    var (executor, sessions) = CreateExecutorWithRecordingSessions(command, matchFound: true);
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+
+    result.StepOutcomes.Should().HaveCount(1);
+    var outcome = result.StepOutcomes[0];
+    outcome.Status.Should().Be("executed");
+    outcome.HoldMs.Should().Be(700);
+    var input = sessions.Inputs.Should().ContainSingle().Subject;
+    input.Type.Should().Be("swipe");
+    input.DurationMs.Should().Be(700);
+    input.Args["x1"].Should().Be(input.Args["x2"]);
+    input.Args["y1"].Should().Be(input.Args["y2"]);
+    input.Args["x1"].Should().Be(outcome.ResolvedPoint!.X);
+    input.Args["y1"].Should().Be(outcome.ResolvedPoint.Y);
+  }
+
+  [Fact]
+  public async Task PrimitiveTapWithoutHoldDurationSendsTheTapOfToday() {
+    var command = CreatePrimitiveTapCommand();
+    var (executor, sessions) = CreateExecutorWithRecordingSessions(command, matchFound: true);
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+
+    result.StepOutcomes[0].Status.Should().Be("executed");
+    result.StepOutcomes[0].HoldMs.Should().BeNull();
+    var input = sessions.Inputs.Should().ContainSingle().Subject;
+    input.Type.Should().Be("swipe");
+    input.DurationMs.Should().Be(200);
+  }
+
+  [Fact]
+  public async Task PrimitiveTapWithHoldDurationSendsNoInputWhenTheImageIsNotFound() {
+    var command = CreatePrimitiveTapCommand(holdMs: 700);
+    var (executor, sessions) = CreateExecutorWithRecordingSessions(command, matchFound: false);
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None);
+
+    result.Accepted.Should().Be(0);
+    result.StepOutcomes[0].Status.Should().Be("skipped_detection_failed");
+    result.StepOutcomes[0].HoldMs.Should().BeNull();
+    sessions.Inputs.Should().BeEmpty();
+  }
+
+  private static (CommandExecutor Executor, RecordingSessionManagerStub Sessions) CreateExecutorWithRecordingSessions(Command command, bool matchFound) {
+    var bmp = CreateOneByOneBitmap();
+    var matches = matchFound ? new[] { new TemplateMatch(new BoundingBox(0, 0, 1, 1), 0.95) } : Array.Empty<TemplateMatch>();
+    var sessions = new RecordingSessionManagerStub();
+    var executor = new CommandExecutor(
+      new CommandRepoStub(command),
+      sessions,
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      NullLogger<CommandExecutor>.Instance,
+      new ReferenceImageStoreStub(("img-1", bmp)), new ScreenSourceStub(bmp), new TemplateMatcherStub(matches),
+      new SessionContextCache(),
+      new AppConfig { CaptureIntervalMs = 10, TapRetryCount = 1, TapRetryProgression = 1.0 });
+    return (executor, sessions);
+  }
+
   #region Test stubs
+
+  /// <summary>Records each dispatched input and does not change its args (no jitter).</summary>
+  private sealed class RecordingSessionManagerStub : ISessionManager {
+    private readonly EmulatorSession _session = new() { Id = "sess-1", Status = SessionStatus.Running, GameId = "game-1" };
+    public List<GameBot.Emulator.Session.InputAction> Inputs { get; } = new();
+    public int ActiveCount => 1;
+    public bool CanCreateSession => true;
+    public EmulatorSession CreateSession(string gameIdOrPath, string? preferredDeviceSerial = null) => _session;
+    public EmulatorSession? GetSession(string id) => id == _session.Id ? _session : null;
+    public IReadOnlyCollection<EmulatorSession> ListSessions() => new[] { _session };
+    public bool StopSession(string id) => true;
+    public Task<int> SendInputsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) {
+      var list = actions.ToList();
+      Inputs.AddRange(list);
+      return Task.FromResult(list.Count);
+    }
+    public Task<GameBot.Emulator.Session.SessionInputDispatchResult> SendInputsWithResultsAsync(string id, IEnumerable<GameBot.Emulator.Session.InputAction> actions, CancellationToken ct = default) => Task.FromResult(new GameBot.Emulator.Session.SessionInputDispatchResult(true, Array.Empty<GameBot.Emulator.Session.InputActionResult>()));
+    public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
+  }
 
   private sealed class MutatingSessionManagerStub : ISessionManager {
     private readonly EmulatorSession _session = new() { Id = "sess-1", Status = SessionStatus.Running, GameId = "game-1" };

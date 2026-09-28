@@ -5301,6 +5301,14 @@
         "properties": {
           "detectionTarget": {
             "$ref": "#/components/schemas/DetectionTargetDto"
+          },
+          "holdMs": {
+            "maximum": 5000,
+            "minimum": 0,
+            "type": "integer",
+            "description": "Optional. Hold duration in milliseconds, 0 to 5000. More than 0: press and hold at the detected point (plus offsets) for this duration. Absent or 0: a single tap.",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -6336,6 +6344,12 @@
           },
           "imageLoadStatus": {
             "type": "string",
+            "nullable": true
+          },
+          "holdMs": {
+            "type": "integer",
+            "description": "Hold duration in milliseconds of a PrimitiveTap step that pressed and held. Absent for a single tap and for other steps.",
+            "format": "int32",
             "nullable": true
           }
         },

@@ -6,6 +6,8 @@ export type TapPanelValue = {
   confidence?: string;
   offsetX?: string;
   offsetY?: string;
+  /** Hold duration in ms. Empty gives a single tap. */
+  holdMs?: string;
 };
 
 export type TapPanelProps = {
@@ -22,17 +24,26 @@ const validateConfidence = (confidence: string): string | null => {
   return null;
 };
 
+const validateHoldMs = (holdMs: string): string | null => {
+  if (!holdMs.trim()) return null;
+  const n = Number(holdMs);
+  if (!Number.isInteger(n) || n < 0 || n > 5000) return 'Hold duration must be an integer from 0 to 5000.';
+  return null;
+};
+
 export const TapPanel: React.FC<TapPanelProps> = ({ initialValue, onConfirm, onCancel, disabled }) => {
   const [referenceImageId, setReferenceImageId] = useState(initialValue?.referenceImageId ?? '');
   const [confidence, setConfidence] = useState(initialValue?.confidence ?? '');
   const [offsetX, setOffsetX] = useState(initialValue?.offsetX ?? '0');
   const [offsetY, setOffsetY] = useState(initialValue?.offsetY ?? '0');
+  const [holdMs, setHoldMs] = useState(initialValue?.holdMs ?? '');
   const [stale, setStale] = useState(false);
   const [attempted, setAttempted] = useState(false);
 
   const imageError = !referenceImageId.trim() || stale ? 'Reference image is required.' : null;
   const confidenceError = validateConfidence(confidence);
-  const hasErrors = Boolean(imageError || confidenceError);
+  const holdMsError = validateHoldMs(holdMs);
+  const hasErrors = Boolean(imageError || confidenceError || holdMsError);
 
   const buttonLabel = initialValue !== undefined ? 'Save' : 'Add';
 
@@ -44,6 +55,7 @@ export const TapPanel: React.FC<TapPanelProps> = ({ initialValue, onConfirm, onC
       confidence: confidence.trim() || undefined,
       offsetX: offsetX.trim() || undefined,
       offsetY: offsetY.trim() || undefined,
+      holdMs: holdMs.trim() || undefined,
     });
   };
 
@@ -94,6 +106,24 @@ export const TapPanel: React.FC<TapPanelProps> = ({ initialValue, onConfirm, onC
           onChange={(e) => setOffsetY(e.target.value)}
           disabled={disabled}
         />
+      </div>
+      <div className="field">
+        <label htmlFor="tap-panel-hold-ms">Hold duration (ms)</label>
+        <input
+          id="tap-panel-hold-ms"
+          type="number"
+          step="1"
+          min="0"
+          max="5000"
+          value={holdMs}
+          onChange={(e) => setHoldMs(e.target.value)}
+          disabled={disabled}
+          aria-describedby="tap-panel-hold-ms-hint"
+        />
+        <div id="tap-panel-hold-ms-hint" className="form-hint">
+          Empty or 0: a single tap. 1 to 5000: press and hold at the image for this duration.
+        </div>
+        {attempted && holdMsError && <div className="field-error" role="alert">{holdMsError}</div>}
       </div>
       <div className="action-panel__controls">
         <button type="button" onClick={handleConfirm} disabled={disabled}>

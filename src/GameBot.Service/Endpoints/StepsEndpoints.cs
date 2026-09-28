@@ -70,7 +70,7 @@ internal static class StepsEndpoints {
       if (step.PrimitiveTap is null || step.PrimitiveTap.DetectionTarget is null || string.IsNullOrWhiteSpace(step.PrimitiveTap.DetectionTarget.ReferenceImageId)) {
         return "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
       }
-      return null;
+      return CommandsEndpoints.ValidateHoldMs(step.PrimitiveTap.HoldMs);
     }
 
     if (step.Type == CommandStepTypeDto.WaitForImage) {
@@ -130,7 +130,8 @@ internal static class StepsEndpoints {
             s.PrimitiveTap.DetectionTarget.Confidence ?? 0.8,
             s.PrimitiveTap.DetectionTarget.OffsetX ?? 0,
             s.PrimitiveTap.DetectionTarget.OffsetY ?? 0,
-            DetectionSelectionStrategy.HighestConfidence)
+            DetectionSelectionStrategy.HighestConfidence),
+          HoldMs = s.PrimitiveTap.HoldMs
         }
         : null,
       WaitForImage = type == CommandStepType.WaitForImage && s.WaitForImage is not null
@@ -161,19 +162,28 @@ internal static class StepsEndpoints {
     };
   }
 
-  private static object ToResponseOutcome(GameBot.Service.Services.PrimitiveTapStepOutcome outcome) => new {
-    stepOrder = outcome.StepOrder,
-    status = outcome.Status,
-    stepType = outcome.StepType,
-    reason = outcome.Reason,
-    detectionConfidence = outcome.DetectionConfidence,
-    resolvedPoint = outcome.ResolvedPoint is null ? null : new { x = outcome.ResolvedPoint.X, y = outcome.ResolvedPoint.Y },
-    executedPoint = outcome.ExecutedPoint is null ? null : new { x = outcome.ExecutedPoint.X, y = outcome.ExecutedPoint.Y },
-    targetSwipe = outcome.TargetSwipe is null ? null : new {
+  private static object ToResponseOutcome(GameBot.Service.Services.PrimitiveTapStepOutcome outcome) {
+    var response = ToResponseOutcomeFields(outcome);
+    // Feature 111: only a press and hold has holdMs, so the response of a tap does not change.
+    if (outcome.HoldMs is { } holdMs) {
+      response["holdMs"] = holdMs;
+    }
+    return response;
+  }
+
+  private static Dictionary<string, object?> ToResponseOutcomeFields(GameBot.Service.Services.PrimitiveTapStepOutcome outcome) => new() {
+    ["stepOrder"] = outcome.StepOrder,
+    ["status"] = outcome.Status,
+    ["stepType"] = outcome.StepType,
+    ["reason"] = outcome.Reason,
+    ["detectionConfidence"] = outcome.DetectionConfidence,
+    ["resolvedPoint"] = outcome.ResolvedPoint is null ? null : new { x = outcome.ResolvedPoint.X, y = outcome.ResolvedPoint.Y },
+    ["executedPoint"] = outcome.ExecutedPoint is null ? null : new { x = outcome.ExecutedPoint.X, y = outcome.ExecutedPoint.Y },
+    ["targetSwipe"] = outcome.TargetSwipe is null ? null : new {
       start = new { x = outcome.TargetSwipe.Start.X, y = outcome.TargetSwipe.Start.Y },
       end = new { x = outcome.TargetSwipe.End.X, y = outcome.TargetSwipe.End.Y }
     },
-    executedSwipe = outcome.ExecutedSwipe is null ? null : new {
+    ["executedSwipe"] = outcome.ExecutedSwipe is null ? null : new {
       start = new { x = outcome.ExecutedSwipe.Start.X, y = outcome.ExecutedSwipe.Start.Y },
       end = new { x = outcome.ExecutedSwipe.End.X, y = outcome.ExecutedSwipe.End.Y }
     }

@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-28 (feature 110: a `condition` on a top-level `Loop` step is a guard that
-the runner obeys, #232)._
+_Last reviewed: 2026-09-28 (feature 111: a `PrimitiveTap` command step can press and hold at the
+detected point with `holdMs`, #235)._
 
 ## What GameBot is
 
@@ -88,7 +88,11 @@ not survive a service restart; queue *configuration* and templates are persisted
   **Ensure Emulator Running**.
   (These replaced the old first-class "Action" object — see *Legacy/removed* below.) Taps/swipes
   resolve coordinates from image detection + offset, with wait-and-retry and tap-point jitter
-  applied automatically. **Go to Home Screen** (`go-to-home-screen`, feature 069) is a parameterless
+  applied automatically. A `PrimitiveTap` command step has an optional `holdMs` (0 to 5000, feature
+  111). More than 0 gives a press and hold at the detected point for that duration: one ADB swipe
+  with the same start and end point and a duration of `holdMs`. Absent or 0 gives the single tap (the
+  same swipe with 200 ms). The step outcome and the execution-log `tap` detail show `holdMs` for a
+  press and hold. The service rejects a value outside 0 to 5000 with 400. **Go to Home Screen** (`go-to-home-screen`, feature 069) is a parameterless
   action that presses Android HOME (keycode 3) so the device returns to its home/main screen,
   leaving the game running in the background — the leave-game counterpart to Connect to Game. It is
   usable both as a sequence action (dispatched through the session input pipeline) and a command

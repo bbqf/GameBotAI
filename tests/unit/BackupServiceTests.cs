@@ -290,6 +290,41 @@ public sealed class BackupServiceTests {
     await act.Should().ThrowAsync<BackupFormatException>().WithMessage("*missing-img*").ConfigureAwait(false);
   }
 
+  // Feature 111 (issue #235): a backup and a restore keep the hold duration of a PrimitiveTap step.
+  [Fact]
+  public async Task BackupAndRestoreKeepTheHoldDurationOfAPrimitiveTapStep() {
+    var imgData = new byte[] { 0x89, 0x50, 0x4E, 0x47 };
+    var cmd = MakeCommand("cmd1", "Claim", "img-claim");
+    cmd.Steps.Add(new CommandStep {
+      Type = CommandStepType.PrimitiveTap,
+      Order = 1,
+      PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("img-claim"), HoldMs = 700 }
+    });
+    var svc = new BackupService(new StubCommandRepo(cmd), new StubSequenceRepo(), new StubImageRepo(("img-claim", imgData, "image/png")));
+
+    var output = new MemoryStream();
+    await svc.CreateBackupAsync(new BackupRequestDto { CommandIds = ["cmd1"] }, output, CancellationToken.None).ConfigureAwait(false);
+
+    output.Position = 0;
+    string commandJson;
+    using (var archive = new ZipArchive(output, ZipArchiveMode.Read, leaveOpen: true)) {
+      using var reader = new StreamReader(archive.GetEntry("commands/cmd1.json")!.Open());
+      commandJson = await reader.ReadToEndAsync().ConfigureAwait(false);
+    }
+    commandJson.Should().Contain("\"holdMs\": 700");
+    commandJson.Split("holdMs").Should().HaveCount(2, "a step without a hold duration does not write holdMs");
+
+    output.Position = 0;
+    var restoreRepo = new StubCommandRepo();
+    var restoreSvc = new BackupService(restoreRepo, new StubSequenceRepo(), new StubImageRepo());
+    var result = await restoreSvc.ApplyRestoreAsync(output, CancellationToken.None).ConfigureAwait(false);
+
+    result.RolledBack.Should().BeFalse();
+    var restored = restoreRepo.Added.Should().ContainSingle().Subject;
+    restored.Steps[0].PrimitiveTap!.HoldMs.Should().BeNull();
+    restored.Steps[1].PrimitiveTap!.HoldMs.Should().Be(700);
+  }
+
   // ────────────── ApplyRestoreAsync (no-conflict) ──────────────
 
   [Fact]

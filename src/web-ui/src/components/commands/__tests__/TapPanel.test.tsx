@@ -63,11 +63,16 @@ describe('TapPanel', () => {
       expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
     });
 
-    it('does not render any fields beyond image, confidence, offsetX, offsetY', () => {
+    it('does not render any fields beyond image, confidence, offsetX, offsetY, holdMs', () => {
       render(<TapPanel onConfirm={() => {}} onCancel={() => {}} />);
       const inputs = screen.getAllByRole('textbox').concat(screen.queryAllByRole('spinbutton'));
-      // image-input (text), confidence (spinbutton), offsetX (spinbutton), offsetY (spinbutton)
-      expect(inputs.length).toBe(4);
+      // image-input (text), confidence, offsetX, offsetY and hold duration (spinbuttons)
+      expect(inputs.length).toBe(5);
+    });
+
+    it('renders the hold duration input', () => {
+      render(<TapPanel onConfirm={() => {}} onCancel={() => {}} />);
+      expect(screen.getByLabelText(/hold duration/i)).toBeInTheDocument();
     });
   });
 
@@ -151,6 +156,7 @@ describe('TapPanel', () => {
         confidence: '0.8',
         offsetX: '10',
         offsetY: '-5',
+        holdMs: undefined,
       });
     });
 
@@ -166,7 +172,53 @@ describe('TapPanel', () => {
         confidence: undefined,
         offsetX: undefined,
         offsetY: undefined,
+        holdMs: undefined,
       });
+    });
+  });
+
+  // Feature 111 (issue #235): the hold duration of a PrimitiveTap step.
+  describe('hold duration', () => {
+    it('calls onConfirm with the hold duration', () => {
+      const onConfirm = jest.fn();
+      render(<TapPanel onConfirm={onConfirm} onCancel={() => {}} />);
+      fireEvent.change(screen.getByTestId('image-input'), { target: { value: 'img-a' } });
+      fireEvent.change(screen.getByLabelText(/hold duration/i), { target: { value: '700' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+      expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ referenceImageId: 'img-a', holdMs: '700' }));
+    });
+
+    it('pre-fills the hold duration from initialValue', () => {
+      render(
+        <TapPanel
+          initialValue={{ referenceImageId: 'img-x', holdMs: '1000' }}
+          onConfirm={() => {}}
+          onCancel={() => {}}
+        />
+      );
+      expect(screen.getByLabelText(/hold duration/i)).toHaveValue(1000);
+    });
+
+    it.each(['5001', '-1', '1.5'])('does not call onConfirm and shows error when the hold duration is %s', (value) => {
+      const onConfirm = jest.fn();
+      render(<TapPanel onConfirm={onConfirm} onCancel={() => {}} />);
+      fireEvent.change(screen.getByTestId('image-input'), { target: { value: 'img-a' } });
+      fireEvent.change(screen.getByLabelText(/hold duration/i), { target: { value } });
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(screen.getByRole('alert')).toHaveTextContent('Hold duration must be an integer from 0 to 5000.');
+    });
+
+    it('accepts 0 and 5000', () => {
+      for (const value of ['0', '5000']) {
+        const onConfirm = jest.fn();
+        const { unmount } = render(<TapPanel onConfirm={onConfirm} onCancel={() => {}} />);
+        fireEvent.change(screen.getByTestId('image-input'), { target: { value: 'img-a' } });
+        fireEvent.change(screen.getByLabelText(/hold duration/i), { target: { value } });
+        fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+        expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ holdMs: value }));
+        unmount();
+      }
     });
   });
 

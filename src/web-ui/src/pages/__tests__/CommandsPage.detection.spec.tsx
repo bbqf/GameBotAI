@@ -72,6 +72,48 @@ describe('CommandsPage detection persistence', () => {
     }));
   });
 
+  // Feature 111 (issue #235): the hold duration of a PrimitiveTap step goes to the API and comes back.
+  it('creates a PrimitiveTap step with a hold duration', async () => {
+    render(<CommandsPage />);
+    await waitFor(() => expect(listCommandsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Command'));
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Hold Command' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /action type/i }), { target: { value: 'PrimitiveTap' } });
+    fireEvent.change(screen.getByLabelText('Reference image *'), { target: { value: 'claim_button' } });
+    fireEvent.change(screen.getByLabelText('Hold duration (ms)'), { target: { value: '700' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByText(/hold 700 ms/)).toBeInTheDocument();
+
+    createCommandMock.mockResolvedValue({} as any);
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(createCommandMock).toHaveBeenCalled());
+    const payload = createCommandMock.mock.calls[0][0] as any;
+    expect(payload.steps[0].primitiveTap.holdMs).toBe(700);
+    expect(payload.steps[0].primitiveTap.detectionTarget.referenceImageId).toBe('claim_button');
+    expect(payload.steps[0].primitiveTap.detectionTarget).not.toHaveProperty('holdMs');
+  });
+
+  it('keeps the hold duration of a loaded PrimitiveTap step on update', async () => {
+    const dto = { id: 'c3', name: 'HoldCmd', steps: [{ type: 'PrimitiveTap', order: 0, primitiveTap: { detectionTarget: { referenceImageId: 'claim_button' }, holdMs: 1000 } }] };
+    listCommandsMock.mockResolvedValue([dto] as any);
+    getCommandMock.mockResolvedValue(dto as any);
+    updateCommandMock.mockResolvedValue({} as any);
+
+    render(<CommandsPage />);
+    await screen.findByText('HoldCmd');
+    fireEvent.click(screen.getByText('HoldCmd'));
+    await screen.findByText('Edit Command');
+    expect(screen.getByText(/hold 1000 ms/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByText('Save')[0]);
+
+    await waitFor(() => expect(updateCommandMock).toHaveBeenCalled());
+    const payload = updateCommandMock.mock.calls[0][1] as any;
+    expect(payload.steps[0].primitiveTap.holdMs).toBe(1000);
+  });
+
   it('loads and updates detection fields without loss', async () => {
     listCommandsMock.mockResolvedValue([{ id: 'c1', name: 'DetectCmd', detection: { referenceImageId: 'tpl1', confidence: 0.5, offsetX: 1, offsetY: 2 }, steps: [{ type: 'Command', targetId: 'nested1', order: 0 }] } as any]);
     getCommandMock.mockResolvedValue({ id: 'c1', name: 'DetectCmd', detection: { referenceImageId: 'tpl1', confidence: 0.5, offsetX: 1, offsetY: 2 }, steps: [{ type: 'Command', targetId: 'nested1', order: 0 }] } as any);

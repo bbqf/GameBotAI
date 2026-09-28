@@ -128,6 +128,14 @@ internal sealed class SwipeConfigDto {
 
 internal sealed class PrimitiveTapConfigDto {
   public required DetectionTargetDto DetectionTarget { get; init; }
+
+  /// <summary>
+  /// Optional hold duration in milliseconds (feature 111). Absent or 0 gives a single tap. More than 0
+  /// gives a press and hold at the detected point for this duration.
+  /// </summary>
+  [System.ComponentModel.DataAnnotations.Range(GameBot.Domain.Commands.PrimitiveTapConfig.MinHoldMs, GameBot.Domain.Commands.PrimitiveTapConfig.MaxHoldMs)]
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? HoldMs { get; init; }
 }
 
 internal sealed class WaitForImageConfigDto {
@@ -187,6 +195,10 @@ internal sealed class StepExecutionOutcomeDto {
   public ResolvedPointDto? ExecutedPoint { get; init; }
   public SwipePointsDto? TargetSwipe { get; init; }
   public SwipePointsDto? ExecutedSwipe { get; init; }
+
+  /// <summary>Hold duration of a PrimitiveTap step that pressed and held (feature 111). Not written for other steps.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? HoldMs { get; init; }
 }
 
 internal enum DetectionSelectionStrategyDto {
