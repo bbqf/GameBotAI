@@ -76,6 +76,11 @@ internal sealed record ExecutionSubtreeProjection(
 internal interface IExecutionLogService {
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default);
   Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default);
+  /// <summary>
+  /// Feature 112 (issue #222): writes one root entry of the execution type <c>step</c> for one
+  /// <c>POST /api/steps/execute</c> call. The object type is <c>step</c> and the object id is the session id.
+  /// </summary>
+  Task LogStepExecutionAsync(StepExecutionLogRecord record, CancellationToken ct = default);
   Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default);
   Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, CancellationToken ct = default);
@@ -249,6 +254,69 @@ internal sealed class ExecutionLogService : IExecutionLogService {
 
     await _repository.AddAsync(entry, ct).ConfigureAwait(false);
   }
+
+  public async Task LogStepExecutionAsync(StepExecutionLogRecord record, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(record);
+    var retention = await _retentionRepository.GetAsync(ct).ConfigureAwait(false);
+    var now = DateTimeOffset.UtcNow;
+    var outcome = record.Outcome;
+    var finalStatus = string.Equals(outcome.Status, "executed", StringComparison.OrdinalIgnoreCase) ? "success" : "failure";
+    var summary = string.IsNullOrWhiteSpace(outcome.Reason)
+      ? $"Step '{record.StepType}' on session '{record.SessionId}' ended with {outcome.Status}."
+      : $"Step '{record.StepType}' on session '{record.SessionId}' ended with {outcome.Status}. Reason: {outcome.Reason}.";
+
+    var stepOutcome = new ExecutionStepOutcome(
+      outcome.StepOrder,
+      ToCamelCase(record.StepType),
+      MapSingleStepOutcome(outcome.Status),
+      outcome.Status,
+      outcome.Reason);
+
+    var attributes = new Dictionary<string, object?> {
+      ["sessionId"] = record.SessionId,
+      ["stepType"] = record.StepType,
+      ["status"] = outcome.Status,
+      ["reason"] = outcome.Reason,
+      ["resolvedX"] = outcome.ResolvedPoint?.X,
+      ["resolvedY"] = outcome.ResolvedPoint?.Y,
+      ["executedX"] = outcome.ExecutedPoint?.X,
+      ["executedY"] = outcome.ExecutedPoint?.Y,
+      ["detectionConfidence"] = outcome.DetectionConfidence,
+      ["accepted"] = record.Accepted,
+      ["startedAtUtc"] = record.StartedAtUtc,
+      ["durationMs"] = record.DurationMs
+    };
+    var details = new List<ExecutionDetailItem> {
+      new("step", summary, attributes, "normal")
+    };
+
+    var entry = new ExecutionLogEntry {
+      TimestampUtc = now,
+      ExecutionType = "step",
+      FinalStatus = finalStatus,
+      ObjectRef = new ExecutionObjectReference("step", record.SessionId, $"{record.StepType} step"),
+      Navigation = ExecutionNavigationBuilder.Build("step", record.SessionId, null),
+      Hierarchy = ExecutionHierarchyBuilder.Build(null),
+      Summary = TrimSummary(summary),
+      Details = TrimDetails(ExecutionLogSanitizer.SanitizeDetails(details)),
+      StepOutcomes = new[] { stepOutcome },
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+    };
+
+    await _repository.AddAsync(entry, ct).ConfigureAwait(false);
+  }
+
+  // Feature 112: "dispatch_unknown" and "timeout" keep their own value, because neither one
+  // promises that no input went to the device. All other statuses except "executed" are "not_executed".
+  private static string MapSingleStepOutcome(string status) => status.ToLowerInvariant() switch {
+    "executed" => "executed",
+    "dispatch_unknown" => "dispatch_unknown",
+    "timeout" => "timeout",
+    _ => "not_executed"
+  };
+
+  private static string ToCamelCase(string value)
+    => string.IsNullOrEmpty(value) ? value : char.ToLowerInvariant(value[0]) + value[1..];
 
   public async Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default)
     => await LogSequenceExecutionAsync(

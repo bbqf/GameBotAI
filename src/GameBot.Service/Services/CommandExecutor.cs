@@ -200,7 +200,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
     return new CommandEvaluationExecutionResult(0, res.Status, res.Reason, Array.Empty<PrimitiveTapStepOutcome>());
   }
 
-  public async Task<CommandForceExecutionResult> ForceExecuteStepAsync(string? sessionId, CommandStep step, CancellationToken ct = default) {
+  public Task<CommandForceExecutionResult> ForceExecuteStepAsync(string? sessionId, CommandStep step, CancellationToken ct = default)
+    => ForceExecuteStepAsync(sessionId, step, null, ct);
+
+  public async Task<CommandForceExecutionResult> ForceExecuteStepAsync(string? sessionId, CommandStep step, TimeSpan? timeout, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(step);
     string resolvedSessionId;
     if (!string.IsNullOrWhiteSpace(sessionId)) {
       resolvedSessionId = sessionId;
@@ -229,8 +233,54 @@ internal sealed class CommandExecutor : ICommandExecutor {
     if (session.Status != GameBot.Domain.Sessions.SessionStatus.Running)
       throw new InvalidOperationException("not_running");
 
-    var (accepted, outcome) = await ExecuteOneStepAsync(resolvedSessionId, step, null, ct).ConfigureAwait(false);
+    // Feature 112 (issue #222): the executor owns the time limit, so that it can tell a timeout from a
+    // cancellation by the caller. Each call from here on writes exactly one execution-log entry.
+    using var timeoutCts = new CancellationTokenSource();
+    if (timeout is { } limit) {
+      timeoutCts.CancelAfter(limit);
+    }
+    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+    var startedAtUtc = DateTimeOffset.UtcNow;
+    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+    var stepType = step.Type.ToString();
+
+    int accepted;
+    PrimitiveTapStepOutcome outcome;
+    try {
+      (accepted, outcome) = await ExecuteOneStepAsync(resolvedSessionId, step, null, linkedCts.Token).ConfigureAwait(false);
+    }
+    catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested) {
+      await WriteStepLogAsync(resolvedSessionId, stepType, new PrimitiveTapStepOutcome(step.Order, "timeout", "step_execution_timeout", null, null), 0, startedAtUtc, stopwatch).ConfigureAwait(false);
+      throw new TimeoutException("step_execution_timeout");
+    }
+    catch (OperationCanceledException) {
+      await WriteStepLogAsync(resolvedSessionId, stepType, new PrimitiveTapStepOutcome(step.Order, "cancelled", "step_execution_cancelled", null, null), 0, startedAtUtc, stopwatch).ConfigureAwait(false);
+      throw;
+    }
+    catch (Exception ex) {
+      await WriteStepLogAsync(resolvedSessionId, stepType, new PrimitiveTapStepOutcome(step.Order, "failed", $"step_exception: {ex.GetType().Name}", null, null), 0, startedAtUtc, stopwatch).ConfigureAwait(false);
+      throw;
+    }
+
+    await WriteStepLogAsync(resolvedSessionId, stepType, outcome, accepted, startedAtUtc, stopwatch).ConfigureAwait(false);
     return new CommandForceExecutionResult(accepted, new[] { outcome });
+  }
+
+  /// <summary>
+  /// Feature 112: writes the execution-log entry of one single step call. The write uses no token of the
+  /// call, so a timeout or a cancellation does not stop it. A failure of the write gives only a warning.
+  /// </summary>
+  private async Task WriteStepLogAsync(string sessionId, string stepType, PrimitiveTapStepOutcome outcome, int accepted, DateTimeOffset startedAtUtc, System.Diagnostics.Stopwatch stopwatch) {
+    if (_executionLogService is null) return;
+    try {
+      var record = new StepExecutionLogRecord(sessionId, stepType, outcome, accepted, startedAtUtc, stopwatch.ElapsedMilliseconds);
+      await _executionLogService.LogStepExecutionAsync(record, CancellationToken.None).ConfigureAwait(false);
+    }
+#pragma warning disable CA1031 // A failure of the diagnostic log must not change the result of an input that the service already sent.
+    catch (Exception ex) {
+#pragma warning restore CA1031
+      Log.StepLogWriteFailed(_logger, ex, sessionId);
+    }
   }
 
   private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, ParameterScope scope, CancellationToken ct) {
@@ -415,6 +465,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
       }
 
       var cancelCycleTracker = 0;
+      var dispatch = new TapDispatchState();
       try {
         var screenSrc = ResolveScreenSource(sessionId);
         var images = _images;
@@ -439,8 +490,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
         await Task.Delay(baseWaitMs, ct).ConfigureAwait(false);
 
         var tapOutcomes = new List<PrimitiveTapStepOutcome>();
-        var tapAccepted = 0;
-        var detected = TryDetectAndTap(screenSrc, templateSet, primitiveDetection, matcher, step, sessionId, tapOutcomes, ref tapAccepted, 0, ct);
+        var detected = TryDetectAndTap(screenSrc, templateSet, primitiveDetection, matcher, step, sessionId, tapOutcomes, dispatch, 0, ct);
 
         if (!detected) {
           Log.TapRetryNotDetected(_logger, step.Order, 0);
@@ -452,7 +502,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
             await Task.Delay(waitMs, ct).ConfigureAwait(false);
             currentWaitMs *= progression;
 
-            detected = TryDetectAndTap(screenSrc, templateSet, primitiveDetection, matcher, step, sessionId, tapOutcomes, ref tapAccepted, cancelCycleTracker, ct);
+            detected = TryDetectAndTap(screenSrc, templateSet, primitiveDetection, matcher, step, sessionId, tapOutcomes, dispatch, cancelCycleTracker, ct);
             if (detected) {
               Log.TapRetryDetected(_logger, step.Order, cancelCycleTracker);
               break;
@@ -467,13 +517,23 @@ internal sealed class CommandExecutor : ICommandExecutor {
           }
         }
 
-        return (tapAccepted, tapOutcomes[0]);
+        return (dispatch.Accepted, tapOutcomes[0]);
       }
-      catch (OperationCanceledException) {
+      catch (OperationCanceledException ex) {
+        // Feature 112 (issue #222): a "not executed" outcome must mean that no input went to the device.
+        // When the dispatch started, the outcome tells that the input was sent or that the result is not known.
+        if (dispatch.Started) {
+          Log.TapDispatchProblem(_logger, ex, step.Order, dispatch.Completed);
+          return DispatchedOutcome(step.Order, dispatch, cancelled: true);
+        }
         Log.TapRetryCancelled(_logger, step.Order, cancelCycleTracker);
         return (0, new PrimitiveTapStepOutcome(step.Order, "cancelled", $"cancelled_during_retry_{cancelCycleTracker}", null, null));
       }
       catch (Exception ex) {
+        if (dispatch.Started) {
+          Log.TapDispatchProblem(_logger, ex, step.Order, dispatch.Completed);
+          return DispatchedOutcome(step.Order, dispatch, cancelled: false);
+        }
         Log.DetectionError(_logger, ex);
         return (0, new PrimitiveTapStepOutcome(step.Order, "skipped_detection_failed", "primitive_tap_exception", null, null));
       }
@@ -631,7 +691,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
   /// <summary>
   /// Attempts a single screenshot-fetch â†’ template-match â†’ coordinate-resolve â†’ tap cycle.
   /// Returns true if detection succeeded and the tap was sent; false otherwise.
-  /// On success, appends the outcome to <paramref name="stepOutcomes"/> and increments <paramref name="totalAccepted"/>.
+  /// On success, appends the outcome to <paramref name="stepOutcomes"/>.
+  /// Feature 112: records the dispatch in <paramref name="dispatch"/>, so that the caller can tell
+  /// the truth about the input when an error or a cancellation occurs after the dispatch started.
   /// </summary>
   private bool TryDetectAndTap(
     GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
@@ -641,7 +703,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     CommandStep step,
     string sessionId,
     List<PrimitiveTapStepOutcome> stepOutcomes,
-    ref int totalAccepted,
+    TapDispatchState dispatch,
     int retryAttempt,
     CancellationToken ct) {
     var screenshotBmp = screenSrc.GetLatestScreenshot();
@@ -685,22 +747,72 @@ internal sealed class CommandExecutor : ICommandExecutor {
     var holdMs = PrimitiveTapInput.EffectiveHoldMs(step.PrimitiveTap?.HoldMs);
     var sessionInput = PrimitiveTapInput.Create(x, y, holdMs);
     var tapArgs = sessionInput.Args;
-    var accepted = _sessions.SendInputsAsync(sessionId, new[] { sessionInput }, ct).GetAwaiter().GetResult();
-    totalAccepted += accepted;
+
+    // Feature 112: read the confidence before the dispatch, so that less code runs after it.
+    var detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
+      ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
+      : (double?)null;
+
+    var resolvedPoint = new PrimitiveTapResolvedPoint(x, y);
+    dispatch.ResolvedPoint = resolvedPoint;
+    dispatch.DetectionConfidence = detectionConfidence;
+    dispatch.HoldMs = holdMs;
+    dispatch.Started = true;
+    dispatch.Accepted = _sessions.SendInputsAsync(sessionId, new[] { sessionInput }, ct).GetAwaiter().GetResult();
+    dispatch.Completed = true;
 
     // The session manager applies tap-point jitter by mutating the args in place; read the
     // values back so the outcome reports the coordinates actually sent to the device.
     var executedX = Convert.ToInt32(tapArgs["x1"], CultureInfo.InvariantCulture);
     var executedY = Convert.ToInt32(tapArgs["y1"], CultureInfo.InvariantCulture);
-
-    var detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
-      ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
-      : (double?)null;
+    dispatch.ExecutedPoint = new PrimitiveTapResolvedPoint(executedX, executedY);
 
     var reason = retryAttempt > 0 ? $"detected_after_{retryAttempt}_retries" : null;
-    stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", reason, new PrimitiveTapResolvedPoint(x, y), detectionConfidence,
-      ExecutedPoint: new PrimitiveTapResolvedPoint(executedX, executedY), HoldMs: holdMs));
+    stepOutcomes.Add(new PrimitiveTapStepOutcome(step.Order, "executed", reason, resolvedPoint, detectionConfidence,
+      ExecutedPoint: dispatch.ExecutedPoint, HoldMs: holdMs));
     return true;
+  }
+
+  /// <summary>
+  /// Feature 112 (issue #222): makes the outcome of a PrimitiveTap step when an error or a cancellation
+  /// occurred after the dispatch started. After a completed dispatch, the status is <c>executed</c> with the
+  /// accepted count of the session. During the dispatch, the status is <c>dispatch_unknown</c>, because the
+  /// device can have the input.
+  /// </summary>
+  private static (int Accepted, PrimitiveTapStepOutcome Outcome) DispatchedOutcome(int stepOrder, TapDispatchState dispatch, bool cancelled) {
+    if (dispatch.Completed) {
+      return (dispatch.Accepted, new PrimitiveTapStepOutcome(
+        stepOrder,
+        "executed",
+        cancelled ? "executed_then_cancelled" : "executed_then_error",
+        dispatch.ResolvedPoint,
+        dispatch.DetectionConfidence,
+        ExecutedPoint: dispatch.ExecutedPoint,
+        HoldMs: dispatch.HoldMs));
+    }
+
+    return (0, new PrimitiveTapStepOutcome(
+      stepOrder,
+      "dispatch_unknown",
+      cancelled ? "dispatch_cancelled" : "dispatch_error",
+      dispatch.ResolvedPoint,
+      dispatch.DetectionConfidence,
+      HoldMs: dispatch.HoldMs));
+  }
+
+  /// <summary>
+  /// Feature 112 (issue #222): the state of the tap dispatch of one PrimitiveTap step.
+  /// <see cref="Started"/> is true immediately before the call to the session.
+  /// <see cref="Completed"/> is true when the session returned.
+  /// </summary>
+  private sealed class TapDispatchState {
+    public bool Started { get; set; }
+    public bool Completed { get; set; }
+    public int Accepted { get; set; }
+    public PrimitiveTapResolvedPoint? ResolvedPoint { get; set; }
+    public PrimitiveTapResolvedPoint? ExecutedPoint { get; set; }
+    public double? DetectionConfidence { get; set; }
+    public int? HoldMs { get; set; }
   }
 
   private async Task<string> ResolveSessionIdAsync(string? sessionId, string commandId, CancellationToken ct) {
@@ -773,4 +885,10 @@ internal static partial class Log {
 
   [LoggerMessage(EventId = 6013, Level = LogLevel.Information, Message = "PrimitiveTap step {StepOrder}: cancelled during retry cycle {Cycle}.")]
   public static partial void TapRetryCancelled(ILogger logger, int StepOrder, int Cycle);
+
+  [LoggerMessage(EventId = 6014, Level = LogLevel.Warning, Message = "PrimitiveTap step {StepOrder}: an error or a cancellation occurred after the dispatch started. The session returned: {DispatchCompleted}.")]
+  public static partial void TapDispatchProblem(ILogger logger, Exception ex, int StepOrder, bool DispatchCompleted);
+
+  [LoggerMessage(EventId = 6015, Level = LogLevel.Warning, Message = "The execution-log entry for a single step on session {SessionId} was not written.")]
+  public static partial void StepLogWriteFailed(ILogger logger, Exception ex, string SessionId);
 }

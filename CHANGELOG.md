@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- A "not executed" tap outcome is true, and a single step call writes an execution-log entry (112-truthful-tap-outcome-log, #222)
+  - A `PrimitiveTap` step reports `skipped_detection_failed`, `skipped_invalid_config` or `cancelled` with `accepted: 0` only when the service sent no input to the device. Before, an error or a cancellation after the dispatch (for example, when the service read back the executed point) gave `accepted: 0` with a "not executed" status, although the tap went to the device.
+  - After a completed dispatch, the outcome is now `executed` with the reason `executed_then_error` or `executed_then_cancelled`, and `accepted` is the count that the session returned. The outcome has the resolved point, and the executed point when the service can read it.
+  - When the session fails or is cancelled during the dispatch, the new status is `dispatch_unknown` with the reason `dispatch_error` or `dispatch_cancelled`, `accepted: 0` and the resolved point. The device can have the input.
+  - `POST /api/steps/execute` now writes one execution-log entry for each call that passes the session check: execution type `step`, object type `step`, object id = the session id. The entry has the step type, the status, the reason, the points, the `accepted` count, the start time and the duration. A timeout, a cancellation and an error also write an entry. Read the entries with `GET /api/execution-logs?objectType=step&objectId=<sessionId>` and the time filter.
+  - **Compatibility**: the response shape of `POST /api/steps/execute` does not change. The timeout response does not change. The Swagger description of the route states the contract.
+
 ### Added
 - Press and hold at a detected point (111-anchored-long-press, #235)
   - A `PrimitiveTap` command step has a new optional field, `primitiveTap.holdMs` (integer, 0 to 5000). The service keeps it on `POST /api/commands`, `PATCH /api/commands/{id}` and `POST /api/steps/execute`, and returns it on read. Before, the service dropped the field. A value outside 0 to 5000 gets a 400 with "primitiveTap.holdMs must be between 0 and 5000". `holdMs` does not take a parameter placeholder.

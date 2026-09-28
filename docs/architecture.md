@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-28 (feature 111: a `PrimitiveTap` command step can press and hold at the
-detected point with `holdMs`, #235)._
+_Last reviewed: 2026-09-28 (feature 112: a "not executed" `PrimitiveTap` outcome means that no input
+went to the device, and `POST /api/steps/execute` writes an execution-log entry, #222)._
 
 ## What GameBot is
 
@@ -92,7 +92,14 @@ not survive a service restart; queue *configuration* and templates are persisted
   111). More than 0 gives a press and hold at the detected point for that duration: one ADB swipe
   with the same start and end point and a duration of `holdMs`. Absent or 0 gives the single tap (the
   same swipe with 200 ms). The step outcome and the execution-log `tap` detail show `holdMs` for a
-  press and hold. The service rejects a value outside 0 to 5000 with 400. **Go to Home Screen** (`go-to-home-screen`, feature 069) is a parameterless
+  press and hold. The service rejects a value outside 0 to 5000 with 400. A "not executed" `PrimitiveTap` outcome (`skipped_*` or
+  `cancelled`, `accepted: 0`) means that no input went to the device (feature 112). When an error or a
+  cancellation occurs after the session accepted the tap, the outcome is `executed` with the reason
+  `executed_then_error` or `executed_then_cancelled` and the accepted count of the session. When the
+  session fails or is cancelled during the dispatch, the outcome is `dispatch_unknown` (`dispatch_error`
+  or `dispatch_cancelled`), because the device can have the input. `POST /api/steps/execute` writes one
+  execution-log entry of the type `step` (object id = session id) for each call that passes the session
+  check, also for the 10-second timeout. The command executor owns that limit. **Go to Home Screen** (`go-to-home-screen`, feature 069) is a parameterless
   action that presses Android HOME (keycode 3) so the device returns to its home/main screen,
   leaving the game running in the background — the leave-game counterpart to Connect to Game. It is
   usable both as a sequence action (dispatched through the session input pipeline) and a command

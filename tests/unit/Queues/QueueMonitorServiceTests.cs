@@ -69,6 +69,7 @@ public sealed class QueueMonitorServiceTests {
     // Unused by the monitor projection.
     public Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, string? parentExecutionId, int depth, CancellationToken ct = default) => Task.CompletedTask;
     public Task LogCommandExecutionAsync(string commandId, string commandName, string finalStatus, IReadOnlyList<PrimitiveTapStepOutcome> primitiveOutcomes, ExecutionLogContext context, CancellationToken ct = default) => Task.CompletedTask;
+    public Task LogStepExecutionAsync(StepExecutionLogRecord record, CancellationToken ct = default) => Task.CompletedTask;
     public Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, string? parentExecutionId, int depth, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) => Task.CompletedTask;
     public Task LogSequenceExecutionAsync(string sequenceId, string sequenceName, string finalStatus, string summary, ExecutionLogContext context, IReadOnlyList<ExecutionDetailItem>? details = null, CancellationToken ct = default) => Task.CompletedTask;
     public Task<string> LogSequenceStartAsync(string sequenceId, string sequenceName, CancellationToken ct = default) => Task.FromResult(Guid.NewGuid().ToString("N"));

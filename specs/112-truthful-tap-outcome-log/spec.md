@@ -2,7 +2,7 @@
 
 **Feature Branch**: `claude/resolve-github-issue-whu0sd` (spec number 112)  
 **Created**: 2026-09-28  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #222 (B-021): "a 'not executed' PrimitiveTap outcome must mean that no input went to the device, and POST /api/steps/execute must write an execution log". Full description: see the issue and the feature description that started this spec.
 
 ## Background

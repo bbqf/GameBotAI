@@ -146,6 +146,7 @@ Status vocabulary:
 | 109 | A reschedule-self time of day that has passed books the next day | Implemented |
 | 110 | A condition on a Loop step is a guard that the runtime obeys | Implemented |
 | 111 | Press and hold at a detected point (anchored long press) | Implemented |
+| 112 | Truthful tap outcome and an execution log for a single step | Implemented |
 
 ## Numbering notes
 

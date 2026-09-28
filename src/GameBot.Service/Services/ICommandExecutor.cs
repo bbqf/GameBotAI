@@ -38,6 +38,18 @@ internal interface ICommandExecutor {
   Task<CommandEvaluationExecutionResult> EvaluateAndExecuteDetailedAsync(string? sessionId, string commandId, CancellationToken ct = default);
   Task<CommandEvaluationDecision> EvaluateAndExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default);
   Task<CommandForceExecutionResult> ForceExecuteStepAsync(string? sessionId, GameBot.Domain.Commands.CommandStep step, CancellationToken ct = default);
+
+  /// <summary>
+  /// Feature 112 (issue #222): executes one step with a time limit and writes one execution-log entry of the
+  /// type <c>step</c> for the call. The entry is written for each call that passes the session check: for an
+  /// outcome, a timeout, a cancellation and an error. A failure of the log write does not change the result.
+  /// </summary>
+  /// <param name="sessionId">The session to use, or null to use the only running session.</param>
+  /// <param name="step">The step to execute.</param>
+  /// <param name="timeout">The time limit of the step, or null for no limit.</param>
+  /// <param name="ct">The cancellation token of the caller.</param>
+  /// <exception cref="TimeoutException">The time limit stopped the step. The message is <c>step_execution_timeout</c>.</exception>
+  Task<CommandForceExecutionResult> ForceExecuteStepAsync(string? sessionId, GameBot.Domain.Commands.CommandStep step, TimeSpan? timeout, CancellationToken ct = default);
 }
 
 internal sealed record CommandEvaluationDecision(int Accepted, TriggerStatus TriggerStatus, string? Reason);
