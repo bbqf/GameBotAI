@@ -15,7 +15,7 @@ The plan adds two image keys to `CommandStepFieldPaths`, with a save rule "one w
 **Primary Dependencies**: ASP.NET Core minimal APIs, Swashbuckle, xUnit, FluentAssertions  
 **Storage**: File-backed JSON repositories for commands, sequences, queue templates and images. The stored format does not change.  
 **Testing**: xUnit unit tests (`tests/unit`), contract tests with `WebApplicationFactory<Program>` (`tests/contract`), integration tests (`tests/integration`)  
-**Target Platform**: Windows service (CI on `windows-latest`). The changed code has no platform dependency. On Linux, image steps give `image_unavailable`, which the tests can use to read the resolved id.  
+**Target Platform**: Windows service (CI on `windows-latest`). The changed code has no platform dependency. An image id with no image gives the current missing-image result of the step type: a `WaitForImage` step gives `image_unavailable`, and its step detail shows the resolved id; a `PrimitiveTap` step gives `skipped_invalid_config` (`template_not_found` on Windows, `primitive_tap_detection_windows_only` on other hosts). For a tap step, the tests read the resolved value from the `parameters` log item.  
 **Project Type**: Web service with a web UI (the web UI gets no new controls)  
 **Performance Goals**: No measurable change on the run path. The condition resolver returns the same instance when no leaf has a placeholder. A template save reads each referenced sequence and its reachable commands one time for each entry, and checks each distinct image id one time.  
 **Constraints**: Numeric `fieldTemplates` keys keep their behavior (FR-013). Inline placeholders keep their behavior (FR-004). Current tests pass with no change (SC-005), except a test that compares the old text "numeric field" (none found). Break conditions keep the feature 066 error rule.  
@@ -51,18 +51,18 @@ Post-design re-check: Pass. No violations.
 
 ### B. Resolution at dispatch (FR-003, FR-004, FR-008, FR-011)
 
-- `src/GameBot.Domain/Parameters/CommandStepResolver.cs`: `TryDetection` uses the overlay value for `{prefix}.referenceImageId` when the key is present, and does not resolve the inline value then (R-003). `TryOverlayValue` gets a flag for a text field, so a malformed stored value gives the reason `unresolved` and not `not_a_number`. `CommandExecutor` needs no change: it already records `usedParameters`.
+- `src/GameBot.Domain/Parameters/CommandStepResolver.cs`: `TryDetection` uses the overlay value for `{prefix}.referenceImageId` when the key is present, and does not resolve the inline value then (R-003). `TryOverlayValue` gets a flag for a text field, so a malformed stored value gives the reason `unresolved` and not `not_a_number`. `CommandExecutor` needs no change: it already records `usedParameters`, and a resolved id with no image gets the current missing-image result of the step type (FR-009).
 
 ### C. Save scan (FR-005, FR-006)
 
 - `src/GameBot.Domain/Parameters/ParameterReferenceScanner.cs`: `ParameterReference.SourceText`; the `fieldTemplates` loop sets `defeatsStaticCheck` for image keys; `ScanSequenceSteps` scans each `imageVisible` leaf in `Condition`, `If.Condition`, `Loop` (while and repeat-until) `Condition` and `BreakCondition`, also in composites (R-005).
-- `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`: `ValidatePerStepImageReferencesAsync` skips an `imageId` with a placeholder (R-006). `ToSequenceResponseAsync` gets an optional `warnings` argument; the create, update and patch routes pass `parameterCheck.Warnings` (R-009).
+- `src/GameBot.Service/Endpoints/SequencesEndpoints.cs`: `ValidatePerStepImageReferencesAsync` skips an `imageId` with a placeholder (R-006). `ToSequenceResponseAsync` gets an optional `warnings` argument. The create, update and patch routes pass `parameterCheck.Warnings` only for a per-step-shape body; an old-shape body and a domain-shape body pass `null`, so their responses do not change (R-009). The dry-run response does not change and has no `warnings` member.
 
 ### D. Condition resolution at run time (FR-005, FR-007, FR-008, FR-009)
 
 - New `src/GameBot.Domain/Parameters/SequenceStepConditionResolver.cs` (R-007).
 - `src/GameBot.Domain/Services/SequenceStepConditionEvaluator.cs`: new `ConditionEvaluationFailureKind.ParameterUnresolved`.
-- `src/GameBot.Domain/Services/SequenceRunner.cs`: `EvaluateStepGuardAsync` and `EvaluateLoopConditionAsync` get a `ParameterScope` argument and resolve first. The six call sites (action-step guard, loop-step guard, while, repeat-until, `If`, break) pass `scope` or `iterScope`. `FailGuard` maps the new kind to the resolution message. The `If` and break paths compute their log description from the resolved condition.
+- `src/GameBot.Domain/Services/SequenceRunner.cs`: `EvaluateStepGuardAsync` and `EvaluateLoopConditionAsync` get a `ParameterScope` argument and resolve first. `SequenceStepConditionResolver.TryResolve` gets a `fieldPathPrefix` argument. The six call sites pass `scope` or `iterScope` and this prefix: action-step guard `condition`, loop-step guard `condition`, while `loop.condition`, repeat-until `loop.condition`, `If` `if.condition`, break `breakCondition`. `FailGuard` maps the new kind to the resolution message. The `If` and break paths compute their log description from the resolved condition.
 
 ### E. Template entry save check (FR-010)
 
@@ -87,9 +87,9 @@ Post-design re-check: Pass. No violations.
 | `tests/unit/Parameters/ParameterValidationImageTests.cs` (new) | unit | key set; whole-placeholder rule; new message text; numeric keys unchanged; `FindImageValueCandidates` (entry value, default, built-in skipped, mixed use, duplicates) |
 | `tests/unit/Sequences/SequenceRunnerConditionScopeTests.cs` (new) | unit | step guard, loop guard, `If`, while, repeat-until and break resolve the id from scope; unresolved fails the step (break: "No break"); description shows the resolved id |
 | `tests/contract/Sequences/ParametrizedReferenceImageContractTests.cs` (new) | contract | command save with both keys and warnings; `invalid_field_template_value`; `unknown_field_template_path` text; sequence save with placeholder and `warnings`; `unresolvable_parameter_reference`; literal id check unchanged |
-| `tests/contract/QueueTemplates/TemplateImageReferenceContractTests.cs` (new) | contract | `unknown_image_reference` for an entry value and for a default; success for an existing image; built-in not checked |
+| `tests/contract/QueueTemplates/TemplateImageReferenceContractTests.cs` (new) | contract | `unknown_image_reference` for an entry value and for a default; success for an existing image; built-in not checked; a step binding overrides the entry value |
 | `tests/contract/Sequences/ParametrizedReferenceImageOpenApiTests.cs` (new) | contract | Swagger descriptions of `fieldTemplates`, `imageId` and the template save |
-| `tests/integration/Commands/ParametrizedReferenceImageIntegrationTests.cs` (new) | integration | a run with two values gives two resolved image ids and the `parameters` log item |
+| `tests/integration/Commands/ParametrizedReferenceImageIntegrationTests.cs` (new) | integration | a run with two values gives the `parameters` log item each time, and the resolved image id on the `WaitForImage` step; a missing image gives the current result of each step type with no device input |
 
 ## Project Structure
 

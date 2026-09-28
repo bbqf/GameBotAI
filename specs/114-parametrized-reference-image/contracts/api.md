@@ -109,6 +109,8 @@ Response: `201 Created` (or `200 OK` for `PUT` and `PATCH`). The body is the cur
 
 `warnings` is not present when there are no warnings.
 
+A dry run (`"dryRun": true` in the request body) does not change: the response is `200 OK` with `{ "valid": true, "dryRun": true, "errors": [] }` and has no `warnings` member. Only a save that stores the sequence returns `warnings`.
+
 The same rule applies to these field paths: `if.condition.imageId`, `loop.condition.imageId` (while and repeat-until), `breakCondition.imageId`, and each composite child, for example `condition.children[1].imageId`.
 
 ### 2a. Name that is not declared
@@ -121,13 +123,17 @@ A literal `imageId` in a step condition keeps the current existence check ("Imag
 
 ## 3. Run time
 
-- A tap or wait step with the image key uses the resolved value as the image id. The execution-log step detail has the item `parameters` with `novaOption = <value>` and its scope layer (current feature 078 format).
+- A tap or wait step with the image key uses the resolved value as the image id. The execution-log step detail has the item `parameters` with `novaOption = <value>` and its scope layer (current feature 078 format). The step detail of a `WaitForImage` step also has `referenceImageId` with the resolved id. A `PrimitiveTap` step detail does not name the image id; the `parameters` item holds the value.
 - An `imageVisible` leaf with a placeholder uses the resolved id. The log text of the condition shows the resolved id, for example `imageVisible(imageId=option-b, minSimilarity=default)`.
 - A name with no value in scope:
   - command step: outcome `skipped_parameter_unresolved` with the message `Step '<order>': parameter 'novaOption' used by field 'primitiveTap.detectionTarget.referenceImageId' could not be resolved from any scope.` No input goes to the device.
   - step guard, `If` condition, while or repeat-until condition: the step fails, and the sequence stops. The message is `Step '<stepKey>': parameter 'novaOption' used by field 'condition.imageId' could not be resolved from any scope.`
-  - break condition: "No break" with the same message as the error detail (feature 066 rule).
-- An id with no image: the current `image_unavailable` result of each position.
+  - break condition: "No break" with the same message as the error detail (feature 066 FR-002a and FR-010).
+- An id with no image: the current missing-image result of each step type or position, the same as for a literal id. No device input occurs in each case.
+  - `WaitForImage` step: fails with `image_unavailable`.
+  - `PrimitiveTap` step: the current `skipped_invalid_config` result, with `template_not_found` on Windows and `primitive_tap_detection_windows_only` on other hosts.
+  - step guard, `If` condition, while or repeat-until condition: the `imageVisible` leaf fails with `image_unavailable`.
+  - break condition: "No break" with the error detail in the log, and the run does not fail (feature 066 FR-002a and FR-010).
 
 ## 4. `POST /api/queue-templates`: check of known image values
 
@@ -161,7 +167,9 @@ Response: `400 Bad Request`. The service saves nothing.
 ```
 
 Rules:
-- The check uses the entry value, or else the declaration default (sequence first, then the reachable commands).
+- The check uses the entry value, or else a declaration default in the scope order of the run: for a field inside a command, the default of that command first, and then the sequence default. For a field in the sequence, the sequence default.
+- Binding rule: when the sequence step that calls a command has a non-null `parameterBindings` entry for a parameter, the check does not use the entry value or a default for that parameter in the image fields of that command and of the commands that it reaches. The binding outranks the entry at run time. For example, an entry supplies `novaOption = no-such-image` and the step binds the `novaOption` of the command to `option-b`: the save does not reject the entry value for the image fields of that command.
+- A binding to `{{otherName}}` is not followed. This is a known limit; the run-time check applies (section 3).
 - The check looks at each image field of the sequence and of each command that the sequence can reach: `imageVisible.imageId` in each condition position, the inline image fields of command steps, the two image keys of `fieldTemplates`, and `detection.referenceImageId` of a command.
 - A field whose text has a name with no known value (for example a queue built-in) is not checked.
 - The check applies to each entry, also a disabled entry.

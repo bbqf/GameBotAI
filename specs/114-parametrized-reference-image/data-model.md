@@ -57,6 +57,7 @@ New scanned fields:
 static bool TryResolve(
     SequenceStepCondition condition,
     ParameterScope scope,
+    string fieldPathPrefix,
     out SequenceStepCondition resolved,
     out ParameterResolutionError? error,
     out IReadOnlyList<ResolvedParameter> used)
@@ -66,7 +67,20 @@ static bool TryResolve(
 - An `imageVisible` leaf: a new leaf with the substituted `ImageId`, and the same `MinSimilarity` and `Negate`.
 - A composite: a new composite of the same rule, with resolved children and the same `Negate`.
 - Other leaves: the same instance.
-- An unknown name or an empty result: `false`, with a `ParameterResolutionError` (reason `unresolved`, field path `imageId` with the composite path).
+- An unknown name or an empty result: `false`, with a `ParameterResolutionError` (reason `unresolved`). The field path is `fieldPathPrefix`, then `.children[i]` for each composite level, then `.imageId`, for example `condition.children[1].imageId`.
+
+`fieldPathPrefix` for each call site in `SequenceRunner` (six call sites):
+
+| Call site | Method | Prefix |
+|-----------|--------|--------|
+| step guard of an action step | `EvaluateStepGuardAsync` | `condition` |
+| step guard of a loop step | `EvaluateStepGuardAsync` | `condition` |
+| while condition | `EvaluateLoopConditionAsync` | `loop.condition` |
+| repeat-until condition | `EvaluateLoopConditionAsync` | `loop.condition` |
+| `If` condition | `EvaluateLoopConditionAsync` | `if.condition` |
+| break condition | `EvaluateLoopConditionAsync` | `breakCondition` |
+
+These paths are the same as the field paths of the save scan.
 
 ## ConditionEvaluationFailureKind (changed enum)
 
@@ -93,8 +107,13 @@ static bool TryResolve(
 | `ImageId` | `string` | the image id after substitution |
 | `FieldPath` | `string` | the image field, for example `primitiveTap.detectionTarget.referenceImageId` |
 
-`ParameterValidationService.FindImageValueCandidates(entry, entryIndex, sequence, reachableCommands)` returns the distinct candidates of one entry. A known value is the entry value, or else the first declaration default (sequence first, then reachable commands). A field text with a name that has no known value gives no candidate.
+`ParameterValidationService.FindImageValueCandidates(entry, entryIndex, sequence, reachableCommands)` returns the distinct candidates of one entry. A field text with a name that has no known value gives no candidate.
+
+Known value rules:
+- A known value is the entry value, or else a declaration default in the `ParameterScope` order of the run: for a reference inside a command, the default of that command first, and then the outer (sequence) default. For a reference in the sequence, the sequence default.
+- Binding rule: when the sequence step that calls a command has a non-null `parameterBindings` entry for a parameter, the image fields of that command and of the commands that it reaches get no known value for that parameter (the binding outranks the entry at run time). Thus they give no candidate for it.
+- A binding to `{{otherName}}` is not followed. This is a known limit; the run-time check (FR-009) applies.
 
 ## Sequence write response (changed)
 
-- `POST`, `PUT` and `PATCH /api/sequences` responses get an optional `warnings` array (same item shape as the command response: `code`, `message`, `fieldPath`, `parameterName`, `entryIndex`). The member is present only when there are warnings.
+- `POST`, `PUT` and `PATCH /api/sequences` responses to a per-step-shape body get an optional `warnings` array (same item shape as the command response: `code`, `message`, `fieldPath`, `parameterName`, `entryIndex`). The member is present only when there are warnings. The responses to an old-shape body and to a domain-shape body do not change.
