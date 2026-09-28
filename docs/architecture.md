@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-28 (feature 112: a "not executed" `PrimitiveTap` outcome means that no input
-went to the device, and `POST /api/steps/execute` writes an execution-log entry, #222)._
+_Last reviewed: 2026-09-28 (feature 113: `POST /api/sequences` rejects a malformed step with a 400
+that names the step, and a create dry run never stores a sequence, #242)._
 
 ## What GameBot is
 
@@ -782,7 +782,23 @@ validity or exercise runtime branching without ever touching a real emulator.
   `{ valid: true, dryRun: true, errors: [] }` (mirroring the sibling
   `POST /api/sequences/{id}/validate` response shape); failure returns the
   identical `400` error a non-dry-run create would give for the same body.
-  Only recognized on the per-step request shape.
+  Since feature 113 (issue #242), the service reads `dryRun` from the raw body
+  for each body shape (per-step, old string-id list and `blocks`), so a create
+  dry run never stores a sequence.
+- **Body shape and malformed steps** (feature 113, issue #242): when one or
+  more items of `steps` is an object, `POST`, `PUT` and `PATCH` read the body
+  as the per-step shape (for a body with `blocks`, only when a step object has
+  `stepType` or `primitiveAction`). The reader rejects a top-level Action step
+  without a `primitiveAction` object with `400`, and each shape error starts
+  with `steps[<index>] (stepId '<id>')`. A step with only `commandReference`
+  is not a command step: `commandReference` is only a name label, and the
+  command id comes from `primitiveAction.payload.commandId`. The old
+  string-id shape applies only when each item of `steps` is a string. It
+  rejects an item that is not a string and a `parameters` value that is not
+  `null`, so the service never stores fewer steps or parameters than the
+  request declares. Before, a first step without `stepType` and
+  `primitiveAction` selected the old shape, and the service stored the
+  sequence with zero steps and no parameters.
 - **Update / patch** (feature 091): `dryRun: true` on `PUT` or `PATCH
   /api/sequences/{id}` runs every check a real update runs and returns before
   the version bump and `ISequenceRepository.UpdateAsync`, so the stored
@@ -887,6 +903,13 @@ Feature 091 fixed, tightening only (see "Dry-run / validate-only sequence mode" 
 - `dryRun` on `PUT`/`PATCH /api/sequences/{id}`: validates without persisting (previously ignored).
 - `POST`/`PUT`/`PATCH` sequence writes reject a nonexistent command reference with `400`, except an id
   the stored sequence already references.
+
+Feature 113 fixed, tightening only (see "Dry-run / validate-only sequence mode" above; issue #242):
+
+- A sequence write with a malformed object step gets `400` that names the step. Before, `POST`
+  stored the sequence with zero steps, and `PUT`/`PATCH` kept the stored steps.
+- `dryRun` on `POST /api/sequences` applies to each body shape and never stores a sequence.
+- The old string-id create shape rejects an item that is not a string and a non-null `parameters`.
 
 Feature 086 added, additively (see "Queue cycle observability" above):
 

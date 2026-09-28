@@ -99,16 +99,27 @@ internal static class SequencesEndpoints {
     if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
       var name = nameProp.GetString()!.Trim();
       var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+      // Issue #242: this shape keeps only string command ids. Reject each part of the request that
+      // it cannot keep, so that the stored sequence never differs from the request.
+      var oldShapeErrors = ValidateOldShapeRequest(root);
+      if (oldShapeErrors.Count > 0) {
+        return Results.BadRequest(new { message = "Invalid sequence payload", errors = oldShapeErrors });
+      }
+
       if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == System.Text.Json.JsonValueKind.Array) {
         var order = 0;
         var steps = new List<GameBot.Domain.Commands.SequenceStep>();
         foreach (var el in stepsProp.EnumerateArray()) {
-          if (el.ValueKind == System.Text.Json.JsonValueKind.String) {
-            steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
-          }
+          steps.Add(new GameBot.Domain.Commands.SequenceStep { Order = order++, CommandId = el.GetString()! });
         }
         seq.SetSteps(steps);
       }
+
+      // Issue #242: a dry run never stores a sequence, for each body shape.
+      if (IsDryRunRequested(root)) {
+        return Results.Ok(new { valid = true, dryRun = true, errors = Array.Empty<string>() });
+      }
+
       var created = await repo.CreateAsync(seq).ConfigureAwait(false);
       return Results.Created(new Uri($"{ApiRoutes.Sequences}/{created.Id}", UriKind.Relative), await ToSequenceResponseAsync(created, commandRepository, ct).ConfigureAwait(false));
     }
@@ -117,6 +128,9 @@ internal static class SequencesEndpoints {
     if (seqDomain is null) return Results.BadRequest(new { message = "Invalid sequence payload" });
     var errors = ValidateSequence(seqDomain);
     if (errors.Count > 0) return Results.BadRequest(new { message = "Invalid sequence", errors });
+    if (IsDryRunRequested(root)) {
+      return Results.Ok(new { valid = true, dryRun = true, errors = Array.Empty<string>() });
+    }
     seqDomain.CreatedAt = DateTimeOffset.UtcNow;
     seqDomain.UpdatedAt = seqDomain.CreatedAt;
     var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
@@ -678,6 +692,31 @@ internal static class SequencesEndpoints {
       && dryRunProp.ValueKind == JsonValueKind.True;
   }
 
+  /// <summary>
+  /// Checks a create request in the old shape (<c>steps</c> as a list of command id strings) for parts
+  /// that this shape cannot keep (issue #242).
+  /// </summary>
+  /// <param name="root">The request body.</param>
+  /// <returns>One error for each item of <c>steps</c> that is not a string, and one error when <c>parameters</c> is not null. An empty list when the request is correct.</returns>
+  private static List<string> ValidateOldShapeRequest(System.Text.Json.JsonElement root) {
+    var errors = new List<string>();
+    if (root.TryGetProperty("steps", out var stepsProp) && stepsProp.ValueKind == JsonValueKind.Array) {
+      var index = 0;
+      foreach (var item in stepsProp.EnumerateArray()) {
+        if (item.ValueKind != JsonValueKind.String) {
+          errors.Add($"steps[{index}]: each step must be a string command id or a step object.");
+        }
+        index++;
+      }
+    }
+
+    if (root.TryGetProperty("parameters", out var parametersProp) && parametersProp.ValueKind != JsonValueKind.Null) {
+      errors.Add("parameters requires the per-step body shape (steps as step objects).");
+    }
+
+    return errors;
+  }
+
   private static bool HasLegacyBranchingFields(System.Text.Json.JsonElement root) {
     return root.TryGetProperty("entryStepId", out _)
            || root.TryGetProperty("links", out _);
@@ -692,9 +731,41 @@ internal static class SequencesEndpoints {
       return false;
     }
 
-    var firstStep = stepsProp.EnumerateArray().FirstOrDefault();
-    return firstStep.ValueKind == JsonValueKind.Object
-      && (firstStep.TryGetProperty("primitiveAction", out _) || firstStep.TryGetProperty("stepType", out _));
+    // Issue #242: look at each step, not only at the first step. One object step selects the
+    // per-step shape, so the reader checks each step and rejects a malformed step with 400. Before,
+    // a first step without stepType and primitiveAction selected the old string-id shape, and the
+    // service stored the sequence with zero steps. A body with "blocks" keeps the domain shape,
+    // unless a step object has stepType or primitiveAction (the rule before this change).
+    var hasBlocks = root.TryGetProperty("blocks", out _);
+    foreach (var step in stepsProp.EnumerateArray()) {
+      if (step.ValueKind != JsonValueKind.Object) {
+        continue;
+      }
+
+      if (!hasBlocks || step.TryGetProperty("primitiveAction", out _) || step.TryGetProperty("stepType", out _)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// <summary>
+  /// Gives the position of a step in the request for a shape error (issue #242), so that the author
+  /// can find the malformed step.
+  /// </summary>
+  /// <param name="index">The zero-based index of the step in <c>steps</c>.</param>
+  /// <param name="step">The step element of the request.</param>
+  /// <returns><c>steps[&lt;index&gt;] (stepId '&lt;id&gt;')</c> when the step has a string <c>stepId</c>, otherwise <c>steps[&lt;index&gt;]</c>.</returns>
+  private static string DescribeStepPosition(int index, System.Text.Json.JsonElement step) {
+    var position = $"steps[{index}]";
+    if (step.ValueKind == JsonValueKind.Object
+        && step.TryGetProperty("stepId", out var stepIdProp)
+        && stepIdProp.ValueKind == JsonValueKind.String) {
+      return $"{position} (stepId '{stepIdProp.GetString()}')";
+    }
+
+    return position;
   }
 
   private static bool TryReadPerStepRequest(System.Text.Json.JsonElement root, out SequenceUpsertContract? request, out string? error) {
@@ -716,14 +787,17 @@ internal static class SequencesEndpoints {
       return false;
     }
 
+    var stepIndex = -1;
     foreach (var stepElement in stepsProp.EnumerateArray()) {
+      stepIndex++;
+      var position = DescribeStepPosition(stepIndex, stepElement);
       if (stepElement.ValueKind != JsonValueKind.Object) {
-        error = "each step must be an object.";
+        error = $"{position}: each step must be an object.";
         return false;
       }
 
       if (!stepElement.TryGetProperty("stepId", out var stepIdProp) || stepIdProp.ValueKind != JsonValueKind.String) {
-        error = "each step must include string stepId.";
+        error = $"{position}: each step must include string stepId.";
         return false;
       }
 
@@ -732,7 +806,7 @@ internal static class SequencesEndpoints {
       var isLoopOrBreak = stepTypeValue is "loop" or "break" or "if";
 
       if (!isLoopOrBreak && (!stepElement.TryGetProperty("primitiveAction", out var primitiveActionProp) || primitiveActionProp.ValueKind != JsonValueKind.Object)) {
-        error = "each action step must include primitiveAction object.";
+        error = $"{position}: each action step must include primitiveAction object.";
         return false;
       }
     }

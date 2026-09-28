@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- `POST /api/sequences` rejects a malformed step, and a create dry run never stores a sequence (113-reject-malformed-sequence-step, #242)
+  - A step without `stepType` and without `primitiveAction` (for example, a step with only `commandReference`) now gets 400. The error names the step: `steps[0] (stepId 'a'): each action step must include primitiveAction object.` Before, the service returned 201 and stored the sequence with zero steps and no parameters. It also dropped the valid steps of the same request.
+  - When one or more items of `steps` is an object, the service reads each step as a step object. Before, the service looked only at the first step. `PUT` and `PATCH /api/sequences/{id}` use the same rule, so a malformed step gets the same 400 and the stored sequence does not change.
+  - Each shape error of a step starts with `steps[<index>]`, and with `(stepId '<id>')` when the step has a string `stepId`.
+  - `dryRun: true` on `POST /api/sequences` now applies to each body shape. A create dry run never stores a sequence.
+  - The old create shape (`steps` as a list of command id strings) rejects an item that is not a string, and a `parameters` value that is not `null`, with 400.
+  - **Compatibility**: a valid per-step body, an old body with string ids, and a `blocks` body keep their results. Only bodies that the service stored with data loss now get 400. The Swagger description of `POST /api/sequences` tells the rules.
 - A "not executed" tap outcome is true, and a single step call writes an execution-log entry (112-truthful-tap-outcome-log, #222)
   - A `PrimitiveTap` step reports `skipped_detection_failed`, `skipped_invalid_config` or `cancelled` with `accepted: 0` only when the service sent no input to the device. Before, an error or a cancellation after the dispatch (for example, when the service read back the executed point) gave `accepted: 0` with a "not executed" status, although the tap went to the device.
   - After a completed dispatch, the outcome is now `executed` with the reason `executed_then_error` or `executed_then_cancelled`, and `accepted` is the count that the session returned. The outcome has the resolved point, and the executed point when the service can read it.

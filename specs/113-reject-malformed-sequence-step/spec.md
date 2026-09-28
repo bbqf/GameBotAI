@@ -2,7 +2,7 @@
 
 **Feature Branch**: `ccr-1ebf2553-mqz6yt` (spec number 113)  
 **Created**: 2026-09-28  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #242 (B-028): "POST /api/sequences stores a sequence with zero steps when a step has commandReference and no stepType, and ignores dryRun". Full description: see the issue and the feature description that started this spec.
 
 ## Background

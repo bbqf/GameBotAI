@@ -147,6 +147,7 @@ Status vocabulary:
 | 110 | A condition on a Loop step is a guard that the runtime obeys | Implemented |
 | 111 | Press and hold at a detected point (anchored long press) | Implemented |
 | 112 | Truthful tap outcome and an execution log for a single step | Implemented |
+| 113 | Reject a malformed sequence step on create | Implemented |
 
 ## Numbering notes
 
