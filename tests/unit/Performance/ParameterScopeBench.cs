@@ -8,6 +8,7 @@ using GameBot.Domain.Commands;
 using GameBot.Domain.Parameters;
 using GameBot.Domain.Queues;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace GameBot.Tests.Unit.Performance;
 
@@ -23,6 +24,9 @@ namespace GameBot.Tests.Unit.Performance;
 /// </summary>
 public sealed class ParameterScopeBench {
   private const int Iterations = 2000;
+  private readonly ITestOutputHelper _output;
+
+  public ParameterScopeBench(ITestOutputHelper output) => _output = output;
 
   private static ParameterScope BuildDeepScope() {
     // The deepest realistic chain: queue built-ins -> template entry -> sequence -> command -> loop.
@@ -127,6 +131,43 @@ public sealed class ParameterScopeBench {
 
     averageMicroseconds.Should().BeLessThan(100,
         "an unparametrized step must be an order of magnitude cheaper than the budget");
+  }
+
+  /// <summary>
+  /// Feature 115: one <see cref="ParameterScope.TryBindChild"/> call with a whole placeholder, a
+  /// value with text around a placeholder, and a literal. The goal is less than 50 µs on average.
+  /// The assert uses the 1 ms step budget, so that a slow build host does not make the test fail.
+  /// The test writes the measured average to the test output for the performance note.
+  /// </summary>
+  [Fact]
+  public void BindingAChildScopeWithPlaceholdersIsCheap() {
+    // Five layers with twenty names in total.
+    var scope = ParameterScope.Empty;
+    string[] layers = {
+      ParameterScopeLayers.Queue, ParameterScopeLayers.Entry, ParameterScopeLayers.Sequence,
+      ParameterScopeLayers.Command, ParameterScopeLayers.Command
+    };
+    for (var layer = 0; layer < layers.Length; layer++) {
+      var bindings = new Collection<ParameterBinding>();
+      for (var name = 0; name < 4; name++) {
+        bindings.Add(new ParameterBinding { Name = $"p{layer}{name}", Value = $"value-{layer}-{name}" });
+      }
+      scope = scope.Child(layers[layer], bindings, null);
+    }
+
+    var stepBindings = new Collection<ParameterBinding> {
+      new() { Name = "whole", Value = "{{p13}}" },
+      new() { Name = "mixed", Value = "nova-{{p02}}-{{p41}}" },
+      new() { Name = "literal", Value = "pns-todo-radar" }
+    };
+
+    var averageMicroseconds = MeasureAverageMicroseconds(() => {
+      scope.TryBindChild(ParameterScopeLayers.Command, stepBindings, out _, out _).Should().BeTrue();
+    });
+
+    _output.WriteLine($"TryBindChild average: {averageMicroseconds:F2} µs (goal: < 50 µs)");
+    averageMicroseconds.Should().BeLessThan(1000,
+        "binding the parameters of one step must be negligible beside the device I/O that follows it");
   }
 
   [Fact]

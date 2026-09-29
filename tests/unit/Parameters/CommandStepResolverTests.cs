@@ -339,4 +339,59 @@ public sealed class CommandStepResolverTests {
     resolved!.PrimitiveTap!.DetectionTarget.ReferenceImageId.Should().Be("nova-b");
     used.Should().ContainSingle(p => p.Name == "option" && p.Value == "b");
   }
+
+  // ── Feature 115: the sources of a mixed binding value reach the used list (FR-008) ──
+
+  /// <summary>An entry layer with <c>option=b</c>, and a binding layer with <c>novaOptionImage=nova-{{option}}</c>.</summary>
+  private static ParameterScope MixedBindingScope() {
+    ScopeWith(("option", "b")).TryBindChild(
+            ParameterScopeLayers.Command,
+            new Collection<ParameterBinding> { new() { Name = "novaOptionImage", Value = "nova-{{option}}" } },
+            out var child,
+            out _)
+        .Should().BeTrue();
+    return child!;
+  }
+
+  [Fact]
+  public void SourcesOfAMixedBindingValueFollowTheUsedName() {
+    var step = TapStep("option-a", "{{novaOptionImage}}");
+
+    CommandStepResolver.TryResolve(step, MixedBindingScope(), out var resolved, out _, out var used)
+        .Should().BeTrue();
+
+    resolved!.PrimitiveTap!.DetectionTarget.ReferenceImageId.Should().Be("nova-b");
+    used.Should().Equal(
+        new ResolvedParameter("novaOptionImage", "nova-b", ParameterScopeLayers.Command),
+        new ResolvedParameter("option", "b", ParameterScopeLayers.Entry));
+  }
+
+  [Fact]
+  public void ValueWithNoSourcesGivesTheSameUsedListAsBefore() {
+    var step = TapStep("option-a", "{{novaOption}}");
+
+    CommandStepResolver.TryResolve(step, ScopeWith(("novaOption", "option-b")), out _, out _, out var used)
+        .Should().BeTrue();
+
+    used.Should().Equal(new ResolvedParameter("novaOption", "option-b", ParameterScopeLayers.Entry));
+  }
+
+  [Fact]
+  public void SourceItemIsNotAddedWhenTheUsedListAlreadyHasTheName() {
+    // The target id is read first, so the used list has "option" before "novaOptionImage".
+    var step = new CommandStep {
+      Type = CommandStepType.PrimitiveTap,
+      Order = 2,
+      TargetId = "{{option}}",
+      PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("option-a", 0.85, 3, 4) },
+      FieldTemplates = new Dictionary<string, string> { [TapImageKey] = "{{novaOptionImage}}" }
+    };
+
+    CommandStepResolver.TryResolve(step, MixedBindingScope(), out _, out _, out var used)
+        .Should().BeTrue();
+
+    used.Should().Equal(
+        new ResolvedParameter("option", "b", ParameterScopeLayers.Entry),
+        new ResolvedParameter("novaOptionImage", "nova-b", ParameterScopeLayers.Command));
+  }
 }

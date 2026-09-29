@@ -25,13 +25,29 @@ public sealed record ParameterResolutionError(
     string Reason,
     string? OffendingValue = null) {
 
+  /// <summary>The start of the field path of a step binding value (feature 115).</summary>
+  private const string BindingFieldPrefix = "parameterBindings.";
+
   /// <summary>
   /// Renders the operator-facing message for this failure, in the fixed form the API contract and
-  /// the integration tests match on.
+  /// the integration tests match on. When a placeholder in a step binding value does not resolve
+  /// (the field path starts with <c>parameterBindings.</c>), the message also tells the operator how
+  /// to supply the value (feature 115). The other messages do not change.
   /// </summary>
   /// <param name="stepLabel">Step id or label the failure is attributed to.</param>
-  public string ToMessage(string stepLabel) =>
-      Reason == ParameterResolutionReasons.NotANumber
-          ? $"Step '{stepLabel}': parameter '{ParameterName}' resolved to '{OffendingValue}', which is not a whole number for field '{FieldPath}'."
-          : $"Step '{stepLabel}': parameter '{ParameterName}' used by field '{FieldPath}' could not be resolved from any scope.";
+  public string ToMessage(string stepLabel) {
+    if (Reason == ParameterResolutionReasons.NotANumber)
+      return $"Step '{stepLabel}': parameter '{ParameterName}' resolved to '{OffendingValue}', which is not a whole number for field '{FieldPath}'.";
+
+    var message = $"Step '{stepLabel}': parameter '{ParameterName}' used by field '{FieldPath}' could not be resolved from any scope.";
+    if (Reason == ParameterResolutionReasons.Unresolved
+        && FieldPath.StartsWith(BindingFieldPrefix, System.StringComparison.Ordinal)) {
+      message += $" Do one of these to supply a value for '{ParameterName}'."
+          + " Supply the value in the queue template entry or in the run request."
+          + $" Give '{ParameterName}' a default value in the sequence or in the calling command."
+          + " Bind a literal value, or bind a value in the calling command.";
+    }
+
+    return message;
+  }
 }

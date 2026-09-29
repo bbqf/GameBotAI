@@ -149,6 +149,7 @@ Status vocabulary:
 | 112 | Truthful tap outcome and an execution log for a single step | Implemented |
 | 113 | Reject a malformed sequence step on create | Implemented |
 | 114 | Let a parameter choose the reference image | Implemented |
+| 115 | Resolve a placeholder in a step parameterBindings value | Implemented |
 
 ## Numbering notes
 

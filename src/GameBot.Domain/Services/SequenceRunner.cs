@@ -664,16 +664,36 @@ namespace GameBot.Domain.Services {
         return false;
       }
 
+      // The step's bindings become an inner layer, so the invoked command sees them ahead of
+      // anything inherited. The command's own declarations are layered on by the caller, which is
+      // the only place that can load them (feature 078). A {{name}} placeholder in a binding value
+      // resolves against the step scope, the same scope that the step guard uses (feature 115).
+      // When a placeholder does not resolve, the step fails and the command does not run.
+      var commandScope = scope;
+      if (originalStep.ParameterBindings is { Count: > 0 }) {
+        if (!scope.TryBindChild(ParameterScopeLayers.Command, originalStep.ParameterBindings, out var bound, out var bindingError)) {
+          var bindingMessage = bindingError.ToMessage(stepKey);
+          result.AddStep(
+              step.CommandId,
+              appliedDelay,
+              "Failed",
+              conditionType: step.Condition is null ? null : step.Condition.Type,
+              conditionResult: step.Condition is null ? null : "true",
+              actionOutcome: "failed",
+              message: bindingMessage,
+              stepId: step.StepId);
+          result.Fail(bindingMessage);
+          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+          return true;
+        }
+
+        commandScope = bound;
+      }
+
       if (_logger != null) LogCommandStart(_logger, step.CommandId, null);
       var cmdStart = DateTimeOffset.UtcNow;
       var cmdDispatch = CommandDispatchOutcome.Executed;
       try {
-        // The step's bindings become an inner layer, so the invoked command sees them ahead of
-        // anything inherited. The command's own declarations are layered on by the caller, which is
-        // the only place that can load them (feature 078).
-        var commandScope = originalStep.ParameterBindings is { Count: > 0 }
-            ? scope.Child(ParameterScopeLayers.Command, originalStep.ParameterBindings, null)
-            : scope;
         cmdDispatch = commandDispatcher is not null
             ? await commandDispatcher(step.CommandId, commandScope).ConfigureAwait(false)
             : CommandDispatchOutcome.Executed;

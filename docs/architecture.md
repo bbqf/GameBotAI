@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-28 (feature 114: a parameter can choose the reference image of a tap, a
-wait and an `imageVisible` condition, and a queue template save checks the known image ids, #243)._
+_Last reviewed: 2026-09-29 (feature 115: a `{{name}}` placeholder in a step `parameterBindings`
+value resolves against the scope outside the binding, #246)._
 
 ## What GameBot is
 
@@ -78,6 +78,16 @@ not survive a service restart; queue *configuration* and templates are persisted
     warning `static_check_skipped`. A queue template save checks each known value (entry value or
     default) that goes to an image field, and gives `400 unknown_image_reference` when no image has
     that id. A non-null step binding of the name covers it, so the save does not check it.
+  - **Placeholder in a binding value** (feature 115): a `{{name}}` placeholder in a step
+    `parameterBindings` value resolves against the scope outside the binding
+    (`ParameterScope.TryBindChild`), never against the new binding layer. This applies to a sequence
+    step and to a nested `Command` step. A value that is one whole placeholder keeps the origin layer
+    of the resolved value. A value with text around placeholders gets the layer `command`, and the
+    log adds one source item for each placeholder name after the used name. An unresolved name gives
+    a `ParameterResolutionError` with the field path `parameterBindings.<bindingName>`. Its message
+    tells how to supply the value. A sequence step then fails and the command does not run. A nested command step
+    gives `skipped_parameter_unresolved`, and the calling command continues with its next step. Only
+    `{{name}}` is a placeholder: `${name}` is literal text, and a `null` value inherits.
   - **Validation** splits three ways (`ParameterValidationService`): declaration well-formedness and
     statically-unresolvable references block a save (400); unsatisfied required parameters and unused
     ad-hoc values are reported as warnings on a template save; starting a queue is refused with
