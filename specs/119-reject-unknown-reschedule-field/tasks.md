@@ -16,7 +16,7 @@
 
 **Purpose**: Confirm a green baseline before any change.
 
-- [ ] T001 Build the solution. Run these existing tests: `tests\unit\Sequences\OcrOffsetValidationTests.cs`, `tests\unit\Sequences\SequenceStepValidationServiceActionTypeTests.cs`, `tests\contract\Sequences\SelfRescheduleActionContractTests.cs`. Record that they pass.
+- [X] T001 Build the solution. Run these existing tests: `tests\unit\Sequences\OcrOffsetValidationTests.cs`, `tests\unit\Sequences\SequenceStepValidationServiceActionTypeTests.cs`, `tests\contract\Sequences\SelfRescheduleActionContractTests.cs`. Record that they pass.
 
 ---
 
@@ -36,23 +36,23 @@
 
 ### Tests for User Story 1 (write first, must fail before T010)
 
-- [ ] T002 [P] [US1] Create `tests\unit\Sequences\RescheduleSelfUnknownFieldValidationTests.cs`. Use the validator setup of `tests\unit\Sequences\OcrOffsetValidationTests.cs`.
-- [ ] T003 [US1] In the file from T002, add a test. A valid Timer payload with the field `nextDay` gives an error. The error contains `nextDay` and the known-field list.
-- [ ] T004 [US1] In the same file, add a test. Two unknown fields give one error. Assert that each name is in the message. Do not assert the order.
-- [ ] T005 [US1] In the same file, add a test. The keys `nextDay` and `NextDay` are both unknown. Assert that the error lists each key as the author wrote it.
-- [ ] T006 [US1] In `tests\contract\Sequences\SelfRescheduleActionContractTests.cs`, add two POST tests for a step with `nextDay`. With `dryRun: true`, the response is 400 and the body contains `nextDay`. Without `dryRun`, the response is 400 and `GET /api/sequences/{id}` returns 404 for the POST id. Use unique sequence ids. Leave no data in the shared bin data dir.
-- [ ] T007 [US1] In the same contract file, add a PUT test. Create a valid sequence first. Send PUT with a `reschedule-self` step that has `nextDay`. Assert 400. Then GET the sequence and assert that it is unchanged. Use a unique sequence id.
-- [ ] T008 [US1] In the same contract file, add a PATCH test. Create a valid sequence first. Send PATCH with a `reschedule-self` step that has `nextDay`. Assert 400. Then GET the sequence and assert that it is unchanged. Use a unique sequence id.
+- [X] T002 [P] [US1] Create `tests\unit\Sequences\RescheduleSelfUnknownFieldValidationTests.cs`. Use the validator setup of `tests\unit\Sequences\OcrOffsetValidationTests.cs`.
+- [X] T003 [US1] In the file from T002, add a test. A valid Timer payload with the field `nextDay` gives an error. The error contains `nextDay` and the known-field list.
+- [X] T004 [US1] In the same file, add a test. Two unknown fields give one error. Assert that each name is in the message. Do not assert the order.
+- [X] T005 [US1] In the same file, add a test. The keys `nextDay` and `NextDay` are both unknown. Assert that the error lists each key as the author wrote it.
+- [X] T006 [US1] In `tests\contract\Sequences\SelfRescheduleActionContractTests.cs`, add two POST tests for a step with `nextDay`. With `dryRun: true`, the response is 400 and the body contains `nextDay`. Without `dryRun`, the response is 400 and `GET /api/sequences/{id}` returns 404 for the POST id. Use unique sequence ids. Leave no data in the shared bin data dir.
+- [X] T007 [US1] In the same contract file, add a PUT test. Create a valid sequence first. Send PUT with a `reschedule-self` step that has `nextDay`. Assert 400. Then GET the sequence and assert that it is unchanged. Use a unique sequence id.
+- [X] T008 [US1] In the same contract file, add a PATCH test. Create a valid sequence first. Send PATCH with a `reschedule-self` step that has `nextDay`. Assert 400. Then GET the sequence and assert that it is unchanged. Use a unique sequence id.
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Run the new tests from T003 to T008. Confirm that they fail because no error names the unknown field.
-- [ ] T010 [US1] In `src\GameBot.Domain\Services\SequenceStepValidationService.cs`, open `ValidateRescheduleSelfPayload`. Add the check after the `SelfReschedulePayload.TryRead` success branch.
-- [ ] T011 [US1] In the same method, build a static known-key set. Use the constants `OptionKey`, `TimerTimeOfDayKey`, `TimerRelativeOffsetKey`, and `OcrOffsetKey` of `SelfReschedulePayload`. Use `StringComparer.OrdinalIgnoreCase`.
-- [ ] T012 [US1] Collect the top-level keys of `action.Parameters` that are not in the set. Keep the payload order. If the list is not empty, add one error to `errors`.
-- [ ] T013 [US1] Write the error as `Step '<label>' reschedule-self payload has unknown field(s): <a, b>. Known fields: option, timerTimeOfDay, timerRelativeOffset, ocrOffset.`
-- [ ] T014 [US1] Do not change `SelfReschedulePayload.TryRead`, the load path, the nested `ocrOffset` check, or other action types.
-- [ ] T015 [US1] Run the tests from T003 to T008. Confirm that they pass.
+- [X] T009 [US1] Run the new tests from T003 to T008. Confirm that they fail because no error names the unknown field.
+- [X] T010 [US1] In `src\GameBot.Domain\Services\SequenceStepValidationService.cs`, open `ValidateRescheduleSelfPayload`. Add the check after the `SelfReschedulePayload.TryRead` success branch.
+- [X] T011 [US1] In the same method, build a static known-key set. Use the constants `OptionKey`, `TimerTimeOfDayKey`, `TimerRelativeOffsetKey`, and `OcrOffsetKey` of `SelfReschedulePayload`. Use `StringComparer.OrdinalIgnoreCase`.
+- [X] T012 [US1] Collect the top-level keys of `action.Parameters` that are not in the set. Keep the payload order. If the list is not empty, add one error to `errors`.
+- [X] T013 [US1] Write the error as `Step '<label>' reschedule-self payload has unknown field(s): <a, b>. Known fields: option, timerTimeOfDay, timerRelativeOffset, ocrOffset.`
+- [X] T014 [US1] Do not change `SelfReschedulePayload.TryRead`, the load path, the nested `ocrOffset` check, or other action types.
+- [X] T015 [US1] Run the tests from T003 to T008. Confirm that they pass.
 
 **Checkpoint**: US1 works alone. This is the MVP.
 
@@ -66,13 +66,13 @@
 
 ### Tests for User Story 2
 
-- [ ] T016 [US2] In `tests\unit\Sequences\RescheduleSelfUnknownFieldValidationTests.cs`, add tests. Each payload stays valid: `Timer` with `timerTimeOfDay`; `Timer` with `timerRelativeOffset`; `Timer` with `ocrOffset`; `OncePerRun`; `AtQueueStart`; `EveryStep`.
-- [ ] T017 [US2] In the same file, add a test. The key `TimerTimeOfDay` (other letter case) stays valid.
-- [ ] T018 [US2] In the same file, add a scope-guard test. An unknown field inside `ocrOffset` is not rejected.
-- [ ] T019 [US2] In the same file, add a test. `SelfReschedulePayload.TryRead` still succeeds with an unknown key, for example `nextDay`. This guards FR-009. It passes before and after T010.
-- [ ] T020 [US2] In `tests\contract\Sequences\SelfRescheduleActionContractTests.cs`, add a test. A payload with known fields only returns success. Use a unique sequence id. Remove the sequence at the end.
-- [ ] T021 [US2] Run the tests from T016 to T020. Confirm that they pass with the T010 change.
-- [ ] T022 [US2] Run all existing `reschedule-self` tests. Confirm that all stay green (SC-002).
+- [X] T016 [US2] In `tests\unit\Sequences\RescheduleSelfUnknownFieldValidationTests.cs`, add tests. Each payload stays valid: `Timer` with `timerTimeOfDay`; `Timer` with `timerRelativeOffset`; `Timer` with `ocrOffset`; `OncePerRun`; `AtQueueStart`; `EveryStep`.
+- [X] T017 [US2] In the same file, add a test. The key `TimerTimeOfDay` (other letter case) stays valid.
+- [X] T018 [US2] In the same file, add a scope-guard test. An unknown field inside `ocrOffset` is not rejected.
+- [X] T019 [US2] In the same file, add a test. `SelfReschedulePayload.TryRead` still succeeds with an unknown key, for example `nextDay`. This guards FR-009. It passes before and after T010.
+- [X] T020 [US2] In `tests\contract\Sequences\SelfRescheduleActionContractTests.cs`, add a test. A payload with known fields only returns success. Use a unique sequence id. Remove the sequence at the end.
+- [X] T021 [US2] Run the tests from T016 to T020. Confirm that they pass with the T010 change.
+- [X] T022 [US2] Run all existing `reschedule-self` tests. Confirm that all stay green (SC-002).
 
 **Checkpoint**: US1 and US2 both pass.
 
@@ -86,11 +86,11 @@
 
 ### Tests for User Story 3
 
-- [ ] T023 [US3] In `tests\unit\Sequences\RescheduleSelfUnknownFieldValidationTests.cs`, add a test. `option: "Bogus"` with only known keys gives the same message as before. It gives no unknown-field error.
-- [ ] T024 [US3] In the same file, add a test. `option: "Bogus"` with `nextDay` gives the option error. It gives no unknown-field error. The unknown field shows after the author fixes the option.
-- [ ] T025 [US3] In `tests\contract\Sequences\SelfRescheduleActionContractTests.cs`, add a test. `option: "Bogus"` returns 400 with the unchanged message.
-- [ ] T026 [US3] In the same contract file, add a test. `option: "Bogus"` with `nextDay` returns 400. The body has the option error. The body does not name an unknown field.
-- [ ] T027 [US3] Run the tests from T023 to T026. Confirm that they pass.
+- [X] T023 [US3] In `tests\unit\Sequences\RescheduleSelfUnknownFieldValidationTests.cs`, add a test. `option: "Bogus"` with only known keys gives the same message as before. It gives no unknown-field error.
+- [X] T024 [US3] In the same file, add a test. `option: "Bogus"` with `nextDay` gives the option error. It gives no unknown-field error. The unknown field shows after the author fixes the option.
+- [X] T025 [US3] In `tests\contract\Sequences\SelfRescheduleActionContractTests.cs`, add a test. `option: "Bogus"` returns 400 with the unchanged message.
+- [X] T026 [US3] In the same contract file, add a test. `option: "Bogus"` with `nextDay` returns 400. The body has the option error. The body does not name an unknown field.
+- [X] T027 [US3] Run the tests from T023 to T026. Confirm that they pass.
 
 **Checkpoint**: All three stories pass.
 
@@ -98,13 +98,13 @@
 
 ## Phase 6: Polish and Cross-Cutting Concerns
 
-- [ ] T028 [P] Search `docs\architecture.md` for text about `reschedule-self` validation. If the text is affected, update it in STE and update the "Last reviewed" date. If not, record "no change" and do not edit the file.
-- [ ] T029 [P] Add an entry to `CHANGELOG.md` in section `[Unreleased]`, subsection `Fixed`. The repo has this file. Follow the style of the existing entries. State the unknown-field rejection, the issue #228, and the compatibility note: a stored sequence with an unknown field still loads and runs, and the next PUT or PATCH of that sequence gets a 400 until the author removes the unknown field.
-- [ ] T030 [P] In `src\GameBot.Service\Swagger\PrimitiveActionSchemaFilter.cs`, open the `ActionTypes.RescheduleSelf` text. Add one sentence: "The service rejects an unknown top-level field." Check that an existing test on this text still passes. Update that test if it compares the full text.
-- [ ] T031 [P] Set the `Status` line of `specs\119-reject-unknown-reschedule-field\spec.md` and the row in `specs\STATUS.md` to the finished state.
-- [ ] T032 Run the full build and the unit and contract test projects. Confirm that they are green.
-- [ ] T033 Run the checks in `specs\119-reject-unknown-reschedule-field\quickstart.md`.
-- [ ] T034 Record the line and branch coverage of `ValidateRescheduleSelfPayload`. Compare them with the targets of constitution Principle II (80% line, 70% branch).
+- [X] T028 [P] Search `docs\architecture.md` for text about `reschedule-self` validation. If the text is affected, update it in STE and update the "Last reviewed" date. If not, record "no change" and do not edit the file.
+- [X] T029 [P] Add an entry to `CHANGELOG.md` in section `[Unreleased]`, subsection `Fixed`. The repo has this file. Follow the style of the existing entries. State the unknown-field rejection, the issue #228, and the compatibility note: a stored sequence with an unknown field still loads and runs, and the next PUT or PATCH of that sequence gets a 400 until the author removes the unknown field.
+- [X] T030 [P] In `src\GameBot.Service\Swagger\PrimitiveActionSchemaFilter.cs`, open the `ActionTypes.RescheduleSelf` text. Add one sentence: "The service rejects an unknown top-level field." Check that an existing test on this text still passes. Update that test if it compares the full text.
+- [X] T031 [P] Set the `Status` line of `specs\119-reject-unknown-reschedule-field\spec.md` and the row in `specs\STATUS.md` to the finished state.
+- [X] T032 Run the full build and the unit and contract test projects. Confirm that they are green.
+- [X] T033 Run the checks in `specs\119-reject-unknown-reschedule-field\quickstart.md`.
+- [X] T034 Record the line and branch coverage of `ValidateRescheduleSelfPayload`. Compare them with the targets of constitution Principle II (80% line, 70% branch).
 
 ---
 

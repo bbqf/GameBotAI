@@ -64,7 +64,7 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
         + "fails; min and max (HH:mm:ss, optional, defaults 00:00:01 and 24:00:00, min must be less than max) bound "
         + "the accepted reading. timerTimeOfDay, timerRelativeOffset and ocrOffset are rejected with any other option. "
         + "Schedules one more firing of this sequence into the queue run that started it; a no-op success when the "
-        + "sequence was not started from a queue.",
+        + "sequence was not started from a queue. The service rejects an unknown top-level field.",
       [ActionTypes.Notify] =
         "message, string, required, at most 1000 characters; url, optional absolute http or https URL that overrides "
         + "the service's default destination. Raises an outbound alert and always succeeds."

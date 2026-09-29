@@ -424,6 +424,15 @@ public sealed class SequenceStepValidationService {
     }
   }
 
+  private static readonly HashSet<string> RescheduleSelfKnownKeys = new(
+    new[] {
+      SelfReschedulePayload.OptionKey,
+      SelfReschedulePayload.TimerTimeOfDayKey,
+      SelfReschedulePayload.TimerRelativeOffsetKey,
+      SelfReschedulePayload.OcrOffsetKey
+    },
+    StringComparer.OrdinalIgnoreCase);
+
   private static void ValidateRescheduleSelfPayload(
       SequenceActionPayload action,
       string stepLabel,
@@ -431,6 +440,16 @@ public sealed class SequenceStepValidationService {
     if (!SelfReschedulePayload.TryRead(action, out var payload, out var parseError) || payload is null) {
       errors.Add($"Step '{stepLabel}' reschedule-self action is invalid: {parseError}");
       return;
+    }
+
+    // Issue #228: the run-time reader ignores an unknown key, so a mistyped field would silently do
+    // nothing. Reject it here. Only top-level keys are checked. The parse errors above come first.
+    var unknownFields = action.Parameters.Keys
+      .Where(key => !RescheduleSelfKnownKeys.Contains(key))
+      .ToList();
+    if (unknownFields.Count > 0) {
+      errors.Add($"Step '{stepLabel}' reschedule-self payload has unknown field(s): {string.Join(", ", unknownFields)}. "
+        + "Known fields: option, timerTimeOfDay, timerRelativeOffset, ocrOffset.");
     }
 
     if (payload.Option == SelfRescheduleOption.Timer) {

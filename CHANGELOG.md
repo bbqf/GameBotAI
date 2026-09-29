@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- A `reschedule-self` payload with an unknown top-level field is now rejected on save with a 400 that names each unknown field (119-reject-unknown-reschedule-field, #228)
+  - Known fields are `option`, `timerTimeOfDay`, `timerRelativeOffset` and `ocrOffset`. Field names match without regard to letter case. Before, a mistyped field (for example `nextDay`) was ignored and the step did the wrong thing without an error.
+  - **Compatibility**: a stored sequence with an unknown field still loads and runs. The next PUT or PATCH of that sequence gets a 400 until the author removes the unknown field.
 - `timerTimeOfDay` has one format in the queue-template endpoint and in the sequence validator (118-unify-timer-time-format, #226)
   - Both accept `HH:mm` and `HH:mm:ss` (24-hour) and reject all other strings. Before, the template endpoint accepted only `HH:mm`. The sequence validator accepted `HH:mm:ss` and also forms such as `11:00 PM` and `9:30`.
   - Both error messages name the accepted format: `HH:mm or HH:mm:ss (24-hour)`. The OpenAPI text and the doc comments state the same rule.

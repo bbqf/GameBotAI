@@ -153,6 +153,7 @@ Status vocabulary:
 | 116 | Keep the parameter scope on a run that reschedule-self books | Implemented |
 | 117 | A Break outcome when its If branch did not run | Implemented |
 | 118 | One format for timerTimeOfDay | Implemented |
+| 119 | Reject an unknown field in a reschedule-self payload | Implemented |
 
 ## Numbering notes
 

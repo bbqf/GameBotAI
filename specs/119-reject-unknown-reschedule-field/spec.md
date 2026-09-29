@@ -2,7 +2,7 @@
 
 **Feature Branch**: `119-reject-unknown-reschedule-field`
 **Created**: 2026-09-30
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Issue #228 (B-025): the reschedule-self validator accepts an unknown payload field (nextDay) as valid. Closes #228."
 
 ## Clarifications
