@@ -171,6 +171,14 @@ public sealed class SequencePerStepConditionsOpenApiTests {
     foreach (var state in new[] { "success", "failed", "skipped", "break", "no_break" }) {
       expectedStateDescription.Should().Contain(state);
     }
+
+    // Feature 117 (FR-009): a reference to a Break that did not execute evaluates as no_break.
+    stepRefDescription.Should().Contain("did not execute", "the stepRef description must tell the Break rule");
+    stepRefDescription.Should().Contain("no_break", "the stepRef description must tell the Break default");
+    var conditionDescription = commandOutcome.GetProperty("description").GetString();
+    conditionDescription.Should().Contain("did not execute");
+    conditionDescription.Should().Contain("no_break");
+    conditionDescription.Should().Contain("evaluates as no_break", "the schema description must tell the Break rule");
   }
 
   [Fact]

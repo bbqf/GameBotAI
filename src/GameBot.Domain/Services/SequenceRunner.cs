@@ -124,6 +124,8 @@ namespace GameBot.Domain.Services {
       }
 
       var linearStepOutcomes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+      // Feature 117: a Break that does not run reads as no_break. A Break that runs writes its own outcome over this default.
+      BreakStepIndex.SeedNoBreakOutcomes(linearStepOutcomes, sequence.Steps);
       var delayRange = ResolveInterStepDelayRange(sequence);
       var orderedSteps = sequence.Steps.OrderBy(s => s.Order).ToList();
 

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `081-loop-exit-reason-and-nested-steprefs`
 **Created**: 2026-09-11
-**Status**: Implemented
+**Status**: Implemented (iterated by 117)
 **Input**: User description: "Implement FR-001 from C:\src\PNS\docs\api-feature-requests.md: two related, additive changes to the sequence execution/authoring API — expose why a Loop step ended (brokeVia vs. exhaustedMaxIterations), and let commandOutcome/stepRef reference a step nested inside a Loop/If body, not only a top-level sibling."
 
 ## Background

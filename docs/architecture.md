@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-29 (feature 116: a run that `reschedule-self` books keeps the parameter
-scope of the run that booked it, #249)._
+_Last reviewed: 2026-09-29 (feature 117: a `commandOutcome` reference to a Break that did not run
+evaluates as `no_break`, #250)._
 
 ## What GameBot is
 
@@ -640,11 +640,19 @@ only the condition's immediate sibling list as before. `expectedState` additiona
 `break`/`no_break` (alongside `success`/`failed`/`skipped`), and `SequenceRunner` now records a
 `Break` step's fired/not-fired outcome into its runtime outcome map so such a reference actually
 resolves at execution time (previously unset, so even an already-legal same-body reference to a
-`Break` step's outcome always failed with "reference unavailable"). A reference that is now
-validation-legal (reachable + prior) but names a step that did not execute during a given run (an
-`If` branch not taken, a loop body that ran zero iterations) still fails the referencing step and
-the run with that same "unavailable" error — unchanged, deliberately not softened into a silent
-skip. See `specs/081-loop-exit-reason-and-nested-steprefs/contracts/loop-exit-reason-and-stepref-scope.md`.
+`Break` step's outcome always failed with "reference unavailable"). See
+`specs/081-loop-exit-reason-and-nested-steprefs/contracts/loop-exit-reason-and-stepref-scope.md`.
+
+Run rule for a step that did not execute (feature 117, issue #250, changes the feature 081 rule):
+at the start of each run, `SequenceRunner.ExecuteAsync` calls `BreakStepIndex.SeedNoBreakOutcomes`.
+This puts the default `no_break` into the run outcome map for each `Break` step of the definition
+(root steps, each `Loop.Body`, each `If.Body`/`ElseBody`). Thus a `commandOutcome` reference to a
+`Break` that did not run (an `If` branch that did not run, or a loop body that ran zero iterations)
+evaluates as `no_break`. A `Break` that ran writes its own outcome over the default, so it keeps
+the outcome that it recorded last. A reference to a step that is not a `Break` and that did not
+run still fails the referencing step and the run with the "unavailable" error. An unknown
+`stepRef` also still fails. An id that names a `Break` and also a step of a different type gets no
+default. See `specs/117-break-outcome-untaken-branch/contracts/command-outcome-break-not-run.md`.
 
 **Where the reference rules apply, and the 2026-09-17 retest that established it** (feature 103,
 issue #193): feature 081's widening was reported as delivered but never re-measured. Issue #193 asked

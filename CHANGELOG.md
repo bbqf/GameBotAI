@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- A `commandOutcome` condition that names a Break in an If branch that did not run (or in a loop body that ran zero iterations) now evaluates as `no_break`. Before, it failed with `condition-evaluation-error` (117-break-outcome-untaken-branch, #250)
+  - A Break that ran keeps the outcome that it recorded last. A reference to a step that is not a Break and that did not run, and an unknown reference, still fail as before. The save rules, the API shapes and the execution log do not change.
 - A `{{name}}` placeholder in a step `parameterBindings` value now resolves against the sequence scope at run time. Before, the command received the placeholder as literal text (115-binding-placeholder-scope, #246)
   - The placeholder resolves against the scope outside the binding. This applies to a sequence step and to a nested `Command` step. A value that is one whole placeholder keeps the origin layer of its value, for example `entry`.
   - A value with text around placeholders (for example `nova-{{option}}`) gets the layer `command`. The `parameters` log item also shows each placeholder name with its value and origin layer.
