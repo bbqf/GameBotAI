@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using FluentAssertions;
 using GameBot.Domain.Commands.SelfReschedule;
+using GameBot.Domain.Parameters;
 using GameBot.Service.Services.QueueExecution;
 using Xunit;
 
@@ -249,5 +250,90 @@ public sealed class SelfRescheduleCoordinatorTests {
 
     handle.PendingNextCycleStart.Should().BeEmpty();
     handle.PendingOncePerRun.Should().ContainSingle();
+  }
+
+  // ── Feature 116 (#249): a booking keeps the parameter scope of the run that booked it ──────────
+
+  /// <summary>The five booking variants. AtQueueStart goes into a different register on a cycling queue.</summary>
+  public static TheoryData<string> BookingVariants() => new() {
+    "OncePerRun", "EveryStep", "AtQueueStartCycling", "AtQueueStartNotCycling", "TimerOffset", "TimerTimeOfDay"
+  };
+
+  private static ParameterScope EntryScope(string value) =>
+    ParameterScope.Empty.Child(ParameterScopeLayers.Entry,
+      new[] { new ParameterBinding { Name = "slot", Value = value } }, null);
+
+  /// <summary>Makes one booking of <c>seq-A</c> for <paramref name="variant"/> and gives the entry that it made.</summary>
+  private static SelfRescheduleEntry Book(string variant, ParameterScope? scope) {
+    var clock = new FakeTimeProvider(FakeStart);
+    var (_, handle, coordinator) = Setup(cycling: variant == "AtQueueStartCycling", clock: clock);
+    switch (variant) {
+      case "OncePerRun":
+        coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.OncePerRun, null, null, scope);
+        return handle.PendingOncePerRun.Should().ContainSingle().Subject;
+      case "EveryStep":
+        coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.EveryStep, null, null, scope);
+        return handle.EveryStepInjections["seq-A"];
+      case "AtQueueStartCycling":
+        coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.AtQueueStart, null, null, scope);
+        handle.PendingOncePerRun.Should().BeEmpty();
+        return handle.PendingNextCycleStart.Should().ContainSingle().Subject;
+      case "AtQueueStartNotCycling":
+        coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.AtQueueStart, null, null, scope);
+        handle.PendingNextCycleStart.Should().BeEmpty();
+        return handle.PendingOncePerRun.Should().ContainSingle().Subject;
+      case "TimerOffset":
+        coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(10), scope);
+        return handle.SnapshotPendingTimerFirings().Should().ContainSingle().Subject;
+      case "TimerTimeOfDay":
+        coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, new TimeOnly(14, 0), null, scope);
+        return handle.SnapshotPendingTimerFirings().Should().ContainSingle().Subject;
+      default:
+        throw new ArgumentOutOfRangeException(nameof(variant), variant, "Unknown variant.");
+    }
+  }
+
+  [Theory] // T004 (feature 116) — FR-001/FR-002: each variant keeps the given scope object.
+  [MemberData(nameof(BookingVariants))]
+  public void EachBookingVariantKeepsTheScopeOfTheBookingRun(string variant) {
+    var scope = EntryScope("one");
+
+    var entry = Book(variant, scope);
+
+    entry.Scope.Should().BeSameAs(scope);
+  }
+
+  [Theory] // T016a (feature 116) — FR-007: a booking with no scope keeps no scope (the queue scope applies).
+  [MemberData(nameof(BookingVariants))]
+  public void EachBookingVariantWithNoScopeKeepsNoScope(string variant) {
+    var entry = Book(variant, null);
+
+    entry.Scope.Should().BeNull();
+  }
+
+  [Fact] // T016b (feature 116) — FR-010: a second EveryStep booking keeps the scope of the second call.
+  public void SecondEveryStepBookingKeepsTheSecondScope() {
+    var (_, handle, coordinator) = Setup();
+    var first = EntryScope("one");
+    var second = EntryScope("two");
+
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.EveryStep, null, null, first);
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.EveryStep, null, null, second);
+
+    handle.EveryStepInjections.Should().ContainSingle();
+    handle.EveryStepInjections["seq-A"].Scope.Should().BeSameAs(second);
+  }
+
+  [Fact] // T016b (feature 116) — FR-010: a second Timer booking keeps the scope of the second call.
+  public void SecondTimerBookingKeepsTheSecondScope() {
+    var clock = new FakeTimeProvider(FakeStart);
+    var (_, handle, coordinator) = Setup(clock: clock);
+    var first = EntryScope("one");
+    var second = EntryScope("two");
+
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(15), first);
+    coordinator.ScheduleSelf("q1", "seq-A", SelfRescheduleOption.Timer, null, TimeSpan.FromMinutes(5), second);
+
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.Scope.Should().BeSameAs(second);
   }
 }

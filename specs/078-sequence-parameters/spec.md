@@ -2,7 +2,7 @@
 
 **Feature Branch**: `078-sequence-parameters`
 **Created**: 2026-08-24
-**Status**: Implemented
+**Status**: Implemented (iterated by 116)
 **Input**: User description: "I need to be able to parametrize the commands from the sequences and sequences from the queue templates. Example: if I want to ensure the game is running, I need to specify the emulator, however if I have 3 instances, the only difference is the port number, so I don't need 3 different commands and 3 different sequences, I just have to specify the parameter 3 ports in 3 different templates and these will be propagated via one sequence to one command. Analyze how to implement it in the most efficient way, as there will be many commands that will need this kind of parametrization. Consider also the user-friendliness of the implementation in the UI, migration effort is less of a priority, make sure a migration path is available, but don't build any code for automatic migration, rather provide a clear path how to convert the commands and sequences to being parametrized in the UI and let the user do it manually. Ask questions before taking decisions that influence the behaviour."
 
 ## Overview

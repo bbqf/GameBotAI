@@ -433,9 +433,8 @@ internal sealed record SelfRescheduleEntry(
   SelfRescheduleOption Option,
   DateTimeOffset? FireAt,
   /// <summary>
-  /// The parameter scope of the firing that scheduled this one (feature 078, FR-015), so the extra
-  /// firing resolves parameters identically instead of falling back to the bare queue built-ins.
-  /// Null for firings scheduled before a scope was available.
+  /// The parameter scope that the queue run loop gave the run that made the booking (feature 078
+  /// FR-015, feature 116). The booked run uses this scope. Null means the queue scope.
   /// </summary>
   GameBot.Domain.Parameters.ParameterScope? Scope = null);
 

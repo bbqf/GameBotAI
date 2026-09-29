@@ -359,7 +359,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       ct: ct,
       scope: scope,
       dryRun: dryRun,
-      actionDispatcher: (action, token) => DispatchActionAsync(action, sequenceId, originatingQueueId, sessionId, token)
+      // Feature 116: send the scope that the caller gave this run (before the runner adds the
+      // sequence layer), so that a run that reschedule-self books uses the same scope.
+      actionDispatcher: (action, token) => DispatchActionAsync(action, sequenceId, originatingQueueId, sessionId, scope, token)
     ).ConfigureAwait(false);
 
     var sequence = await _sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
@@ -718,7 +720,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       SequenceActionPayload action,
       string sequenceId,
       string? originatingQueueId,
-      string? sessionId) {
+      string? sessionId,
+      GameBot.Domain.Parameters.ParameterScope scope) {
     if (string.IsNullOrWhiteSpace(originatingQueueId)) {
       return new ActionDispatchResult("noop", "no originating queue, no reschedule performed");
     }
@@ -743,7 +746,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       sequenceId,
       payload.Option,
       timerTimeOfDay,
-      timerRelativeOffset);
+      timerRelativeOffset,
+      scope);
 
     if (schedule.Outcome == SelfRescheduleOutcome.NotRunning) {
       return new ActionDispatchResult("noop", "originating queue run no longer active; no reschedule performed");
@@ -783,9 +787,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       string sequenceId,
       string? originatingQueueId,
       string? sessionId,
+      GameBot.Domain.Parameters.ParameterScope scope,
       CancellationToken ct) {
     if (string.Equals(action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
-      return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId, sessionId));
+      return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId, sessionId, scope));
     }
 
     if (string.Equals(action.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)) {

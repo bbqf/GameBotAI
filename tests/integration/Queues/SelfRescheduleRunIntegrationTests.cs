@@ -182,4 +182,161 @@ public sealed class SelfRescheduleRunIntegrationTests {
         && d.Attributes.TryGetValue("selfRescheduleOrigin", out var origin) && origin is true));
     taggedFiring.Should().NotBeNull();
   }
+
+  // ── Feature 116 (#249): a booked run keeps the parameter scope of the run that booked it ──────
+  // The tests do not upload images, so the tap result can be different on different hosts. The
+  // tests assert what the log records about the resolved values, not the tap result.
+
+  private const string SlotValue = "pns-nova-option-affinity";
+  private const string UnresolvedText = "could not be resolved from any scope";
+
+  /// <summary>The command <c>c116</c>: one tap step that gets its image id from <c>{{slot}}</c>.</summary>
+  private static Command SlotTapCommand(string id) {
+    var command = new Command { Id = id, Name = "ZZZ.SlotTap116" };
+    command.Parameters.Add(new GameBot.Domain.Parameters.ParameterDeclaration { Name = "slot", Required = true });
+    command.Steps.Add(new CommandStep {
+      Type = CommandStepType.PrimitiveTap,
+      Order = 0,
+      PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget("option-a", 0.85) },
+      FieldTemplates = new System.Collections.Generic.Dictionary<string, string> {
+        ["primitiveTap.detectionTarget.referenceImageId"] = "{{slot}}"
+      }
+    });
+    return command;
+  }
+
+  /// <summary>
+  /// A sequence with the required parameter <c>slot</c>. Step 0 books a run with
+  /// <paramref name="rescheduleParameters"/>. Step 1 (<c>s1</c>) runs <paramref name="commandId"/>
+  /// with the binding <c>slot = {{slot}}</c>.
+  /// </summary>
+  private static CommandSequence SlotSequence(
+      string id, string commandId, params (string Key, string Value)[] rescheduleParameters) {
+    var sequence = new CommandSequence { Id = id, Name = $"Seq-{id}" };
+    sequence.Parameters.Add(new GameBot.Domain.Parameters.ParameterDeclaration { Name = "slot", Required = true });
+    var action = new SequenceActionPayload { Type = ActionTypes.RescheduleSelf };
+    foreach (var (key, value) in rescheduleParameters) action.Parameters[key] = value;
+    sequence.SetSteps(new[] {
+      new SequenceStep { Order = 0, StepId = "r0", StepType = SequenceStepType.Action, Action = action },
+      new SequenceStep {
+        Order = 1, StepId = "s1", StepType = SequenceStepType.Command, CommandId = commandId,
+        ParameterBindings = new System.Collections.ObjectModel.Collection<GameBot.Domain.Parameters.ParameterBinding> {
+          new() { Name = "slot", Value = "{{slot}}" }
+        }
+      }
+    });
+    return sequence;
+  }
+
+  /// <summary>Seeds the command, the sequence, and a queue with no cycling that has one OncePerRun entry with <c>slot</c>.</summary>
+  private static async Task SeedSlotQueueAsync(IServiceProvider services, Command command, CommandSequence sequence, string queueId) {
+    await services.GetRequiredService<ICommandRepository>().AddAsync(command).ConfigureAwait(false);
+    await services.GetRequiredService<ISequenceRepository>().CreateAsync(sequence).ConfigureAwait(false);
+    var entry = new QueueTemplateEntry { SequenceId = sequence.Id, ScheduleType = ScheduleType.OncePerRun };
+    entry.ParameterValues.Add(new GameBot.Domain.Parameters.ParameterBinding { Name = "slot", Value = SlotValue });
+    var template = new QueueTemplate { Id = $"tpl-{queueId}", Name = $"T-{queueId}" };
+    template.Entries.Add(entry);
+    await services.GetRequiredService<IQueueTemplateRepository>().CreateAsync(template).ConfigureAwait(false);
+    await services.GetRequiredService<IQueueRepository>().CreateAsync(new ExecutionQueue {
+      Id = queueId, Name = $"Q-{queueId}", EmulatorSerial = "emu-offline", LinkedTemplateId = template.Id
+    }).ConfigureAwait(false);
+  }
+
+  /// <summary>The <c>parameters</c> items in the command log of <paramref name="commandId"/>.</summary>
+  private static async Task<System.Collections.Generic.List<ExecutionDetailItem>> ParametersItemsAsync(
+      IExecutionLogService log, string commandId) {
+    var page = await log.QueryAsync(new ExecutionLogQuery { ObjectType = "command", PageSize = 200 }).ConfigureAwait(false);
+    return page.Items
+      .Where(e => string.Equals(e.ObjectRef?.ObjectId, commandId, StringComparison.Ordinal))
+      .SelectMany(e => e.Details ?? Array.Empty<ExecutionDetailItem>())
+      .Where(d => string.Equals(d.Kind, "parameters", StringComparison.Ordinal))
+      .ToList();
+  }
+
+  /// <summary>Waits until the command log has <paramref name="expected"/> <c>parameters</c> items, or until the timeout.</summary>
+  private static async Task<System.Collections.Generic.List<ExecutionDetailItem>> WaitForParametersItemsAsync(
+      IExecutionLogService log, string commandId, int expected, int timeoutMs) {
+    var sw = Stopwatch.StartNew();
+    while (true) {
+      var items = await ParametersItemsAsync(log, commandId).ConfigureAwait(false);
+      if (items.Count >= expected || sw.ElapsedMilliseconds > timeoutMs) return items;
+      await Task.Delay(50).ConfigureAwait(false);
+    }
+  }
+
+  /// <summary>The <c>resolvedParameters</c> of one <c>parameters</c> item, as (name, value, originLayer).</summary>
+  private static System.Collections.Generic.List<(string Name, string Value, string Layer)> Resolved(ExecutionDetailItem item) {
+    object? raw = null;
+    item.Attributes?.TryGetValue("resolvedParameters", out raw);
+    var text = raw switch {
+      System.Text.Json.JsonElement element => element.ValueKind == System.Text.Json.JsonValueKind.String ? element.GetString() : element.ToString(),
+      string s => s,
+      null => null,
+      _ => System.Text.Json.JsonSerializer.Serialize(raw)
+    };
+    text.Should().NotBeNull();
+    using var document = System.Text.Json.JsonDocument.Parse(text!);
+    return document.RootElement.EnumerateArray()
+      .Select(p => (p.GetProperty("name").GetString()!, p.GetProperty("value").GetString()!, p.GetProperty("originLayer").GetString()!))
+      .ToList();
+  }
+
+  /// <summary>Asserts that no log entry of <paramref name="sequenceId"/> has the "could not be resolved" error.</summary>
+  private static async Task ShouldHaveNoUnresolvedErrorAsync(IExecutionLogService log, string sequenceId) {
+    var page = await log.QueryAsync(new ExecutionLogQuery { ObjectType = "sequence", PageSize = 200 }).ConfigureAwait(false);
+    var entries = page.Items.Where(e => string.Equals(e.ObjectRef?.ObjectId, sequenceId, StringComparison.Ordinal)).ToList();
+    entries.Should().NotBeEmpty();
+    System.Text.Json.JsonSerializer.Serialize(entries).Should().NotContain(UnresolvedText);
+  }
+
+  [Fact] // T006 (feature 116) — issue #249: a OncePerRun booked run resolves the entry value on the real dispatch path.
+  public async Task OncePerRunBookedRunResolvesTheEntryValue() {
+    using var app = new WebApplicationFactory<Program>();
+    _ = app.CreateClient();
+    var services = app.Services;
+    await SeedSlotQueueAsync(services, SlotTapCommand("c116-once"),
+      SlotSequence("s116-once", "c116-once", ("option", "OncePerRun")), "q116-once").ConfigureAwait(false);
+
+    var engine = services.GetRequiredService<IQueueExecutionService>();
+    await RunToCompletionAsync(engine, "q116-once").ConfigureAwait(false);
+
+    var log = services.GetRequiredService<IExecutionLogService>();
+    var entry = await GetQueueRunEntryAsync(log, "q116-once").ConfigureAwait(false);
+    entry.Should().NotBeNull();
+    entry!.Summary.Should().Contain("2 sequence(s) executed");
+
+    var items = await WaitForParametersItemsAsync(log, "c116-once", 2, 30000).ConfigureAwait(false);
+    items.Should().HaveCount(2, "the entry run and the booked run must both run the command");
+    foreach (var item in items) {
+      Resolved(item).Should().Equal(("slot", SlotValue, GameBot.Domain.Parameters.ParameterScopeLayers.Entry));
+    }
+    await ShouldHaveNoUnresolvedErrorAsync(log, "s116-once").ConfigureAwait(false);
+  }
+
+  [Fact] // T007 (feature 116) — a Timer booking chain resolves the entry value on the real dispatch path (real clock).
+  public async Task TimerBookedRunsResolveTheEntryValueForEachGeneration() {
+    using var app = new WebApplicationFactory<Program>();
+    _ = app.CreateClient();
+    var services = app.Services;
+    await SeedSlotQueueAsync(services, SlotTapCommand("c116-timer"),
+      SlotSequence("s116-timer", "c116-timer", ("option", "Timer"), ("timerRelativeOffset", "00:00:01")), "q116-timer").ConfigureAwait(false);
+
+    var engine = services.GetRequiredService<IQueueExecutionService>();
+    var log = services.GetRequiredService<IExecutionLogService>();
+    (await engine.StartAsync("q116-timer").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    System.Collections.Generic.List<ExecutionDetailItem> items;
+    try {
+      // The real clock runs the 1-second bookings. The wait is long, so that a slow CI runner does not fail the test.
+      items = await WaitForParametersItemsAsync(log, "c116-timer", 3, 60000).ConfigureAwait(false);
+    }
+    finally {
+      await engine.StopAsync("q116-timer").ConfigureAwait(false);
+    }
+
+    items.Should().HaveCountGreaterThanOrEqualTo(3, "the entry run and two booked runs must run the command");
+    foreach (var item in items) {
+      Resolved(item).Should().Equal(("slot", SlotValue, GameBot.Domain.Parameters.ParameterScopeLayers.Entry));
+    }
+    await ShouldHaveNoUnresolvedErrorAsync(log, "s116-timer").ConfigureAwait(false);
+  }
 }

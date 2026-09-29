@@ -1,13 +1,15 @@
 using System;
 using System.Globalization;
 using GameBot.Domain.Commands.SelfReschedule;
+using GameBot.Domain.Parameters;
 
 namespace GameBot.Service.Services.QueueExecution;
 
 /// <summary>
 /// Default <see cref="ISelfRescheduleCoordinator"/> (feature 065). Looks up the active run via the
 /// <see cref="IQueueRunRegistry"/> and injects one ephemeral <see cref="SelfRescheduleEntry"/> into
-/// the register matching the chosen option. All wall-clock reads go through the injected
+/// the register matching the chosen option. The entry keeps the parameter scope of the run that
+/// makes the booking, so the booked run uses the same scope (feature 116). All wall-clock reads go through the injected
 /// <see cref="TimeProvider"/> so timing is deterministic under test.
 /// </summary>
 internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
@@ -26,7 +28,8 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
     string sequenceId,
     SelfRescheduleOption option,
     TimeOnly? timerTimeOfDay,
-    TimeSpan? timerRelativeOffset) {
+    TimeSpan? timerRelativeOffset,
+    ParameterScope? scope = null) {
     var entryId = Guid.NewGuid().ToString("n");
 
     if (!_registry.TryGet(queueId, out var handle)) {
@@ -36,20 +39,20 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
 
     switch (option) {
       case SelfRescheduleOption.OncePerRun: {
-        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, null);
+        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, null, scope);
         handle.PendingOncePerRun.Enqueue(entry);
         return new SelfRescheduleResult(SelfRescheduleOutcome.Scheduled, entryId, option, null, "this cycle");
       }
 
       case SelfRescheduleOption.EveryStep: {
         // Idempotent per sequence: re-registering the same sequence does not stack (loop-safe, FR-008).
-        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, null);
+        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, null, scope);
         handle.EveryStepInjections[sequenceId] = entry;
         return new SelfRescheduleResult(SelfRescheduleOutcome.Scheduled, entryId, option, null, "after every step");
       }
 
       case SelfRescheduleOption.AtQueueStart: {
-        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, null);
+        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, null, scope);
         if (handle.CycleExecution) {
           handle.PendingNextCycleStart.Enqueue(entry);
           return new SelfRescheduleResult(SelfRescheduleOutcome.Scheduled, entryId, option, null, "next cycle");
@@ -61,7 +64,7 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
 
       case SelfRescheduleOption.Timer: {
         var fireAt = ResolveTimerFireAt(timerTimeOfDay, timerRelativeOffset);
-        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, fireAt);
+        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, fireAt, scope);
         handle.AddTimerFiring(entry);
         var timing = fireAt.ToString("u", CultureInfo.InvariantCulture);
         return new SelfRescheduleResult(SelfRescheduleOutcome.Scheduled, entryId, option, fireAt, timing);
