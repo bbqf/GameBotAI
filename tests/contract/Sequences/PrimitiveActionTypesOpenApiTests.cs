@@ -156,6 +156,13 @@ public sealed class PrimitiveActionTypesOpenApiTests {
     }
   }
 
+  [Fact]
+  public async Task RescheduleSelfTimeOfDayNamesTheAcceptedFormat() {
+    var section = PayloadSection(await PayloadDescriptionAsync().ConfigureAwait(false), "reschedule-self");
+
+    section.Should().Contain("HH:mm or HH:mm:ss");
+  }
+
   [Theory]
   [InlineData("tap", "x", "y")]
   [InlineData("swipe", "x1", "y1", "x2", "y2", "durationMs")]

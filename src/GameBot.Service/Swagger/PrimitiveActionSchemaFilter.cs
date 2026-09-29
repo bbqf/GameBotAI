@@ -56,7 +56,7 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
         + "and responsive.",
       [ActionTypes.RescheduleSelf] =
         "option, string, required: one of AtQueueStart, OncePerRun, Timer, EveryStep (case-insensitive). With Timer, "
-        + "exactly one of timerTimeOfDay (HH:mm:ss, service-local time of day) or timerRelativeOffset (HH:mm:ss, "
+        + "exactly one of timerTimeOfDay (HH:mm or HH:mm:ss, 24-hour, service-local time of day, no other form) or timerRelativeOffset (HH:mm:ss, "
         + "between 00:00:00 and 24:00:00) is required, unless ocrOffset is given. A timerTimeOfDay that is not later "
         + "than the current time books that time on the next day. ocrOffset, object, Timer only: "
         + "region {x, y, width, height} (required, positive width and height) is OCR-read for a countdown that "

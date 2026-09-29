@@ -31,8 +31,9 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public string ScheduleType { get; set; } = "OncePerRun";
 
     /// <summary>
-    /// Wall-clock time-of-day in HH:mm (24-hour) when <see cref="ScheduleType"/> is "Timer" in
-    /// time-of-day mode; null otherwise.
+    /// Wall-clock time-of-day (24-hour) when <see cref="ScheduleType"/> is "Timer" in
+    /// time-of-day mode; null otherwise. The text is HH:mm when the seconds are zero. Otherwise it is
+    /// HH:mm:ss.
     /// </summary>
     public string? TimerTimeOfDay { get; set; }
 

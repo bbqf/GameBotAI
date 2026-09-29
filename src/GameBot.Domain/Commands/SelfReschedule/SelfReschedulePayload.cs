@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
+using GameBot.Domain.Services;
 
 namespace GameBot.Domain.Commands.SelfReschedule;
 
@@ -16,7 +17,7 @@ namespace GameBot.Domain.Commands.SelfReschedule;
 public sealed class SelfReschedulePayload {
   /// <summary>Wire key for the chosen schedule option.</summary>
   public const string OptionKey = "option";
-  /// <summary>Wire key for the Timer time-of-day value (HH:mm:ss).</summary>
+  /// <summary>Wire key for the Timer time-of-day value (HH:mm or HH:mm:ss).</summary>
   public const string TimerTimeOfDayKey = "timerTimeOfDay";
   /// <summary>Wire key for the Timer relative-offset value (HH:mm:ss).</summary>
   public const string TimerRelativeOffsetKey = "timerRelativeOffset";
@@ -71,8 +72,9 @@ public sealed class SelfReschedulePayload {
     TimeOnly? timeOfDay = null;
     var hasTimeOfDay = TryReadString(payload.Parameters, TimerTimeOfDayKey, out var rawTimeOfDay);
     if (hasTimeOfDay) {
-      if (!TimeOnly.TryParse(rawTimeOfDay, CultureInfo.InvariantCulture, out var parsedTimeOfDay)) {
-        error = $"timerTimeOfDay '{rawTimeOfDay}' is not a valid HH:mm:ss time-of-day";
+      if (!TimerTimeOfDayFormat.TryParse(rawTimeOfDay, out var parsedTimeOfDay)) {
+        error = $"timerTimeOfDay '{rawTimeOfDay}' is not a valid time of day; accepted format: "
+          + $"{TimerTimeOfDayFormat.AcceptedFormatText}, for example '15:30' or '15:30:00'";
         return false;
       }
       timeOfDay = parsedTimeOfDay;

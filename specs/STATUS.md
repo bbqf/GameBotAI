@@ -152,6 +152,7 @@ Status vocabulary:
 | 115 | Resolve a placeholder in a step parameterBindings value | Implemented |
 | 116 | Keep the parameter scope on a run that reschedule-self books | Implemented |
 | 117 | A Break outcome when its If branch did not run | Implemented |
+| 118 | One format for timerTimeOfDay | Implemented |
 
 ## Numbering notes
 

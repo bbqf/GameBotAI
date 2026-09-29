@@ -335,6 +335,63 @@ public sealed class QueueTemplatesScheduleTypeTests {
     return (await BodyAsync(resp).ConfigureAwait(true)).GetProperty("id").GetString()!;
   }
 
+  // ── issue #226: one strict format for timerTimeOfDay ─────────────────────────
+
+  [Theory]
+  [InlineData("15:30:45", "15:30:45")]
+  [InlineData("15:30:00", "15:30")]
+  [InlineData("15:30", "15:30")]
+  public async Task TimerTimeOfDayIsSavedAndEchoedInTheShortestForm(string sent, string expected) {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    var entries = new[] { new { sequenceId = "seq-a", scheduleType = "Timer", timerTimeOfDay = sent } };
+    var createResp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "StrictTime", entries, overwrite = false }).ConfigureAwait(true);
+    createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = await BodyAsync(createResp).ConfigureAwait(true);
+    created.GetProperty("entries")[0].GetProperty("timerTimeOfDay").GetString().Should().Be(expected);
+
+    var id = created.GetProperty("id").GetString()!;
+    var getResp = await client.GetAsync(new Uri($"/api/queue-templates/{id}", UriKind.Relative)).ConfigureAwait(true);
+    var body = await BodyAsync(getResp).ConfigureAwait(true);
+    body.GetProperty("entries")[0].GetProperty("timerTimeOfDay").GetString().Should().Be(expected);
+  }
+
+  [Theory]
+  [InlineData("5pm")]
+  [InlineData("24:00")]
+  [InlineData(" 15:30")]
+  [InlineData("9:30")]
+  public async Task NotStrictTimerTimeOfDayReturns400WithTheAcceptedFormat(string sent) {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    var entries = new[] { new { sequenceId = "seq-a", scheduleType = "Timer", timerTimeOfDay = sent } };
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "Bad", entries, overwrite = false }).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var body = await BodyAsync(resp).ConfigureAwait(true);
+    body.GetProperty("error").GetProperty("code").GetString().Should().Be("invalid_request");
+    body.GetProperty("error").GetProperty("message").GetString().Should().Contain("HH:mm or HH:mm:ss");
+  }
+
+  [Theory]
+  [InlineData(null)]
+  [InlineData("")]
+  public async Task EmptyTimerTimeOfDayKeepsTheExactlyOneRuleMessage(string? sent) {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+
+    var entries = new[] { new { sequenceId = "seq-a", scheduleType = "Timer", timerTimeOfDay = sent } };
+    var resp = await client.PostAsJsonAsync(new Uri("/api/queue-templates", UriKind.Relative),
+      new { name = "Bad", entries, overwrite = false }).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var body = await BodyAsync(resp).ConfigureAwait(true);
+    body.GetProperty("error").GetProperty("message").GetString().Should()
+      .Be("entries[0] must set exactly one of timerTimeOfDay or timerRelativeOffset when scheduleType is Timer");
+  }
+
   private static async Task<int> SequenceIndexAsync(IExecutionLogService log, string sequenceId) {
     var page = await log.QueryAsync(new ExecutionLogQuery {
       ObjectType = "sequence", ObjectId = sequenceId, PageSize = 10

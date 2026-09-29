@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- `timerTimeOfDay` has one format in the queue-template endpoint and in the sequence validator (118-unify-timer-time-format, #226)
+  - Both accept `HH:mm` and `HH:mm:ss` (24-hour) and reject all other strings. Before, the template endpoint accepted only `HH:mm`. The sequence validator accepted `HH:mm:ss` and also forms such as `11:00 PM` and `9:30`.
+  - Both error messages name the accepted format: `HH:mm or HH:mm:ss (24-hour)`. The OpenAPI text and the doc comments state the same rule.
+  - A template response writes `HH:mm` when the seconds are zero. It writes `HH:mm:ss` when they are not zero.
+  - **Compatibility**: a stored `HH:mm` value keeps working. A sequence with a not-strict `timerTimeOfDay` (for example `9:30`) is now rejected on save. `timerRelativeOffset`, the other schedule fields and the run behavior do not change.
 - A `commandOutcome` condition that names a Break in an If branch that did not run (or in a loop body that ran zero iterations) now evaluates as `no_break`. Before, it failed with `condition-evaluation-error` (117-break-outcome-untaken-branch, #250)
   - A Break that ran keeps the outcome that it recorded last. A reference to a step that is not a Break and that did not run, and an unknown reference, still fail as before. The save rules, the API shapes and the execution log do not change.
 - A `{{name}}` placeholder in a step `parameterBindings` value now resolves against the sequence scope at run time. Before, the command received the placeholder as literal text (115-binding-placeholder-scope, #246)
