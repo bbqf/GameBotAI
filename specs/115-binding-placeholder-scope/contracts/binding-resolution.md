@@ -30,7 +30,7 @@ Error: `ParameterResolutionError(ParameterName = <name>, FieldPath = "parameterB
 Message (the current fixed form, plus a remediation hint for the binding case only):
 
 ```text
-Step '<stepKey>': parameter '<name>' used by field 'parameterBindings.<bindingName>' could not be resolved from any scope. Supply a value for '<name>' in the queue template entry or in the run request, give '<name>' a default value in the sequence or in the calling command, bind a literal value, or bind a value in the calling command.
+Step '<stepKey>': parameter '<name>' used by field 'parameterBindings.<bindingName>' could not be resolved from any scope. Do one of these to supply a value for '<name>'. Supply the value in the queue template entry or in the run request. Give '<name>' a default value in the sequence or in the calling command. Bind a literal value, or bind a value in the calling command.
 ```
 
 The hint is the same at the two call sites. The default must be on a declaration of `<name>` in the sequence (sequence step) or in the calling command (nested command step). The last part is for a nested command step, where the usual fix is a binding or a declaration in the calling command.

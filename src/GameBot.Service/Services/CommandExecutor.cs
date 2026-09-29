@@ -301,10 +301,26 @@ internal sealed class CommandExecutor : ICommandExecutor {
     var totalAccepted = 0;
     foreach (var step in cmd.Steps.OrderBy(s => s.Order)) {
       if (step.Type == CommandStepType.Command) {
-        // A nested command invocation pushes its own bindings before recursing.
-        var nestedScope = step.ParameterBindings is { Count: > 0 }
-          ? commandScope.Child(ParameterScopeLayers.Command, step.ParameterBindings, null)
-          : commandScope;
+        // A nested command invocation pushes its own bindings before recursing. A {{name}}
+        // placeholder in a binding value resolves against the scope of this command (feature 115).
+        // When a placeholder does not resolve, the nested command does not run, and the next step
+        // of this command runs.
+        var nestedScope = commandScope;
+        if (step.ParameterBindings is { Count: > 0 }) {
+          if (!commandScope.TryBindChild(ParameterScopeLayers.Command, step.ParameterBindings, out var bound, out var bindingError)) {
+            stepOutcomes.Add(new PrimitiveTapStepOutcome(
+              step.Order,
+              "skipped_parameter_unresolved",
+              bindingError.ToMessage(step.Order.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+              null,
+              null,
+              StepType: step.Type.ToString()));
+            continue;
+          }
+
+          nestedScope = bound;
+        }
+
         totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, nestedScope, ct).ConfigureAwait(false);
         continue;
       }

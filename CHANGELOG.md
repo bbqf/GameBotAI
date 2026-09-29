@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- A `{{name}}` placeholder in a step `parameterBindings` value now resolves against the sequence scope at run time. Before, the command received the placeholder as literal text (115-binding-placeholder-scope, #246)
+  - The placeholder resolves against the scope outside the binding. This applies to a sequence step and to a nested `Command` step. A value that is one whole placeholder keeps the origin layer of its value, for example `entry`.
+  - A value with text around placeholders (for example `nova-{{option}}`) gets the layer `command`. The `parameters` log item also shows each placeholder name with its value and origin layer.
+  - When no scope supplies the name, a sequence step fails and the command does not run. The message names the field `parameterBindings.<bindingName>` and tells how to supply the value. A nested command step gets `skipped_parameter_unresolved`, and the calling command continues with its next step.
+  - **Compatibility**: a literal binding value, a `null` binding value and a step with no bindings keep their behavior. `${name}` stays literal text. The stored JSON, the API shapes and the save rules do not change.
 - `POST /api/sequences` rejects a malformed step, and a create dry run never stores a sequence (113-reject-malformed-sequence-step, #242)
   - A step without `stepType` and without `primitiveAction` (for example, a step with only `commandReference`) now gets 400. The error names the step: `steps[0] (stepId 'a'): each action step must include primitiveAction object.` Before, the service returned 201 and stored the sequence with zero steps and no parameters. It also dropped the valid steps of the same request.
   - When one or more items of `steps` is an object, the service reads each step as a step object. Before, the service looked only at the first step. `PUT` and `PATCH /api/sequences/{id}` use the same rule, so a malformed step gets the same 400 and the stored sequence does not change.

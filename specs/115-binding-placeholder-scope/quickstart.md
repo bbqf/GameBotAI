@@ -35,7 +35,7 @@ Expected result:
 
 Expected result:
 
-- The step fails with the message "Step '<stepKey>': parameter 'novaOptionImage' used by field 'parameterBindings.novaOptionImage' could not be resolved from any scope. Supply a value for 'novaOptionImage' in the queue template entry or in the run request, give 'novaOptionImage' a default value in the sequence or in the calling command, bind a literal value, or bind a value in the calling command."
+- The step fails with the message "Step '<stepKey>': parameter 'novaOptionImage' used by field 'parameterBindings.novaOptionImage' could not be resolved from any scope. Do one of these to supply a value for 'novaOptionImage'. Supply the value in the queue template entry or in the run request. Give 'novaOptionImage' a default value in the sequence or in the calling command. Bind a literal value, or bind a value in the calling command."
 - The command does not run, and no log item shows the text `{{novaOptionImage}}` as a value.
 
 ## 4. Check the controls

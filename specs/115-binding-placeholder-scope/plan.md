@@ -159,7 +159,7 @@ The count K in the log message "Step N resolved K parameter(s)" is the number of
 `ParameterResolutionError.ToMessage(stepLabel)` adds one sentence after the current unresolved text when `Reason` is `ParameterResolutionReasons.Unresolved` and `FieldPath` starts with `parameterBindings.`:
 
 ```text
-Supply a value for '<name>' in the queue template entry or in the run request, give '<name>' a default value in the sequence or in the calling command, bind a literal value, or bind a value in the calling command.
+Do one of these to supply a value for '<name>'. Supply the value in the queue template entry or in the run request. Give '<name>' a default value in the sequence or in the calling command. Bind a literal value, or bind a value in the calling command.
 ```
 
 The hint names the parameter and the place of the default: a declaration in the sequence (sequence step) or in the calling command (nested command step). A default that the called command declares is not in the scope of the resolution (D2), so the hint does not tell the operator to use it.

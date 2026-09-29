@@ -20,6 +20,11 @@ public sealed class ParameterBinding {
   /// satisfies resolution and stops the walk. Binding forms default every row to <c>null</c> so the
   /// common inherit-everything case needs no interaction.
   /// </para>
+  /// <para>
+  /// A <c>{{name}}</c> placeholder in the value resolves against the scope outside the binding when
+  /// the step runs (feature 115). Only <c>{{name}}</c> is a placeholder. <c>${name}</c> is literal
+  /// text. A <c>null</c> value inherits the outer value.
+  /// </para>
   /// </summary>
   public string? Value { get; init; }
 }

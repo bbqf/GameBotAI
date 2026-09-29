@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -305,7 +306,7 @@ public static class CommandStepResolver {
       return false;
     }
 
-    used.Add(new ResolvedParameter(keys[0], value.Text, value.OriginLayer));
+    AddUsage(keys[0], value, used);
     text = value.Text;
     return true;
   }
@@ -322,8 +323,21 @@ public static class CommandStepResolver {
   private static void RecordUsage(string template, ParameterScope scope, List<ResolvedParameter> used) {
     foreach (var key in TemplateSubstitutor.ExtractKeys(template)) {
       if (scope.TryResolve(key, out var value)) {
-        used.Add(new ResolvedParameter(key, value.Text, value.OriginLayer));
+        AddUsage(key, value, used);
       }
+    }
+  }
+
+  /// <summary>
+  /// Adds the used name to <paramref name="used"/>. When the value came from a binding value with
+  /// text around placeholders, this also adds one item for each source name after the used name
+  /// (feature 115). A source item is not added when <paramref name="used"/> already has that name.
+  /// </summary>
+  private static void AddUsage(string key, ParameterValue value, List<ResolvedParameter> used) {
+    used.Add(new ResolvedParameter(key, value.Text, value.OriginLayer));
+    if (value.Sources is null) return;
+    foreach (var source in value.Sources) {
+      if (!used.Exists(u => string.Equals(u.Name, source.Name, StringComparison.Ordinal))) used.Add(source);
     }
   }
 }

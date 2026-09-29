@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using GameBot.Domain.Queues;
+using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Parameters;
 
@@ -30,7 +32,14 @@ public static class ParameterScopeLayers {
 /// <summary>A resolved parameter value together with the layer that supplied it.</summary>
 /// <param name="Text">The resolved value as text; numeric fields parse this at use time.</param>
 /// <param name="OriginLayer">One of <see cref="ParameterScopeLayers"/>.</param>
-public readonly record struct ParameterValue(string Text, string OriginLayer);
+/// <param name="Sources">
+/// Set only for a binding value with text around one or more placeholders. One item for each
+/// placeholder name, with its value and origin layer. For all other values, this is <c>null</c>.
+/// </param>
+public readonly record struct ParameterValue(
+    string Text,
+    string OriginLayer,
+    IReadOnlyList<ResolvedParameter>? Sources = null);
 
 /// <summary>One entry of a scope description, used to render the authoring UI's preview and picker.</summary>
 /// <param name="Name">Parameter name.</param>
@@ -60,13 +69,13 @@ public sealed record ScopeEntry(
 /// </para>
 /// </summary>
 public sealed class ParameterScope {
-  private readonly Dictionary<string, string> _values;
+  private readonly Dictionary<string, ParameterValue> _values;
   private readonly Dictionary<string, ParameterDeclaration> _declarations;
 
   private ParameterScope(
       ParameterScope? parent,
       string layerName,
-      Dictionary<string, string> values,
+      Dictionary<string, ParameterValue> values,
       Dictionary<string, ParameterDeclaration> declarations) {
     Parent = parent;
     LayerName = layerName;
@@ -78,7 +87,7 @@ public sealed class ParameterScope {
   public static ParameterScope Empty { get; } = new(
       null,
       ParameterScopeLayers.Queue,
-      new Dictionary<string, string>(StringComparer.Ordinal),
+      new Dictionary<string, ParameterValue>(StringComparer.Ordinal),
       new Dictionary<string, ParameterDeclaration>(StringComparer.Ordinal));
 
   /// <summary>The enclosing scope, or <c>null</c> for the outermost layer.</summary>
@@ -96,15 +105,16 @@ public sealed class ParameterScope {
   public static ParameterScope FromQueue(ExecutionQueue? queue) {
     if (queue is null) return Empty;
 
-    var values = new Dictionary<string, string>(StringComparer.Ordinal);
+    const string layer = ParameterScopeLayers.Queue;
+    var values = new Dictionary<string, ParameterValue>(StringComparer.Ordinal);
     if (!string.IsNullOrWhiteSpace(queue.EmulatorSerial))
-      values[ParameterNameRules.QueueEmulatorSerial] = queue.EmulatorSerial;
+      values[ParameterNameRules.QueueEmulatorSerial] = new ParameterValue(queue.EmulatorSerial, layer);
     if (!string.IsNullOrWhiteSpace(queue.EmulatorInstanceName))
-      values[ParameterNameRules.QueueInstanceName] = queue.EmulatorInstanceName!;
+      values[ParameterNameRules.QueueInstanceName] = new ParameterValue(queue.EmulatorInstanceName!, layer);
     if (queue.EmulatorInstanceIndex is { } index)
-      values[ParameterNameRules.QueueInstanceIndex] = index.ToString(CultureInfo.InvariantCulture);
+      values[ParameterNameRules.QueueInstanceIndex] = new ParameterValue(index.ToString(CultureInfo.InvariantCulture), layer);
     if (!string.IsNullOrWhiteSpace(queue.LinkedGameId))
-      values[ParameterNameRules.QueueGameId] = queue.LinkedGameId!;
+      values[ParameterNameRules.QueueGameId] = new ParameterValue(queue.LinkedGameId!, layer);
 
     var declarations = ParameterNameRules.BuiltIns
         .Where(b => values.ContainsKey(b.Name))
@@ -125,11 +135,11 @@ public sealed class ParameterScope {
       string layerName,
       IEnumerable<ParameterBinding>? bindings,
       IEnumerable<ParameterDeclaration>? declarations) {
-    var values = new Dictionary<string, string>(StringComparer.Ordinal);
+    var values = new Dictionary<string, ParameterValue>(StringComparer.Ordinal);
     if (bindings is not null) {
       foreach (var binding in bindings) {
         if (binding?.Name is null || binding.Value is null) continue;
-        values[binding.Name] = binding.Value;
+        values[binding.Name] = new ParameterValue(binding.Value, layerName);
       }
     }
 
@@ -145,13 +155,79 @@ public sealed class ParameterScope {
   }
 
   /// <summary>
+  /// Returns a new inner layer for the <paramref name="bindings"/> of a step that runs a command
+  /// (feature 115). A <c>{{name}}</c> placeholder in a binding value resolves against this scope
+  /// (the scope outside the new layer), never against the new layer. The receiver does not change.
+  /// <list type="bullet">
+  /// <item>A value with no placeholder stays literal, with the layer <paramref name="layerName"/>.
+  /// <c>${name}</c> is not a placeholder.</item>
+  /// <item>A value that is exactly one placeholder gets the resolved value and keeps its origin layer.</item>
+  /// <item>A value with text around placeholders gets each placeholder replaced, the layer
+  /// <paramref name="layerName"/>, and one source item for each placeholder name.</item>
+  /// <item>A binding with a <c>null</c> value is skipped, so the name inherits the outer value.</item>
+  /// </list>
+  /// </summary>
+  /// <param name="layerName">One of <see cref="ParameterScopeLayers"/>, usually <see cref="ParameterScopeLayers.Command"/>.</param>
+  /// <param name="bindings">The bindings of the step.</param>
+  /// <param name="child">The new layer, when all placeholders resolved.</param>
+  /// <param name="error">
+  /// When a placeholder does not resolve: the error with the field path
+  /// <c>parameterBindings.&lt;bindingName&gt;</c> and the reason <see cref="ParameterResolutionReasons.Unresolved"/>.
+  /// </param>
+  /// <returns><c>true</c> when all placeholders resolved; otherwise <c>false</c>.</returns>
+  public bool TryBindChild(
+      string layerName,
+      IEnumerable<ParameterBinding>? bindings,
+      [NotNullWhen(true)] out ParameterScope? child,
+      [NotNullWhen(false)] out ParameterResolutionError? error) {
+    var values = new Dictionary<string, ParameterValue>(StringComparer.Ordinal);
+    IReadOnlyDictionary<string, string>? context = null;
+    foreach (var binding in bindings ?? Array.Empty<ParameterBinding>()) {
+      if (binding?.Name is null || binding.Value is null) continue;
+      var text = binding.Value;
+      var keys = TemplateSubstitutor.ExtractKeys(text);
+      string? missing = null;
+      if (keys.Count == 0) {
+        values[binding.Name] = new ParameterValue(text, layerName);
+      }
+      else if (keys.Count == 1 && string.Equals(text, $"{{{{{keys[0]}}}}}", StringComparison.Ordinal)) {
+        if (TryResolve(keys[0], out var whole)) values[binding.Name] = whole;
+        else missing = keys[0];
+      }
+      else {
+        context ??= ToSubstitutionContext();
+        if (TemplateSubstitutor.TrySubstitute(text, context, out var composed, out var unresolved)) {
+          var sources = new List<ResolvedParameter>(keys.Count);
+          foreach (var key in keys) {
+            TryResolve(key, out var source);
+            sources.Add(new ResolvedParameter(key, source.Text, source.OriginLayer));
+          }
+          values[binding.Name] = new ParameterValue(composed, layerName, sources);
+        }
+        else missing = unresolved[0];
+      }
+
+      if (missing is not null) {
+        child = null;
+        error = new ParameterResolutionError(missing, $"parameterBindings.{binding.Name}", ParameterResolutionReasons.Unresolved);
+        return false;
+      }
+    }
+
+    child = new ParameterScope(this, layerName, values, new Dictionary<string, ParameterDeclaration>(StringComparer.Ordinal));
+    error = null;
+    return true;
+  }
+
+  /// <summary>
   /// Returns a new innermost layer carrying the loop iteration value, so a body step resolves both
   /// <c>{{iteration}}</c> and its parameters in one pass.
   /// </summary>
   /// <param name="iteration">The current 1-based iteration.</param>
   public ParameterScope WithIteration(int iteration) {
-    var values = new Dictionary<string, string>(StringComparer.Ordinal) {
-      [ParameterNameRules.IterationName] = iteration.ToString(CultureInfo.InvariantCulture)
+    var values = new Dictionary<string, ParameterValue>(StringComparer.Ordinal) {
+      [ParameterNameRules.IterationName] = new ParameterValue(
+          iteration.ToString(CultureInfo.InvariantCulture), ParameterScopeLayers.Loop)
     };
     return new ParameterScope(
         this,
@@ -170,7 +246,8 @@ public sealed class ParameterScope {
   public bool TryResolve(string name, out ParameterValue value) {
     for (var scope = this; scope is not null; scope = scope.Parent) {
       if (scope._values.TryGetValue(name, out var bound)) {
-        value = new ParameterValue(bound, scope.LayerName);
+        // A whole-placeholder binding keeps the layer that supplied its value (feature 115).
+        value = bound;
         return true;
       }
     }
