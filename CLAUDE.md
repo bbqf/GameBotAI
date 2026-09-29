@@ -9,5 +9,5 @@ When editing UTF-8 files in this repo, prefer the Edit/Write tools over `Get-Con
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/113-reject-malformed-sequence-step/plan.md
+at specs/114-parametrized-reference-image/plan.md
 <!-- SPECKIT END -->

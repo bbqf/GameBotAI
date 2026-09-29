@@ -88,7 +88,7 @@ internal static class SequencesEndpoints {
       }
 
       var createdPerStep = await repo.CreateAsync(perStepSequence).ConfigureAwait(false);
-      return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), await ToSequenceResponseAsync(createdPerStep, commandRepository, ct).ConfigureAwait(false));
+      return Results.Created(new Uri($"{ApiRoutes.Sequences}/{createdPerStep.Id}", UriKind.Relative), await ToSequenceResponseAsync(createdPerStep, commandRepository, ct, parameterCheck.Warnings).ConfigureAwait(false));
     }
 
     if (isPerStepCandidate && !string.IsNullOrWhiteSpace(perStepRequestError)) {
@@ -170,6 +170,8 @@ internal static class SequencesEndpoints {
       if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
     }
     var isPerStepCandidate = IsPerStepRequestCandidate(root);
+    // Feature 114: only a per-step-shape body has a parameter check, so only its response shows warnings.
+    ParameterValidationResult? parameterCheck = null;
     if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
       existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
       var linearSteps = MapToLinearSteps(perStepRequest);
@@ -192,7 +194,7 @@ internal static class SequencesEndpoints {
         }
       }
 
-      var parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, ct).ConfigureAwait(false);
+      parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, ct).ConfigureAwait(false);
       if (!parameterCheck.IsValid) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
@@ -225,7 +227,7 @@ internal static class SequencesEndpoints {
     existing.Version += 1;
     existing.UpdatedAt = DateTimeOffset.UtcNow;
     var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-    return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct).ConfigureAwait(false));
+    return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct, parameterCheck?.Warnings).ConfigureAwait(false));
   }
 
   private static async Task<IResult> PatchSequenceAsync(HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) {
@@ -255,6 +257,8 @@ internal static class SequencesEndpoints {
       if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
     }
     var isPerStepCandidate = IsPerStepRequestCandidate(root);
+    // Feature 114: only a per-step-shape body has a parameter check, so only its response shows warnings.
+    ParameterValidationResult? parameterCheck = null;
     if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
       existing.Name = string.IsNullOrWhiteSpace(perStepRequest.Name) ? existing.Name : perStepRequest.Name.Trim();
       var linearSteps = MapToLinearSteps(perStepRequest);
@@ -277,7 +281,7 @@ internal static class SequencesEndpoints {
         }
       }
 
-      var parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, ct).ConfigureAwait(false);
+      parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, ct).ConfigureAwait(false);
       if (!parameterCheck.IsValid) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
@@ -320,7 +324,7 @@ internal static class SequencesEndpoints {
     existing.Version += 1;
     existing.UpdatedAt = DateTimeOffset.UtcNow;
     var saved = await repo.UpdateAsync(existing).ConfigureAwait(false);
-    return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct).ConfigureAwait(false));
+    return Results.Ok(await ToSequenceResponseAsync(saved, commandRepository, ct, parameterCheck?.Warnings).ConfigureAwait(false));
   }
 
   private static async Task<IResult> ValidateSequenceFlowAsync(string sequenceId, SequenceFlowUpsertRequestDto request, ISequenceFlowValidator validator, ISequenceRepository repo, SequenceStepValidationService stepValidationService) {
@@ -445,9 +449,30 @@ internal static class SequencesEndpoints {
     });
   }
 
-  private static async Task<object> ToSequenceResponseAsync(GameBot.Domain.Commands.CommandSequence sequence, ICommandRepository commandRepository, CancellationToken ct) {
+  private static async Task<object> ToSequenceResponseAsync(
+      GameBot.Domain.Commands.CommandSequence sequence,
+      ICommandRepository commandRepository,
+      CancellationToken ct,
+      IReadOnlyCollection<ParameterValidationIssue>? warnings = null) {
     var commandLookup = await BuildCommandLookupAsync(commandRepository, ct).ConfigureAwait(false);
-    return ToSequenceResponse(sequence, commandLookup);
+    return WithWarnings(ToSequenceResponse(sequence, commandLookup), warnings);
+  }
+
+  /// <summary>
+  /// Adds the <c>warnings</c> member to a sequence write response (feature 114). With no warnings, the
+  /// response does not change, so the member is not present.
+  /// </summary>
+  private static object WithWarnings(object response, IReadOnlyCollection<ParameterValidationIssue>? warnings) {
+    var projected = ParameterDtoMapper.ToResponseWarnings(warnings);
+    if (projected is null) return response;
+
+    var members = new Dictionary<string, object?>(StringComparer.Ordinal);
+    foreach (var property in response.GetType().GetProperties()) {
+      members[property.Name] = property.GetValue(response);
+    }
+
+    members["warnings"] = projected;
+    return members;
   }
 
   private static object ToSequenceResponse(GameBot.Domain.Commands.CommandSequence sequence, IReadOnlyDictionary<string, string> commandLookup) {
@@ -1525,7 +1550,9 @@ internal static class SequencesEndpoints {
 
       foreach (var imageCondition in CollectImageConditions(step.Condition)) {
         var imageId = imageCondition.ImageId?.Trim();
-        if (string.IsNullOrWhiteSpace(imageId)) {
+        // Feature 114: a parametrized image id is checked at run time. The parameter check gives
+        // static_check_skipped or unresolvable_parameter_reference for it.
+        if (string.IsNullOrWhiteSpace(imageId) || GameBot.Domain.Utils.TemplateSubstitutor.ContainsPlaceholder(imageId)) {
           continue;
         }
 

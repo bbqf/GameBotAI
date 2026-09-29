@@ -236,4 +236,107 @@ public sealed class CommandStepResolverTests {
         "string fields carry their placeholder inline, not through the overlay");
     CommandStepFieldPaths.IsSupported("nonsense.path").Should().BeFalse();
   }
+
+  // ── Feature 114: image keys in the overlay ────────────────────────────────
+
+  private const string TapImageKey = "primitiveTap.detectionTarget.referenceImageId";
+  private const string WaitImageKey = "waitForImage.detectionTarget.referenceImageId";
+
+  private static CommandStep TapStep(string inlineId, string? overlay) => new() {
+    Type = CommandStepType.PrimitiveTap,
+    Order = 2,
+    PrimitiveTap = new PrimitiveTapConfig { DetectionTarget = new DetectionTarget(inlineId, 0.85, 3, 4) },
+    FieldTemplates = overlay is null ? null : new Dictionary<string, string> { [TapImageKey] = overlay }
+  };
+
+  [Fact]
+  public void TapImageOverlayReplacesTheInlineImageId() {
+    var step = TapStep("option-a", "{{novaOption}}");
+
+    CommandStepResolver.TryResolve(step, ScopeWith(("novaOption", "option-b")), out var resolved, out var error, out var used)
+        .Should().BeTrue();
+
+    error.Should().BeNull();
+    resolved!.PrimitiveTap!.DetectionTarget.ReferenceImageId.Should().Be("option-b");
+    resolved.PrimitiveTap.DetectionTarget.Confidence.Should().Be(0.85);
+    resolved.PrimitiveTap.DetectionTarget.OffsetX.Should().Be(3);
+    resolved.PrimitiveTap.DetectionTarget.OffsetY.Should().Be(4);
+    used.Should().ContainSingle(p => p.Name == "novaOption" && p.Value == "option-b"
+        && p.OriginLayer == ParameterScopeLayers.Entry);
+  }
+
+  [Fact]
+  public void WaitImageOverlayReplacesTheInlineImageId() {
+    var step = new CommandStep {
+      Type = CommandStepType.WaitForImage,
+      Order = 1,
+      WaitForImage = new WaitForImageConfig { DetectionTarget = new DetectionTarget("option-a"), TimeoutMs = 3000 },
+      FieldTemplates = new Dictionary<string, string> { [WaitImageKey] = "{{novaOption}}" }
+    };
+
+    CommandStepResolver.TryResolve(step, ScopeWith(("novaOption", "option-b")), out var resolved, out _, out var used)
+        .Should().BeTrue();
+
+    resolved!.WaitForImage!.DetectionTarget!.ReferenceImageId.Should().Be("option-b");
+    resolved.WaitForImage.TimeoutMs.Should().Be(3000);
+    used.Should().ContainSingle(p => p.Name == "novaOption" && p.Value == "option-b");
+  }
+
+  [Fact]
+  public void InlinePlaceholderIsNotResolvedWhenTheOverlayKeyIsPresent() {
+    var step = TapStep("{{fallbackImage}}", "{{novaOption}}");
+
+    CommandStepResolver.TryResolve(step, ScopeWith(("novaOption", "option-c")), out var resolved, out var error, out var used)
+        .Should().BeTrue();
+
+    error.Should().BeNull();
+    resolved!.PrimitiveTap!.DetectionTarget.ReferenceImageId.Should().Be("option-c");
+    used.Should().ContainSingle(p => p.Name == "novaOption");
+  }
+
+  [Fact]
+  public void UnresolvedImageOverlayFailsWithTheImageFieldPath() {
+    var step = TapStep("option-a", "{{novaOption}}");
+
+    CommandStepResolver.TryResolve(step, ScopeWith(), out var resolved, out var error, out _)
+        .Should().BeFalse();
+
+    resolved.Should().BeNull();
+    error!.ParameterName.Should().Be("novaOption");
+    error.FieldPath.Should().Be(TapImageKey);
+    error.Reason.Should().Be(ParameterResolutionReasons.Unresolved);
+  }
+
+  [Fact]
+  public void MalformedStoredImageOverlayGivesUnresolvedNotNotANumber() {
+    var step = TapStep("option-a", "nova-{{x}}");
+
+    CommandStepResolver.TryResolve(step, ScopeWith(("x", "b")), out _, out var error, out _)
+        .Should().BeFalse();
+
+    error!.FieldPath.Should().Be(TapImageKey);
+    error.Reason.Should().Be(ParameterResolutionReasons.Unresolved);
+  }
+
+  [Fact]
+  public void ImageOverlayThatResolvesToEmptyTextFails() {
+    var step = TapStep("option-a", "{{novaOption}}");
+
+    CommandStepResolver.TryResolve(step, ScopeWith(("novaOption", "")), out _, out var error, out _)
+        .Should().BeFalse();
+
+    error!.FieldPath.Should().Be(TapImageKey);
+    error.Reason.Should().Be(ParameterResolutionReasons.Unresolved);
+  }
+
+  [Fact]
+  public void InlineImagePlaceholderWithNoOverlayResolvesAsBefore() {
+    var step = TapStep("nova-{{option}}", overlay: null);
+
+    CommandStepResolver.TryResolve(step, ScopeWith(("option", "b")), out var resolved, out _, out var used)
+        .Should().BeTrue();
+
+    resolved!.PrimitiveTap!.DetectionTarget.ReferenceImageId.Should().Be("nova-b");
+    used.Should().ContainSingle(p => p.Name == "option" && p.Value == "b");
+  }
 }

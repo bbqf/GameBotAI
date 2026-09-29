@@ -4075,6 +4075,14 @@
           "order": {
             "type": "integer",
             "format": "int32"
+          },
+          "fieldTemplates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Optional. Parameter placeholders for fields of this step, keyed by dotted field path. Numeric keys: swipe.startX, swipe.startY, swipe.endX, swipe.endY, swipe.durationMs, waitForImage.timeoutMs, ensureEmulatorRunning.instanceIndex, ensureGameRunning.readinessTimeoutMs, primitiveTap.detectionTarget.confidence, primitiveTap.detectionTarget.offsetX, primitiveTap.detectionTarget.offsetY, ensureGameRunning.readinessImage.confidence, ensureGameRunning.readinessImage.offsetX, ensureGameRunning.readinessImage.offsetY. Image keys: primitiveTap.detectionTarget.referenceImageId, waitForImage.detectionTarget.referenceImageId. The value of an image key must be one whole placeholder, for example {{name}}. At run time the resolved value replaces the inline referenceImageId. The save gives the warning static_check_skipped for an image key. Errors: an unknown key gives unknown_field_template_path. An image key with a value that is not one whole placeholder gives invalid_field_template_value.",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -4975,6 +4983,7 @@
           },
           "imageId": {
             "type": "string",
+            "description": "Id of the reference image. It can hold a parameter placeholder, for example {{name}} or nova-{{option}}, in each condition position: condition, if.condition, loop.condition, breakCondition, and each child of all, any and none. For a placeholder, the save does not check that the image exists and gives the warning static_check_skipped. The run resolves the id against the scope of the step before the evaluation.",
             "nullable": true
           },
           "minSimilarity": {
@@ -4996,6 +5005,7 @@
           },
           "imageId": {
             "type": "string",
+            "description": "Id of the reference image. It can hold a parameter placeholder, for example {{name}} or nova-{{option}}, in each condition position: condition, if.condition, loop.condition, breakCondition, and each child of all, any and none. For a placeholder, the save does not check that the image exists and gives the warning static_check_skipped. The run resolves the id against the scope of the step before the evaluation.",
             "nullable": true
           },
           "minSimilarity": {
@@ -5634,6 +5644,58 @@
           },
           "overwrite": {
             "type": "boolean"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateEntrySaveRequest"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TemplateEntrySaveRequest": {
+        "type": "object",
+        "properties": {
+          "sequenceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "scheduleType": {
+            "type": "string",
+            "nullable": true
+          },
+          "timerTimeOfDay": {
+            "type": "string",
+            "nullable": true
+          },
+          "timerRelativeOffset": {
+            "type": "string",
+            "nullable": true
+          },
+          "parameterValues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "value": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Optional. Parameter values of this entry. When a value, or a declared default, goes to an image field of the sequence or of a command that the sequence can reach, the save checks that an image has that id. A missing image gives 400 unknown_image_reference, and the service saves nothing.",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -5936,6 +5998,35 @@
               "type": "string"
             },
             "nullable": true
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "fieldPath": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "parameterName": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "entryIndex": {
+                  "type": "integer",
+                  "format": "int32",
+                  "nullable": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Present only on the response to a POST, PUT or PATCH with a per-step body, when the parameter check gives one or more warnings (feature 114). Example: static_check_skipped for a parametrized condition.imageId. Not present on GET and on a dry run."
           }
         },
         "additionalProperties": false

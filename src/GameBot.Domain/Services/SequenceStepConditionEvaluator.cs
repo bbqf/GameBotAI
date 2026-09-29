@@ -17,7 +17,13 @@ public enum ConditionEvaluationFailureKind {
   CommandOutcomeUnavailable,
 
   /// <summary>The condition is of a kind this evaluator does not know how to answer.</summary>
-  UnsupportedCondition
+  UnsupportedCondition,
+
+  /// <summary>
+  /// A placeholder in the condition has no value in scope (feature 114). <c>Detail</c> holds the
+  /// parameter name.
+  /// </summary>
+  ParameterUnresolved
 }
 
 /// <summary>

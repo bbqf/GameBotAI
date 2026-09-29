@@ -382,6 +382,21 @@ internal static class QueuesEndpoints {
       CommandSequence sequence,
       ICommandRepository commands) {
     var declarations = new List<GameBot.Domain.Parameters.ParameterDeclaration>();
+    foreach (var command in await CollectReachableCommandsAsync(sequence, commands).ConfigureAwait(false)) {
+      declarations.AddRange(command.Parameters);
+    }
+
+    return declarations;
+  }
+
+  /// <summary>
+  /// Every command reachable from a sequence, following command steps and nested command steps
+  /// (feature 114). Cycles are guarded by a visited set. Each command is in the list one time.
+  /// </summary>
+  internal static async Task<List<Command>> CollectReachableCommandsAsync(
+      CommandSequence sequence,
+      ICommandRepository commands) {
+    var reachable = new List<Command>();
     var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var pending = new Queue<string>();
 
@@ -394,7 +409,7 @@ internal static class QueuesEndpoints {
       if (!visited.Add(commandId)) continue;
       var command = await commands.GetAsync(commandId).ConfigureAwait(false);
       if (command is null) continue;
-      declarations.AddRange(command.Parameters);
+      reachable.Add(command);
       foreach (var step in command.Steps) {
         if (step.Type == CommandStepType.Command && !string.IsNullOrWhiteSpace(step.TargetId)) {
           pending.Enqueue(step.TargetId);
@@ -402,7 +417,7 @@ internal static class QueuesEndpoints {
       }
     }
 
-    return declarations;
+    return reachable;
   }
 
   private static IEnumerable<SequenceStep> FlattenSequenceSteps(IEnumerable<SequenceStep> steps) {

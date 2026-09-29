@@ -14,12 +14,17 @@ namespace GameBot.Domain.Parameters;
 /// True when the field normally undergoes static existence checking — an image or detection
 /// reference — so parametrizing it means that check must be deferred to run time.
 /// </param>
+/// <param name="SourceText">
+/// The full text of the field that holds the reference (feature 114). The queue template save uses
+/// it to substitute known values and get the image id.
+/// </param>
 public sealed record ParameterReference(
     string ParameterName,
     string FieldPath,
     string StepLabel,
     bool InsideLoop = false,
-    bool DefeatsStaticCheck = false);
+    bool DefeatsStaticCheck = false,
+    string? SourceText = null);
 
 /// <summary>
 /// Finds every parameter reference in a command or a sequence (feature 078), so validation can decide
@@ -42,7 +47,10 @@ public static class ParameterReferenceScanner {
     return found;
   }
 
-  /// <summary>Scans a sequence's steps, including loop and if bodies, for parameter references.</summary>
+  /// <summary>
+  /// Scans a sequence's steps, including loop and if bodies and the <c>imageVisible</c> leaves of
+  /// each condition, for parameter references.
+  /// </summary>
   /// <param name="sequence">Sequence to scan; <c>null</c> yields an empty list.</param>
   public static IReadOnlyList<ParameterReference> Scan(CommandSequence? sequence) {
     var found = new List<ParameterReference>();
@@ -76,8 +84,10 @@ public static class ParameterReferenceScanner {
         "ensureGameRunning.readinessImage.referenceImageId", label, defeatsStaticCheck: true);
 
     if (step.FieldTemplates is null) return;
+    // Feature 114: an image key moves the image existence check to run time, the same as an inline
+    // image placeholder.
     foreach (var (path, template) in step.FieldTemplates) {
-      AddFrom(found, template, path, label);
+      AddFrom(found, template, path, label, defeatsStaticCheck: CommandStepFieldPaths.IsImagePath(path));
     }
   }
 
@@ -102,10 +112,48 @@ public static class ParameterReferenceScanner {
         }
       }
 
+      // Feature 114: an imageVisible leaf in each condition position. A step condition and an If
+      // condition use the scope of the enclosing body. A loop condition and a break condition are
+      // inside the loop, so {{iteration}} is legal there.
+      ScanCondition(found, step.Condition, "condition", label, insideLoop);
+      ScanCondition(found, step.If?.Condition, "if.condition", label, insideLoop);
+      var loopCondition = step.Loop switch {
+        WhileLoopConfig whileLoop => whileLoop.Condition,
+        RepeatUntilLoopConfig repeatUntil => repeatUntil.Condition,
+        _ => null
+      };
+      ScanCondition(found, loopCondition, "loop.condition", label, insideLoop: true);
+      ScanCondition(found, step.BreakCondition, "breakCondition", label, insideLoop: true);
+
       // Loop bodies make {{iteration}} legal; if branches inherit whatever their parent allowed.
       var bodyInsideLoop = insideLoop || step.StepType == SequenceStepType.Loop;
       if (step.Body.Count > 0) ScanSequenceSteps(found, step.Body, bodyInsideLoop);
       if (step.ElseBody is { Count: > 0 }) ScanSequenceSteps(found, step.ElseBody, bodyInsideLoop);
+    }
+  }
+
+  /// <summary>
+  /// Scans each <c>imageVisible</c> leaf of a condition tree (feature 114). The field path is
+  /// <paramref name="fieldPath"/>, then <c>.children[i]</c> for each composite level, then <c>.imageId</c>.
+  /// </summary>
+  private static void ScanCondition(
+      ICollection<ParameterReference> found,
+      SequenceStepCondition? condition,
+      string fieldPath,
+      string stepLabel,
+      bool insideLoop) {
+    switch (condition) {
+      case ImageVisibleStepCondition image:
+        AddFrom(found, image.ImageId, $"{fieldPath}.imageId", stepLabel, insideLoop, defeatsStaticCheck: true);
+        break;
+      case CompositeStepCondition composite when composite.Children is not null:
+        for (var index = 0; index < composite.Children.Count; index++) {
+          ScanCondition(found, composite.Children[index],
+              string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{fieldPath}.children[{index}]"),
+              stepLabel, insideLoop);
+        }
+
+        break;
     }
   }
 
@@ -118,7 +166,7 @@ public static class ParameterReferenceScanner {
       bool defeatsStaticCheck = false) {
     if (!TemplateSubstitutor.ContainsPlaceholder(text)) return;
     foreach (var key in TemplateSubstitutor.ExtractKeys(text)) {
-      found.Add(new ParameterReference(key, fieldPath, stepLabel, insideLoop, defeatsStaticCheck));
+      found.Add(new ParameterReference(key, fieldPath, stepLabel, insideLoop, defeatsStaticCheck, text));
     }
   }
 

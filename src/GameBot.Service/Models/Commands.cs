@@ -160,8 +160,10 @@ internal sealed class CommandStepDto {
   public int Order { get; init; }
 
   /// <summary>
-  /// Placeholders for this step's numeric fields, keyed by dotted path (feature 078). String fields
-  /// carry their placeholder inline instead and never appear here.
+  /// Placeholders for fields of this step, keyed by dotted path (features 078 and 114). The keys are
+  /// the numeric fields and the two image keys <c>primitiveTap.detectionTarget.referenceImageId</c>
+  /// and <c>waitForImage.detectionTarget.referenceImageId</c>. The value of an image key must be one
+  /// whole placeholder. Other text fields keep their placeholder inline.
   /// </summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Dictionary<string, string>? FieldTemplates { get; init; }

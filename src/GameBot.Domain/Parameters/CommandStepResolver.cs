@@ -13,7 +13,8 @@ namespace GameBot.Domain.Parameters;
 /// Two mechanisms, because the type system allows only one of them: string-typed fields carry their
 /// placeholder inline and are substituted in place (and may embed a placeholder in surrounding text),
 /// while numeric fields are supplied by the step's <see cref="CommandStep.FieldTemplates"/> overlay
-/// and must be a whole-field placeholder so the result can be parsed.
+/// and must be a whole-field placeholder so the result can be parsed. The overlay can also hold an
+/// image key (feature 114). Its value then replaces the inline image id of that detection target.
 /// </para>
 /// <para>
 /// Resolution never degrades silently: an unknown name or an unparseable number produces a
@@ -185,8 +186,18 @@ public static class CommandStepResolver {
     resolved = target;
     if (target is null) return true;
 
-    if (!TryText(target.ReferenceImageId, $"{fieldPathPrefix}.referenceImageId",
-            context, scope, used, ref error, out var imageId)) return false;
+    // Feature 114: when the overlay has the image key, its value replaces the inline image id, and
+    // the inline value is not resolved. Thus an inline placeholder that no scope can supply does not
+    // fail a step that does not use it.
+    var imageIdPath = $"{fieldPathPrefix}.referenceImageId";
+    string? imageId;
+    if (step.FieldTemplates is not null && step.FieldTemplates.ContainsKey(imageIdPath)) {
+      if (!TryOverlayValue(step, imageIdPath, scope, used, ref error, out imageId, isTextField: true)) return false;
+    }
+    else if (!TryText(target.ReferenceImageId, imageIdPath, context, scope, used, ref error, out imageId)) {
+      return false;
+    }
+
     if (!TryDouble(step, $"{fieldPathPrefix}.confidence", target.Confidence, scope, used, ref error, out var confidence))
       return false;
     if (!TryInt(step, $"{fieldPathPrefix}.offsetX", target.OffsetX, scope, used, ref error, out var offsetX))
@@ -196,7 +207,7 @@ public static class CommandStepResolver {
 
     if (string.IsNullOrWhiteSpace(imageId)) {
       error = new ParameterResolutionError(
-          "referenceImageId", $"{fieldPathPrefix}.referenceImageId", ParameterResolutionReasons.Unresolved);
+          "referenceImageId", imageIdPath, ParameterResolutionReasons.Unresolved);
       return false;
     }
 
@@ -264,8 +275,9 @@ public static class CommandStepResolver {
   }
 
   /// <summary>
-  /// Resolves one overlay entry. Numeric fields accept only a whole-field placeholder, so the whole
-  /// stored template must be a single reference; anything else is reported as a numeric failure.
+  /// Resolves one overlay entry. Overlay fields accept only a whole-field placeholder, so the whole
+  /// stored template must be a single reference. For a numeric field anything else is reported as a
+  /// numeric failure. For a text field (an image key, feature 114) it is reported as unresolved.
   /// </summary>
   private static bool TryOverlayValue(
       CommandStep step,
@@ -273,14 +285,18 @@ public static class CommandStepResolver {
       ParameterScope scope,
       List<ResolvedParameter> used,
       ref ParameterResolutionError? error,
-      out string? text) {
+      out string? text,
+      bool isTextField = false) {
     text = null;
     if (step.FieldTemplates is null || !step.FieldTemplates.TryGetValue(fieldPath, out var template)) return true;
 
     var keys = TemplateSubstitutor.ExtractKeys(template);
     if (keys.Count != 1 || template.Trim() != $"{{{{{keys[0]}}}}}") {
       error = new ParameterResolutionError(
-          keys.Count > 0 ? keys[0] : template, fieldPath, ParameterResolutionReasons.NotANumber, template);
+          keys.Count > 0 ? keys[0] : template,
+          fieldPath,
+          isTextField ? ParameterResolutionReasons.Unresolved : ParameterResolutionReasons.NotANumber,
+          isTextField ? null : template);
       return false;
     }
 
