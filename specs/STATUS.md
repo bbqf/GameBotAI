@@ -115,7 +115,7 @@ Status vocabulary:
 | 078 | Sequence & Command Parameters | Implemented (iterated by 116) |
 | 079 | Concurrent Queue Execution | Implemented |
 | 080 | Fix Sequence & Session-Input API Bugs | Implemented |
-| 081 | Loop Exit Reason & Nested Step-Outcome References | Implemented |
+| 081 | Loop Exit Reason & Nested Step-Outcome References | Implemented (iterated by 117) |
 | 082 | Dry-Run / Validate-Only Sequence Mode | Implemented (iterated by 091) |
 | 083 | Duplicate Queues | Implemented |
 | 084 | Execution Log Retention Default & Long-Run Rotation | Implemented |
@@ -151,6 +151,7 @@ Status vocabulary:
 | 114 | Let a parameter choose the reference image | Implemented |
 | 115 | Resolve a placeholder in a step parameterBindings value | Implemented |
 | 116 | Keep the parameter scope on a run that reschedule-self books | Implemented |
+| 117 | A Break outcome when its If branch did not run | Implemented |
 
 ## Numbering notes
 

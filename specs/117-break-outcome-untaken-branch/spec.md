@@ -2,7 +2,7 @@
 
 **Feature Branch**: `117-break-outcome-untaken-branch`  
 **Created**: 2026-09-29  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #250 (B-032): "commandOutcome on a Break inside an If branch that did not run fails with condition-evaluation-error instead of no_break". Full description: `C:\Users\anton\AppData\Local\Temp\claude\C--src-GameBot\bc0c2e7c-1414-4f87-b9ff-5ee89a758031\scratchpad\feature-description.md`. Closes #250.
 
 ## Background

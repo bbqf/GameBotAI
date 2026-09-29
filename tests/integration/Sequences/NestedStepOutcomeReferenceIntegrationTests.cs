@@ -50,18 +50,26 @@ public sealed class NestedStepOutcomeReferenceIntegrationTests : IDisposable {
 
   // A go-to-home-screen primitive step always dispatches in stub mode (GAMEBOT_USE_ADB=false),
   // giving a deterministic "success" outcome with no image/session dependency.
-  private static object DispatchingStep(string stepId, object? condition = null) => new {
-    stepId,
-    stepType = "Action",
-    condition,
-    primitiveAction = new { type = "go-to-home-screen", schemaVersion = "v1", payload = new { } }
-  };
+  // Feature 117: when requireDispatch is false, the JSON is the same as before (no requireDispatch field).
+  private static object DispatchingStep(string stepId, object? condition = null, bool requireDispatch = false) => requireDispatch
+    ? new {
+      stepId,
+      stepType = "Action",
+      condition,
+      requireDispatch,
+      primitiveAction = new { type = "go-to-home-screen", schemaVersion = "v1", payload = new { } }
+    }
+    : new {
+      stepId,
+      stepType = "Action",
+      condition,
+      primitiveAction = new { type = "go-to-home-screen", schemaVersion = "v1", payload = new { } }
+    };
 
-  private static object CommandOutcomeCondition(string stepRef, string expectedState) => new {
-    type = "commandOutcome",
-    stepRef,
-    expectedState
-  };
+  // Feature 117: when negate is false, the JSON is the same as before (no negate field).
+  private static object CommandOutcomeCondition(string stepRef, string expectedState, bool negate = false) => negate
+    ? new { type = "commandOutcome", stepRef, expectedState, negate }
+    : new { type = "commandOutcome", stepRef, expectedState };
 
   private static async Task<string> CreateSessionAsync(HttpClient client, string gameName) {
     var gameResp = await client.PostAsJsonAsync(new Uri("/api/games", UriKind.Relative), new { name = gameName, description = "desc" }).ConfigureAwait(false);
@@ -263,6 +271,166 @@ public sealed class NestedStepOutcomeReferenceIntegrationTests : IDisposable {
     var gate = FindStep(execution.Value.GetProperty("steps"), "gate");
     gate.GetProperty("status").GetString().Should().Be("Succeeded");
     gate.GetProperty("actionOutcome").GetString().Should().NotBe("skipped");
+  }
+
+  // ── Feature 117 (issue #250): a Break that did not run reads as no_break ──
+
+  private static HttpClient CreateClient(WebApplicationFactory<Program> app) {
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+    return client;
+  }
+
+  /// <summary>
+  /// The issue #250 reproduction (quickstart section 2). The condition of <c>if-empty</c> is
+  /// <paramref name="ifEmptyCondition"/>. The condition of <c>if-wait</c> is always false.
+  /// </summary>
+  private static object[] Issue250Steps(object ifEmptyCondition) => new object[] {
+    DispatchingStep("probe"),
+    new {
+      stepId = "book",
+      stepType = "Loop",
+      loop = new { loopType = "count", count = 3, maxIterations = 3 },
+      body = new object[] {
+        new {
+          stepId = "if-empty",
+          stepType = "If",
+          @if = new { condition = ifEmptyCondition },
+          body = new object[] {
+            DispatchingStep("book-reset"),
+            new { stepId = "brk-empty", stepType = "Break" }
+          }
+        },
+        new {
+          stepId = "if-wait",
+          stepType = "If",
+          @if = new { condition = CommandOutcomeCondition("probe", "failed") },
+          body = new object[] {
+            DispatchingStep("book-wait"),
+            new { stepId = "brk-wait", stepType = "Break" }
+          }
+        },
+        DispatchingStep("settle")
+      }
+    },
+    DispatchingStep("fail-no-booking", new {
+      type = "all",
+      children = new object[] {
+        CommandOutcomeCondition("brk-empty", "break", negate: true),
+        CommandOutcomeCondition("brk-wait", "break", negate: true)
+      }
+    }, requireDispatch: true)
+  };
+
+  private static async Task ShouldBeAValidDryRunAsync(HttpClient client, string name, object[] steps) {
+    var response = await client.PostAsJsonAsync("/api/sequences", new { name, version = 1, dryRun = true, steps }).ConfigureAwait(false);
+    response.StatusCode.Should().Be(HttpStatusCode.OK);
+    var body = await response.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    body.GetProperty("valid").GetBoolean().Should().BeTrue();
+  }
+
+  private static void ShouldHaveNoUnavailableMessage(JsonElement execution) {
+    foreach (var step in execution.GetProperty("steps").EnumerateArray()) {
+      if (step.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String) {
+        message.GetString().Should().NotContain("unavailable");
+      }
+    }
+  }
+
+  [Fact] // Feature 117 T006 (US1, SC-001, FR-008)
+  public async Task Issue250ReproductionRunsTheGuardedStepWhenNoBranchRuns() {
+    using var app = new WebApplicationFactory<Program>();
+    using var client = CreateClient(app);
+    var steps = Issue250Steps(CommandOutcomeCondition("probe", "failed"));
+
+    await ShouldBeAValidDryRunAsync(client, "issue-250-no-branch", steps).ConfigureAwait(false);
+    var (createStatus, createBody, execution) = await CreateAndExecuteAsync(
+        client, "issue-250-no-branch", steps).ConfigureAwait(false);
+
+    createStatus.Should().Be(HttpStatusCode.Created);
+    execution!.Value.GetProperty("status").GetString().Should().Be("Succeeded");
+    ShouldHaveNoUnavailableMessage(execution.Value);
+    var guarded = FindStep(execution.Value.GetProperty("steps"), "fail-no-booking");
+    guarded.GetProperty("status").GetString().Should().Be("Succeeded");
+    guarded.GetProperty("conditionResult").GetString().Should().Be("true");
+
+    // The execution log agrees with the execute response.
+    var sequenceId = createBody!.Value.GetProperty("id").GetString();
+    var listResponse = await client.GetAsync(new Uri($"/api/execution-logs?objectType=sequence&objectId={sequenceId}&pageSize=10", UriKind.Relative)).ConfigureAwait(false);
+    listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    var listPayload = await listResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var executionId = listPayload.GetProperty("items").EnumerateArray()
+      .Where(item => string.Equals(item.GetProperty("executionType").GetString(), "sequence", StringComparison.OrdinalIgnoreCase))
+      .Select(item => item.GetProperty("id").GetString())
+      .First(id => !string.IsNullOrWhiteSpace(id));
+
+    var detailResponse = await client.GetAsync(new Uri($"/api/execution-logs/{executionId}", UriKind.Relative)).ConfigureAwait(false);
+    detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    var detail = await detailResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    var logged = detail.GetProperty("stepOutcomes").EnumerateArray()
+      .Single(s => s.TryGetProperty("stepId", out var id) && id.GetString() == "fail-no-booking");
+    var trace = logged.GetProperty("conditionTrace");
+    trace.GetProperty("finalResult").GetBoolean().Should().BeTrue();
+    if (trace.TryGetProperty("failureReason", out var reason)) {
+      reason.ValueKind.Should().Be(JsonValueKind.Null);
+    }
+  }
+
+  [Fact] // Feature 117 T011 (US2, FR-002)
+  public async Task Issue250ReproductionSkipsTheGuardedStepWhenTheBreakFired() {
+    using var app = new WebApplicationFactory<Program>();
+    using var client = CreateClient(app);
+    var steps = Issue250Steps(CommandOutcomeCondition("probe", "success"));
+
+    var (createStatus, _, execution) = await CreateAndExecuteAsync(
+        client, "issue-250-break-fired", steps).ConfigureAwait(false);
+
+    createStatus.Should().Be(HttpStatusCode.Created);
+    var guarded = FindStep(execution!.Value.GetProperty("steps"), "fail-no-booking");
+    guarded.GetProperty("status").GetString().Should().Be("Skipped");
+    guarded.GetProperty("conditionResult").GetString().Should().Be("false");
+  }
+
+  [Fact] // Feature 117 T014 (US3, FR-003)
+  public async Task BreakInALoopWithZeroIterationsReadsNoBreak() {
+    using var app = new WebApplicationFactory<Program>();
+    using var client = CreateClient(app);
+    var steps = new object[] {
+      new {
+        stepId = "loop-0",
+        stepType = "Loop",
+        loop = new { loopType = "count", count = 0, maxIterations = 1 },
+        body = new object[] { new { stepId = "brk", stepType = "Break" } }
+      },
+      DispatchingStep("after", CommandOutcomeCondition("brk", "no_break"))
+    };
+
+    await ShouldBeAValidDryRunAsync(client, "zero-iteration-break", steps).ConfigureAwait(false);
+    var (createStatus, _, execution) = await CreateAndExecuteAsync(
+        client, "zero-iteration-break", steps).ConfigureAwait(false);
+
+    createStatus.Should().Be(HttpStatusCode.Created);
+    ShouldHaveNoUnavailableMessage(execution!.Value);
+    FindStep(execution.Value.GetProperty("steps"), "after").GetProperty("status").GetString().Should().Be("Succeeded");
+  }
+
+  [Fact] // Feature 117 T014 (US3, FR-004)
+  public async Task UnknownReferenceStaysASaveError() {
+    using var app = new WebApplicationFactory<Program>();
+    using var client = CreateClient(app);
+    var steps = new object[] {
+      DispatchingStep("probe"),
+      DispatchingStep("after", CommandOutcomeCondition("no-such-step", "success"))
+    };
+
+    foreach (var dryRun in new[] { true, false }) {
+      var response = dryRun
+        ? await client.PostAsJsonAsync("/api/sequences", new { name = "unknown-ref", version = 1, dryRun = true, steps }).ConfigureAwait(false)
+        : await client.PostAsJsonAsync("/api/sequences", new { name = "unknown-ref", version = 1, steps }).ConfigureAwait(false);
+      response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+      var body = await response.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+      body.GetProperty("errors").ToString().Should().Contain("references unknown prior step 'no-such-step'");
+    }
   }
 
   private static JsonElement FindStep(JsonElement steps, string stepId) {

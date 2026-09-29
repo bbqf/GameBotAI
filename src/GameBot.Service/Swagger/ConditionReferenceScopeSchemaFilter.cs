@@ -47,16 +47,24 @@ internal sealed class ConditionReferenceScopeSchemaFilter : ISchemaFilter {
     + "Break step. Any other value is rejected with 400.";
 
   internal const string RuntimeUnavailableRule =
-    "A reference that is valid at save time but names a step that did not execute in a given run — an If "
-    + "branch not taken, a loop body that ran zero iterations — fails the referencing step and the run "
-    + "with a 'reference is not available' error. It is deliberately not softened into a silent skip, "
-    + "because a guard that could not be answered is not the same as one that answered false.";
+    "A reference that is valid at save time can name a step that is not a Break and that did not execute "
+    + "in a run: an If branch that did not run, or a loop body that ran zero iterations. Then the "
+    + "referencing step and the run fail with a 'reference is not available' error. The service does not "
+    + "change this error into a skip, because a guard that the service cannot evaluate is not the same as "
+    + "a guard that is false.";
 
-  internal const string StepRefDescription = ResolutionRule + " " + OrderingRule + " " + CompositeRule + " " + LoopConditionException;
+  // Feature 117 (issue #250): a Break that did not execute reads as no_break.
+  internal const string BreakNotRunRule =
+    "A stepRef can name a Break step that did not execute in a run: its If branch did not run, or its "
+    + "loop body ran zero iterations. This reference evaluates as no_break. A Break that ran keeps the "
+    + "outcome that it recorded last.";
+
+  internal const string StepRefDescription =
+    ResolutionRule + " " + OrderingRule + " " + CompositeRule + " " + LoopConditionException + " " + BreakNotRunRule;
 
   internal const string ConditionDescription =
     "Asks about a prior step's outcome. " + ResolutionRule + " " + OrderingRule + " " + ExpectedStateRule
-    + " " + RuntimeUnavailableRule;
+    + " " + RuntimeUnavailableRule + " " + BreakNotRunRule;
 
   internal const string LoopExitReasonDescription =
     "A Loop step's run result carries exitReason: { brokeVia, exhaustedMaxIterations }, distinguishing "
