@@ -58,9 +58,10 @@ internal static class QueueTemplatesEndpoints {
           if (hasTimeOfDay == hasRelative)
             return Error(400, "invalid_request",
               $"entries[{i}] must set exactly one of timerTimeOfDay or timerRelativeOffset when scheduleType is Timer");
-          if (hasTimeOfDay && !TimeOnly.TryParseExact(entry.TimerTimeOfDay, "HH:mm", out _))
+          if (hasTimeOfDay && !TimerTimeOfDayFormat.TryParse(entry.TimerTimeOfDay, out _))
             return Error(400, "invalid_request",
-              $"entries[{i}].timerTimeOfDay '{entry.TimerTimeOfDay}' is not a valid HH:mm time (e.g. '15:30')");
+              $"entries[{i}].timerTimeOfDay '{entry.TimerTimeOfDay}' is not a valid time of day; accepted format: "
+              + $"{TimerTimeOfDayFormat.AcceptedFormatText}, for example '15:30' or '15:30:00'");
           if (hasRelative && !RelativeOffsetParser.TryParse(entry.TimerRelativeOffset, out _, out var offsetError))
             return Error(400, "invalid_request",
               $"entries[{i}].timerRelativeOffset {offsetError}");
@@ -82,8 +83,11 @@ internal static class QueueTemplatesEndpoints {
         var scheduleType = string.IsNullOrWhiteSpace(entry.ScheduleType)
           ? ScheduleType.OncePerRun
           : Enum.Parse<ScheduleType>(entry.ScheduleType, ignoreCase: true);
-        TimeOnly? timerTime = scheduleType == ScheduleType.Timer && !string.IsNullOrWhiteSpace(entry.TimerTimeOfDay)
-          ? TimeOnly.ParseExact(entry.TimerTimeOfDay!, "HH:mm")
+        // The value already passed validation above, so the parse succeeds here.
+        TimeOnly? timerTime = scheduleType == ScheduleType.Timer
+            && !string.IsNullOrWhiteSpace(entry.TimerTimeOfDay)
+            && TimerTimeOfDayFormat.TryParse(entry.TimerTimeOfDay, out var parsedTime)
+          ? parsedTime
           : null;
         TimeSpan? timerOffset = scheduleType == ScheduleType.Timer
             && !string.IsNullOrWhiteSpace(entry.TimerRelativeOffset)
@@ -235,7 +239,7 @@ internal static class QueueTemplatesEndpoints {
         SequenceName = found ? name : null,
         Stale = !found,
         ScheduleType = entry.ScheduleType.ToString(),
-        TimerTimeOfDay = entry.TimerTimeOfDay?.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture),
+        TimerTimeOfDay = entry.TimerTimeOfDay is { } timeOfDay ? TimerTimeOfDayFormat.Format(timeOfDay) : null,
         TimerRelativeOffset = entry.TimerRelativeOffset is { } offset ? RelativeOffsetParser.Format(offset) : null,
         Enabled = entry.Enabled,
         // Feature 078

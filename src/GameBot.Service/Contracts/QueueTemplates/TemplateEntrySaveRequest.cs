@@ -24,8 +24,8 @@ namespace GameBot.Service.Contracts.QueueTemplates {
     public string? ScheduleType { get; set; }
 
     /// <summary>
-    /// Time-of-day mode for a "Timer" entry: wall-clock time-of-day in HH:mm (24-hour, server
-    /// local time). Mutually exclusive with <see cref="TimerRelativeOffset"/>; ignored for other
+    /// Time-of-day mode for a "Timer" entry: wall-clock time-of-day as HH:mm or HH:mm:ss
+    /// (24-hour, server local time). No other form is valid. Mutually exclusive with <see cref="TimerRelativeOffset"/>; ignored for other
     /// schedule types.
     /// </summary>
     public string? TimerTimeOfDay { get; set; }

@@ -51,6 +51,29 @@ public sealed class SelfReschedulePayloadTests {
     result.TimerTimeOfDay.Should().Be(new TimeOnly(14, 30, 0));
   }
 
+  [Theory]
+  [InlineData("14:30", 14, 30, 0)]
+  [InlineData("14:30:45", 14, 30, 45)]
+  public void ParsesBothTimeOfDayForms(string text, int hour, int minute, int second) {
+    SelfReschedulePayload.TryRead(
+      Payload(("option", "Timer"), ("timerTimeOfDay", text)),
+      out var result, out _).Should().BeTrue();
+    result!.TimerTimeOfDay.Should().Be(new TimeOnly(hour, minute, second));
+  }
+
+  [Theory]
+  [InlineData("11:00 PM")]
+  [InlineData("9:30")]
+  [InlineData(" 11:00")]
+  [InlineData("24:00")]
+  public void NotStrictTimeOfDayIsRejectedWithTheAcceptedFormat(string text) {
+    SelfReschedulePayload.TryRead(
+      Payload(("option", "Timer"), ("timerTimeOfDay", text)),
+      out _, out var error).Should().BeFalse();
+    error.Should().Contain("HH:mm or HH:mm:ss");
+    error.Should().Contain("timerTimeOfDay");
+  }
+
   [Fact]
   public void MissingOptionIsRejected() {
     SelfReschedulePayload.TryRead(Payload(), out var result, out var error).Should().BeFalse();

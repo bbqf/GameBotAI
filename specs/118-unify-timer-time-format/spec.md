@@ -2,7 +2,7 @@
 
 **Feature Branch**: `118-unify-timer-time-format`  
 **Created**: 2026-09-30  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Fix issue #226 (B-023, bug, P3): the queue-template validator and the sequence validator accept different formats for the field `timerTimeOfDay`. Closes #226."
 
 ## Clarifications

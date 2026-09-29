@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-29 (feature 117: a `commandOutcome` reference to a Break that did not run
-evaluates as `no_break`, #250)._
+_Last reviewed: 2026-09-30 (feature 118: the queue-template endpoint and the sequence validator
+accept `timerTimeOfDay` in the same two forms, `HH:mm` and `HH:mm:ss`, #226)._
 
 ## What GameBot is
 
@@ -234,7 +234,9 @@ not survive a service restart; queue *configuration* and templates are persisted
   injects the ephemeral firing, which the queue run loop drains at the matching boundary. The **Timer**
   option is **most-recent-wins per sequence** (feature 075): a new Timer firing replaces any pending
   Timer firing already queued for the same sequence in that run, so a self-rescheduling sequence never
-  stacks duplicate future firings. A Timer `timerTimeOfDay` that is not later than the local time
+  stacks duplicate future firings. `timerTimeOfDay` has one format in the queue-template endpoint and in
+  the sequence validator: `HH:mm` or `HH:mm:ss` (24-hour). Both use `TimerTimeOfDayFormat` and reject
+  all other forms (feature 118, #226). A Timer `timerTimeOfDay` that is not later than the local time
   now books that time on the next local day, with the offset of the local time zone for that day
   (feature 109, #227). The other options are unchanged — *Once Per Run* / *At Queue Start*
   accumulate, and *After Every Step* is idempotent per sequence. A pending booking (or pending live

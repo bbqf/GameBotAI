@@ -109,6 +109,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<PrimitiveTapHoldSchemaFilter>();
       options.SchemaFilter<ParametrizedReferenceImageSchemaFilter>();
       options.SchemaFilter<LastRunConditionSchemaFilter>();
+      options.SchemaFilter<TemplateTimerTimeOfDaySchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());

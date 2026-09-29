@@ -36,6 +36,7 @@ namespace GameBot.Domain.QueueTemplates {
     /// Wall-clock time-of-day (server local time) at which this entry fires when
     /// <see cref="ScheduleType"/> is <see cref="ScheduleType.Timer"/> in <b>time-of-day mode</b>.
     /// Null in relative mode and for all non-timer types.
+    /// The API text form is HH:mm or HH:mm:ss (see <c>TimerTimeOfDayFormat</c>).
     /// The sequence executes at most once per calendar day: it fires at the first iteration
     /// boundary after this time has passed today, provided it has not already fired today in the
     /// current run.
