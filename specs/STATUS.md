@@ -112,7 +112,7 @@ Status vocabulary:
 | 074 | Start the Emulator From a Backend-Only, Session-Less State | Implemented |
 | 075 | Deduplicate Self-Rescheduled Sequence Firings | Implemented |
 | 077 | Enable/Disable Template Sequences | Implemented |
-| 078 | Sequence & Command Parameters | Implemented |
+| 078 | Sequence & Command Parameters | Implemented (iterated by 116) |
 | 079 | Concurrent Queue Execution | Implemented |
 | 080 | Fix Sequence & Session-Input API Bugs | Implemented |
 | 081 | Loop Exit Reason & Nested Step-Outcome References | Implemented |
@@ -150,6 +150,7 @@ Status vocabulary:
 | 113 | Reject a malformed sequence step on create | Implemented |
 | 114 | Let a parameter choose the reference image | Implemented |
 | 115 | Resolve a placeholder in a step parameterBindings value | Implemented |
+| 116 | Keep the parameter scope on a run that reschedule-self books | Implemented |
 
 ## Numbering notes
 

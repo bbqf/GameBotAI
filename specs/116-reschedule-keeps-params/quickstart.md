@@ -11,6 +11,8 @@ dotnet test "C:\src\GameBot\tests\integration\GameBot.IntegrationTests.csproj" -
 
 Expected result: all tests pass. Before the fix, the new tests fail: the booked run resolves the parameter from the queue scope only.
 
+The integration tests T006 (OncePerRun) and T007 (Timer) are the automated proxy for SC-001. They use the real dispatch path, but not the live device. Do the live reproduction of section 2 after a deploy.
+
 ## 2. Manual check with the live service (after a deploy)
 
 1. Make a sequence with a required parameter `novaOptionImage` (no default). Step 0: `reschedule-self` Timer with `timerRelativeOffset` `00:15:00`. Add a step that uses `{{novaOptionImage}}`, for example an If step with an `imageVisible` condition and `imageId` = `{{novaOptionImage}}`.

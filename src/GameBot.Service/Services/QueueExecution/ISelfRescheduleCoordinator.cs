@@ -38,10 +38,20 @@ internal interface ISelfRescheduleCoordinator {
   /// <paramref name="queueId"/> using <paramref name="option"/>. Returns
   /// <see cref="SelfRescheduleOutcome.NotRunning"/> when no active run exists.
   /// </summary>
+  /// <param name="queueId">The queue of the active run.</param>
+  /// <param name="sequenceId">The sequence to run again.</param>
+  /// <param name="option">The booking option.</param>
+  /// <param name="timerTimeOfDay">The time of day for a Timer booking.</param>
+  /// <param name="timerRelativeOffset">The relative offset for a Timer booking.</param>
+  /// <param name="scope">
+  /// The parameter scope of the run that makes the booking. The booked run uses this scope. Null
+  /// means the queue scope (feature 116).
+  /// </param>
   SelfRescheduleResult ScheduleSelf(
     string queueId,
     string sequenceId,
     SelfRescheduleOption option,
     TimeOnly? timerTimeOfDay,
-    TimeSpan? timerRelativeOffset);
+    TimeSpan? timerRelativeOffset,
+    GameBot.Domain.Parameters.ParameterScope? scope = null);
 }

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `116-reschedule-keeps-params`
 **Created**: 2026-09-29
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue #249 (B-031): "a run started by reschedule-self loses the parameterValues of the template entry, so a required parameter resolves from no scope". Labels: bug, P1.
 
 Closes #249
@@ -100,7 +100,7 @@ Runs that the queue start, the template timers, the daily clock, the daily retry
 - **FR-006**: The fix MUST NOT add a new API field or a new payload field on `reschedule-self`, and MUST NOT change the persisted queue template format.
 - **FR-007**: When a booking has no kept scope (for example a code path that has no scope to give), the service MUST use the queue scope, as before this change.
 - **FR-008**: The kept scope MUST be the full scope that the service gave the run that booked it, as it was at the time of the booking. A change to the queue template while the queue runs MUST NOT change the kept scope.
-- **FR-009**: The service MUST NOT add a new execution log field or API field for the kept scope.
+- **FR-009**: The service MUST NOT add a new execution log field for the kept scope.
 - **FR-010**: An EveryStep or Timer booking that replaces a booking of the same sequence MUST keep the scope of the most recent booking.
 
 ### Key Entities

@@ -10,8 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-29 (feature 115: a `{{name}}` placeholder in a step `parameterBindings`
-value resolves against the scope outside the binding, #246)._
+_Last reviewed: 2026-09-29 (feature 116: a run that `reschedule-self` books keeps the parameter
+scope of the run that booked it, #249)._
 
 ## What GameBot is
 
@@ -240,7 +240,11 @@ not survive a service restart; queue *configuration* and templates are persisted
   accumulate, and *After Every Step* is idempotent per sequence. A pending booking (or pending live
   schedule) keeps the run's scheduling loop going **whatever schedule types the template uses** —
   including a template of only At Queue Start entries, whose start pass would otherwise end the run
-  before its bookings fire (feature 092).
+  before its bookings fire (feature 092). A booked run keeps the parameter scope of the run that
+  booked it: the scope that the queue run loop gave that run (queue layer and entry layer), for all
+  four booking options. Thus a required parameter that the template entry supplies resolves in the
+  booked run too, and a chain of bookings keeps the scope for each generation (feature 116, #249).
+  A booking with no scope uses the queue scope.
 - **Notify action** (within a sequence, feature 087) — an authorable sequence action (`notify`) that
   raises an outbound alert carrying an author-written `message` (required, ≤1000 chars) and an
   optional per-step `url`. It touches no device, which is the point: a guard that has detected an

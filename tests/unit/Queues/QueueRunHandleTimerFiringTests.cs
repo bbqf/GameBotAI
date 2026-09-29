@@ -126,4 +126,20 @@ public sealed class QueueRunHandleTimerFiringTests {
     handle.EveryStepInjections["seq-A"] = new("id", "seq-A", SelfRescheduleOption.EveryStep, null);
     handle.HasPendingSelfRescheduleWork.Should().BeFalse();
   }
+
+  [Fact] // T017 (feature 116) — edge case "liveness gate": a held Timer booking keeps its scope. Regression guard.
+  public void HeldTimerFiringKeepsItsScope() {
+    var handle = NewHandle();
+    var scope = GameBot.Domain.Parameters.ParameterScope.Empty.Child(
+      GameBot.Domain.Parameters.ParameterScopeLayers.Entry,
+      new[] { new GameBot.Domain.Parameters.ParameterBinding { Name = "slot", Value = "one" } },
+      null);
+    handle.AddTimerFiring(Timer("seq-A", T1) with { Scope = scope });
+
+    var drained = handle.DrainDueTimerFirings(T1).Should().ContainSingle().Subject;
+    handle.RearmTimerFiring(drained);
+    var again = handle.DrainDueTimerFirings(T1).Should().ContainSingle().Subject;
+
+    again.Scope.Should().BeSameAs(scope);
+  }
 }
