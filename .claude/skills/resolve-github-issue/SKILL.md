@@ -156,8 +156,8 @@ Do not invent scope the issue did not ask for.
 ## Step 5 - Run the pipeline
 
 Invoke the `speckit-pipeline` skill with that description as its argument. It
-owns specify -> clarify -> plan -> tasks -> analyze -> fix -> commit ->
-implement -> commit -> push -> wait for CI -> open PR. Do not duplicate its
+owns specify -> clarify -> plan -> tasks -> analyze -> 2 loops of (clarify ->
+fix rest -> plan -> tasks, with analyze in loop 1 only) -> commit -> implement -> commit -> push -> wait for CI -> open PR. Do not duplicate its
 steps here and do not second-guess it mid-run; let it run to its own halting
 rules.
 

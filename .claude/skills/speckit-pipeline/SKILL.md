@@ -1,6 +1,6 @@
 ---
 name: "speckit-pipeline"
-description: "Orchestrate the full spec-kit pipeline end to end autonomously: specify -> clarify -> plan -> tasks -> analyze -> fix -> commit -> implement -> commit -> wait for CI -> open PR, without stopping for manual review. Every step from plan onward runs in its own sub-agent."
+description: "Orchestrate the full spec-kit pipeline end to end autonomously: specify -> clarify -> plan -> tasks -> analyze -> 2 loops of (clarify -> fix rest -> plan -> tasks [-> analyze in loop 1 only]) -> commit -> implement -> commit -> wait for CI -> open PR, without stopping for manual review. Every step from plan onward runs in its own sub-agent."
 argument-hint: "Describe the feature to build (forwarded to /speckit-specify)"
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
@@ -28,12 +28,13 @@ hard failure (see Halting rules) stops the run.
 
 ## Execution model
 
-- **Steps 1–2 (specify, clarify) run inline** in this conversation.
-- **Every step from 3 (plan) onward runs in its own, fresh sub-agent** via the
-  Agent tool (`subagent_type: "general-purpose"`, `run_in_background: false` —
-  each step depends on the previous one). One sub-agent per step invocation:
-  **every re-run of analyze and every fix round gets a new sub-agent**; never
-  reuse or `SendMessage` a previous step's agent.
+- **Specify and clarify (step 1, step 2, and each loop's clarify) run inline**
+  in this conversation.
+- **Every other step from 3 (plan) onward runs in its own, fresh sub-agent** via
+  the Agent tool (`subagent_type: "general-purpose"`, `run_in_background:
+  false` — each step depends on the previous one). One sub-agent per step
+  invocation: **every re-run of plan, tasks, analyze, and every fix gets a new
+  sub-agent**; never reuse or `SendMessage` a previous step's agent.
 - The orchestrator (you) does no step work itself: it launches the sub-agent,
   reads its report, prints the status line, and decides the next step. The spec
   / plan / tasks files on disk are the hand-off between steps; keep only the
@@ -72,14 +73,34 @@ hard failure (see Halting rules) stops the run.
    Analyze is read-only; the sub-agent must not edit files. Report: the
    **complete findings table verbatim** (ID, category, severity, location,
    summary, recommendation), or an explicit "no issues".
-6. **Fix all issues** *(sub-agent per round)* — if analyze reported findings,
-   launch a new sub-agent with the full findings table and have it resolve
-   **every** finding, at all severities, by editing the relevant spec / plan /
-   tasks artifacts. Report: each finding ID and how it was resolved. Then run
-   **a new analyze sub-agent** (step 5 again) and repeat fix → analyze until
-   analyze reports no remaining issues (cap at 3 fix rounds; if issues persist
-   after 3 rounds, note the residual findings and continue anyway — do not
-   stop).
+6. **Loop back — exactly 2 loops** (loop 1 and loop 2). Each loop re-derives the
+   design from a corrected spec. Skip a loop's clarify and fix sub-steps only if
+   the latest analyze reported "no issues" and there is nothing left to
+   correct; still run its plan and tasks. Per loop:
+   1. **`/speckit-clarify`** *(inline)* — feed it the latest analyze findings
+      table. Treat every finding that is a spec ambiguity or gap as a clarify
+      question and auto-answer it as in step 2. Record answers in the spec.
+      Report: the findings this clarify resolved.
+   2. **Fix the rest** *(sub-agent)* — launch a new sub-agent with the findings
+      that clarify did **not** resolve (all severities) and have it resolve
+      **every** one by editing the spec (and, for findings that no re-run of
+      plan or tasks will regenerate, the other artifacts). Fix the source of
+      truth, not generated output: a finding about plan or tasks content is
+      fixed by correcting the spec, so the re-run in the next sub-steps
+      produces the right result. Report: each finding ID and how it was
+      resolved.
+   3. **`/speckit-plan`** *(sub-agent)* — run step 3 again on the corrected
+      spec.
+   4. **`/speckit-tasks`** *(sub-agent)* — run step 4 again.
+   5. **`/speckit-analyze`** *(sub-agent)* — run step 5 again. **Loop 1 only.**
+      Loop 2 does **not** analyze: after its tasks sub-step, go to step 7. The
+      loop 1 analyze findings feed loop 2's clarify and fix sub-steps. If
+      loop 1's analyze still reports issues, loop 2 handles them. Any finding
+      left after loop 2 is not re-checked; do not stop for it.
+
+   So the full order is: specify, clarify, plan, tasks, analyze; then loop 1
+   (clarify, fix rest, plan, tasks, analyze); then loop 2 (clarify, fix rest,
+   plan, tasks); then commit and implement. Never run a third loop.
 7. **Commit** *(sub-agent)* — run `/speckit-git-commit` to commit the spec,
    plan, tasks, and fixes before any implementation. This creates a clean
    checkpoint separating the design artifacts from the implementation. Report:
@@ -134,7 +155,7 @@ After each step, print a one-line status:
 ## On completion
 
 Print a final summary: which steps ran, which were skipped, the clarify
-answers you chose, the analyze findings you fixed (and how many analyze rounds
-ran), the two commit SHAs (design + implementation), the CI outcome (which
+answers you chose (initial and per loop), the analyze findings you fixed (and
+that 2 analyze runs happened, plus any findings left after loop 2), the two commit SHAs (design + implementation), the CI outcome (which
 workflows ran and their conclusions), the PR URL (or the reason no PR was
 opened), and the branch / spec directory the work landed in.
