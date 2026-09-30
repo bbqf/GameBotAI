@@ -2,7 +2,7 @@
 
 **Feature Branch**: `120-sequence-queue-notifications`  
 **Created**: 2026-09-30  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User request (quotation): "I want a notification/alerting mechanism for the sequences in the game. The user configures the targets in the UI/configuration. The user sets the level per queue, so that all sequences that run as part of a queue can send a notification. Sequences that the user runs manually send none. Levels: None / Failure / Success+Failure. Telegram is the first target, but the design must allow more targets. The user creates a Telegram bot by hand and creates a chat with it. The bot ID, the chat ID and other data are stored in the configuration. The UI must guide the user through the bot setup. When a sequence in a queue finishes, the system checks the level of the queue and sends a short message with the queue name, the sequence name and the status, for example `Farm-1 : PNS.CollectResources : success`. Success is green and failure is red, if possible."
 
 ## Clarifications
@@ -32,11 +32,11 @@ The operator runs several queues for a long time and does not look at them. The 
 
 **Why this priority**: This is the main value. It removes the need to look at the queues. A failure alert alone makes the feature useful.
 
-**Independent Test**: Configure one target. Set one queue to "Failure". Run a sequence in that queue that fails. Check that one message arrives with the queue name, the sequence name and the status "failure". Check that a sequence that succeeds sends nothing.
+**Independent Test**: Configure one target. Set one queue to "Failure". Run a sequence in that queue that fails. Check that one message arrives with the queue name, the sequence name and the status "failure". Check that a sequence that succeeds sends no message.
 
 **Acceptance Scenarios**:
 
-1. **Given** a target is configured and queue "Farm-1" has level "Failure", **When** sequence "PNS.CollectResources" fails in a run of "Farm-1", **Then** the target receives the message `Farm-1 : PNS.CollectResources : failure`.
+1. **Given** a target exists and queue "Farm-1" has level "Failure", **When** sequence "PNS.CollectResources" fails in "Farm-1", **Then** the target gets the message `Farm-1 : PNS.CollectResources : failure`.
 2. **Given** the message from scenario 1 goes to a target that supports color, **When** the message arrives, **Then** the status is red.
 3. **Given** a target is configured and queue "Farm-1" has level "Failure", **When** a sequence in "Farm-1" succeeds, **Then** no message is sent.
 4. **Given** queue "Farm-1" has level "None", **When** any sequence in "Farm-1" finishes with any result, **Then** no message is sent.
@@ -53,7 +53,7 @@ The operator opens a notification settings area in the UI. The operator adds a T
 
 **Acceptance Scenarios**:
 
-1. **Given** no target is configured, **When** the operator opens the notification settings, **Then** the UI shows the guide to create a Telegram bot and a chat. It also shows the fields for the required values.
+1. **Given** no target exists, **When** the operator opens the Notifications page, **Then** the UI shows the guide to make a Telegram bot and a chat. It also shows the fields for the required values.
 2. **Given** the operator entered valid values, **When** the operator selects "Send test message", **Then** a test message arrives at the target. The UI shows that the send worked.
 3. **Given** the operator entered wrong values, **When** the operator selects "Send test message", **Then** the UI shows a clear error. The error says that the send failed and, where known, why.
 4. **Given** a saved target, **When** the operator opens the settings again, **Then** the UI does not show the secret value (the bot token) in full.
@@ -132,19 +132,19 @@ A developer can add a new target type (for example Discord or e-mail). The chang
 - **FR-003**: The system MUST support a Telegram target. The Telegram target MUST store the bot token and the chat ID. The system MUST store other values that Telegram needs in the same configuration.
 - **FR-004**: The system MUST keep target types separate from queue levels and from message creation. A new target type MUST NOT need a change to queue levels or to message creation.
 - **FR-005**: These rules apply when a queue entry sequence finishes. A sequence that another sequence calls as a step is not a queue entry. The system MUST check the queue level and the configured targets. It MUST send a notification only if a target is configured and the level allows the result.
-- **FR-006**: Level "Failure" MUST send a notification for failed and cancelled sequences (see FR-011). Level "Success+Failure" MUST send a notification for succeeded, failed and cancelled sequences. Both levels MUST send "recovered" (see FR-012 and FR-019). Level "None" MUST send nothing.
+- **FR-006**: Level "Failure" MUST send a notification for failed and cancelled sequences (see FR-011). Level "Success+Failure" MUST send a notification for succeeded, failed and cancelled sequences. Both levels MUST send "recovered" (see FR-012 and FR-019). Level "None" MUST send no message.
 - **FR-007**: The system MUST NOT send a notification for a sequence that the operator runs by hand outside a queue.
 - **FR-008**: The notification text MUST contain the queue name, the sequence name and the status (success, failure, cancelled or recovered). The format is `<queue name> : <sequence name> : <status>`. The text MUST contain no other information in this version. The only exceptions are the color symbol from FR-009 and the fixed text of the test message from FR-015.
 - **FR-009**: Where the target supports color, the system MUST show "success" and "recovered" in green. It MUST show "failure" in red and "cancelled" in yellow. Where the target has no color, the message MUST stay readable as plain text. Telegram cannot color text. For Telegram, the message MUST show a colored circle symbol (green, red or yellow) before the status.
 - **FR-010**: A send failure MUST NOT change the result of the sequence or the queue. It MUST NOT stop or slow the queue. The system MUST write the send failure to the service log. If one target fails, the other targets MUST still receive the message. The system MUST send to all targets in parallel. Each message MUST have a total send limit of 30 seconds, also when several targets are slow. If the system drops a message, it MUST write this to the service log.
-- **FR-011**: The status "cancelled" applies to a sequence that the operator cancels. It also applies to a sequence that a queue stop interrupts. The system MUST show "cancelled" in yellow where the target supports color. Levels "Failure" and "Success+Failure" MUST send "cancelled" messages. Level "None" MUST send nothing.
+- **FR-011**: The status "cancelled" applies to a sequence that the operator cancels. It also applies to a sequence that a queue stop interrupts. The system MUST show "cancelled" in yellow where the target supports color. Levels "Failure" and "Success+Failure" MUST send "cancelled" messages. Level "None" MUST send no message.
 - **FR-012**: The system MUST track failure streaks for each pair of queue and sequence. The pair is identified by queue identity and sequence identity, not by name. The streak rules are in the next items.
   - A sequence fails and the pair has no open streak: the system MUST send the "failure" message and open a streak.
   - The streak is open: further failures of the same pair MUST NOT send messages.
   - The sequence next succeeds: the system MUST close the streak. It MUST send a "recovered" message instead of a "success" message.
   - The system MUST send "recovered" only if it sent the "failure" message that opened the streak.
   - A "cancelled" result MUST NOT open, extend or close a streak.
-  - The level is "None": the system MUST send nothing and MUST NOT open a streak.
+  - The level is "None": the system MUST send no message and MUST NOT open a streak.
   - The operator sets the level to "None": the system MUST close an open streak at once, with no message. It MUST NOT wait for the next run.
   - The operator changes the level between "Failure" and "Success+Failure": the streak MUST stay open.
 - **FR-013**: The UI MUST have a notification settings area. There the operator sees a list of the targets. The operator can add, change and remove each target from this list. The operator can set the level for each queue. A save with an empty token field MUST keep the stored token.
@@ -162,7 +162,7 @@ A developer can add a new target type (for example Discord or e-mail). The chang
 ### Key Entities
 
 - **Notification Target**: A place that receives messages. It has a type (for example Telegram), a name, an enabled state and the type-specific values (for Telegram: the bot token and the chat ID). It is global, not per queue.
-- **Queue Notification Level**: A setting on a queue with one of three values: None, Failure, Success+Failure.
+- **Queue Notification Level**: A value of a queue with one of three choices: None, Failure, Success+Failure.
 - **Notification Message**: The short text for one finished sequence. It has a queue name, a sequence name and a status (success, failure, cancelled or recovered).
 - **Failure Streak**: The state for one pair of queue and sequence after a "failure" message was sent. It stays open until the sequence next succeeds.
 
@@ -187,7 +187,7 @@ A developer can add a new target type (for example Discord or e-mail). The chang
 - Messages go one way only. The bot does not receive commands or replies.
 - The only target type built in this version is Telegram. Other types are out of scope, but the design must allow them.
 - Each verification item in the plan and tasks MUST name the exact check and the pass criterion.
-- The final quickstart run MUST include a timing check for SC-001 and SC-002.
+- The final quickstart run MUST include a time check for SC-001 and SC-002.
 - The send retry budget (number of attempts times the time limit of each attempt) MUST fit in 30 seconds. This supports SC-002.
 - No real Telegram bot or phone is available: the real-target checks then use a fake target. The team records this in the pull request. These checks do not block the final status update.
 - A time limit or a watchdog stop counts as "failure". A named test checks it. A queue stop while the host runs counts as "cancelled".

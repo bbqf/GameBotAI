@@ -91,6 +91,14 @@ namespace GameBot.Domain.Queues {
     /// </summary>
     public bool ResumeOnServiceStart { get; set; }
 
+    /// <summary>
+    /// How much this queue tells the operator when a queue entry ends (feature 120). Default
+    /// <see cref="GameBot.Domain.Notifications.NotificationLevel.None"/>. Old queue files with no
+    /// value read as None. Only the level route (or a create or update request that names a level)
+    /// changes it, so every other queue change keeps it.
+    /// </summary>
+    public GameBot.Domain.Notifications.NotificationLevel NotificationLevel { get; set; }
+
     public DateTimeOffset? CreatedAt { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }

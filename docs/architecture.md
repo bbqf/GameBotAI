@@ -10,8 +10,9 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-30 (feature 118: the queue-template endpoint and the sequence validator
-accept `timerTimeOfDay` in the same two forms, `HH:mm` and `HH:mm:ss`, #226)._
+_Last reviewed: 2026-09-30 (feature 120: queue sequence notifications; feature 118: the queue-template
+endpoint and the sequence validator accept `timerTimeOfDay` in the same two forms, `HH:mm` and
+`HH:mm:ss`, #226)._
 
 ## What GameBot is
 
@@ -725,6 +726,44 @@ for a queue run (`OriginatingQueueId` set, not a dry-run); its delegate calls
 is a 400 with a `Step '<id>' condition at <path>:` message) and evaluation. The web UI does not know
 this type: authors write `lastRun` conditions through the API.
 
+### Queue sequence notifications (feature 120)
+
+A queue can tell the operator when one of its entries ends. This is separate from the failure policy
+of feature 087, which acts on failed cycles.
+
+- **Level.** `ExecutionQueue.NotificationLevel` is `none` (default), `failure` or `successAndFailure`.
+  It is a normal queue field, so every other queue change keeps it. Only the level route, and a create
+  or update request that names a level, write it. The queue file stores the field with the other
+  queue fields. A file with no field reads as `none`.
+- **Hook.** `QueueExecutionService.RecordRunAsync` is the one place where a queue entry run ends with
+  a known status. It hands one `QueueNotificationJob` to `INotificationDispatcher.Enqueue`. A nested
+  step and a manual run never reach it. The run of the host stop returns before the hook, so a stop
+  of the service sends no message. A queue stop while the service runs gives `cancelled`. The time limit
+  (watchdog) gives `failure` for the message, and the statistics keep `Cancelled`.
+- **Dispatcher and worker.** `QueueNotificationDispatcher` writes to one unbounded channel and returns
+  at once. `QueueNotificationWorker` is the one reader and the only owner of the failure streak state
+  (`NotificationStreakState`, in memory, keys are queue ID and sequence ID). It reads the level of the
+  queue when it handles a job and applies the state table. It starts one send task for each message
+  and does not wait. The send task sends to all enabled targets in parallel with one 30 s limit. Above
+  256 run jobs that wait, `Enqueue` drops the new job. Above 64 send tasks that run, the worker drops the
+  message. Each drop writes one log line. `ResetStreaks(queueId)` writes a control message to the same
+  channel. It is never dropped. The level route calls it after a save of `none`. The delete route calls
+  it after a delete.
+- **Streaks.** A failure at an allowed level opens a streak and sends `failure`. More failures send
+  no message. A success after an open streak sends `recovered` and closes it, at both levels. Without an
+  open streak, a success sends `success` at `successAndFailure` only. `cancelled` sends a message and
+  changes no streak. Streaks are lost when the service restarts.
+- **Targets.** `NotificationTarget` (type, name, enabled, `Settings` map) is stored in
+  `data/notifications/targets.json` by `FileNotificationTargetStore`. The store reloads the file when
+  the write time or the length changes. A corrupt or empty file keeps the last good list. A write goes
+  to a temp file first. `INotificationChannel` is one target type (`Type`, `Fields`, `Validate`,
+  `SendAsync`). `TelegramChannel` posts `chat_id` and `text` to the Bot API with no `parse_mode`. It
+  makes 2 attempts of 10 s with a 1 s pause, and a 4xx answer is final. The token is never in a reason,
+  a log line or a response. The response of a target shows `hasSecret` and `secretHint`. The backup
+  archive does not hold the target file.
+- **UI.** The Notifications area has a Telegram setup guide, the target list with add, edit, delete and
+  "Save and test", and a table with the level of each queue.
+
 ### Device liveness (feature 106, #220)
 
 A wedged emulator can answer `adb` but not apply the inputs, or stop its captures. Before feature 106,
@@ -884,8 +923,8 @@ validity or exercise runtime branching without ever touching a real emulator.
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):
 adb, backup/restore, commands, config (+ files, logging), coverage, emulator-image,
-execution-logs, games, image-detections, image-references, metrics, queues, queue-templates,
-sessions, steps, triggers. Plus `SessionsController`. Swagger groups these into sections.
+execution-logs, games, image-detections, image-references, metrics, notifications, queues,
+queue-templates, sessions, steps, triggers. Plus `SessionsController`. Swagger groups these into sections.
 
 > Note: `TriggersEndpoints` still exists on the backend even though the Triggers authoring UI was
 > removed (spec 020). Treat the API as broader than the current UI.
@@ -966,6 +1005,11 @@ Feature 086 added, additively (see "Queue cycle observability" above):
 
 - A `health` block on `GET /api/queues/{id}`, present only while the queue is Running.
 - `GET /api/queues/{id}/cycles?limit=n` — recent cycles newest-first with per-entry outcomes.
+
+Feature 120 added (see "Queue sequence notifications" above): `notificationLevel` on the queue
+responses and on the create and update requests, `PUT /api/queues/{id}/notification-level`,
+`GET` and `POST /api/notifications/targets`, `PUT` and `DELETE /api/notifications/targets/{id}`,
+`POST /api/notifications/targets/{id}/test` and `GET /api/notifications/types`. A bad body gives 400.
 
 Feature 087 added, additively (see "Queue failure policy and outbound notification" above):
 

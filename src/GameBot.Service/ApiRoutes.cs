@@ -6,6 +6,8 @@ internal static class ApiRoutes {
   internal const string Sequences = Base + "/sequences";
   internal const string Queues = Base + "/queues";
   internal const string QueueTemplates = Base + "/queue-templates";
+  internal const string NotificationTargets = Base + "/notifications/targets";
+  internal const string NotificationTypes = Base + "/notifications/types";
   internal const string Sessions = Base + "/sessions";
   internal const string Games = Base + "/games";
   internal const string Config = Base + "/config";

@@ -103,6 +103,8 @@ app.MapCommandEndpoints();
 app.MapStepEndpoints();
 app.MapQueueEndpoints();
 app.MapQueueTemplateEndpoints();
+// Notification targets and queue levels (feature 120)
+app.MapNotificationsEndpoints();
 // Triggers endpoints (re-added after refactor to support direct CRUD)
 app.MapTriggerEndpoints();
 // ADB diagnostics endpoints (protected if token set)

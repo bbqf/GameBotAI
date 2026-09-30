@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Games;
+using GameBot.Domain.Notifications;
 using GameBot.Domain.Queues;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Emulator.Session;
@@ -29,6 +30,9 @@ internal static class QueuesEndpoints {
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
       if (!QueueFailurePolicyMapping.TryMap(req.FailurePolicy, notifyOptions.Value, out var createPolicy, out var policyError))
         return Error(400, "invalid_request", policyError!);
+      var createLevel = NotificationLevel.None;
+      if (req.NotificationLevel is not null && !NotificationLevelText.TryParse(req.NotificationLevel, out createLevel))
+        return LevelError();
 
       var created = await repo.CreateAsync(new ExecutionQueue {
         Name = name,
@@ -39,7 +43,8 @@ internal static class QueuesEndpoints {
         EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName),
         EmulatorInstanceIndex = req.EmulatorInstanceIndex,
         FailurePolicy = createPolicy,
-        ResumeOnServiceStart = req.ResumeOnServiceStart
+        ResumeOnServiceStart = req.ResumeOnServiceStart,
+        NotificationLevel = createLevel
       }).ConfigureAwait(false);
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("CreateQueue");
@@ -86,7 +91,7 @@ internal static class QueuesEndpoints {
       return Results.Ok(resp);
     }).WithName("GetQueueCycles");
 
-    group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, IOptions<FailureNotificationOptions> notifyOptions) => {
+    group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, IOptions<FailureNotificationOptions> notifyOptions, INotificationDispatcher notifications) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
@@ -96,6 +101,10 @@ internal static class QueuesEndpoints {
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
       if (!QueueFailurePolicyMapping.TryMap(req.FailurePolicy, notifyOptions.Value, out var updatePolicy, out var updatePolicyError))
         return Error(400, "invalid_request", updatePolicyError!);
+      // Feature 120 (FR-021): an absent level keeps the stored level.
+      var updateLevel = queue.NotificationLevel;
+      if (req.NotificationLevel is not null && !NotificationLevelText.TryParse(req.NotificationLevel, out updateLevel))
+        return LevelError();
       queue.FailurePolicy = updatePolicy;
       queue.Name = name;
       queue.CycleExecution = req.CycleExecution;
@@ -104,9 +113,31 @@ internal static class QueuesEndpoints {
       queue.EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName);
       queue.EmulatorInstanceIndex = req.EmulatorInstanceIndex;
       queue.ResumeOnServiceStart = req.ResumeOnServiceStart;
+      queue.NotificationLevel = updateLevel;
       var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
+      if (updateLevel == NotificationLevel.None) notifications.ResetStreaks(saved.Id);
       return Results.Ok(BuildResponse(saved, runtime));
     }).WithName("UpdateQueue");
+
+    // Feature 120: sets the notification level of one queue. The new level applies to the next
+    // sequence that ends in the queue. Level none closes the open failure streaks of the queue at once.
+    // The body is read by hand, so a bad body gives 400 and never 500.
+    group.MapPut("{id}/notification-level", async (string id, HttpRequest request, IQueueRepository repo, IQueueRuntimeStore runtime, INotificationDispatcher notifications) => {
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+      SetNotificationLevelRequest? body;
+      try {
+        body = await request.ReadFromJsonAsync<SetNotificationLevelRequest>().ConfigureAwait(false);
+      }
+      catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
+        return LevelError();
+      }
+      if (!NotificationLevelText.TryParse(body?.Level, out var level)) return LevelError();
+      queue.NotificationLevel = level;
+      var saved = await repo.UpdateAsync(queue).ConfigureAwait(false);
+      if (level == NotificationLevel.None) notifications.ResetStreaks(saved.Id);
+      return Results.Ok(BuildResponse(saved, runtime));
+    }).WithName("SetQueueNotificationLevel");
 
     // Duplicate (feature 083): a 1:1 copy of the source queue's configuration and currently
     // loaded entries under a new, required-to-differ name. Never mutates the source; the
@@ -140,6 +171,7 @@ internal static class QueuesEndpoints {
         // feature exists to prevent. Copied by value so the two queues stay independent.
         FailurePolicy = QueueFailurePolicyMapping.Clone(source.FailurePolicy),
         ResumeOnServiceStart = source.ResumeOnServiceStart
+        // Feature 120: the duplicate keeps the default level none.
       }).ConfigureAwait(false);
 
       var sourceEntries = runtime.GetEntries(id).Select(e => e.SequenceId);
@@ -148,7 +180,7 @@ internal static class QueuesEndpoints {
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("DuplicateQueue");
 
-    group.MapDelete("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRunStatisticsStore stats) => {
+    group.MapDelete("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRunStatisticsStore stats, INotificationDispatcher notifications) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
@@ -157,6 +189,8 @@ internal static class QueuesEndpoints {
       // Feature 105: the statistics of a deleted queue go too.
       await stats.DeleteQueueAsync(id).ConfigureAwait(false);
       runtime.Remove(id);
+      // Feature 120 (FR-023): the worker removes the failure streaks of the deleted queue.
+      notifications.ResetStreaks(id);
       return Results.NoContent();
     }).WithName("DeleteQueue");
 
@@ -443,7 +477,8 @@ internal static class QueuesEndpoints {
     LinkedTemplateId = queue.LinkedTemplateId,
     LinkedGameId = queue.LinkedGameId,
     FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy),
-    ResumeOnServiceStart = queue.ResumeOnServiceStart
+    ResumeOnServiceStart = queue.ResumeOnServiceStart,
+    NotificationLevel = NotificationLevelText.ToText(queue.NotificationLevel)
   };
 
   private static async Task<QueueDetailResponse> BuildDetailAsync(ExecutionQueue queue, IQueueRuntimeStore runtime, ISequenceRepository sequences, IQueueTemplateRepository templates, IGameRepository games, ISequenceRunStatisticsStore stats, IQueueRunRegistry? runs = null, DeviceLivenessReader? liveness = null) {
@@ -466,7 +501,8 @@ internal static class QueuesEndpoints {
       LinkedGameId = queue.LinkedGameId,
       LinkedGameName = await ResolveGameNameAsync(queue.LinkedGameId, games).ConfigureAwait(false),
       FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy),
-      ResumeOnServiceStart = queue.ResumeOnServiceStart
+      ResumeOnServiceStart = queue.ResumeOnServiceStart,
+      NotificationLevel = NotificationLevelText.ToText(queue.NotificationLevel)
     };
     foreach (var entry in entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);
@@ -636,6 +672,9 @@ internal static class QueuesEndpoints {
   // means "unset" (feature 074), matching how the runtime treats a missing identifier.
   private static string? NormalizeInstanceName(string? name) =>
     string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+
+  private static IResult LevelError() =>
+    Error(400, "invalid_request", "level must be one of: none, failure, successAndFailure");
 
   private static IResult NotFound() => Error(404, "not_found", "Queue not found");
 

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Queue sequence notifications. A queue can send a short message when one of its entries ends (120-sequence-queue-notifications)
+  - Each queue has a `notificationLevel`: `none` (default), `failure` or `successAndFailure`. Set it with `PUT /api/queues/{id}/notification-level` or on the new Notifications page of the Web UI. `POST` and `PUT /api/queues` accept an optional `notificationLevel`. Both queue responses show it. Every other queue change keeps the level. A duplicate gets `none`.
+  - The message is plain text: `<queue> : <sequence> : <circle> <status>`. The circle is green for `success` and `recovered`, red for `failure` and yellow for `cancelled`. A manual run and a nested step send no message.
+  - A failure streak sends one `failure` message, then no more, until the next success. That success sends one `recovered` message. A level change to `none` and a queue delete close the open streaks with no message. A stop of the service sends no message. A time-limit stop is a `failure`. A stop of the queue while the service runs is `cancelled`.
+  - Telegram is the first target type. Targets are in `data/notifications/targets.json`. Routes: `GET` and `POST /api/notifications/targets`, `PUT` and `DELETE /api/notifications/targets/{id}`, `POST /api/notifications/targets/{id}/test` and `GET /api/notifications/types`. The bot token is never in a response, a log line or an error text. The API shows `hasSecret` and `secretHint`. A `PUT` with an empty token keeps the stored token.
+  - The send never blocks a queue run. One worker reads one channel and sends to all targets in parallel with a 30 s limit. Above 256 jobs that wait, the new job is dropped and one log line is written. A hand edit of `targets.json` applies with no restart. The backup archive does not hold the file.
+  - **Compatibility**: a queue file with no level reads as `none`. A new target type needs one `INotificationChannel` class and one DI registration.
+
 ### Fixed
 - A `reschedule-self` payload with an unknown top-level field is now rejected on save with a 400 that names each unknown field (119-reject-unknown-reschedule-field, #228)
   - Known fields are `option`, `timerTimeOfDay`, `timerRelativeOffset` and `ocrOffset`. Field names match without regard to letter case. Before, a mistyped field (for example `nextDay`) was ignored and the step did the wrong thing without an error.

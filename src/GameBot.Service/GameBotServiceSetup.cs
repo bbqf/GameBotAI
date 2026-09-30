@@ -52,6 +52,7 @@ internal static class GameBotServiceSetup {
     RegisterWebPipelineServices(builder);
     RegisterSessionServices(builder);
     RegisterRepositories(builder, storageRoot);
+    RegisterNotificationServices(builder, storageRoot);
     RegisterSequenceAndQueueServices(builder);
     RegisterLoggingPolicyServices(builder, storageRoot, loggingGate, loggingComponentCatalog);
     RegisterTriggerAndImageServices(builder, storageRoot);
@@ -215,6 +216,21 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
     builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
     builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummaryService(storageRoot, sp.GetRequiredService<ILogger<CoverageSummaryService>>()));
+  }
+
+  // Feature 120: queue sequence notifications. One dispatcher instance serves the queue engine and
+  // the queue endpoints. The worker is the one reader of its channel.
+  private static void RegisterNotificationServices(WebApplicationBuilder builder, string storageRoot) {
+    builder.Services.Configure<GameBot.Service.Services.Notifications.NotificationOptions>(
+      builder.Configuration.GetSection(GameBot.Service.Services.Notifications.NotificationOptions.SectionName));
+    builder.Services.AddHttpClient(GameBot.Service.Services.Notifications.TelegramChannel.HttpClientName);
+    builder.Services.AddSingleton<GameBot.Domain.Notifications.INotificationTargetStore>(sp => new GameBot.Domain.Notifications.FileNotificationTargetStore(
+      storageRoot, sp.GetService<ILogger<GameBot.Domain.Notifications.FileNotificationTargetStore>>()));
+    builder.Services.AddSingleton<GameBot.Service.Services.Notifications.INotificationChannel, GameBot.Service.Services.Notifications.TelegramChannel>();
+    builder.Services.AddSingleton<GameBot.Service.Services.Notifications.QueueNotificationDispatcher>();
+    builder.Services.AddSingleton<GameBot.Service.Services.Notifications.INotificationDispatcher>(
+      sp => sp.GetRequiredService<GameBot.Service.Services.Notifications.QueueNotificationDispatcher>());
+    builder.Services.AddHostedService<GameBot.Service.Services.Notifications.QueueNotificationWorker>();
   }
 
   private static void RegisterSequenceAndQueueServices(WebApplicationBuilder builder) {

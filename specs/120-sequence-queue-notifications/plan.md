@@ -43,7 +43,7 @@ spec and of `specs/STATUS.md` to "Implemented" (FR-022).
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-*NON-NEGOTIABLE*: If `build` or required `test` runs are failing (local or CI), implementation progression is blocked until failures are fixed or a documented maintainer waiver exists.
+*NON-NEGOTIABLE*: If `build` or required `test` runs fail (local or CI), implementation progression is blocked until failures are fixed or a documented maintainer waiver exists.
 
 *NON-NEGOTIABLE*: All text in this plan and in the artifacts it produces MUST obey Simplified Technical English (Constitution Principle VI).
 
