@@ -237,4 +237,135 @@ public sealed class SelfRescheduleActionContractTests {
     var response = await client.PostAsJsonAsync("/api/sequences", createPayload).ConfigureAwait(false);
     response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
   }
+
+  // ── issue #228: an unknown top-level field in the payload is rejected ─────
+
+  private static object RescheduleBody(string name, object payload, bool? dryRun = null) => dryRun is null
+    ? new {
+      name,
+      version = 1,
+      steps = new object[] {
+        new { stepId = "reschedule", stepType = "Action",
+          primitiveAction = new { type = "reschedule-self", schemaVersion = "1", payload } }
+      }
+    }
+    : new {
+      name,
+      version = 1,
+      dryRun = dryRun.Value,
+      steps = new object[] {
+        new { stepId = "reschedule", stepType = "Action",
+          primitiveAction = new { type = "reschedule-self", schemaVersion = "1", payload } }
+      }
+    };
+
+  private static readonly object ValidPayload = new { option = "Timer", timerTimeOfDay = "11:00" };
+  private static readonly object UnknownFieldPayload = new { option = "Timer", timerTimeOfDay = "11:00", nextDay = true };
+
+  private static async Task<string> CreateValidAsync(System.Net.Http.HttpClient client, string name) {
+    var response = await client.PostAsJsonAsync("/api/sequences", RescheduleBody(name, ValidPayload)).ConfigureAwait(false);
+    response.StatusCode.Should().Be(HttpStatusCode.Created);
+    var created = await response.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+    return created.GetProperty("id").GetString()!;
+  }
+
+  private static async Task AssertStoredUnchangedAsync(System.Net.Http.HttpClient client, string sequenceId) {
+    var fetched = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/sequences/{sequenceId}", UriKind.Relative)).ConfigureAwait(false);
+    var payload = fetched.GetProperty("steps")[0].GetProperty("primitiveAction").GetProperty("payload");
+    payload.TryGetProperty("nextDay", out _).Should().BeFalse();
+    payload.GetProperty("timerTimeOfDay").GetString().Should().Be("11:00");
+  }
+
+  [Fact]
+  public async Task UnknownFieldIsRejectedOnDryRunCreate() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var response = await client.PostAsJsonAsync(
+      "/api/sequences", RescheduleBody("rs-unknown-field-dry-run", UnknownFieldPayload, dryRun: true)).ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    (await response.Content.ReadAsStringAsync().ConfigureAwait(false)).Should().Contain("nextDay");
+  }
+
+  [Fact]
+  public async Task UnknownFieldIsRejectedOnCreateAndNothingIsStored() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+    const string name = "rs-unknown-field-create-228";
+
+    var response = await client.PostAsJsonAsync("/api/sequences", RescheduleBody(name, UnknownFieldPayload)).ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    (await response.Content.ReadAsStringAsync().ConfigureAwait(false)).Should().Contain("nextDay");
+    var list = await client.GetStringAsync(new Uri("/api/sequences", UriKind.Relative)).ConfigureAwait(false);
+    list.Should().NotContain(name);
+  }
+
+  [Fact]
+  public async Task UnknownFieldIsRejectedOnPutAndStoredSequenceIsUnchanged() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+    var sequenceId = await CreateValidAsync(client, "rs-unknown-field-put-228").ConfigureAwait(false);
+
+    var response = await client.PutAsJsonAsync(
+      $"/api/sequences/{sequenceId}", RescheduleBody("rs-unknown-field-put-228", UnknownFieldPayload)).ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    (await response.Content.ReadAsStringAsync().ConfigureAwait(false)).Should().Contain("nextDay");
+    await AssertStoredUnchangedAsync(client, sequenceId).ConfigureAwait(false);
+  }
+
+  [Fact]
+  public async Task UnknownFieldIsRejectedOnPatchAndStoredSequenceIsUnchanged() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+    var sequenceId = await CreateValidAsync(client, "rs-unknown-field-patch-228").ConfigureAwait(false);
+
+    var response = await client.PatchAsJsonAsync(
+      $"/api/sequences/{sequenceId}", RescheduleBody("rs-unknown-field-patch-228", UnknownFieldPayload)).ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    (await response.Content.ReadAsStringAsync().ConfigureAwait(false)).Should().Contain("nextDay");
+    await AssertStoredUnchangedAsync(client, sequenceId).ConfigureAwait(false);
+  }
+
+  [Fact]
+  public async Task KnownFieldsOnlyPayloadIsAccepted() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var sequenceId = await CreateValidAsync(client, "rs-known-fields-228").ConfigureAwait(false);
+
+    await AssertStoredUnchangedAsync(client, sequenceId).ConfigureAwait(false);
+    (await client.DeleteAsync(new Uri($"/api/sequences/{sequenceId}", UriKind.Relative)).ConfigureAwait(false))
+      .Dispose();
+  }
+
+  [Fact]
+  public async Task BogusOptionKeepsItsErrorMessage() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var response = await client.PostAsJsonAsync(
+      "/api/sequences", RescheduleBody("rs-bogus-option-228", new { option = "Bogus" })).ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    (await response.Content.ReadAsStringAsync().ConfigureAwait(false))
+      .Should().Contain("is not a known schedule option (expected one of AtQueueStart, OncePerRun, Timer, EveryStep)");
+  }
+
+  [Fact]
+  public async Task BogusOptionWithUnknownFieldReportsOnlyTheOptionError() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var response = await client.PostAsJsonAsync(
+      "/api/sequences", RescheduleBody("rs-bogus-unknown-228", new { option = "Bogus", nextDay = true })).ConfigureAwait(false);
+
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+    body.Should().Contain("is not a known schedule option");
+    body.Should().NotContain("unknown field");
+  }
 }
