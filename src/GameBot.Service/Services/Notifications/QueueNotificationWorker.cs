@@ -161,26 +161,26 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     if (targets.Count == 0) return;
 
     using var limit = new CancellationTokenSource(_limits.SendTimeout);
-    var sends = targets.Select(target => SendOneAsync(target, text, limit)).ToList();
+    var sends = targets.Select(target => SendOneAsync(target, text, limit.Token)).ToList();
     await Task.WhenAll(sends).ConfigureAwait(false);
   }
 
-  private async Task SendOneAsync(NotificationTarget target, string text, CancellationTokenSource limit) {
+  private async Task SendOneAsync(NotificationTarget target, string text, CancellationToken limit) {
     if (!_channels.TryGetValue(target.Type, out var channel)) {
       Log.UnknownType(_logger, target.Id, target.Type);
       return;
     }
 
     try {
-      var send = channel.SendAsync(target, text, limit.Token);
+      var send = channel.SendAsync(target, text, limit);
       // WaitAsync ends at the limit also when the channel ignores the token.
-      var result = await send.WaitAsync(_limits.SendTimeout).ConfigureAwait(false);
+      var result = await send.WaitAsync(_limits.SendTimeout, limit).ConfigureAwait(false);
       if (!result.Succeeded) {
         Log.TargetFailed(_logger, target.Id, target.Name, result.Reason ?? "unknown");
       }
     }
-    catch (TimeoutException) {
-      await limit.CancelAsync().ConfigureAwait(false);
+    catch (Exception ex) when (ex is TimeoutException || (ex is OperationCanceledException && limit.IsCancellationRequested)) {
+      // The limit source cancels its token at the same time limit. No manual cancel is necessary.
       Log.TargetTimedOut(_logger, target.Id, target.Name);
     }
     catch (Exception ex) {
