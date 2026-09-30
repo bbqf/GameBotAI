@@ -130,7 +130,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     }
 
     if (targets.Count == 0) {
-      Log.AlertNoTarget(_logger, alert.QueueId, alert.Kind.ToString());
+      Log.AlertNoTarget(_logger, alert.QueueId, alert.Kind);
       return;
     }
 
@@ -325,7 +325,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     public static partial void TargetTimedOut(ILogger logger, string targetId, string targetName);
 
     [LoggerMessage(EventId = 12040, Level = LogLevel.Information, Message = "No notification target is available for the {Kind} alert of queue {QueueId}. The alert is not sent.")]
-    public static partial void AlertNoTarget(ILogger logger, string queueId, string kind);
+    public static partial void AlertNoTarget(ILogger logger, string queueId, QueueAlertKind kind);
 
     [LoggerMessage(EventId = 12039, Level = LogLevel.Warning, Message = "Notification to target {TargetId} ({TargetName}) faulted. Error type: {ErrorType}.")]
     public static partial void TargetFaulted(ILogger logger, string targetId, string targetName, string errorType);
