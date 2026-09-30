@@ -119,4 +119,47 @@ public sealed class DeviceLivenessOpenApiTests {
     EnumOf(props.GetProperty("state")).Should().Equal("live", "not_live", "unknown");
     EnumOf(props.GetProperty("reason")).Should().BeEquivalentTo("capture_stalled", "input_timeout", "no_change_after_input", "transport_not_ready");
   }
+
+  // ── Feature 121: alert, recovery state and the deviceRecovery field ────
+
+  [Fact]
+  public async Task QueueDeviceLivenessDescribesTheAlertAndTheRecoveryMembers() {
+    var document = await ReadDocumentAsync();
+    var schema = Schema(document, "QueueDeviceLivenessResponse");
+
+    var description = schema.GetProperty("description").GetString()!;
+    description.Should().Contain("reboot the instance when deviceRecovery is on");
+    description.Should().NotContain("never stops or recovers the device", "the old statement is replaced (FR-016)");
+    var props = schema.GetProperty("properties");
+    foreach (var field in new[] { "alertSent", "recoveryAttempts", "recoveryState" }) {
+      props.TryGetProperty(field, out var p).Should().BeTrue(field);
+      p.GetProperty("description").GetString().Should().NotBeNullOrWhiteSpace(field);
+    }
+    EnumOf(props.GetProperty("recoveryState")).Should().Equal("idle", "running", "exhausted");
+  }
+
+  [Fact]
+  public async Task TheDeviceRecoverySchemaDescribesEachMember() {
+    var document = await ReadDocumentAsync();
+    var schema = Schema(document, "QueueDeviceRecoveryDto");
+
+    schema.GetProperty("description").GetString().Should().Contain("reboots its LDPlayer instance");
+    var props = schema.GetProperty("properties");
+    foreach (var field in new[] { "action", "afterMs", "maxAttempts", "cooldownMs" }) {
+      props.TryGetProperty(field, out var p).Should().BeTrue(field);
+      p.GetProperty("description").GetString().Should().NotBeNullOrWhiteSpace(field);
+    }
+    EnumOf(props.GetProperty("action")).Should().Equal("none", "reboot-instance");
+  }
+
+  [Theory]
+  [InlineData("CreateQueueRequest")]
+  [InlineData("UpdateQueueRequest")]
+  [InlineData("QueueResponse")]
+  [InlineData("QueueDetailResponse")]
+  public async Task QueueSchemasHaveTheDeviceRecoveryField(string schemaName) {
+    var document = await ReadDocumentAsync();
+
+    Schema(document, schemaName).GetProperty("properties").TryGetProperty("deviceRecovery", out _).Should().BeTrue();
+  }
 }

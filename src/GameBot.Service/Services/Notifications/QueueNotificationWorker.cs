@@ -68,6 +68,11 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
         return;
       }
 
+      if (work.Alert is { } alert) {
+        await HandleAlertAsync(alert).ConfigureAwait(false);
+        return;
+      }
+
       if (work.Job is { } job) {
         try {
           await HandleJobAsync(job).ConfigureAwait(false);
@@ -101,6 +106,46 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     var sequenceName = await ReadSequenceNameAsync(job.SequenceId).ConfigureAwait(false);
     var text = NotificationMessageFormatter.Format(queue.Name, queue.Id, sequenceName, job.SequenceId, message.Value);
     StartSend(text, job);
+  }
+
+  // Feature 121: a device alert goes to all enabled targets. It ignores the level of the queue and the
+  // streak state, and it is never dropped by the send cap. The worker does not wait for the sends.
+  private async Task HandleAlertAsync(QueueAlert alert) {
+    string? queueName = null;
+    try {
+      queueName = (await _queues.GetAsync(alert.QueueId).ConfigureAwait(false))?.Name;
+    }
+    catch (Exception ex) {
+      Log.QueueReadFailed(_logger, alert.QueueId, ex.GetType().Name);
+    }
+
+    var text = NotificationMessageFormatter.FormatAlert(queueName, alert.QueueId, alert.Kind, alert.Reason, alert.Attempts);
+    List<NotificationTarget> targets;
+    try {
+      targets = _targets.List().Where(t => t.Enabled).ToList();
+    }
+    catch (Exception ex) {
+      Log.SendFaulted(_logger, ex.GetType().Name);
+      return;
+    }
+
+    if (targets.Count == 0) {
+      Log.AlertNoTarget(_logger, alert.QueueId, alert.Kind.ToString());
+      return;
+    }
+
+    var sends = targets.Select(target => ChainSend(target, text, alert.QueueId, "alert")).ToList();
+    _ = Task.Run(async () => {
+      try {
+        var results = await Task.WhenAll(sends).ConfigureAwait(false);
+        var ok = results.Any(r => r.Succeeded);
+        var error = ok ? null : results.Select(r => r.Reason).FirstOrDefault(r => !string.IsNullOrEmpty(r)) ?? "unknown";
+        alert.OnCompleted?.Invoke(DateTimeOffset.Now, ok, error);
+      }
+      catch (Exception ex) {
+        Log.SendFaulted(_logger, ex.GetType().Name);
+      }
+    });
   }
 
   // The state table of research R-003, for levels Failure and Success+Failure.
@@ -161,7 +206,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
 
     // The worker thread chains here, in the order of the jobs. This gives the send order for each
     // target, queue and sequence (FR-024). Different targets and different pairs run in parallel.
-    var sends = targets.Select(target => ChainSend(target, text, job)).ToList();
+    var sends = targets.Select(target => ChainSend(target, text, job.QueueId, job.SequenceId)).ToList();
     _ = Task.Run(async () => {
       try {
         await Task.WhenAll(sends).ConfigureAwait(false);
@@ -177,10 +222,10 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
 
   // A send waits for the earlier send of the same target, queue and sequence. That earlier send ends
   // at its own time limit, so a stuck target delays only later messages of the same pair.
-  private Task ChainSend(NotificationTarget target, string text, QueueNotificationJob job) {
-    var key = $"{target.Id}\u001f{job.QueueId}\u001f{job.SequenceId}";
+  private Task<NotificationSendResult> ChainSend(NotificationTarget target, string text, string queueId, string sequenceKey) {
+    var key = $"{target.Id}\u001f{queueId}\u001f{sequenceKey}";
     Task previous;
-    Task current;
+    Task<NotificationSendResult> current;
     lock (_chains) {
       if (_chains.TryGetValue(key, out var chain)) {
         previous = chain.Tail;
@@ -199,7 +244,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     return current;
   }
 
-  private async Task RunChainedAsync(Task previous, string key, NotificationTarget target, string text) {
+  private async Task<NotificationSendResult> RunChainedAsync(Task previous, string key, NotificationTarget target, string text) {
     try {
       try {
         await previous.ConfigureAwait(false);
@@ -210,7 +255,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
 
       // Each message has one time limit. It starts when the send starts.
       using var limit = new CancellationTokenSource(_limits.SendTimeout);
-      await SendOneAsync(target, text, limit.Token).ConfigureAwait(false);
+      return await SendOneAsync(target, text, limit.Token).ConfigureAwait(false);
     }
     finally {
       lock (_chains) {
@@ -225,10 +270,10 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     public int Pending { get; set; }
   }
 
-  private async Task SendOneAsync(NotificationTarget target, string text, CancellationToken limit) {
+  private async Task<NotificationSendResult> SendOneAsync(NotificationTarget target, string text, CancellationToken limit) {
     if (!_channels.TryGetValue(target.Type, out var channel)) {
       Log.UnknownType(_logger, target.Id, target.Type);
-      return;
+      return NotificationSendResult.Failed("unknown target type");
     }
 
     try {
@@ -238,13 +283,16 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
       if (!result.Succeeded) {
         Log.TargetFailed(_logger, target.Id, target.Name, result.Reason ?? "unknown");
       }
+      return result;
     }
     catch (Exception ex) when (ex is TimeoutException || (ex is OperationCanceledException && limit.IsCancellationRequested)) {
       // The limit source cancels its token at the same time limit. No manual cancel is necessary.
       Log.TargetTimedOut(_logger, target.Id, target.Name);
+      return NotificationSendResult.Failed("time limit");
     }
     catch (Exception ex) {
       Log.TargetFaulted(_logger, target.Id, target.Name, ex.GetType().Name);
+      return NotificationSendResult.Failed(ex.GetType().Name);
     }
   }
 
@@ -275,6 +323,9 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
 
     [LoggerMessage(EventId = 12038, Level = LogLevel.Warning, Message = "Notification to target {TargetId} ({TargetName}) did not end within the time limit. The message is dropped for this target.")]
     public static partial void TargetTimedOut(ILogger logger, string targetId, string targetName);
+
+    [LoggerMessage(EventId = 12040, Level = LogLevel.Information, Message = "No notification target is available for the {Kind} alert of queue {QueueId}. The alert is not sent.")]
+    public static partial void AlertNoTarget(ILogger logger, string queueId, string kind);
 
     [LoggerMessage(EventId = 12039, Level = LogLevel.Warning, Message = "Notification to target {TargetId} ({TargetName}) faulted. Error type: {ErrorType}.")]
     public static partial void TargetFaulted(ILogger logger, string targetId, string targetName, string errorType);

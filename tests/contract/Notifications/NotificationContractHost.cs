@@ -81,6 +81,12 @@ internal sealed class RecordingDispatcher : INotificationDispatcher {
   public void Enqueue(QueueNotificationJob job) => _jobs.Enqueue(job);
 
   public void ResetStreaks(string queueId) => _resets.Enqueue(queueId);
+
+  private readonly ConcurrentQueue<QueueAlert> _alerts = new();
+
+  public IReadOnlyList<QueueAlert> Alerts => _alerts.ToList();
+
+  public void SendAlert(QueueAlert alert) => _alerts.Enqueue(alert);
 }
 
 /// <summary>

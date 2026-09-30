@@ -241,6 +241,124 @@ public sealed class QueueNotificationWorkerTests {
     h.Channel.Sent.Select(m => m.Text).Skip(1).Should().Equal(Text(Red, "failure"), Text(Green, "recovered"));
   }
 
+  // ---- Feature 121: device alerts ----
+
+  private static QueueAlert Alert(QueueAlertKind kind, Action<DateTimeOffset, bool, string?>? done = null, string? reason = null) =>
+    new("q1", kind, reason, DateTimeOffset.Now, 2, done);
+
+  [Fact]
+  public async Task Alert_GoesToAllEnabledTargets() {
+    await using var h = new NotificationHarness(NotificationLevel.None, targetCount: 3);
+    var disabled = new NotificationTarget { Id = "off", Type = "telegram", Name = "Off", Enabled = false };
+    disabled.Settings["chatId"] = "9";
+    h.Targets.Create(disabled);
+
+    await h.Worker.HandleAsync(NotificationWork.ForAlert(Alert(QueueAlertKind.NotLive, reason: "capture_stalled")));
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 3);
+
+    h.Channel.Sent.Select(m => m.TargetId).Should().BeEquivalentTo("t0", "t1", "t2");
+    h.Channel.Sent.Select(m => m.Text).Distinct().Should().ContainSingle()
+      .Which.Should().Be($"{Red} Farm-1 : device not live (capture_stalled)");
+  }
+
+  [Theory]
+  [InlineData(NotificationLevel.None)]
+  [InlineData(NotificationLevel.Failure)]
+  [InlineData(NotificationLevel.SuccessAndFailure)]
+  public async Task Alert_IgnoresTheNotificationLevel(NotificationLevel level) {
+    await using var h = new NotificationHarness(level);
+
+    await h.Worker.HandleAsync(NotificationWork.ForAlert(Alert(QueueAlertKind.LiveAgain)));
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 1);
+
+    h.Channel.Sent.Single().Text.Should().Be($"{Green} Farm-1 : device live again");
+  }
+
+  [Fact]
+  public async Task Alert_DoesNotChangeTheFailureStreaks() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+    await h.HandleAsync(NotificationRunStatus.Failure);
+    await h.WaitIdleAsync();
+
+    await h.Worker.HandleAsync(NotificationWork.ForAlert(Alert(QueueAlertKind.NotLive, reason: "input_timeout")));
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 2);
+    await h.HandleAsync(NotificationRunStatus.Success);
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 3);
+
+    h.Channel.Sent.Select(m => m.Text).Should().Contain(Text(Green, "recovered"));
+  }
+
+  [Fact]
+  public async Task Alert_IsNeverDroppedByTheSendCap() {
+    var limits = new NotificationDispatchLimits { MaxParallelSends = 1 };
+    await using var h = new NotificationHarness(NotificationLevel.Failure, limits);
+    var release = new TaskCompletionSource();
+    h.Channel.Behavior = async (_, text, _) => {
+      if (text.Contains("failure", StringComparison.Ordinal)) await release.Task;
+      return NotificationSendResult.Ok();
+    };
+    await h.HandleAsync(NotificationRunStatus.Failure);
+
+    await h.Worker.HandleAsync(NotificationWork.ForAlert(Alert(QueueAlertKind.NotLive, reason: "capture_stalled")));
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 1);
+
+    h.Channel.Sent.Single().Text.Should().Contain("device not live");
+    release.SetResult();
+  }
+
+  [Fact]
+  public async Task Alert_WithNoTargetLogsAtInformationAndDoesNotCallTheCallback() {
+    await using var h = new NotificationHarness(NotificationLevel.None, targetCount: 0);
+    var called = 0;
+
+    await h.Worker.HandleAsync(NotificationWork.ForAlert(Alert(QueueAlertKind.NotLive, (_, _, _) => Interlocked.Increment(ref called))));
+    await Task.Delay(100);
+
+    called.Should().Be(0);
+    h.Channel.Calls.Should().Be(0);
+    h.WorkerLog.Lines.Should().ContainSingle(l => l.StartsWith("Information:", StringComparison.Ordinal)
+      && l.Contains("No notification target", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  public async Task Alert_CallbackGetsSucceededWhenOneTargetAccepts() {
+    await using var h = new NotificationHarness(NotificationLevel.None, targetCount: 2);
+    h.Channel.Behavior = (t, _, _) => Task.FromResult(t.Id == "t0" ? NotificationSendResult.Failed("boom") : NotificationSendResult.Ok());
+    bool? succeeded = null;
+    string? error = "x";
+
+    await h.Worker.HandleAsync(NotificationWork.ForAlert(Alert(QueueAlertKind.NotLive, (_, ok, err) => { error = err; succeeded = ok; })));
+    await NotificationHarness.WaitForAsync(() => succeeded is not null);
+
+    succeeded.Should().BeTrue();
+    error.Should().BeNull();
+  }
+
+  [Fact]
+  public async Task Alert_CallbackGetsFailureWhenNoTargetAccepts() {
+    await using var h = new NotificationHarness(NotificationLevel.None);
+    h.Channel.Behavior = (_, _, _) => Task.FromResult(NotificationSendResult.Failed("chat not found"));
+    bool? succeeded = null;
+    string? error = null;
+
+    await h.Worker.HandleAsync(NotificationWork.ForAlert(Alert(QueueAlertKind.RecoveryFailed, (_, ok, err) => { error = err; succeeded = ok; })));
+    await NotificationHarness.WaitForAsync(() => succeeded is not null);
+
+    succeeded.Should().BeFalse();
+    error.Should().Be("chat not found");
+  }
+
+  [Fact]
+  public async Task Alert_ThroughTheDispatcherReachesTheWorkerLoop() {
+    await using var h = new NotificationHarness(NotificationLevel.None);
+    await h.Worker.StartAsync(CancellationToken.None);
+
+    h.Dispatcher.SendAlert(Alert(QueueAlertKind.LiveAgain));
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 1);
+
+    h.Channel.Sent.Should().ContainSingle();
+  }
+
   private static void InterlockedMax(ref int target, int value) {
     int current;
     while (value > (current = Volatile.Read(ref target))) {

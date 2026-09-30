@@ -2,7 +2,7 @@
 
 **Feature Branch**: `106-wedged-device-liveness`  
 **Created**: 2026-09-25  
-**Status**: Implemented  
+**Status**: Implemented (iterated by 121: `specs\121-device-not-live-alert-recovery` adds the alert, the optional recovery and the capture gate)  
 **Input**: GitHub issue #220 (B-019): "a wedged emulator is invisible to the API - health is green, inputs report dispatched, screenshots return a stale frame". Full description: see the issue and the feature description that started this spec.
 
 ## Background
@@ -159,7 +159,7 @@ An operator looks at a queue that runs (`GET /api/queues/{id}`) or at the execut
   - In one fault episode, the first held firing of each sequence MUST write one failed execution log entry with the reason `device_not_live: <reason>`. It MUST also add one failure to the sequence statistics of that sequence.
   - Later held firings of the same sequence in the same episode MUST NOT write a log entry or a statistics failure. The queue health counts them in `gatedFirings`.
 - **FR-017**: A queue that runs MUST check its device liveness at an interval, also when no firing is due. The device can stay `not_live` for longer than the queue grace period. Then the queue MUST record one failed execution log entry with no sequence for the fault episode. It MUST also record one failed cycle, so that the consecutive-failure count increases by one and the failure policy acts. This rule applies to each `not_live` reason. It also applies when held firings wrote entries in the episode, and to a queue that does not cycle. The queue MUST NOT record another one until the device becomes live and then not live again.
-- **FR-018**: A queue MUST NOT stop, reboot the device, or recover the device by itself because of this fault. The failure policy that the operator configured is not an action "by itself". The fault cycle of FR-017 can trip this policy. Then the policy can notify, pause or stop the queue (for example `notifyAndStop`), as for each other failed cycle. The new code never stops the queue directly.
+- **FR-018**: (Iterated by spec 121: a queue with `deviceRecovery` can reboot its instance. A queue with no `deviceRecovery` keeps this rule.) A queue MUST NOT stop, reboot the device, or recover the device by itself because of this fault. The failure policy that the operator configured is not an action "by itself". The fault cycle of FR-017 can trip this policy. Then the policy can notify, pause or stop the queue (for example `notifyAndStop`), as for each other failed cycle. The new code never stops the queue directly.
 
 **Configuration and documentation**
 
@@ -194,5 +194,5 @@ An operator looks at a queue that runs (`GET /api/queues/{id}`) or at the execut
 - Detection limit: after the HOME key at the start of an idle pause, the queue sends no input. A device that wedges in this period, and whose captures still complete, gives no fault signal. The service detects it only when the captures stop. Or it detects it after the next firing sends input and the stale limit passes.
 - Known limit: a time-of-day firing that the queue holds past midnight is lost for that day. This feature does not change the daily retry register to keep it.
 - `GET /api/adb/devices` stays a transport list. It does not get liveness data. The session health is the liveness probe.
-- The service only detects and reports the fault. Automatic recovery (for example, an emulator reboot) is out of scope. The root cause of the freeze and issue #217 (B-018) are out of scope.
+- The service only detects and reports the fault. Automatic recovery (for example, an emulator reboot) is out of scope. (Spec 121, `specs\121-device-not-live-alert-recovery`, adds an optional recovery and an alert. The detection rules of this spec do not change.) The root cause of the freeze and issue #217 (B-018) are out of scope.
 - The web UI does not need to show the new data in this feature. It must continue to work with the changed responses.

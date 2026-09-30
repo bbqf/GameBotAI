@@ -54,6 +54,16 @@ internal sealed partial class QueueNotificationDispatcher : INotificationDispatc
     }
   }
 
+  public void SendAlert(QueueAlert alert) {
+    try {
+      ArgumentNullException.ThrowIfNull(alert);
+      _channel.Writer.TryWrite(NotificationWork.ForAlert(alert));
+    }
+    catch (Exception ex) {
+      Log.EnqueueFaulted(_logger, ex.GetType().Name);
+    }
+  }
+
   /// <summary>The worker calls this when it has handled one run job.</summary>
   internal void MarkJobHandled() => Interlocked.Decrement(ref _queuedRunJobs);
 

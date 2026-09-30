@@ -182,10 +182,11 @@ public sealed class BackgroundScreenCaptureServiceTests : IDisposable {
     var provider = new HangOnceProvider();
     using var service = new BackgroundScreenCaptureService(_ => provider, 50,
       NullLogger<BackgroundScreenCaptureService>.Instance, tracker,
-      new DeviceLivenessOptions { CaptureTimeoutMs = 200 });
+      new DeviceLivenessOptions { CaptureTimeoutMs = 200, CaptureStallLimitMs = 1000 });
 
     service.StartCapture("sess-1", "device-1");
-    await WaitForAsync(() => !tracker.Captures.IsEmpty, timeoutMs: 5000);
+    // Feature 121: after the time-out the loop waits one device check (CaptureStallLimitMs, minimum 1 s).
+    await WaitForAsync(() => !tracker.Captures.IsEmpty, timeoutMs: 8000);
 
     provider.Calls.Should().BeGreaterThanOrEqualTo(2, "the capture after the hung one ran");
     provider.HungCallWasCancelled.Should().BeTrue("the capture time limit cancelled the hung capture");
@@ -248,6 +249,10 @@ file sealed class HangOnceProvider : IAdbScreenCaptureProvider {
   private int _calls;
   public int Calls => Volatile.Read(ref _calls);
   public bool HungCallWasCancelled { get; private set; }
+
+  // Feature 121: a timed-out capture makes the device Suspect. The device check says that no screencap
+  // process runs, so the loop starts the next capture.
+  public Task<bool?> HasRunningScreencapAsync(int timeoutMs, CancellationToken ct) => Task.FromResult<bool?>(false);
 
   public async Task<byte[]?> CaptureScreenshotPngAsync(CancellationToken ct) {
     if (Interlocked.Increment(ref _calls) == 1) {

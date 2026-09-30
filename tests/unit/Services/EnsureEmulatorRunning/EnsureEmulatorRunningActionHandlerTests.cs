@@ -20,7 +20,7 @@ public sealed class EnsureEmulatorRunningActionHandlerTests {
     public int Reboots { get; private set; }
     public Task<LdConsoleRunState> GetRunStateAsync(string? n, int? i, CancellationToken ct = default) => Task.FromResult(RunState);
     public Task LaunchAsync(string? n, int? i, CancellationToken ct = default) { Launches++; return Task.CompletedTask; }
-    public Task RebootAsync(string? n, int? i, CancellationToken ct = default) { Reboots++; return Task.CompletedTask; }
+    public Task<bool> RebootAsync(string? n, int? i, CancellationToken ct = default) { Reboots++; return Task.FromResult(true); }
   }
 
   private sealed class FakeProbe : IEmulatorDeviceProbe {

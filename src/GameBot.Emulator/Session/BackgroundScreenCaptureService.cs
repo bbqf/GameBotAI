@@ -25,6 +25,10 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
   // Feature 106: the liveness data of each session, and the time limit of one capture.
   private readonly IDeviceLivenessTracker? _tracker;
   private readonly int _captureTimeoutMs;
+  // Feature 121: at most one unfinished capture for each device, and the pace of the device check.
+  private readonly DeviceCaptureGate _gate;
+  private readonly int _suspectCheckIntervalMs;
+  private readonly int _transportCheckTimeoutMs;
   private bool _disposed;
 
   /// <summary>
@@ -35,17 +39,23 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
   /// <param name="logger">Logger instance.</param>
   /// <param name="tracker">Optional. Receives the capture data of each loop (feature 106).</param>
   /// <param name="livenessOptions">Optional. Gives the time limit of one capture (feature 106).</param>
+  /// <param name="gate">Optional. The capture gate of the service (feature 121). A private gate is used when null.</param>
   public BackgroundScreenCaptureService(
       Func<string, IAdbScreenCaptureProvider> captureProviderFactory,
       int captureIntervalMs,
       ILogger<BackgroundScreenCaptureService> logger,
       IDeviceLivenessTracker? tracker = null,
-      DeviceLivenessOptions? livenessOptions = null) {
+      DeviceLivenessOptions? livenessOptions = null,
+      DeviceCaptureGate? gate = null) {
     _captureProviderFactory = captureProviderFactory ?? throw new ArgumentNullException(nameof(captureProviderFactory));
     _captureIntervalMs = Math.Max(50, captureIntervalMs);
     _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     _tracker = tracker;
-    _captureTimeoutMs = (livenessOptions ?? new DeviceLivenessOptions()).Normalized().CaptureTimeoutMs;
+    var normalized = (livenessOptions ?? new DeviceLivenessOptions()).Normalized();
+    _captureTimeoutMs = normalized.CaptureTimeoutMs;
+    _suspectCheckIntervalMs = normalized.CaptureStallLimitMs;
+    _transportCheckTimeoutMs = normalized.TransportCheckTimeoutMs;
+    _gate = gate ?? new DeviceCaptureGate();
   }
 
   /// <summary>Starts a background capture loop for the given session and device.</summary>
@@ -60,8 +70,11 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
       BackgroundCaptureLog.LoopRestarted(_logger, sessionId);
     }
 
+    // Feature 121 (R-013): a new loop for the serial is a repair of the device, so it clears Suspect.
+    _gate.Clear(deviceSerial);
     var provider = _captureProviderFactory(deviceSerial);
-    var loop = new SessionCaptureLoop(sessionId, deviceSerial, provider, _captureIntervalMs, _logger, _tracker, _captureTimeoutMs);
+    var loop = new SessionCaptureLoop(sessionId, deviceSerial, provider, _captureIntervalMs, _logger, _tracker, _captureTimeoutMs,
+      _gate, _suspectCheckIntervalMs, _transportCheckTimeoutMs);
     _loops[sessionId] = loop;
     // Before the loop starts, so that the first capture finds a running loop in the tracker.
     _tracker?.LoopStarted(sessionId);
@@ -121,6 +134,12 @@ public sealed class BackgroundScreenCaptureService : IDisposable {
 public interface IAdbScreenCaptureProvider {
   /// <summary>Captures a screenshot as PNG bytes from the bound device.</summary>
   Task<byte[]?> CaptureScreenshotPngAsync(CancellationToken ct);
+
+  /// <summary>
+  /// Asks the device if a <c>screencap</c> process still runs (feature 121). Returns true when it runs,
+  /// false when it does not, and null when the provider cannot tell. The default answer is null.
+  /// </summary>
+  Task<bool?> HasRunningScreencapAsync(int timeoutMs, CancellationToken ct) => Task.FromResult<bool?>(null);
 }
 
 /// <summary>Production ADB capture provider using AdbClient.</summary>
@@ -136,6 +155,9 @@ public sealed class AdbScreenCaptureProvider : IAdbScreenCaptureProvider {
     var png = await _adb.GetScreenshotPngAsync(ct).ConfigureAwait(false);
     return png is { Length: > 0 } ? png : null;
   }
+
+  public Task<bool?> HasRunningScreencapAsync(int timeoutMs, CancellationToken ct) =>
+    _adb.HasRunningScreencapAsync(timeoutMs, ct);
 }
 
 /// <summary>Manages a single background capture loop for one session.</summary>
@@ -149,6 +171,9 @@ internal sealed class SessionCaptureLoop : IDisposable {
   private readonly CancellationTokenSource _cts = new();
   private readonly IDeviceLivenessTracker? _tracker;
   private readonly int _captureTimeoutMs;
+  private readonly DeviceCaptureGate _gate;
+  private readonly int _suspectCheckIntervalMs;
+  private readonly int _transportCheckTimeoutMs;
 
   // Rolling FPS: circular buffer of last 10 capture durations
   private const int RollingWindowSize = 10;
@@ -172,7 +197,10 @@ internal sealed class SessionCaptureLoop : IDisposable {
       int intervalMs,
       ILogger logger,
       IDeviceLivenessTracker? tracker = null,
-      int captureTimeoutMs = 10000) {
+      int captureTimeoutMs = 10000,
+      DeviceCaptureGate? gate = null,
+      int suspectCheckIntervalMs = 60000,
+      int transportCheckTimeoutMs = 5000) {
     _sessionId = sessionId;
     _deviceSerial = deviceSerial;
     _provider = provider;
@@ -180,6 +208,9 @@ internal sealed class SessionCaptureLoop : IDisposable {
     _logger = logger;
     _tracker = tracker;
     _captureTimeoutMs = Math.Max(1, captureTimeoutMs);
+    _gate = gate ?? new DeviceCaptureGate();
+    _suspectCheckIntervalMs = Math.Max(1, suspectCheckIntervalMs);
+    _transportCheckTimeoutMs = Math.Max(1, transportCheckTimeoutMs);
   }
 
   public void Start() {
@@ -217,6 +248,12 @@ internal sealed class SessionCaptureLoop : IDisposable {
 
   private async Task RunLoopAsync(CancellationToken ct) {
     while (!ct.IsCancellationRequested) {
+      // Feature 121 (FR-013): at most one unfinished capture for each device. While another capture
+      // is unfinished, or the device is Suspect, this loop starts no screencap process.
+      if (!_gate.TryBegin(_deviceSerial)) {
+        await WaitWhileBlockedAsync(ct).ConfigureAwait(false);
+        continue;
+      }
       var sw = Stopwatch.StartNew();
       // Feature 106 (research R-009): each capture gets its own time limit. One hung screencap then
       // is one failed capture, and the loop continues. Before, it stopped the loop for all time.
@@ -224,6 +261,8 @@ internal sealed class SessionCaptureLoop : IDisposable {
       captureLimit.CancelAfter(_captureTimeoutMs);
       try {
         var png = await _provider.CaptureScreenshotPngAsync(captureLimit.Token).ConfigureAwait(false);
+        if (png is null) _gate.Failed(_deviceSerial);
+        else _gate.Completed(_deviceSerial);
         if (png is not null && !ct.IsCancellationRequested) {
           Bitmap? bitmap = null;
           try {
@@ -250,13 +289,17 @@ internal sealed class SessionCaptureLoop : IDisposable {
         }
       }
       catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+        _gate.Failed(_deviceSerial);
         break;
       }
       catch (OperationCanceledException ex) {
         // The capture time limit fired, not the loop token: a failed capture. The loop continues.
+        // Feature 121: the device process can still run, so the device is Suspect.
+        _gate.TimedOut(_deviceSerial);
         BackgroundCaptureLog.CaptureTimedOut(_logger, _sessionId, _captureTimeoutMs, ex);
       }
       catch (Exception ex) {
+        _gate.Failed(_deviceSerial);
         BackgroundCaptureLog.CaptureError(_logger, _sessionId, ex);
       }
 
@@ -270,6 +313,33 @@ internal sealed class SessionCaptureLoop : IDisposable {
         try { await Task.Delay(delay, ct).ConfigureAwait(false); }
         catch (OperationCanceledException) { break; }
       }
+    }
+  }
+
+  /// <summary>
+  /// Waits while the gate refuses a capture. For a Suspect device it waits one check interval, then asks
+  /// the device if the <c>screencap</c> process ended. No answer, or a running process, keeps the state.
+  /// </summary>
+  private async Task WaitWhileBlockedAsync(CancellationToken ct) {
+    try {
+      if (!_gate.IsSuspect(_deviceSerial)) {
+        await Task.Delay(Math.Max(50, _intervalMs), ct).ConfigureAwait(false);
+        return;
+      }
+      await Task.Delay(_suspectCheckIntervalMs, ct).ConfigureAwait(false);
+      if (!_gate.IsSuspect(_deviceSerial)) return;
+      _gate.RecordCheck(_deviceSerial);
+      var running = await _provider.HasRunningScreencapAsync(_transportCheckTimeoutMs, ct).ConfigureAwait(false);
+      if (running == false) {
+        _gate.Clear(_deviceSerial);
+        BackgroundCaptureLog.SuspectCleared(_logger, _sessionId, _deviceSerial);
+      }
+    }
+    catch (OperationCanceledException) {
+      // The loop stops. The while condition ends the loop.
+    }
+    catch (Exception ex) {
+      BackgroundCaptureLog.CaptureError(_logger, _sessionId, ex);
     }
   }
 
@@ -307,4 +377,7 @@ internal static partial class BackgroundCaptureLog {
 
   [LoggerMessage(EventId = 5005, Level = LogLevel.Debug, Message = "Background capture for session {SessionId} did not complete in {TimeoutMs} ms. The loop continues.")]
   public static partial void CaptureTimedOut(ILogger logger, string sessionId, int timeoutMs, Exception ex);
+
+  [LoggerMessage(EventId = 5006, Level = LogLevel.Information, Message = "Background capture for session {SessionId}: the screencap process of device {DeviceSerial} ended. Captures start again.")]
+  public static partial void SuspectCleared(ILogger logger, string sessionId, string deviceSerial);
 }

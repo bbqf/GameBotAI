@@ -32,6 +32,12 @@ internal sealed class JobRecordingDispatcher : INotificationDispatcher {
   public void Enqueue(QueueNotificationJob job) { lock (_jobs) _jobs.Add(job); }
 
   public void ResetStreaks(string queueId) { lock (_resets) _resets.Add(queueId); }
+
+  private readonly List<QueueAlert> _alerts = new();
+
+  public IReadOnlyList<QueueAlert> Alerts { get { lock (_alerts) return _alerts.ToList(); } }
+
+  public void SendAlert(QueueAlert alert) { lock (_alerts) _alerts.Add(alert); }
 }
 
 /// <summary>Helpers that build a host and seed queues for the notification tests.</summary>

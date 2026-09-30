@@ -41,23 +41,61 @@ internal sealed record QueueNotificationJob(
   NotificationRunStatus Status,
   DateTimeOffset RaisedAt);
 
+/// <summary>The kind of a queue alert (feature 121).</summary>
+internal enum QueueAlertKind {
+  /// <summary>The device stayed not live for longer than the alert time.</summary>
+  NotLive,
+
+  /// <summary>The device is live again after a not-live alert.</summary>
+  LiveAgain,
+
+  /// <summary>The last allowed recovery attempt failed.</summary>
+  RecoveryFailed
+}
+
 /// <summary>
-/// An item in the one channel of the dispatcher. It is a run job or a reset control message. A reset
-/// message is never dropped.
+/// An alert about the device of a queue (feature 121). The worker sends it to all enabled targets. It
+/// ignores the notification level of the queue and the failure streaks. It is never dropped.
+/// </summary>
+/// <param name="QueueId">The queue. The worker reads the name when it sends.</param>
+/// <param name="Kind">The kind of the alert.</param>
+/// <param name="Reason">The liveness reason for <see cref="QueueAlertKind.NotLive"/>. Null for the other kinds.</param>
+/// <param name="RaisedAt">The local time of the claim.</param>
+/// <param name="Attempts">The count of finished recovery attempts. Used by <see cref="QueueAlertKind.RecoveryFailed"/>.</param>
+/// <param name="OnCompleted">
+/// Called one time when the sends end and at least one target existed: the time, the result (true when at
+/// least one target accepted the message) and a safe error text. It is not called when no target exists.
+/// </param>
+internal sealed record QueueAlert(
+  string QueueId,
+  QueueAlertKind Kind,
+  string? Reason,
+  DateTimeOffset RaisedAt,
+  int Attempts = 0,
+  Action<DateTimeOffset, bool, string?>? OnCompleted = null);
+
+/// <summary>
+/// An item in the one channel of the dispatcher. It is a run job, an alert, or a reset control
+/// message. A reset message and an alert are never dropped.
 /// </summary>
 internal sealed class NotificationWork {
-  private NotificationWork(QueueNotificationJob? job, string? resetQueueId) {
+  private NotificationWork(QueueNotificationJob? job, string? resetQueueId, QueueAlert? alert) {
     Job = job;
     ResetQueueId = resetQueueId;
+    Alert = alert;
   }
 
   public QueueNotificationJob? Job { get; }
 
   public string? ResetQueueId { get; }
 
-  public static NotificationWork ForJob(QueueNotificationJob job) => new(job, null);
+  public QueueAlert? Alert { get; }
 
-  public static NotificationWork ForReset(string queueId) => new(null, queueId);
+  public static NotificationWork ForJob(QueueNotificationJob job) => new(job, null, null);
+
+  public static NotificationWork ForReset(string queueId) => new(null, queueId, null);
+
+  public static NotificationWork ForAlert(QueueAlert alert) => new(null, null, alert);
 }
 
 /// <summary>
@@ -90,6 +128,12 @@ internal interface INotificationDispatcher {
   /// save of level None. The delete route calls it after a queue delete. Never dropped.
   /// </summary>
   void ResetStreaks(string queueId);
+
+  /// <summary>
+  /// Hands one device alert to the worker (feature 121). The item is never dropped, is not part of
+  /// <c>MaxQueuedJobs</c>, never blocks, and never throws.
+  /// </summary>
+  void SendAlert(QueueAlert alert);
 }
 
 /// <summary>Limits of the dispatcher and the send. The defaults are the values of the design.</summary>

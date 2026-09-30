@@ -120,9 +120,13 @@ public sealed class QueueDeviceLivenessContractTests : IDisposable {
       var liveness = detail.GetProperty("health").GetProperty("deviceLiveness");
       liveness.GetProperty("state").GetString().Should().Be("unknown");
       liveness.GetProperty("gatedFirings").GetInt32().Should().Be(0);
-      foreach (var field in new[] { "state", "reason", "notLiveSince", "stale", "frameAgeMs", "unchangedMs", "gatedFirings" }) {
+      foreach (var field in new[] { "state", "reason", "notLiveSince", "stale", "frameAgeMs", "unchangedMs", "gatedFirings", "alertSent", "recoveryAttempts", "recoveryState" }) {
         liveness.TryGetProperty(field, out _).Should().BeTrue(field);
       }
+      // Feature 121 (FR-017): a queue with no open episode has no alert, no attempt and the state idle.
+      liveness.GetProperty("alertSent").GetBoolean().Should().BeFalse();
+      liveness.GetProperty("recoveryAttempts").GetInt32().Should().Be(0);
+      liveness.GetProperty("recoveryState").GetString().Should().Be("idle");
     }
     finally {
       await client.PostAsync(new Uri($"/api/queues/{id}/stop", UriKind.Relative), null);
@@ -163,6 +167,10 @@ public sealed class QueueDeviceLivenessContractTests : IDisposable {
       dl.GetProperty("frameAgeMs").GetInt64().Should().Be(95012);
       dl.GetProperty("unchangedMs").GetInt64().Should().Be(95012);
       dl.GetProperty("gatedFirings").GetInt32().Should().BeGreaterThan(0);
+      // Feature 121 (FR-017): the three read-only members. The alert time is 5 min by default, so no alert yet.
+      dl.GetProperty("alertSent").GetBoolean().Should().BeFalse();
+      dl.GetProperty("recoveryAttempts").GetInt32().Should().Be(0);
+      dl.GetProperty("recoveryState").GetString().Should().BeOneOf("idle", "running", "exhausted").And.Be("idle");
 
       var log = app.Services.GetRequiredService<IExecutionLogService>();
       var page = await log.QueryAsync(new ExecutionLogQuery { ObjectType = "sequence", ObjectId = sequenceId, PageSize = 50 });

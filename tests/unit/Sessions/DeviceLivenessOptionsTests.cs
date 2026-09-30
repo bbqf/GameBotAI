@@ -45,6 +45,30 @@ public sealed class DeviceLivenessOptionsTests {
   }
 
   [Fact]
+  public void RecoveryOptionsHaveTheSpecDefaults() {
+    var o = new DeviceLivenessOptions();
+
+    o.AlertAfterMs.Should().Be(300000);
+    o.RecoveryStaggerMs.Should().Be(180000);
+    o.RebootReadyTimeoutMs.Should().Be(180000);
+  }
+
+  [Theory]
+  [InlineData(0)]
+  [InlineData(-5)]
+  public void RecoveryOptionsAreRaisedToTheirMinimum(int value) {
+    var o = new DeviceLivenessOptions {
+      AlertAfterMs = value,
+      RecoveryStaggerMs = value,
+      RebootReadyTimeoutMs = value
+    }.Normalized();
+
+    o.AlertAfterMs.Should().Be(1000);
+    o.RecoveryStaggerMs.Should().Be(0);
+    o.RebootReadyTimeoutMs.Should().Be(1000);
+  }
+
+  [Fact]
   public void NormalizedKeepsValuesAboveTheMinimum() {
     var o = new DeviceLivenessOptions { StaleLimitMs = 1234, QueueGracePeriodMs = 7 }.Normalized();
 
