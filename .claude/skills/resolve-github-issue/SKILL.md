@@ -40,6 +40,10 @@ autonomously, using `/speckit-pipeline` for the actual specify -> plan -> tasks
    calls. Write files with the Write tool, not `Set-Content` (it mangles UTF-8).
 6. Temporary files go in the session scratchpad directory, never in the repo.
 7. Execute Step 1 in its own Sub-Agent, Steps 2-4 in another one and the Step 5 in its own Sub-Agent again. Continue in this session from Step 6 on.
+8. **Name the session after the issue.** A sub-agent cannot rename the session,
+   so the Steps 2-4 sub-agent must return the issue number and title (on the
+   resume path, the Step 1 sub-agent returns them). Step 5 then renames the
+   session from this conversation.
 
 ## Step 1 - Preflight and resume check
 
@@ -54,7 +58,9 @@ git -C C:\src\GameBot branch --show-current
   it has a `specs/<branch>/spec.md` that references an issue which is still open
   and still labelled `in-progress`, this session is resuming that issue.
   Skip Steps 2-4 and go straight to Step 5, restarting `/speckit-pipeline` with
-  an empty argument (it then picks up from the existing spec).
+  an empty argument (it then picks up from the existing spec). Return the
+  issue number and title (`gh issue view <N> --json number,title`) so Step 5
+  can name the session.
 - Otherwise start from `master`:
 
 ```powershell
@@ -153,9 +159,15 @@ pipeline's spec step gets only this text. Include:
 
 Do not invent scope the issue did not ask for.
 
-## Step 5 - Run the pipeline
+## Step 5 - Name the session and run the pipeline
 
-Invoke the `speckit-pipeline` skill with that description as its argument. It
+First, rename this session so it is easy to find. Call
+`mcp__ccd_session_mgmt__set_session_title` with `session_id: "self"` and
+`title: "#<N> <issue title>"`. Use the issue title as GitHub gives it. If the
+title is longer than 80 characters, cut it at a word boundary. If the rename is
+declined or fails, continue - the name is not a hard requirement.
+
+Then invoke the `speckit-pipeline` skill with that description as its argument. It
 owns specify -> clarify -> plan -> tasks -> analyze -> 2 loops of (clarify ->
 fix rest -> plan -> tasks, with analyze in loop 1 only) -> commit -> implement -> commit -> push -> wait for CI -> open PR. Do not duplicate its
 steps here and do not second-guess it mid-run; let it run to its own halting
