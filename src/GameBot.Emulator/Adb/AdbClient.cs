@@ -117,6 +117,47 @@ public sealed class AdbClient : IAdbSessionClient {
     return ExecAsync($"shell monkey -p {packageName} -c android.intent.category.LAUNCHER 1", ct);
   }
 
+  /// <summary>
+  /// Asks the device if a <c>screencap</c> process still runs (<c>adb shell pidof screencap</c>), with a
+  /// time limit of <paramref name="timeoutMs"/>. Returns true when the answer has a process ID. Returns
+  /// false when the answer is empty and the exit is clean. Returns null (unknown) for an error, a
+  /// time-out, or any other answer. This call starts no <c>screencap</c> process (feature 121, R-013).
+  /// </summary>
+  public async Task<bool?> HasRunningScreencapAsync(int timeoutMs, CancellationToken ct = default) {
+    using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+    limit.CancelAfter(Math.Max(1, timeoutMs));
+    try {
+      var (exit, stdout, stderr) = await ExecAsync("shell pidof screencap", limit.Token).ConfigureAwait(false);
+      return ParsePidofAnswer(exit, stdout, stderr);
+    }
+    catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+      throw;
+    }
+    catch (OperationCanceledException) {
+      return null;
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException) {
+      return null;
+    }
+  }
+
+  /// <summary>
+  /// Reads the answer of <c>pidof screencap</c>. See <see cref="HasRunningScreencapAsync"/> for the rules.
+  /// </summary>
+  public static bool? ParsePidofAnswer(int exitCode, string? stdout, string? stderr) {
+    var output = (stdout ?? string.Empty).Trim();
+    var error = (stderr ?? string.Empty).Trim();
+    if (output.Length > 0) {
+      foreach (var token in output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)) {
+        if (!token.All(char.IsAsciiDigit)) return null;
+      }
+      return true;
+    }
+    // The shell of the device can give exit code 1 when pidof finds no process.
+    if (error.Length == 0 && exitCode is 0 or 1) return false;
+    return null;
+  }
+
   public async Task<byte[]> GetScreenshotPngAsync(CancellationToken ct = default) {
     // Use exec-out for raw PNG
     var cmdArgs = string.IsNullOrWhiteSpace(_serial) ? "exec-out screencap -p" : $"-s {_serial} exec-out screencap -p";

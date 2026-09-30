@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-30 (feature 120: queue sequence notifications; feature 118: the queue-template
+_Last reviewed: 2026-09-30 (feature 121: device not-live alert, optional recovery, capture gate;
+feature 120: queue sequence notifications; feature 118: the queue-template
 endpoint and the sequence validator accept `timerTimeOfDay` in the same two forms, `HH:mm` and
 `HH:mm:ss`, #226)._
 
@@ -797,7 +798,8 @@ but live.
 **Configuration.** Section `Service:DeviceLiveness` (`DeviceLivenessOptions`, all values in ms; a
 value below its minimum is set to the minimum): `StaleLimitMs` 300000, `CaptureStallLimitMs` 60000,
 `InputTimeoutMs` 10000, `CaptureTimeoutMs` 10000, `TransportCheckTimeoutMs` 5000,
-`QueueGracePeriodMs` 120000, `QueueCheckIntervalMs` 30000.
+`QueueGracePeriodMs` 120000, `QueueCheckIntervalMs` 30000. Feature 121 adds `AlertAfterMs`,
+`RecoveryStaggerMs` and `RebootReadyTimeoutMs` (see below).
 
 **Session API.** `GET /api/sessions/{id}/health` adds a `liveness` block. `SessionLivenessService`
 runs `adb get-state` with `TransportCheckTimeoutMs`, evaluates the data, and, for rule 7, does one
@@ -842,10 +844,43 @@ stopped before the session stops). Every `QueueCheckIntervalMs` it evaluates the
 `QueueGracePeriodMs`, it writes one failed `queue` entry, seals one failed cycle
 (`QueueCycleLedger.RecordFaultCycle`) and calls the failure policy evaluator, one time for each
 episode. `QueueRunHandle.TryMarkPolicyTripped` makes the policy act one time also when the watch and
-the run loop call it at the same time. The new code never stops the run or recovers the device; a
-failure policy that the operator configured can. `QueueDeviceWatchdogService` does not change.
+the run loop call it at the same time. The liveness code never stops the run; a failure policy that
+the operator configured can. Since feature 121, the device is repaired only when the queue has
+`deviceRecovery` (see below). `QueueDeviceWatchdogService` does not change.
 Detection limit: during an idle pause the queue sends no input, so a wedged device whose captures
 still complete is found only when the captures stop or after the next firing.
+
+**Alert, recovery and capture gate (feature 121, #261).** The detection rules above do not change.
+Three parts are added:
+
+- **Alert.** `QueueLivenessWatch.CheckOnceAsync` sends one "device not live" message when the episode is
+  older than `AlertAfterMs` (default 300000). It sends one "device live again" message when the device
+  is live after an alert. `QueueLivenessEpisode` keeps the claims (`TryClaimAlert`, `TryClaimLiveAgain`,
+  `TryClaimRecoveryFailed`), so each message is sent one time for each episode. The message goes through
+  `INotificationDispatcher.SendAlert` to every enabled notification target. It does not need a failure
+  policy and it ignores `notificationLevel`. The worker never drops it. The result sets
+  `health.lastNotificationAt`, `lastNotificationSucceeded` and `lastNotificationError`.
+- **Recovery.** `ExecutionQueue.DeviceRecovery` (`action` `none` or `reboot-instance`, `afterMs`,
+  `maxAttempts`, `cooldownMs`; `QueueDeviceRecoveryValidator`) is optional and persisted. When the
+  action is `reboot-instance`, the watch starts `QueueDeviceRecoveryRunner` in the background after
+  `afterMs`. One attempt has four steps: `IDeviceRecoveryCoordinator.RebootInstanceAsync`, a wait for the
+  device (`IEmulatorDeviceProbe`), `QueueExecutionService.RebindSessionAsync` (new session, the run loop
+  follows `handle.SessionId`), and a wait for the state `live`. `DeviceRecoveryCoordinator` is the one
+  recovery slot of the service. It starts one reboot at a time, at least `RecoveryStaggerMs` apart (default
+  180000), and queues of one instance share one reboot. After `maxAttempts` failures, the runner sends
+  one "recovery failed" alert and the queue stays Running. `IEmulatorControl.RebootAsync` returns
+  `true` only for exit code 0 of `ldconsole.exe reboot`. `health.deviceLiveness` has three more read-only
+  members: `alertSent`, `recoveryAttempts` and `recoveryState` (`idle`, `running`, `exhausted`).
+- **Capture gate.** `DeviceCaptureGate` (`GameBot.Emulator`) allows at most one unfinished capture for each
+  device serial. A capture that times out puts the device in state `Suspect`: the `screencap` process of
+  the device can still run, and the old code started a new one after each time-out (960 processes in the
+  incident). While the device is `Suspect`, the capture loop waits. Every `CaptureStallLimitMs` it asks
+  `adb shell pidof screencap` (`AdbClient.HasRunningScreencapAsync`). No process clears the state. A new
+  capture loop for the serial (a session rebind) also clears it. `AdbSessionDirectCapture` returns false at
+  once for a `Suspect` device, so a health call adds no process.
+
+Service settings `AlertAfterMs` (300000, minimum 1000), `RecoveryStaggerMs` (180000, minimum 0) and
+`RebootReadyTimeoutMs` (180000, minimum 1000) are in the same section `Service:DeviceLiveness`.
 
 ### Dry-run / validate-only sequence mode (feature 082)
 
@@ -1005,6 +1040,13 @@ Feature 086 added, additively (see "Queue cycle observability" above):
 
 - A `health` block on `GET /api/queues/{id}`, present only while the queue is Running.
 - `GET /api/queues/{id}/cycles?limit=n` — recent cycles newest-first with per-entry outcomes.
+
+Feature 121 added (see "Device liveness" above): `deviceRecovery` (`{ action, afterMs, maxAttempts,
+cooldownMs }`) on the queue create and update requests and on the queue responses, copied by
+`POST /api/queues/{id}/duplicate`. An absent member on `PUT` clears it. A bad value gives `400`, and
+`reboot-instance` without `emulatorInstanceName` gives `400`. The `health.deviceLiveness` block has three
+more read-only members: `alertSent`, `recoveryAttempts` and `recoveryState` (`idle` | `running` |
+`exhausted`).
 
 Feature 120 added (see "Queue sequence notifications" above): `notificationLevel` on the queue
 responses and on the create and update requests, `PUT /api/queues/{id}/notification-level`,

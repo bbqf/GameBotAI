@@ -30,6 +30,32 @@ public sealed class DeviceLivenessOptions {
   /// <summary>Minimum of <see cref="QueueCheckIntervalMs"/>.</summary>
   public const int MinQueueCheckIntervalMs = 1000;
 
+  /// <summary>Minimum of <see cref="AlertAfterMs"/>.</summary>
+  public const int MinAlertAfterMs = 1000;
+
+  /// <summary>Minimum of <see cref="RecoveryStaggerMs"/>.</summary>
+  public const int MinRecoveryStaggerMs = 0;
+
+  /// <summary>Minimum of <see cref="RebootReadyTimeoutMs"/>.</summary>
+  public const int MinRebootReadyTimeoutMs = 1000;
+
+  /// <summary>
+  /// The service sends the "device not live" alert when one episode is older than this value.
+  /// Default 300000 (5 min).
+  /// </summary>
+  public int AlertAfterMs { get; set; } = 300000;
+
+  /// <summary>
+  /// The least time between the starts of two instance reboots in the service. Default 180000 (3 min).
+  /// </summary>
+  public int RecoveryStaggerMs { get; set; } = 180000;
+
+  /// <summary>
+  /// The limit to wait for the device after a reboot, and for the live state after a session rebind.
+  /// Default 180000 (3 min).
+  /// </summary>
+  public int RebootReadyTimeoutMs { get; set; } = 180000;
+
   /// <summary>
   /// The frame is stale when its bytes did not change for longer than this value. Default 300000 (5 min).
   /// </summary>
@@ -74,6 +100,9 @@ public sealed class DeviceLivenessOptions {
     CaptureTimeoutMs = Math.Max(MinCaptureTimeoutMs, CaptureTimeoutMs),
     TransportCheckTimeoutMs = Math.Max(MinTransportCheckTimeoutMs, TransportCheckTimeoutMs),
     QueueGracePeriodMs = Math.Max(MinQueueGracePeriodMs, QueueGracePeriodMs),
-    QueueCheckIntervalMs = Math.Max(MinQueueCheckIntervalMs, QueueCheckIntervalMs)
+    QueueCheckIntervalMs = Math.Max(MinQueueCheckIntervalMs, QueueCheckIntervalMs),
+    AlertAfterMs = Math.Max(MinAlertAfterMs, AlertAfterMs),
+    RecoveryStaggerMs = Math.Max(MinRecoveryStaggerMs, RecoveryStaggerMs),
+    RebootReadyTimeoutMs = Math.Max(MinRebootReadyTimeoutMs, RebootReadyTimeoutMs)
   };
 }

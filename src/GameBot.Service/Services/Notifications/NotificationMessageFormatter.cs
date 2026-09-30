@@ -34,6 +34,23 @@ internal static class NotificationMessageFormatter {
     return $"{queue} : {sequence} : {Circle(status)} {StatusWord(status)}";
   }
 
+  /// <summary>
+  /// Makes the text of a device alert (feature 121). An absent or blank name is replaced by the ID.
+  /// </summary>
+  /// <param name="queueName">The queue name, or null.</param>
+  /// <param name="queueId">The queue ID.</param>
+  /// <param name="kind">The alert kind.</param>
+  /// <param name="reason">The liveness reason. Used by <see cref="QueueAlertKind.NotLive"/>.</param>
+  /// <param name="attempts">The count of attempts. Used by <see cref="QueueAlertKind.RecoveryFailed"/>.</param>
+  public static string FormatAlert(string? queueName, string queueId, QueueAlertKind kind, string? reason, int attempts) {
+    var queue = string.IsNullOrWhiteSpace(queueName) ? queueId : queueName;
+    return kind switch {
+      QueueAlertKind.NotLive => $"{Red} {queue} : device not live ({(string.IsNullOrWhiteSpace(reason) ? "unknown" : reason)})",
+      QueueAlertKind.LiveAgain => $"{Green} {queue} : device live again",
+      _ => $"{Red} {queue} : device recovery failed after {attempts.ToString(System.Globalization.CultureInfo.InvariantCulture)} attempts"
+    };
+  }
+
   public static string Circle(NotificationMessageStatus status) => status switch {
     NotificationMessageStatus.Success => Green,
     NotificationMessageStatus.Recovered => Green,

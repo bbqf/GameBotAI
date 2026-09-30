@@ -49,10 +49,15 @@ internal sealed class EnsureEmulatorRunningActionHandler : IEnsureEmulatorRunnin
       : Result(EnsureEmulatorRunningOutcome.RecoveryTimedOut);
   }
 
-  private Task RemediateAsync(EnsureEmulatorRunningOutcome remediation, EnsureEmulatorRunningArgs args, CancellationToken ct) =>
-    remediation == EnsureEmulatorRunningOutcome.Restarted
-      ? _control.RebootAsync(args.InstanceName, args.InstanceIndex, ct)
-      : _control.LaunchAsync(args.InstanceName, args.InstanceIndex, ct);
+  private async Task RemediateAsync(EnsureEmulatorRunningOutcome remediation, EnsureEmulatorRunningArgs args, CancellationToken ct) {
+    // The reboot result is ignored here: the wait for a healthy device decides the outcome.
+    if (remediation == EnsureEmulatorRunningOutcome.Restarted) {
+      await _control.RebootAsync(args.InstanceName, args.InstanceIndex, ct).ConfigureAwait(false);
+    }
+    else {
+      await _control.LaunchAsync(args.InstanceName, args.InstanceIndex, ct).ConfigureAwait(false);
+    }
+  }
 
   /// <summary>Polls responsiveness every <c>EmulatorPollIntervalMs</c> up to <c>EmulatorBootWaitMs</c>.</summary>
   private async Task<bool> WaitForHealthyAsync(string adbSerial, CancellationToken ct) {

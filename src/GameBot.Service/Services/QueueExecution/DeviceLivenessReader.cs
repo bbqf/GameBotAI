@@ -1,4 +1,6 @@
 using System;
+using GameBot.Domain.Queues;
+using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
 using GameBot.Service.Contracts.Queues;
 using GameBot.Service.Services.Liveness;
@@ -22,7 +24,9 @@ internal sealed class DeviceLivenessReader {
   }
 
   /// <summary>The device liveness of the run, or null when the run has no session yet.</summary>
-  public QueueDeviceLivenessResponse? Project(QueueRunHandle handle) {
+  /// <param name="handle">The run handle.</param>
+  /// <param name="recovery">The recovery settings of the queue. Null when the queue has none.</param>
+  public QueueDeviceLivenessResponse? Project(QueueRunHandle handle, QueueDeviceRecovery? recovery = null) {
     ArgumentNullException.ThrowIfNull(handle);
     if (handle.SessionId is not { } sessionId) return null;
     var session = _sessions.GetSession(sessionId);
@@ -38,7 +42,25 @@ internal sealed class DeviceLivenessReader {
       Stale = report.Stale,
       FrameAgeMs = report.FrameAgeMs,
       UnchangedMs = report.UnchangedMs,
-      GatedFirings = snapshot.GatedFirings
+      GatedFirings = snapshot.GatedFirings,
+      AlertSent = snapshot.AlertSent,
+      RecoveryAttempts = snapshot.Attempts,
+      RecoveryState = DeriveRecoveryState(snapshot, recovery)
     };
+  }
+
+  /// <summary>
+  /// The recovery state (feature 121, research R-022): <c>running</c> when an attempt runs, else
+  /// <c>exhausted</c> when the attempts reached <c>maxAttempts</c> and the state is <c>not_live</c>, else
+  /// <c>idle</c>. It needs no stored field.
+  /// </summary>
+  internal static string DeriveRecoveryState(QueueLivenessSnapshot snapshot, QueueDeviceRecovery? recovery) {
+    if (snapshot.RecoveryRunning) return DeviceRecoveryStates.Running;
+    if (recovery is { Reboots: true }
+        && snapshot.State == DeviceLivenessStates.NotLive
+        && snapshot.Attempts >= recovery.MaxAttempts) {
+      return DeviceRecoveryStates.Exhausted;
+    }
+    return DeviceRecoveryStates.Idle;
   }
 }

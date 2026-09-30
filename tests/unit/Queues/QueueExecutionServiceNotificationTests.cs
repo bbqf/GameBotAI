@@ -32,6 +32,8 @@ public sealed partial class QueueExecutionServiceTests {
     }
 
     public void ResetStreaks(string queueId) { }
+
+    public void SendAlert(QueueAlert alert) { }
   }
 
   private static QueueExecutionService NotifyService(

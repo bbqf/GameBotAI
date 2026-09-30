@@ -99,6 +99,12 @@ namespace GameBot.Domain.Queues {
     /// </summary>
     public GameBot.Domain.Notifications.NotificationLevel NotificationLevel { get; set; }
 
+    /// <summary>
+    /// Optional recovery of a device that stays not live (feature 121). Null means no recovery: the
+    /// queue sends the alert only. Old queue files have no value and read as null.
+    /// </summary>
+    public QueueDeviceRecovery? DeviceRecovery { get; set; }
+
     public DateTimeOffset? CreatedAt { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }

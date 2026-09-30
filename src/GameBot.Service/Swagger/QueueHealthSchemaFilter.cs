@@ -39,6 +39,10 @@ internal sealed class QueueHealthSchemaFilter : ISchemaFilter {
     Describe(schema, "pauseReason", PauseReasonDescription);
     // Feature 106: the device liveness of the run.
     Describe(schema, "deviceLiveness", DeviceLivenessSchemaFilter.QueueDeviceLivenessDescription);
+    // Feature 121: the last alert result also shows for a queue with no failure policy.
+    Describe(schema, "lastNotificationAt",
+      "When the last notification was tried: a queue sequence message or a device alert (feature 121). A device alert "
+      + "sets it also when the queue has no failure policy and the notification level is none.");
     if (schema.Properties.TryGetValue("pauseKind", out var pauseKind)) {
       pauseKind.Description = PauseKindDescription;
       pauseKind.Enum = new List<IOpenApiAny> {

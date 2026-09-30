@@ -100,6 +100,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<SequenceTimeLimitSchemaFilter>();
       options.SchemaFilter<QueueHealthSchemaFilter>();
       options.SchemaFilter<DeviceLivenessSchemaFilter>();
+      options.SchemaFilter<QueueDeviceRecoverySchemaFilter>();
       options.SchemaFilter<QueueSequenceStatsSchemaFilter>();
       options.SchemaFilter<ImageAlternatesSchemaFilter>();
       options.SchemaFilter<SequenceNestingRulesSchemaFilter>();
@@ -198,6 +199,12 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Service.Services.Liveness.ISessionTransportCheck, GameBot.Service.Services.Liveness.AdbSessionTransportCheck>();
     builder.Services.AddSingleton<GameBot.Service.Services.Liveness.ISessionDirectCapture, GameBot.Service.Services.Liveness.AdbSessionDirectCapture>();
     builder.Services.AddSingleton<GameBot.Service.Services.Liveness.ISessionLivenessService, GameBot.Service.Services.Liveness.SessionLivenessService>();
+    // Feature 121: one capture gate for the capture loops and the liveness probe, the one recovery slot
+    // of the service, and the per-queue recovery runner.
+    builder.Services.AddSingleton<GameBot.Emulator.DeviceCaptureGate>(sp =>
+      new GameBot.Emulator.DeviceCaptureGate(sp.GetService<TimeProvider>()));
+    builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IDeviceRecoveryCoordinator, GameBot.Service.Services.QueueExecution.DeviceRecoveryCoordinator>();
+    builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.QueueDeviceRecoveryRunner>();
   }
 
   private static void RegisterRepositories(WebApplicationBuilder builder, string storageRoot) {
@@ -422,7 +429,8 @@ internal static class GameBotServiceSetup {
         var livenessOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GameBot.Domain.Sessions.DeviceLivenessOptions>>().Value.Normalized();
         return new GameBot.Emulator.Session.BackgroundScreenCaptureService(
           factory, appConfig.CaptureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>(),
-          sp.GetRequiredService<GameBot.Domain.Sessions.IDeviceLivenessTracker>(), livenessOptions);
+          sp.GetRequiredService<GameBot.Domain.Sessions.IDeviceLivenessTracker>(), livenessOptions,
+          sp.GetRequiredService<GameBot.Emulator.DeviceCaptureGate>());
       });
       // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain).
       // Feature 079: the ambient device context decides which session it observes, so concurrent

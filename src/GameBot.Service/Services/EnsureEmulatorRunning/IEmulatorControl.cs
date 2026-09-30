@@ -17,6 +17,9 @@ internal interface IEmulatorControl {
   /// <summary>Starts the addressed instance.</summary>
   Task LaunchAsync(string? instanceName, int? instanceIndex, CancellationToken ct = default);
 
-  /// <summary>Restarts the addressed instance in place.</summary>
-  Task RebootAsync(string? instanceName, int? instanceIndex, CancellationToken ct = default);
+  /// <summary>
+  /// Restarts the addressed instance in place. Returns true when the tool ends with exit code 0.
+  /// Returns false when the tool is missing, the exit code is not 0, or the process cannot start.
+  /// </summary>
+  Task<bool> RebootAsync(string? instanceName, int? instanceIndex, CancellationToken ct = default);
 }

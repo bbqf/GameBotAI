@@ -30,6 +30,9 @@ internal static class QueuesEndpoints {
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
       if (!QueueFailurePolicyMapping.TryMap(req.FailurePolicy, notifyOptions.Value, out var createPolicy, out var policyError))
         return Error(400, "invalid_request", policyError!);
+      var createInstanceName = NormalizeInstanceName(req.EmulatorInstanceName);
+      if (!QueueDeviceRecoveryMapping.TryMap(req.DeviceRecovery, createInstanceName, out var createRecovery, out var recoveryError))
+        return Error(400, "invalid_request", recoveryError!);
       var createLevel = NotificationLevel.None;
       if (req.NotificationLevel is not null && !NotificationLevelText.TryParse(req.NotificationLevel, out createLevel))
         return LevelError();
@@ -40,9 +43,10 @@ internal static class QueuesEndpoints {
         CycleExecution = req.CycleExecution,
         PauseWhenIdle = req.PauseWhenIdle,
         IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds),
-        EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName),
+        EmulatorInstanceName = createInstanceName,
         EmulatorInstanceIndex = req.EmulatorInstanceIndex,
         FailurePolicy = createPolicy,
+        DeviceRecovery = createRecovery,
         ResumeOnServiceStart = req.ResumeOnServiceStart,
         NotificationLevel = createLevel
       }).ConfigureAwait(false);
@@ -101,16 +105,21 @@ internal static class QueuesEndpoints {
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
       if (!QueueFailurePolicyMapping.TryMap(req.FailurePolicy, notifyOptions.Value, out var updatePolicy, out var updatePolicyError))
         return Error(400, "invalid_request", updatePolicyError!);
+      // Feature 121: an absent deviceRecovery clears the stored settings, as failurePolicy does.
+      var updateInstanceName = NormalizeInstanceName(req.EmulatorInstanceName);
+      if (!QueueDeviceRecoveryMapping.TryMap(req.DeviceRecovery, updateInstanceName, out var updateRecovery, out var updateRecoveryError))
+        return Error(400, "invalid_request", updateRecoveryError!);
       // Feature 120 (FR-021): an absent level keeps the stored level.
       var updateLevel = queue.NotificationLevel;
       if (req.NotificationLevel is not null && !NotificationLevelText.TryParse(req.NotificationLevel, out updateLevel))
         return LevelError();
       queue.FailurePolicy = updatePolicy;
+      queue.DeviceRecovery = updateRecovery;
       queue.Name = name;
       queue.CycleExecution = req.CycleExecution;
       queue.PauseWhenIdle = req.PauseWhenIdle;
       queue.IdleThresholdSeconds = CoerceThreshold(req.IdleThresholdSeconds);
-      queue.EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName);
+      queue.EmulatorInstanceName = updateInstanceName;
       queue.EmulatorInstanceIndex = req.EmulatorInstanceIndex;
       queue.ResumeOnServiceStart = req.ResumeOnServiceStart;
       queue.NotificationLevel = updateLevel;
@@ -155,6 +164,11 @@ internal static class QueuesEndpoints {
       var serial = req?.EmulatorSerial?.Trim();
       if (string.IsNullOrWhiteSpace(serial)) return Error(400, "invalid_request", "emulatorSerial is required");
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
+      // Feature 121: the copy keeps deviceRecovery. The new instance name must still fit the settings.
+      var copyInstanceName = NormalizeInstanceName(req.EmulatorInstanceName);
+      var copyRecovery = QueueDeviceRecoveryMapping.Clone(source.DeviceRecovery);
+      var copyRecoveryError = QueueDeviceRecoveryValidator.Validate(copyRecovery, copyInstanceName);
+      if (copyRecoveryError is not null) return Error(400, "invalid_request", copyRecoveryError);
 
       var created = await repo.CreateAsync(new ExecutionQueue {
         Name = name,
@@ -162,7 +176,8 @@ internal static class QueuesEndpoints {
         CycleExecution = source.CycleExecution,
         PauseWhenIdle = source.PauseWhenIdle,
         IdleThresholdSeconds = CoerceThreshold(source.IdleThresholdSeconds),
-        EmulatorInstanceName = NormalizeInstanceName(req.EmulatorInstanceName),
+        DeviceRecovery = copyRecovery,
+        EmulatorInstanceName = copyInstanceName,
         EmulatorInstanceIndex = req.EmulatorInstanceIndex,
         LinkedTemplateId = source.LinkedTemplateId,
         LinkedGameId = source.LinkedGameId,
@@ -477,6 +492,7 @@ internal static class QueuesEndpoints {
     LinkedTemplateId = queue.LinkedTemplateId,
     LinkedGameId = queue.LinkedGameId,
     FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy),
+    DeviceRecovery = QueueDeviceRecoveryMapping.Project(queue.DeviceRecovery),
     ResumeOnServiceStart = queue.ResumeOnServiceStart,
     NotificationLevel = NotificationLevelText.ToText(queue.NotificationLevel)
   };
@@ -501,6 +517,7 @@ internal static class QueuesEndpoints {
       LinkedGameId = queue.LinkedGameId,
       LinkedGameName = await ResolveGameNameAsync(queue.LinkedGameId, games).ConfigureAwait(false),
       FailurePolicy = QueueFailurePolicyMapping.Project(queue.FailurePolicy),
+      DeviceRecovery = QueueDeviceRecoveryMapping.Project(queue.DeviceRecovery),
       ResumeOnServiceStart = queue.ResumeOnServiceStart,
       NotificationLevel = NotificationLevelText.ToText(queue.NotificationLevel)
     };
@@ -511,7 +528,7 @@ internal static class QueuesEndpoints {
     // Feature 086: live health for the current run, or null when there is none (never a zeroed block).
     if (runs is not null && TryGetLiveRun(queue.Id, runtime, runs, out var handle)) {
       detail.Health = ProjectHealth(handle, queue);
-      detail.Health.DeviceLiveness = liveness?.Project(handle);
+      detail.Health.DeviceLiveness = liveness?.Project(handle, queue.DeviceRecovery);
     }
     await AddSequenceStatsAsync(detail, stats, namesById).ConfigureAwait(false);
     return detail;

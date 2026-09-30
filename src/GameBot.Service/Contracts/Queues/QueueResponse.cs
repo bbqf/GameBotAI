@@ -38,6 +38,12 @@ namespace GameBot.Service.Contracts.Queues {
     /// </summary>
     public QueueFailurePolicyDto? FailurePolicy { get; set; }
 
+    /// <summary>
+    /// The device recovery settings of the queue (feature 121), with the default values filled in; null
+    /// when none is configured. Inherited by <see cref="QueueDetailResponse"/>.
+    /// </summary>
+    public QueueDeviceRecoveryDto? DeviceRecovery { get; set; }
+
     /// <summary>Whether the queue is started again after a service restart if it was running (feature 098).</summary>
     public bool ResumeOnServiceStart { get; set; }
 

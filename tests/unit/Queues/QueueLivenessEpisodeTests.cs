@@ -110,6 +110,118 @@ public sealed class QueueLivenessEpisodeTests {
     e.TryClaimFaultCycle(T0.AddMinutes(8), Grace).Should().BeTrue();
   }
 
+  private static readonly TimeSpan AlertAfter = TimeSpan.FromMinutes(5);
+
+  [Fact]
+  public void TryClaimAlertIsFalseBeforeTheTimeAndTrueOneTimeAfterIt() {
+    var e = new QueueLivenessEpisode();
+    e.TryClaimAlert(T0.AddHours(1), AlertAfter).Should().BeFalse("no episode is open");
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0);
+
+    e.TryClaimAlert(T0.AddMinutes(4), AlertAfter).Should().BeFalse();
+    e.TryClaimAlert(T0.AddMinutes(6), AlertAfter).Should().BeTrue();
+    e.TryClaimAlert(T0.AddMinutes(9), AlertAfter).Should().BeFalse();
+    e.Snapshot().AlertSent.Should().BeTrue();
+  }
+
+  [Fact]
+  public void LiveAfterAnAlertGivesOneLiveAgainClaim() {
+    var e = new QueueLivenessEpisode();
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0);
+    e.TryClaimAlert(T0.AddMinutes(6), AlertAfter).Should().BeTrue();
+
+    e.Observe(Of(DeviceLivenessStates.Live), T0.AddMinutes(7));
+    e.Observe(Of(DeviceLivenessStates.Live), T0.AddMinutes(8));
+
+    e.Snapshot().AlertSent.Should().BeFalse("the open episode data is cleared");
+    e.TryClaimLiveAgain().Should().BeTrue();
+    e.TryClaimLiveAgain().Should().BeFalse();
+  }
+
+  [Fact]
+  public void LiveWithNoAlertGivesNoLiveAgainClaim() {
+    var e = new QueueLivenessEpisode();
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0);
+
+    e.Observe(Of(DeviceLivenessStates.Live), T0.AddMinutes(1));
+
+    e.TryClaimLiveAgain().Should().BeFalse();
+  }
+
+  [Fact]
+  public void UnknownAfterAnAlertGivesNoLiveAgainClaim() {
+    var e = new QueueLivenessEpisode();
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0);
+    e.TryClaimAlert(T0.AddMinutes(6), AlertAfter);
+
+    e.Observe(Of(DeviceLivenessStates.Unknown), T0.AddMinutes(7));
+
+    e.TryClaimLiveAgain().Should().BeFalse();
+  }
+
+  [Fact]
+  public void ANewEpisodeGivesANewAlertClaim() {
+    var e = new QueueLivenessEpisode();
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0);
+    e.TryClaimAlert(T0.AddMinutes(6), AlertAfter).Should().BeTrue();
+    e.Observe(Of(DeviceLivenessStates.Live), T0.AddMinutes(7));
+
+    e.Observe(NotLive(DeviceLivenessReasons.InputTimeout), T0.AddMinutes(8));
+
+    e.TryClaimAlert(T0.AddMinutes(14), AlertAfter).Should().BeTrue();
+  }
+
+  [Fact]
+  public void TryClaimRecoveryFailedIsTrueOneTimeForAnOpenEpisode() {
+    var e = new QueueLivenessEpisode();
+    e.TryClaimRecoveryFailed().Should().BeFalse("no episode is open");
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0);
+
+    e.TryClaimRecoveryFailed().Should().BeTrue();
+    e.TryClaimRecoveryFailed().Should().BeFalse();
+    e.Observe(Of(DeviceLivenessStates.Live), T0.AddMinutes(1));
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0.AddMinutes(2));
+    e.TryClaimRecoveryFailed().Should().BeTrue("a new episode");
+  }
+
+  [Fact]
+  public void RecoveryCountersFollowTheAttemptsAndTheCooldown() {
+    var e = new QueueLivenessEpisode();
+    var after = TimeSpan.FromMinutes(5);
+    var cooldown = TimeSpan.FromMinutes(3);
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0);
+
+    e.TryBeginRecovery(T0.AddMinutes(4), after, 2, cooldown).Should().BeFalse("too early");
+    e.TryBeginRecovery(T0.AddMinutes(6), after, 2, cooldown).Should().BeTrue();
+    e.Snapshot().RecoveryRunning.Should().BeTrue();
+    e.TryBeginRecovery(T0.AddMinutes(7), after, 2, cooldown).Should().BeFalse("one recovery runs");
+
+    e.EndRecoveryAttempt(T0.AddMinutes(8));
+    e.Snapshot().RecoveryRunning.Should().BeFalse();
+    e.Snapshot().Attempts.Should().Be(1);
+    e.TryBeginRecovery(T0.AddMinutes(9), after, 2, cooldown).Should().BeFalse("cooldown");
+    e.TryBeginRecovery(T0.AddMinutes(11), after, 2, cooldown).Should().BeTrue();
+    e.EndRecoveryAttempt(T0.AddMinutes(12));
+    e.TryBeginRecovery(T0.AddMinutes(30), after, 2, cooldown).Should().BeFalse("attempts used up");
+  }
+
+  [Theory]
+  [InlineData(DeviceLivenessStates.Live)]
+  [InlineData(DeviceLivenessStates.Unknown)]
+  public void LiveOrUnknownClearsTheRecoveryCounters(string state) {
+    var e = new QueueLivenessEpisode();
+    e.Observe(NotLive(DeviceLivenessReasons.CaptureStalled), T0);
+    e.TryBeginRecovery(T0.AddMinutes(6), TimeSpan.FromMinutes(5), 2, TimeSpan.Zero).Should().BeTrue();
+    e.EndRecoveryAttempt(T0.AddMinutes(7));
+    e.TryBeginRecovery(T0.AddMinutes(8), TimeSpan.FromMinutes(5), 2, TimeSpan.Zero).Should().BeTrue();
+
+    e.Observe(Of(state), T0.AddMinutes(9));
+
+    var s = e.Snapshot();
+    s.Attempts.Should().Be(0);
+    s.RecoveryRunning.Should().BeFalse();
+  }
+
   [Fact]
   public void SnapshotIsACopyWithTheGatedFirings() {
     var e = new QueueLivenessEpisode();

@@ -72,6 +72,10 @@ internal sealed class DeviceLivenessSchemaFilter : ISchemaFilter {
       Describe(schema, "gatedFirings",
         "The number of held firings in the current fault episode. 0 when no episode is open. A firing is held only for "
         + "the reasons capture_stalled, input_timeout and transport_not_ready.");
+      Describe(schema, "alertSent", AlertSentDescription);
+      Describe(schema, "recoveryAttempts", RecoveryAttemptsDescription);
+      Describe(schema, "recoveryState", RecoveryStateDescription,
+        DeviceRecoveryStates.Idle, DeviceRecoveryStates.Running, DeviceRecoveryStates.Exhausted);
     }
   }
 
@@ -81,7 +85,20 @@ internal sealed class DeviceLivenessSchemaFilter : ISchemaFilter {
     + "transport_not_ready, the queue holds each due firing: the firing stays due and runs when the device is live "
     + "again. The first held firing of each sequence in a fault episode writes one failed execution-log entry "
     + "('device_not_live: <reason>'). When the device stays not live for longer than QueueGracePeriodMs, the queue "
-    + "records one failed cycle for the episode. The queue never stops or recovers the device by itself.";
+    + "records one failed cycle for the episode. The queue never stops by itself. The queue can reboot the "
+    + "instance when deviceRecovery is on. The service sends one 'device not live' alert after AlertAfterMs, and "
+    + "one 'device live again' message after the device is live.";
+
+  internal const string AlertSentDescription =
+    "True when the 'device not live' alert was sent for the open episode (feature 121). False when no episode is open.";
+
+  internal const string RecoveryAttemptsDescription =
+    "The count of finished recovery attempts in the open episode (feature 121). 0 when no episode is open.";
+
+  internal const string RecoveryStateDescription =
+    "The state of the recovery (feature 121). 'idle': no recovery runs and the attempts are not used up. 'running': "
+    + "a recovery waits for the slot or a reboot runs. 'exhausted': maxAttempts is reached and the device is not live. "
+    + "Always one of these three values.";
 
   private static void Describe(OpenApiSchema schema, string property, string description, params string[] values) {
     if (!schema.Properties.TryGetValue(property, out var propertySchema)) return;

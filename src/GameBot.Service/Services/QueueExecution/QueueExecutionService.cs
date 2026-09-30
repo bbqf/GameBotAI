@@ -112,6 +112,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// </summary>
   private readonly INotificationDispatcher? _notifications;
 
+  /// <summary>
+  /// Runs the optional device recovery of a queue (feature 121). Optional, so the test harnesses keep
+  /// their constructor calls. When it is null, a queue never repairs its device.
+  /// </summary>
+  private readonly QueueDeviceRecoveryRunner? _recoveryRunner;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -156,7 +162,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     IQueueRunStateStore? runState = null,
     ISequenceRunStatisticsStore? runStatistics = null,
     ISessionLivenessService? liveness = null,
-    INotificationDispatcher? notifications = null) {
+    INotificationDispatcher? notifications = null,
+    QueueDeviceRecoveryRunner? recoveryRunner = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -179,6 +186,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _runStatistics = runStatistics;
     _liveness = liveness;
     _notifications = notifications;
+    _recoveryRunner = recoveryRunner;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -367,6 +375,14 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // reason while the device is still attached, bind a fresh one on the same serial (once)
             // and carry on with it. Only a device that cannot be re-bound fails the run.
             void EnsureSessionBound() {
+              // Feature 121 (R-009): a device recovery can rebind the session from the watch. The loop
+              // follows the value of the handle, so the gate, the watch and the loop use one session.
+              var current = handle.SessionId;
+              if (current is not null && !string.Equals(current, sessionId, StringComparison.Ordinal)
+                  && _sessions.GetSession(current) is not null) {
+                sessionId = current;
+                return;
+              }
               if (_sessions.GetSession(sessionId) is not null) return;
               var lostId = sessionId!;
               try { _captureService?.StopCapture(lostId); }
@@ -447,7 +463,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // True when the gate holds the firing group of `sequenceId`.
             async Task<bool> HoldIfNotLiveAsync(string sequenceId) {
               if (_liveness is null) return false;
-              var hold = await TryGateOnLivenessAsync(queue, handle, rootId, sessionId, sequenceId, held ? holdReport : null, () => ++index).ConfigureAwait(false);
+              var hold = await TryGateOnLivenessAsync(queue, handle, rootId, handle.SessionId ?? sessionId, sequenceId, held ? holdReport : null, () => ++index).ConfigureAwait(false);
               if (hold is null) return false;
               held = true;
               holdReport = hold;
@@ -822,8 +838,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // Feature 106: stop the liveness watch before the session stops.
       await StopLivenessWatchAsync(watchCts, watchTask).ConfigureAwait(false);
       watchCts?.Dispose();
-      // Always disconnect the session (FR-020/FR-023).
+      // Always disconnect the session (FR-020/FR-023). A device recovery can have rebound the session.
       if (sessionId is not null) {
+        sessionId = handle.SessionId ?? sessionId;
         try { _captureService?.StopCapture(sessionId); }
         catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
         try { _sessions.StopSession(sessionId); }
@@ -938,8 +955,31 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// </summary>
   private Task? StartLivenessWatch(ExecutionQueue queue, QueueRunHandle handle, string rootId, CancellationToken ct) {
     if (_liveness is null) return null;
-    var watch = new QueueLivenessWatch(queue, handle, rootId, _sessions, _liveness, _log, _failurePolicy, _timeProvider, _logger);
+    var watch = new QueueLivenessWatch(queue, handle, rootId, _sessions, _liveness, _log, _failurePolicy, _timeProvider, _logger,
+      _notifications, _recoveryRunner, RebindSessionAsync);
     return Task.Run(() => watch.RunAsync(ct), CancellationToken.None);
+  }
+
+  /// <summary>
+  /// Makes a new session for the queue after a device recovery (feature 121, research R-009). It stops
+  /// the capture loop and the old session, binds a new session on the same serial, and sets
+  /// <c>handle.SessionId</c>. The run loop follows <c>handle.SessionId</c> before its next firing. The held
+  /// firings stay in the state of the run loop. Throws when the device cannot be bound.
+  /// </summary>
+  internal Task RebindSessionAsync(ExecutionQueue queue, QueueRunHandle handle) {
+    ArgumentNullException.ThrowIfNull(queue);
+    ArgumentNullException.ThrowIfNull(handle);
+    var oldId = handle.SessionId;
+    if (oldId is not null) {
+      try { _captureService?.StopCapture(oldId); }
+      catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
+      try { _sessions.StopSession(oldId); }
+      catch (Exception ex) { QueueExecutionLog.DisconnectFailed(_logger, queue.Id, ex); }
+    }
+    var newId = BindQueueSession(queue);
+    handle.SessionId = newId;
+    QueueExecutionLog.SessionRebound(_logger, queue.Id, queue.EmulatorSerial, oldId ?? string.Empty, newId);
+    return Task.CompletedTask;
   }
 
   /// <summary>Stops the liveness watch and waits for it. Never throws.</summary>
