@@ -53,11 +53,9 @@ public sealed class QueueNotificationStressTests {
 
       // The last item is a delete reset. After it, the queue has no streak.
       h.Dispatcher.ResetStreaks("q1");
-      await NotificationHarness.WaitForAsync(() => h.Dispatcher.QueuedRunJobs == 0);
-      await Task.Delay(20);
-      // A last reset item and a short wait make sure that all earlier jobs ended before we read the state.
-      h.Dispatcher.ResetStreaks("q1");
-      await Task.Delay(50);
+      // Close the channel and wait until the worker loop ended: it read all items, the reset last.
+      // Then the worker does not use the state and the test can read it.
+      await h.DrainAsync();
 
       faults.Should().BeEmpty();
       h.WorkerLog.Lines.Should().NotContain(l => l.Contains("could not handle", StringComparison.Ordinal));

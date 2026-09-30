@@ -34,7 +34,10 @@ public sealed class NotificationTestSendContractTests {
     var dispatcher = host.App.Services.GetRequiredService<INotificationDispatcher>();
     var sequenceId = "s-open";
     dispatcher.Enqueue(new QueueNotificationJob(queueId, sequenceId, NotificationRunStatus.Failure, DateTimeOffset.Now));
-    await WaitAsync(() => worker.Streaks.TotalOpenCount == 1);
+    // The worker is the only user of the streak state. Wait until it handled the job, then read the state.
+    var queued = (QueueNotificationDispatcher)dispatcher;
+    await WaitAsync(() => queued.QueuedRunJobs == 0);
+    worker.Streaks.TotalOpenCount.Should().Be(1);
     var before = host.Telegram.Requests.Count;
 
     var response = await host.Client.PostAsync(Rel($"/api/notifications/targets/{id}/test"), null);
@@ -49,6 +52,7 @@ public sealed class NotificationTestSendContractTests {
     using var doc = JsonDocument.Parse(request.Body);
     doc.RootElement.GetProperty("text").GetString().Should().Be("GameBot test message");
     doc.RootElement.TryGetProperty("parse_mode", out _).Should().BeFalse();
+    // The worker has no other item, so it is idle and the read is safe.
     worker.Streaks.TotalOpenCount.Should().Be(1);
     var queue = await host.App.Services.GetRequiredService<IQueueRepository>().GetAsync(queueId);
     queue!.NotificationLevel.Should().Be(NotificationLevel.Failure);

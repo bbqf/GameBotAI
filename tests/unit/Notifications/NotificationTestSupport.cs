@@ -185,6 +185,15 @@ internal sealed class NotificationHarness : IAsyncDisposable {
     while (Worker.ActiveSends > 0 && DateTime.UtcNow < end) await Task.Delay(5);
   }
 
+  /// <summary>
+  /// Closes the channel and waits until the worker loop has read all items and ended. After this call the
+  /// worker does not use the streak state, so a test can read it. The worker must run (StartAsync).
+  /// </summary>
+  public async Task DrainAsync(int timeoutMs = 30000) {
+    Dispatcher.Complete();
+    if (Worker.ExecuteTask is { } loop) await loop.WaitAsync(TimeSpan.FromMilliseconds(timeoutMs));
+  }
+
   public static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 10000) {
     var end = DateTime.UtcNow.AddMilliseconds(timeoutMs);
     while (!condition() && DateTime.UtcNow < end) await Task.Delay(5);
