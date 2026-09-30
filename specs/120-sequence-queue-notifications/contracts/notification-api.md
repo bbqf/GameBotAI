@@ -136,7 +136,8 @@ circle. The channel must keep the text readable as plain text.
 
 The system sends one message to all enabled targets in parallel. Each message has one total limit of
 30 s. If a target does not answer in this time, the system drops the message for that target and
-writes one log line. Other targets are not affected. The test message text is
+writes one log line. Other targets are not affected. Messages for one queue and sequence pair reach
+a target in the order the system sent them. The test message text is
 `GameBot test message`. It has no `parse_mode`.
 
 ## Dispatcher contract (for a developer)

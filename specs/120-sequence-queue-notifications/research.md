@@ -31,10 +31,16 @@ All items from Technical Context are resolved. No "NEEDS CLARIFICATION" remains.
 - **Job cap**: Above 256 queued run jobs, `Enqueue` drops the new job. It writes one log line with
   the queue ID and the sequence ID (FR-010). A control message is never dropped.
 - **Send**: The worker does the state logic. Then it starts one send task for the message and does
-  not wait for it. The send task sends to all enabled targets in parallel. It has one total limit of
-  30 s (`CancelAfter`). A slow or stuck target cannot delay the next job or the other targets. At
-  most 64 send tasks run at one time. Above this, the worker drops the message and writes one log
-  line.
+  not wait for it. The send tasks send to all enabled targets in parallel. Each send has a limit of
+  30 s (`CancelAfter`) that starts when the send starts. A slow or stuck target cannot delay the
+  next job or the other targets. At most 64 messages run at one time. Above this, the worker drops
+  the message and writes one log line.
+- **Order (FR-024)**: The worker chains the sends in the order of the jobs. The key is target ID,
+  queue ID and sequence ID. A send starts only after the earlier send of the same key has ended.
+  That send ends at its own 30 s limit, so a stuck target delays only later messages of the same
+  pair. A message of another pair or another target never waits. A chain entry is removed when its
+  last send ends. A key on target level only was rejected: one stuck target would then hold back
+  the messages of all queues (V-12).
 - **Rationale**: `TryWrite` on an unbounded channel never blocks and never throws. A dead target
   cannot slow the queue (FR-010, SC-005). One reader gives ordered work. The worker is the only
   owner of the streak state, so no lock is needed (FR-023). The send task does not touch the state.

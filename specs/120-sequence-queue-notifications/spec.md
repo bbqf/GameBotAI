@@ -158,6 +158,7 @@ A developer can add a new target type (for example Discord or e-mail). The chang
 - **FR-021**: The notification level of a queue MUST survive all other queue changes. These changes are a full queue update, a template edit with reload, a clone and an import. An update that does not name the level MUST keep the saved level. Only the level action of the operator (UI or API) MAY change the level. A clone or an import with no level MUST set the level to "None".
 - **FR-022**: When the work ends, the Status line of this spec MUST change to "Implemented". The entry for this feature in `specs/STATUS.md` MUST also change to "Implemented". This keeps the living docs true (constitution Principle V).
 - **FR-023**: The system MUST change the failure streak state safely when queue runs, level changes and queue deletes happen at the same time. There MUST be no data race. The cleanup on a queue delete and on the level "None" MUST NOT race with the send worker.
+- **FR-024**: Messages for one queue and sequence pair MUST reach each target in the order the system sent them. A message MUST NOT start its send before the earlier message of the same pair has ended for that target. The earlier message ends at its own 30-second limit, so a stuck target delays only later messages of the same pair. Messages of other pairs and other targets MUST NOT wait.
 
 ### Key Entities
 

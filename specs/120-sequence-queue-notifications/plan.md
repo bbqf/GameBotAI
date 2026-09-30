@@ -8,9 +8,9 @@
 The operator sets a notification level for each queue (None, Failure, Success+Failure). When a
 queue entry sequence ends, the engine hands a job to the notification dispatcher. The dispatcher
 writes the job to one channel. One worker reads this channel. The worker is the only owner of the
-failure streak state. It applies the level rules and the streak rules. Then it starts one send task
-for the message. That task sends to all enabled targets in parallel, with a total limit of 30 s.
-The worker does not wait for the send. The message has the format
+failure streak state. It applies the level rules and the streak rules. Then it starts the sends for
+the message. The sends go to all enabled targets in parallel, each with a limit of 30 s. Sends for
+one target, queue and sequence keep the order of the jobs. The worker does not wait for the send. The message has the format
 `<queue> : <sequence> : <circle> <status>`.
 
 Level changes to "None" and queue deletes reach the worker as control messages in the same
@@ -118,8 +118,9 @@ One owner: the worker. No other thread reads or writes the streak state.
 | Queue delete | The delete route removes the queue. Then it calls `ResetStreaks(queueId)`. The worker removes all keys of that queue. |
 | Why order does not matter for a stale job | The worker reads the level and the queue when it handles a job. A job for a queue with level None opens no streak. A job for a deleted queue is dropped. |
 | DI | `QueuesEndpoints` takes `INotificationDispatcher` from DI. `QueueExecutionService` takes the same instance. |
-| Send | The worker does not wait for a send. It starts a send task. The task sends to all targets in parallel with one 30 s limit. The task never touches the streak state. |
-| Send cap | At most 64 send tasks run at one time. Above this, the worker drops the message and writes one log line. |
+| Send | The worker does not wait for a send. It starts one send task for each target. Each send has a 30 s limit that starts when the send starts. The tasks never touch the streak state. |
+| Send order | A send waits for the earlier send of the same target, queue and sequence (FR-024). The worker chains the sends in the order of the jobs. Other targets and other pairs do not wait. |
+| Send cap | At most 64 messages run at one time. Above this, the worker drops the message and writes one log line. |
 
 ## Design Decisions That Cover the Corrected Spec
 
@@ -127,7 +128,8 @@ One owner: the worker. No other thread reads or writes the streak state.
 |-------------|--------|-------|
 | FR-006, FR-012, FR-019 recovered at both levels | The worker sends "recovered" after an open streak at level Failure and at level Success+Failure. Later successes send "success" at Success+Failure only. | research R-003 |
 | FR-012 level None closes the streak when the level is set | The level route calls `ResetStreaks`. The worker closes the streak at once. | research R-003, R-010 |
-| FR-010, SC-002 parallel send, 30 s limit | One send task for each message. All targets in parallel. One 30 s limit. Each drop is in the log. | research R-002, R-005 |
+| FR-010, SC-002 parallel send, 30 s limit | One send task for each target. All targets in parallel. One 30 s limit for each send. Each drop is in the log. | research R-002, R-005 |
+| FR-024 send order for one pair | Sends of the same target, queue and sequence run in a chain, in the order of the jobs. | research R-002 |
 | FR-011 queue stop and host stop | The hook checks the host stop token. A queue stop while the host runs gives "cancelled". A host stop sends no message. | research R-001, R-008 |
 | FR-013 target list | The UI has a target list with add, edit and delete. An empty token field on save keeps the stored token. | research R-011 |
 | FR-018 reload | The targets store checks the file write time and file length on each read. It reloads when they change. A hand edit of the queue file is out of scope. | research R-006 |

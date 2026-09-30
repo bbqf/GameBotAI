@@ -171,7 +171,7 @@ internal sealed class NotificationHarness : IAsyncDisposable {
 
   /// <summary>Handles a list of jobs in order, and waits until the sends end.</summary>
   public async Task<IReadOnlyList<string>> RunAsync(params NotificationRunStatus[] statuses) {
-    // One job at a time: the sends run in parallel, so the wait keeps the order of the messages.
+    // One job at a time: each test step then sees the state after the earlier send.
     foreach (var status in statuses) {
       await HandleAsync(status);
       await WaitIdleAsync();

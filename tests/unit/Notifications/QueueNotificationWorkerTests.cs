@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using GameBot.Domain.Notifications;
@@ -195,6 +196,56 @@ public sealed class QueueNotificationWorkerTests {
 
     h.Channel.Calls.Should().Be(1);
     h.WorkerLog.Lines.Should().ContainSingle(l => l.Contains("sends already run", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  public async Task V25_ASlowFirstSendEndsBeforeTheNextSendOfTheSamePairStarts() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+    var running = 0;
+    var maxRunning = 0;
+    h.Channel.Behavior = async (_, text, ct) => {
+      var now = Interlocked.Increment(ref running);
+      InterlockedMax(ref maxRunning, now);
+      // The first message (failure) is slower than the second message (recovered).
+      await Task.Delay(text.Contains("failure", StringComparison.Ordinal) ? 150 : 1, ct);
+      Interlocked.Decrement(ref running);
+      return NotificationSendResult.Ok();
+    };
+
+    await h.HandleAsync(NotificationRunStatus.Failure);
+    await h.HandleAsync(NotificationRunStatus.Success);
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 2);
+
+    maxRunning.Should().Be(1);
+    h.Channel.Sent.Select(m => m.Text).Should().Equal(Text(Red, "failure"), Text(Green, "recovered"));
+  }
+
+  [Fact]
+  public async Task V25_AStuckSendOfOnePairDoesNotHoldBackAnotherPair() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+    h.Sequences.Add("s2", "Other");
+    var release = new TaskCompletionSource();
+    h.Channel.Behavior = async (_, text, _) => {
+      if (text.Contains("PNS.Collect", StringComparison.Ordinal)) await release.Task;
+      return NotificationSendResult.Ok();
+    };
+
+    await h.HandleAsync(NotificationRunStatus.Failure);
+    await h.HandleAsync(NotificationRunStatus.Success);
+    await h.HandleAsync(NotificationRunStatus.Failure, sequenceId: "s2");
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 1);
+
+    h.Channel.Sent.Select(m => m.Text).Should().Equal($"Farm-1 : Other : {Red} failure");
+    release.SetResult();
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 3);
+    h.Channel.Sent.Select(m => m.Text).Skip(1).Should().Equal(Text(Red, "failure"), Text(Green, "recovered"));
+  }
+
+  private static void InterlockedMax(ref int target, int value) {
+    int current;
+    while (value > (current = Volatile.Read(ref target))) {
+      if (Interlocked.CompareExchange(ref target, value, current) == current) return;
+    }
   }
 
   private static System.Threading.CancellationToken CancellationTokenNone() => System.Threading.CancellationToken.None;

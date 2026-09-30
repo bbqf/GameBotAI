@@ -9,8 +9,9 @@ namespace GameBot.Service.Services.Notifications;
 /// <summary>
 /// The one reader of the work channel and the only owner of the failure streak state (feature 120,
 /// FR-023). It reads the level of the queue when it handles a job, applies the level and streak rules
-/// of research R-003, and starts one send task for the message. It never waits for a send, so a stuck
-/// target cannot delay the next job.
+/// of research R-003, and starts the sends for the message. It never waits for a send, so a stuck
+/// target cannot delay the next job. Sends to one target for one queue and sequence pair run in the
+/// order of the jobs (FR-024).
 /// </summary>
 internal sealed partial class QueueNotificationWorker : BackgroundService {
   private readonly QueueNotificationDispatcher _dispatcher;
@@ -21,6 +22,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
   private readonly NotificationDispatchLimits _limits;
   private readonly ILogger<QueueNotificationWorker> _logger;
   private readonly NotificationStreakState _streaks = new();
+  private readonly Dictionary<string, SendChain> _chains = new(StringComparer.Ordinal);
   private int _activeSends;
 
   public QueueNotificationWorker(
@@ -142,9 +144,27 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
       return;
     }
 
+    List<NotificationTarget> targets;
+    try {
+      targets = _targets.List().Where(t => t.Enabled).ToList();
+    }
+    catch (Exception ex) {
+      Log.SendFaulted(_logger, ex.GetType().Name);
+      Interlocked.Decrement(ref _activeSends);
+      return;
+    }
+
+    if (targets.Count == 0) {
+      Interlocked.Decrement(ref _activeSends);
+      return;
+    }
+
+    // The worker thread chains here, in the order of the jobs. This gives the send order for each
+    // target, queue and sequence (FR-024). Different targets and different pairs run in parallel.
+    var sends = targets.Select(target => ChainSend(target, text, job)).ToList();
     _ = Task.Run(async () => {
       try {
-        await SendToAllAsync(text).ConfigureAwait(false);
+        await Task.WhenAll(sends).ConfigureAwait(false);
       }
       catch (Exception ex) {
         Log.SendFaulted(_logger, ex.GetType().Name);
@@ -155,14 +175,54 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     });
   }
 
-  // Sends to all enabled targets in parallel with one total time limit.
-  private async Task SendToAllAsync(string text) {
-    var targets = _targets.List().Where(t => t.Enabled).ToList();
-    if (targets.Count == 0) return;
+  // A send waits for the earlier send of the same target, queue and sequence. That earlier send ends
+  // at its own time limit, so a stuck target delays only later messages of the same pair.
+  private Task ChainSend(NotificationTarget target, string text, QueueNotificationJob job) {
+    var key = $"{target.Id}\u001f{job.QueueId}\u001f{job.SequenceId}";
+    Task previous;
+    Task current;
+    lock (_chains) {
+      if (_chains.TryGetValue(key, out var chain)) {
+        previous = chain.Tail;
+        chain.Pending++;
+      }
+      else {
+        previous = Task.CompletedTask;
+        chain = new SendChain { Pending = 1 };
+        _chains[key] = chain;
+      }
 
-    using var limit = new CancellationTokenSource(_limits.SendTimeout);
-    var sends = targets.Select(target => SendOneAsync(target, text, limit.Token)).ToList();
-    await Task.WhenAll(sends).ConfigureAwait(false);
+      current = Task.Run(() => RunChainedAsync(previous, key, target, text));
+      chain.Tail = current;
+    }
+
+    return current;
+  }
+
+  private async Task RunChainedAsync(Task previous, string key, NotificationTarget target, string text) {
+    try {
+      try {
+        await previous.ConfigureAwait(false);
+      }
+      catch (Exception) {
+        // The earlier send handles its own errors. Nothing more to do here.
+      }
+
+      // Each message has one time limit. It starts when the send starts.
+      using var limit = new CancellationTokenSource(_limits.SendTimeout);
+      await SendOneAsync(target, text, limit.Token).ConfigureAwait(false);
+    }
+    finally {
+      lock (_chains) {
+        if (_chains.TryGetValue(key, out var chain) && --chain.Pending == 0) _chains.Remove(key);
+      }
+    }
+  }
+
+  private sealed class SendChain {
+    public Task Tail { get; set; } = Task.CompletedTask;
+
+    public int Pending { get; set; }
   }
 
   private async Task SendOneAsync(NotificationTarget target, string text, CancellationToken limit) {
