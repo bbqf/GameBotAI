@@ -2,6 +2,9 @@ import { deleteJson, getJson, postJson, putJson } from '../lib/api';
 
 export type QueueStatus = 'Stopped' | 'Running';
 
+/** How much a queue tells the operator (feature 120). */
+export type NotificationLevel = 'none' | 'failure' | 'successAndFailure';
+
 export type QueueDto = {
   id: string;
   name: string;
@@ -17,6 +20,8 @@ export type QueueDto = {
   emulatorInstanceIndex?: number | null;
   /** When true, the queue is started again after a service restart if it was running (feature 098). */
   resumeOnServiceStart?: boolean;
+  /** Notification level of the queue (feature 120). The API sends 'none' when the queue has no level. */
+  notificationLevel?: NotificationLevel;
   status: QueueStatus;
   entryCount: number;
   linkedTemplateId: string | null;
@@ -65,6 +70,9 @@ export const getQueue = (id: string) => getJson<QueueDetailDto>(`${base}/${id}`)
 export const createQueue = (input: QueueCreate) => postJson<QueueDto>(base, input);
 export const updateQueue = (id: string, input: QueueUpdate) => putJson<QueueDto>(`${base}/${id}`, input);
 export const deleteQueue = (id: string) => deleteJson<void>(`${base}/${id}`);
+/** Sets the notification level of one queue (feature 120). The level applies to the next finished sequence. */
+export const setQueueNotificationLevel = (id: string, level: NotificationLevel) =>
+  putJson<QueueDto>(`${base}/${id}/notification-level`, { level });
 
 export type QueueDuplicate = {
   name: string;

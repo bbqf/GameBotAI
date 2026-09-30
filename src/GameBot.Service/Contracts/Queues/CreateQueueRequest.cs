@@ -22,5 +22,12 @@ namespace GameBot.Service.Contracts.Queues {
 
     /// <summary>Opt-in: start the queue again after a service restart if it was running (feature 098). Absent → false.</summary>
     public bool ResumeOnServiceStart { get; set; }
+
+    /// <summary>
+    /// Optional notification level (feature 120): <c>none</c>, <c>failure</c> or
+    /// <c>successAndFailure</c>. When absent, a create uses <c>none</c> and an update keeps the stored
+    /// value. A wrong value gives 400.
+    /// </summary>
+    public string? NotificationLevel { get; set; }
   }
 }

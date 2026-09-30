@@ -34,6 +34,10 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <!-- Feature 120: the notification fakes are shared with the unit tests. -->
+    <Compile Include="..\unit\Notifications\NotificationTestSupport.cs" Link="Notifications\NotificationTestSupport.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\GameBot.Service\GameBot.Service.csproj" />
     <ProjectReference Include="..\TestAssets\TesseractStub\TesseractStub.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>

@@ -154,6 +154,7 @@ Status vocabulary:
 | 117 | A Break outcome when its If branch did not run | Implemented |
 | 118 | One format for timerTimeOfDay | Implemented |
 | 119 | Reject an unknown field in a reschedule-self payload | Implemented |
+| 120 | Queue Sequence Notifications | Implemented |
 
 ## Numbering notes
 

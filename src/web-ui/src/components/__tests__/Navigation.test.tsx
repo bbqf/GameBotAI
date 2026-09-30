@@ -15,6 +15,6 @@ describe('Navigation', () => {
     );
 
     const tabs = screen.getAllByRole('tab').map((item) => item.textContent?.trim());
-    expect(tabs).toEqual(['Authoring', 'Queues', 'Execution', 'Execution Logs', 'Configuration']);
+    expect(tabs).toEqual(['Authoring', 'Queues', 'Execution', 'Execution Logs', 'Notifications', 'Configuration']);
   });
 });

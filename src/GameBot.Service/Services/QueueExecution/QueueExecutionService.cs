@@ -12,6 +12,7 @@ using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.Liveness;
+using GameBot.Service.Services.Notifications;
 using GameBot.Service.Services.SequenceExecution;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -105,6 +106,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// </summary>
   private readonly ISessionLivenessService? _liveness;
 
+  /// <summary>
+  /// Receives one job for each finished queue entry run (feature 120). Optional, so the test
+  /// harnesses keep their constructor calls. When it is null, the queue sends no notification.
+  /// </summary>
+  private readonly INotificationDispatcher? _notifications;
+
   // How often a non-cyclic run re-checks pending relative/live timers while waiting for one to become
   // due. Small enough that a firing lands within roughly an iteration interval of the offset, large
   // enough to avoid a busy-wait. (feature 059)
@@ -148,7 +155,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     QueueFailurePolicyEvaluator? failurePolicy = null,
     IQueueRunStateStore? runState = null,
     ISequenceRunStatisticsStore? runStatistics = null,
-    ISessionLivenessService? liveness = null) {
+    ISessionLivenessService? liveness = null,
+    INotificationDispatcher? notifications = null) {
     _queues = queues;
     _runtime = runtime;
     _templates = templates;
@@ -170,6 +178,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     _runState = runState;
     _runStatistics = runStatistics;
     _liveness = liveness;
+    _notifications = notifications;
   }
 
   public bool IsRunning(string queueId) => _registry.IsRunning(queueId);
@@ -1138,7 +1147,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       startedAt = _timeProvider.GetLocalNow();
       var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, scope, ct: watchdog.Token).ConfigureAwait(false);
       var succeeded = string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
-      await RecordRunAsync(queueId, sequenceId, startedAt, ClassifyResult(succeeded, ct, watchdogTimer.Token)).ConfigureAwait(false);
+      var status = ClassifyResult(succeeded, ct, watchdogTimer.Token);
+      // Feature 120: a run that the time limit ended is a failure for the notification. The stop
+      // request has priority: a stop by the queue is a cancel.
+      var watchdogEnded = status == SequenceRunStatus.Cancelled && !ct.IsCancellationRequested && watchdogTimer.IsCancellationRequested;
+      await RecordRunAsync(queueId, sequenceId, startedAt, status, watchdogEnded).ConfigureAwait(false);
       return succeeded;
     }
     catch (OperationCanceledException) when (ct.IsCancellationRequested) {
@@ -1149,7 +1162,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // Watchdog fired: the sequence overran its bound. Non-fatal — record it and let the run continue
       // so the timeout releases the queue instead of hanging it (FR-008/008b analogue).
       QueueExecutionLog.SequenceWatchdogTimedOut(_logger, sequenceId, (int)watchdogTimeout.TotalSeconds);
-      await RecordRunAsync(queueId, sequenceId, startedAt, SequenceRunStatus.Cancelled).ConfigureAwait(false);
+      await RecordRunAsync(queueId, sequenceId, startedAt, SequenceRunStatus.Cancelled, watchdogEnded: true).ConfigureAwait(false);
       return false;
     }
     catch (Exception ex) {
@@ -1181,16 +1194,38 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
   /// the host is in shutdown: a run that the service stop interrupts has no end. Never throws: a
   /// statistics failure must not change the result of the run.
   /// </summary>
-  private async Task RecordRunAsync(string queueId, string sequenceId, DateTimeOffset? startedAt, SequenceRunStatus status) {
-    if (_runStatistics is null || startedAt is not { } started || _appStopping.IsCancellationRequested) return;
+  private async Task RecordRunAsync(string queueId, string sequenceId, DateTimeOffset? startedAt, SequenceRunStatus status, bool watchdogEnded = false) {
+    if (startedAt is not { } started || _appStopping.IsCancellationRequested) return;
+    var ended = _timeProvider.GetLocalNow();
+    if (_runStatistics is not null) {
+      try {
+        var record = new SequenceRunRecord { StartedAt = started, EndedAt = ended, Status = status };
+        await _runStatistics.RecordAsync(queueId, sequenceId, record, CancellationToken.None).ConfigureAwait(false);
+      }
+      catch (Exception ex) {
+        QueueExecutionLog.RunStatisticsRecordFailed(_logger, queueId, sequenceId, ex);
+      }
+    }
+
+    // Feature 120: one job for each finished queue entry. The host stop returned above, so a queue
+    // stop while the host runs reaches here as a cancel. The hand-off never blocks and never throws.
     try {
-      var record = new SequenceRunRecord { StartedAt = started, EndedAt = _timeProvider.GetLocalNow(), Status = status };
-      await _runStatistics.RecordAsync(queueId, sequenceId, record, CancellationToken.None).ConfigureAwait(false);
+      _notifications?.Enqueue(new QueueNotificationJob(queueId, sequenceId, NotificationStatusFor(status, watchdogEnded), ended));
     }
     catch (Exception ex) {
-      QueueExecutionLog.RunStatisticsRecordFailed(_logger, queueId, sequenceId, ex);
+      QueueExecutionLog.NotificationHandOffFailed(_logger, queueId, sequenceId, ex);
     }
   }
+
+  /// <summary>
+  /// The status that a notification reports (feature 120, research R-008). The statistics keep
+  /// <c>Cancelled</c> for a time-limit stop, but a message reports it as a failure.
+  /// </summary>
+  internal static NotificationRunStatus NotificationStatusFor(SequenceRunStatus status, bool watchdogEnded) => status switch {
+    SequenceRunStatus.Success => NotificationRunStatus.Success,
+    SequenceRunStatus.Failure => NotificationRunStatus.Failure,
+    _ => watchdogEnded ? NotificationRunStatus.Failure : NotificationRunStatus.Cancelled
+  };
 
   /// <summary>
   /// Resolves the watchdog bound for one firing: the sequence's own <c>WatchdogTimeoutMs</c> when it
@@ -1374,4 +1409,7 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1132, Level = LogLevel.Warning, Message = "Queue {QueueId} could not record the run statistics of sequence {SequenceId}. The run continues.")]
   public static partial void RunStatisticsRecordFailed(ILogger logger, string QueueId, string SequenceId, Exception ex);
+
+  [LoggerMessage(EventId = 1133, Level = LogLevel.Warning, Message = "Queue {QueueId} could not hand the notification of sequence {SequenceId} to the dispatcher. The run continues.")]
+  public static partial void NotificationHandOffFailed(ILogger logger, string QueueId, string SequenceId, Exception ex);
 }

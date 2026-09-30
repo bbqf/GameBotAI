@@ -40,5 +40,11 @@ namespace GameBot.Service.Contracts.Queues {
 
     /// <summary>Whether the queue is started again after a service restart if it was running (feature 098).</summary>
     public bool ResumeOnServiceStart { get; set; }
+
+    /// <summary>
+    /// How much the queue tells the operator (feature 120): <c>none</c>, <c>failure</c> or
+    /// <c>successAndFailure</c>. The value is <c>none</c> for a queue that never had a level.
+    /// </summary>
+    public string NotificationLevel { get; set; } = "none";
   }
 }
