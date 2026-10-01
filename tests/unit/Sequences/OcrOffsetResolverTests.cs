@@ -118,6 +118,51 @@ public sealed class OcrOffsetResolverTests {
   }
 
   [Fact]
+  public void LogLineShowsTheDayPart() {
+    var res = Resolver(new FakeFrameSource(), new FakeOcr("1d 23:29:10"))
+      .Resolve("sess", Spec(max: TimeSpan.FromDays(2)));
+    SequenceExecutionService.DescribeOcrOffset(res).Should().Contain("1.23:29:10");
+  }
+
+  [Fact]
+  public void DayRangeOverflowFallsBackAsParseFailed() {
+    var res = Resolver(new FakeFrameSource(), new FakeOcr("2147483647d 00:00:01")).Resolve("sess", Spec());
+    res.Source.Should().Be(OcrOffsetSource.Fallback);
+    res.Reason.Should().Be("parse-failed");
+  }
+
+  [Fact]
+  public void DayPartWithinMaxUsesOcrOffset() {
+    var res = Resolver(new FakeFrameSource(), new FakeOcr("Free in 1d 23:29:10"))
+      .Resolve("sess", Spec(max: TimeSpan.FromDays(2)));
+    res.Source.Should().Be(OcrOffsetSource.Ocr);
+    res.EffectiveOffset.Should().Be(new TimeSpan(1, 23, 29, 10));
+  }
+
+  [Fact]
+  public void DayPartAboveMaxFallsBack() {
+    var res = Resolver(new FakeFrameSource(), new FakeOcr("1d 23:29:10"))
+      .Resolve("sess", Spec(max: TimeSpan.FromDays(1)));
+    res.Source.Should().Be(OcrOffsetSource.Fallback);
+    res.Reason.Should().Be("out-of-bounds");
+  }
+
+  [Fact]
+  public void ReadBelowMinFallsBack() {
+    var res = Resolver(new FakeFrameSource(), new FakeOcr("23:29:10"))
+      .Resolve("sess", Spec(min: TimeSpan.FromDays(1), max: TimeSpan.FromDays(2)));
+    res.Source.Should().Be(OcrOffsetSource.Fallback);
+    res.Reason.Should().Be("out-of-bounds");
+  }
+
+  [Fact]
+  public void DayPartAboveDefaultMaxFallsBack() {
+    var res = Resolver(new FakeFrameSource(), new FakeOcr("1d 23:29:10")).Resolve("sess", Spec());
+    res.Source.Should().Be(OcrOffsetSource.Fallback);
+    res.Reason.Should().Be("out-of-bounds");
+  }
+
+  [Fact]
   public void MmSsReadUsesOcrOffset() {
     var res = Resolver(new FakeFrameSource(), new FakeOcr("01:20")).Resolve("sess", Spec());
     res.Source.Should().Be(OcrOffsetSource.Ocr);
