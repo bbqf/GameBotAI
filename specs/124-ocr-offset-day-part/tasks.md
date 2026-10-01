@@ -21,8 +21,8 @@ description: "Task list for OCR Offset Day Part"
 
 ## Phase 1: Setup
 
-- [ ] T001 Run `dotnet build` for the solution. Run the existing tests in `tests\unit\Sequences\CooldownDurationParserTests.cs` and `tests\unit\Sequences\OcrOffsetResolverTests.cs`. Record that they pass before any change.
-- [ ] T002 Read `src\GameBot.Domain\Commands\SelfReschedule\CooldownDurationParser.cs` and `src\GameBot.Service\Services\SequenceExecution\OcrOffsetResolver.cs`. Find the existing time regex, the `NormalizeDigits` step, the overflow handling, and the min and max check.
+- [X] T001 Run `dotnet build` for the solution. Run the existing tests in `tests\unit\Sequences\CooldownDurationParserTests.cs` and `tests\unit\Sequences\OcrOffsetResolverTests.cs`. Record that they pass before any change.
+- [X] T002 Read `src\GameBot.Domain\Commands\SelfReschedule\CooldownDurationParser.cs` and `src\GameBot.Service\Services\SequenceExecution\OcrOffsetResolver.cs`. Find the existing time regex, the `NormalizeDigits` step, the overflow handling, and the min and max check.
 
 ## Phase 2: Foundational
 
@@ -36,17 +36,17 @@ No blocking prerequisite. The parser signature `TryParse(string?, out TimeSpan)`
 
 ### Tests for User Story 1
 
-- [ ] T003 [US1] In `tests\unit\Sequences\CooldownDurationParserTests.cs`, add tests for "1d 23:29:10", "Free in 1d 23:29:10", "1d23:29:10" (no space), "1D 23:29:10" (upper case), "11d 23:29:10" (11 days), and "1d 05:30" (1 day 5 minutes 30 seconds). Expected values include the day part (FR-001, FR-002, FR-004, FR-007).
-- [ ] T004 [US1] In `tests\unit\Sequences\CooldownDurationParserTests.cs`, add tests for text where the day token does not count. Each gives 23:29:10, the same as before this change: "Reward 23:29:10", "3days 23:29:10", "23:29:10 1d", "1d left 23:29:10", "1w 23:29:10", and "1 d 23:29:10" (FR-005, FR-006, FR-014).
-- [ ] T005 [US1] In `tests\unit\Sequences\CooldownDurationParserTests.cs`, add two separate overflow tests. Case 1 (integer overflow): "999999999999d 00:00:01". Case 2 (range overflow): "2147483647d 00:00:01" (the day count fits in an integer, but the total is outside the `TimeSpan` range). For each, `TryParse` MUST return `false` and MUST NOT throw (FR-009).
-- [ ] T006 [US1] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add a test for the "offset source ocr" log line: OCR text "1d 23:29:10" with `max` "2.00:00:00" writes a log line that shows the parsed value with the day part ("1.23:29:10"). Assert the log text only. Do not assert the booked offset here (T011 owns it) (FR-011, SC-006).
-- [ ] T007 [US1] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add a test: OCR text "2147483647d 00:00:01" uses the fallback offset with reason "parse-failed", and the reason is not "ocr-error" (range overflow, FR-009).
+- [X] T003 [US1] In `tests\unit\Sequences\CooldownDurationParserTests.cs`, add tests for "1d 23:29:10", "Free in 1d 23:29:10", "1d23:29:10" (no space), "1D 23:29:10" (upper case), "11d 23:29:10" (11 days), and "1d 05:30" (1 day 5 minutes 30 seconds). Expected values include the day part (FR-001, FR-002, FR-004, FR-007).
+- [X] T004 [US1] In `tests\unit\Sequences\CooldownDurationParserTests.cs`, add tests for text where the day token does not count. Each gives 23:29:10, the same as before this change: "Reward 23:29:10", "3days 23:29:10", "23:29:10 1d", "1d left 23:29:10", "1w 23:29:10", and "1 d 23:29:10" (FR-005, FR-006, FR-014).
+- [X] T005 [US1] In `tests\unit\Sequences\CooldownDurationParserTests.cs`, add two separate overflow tests. Case 1 (integer overflow): "999999999999d 00:00:01". Case 2 (range overflow): "2147483647d 00:00:01" (the day count fits in an integer, but the total is outside the `TimeSpan` range). For each, `TryParse` MUST return `false` and MUST NOT throw (FR-009).
+- [X] T006 [US1] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add a test for the "offset source ocr" log line: OCR text "1d 23:29:10" with `max` "2.00:00:00" writes a log line that shows the parsed value with the day part ("1.23:29:10"). Assert the log text only. Do not assert the booked offset here (T011 owns it) (FR-011, SC-006).
+- [X] T007 [US1] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add a test: OCR text "2147483647d 00:00:01" uses the fallback offset with reason "parse-failed", and the reason is not "ocr-error" (range overflow, FR-009).
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] In `src\GameBot.Domain\Commands\SelfReschedule\CooldownDurationParser.cs`, add the day regex `(?<![A-Za-z0-9])(\d+)[dD](?![A-Za-z])` with the same culture-invariant option and 200 ms timeout. Match it on the text after `NormalizeDigits` (the digit fix runs first). Find the first time token with the existing regex. If a time token exists, match the day regex at the end of the text before it, with only white space after the day token (`\s*\z`). If it matches, add the days. Parse the day digits with `int.TryParse` and return `false` when it fails. Compute `days * 86400 + hours * 3600 + minutes * 60 + seconds` in a `checked` block. Catch `OverflowException` and `ArgumentOutOfRangeException` and return `false`. Results for text without a day part MUST stay the same (FR-008, FR-009).
-- [ ] T009 [US1] In `src\GameBot.Domain\Commands\SelfReschedule\CooldownDurationParser.cs`, update the XML comment of `CooldownDurationParser`. Describe the day part, the optional white space, the case-insensitive "d", the rule that the day token is directly before the time token, the digit fix that runs first, and the two overflow failures.
-- [ ] T010 [US1] Run the tests in `tests\unit\Sequences`. Make T003 to T007 pass.
+- [X] T008 [US1] In `src\GameBot.Domain\Commands\SelfReschedule\CooldownDurationParser.cs`, add the day regex `(?<![A-Za-z0-9])(\d+)[dD](?![A-Za-z])` with the same culture-invariant option and 200 ms timeout. Match it on the text after `NormalizeDigits` (the digit fix runs first). Find the first time token with the existing regex. If a time token exists, match the day regex at the end of the text before it, with only white space after the day token (`\s*\z`). If it matches, add the days. Parse the day digits with `int.TryParse` and return `false` when it fails. Compute `days * 86400 + hours * 3600 + minutes * 60 + seconds` in a `checked` block. Catch `OverflowException` and `ArgumentOutOfRangeException` and return `false`. Results for text without a day part MUST stay the same (FR-008, FR-009).
+- [X] T009 [US1] In `src\GameBot.Domain\Commands\SelfReschedule\CooldownDurationParser.cs`, update the XML comment of `CooldownDurationParser`. Describe the day part, the optional white space, the case-insensitive "d", the rule that the day token is directly before the time token, the digit fix that runs first, and the two overflow failures.
+- [X] T010 [US1] Run the tests in `tests\unit\Sequences`. Make T003 to T007 pass.
 
 **Checkpoint**: User Story 1 works alone.
 
@@ -56,7 +56,7 @@ No blocking prerequisite. The parser signature `TryParse(string?, out TimeSpan)`
 
 **Independent Test**: All existing parser tests pass with no change to expected values.
 
-- [ ] T011 [US2] Check that no existing expected value in `tests\unit\Sequences\CooldownDurationParserTests.cs` changed. If a test for "23:29:10", "05:30", or text with no duration is missing, add it with the old result. Run the full parser test class (FR-008, SC-003).
+- [X] T011 [US2] Check that no existing expected value in `tests\unit\Sequences\CooldownDurationParserTests.cs` changed. If a test for "23:29:10", "05:30", or text with no duration is missing, add it with the old result. Run the full parser test class (FR-008, SC-003).
 
 **Checkpoint**: No regression.
 
@@ -66,10 +66,10 @@ No blocking prerequisite. The parser signature `TryParse(string?, out TimeSpan)`
 
 **Independent Test**: "1d 23:29:10" with `max` "2.00:00:00" stays 1 day 23:29:10.
 
-- [ ] T012 [US3] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add a test: `max` "2.00:00:00" and text "Free in 1d 23:29:10" gives source Ocr and a booking of 1 day 23:29:10 ahead of now, not changed (US1 scenario 3, US3 scenario 1, SC-001, SC-005). Assert the result only. Do not assert the log text.
-- [ ] T013 [US3] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add a test: `max` "1.00:00:00" and text "1d 23:29:10" uses the fallback with reason "out-of-bounds". The resolver does not clamp.
-- [ ] T014 [US3] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add two tests: `min` "1.00:00:00" and text "23:29:10" uses the fallback with reason "out-of-bounds"; the default `max` (24:00:00) and text "1d 23:29:10" uses the fallback with reason "out-of-bounds".
-- [ ] T015 [US3] Run the resolver tests. If a test fails, fix the cause only in the parser. Do not change `OcrOffsetResolver.cs` unless the test proves a defect.
+- [X] T012 [US3] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add a test: `max` "2.00:00:00" and text "Free in 1d 23:29:10" gives source Ocr and a booking of 1 day 23:29:10 ahead of now, not changed (US1 scenario 3, US3 scenario 1, SC-001, SC-005). Assert the result only. Do not assert the log text.
+- [X] T013 [US3] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add a test: `max` "1.00:00:00" and text "1d 23:29:10" uses the fallback with reason "out-of-bounds". The resolver does not clamp.
+- [X] T014 [US3] In `tests\unit\Sequences\OcrOffsetResolverTests.cs`, add two tests: `min` "1.00:00:00" and text "23:29:10" uses the fallback with reason "out-of-bounds"; the default `max` (24:00:00) and text "1d 23:29:10" uses the fallback with reason "out-of-bounds".
+- [X] T015 [US3] Run the resolver tests. If a test fails, fix the cause only in the parser. Do not change `OcrOffsetResolver.cs` unless the test proves a defect.
 
 **Checkpoint**: Limits work on the total.
 
@@ -79,18 +79,18 @@ No blocking prerequisite. The parser signature `TryParse(string?, out TimeSpan)`
 
 **Independent Test**: `TryParse("2d")` gives 2 days.
 
-- [ ] T016 [US4] In `tests\unit\Sequences\CooldownDurationParserTests.cs`, add tests: "2d" and "Free in 2d" give 2 days. "Reward" and "3days" give a parse failure. A lone "Id" and a lone "ld" give 1 day, because the digit fix runs first and changes them to "1d" (the accepted OCR risk in research.md Decision 3) (FR-003, FR-005).
-- [ ] T017 [US4] In `src\GameBot.Domain\Commands\SelfReschedule\CooldownDurationParser.cs`, when the text has no time token, return the first day token (after the digit fix) as N days, with the same overflow handling as T008. Make T016 pass.
+- [X] T016 [US4] In `tests\unit\Sequences\CooldownDurationParserTests.cs`, add tests: "2d" and "Free in 2d" give 2 days. "Reward" and "3days" give a parse failure. A lone "Id" and a lone "ld" give 1 day, because the digit fix runs first and changes them to "1d" (the accepted OCR risk in research.md Decision 3) (FR-003, FR-005).
+- [X] T017 [US4] In `src\GameBot.Domain\Commands\SelfReschedule\CooldownDurationParser.cs`, when the text has no time token, return the first day token (after the digit fix) as N days, with the same overflow handling as T008. Make T016 pass.
 
 **Checkpoint**: All stories work.
 
 ## Phase 7: Polish and Cross-Cutting Concerns
 
-- [ ] T018 [P] In `src\GameBot.Service\Swagger\PrimitiveActionSchemaFilter.cs`, change the `RescheduleSelf` `ocrOffset` description. State that the OCR text can have a day part "<N>d" before the time, and that `max` (default 24:00:00) must allow a read of one day or more, for example "2.00:00:00". Use STE (FR-012).
-- [ ] T019 [P] Search `docs\architecture.md` for a statement of the OCR text format. If it states the format, add the day part and refresh its "Last reviewed" date. If not, make no change.
-- [ ] T020 Search `tests` for a test of the `PrimitiveActionSchemaFilter` `RescheduleSelf` text. If one exists, update it for the new text (the same file as T018, so run after T018). If none exists, add no test.
-- [ ] T021 Check that `SelfReschedulePayload.cs`, `SequenceStepValidationService.cs`, `OcrOffsetResolver.cs`, and the other offset sources need no change (FR-013, FR-014). Set the spec `Status` in `specs\124-ocr-offset-day-part\spec.md` at the end of the work.
-- [ ] T022 Run the steps in `specs\124-ocr-offset-day-part\quickstart.md`. Run `dotnet build` and `dotnet test` for the solution. All tests MUST pass.
+- [X] T018 [P] In `src\GameBot.Service\Swagger\PrimitiveActionSchemaFilter.cs`, change the `RescheduleSelf` `ocrOffset` description. State that the OCR text can have a day part "<N>d" before the time, and that `max` (default 24:00:00) must allow a read of one day or more, for example "2.00:00:00". Use STE (FR-012).
+- [X] T019 [P] Search `docs\architecture.md` for a statement of the OCR text format. If it states the format, add the day part and refresh its "Last reviewed" date. If not, make no change.
+- [X] T020 Search `tests` for a test of the `PrimitiveActionSchemaFilter` `RescheduleSelf` text. If one exists, update it for the new text (the same file as T018, so run after T018). If none exists, add no test.
+- [X] T021 Check that `SelfReschedulePayload.cs`, `SequenceStepValidationService.cs`, `OcrOffsetResolver.cs`, and the other offset sources need no change (FR-013, FR-014). Set the spec `Status` in `specs\124-ocr-offset-day-part\spec.md` at the end of the work.
+- [X] T022 Run the steps in `specs\124-ocr-offset-day-part\quickstart.md`. Run `dotnet build` and `dotnet test` for the solution. All tests MUST pass.
 
 ## Dependencies and Execution Order
 

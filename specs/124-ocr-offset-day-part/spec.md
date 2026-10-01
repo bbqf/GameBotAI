@@ -2,7 +2,7 @@
 
 **Feature Branch**: `124-ocr-offset-day-part`  
 **Created**: 2026-10-01  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Let the OCR duration parser of reschedule-self ocrOffset read a day part (GitHub issue #256). Closes #256."
 
 ## Clarifications
