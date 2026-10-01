@@ -27,6 +27,23 @@ internal sealed record SelfRescheduleResult(
   DateTimeOffset? FireAt,
   string ResolvedTiming);
 
+/// <summary>Result kinds of a Cancel request (feature 123).</summary>
+internal enum SelfRescheduleCancelOutcome {
+  /// <summary>At least one pending booking of the sequence was removed.</summary>
+  Cancelled,
+
+  /// <summary>The run is active, but the sequence had no pending booking.</summary>
+  NothingPending,
+
+  /// <summary>No active run for the queue (race: the run ended mid-sequence).</summary>
+  NotRunning
+}
+
+/// <summary>Outcome of a Cancel request and the number of bookings that it removed.</summary>
+/// <param name="Outcome">What the request found.</param>
+/// <param name="RemovedCount">Number of bookings removed (0 unless <see cref="SelfRescheduleCancelOutcome.Cancelled"/>).</param>
+internal sealed record SelfRescheduleCancelResult(SelfRescheduleCancelOutcome Outcome, int RemovedCount);
+
 /// <summary>
 /// Injects one ephemeral, run-scoped additional firing of a sequence into its originating queue run
 /// (feature 065). Depends only on the run registry, the sequence repository, and a
@@ -54,4 +71,12 @@ internal interface ISelfRescheduleCoordinator {
     TimeOnly? timerTimeOfDay,
     TimeSpan? timerRelativeOffset,
     GameBot.Domain.Parameters.ParameterScope? scope = null);
+
+  /// <summary>
+  /// Removes the pending one-time bookings of <paramref name="sequenceId"/> from the active run of
+  /// <paramref name="queueId"/> (feature 123). It never throws for a missing run or booking.
+  /// </summary>
+  /// <param name="queueId">The queue of the active run.</param>
+  /// <param name="sequenceId">The owner sequence of the bookings.</param>
+  SelfRescheduleCancelResult CancelSelf(string queueId, string sequenceId);
 }

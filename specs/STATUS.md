@@ -157,6 +157,7 @@ Status vocabulary:
 | 120 | Queue Sequence Notifications | Implemented |
 | 121 | Device Not-Live Alert, Optional Recovery, and Capture Pile-Up Guard | Implemented |
 | 122 | Exclude Helper Sequences From Success Notifications | Implemented |
+| 123 | Reschedule-Self Cancel | Implemented |
 
 ## Numbering notes
 

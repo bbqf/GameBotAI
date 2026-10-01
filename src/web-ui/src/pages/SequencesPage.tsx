@@ -25,7 +25,7 @@ import type { ActionStepEntry, LoopStepEntry, BreakStepEntry, IfStepEntry, StepE
 import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
 import { ImageSelectorDropdown } from '../components/images/ImageSelectorDropdown';
 
-type RescheduleOption = 'AtQueueStart' | 'OncePerRun' | 'Timer' | 'EveryStep';
+type RescheduleOption = 'AtQueueStart' | 'OncePerRun' | 'Timer' | 'EveryStep' | 'Cancel';
 
 type SequenceStep = {
   id: string;
@@ -69,7 +69,8 @@ const RESCHEDULE_OPTIONS: ReadonlyArray<{ value: RescheduleOption; label: string
   { value: 'AtQueueStart', label: 'At Queue Start' },
   { value: 'OncePerRun', label: 'Once Per Run' },
   { value: 'Timer', label: 'Timer' },
-  { value: 'EveryStep', label: 'After Every Step' }
+  { value: 'EveryStep', label: 'After Every Step' },
+  { value: 'Cancel', label: 'Cancel pending booking' }
 ];
 
 const createDefaultRescheduleStep = (stepId: string): SequenceStep => ({

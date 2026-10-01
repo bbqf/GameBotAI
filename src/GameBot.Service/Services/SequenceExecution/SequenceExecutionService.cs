@@ -479,7 +479,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       var isRescheduleStep =
         string.Equals(stepById?.Action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)
         || string.Equals(actionOutcome, "scheduled", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(actionOutcome, "noop", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(actionOutcome, "noop", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(actionOutcome, "cancelled", StringComparison.OrdinalIgnoreCase);
       if (isRescheduleStep) {
         string? option = null;
         if (stepById?.Action is not null
@@ -487,12 +488,7 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
             && reschedulePayload is not null) {
           option = reschedulePayload.Option.ToString();
         }
-        detailItems.Add(new ExecutionDetailItem(
-          "step",
-          !string.IsNullOrWhiteSpace(step.Message)
-            ? $"Self-reschedule '{stepLabel}' {actionOutcome}: {step.Message}"
-            : $"Self-reschedule '{stepLabel}' {actionOutcome}.",
-          new Dictionary<string, object?> {
+        var rescheduleDetail = new Dictionary<string, object?> {
             ["stepOrder"] = stepOrder++,
             ["stepType"] = "reschedule-self",
             ["status"] = step.Status,
@@ -506,7 +502,17 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
             ["sequenceLabel"] = sequenceName,
             ["stepId"] = stepId,
             ["stepLabel"] = stepLabel
-          },
+        };
+        // Feature 123: only the Cancel option reports whether it removed a booking.
+        if (step.Removed is { } removedFlag) {
+          rescheduleDetail["removed"] = removedFlag;
+        }
+        detailItems.Add(new ExecutionDetailItem(
+          "step",
+          !string.IsNullOrWhiteSpace(step.Message)
+            ? $"Self-reschedule '{stepLabel}' {actionOutcome}: {step.Message}"
+            : $"Self-reschedule '{stepLabel}' {actionOutcome}.",
+          rescheduleDetail,
           "normal"));
         continue;
       }
@@ -722,12 +728,35 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       string? originatingQueueId,
       string? sessionId,
       GameBot.Domain.Parameters.ParameterScope scope) {
+    var isCancel = SelfReschedulePayload.TryRead(action, out var peek, out _)
+      && peek is not null
+      && peek.Option == SelfRescheduleOption.Cancel;
+
     if (string.IsNullOrWhiteSpace(originatingQueueId)) {
-      return new ActionDispatchResult("noop", "no originating queue, no reschedule performed");
+      return new ActionDispatchResult(
+        "noop",
+        "no originating queue, no reschedule performed",
+        isCancel ? false : null);
     }
 
     if (!SelfReschedulePayload.TryRead(action, out var payload, out var parseError) || payload is null) {
       return new ActionDispatchResult("noop", $"self-reschedule not performed: {parseError}");
+    }
+
+    // Feature 123: Cancel removes the pending bookings of the owner sequence. It never fails the run.
+    if (payload.Option == SelfRescheduleOption.Cancel) {
+      var cancel = _selfRescheduleCoordinator.CancelSelf(originatingQueueId!, sequenceId);
+      return cancel.Outcome switch {
+        SelfRescheduleCancelOutcome.Cancelled => new ActionDispatchResult(
+          "cancelled",
+          $"removed {cancel.RemovedCount} pending booking(s) of this sequence; applies to the current run only",
+          true),
+        SelfRescheduleCancelOutcome.NotRunning => new ActionDispatchResult(
+          "noop",
+          "originating queue run no longer active; nothing to cancel",
+          false),
+        _ => new ActionDispatchResult("noop", "no pending booking of this sequence; nothing to cancel", false)
+      };
     }
 
     // feature 068: when an ocrOffset spec is present (Timer), derive the relative offset at runtime

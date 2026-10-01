@@ -114,7 +114,7 @@ public sealed class RescheduleSelfUnknownFieldValidationTests {
   public void BogusOptionKeepsItsMessageAndGivesNoUnknownFieldError() {
     var errors = Validate(Payload(("option", "Bogus")));
     errors.Should().ContainSingle()
-      .Which.Should().Contain("option 'Bogus' is not a known schedule option (expected one of AtQueueStart, OncePerRun, Timer, EveryStep)");
+      .Which.Should().Contain("option 'Bogus' is not a known schedule option (expected one of AtQueueStart, OncePerRun, Timer, EveryStep, Cancel)");
     errors.Should().NotContain(e => e.Contains("unknown field"));
   }
 

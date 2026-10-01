@@ -622,7 +622,8 @@ namespace GameBot.Domain.Services {
             conditionType: step.Condition is null ? null : step.Condition.Type,
             conditionResult: step.Condition is null ? null : "true",
             actionOutcome: dispatch.Outcome,
-            message: dispatch.Message);
+            message: dispatch.Message,
+            removed: dispatch.Removed);
         if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
         return false;
       }
@@ -2386,7 +2387,8 @@ namespace GameBot.Domain.Services {
         string? actionOutcome = null,
         string? message = null,
         WaitForImageStepResultDetails? waitForImageDetails = null,
-        string? stepId = null) {
+        string? stepId = null,
+        bool? removed = null) {
       _steps.Add(new StepResult {
         CommandId = commandId,
         StepId = stepId,
@@ -2398,6 +2400,7 @@ namespace GameBot.Domain.Services {
         ConditionResult = conditionResult,
         ActionOutcome = actionOutcome,
         Message = message,
+        Removed = removed,
         WaitForImageDetails = waitForImageDetails
       });
     }
@@ -2498,6 +2501,8 @@ namespace GameBot.Domain.Services {
     public string? ConditionResult { get; set; }
     public string? ActionOutcome { get; set; }
     public string? Message { get; set; }
+    /// <summary>For a reschedule-self Cancel step: true if a booking was removed. Null for other steps.</summary>
+    public bool? Removed { get; set; }
     public WaitForImageStepResultDetails? WaitForImageDetails { get; set; }
     /// <summary>Per-iteration results for loop steps; null for non-loop steps.</summary>
     public IReadOnlyList<LoopIterResult>? LoopIterations { get; set; }

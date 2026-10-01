@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-01 (feature 122: sequence option to exclude success notifications;
+_Last reviewed: 2026-10-01 (feature 123: reschedule-self option `Cancel`;
+feature 122: sequence option to exclude success notifications;
 feature 121: device not-live alert, optional recovery, capture gate;
 feature 120: queue sequence notifications; feature 118: the queue-template
 endpoint and the sequence validator accept `timerTimeOfDay` in the same two forms, `HH:mm` and
@@ -228,6 +229,15 @@ not survive a service restart; queue *configuration* and templates are persisted
   and merges each entry's schedule+enabled from the template detail by position), so disabled entries
   stay visible and re-enableable. Toggling takes effect on the next run start. Exposed as an on/off
   switch per card in the template editor; persisted via the normal template save.
+- **Self-reschedule Cancel** (feature 123) — the `reschedule-self` option `Cancel` removes the pending
+  Timer, Once Per Run and At Queue Start bookings of the owner sequence in the current queue run. It
+  also stops a Once Per Run booking that the run loop already copied for firing but did not start (the
+  handle keeps an in-flight list and a cancelled-id set). It keeps After Every Step registrations, live
+  schedules, queue template entries and the bookings of other sequences. A booking made after Cancel
+  stays (last booking wins). Cancel never fails the run: outcome `cancelled` with `removed` true, or
+  `noop` with `removed` false (nothing pending, no queue, queue run not active). The execution log of
+  the step has the `removed` field. Cancel with `timerTimeOfDay`, `timerRelativeOffset` or `ocrOffset`
+  is a 400 on create, update and PATCH.
 - **Self-reschedule action** (within a sequence) — an authorable sequence action (`reschedule-self`,
   placeable under IF/conditional flow) that, when reached during a queue-driven run, schedules **one
   additional firing of the same sequence into the current run** using any of the schedule options

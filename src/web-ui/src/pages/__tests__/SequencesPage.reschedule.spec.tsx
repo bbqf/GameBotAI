@@ -81,7 +81,7 @@ describe('SequencesPage self-reschedule action (feature 065)', () => {
 
     const optionSelect = screen.getByLabelText('Reschedule option');
     const optionLabels = Array.from(optionSelect.querySelectorAll('option')).map((o) => o.textContent);
-    expect(optionLabels).toEqual(['At Queue Start', 'Once Per Run', 'Timer', 'After Every Step']);
+    expect(optionLabels).toEqual(['At Queue Start', 'Once Per Run', 'Timer', 'After Every Step', 'Cancel pending booking']);
 
     // Timer mode is hidden until Timer is selected.
     expect(screen.queryByLabelText('Timer mode')).not.toBeInTheDocument();
@@ -123,6 +123,54 @@ describe('SequencesPage self-reschedule action (feature 065)', () => {
     // The existing reschedule step loaded its option and timer field back into the editor.
     expect(screen.getByLabelText('Reschedule option')).toHaveValue('Timer');
     expect(screen.getByLabelText('Relative offset (HH:mm:ss)')).toHaveValue('00:15:00');
+  });
+
+  it('feature 123: Cancel hides the timer fields and serializes with no timer field', async () => {
+    render(<SequencesPage />);
+    await waitFor(() => expect(listSequencesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Create Sequence'));
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Reschedule cancel' } });
+    fireEvent.click(screen.getByText('Add reschedule step'));
+
+    const optionSelect = screen.getByLabelText('Reschedule option');
+    fireEvent.change(optionSelect, { target: { value: 'Timer' } });
+    expect(screen.getByLabelText('Timer mode')).toBeInTheDocument();
+
+    fireEvent.change(optionSelect, { target: { value: 'Cancel' } });
+    expect(screen.queryByLabelText('Timer mode')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Relative offset (HH:mm:ss)')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(createSequenceMock).toHaveBeenCalled());
+    const body = createSequenceMock.mock.calls[0][0] as any;
+    const payload = body.steps[0].primitiveAction.payload;
+    expect(payload).toEqual({ option: 'Cancel' });
+  });
+
+  it('feature 123: a loaded Cancel step shows the Cancel option', async () => {
+    listSequencesMock.mockResolvedValue([{ id: 'seq-c', name: 'Existing cancel', steps: [] }] as any);
+    getSequenceMock.mockResolvedValue({
+      id: 'seq-c',
+      name: 'Existing cancel',
+      version: 1,
+      steps: [
+        {
+          stepId: 'step-1',
+          stepType: 'Action',
+          primitiveAction: { type: 'reschedule-self', schemaVersion: '1', payload: { option: 'Cancel' } },
+          condition: null
+        }
+      ]
+    } as any);
+
+    render(<SequencesPage />);
+    await screen.findByText('Existing cancel');
+    fireEvent.click(screen.getByText('Existing cancel'));
+
+    expect(await screen.findByLabelText('Reschedule option')).toHaveValue('Cancel');
+    expect(screen.queryByLabelText('Timer mode')).not.toBeInTheDocument();
   });
 
   it('T035: Timer relative offset serializes the single timer field', async () => {

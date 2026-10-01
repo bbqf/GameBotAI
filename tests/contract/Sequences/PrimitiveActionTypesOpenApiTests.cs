@@ -156,6 +156,17 @@ public sealed class PrimitiveActionTypesOpenApiTests {
     }
   }
 
+  [Fact] // feature 123 (FR-013, SC-005)
+  public async Task RescheduleSelfPayloadDescribesCancel() {
+    var section = PayloadSection(await PayloadDescriptionAsync().ConfigureAwait(false), "reschedule-self");
+
+    foreach (var expected in new[] {
+      "Cancel", "cancelled", "noop", "removed", "never fails the run", "copied for firing", "last booking wins"
+    }) {
+      section.Should().Contain(expected);
+    }
+  }
+
   [Fact]
   public async Task RescheduleSelfTimeOfDayNamesTheAcceptedFormat() {
     var section = PayloadSection(await PayloadDescriptionAsync().ConfigureAwait(false), "reschedule-self");

@@ -352,7 +352,7 @@ public sealed class SelfRescheduleActionContractTests {
 
     response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     (await response.Content.ReadAsStringAsync().ConfigureAwait(false))
-      .Should().Contain("is not a known schedule option (expected one of AtQueueStart, OncePerRun, Timer, EveryStep)");
+      .Should().Contain("is not a known schedule option (expected one of AtQueueStart, OncePerRun, Timer, EveryStep, Cancel)");
   }
 
   [Fact]

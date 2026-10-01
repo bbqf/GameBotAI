@@ -138,7 +138,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
 
   // Feature 106: the ID prefix of an at-queue-start entry that a liveness hold moved to the
   // next-cycle-start register. No self-reschedule action made such an entry.
-  private const string AtQueueStartHoldIdPrefix = "at-queue-start:";
+  private const string AtQueueStartHoldIdPrefix = QueueRunHandle.AtQueueStartHoldIdPrefix;
 
   public QueueExecutionService(
     IQueueRepository queues,
@@ -737,16 +737,25 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   var oncePerRunReschedules = new List<SelfRescheduleEntry>();
                   while (handle.PendingOncePerRun.TryDequeue(out var oprEntry)) oncePerRunReschedules.Add(oprEntry);
                   var heldReschedules = new List<SelfRescheduleEntry>();
-                  foreach (var oprFiring in oncePerRunReschedules) {
-                    var oprResult = await FireGroupAsync(oprFiring.SequenceId, oprFiring.Scope ?? queueScope, beforeEachRun: true, oprFiring.Id).ConfigureAwait(false);
-                    if (oprResult is not { } oprOk) {
-                      heldReschedules.Add(oprFiring);
-                      continue;
+                  // Feature 123: a Cancel step can remove a booking that is in this copy. The handle
+                  // marks it, and the loop skips it (no firing, no count, no hold).
+                  handle.BeginOncePerRunDrain(oncePerRunReschedules);
+                  try {
+                    foreach (var oprFiring in oncePerRunReschedules) {
+                      if (handle.TryConsumeCancelled(oprFiring.Id)) continue;
+                      var oprResult = await FireGroupAsync(oprFiring.SequenceId, oprFiring.Scope ?? queueScope, beforeEachRun: true, oprFiring.Id).ConfigureAwait(false);
+                      if (oprResult is not { } oprOk) {
+                        heldReschedules.Add(oprFiring);
+                        continue;
+                      }
+                      executed++;
+                      if (!oprOk) failed++;
+                      handle.Cycles.RecordEntry(oprFiring.SequenceId, oprOk);
+                      await RunEveryStepPassAsync().ConfigureAwait(false);
                     }
-                    executed++;
-                    if (!oprOk) failed++;
-                    handle.Cycles.RecordEntry(oprFiring.SequenceId, oprOk);
-                    await RunEveryStepPassAsync().ConfigureAwait(false);
+                  }
+                  finally {
+                    handle.EndOncePerRunDrain();
                   }
                   // Feature 106: held once-per-run firings stay queued.
                   foreach (var heldFiring in heldReschedules) handle.PendingOncePerRun.Enqueue(heldFiring);

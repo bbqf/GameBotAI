@@ -469,11 +469,17 @@ public sealed class SequenceStepValidationService {
         errors.Add($"Step '{stepLabel}' reschedule-self timerRelativeOffset must be between 00:00:00 and 24:00:00.");
       }
     }
-    else if (payload.HasTimerTimeOfDay || payload.HasTimerRelativeOffset) {
-      errors.Add($"Step '{stepLabel}' reschedule-self timer fields are only valid when option is Timer.");
-    }
-    else if (payload.HasOcrOffset) {
-      errors.Add($"Step '{stepLabel}' reschedule-self ocrOffset is only valid when option is Timer.");
+    else {
+      // Each field gets its own error, so the author sees which field to remove (feature 123).
+      if (payload.HasTimerTimeOfDay) {
+        errors.Add($"Step '{stepLabel}' reschedule-self timerTimeOfDay is only valid when option is Timer.");
+      }
+      if (payload.HasTimerRelativeOffset) {
+        errors.Add($"Step '{stepLabel}' reschedule-self timerRelativeOffset is only valid when option is Timer.");
+      }
+      if (payload.HasOcrOffset) {
+        errors.Add($"Step '{stepLabel}' reschedule-self ocrOffset is only valid when option is Timer.");
+      }
     }
   }
 

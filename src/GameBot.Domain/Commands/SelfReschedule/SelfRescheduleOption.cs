@@ -16,5 +16,8 @@ public enum SelfRescheduleOption {
   Timer,
 
   /// <summary>Register to fire after each subsequent normal step (loop-safe). FR-008.</summary>
-  EveryStep
+  EveryStep,
+
+  /// <summary>Remove the pending one-time bookings of the owner sequence in the current queue run. Feature 123.</summary>
+  Cancel
 }

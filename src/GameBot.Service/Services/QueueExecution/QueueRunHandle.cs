@@ -405,6 +405,93 @@ internal sealed class QueueRunHandle {
     }
   }
 
+  // ── Cancel of pending bookings (feature 123) ─────────────────────────────────────────────────
+
+  /// <summary>
+  /// Id prefix of an at-queue-start entry that a liveness hold moved to the next-cycle register. These
+  /// entries come from the queue template, not from a self-reschedule action. Cancel keeps them.
+  /// </summary>
+  public const string AtQueueStartHoldIdPrefix = "at-queue-start:";
+
+  private readonly object _drainLock = new();
+  private List<SelfRescheduleEntry>? _inFlightOncePerRun;
+  private readonly HashSet<string> _cancelledInFlightIds = new(StringComparer.Ordinal);
+
+  /// <summary>
+  /// Records the once-per-run firings that the run loop copied out of <see cref="PendingOncePerRun"/>
+  /// and is about to fire. A Cancel can then stop a copied firing that did not start yet.
+  /// </summary>
+  public void BeginOncePerRunDrain(IReadOnlyList<SelfRescheduleEntry> entries) {
+    ArgumentNullException.ThrowIfNull(entries);
+    lock (_drainLock) {
+      _inFlightOncePerRun = new List<SelfRescheduleEntry>(entries);
+      _cancelledInFlightIds.Clear();
+    }
+  }
+
+  /// <summary>Ends the once-per-run drain and clears the in-flight list and the cancelled ids.</summary>
+  public void EndOncePerRunDrain() {
+    lock (_drainLock) {
+      _inFlightOncePerRun = null;
+      _cancelledInFlightIds.Clear();
+    }
+  }
+
+  /// <summary>
+  /// Call this before the drain fires an entry. Returns true when a Cancel marked the entry, so the
+  /// loop must skip it. In all cases the entry is no longer in flight after this call, so a Cancel
+  /// from the firing itself does not count the entry that is running.
+  /// </summary>
+  public bool TryConsumeCancelled(string entryId) {
+    lock (_drainLock) {
+      _inFlightOncePerRun?.RemoveAll(x => string.Equals(x.Id, entryId, StringComparison.Ordinal));
+      return _cancelledInFlightIds.Remove(entryId);
+    }
+  }
+
+  /// <summary>
+  /// Removes all pending one-time bookings of <paramref name="sequenceId"/>: Timer, once-per-run and
+  /// next-cycle-start entries. It also marks the in-flight once-per-run entries of the sequence, so the
+  /// drain skips them. It keeps every-step injections, live schedules, template hold entries and the
+  /// bookings of other sequences, in their old order. Returns the number of bookings removed.
+  /// </summary>
+  public int RemovePendingBookings(string sequenceId) {
+    var removed = 0;
+    lock (_timerLock) {
+      removed += _pendingTimerFirings.RemoveAll(x => string.Equals(x.SequenceId, sequenceId, StringComparison.Ordinal));
+    }
+    removed += RemoveFromQueue(PendingOncePerRun, sequenceId);
+    removed += RemoveFromQueue(PendingNextCycleStart, sequenceId);
+    lock (_drainLock) {
+      if (_inFlightOncePerRun is not null) {
+        foreach (var entry in _inFlightOncePerRun) {
+          if (string.Equals(entry.SequenceId, sequenceId, StringComparison.Ordinal)
+              && _cancelledInFlightIds.Add(entry.Id)) {
+            removed++;
+          }
+        }
+      }
+    }
+    return removed;
+  }
+
+  private static int RemoveFromQueue(ConcurrentQueue<SelfRescheduleEntry> queue, string sequenceId) {
+    var kept = new List<SelfRescheduleEntry>();
+    var removed = 0;
+    var count = queue.Count;
+    for (var i = 0; i < count && queue.TryDequeue(out var entry); i++) {
+      var isHold = entry.Id.StartsWith(AtQueueStartHoldIdPrefix, StringComparison.Ordinal);
+      if (!isHold && string.Equals(entry.SequenceId, sequenceId, StringComparison.Ordinal)) {
+        removed++;
+      }
+      else {
+        kept.Add(entry);
+      }
+    }
+    foreach (var entry in kept) queue.Enqueue(entry);
+    return removed;
+  }
+
   /// <summary>True while any Timer firing is still pending (keeps a non-cycling run alive to honor it).</summary>
   public bool HasPendingTimerFirings {
     get { lock (_timerLock) { return _pendingTimerFirings.Count > 0; } }
