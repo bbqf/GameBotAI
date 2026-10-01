@@ -30,6 +30,12 @@ internal sealed record SequenceUpsertContract {
   public IReadOnlyList<ParameterDeclarationDto>? Parameters { get; init; }
 
   /// <summary>
+  /// If true, queues send no success message for this sequence (feature 122). Absent means false on
+  /// create.
+  /// </summary>
+  public bool? ExcludeFromSuccessNotifications { get; init; }
+
+  /// <summary>
   /// Validate-only mode (feature 082, FR-002): when <c>true</c> on create, runs the same
   /// enrichment/validation a real create runs but never persists a sequence. Defaults to
   /// <c>false</c>.
@@ -52,6 +58,9 @@ internal sealed record SequencePatchContract {
 
   /// <summary>Parameters this sequence accepts (feature 078); absent leaves them unchanged.</summary>
   public IReadOnlyList<ParameterDeclarationDto>? Parameters { get; init; }
+
+  /// <summary>If true, queues send no success message for this sequence (feature 122). Absent leaves it unchanged.</summary>
+  public bool? ExcludeFromSuccessNotifications { get; init; }
 }
 
 internal sealed record SequenceStepContract {
@@ -210,4 +219,7 @@ internal sealed record SequenceListItemResponse {
   /// </summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public System.Collections.ObjectModel.Collection<ParameterDeclarationDto>? Parameters { get; init; }
+
+  /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
+  public bool ExcludeFromSuccessNotifications { get; init; }
 }

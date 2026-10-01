@@ -241,6 +241,108 @@ public sealed class QueueNotificationWorkerTests {
     h.Channel.Sent.Select(m => m.Text).Skip(1).Should().Equal(Text(Red, "failure"), Text(Green, "recovered"));
   }
 
+  // ---- Feature 122: sequences that are excluded from success notifications ----
+
+  private static void Exclude(NotificationHarness h, bool on, string id = "s1") {
+    h.Sequences.GetAsync(id).GetAwaiter().GetResult()!.ExcludeFromSuccessNotifications = on;
+  }
+
+  [Theory]
+  [InlineData(NotificationLevel.None)]
+  [InlineData(NotificationLevel.Failure)]
+  [InlineData(NotificationLevel.SuccessAndFailure)]
+  public async Task Exclude_SuccessWithTheOptionOnSendsNothing(NotificationLevel level) {
+    await using var h = new NotificationHarness(level);
+    Exclude(h, true);
+
+    var messages = await h.RunAsync(NotificationRunStatus.Success);
+
+    messages.Should().BeEmpty();
+  }
+
+  [Fact]
+  public async Task Exclude_SuccessWithTheOptionOffSendsOneMessage() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+    Exclude(h, false);
+
+    var messages = await h.RunAsync(NotificationRunStatus.Success);
+
+    messages.Should().Equal(Text(Green, "success"));
+  }
+
+  [Fact]
+  public async Task Exclude_AToggleBetweenTwoJobsAppliesToTheSecondJob() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+
+    await h.RunAsync(NotificationRunStatus.Success);
+    Exclude(h, true);
+    await h.RunAsync(NotificationRunStatus.Success);
+    Exclude(h, false);
+    var messages = await h.RunAsync(NotificationRunStatus.Success);
+
+    messages.Should().Equal(Text(Green, "success"), Text(Green, "success"));
+  }
+
+  [Fact]
+  public async Task Exclude_AFailedSequenceReadTreatsTheOptionAsOffAndLogsIt() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+    Exclude(h, true);
+    h.Sequences.GetThrows = true;
+
+    var messages = await h.RunAsync(NotificationRunStatus.Success);
+
+    messages.Should().Equal($"Farm-1 : s1 : {Green} success");
+    h.WorkerLog.Lines.Should().ContainSingle(l => l.Contains("treated as off", StringComparison.Ordinal));
+  }
+
+  [Theory]
+  [InlineData(NotificationLevel.Failure)]
+  [InlineData(NotificationLevel.SuccessAndFailure)]
+  public async Task Exclude_FailureWithTheOptionOnIsSent(NotificationLevel level) {
+    await using var h = new NotificationHarness(level);
+    Exclude(h, true);
+
+    var messages = await h.RunAsync(NotificationRunStatus.Failure);
+
+    messages.Should().Equal(Text(Red, "failure"));
+  }
+
+  [Theory]
+  [InlineData(NotificationLevel.Failure)]
+  [InlineData(NotificationLevel.SuccessAndFailure)]
+  public async Task Exclude_TenFailuresThenASuccessSendFailureAndRecovered(NotificationLevel level) {
+    await using var h = new NotificationHarness(level);
+    Exclude(h, true);
+    var runs = Enumerable.Repeat(NotificationRunStatus.Failure, 10).Append(NotificationRunStatus.Success).ToArray();
+
+    var messages = await h.RunAsync(runs);
+
+    messages.Should().Equal(Text(Red, "failure"), Text(Green, "recovered"));
+  }
+
+  [Fact]
+  public async Task Exclude_CancelledWithTheOptionOnIsSent() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+    Exclude(h, true);
+
+    // The worker has one status for each cancel cause. An operator cancel and a queue-stop cancel
+    // both arrive as Cancelled.
+    var messages = await h.RunAsync(NotificationRunStatus.Cancelled, NotificationRunStatus.Cancelled);
+
+    messages.Should().Equal(Text(Yellow, "cancelled"), Text(Yellow, "cancelled"));
+  }
+
+  [Fact]
+  public async Task Exclude_TheOptionTurnedOnWhileAStreakIsOpenKeepsTheStreak() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+    await h.RunAsync(NotificationRunStatus.Failure);
+    Exclude(h, true);
+
+    var messages = await h.RunAsync(NotificationRunStatus.Success, NotificationRunStatus.Success);
+
+    messages.Should().Equal(Text(Red, "failure"), Text(Green, "recovered"));
+  }
+
   // ---- Feature 121: device alerts ----
 
   private static QueueAlert Alert(QueueAlertKind kind, Action<DateTimeOffset, bool, string?>? done = null, string? reason = null) =>

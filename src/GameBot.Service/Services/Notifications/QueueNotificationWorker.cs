@@ -100,10 +100,12 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     // A job for a deleted queue is dropped. A job for a level None queue changes no state.
     if (queue is null || queue.NotificationLevel == NotificationLevel.None) return;
 
-    var message = Decide(queue.NotificationLevel, job);
+    // Feature 122: one read of the sequence gives the name and the exclude option. If the read fails,
+    // the option is treated as off.
+    var (sequenceName, excludeSuccess) = await ReadSequenceAsync(job.SequenceId).ConfigureAwait(false);
+    var message = Decide(queue.NotificationLevel, job, excludeSuccess);
     if (message is null) return;
 
-    var sequenceName = await ReadSequenceNameAsync(job.SequenceId).ConfigureAwait(false);
     var text = NotificationMessageFormatter.Format(queue.Name, queue.Id, sequenceName, job.SequenceId, message.Value);
     StartSend(text, job);
   }
@@ -149,7 +151,9 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
   }
 
   // The state table of research R-003, for levels Failure and Success+Failure.
-  private NotificationMessageStatus? Decide(NotificationLevel level, QueueNotificationJob job) {
+  // Feature 122: a sequence with the exclude option gets no plain "success" message. A "recovered"
+  // message for an open streak is still sent.
+  private NotificationMessageStatus? Decide(NotificationLevel level, QueueNotificationJob job, bool excludeSuccess) {
     switch (job.Status) {
       case NotificationRunStatus.Cancelled:
         // A cancelled run sends a message and changes no streak.
@@ -166,18 +170,18 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
           return NotificationMessageStatus.Recovered;
         }
 
-        return level == NotificationLevel.SuccessAndFailure ? NotificationMessageStatus.Success : null;
+        return level == NotificationLevel.SuccessAndFailure && !excludeSuccess ? NotificationMessageStatus.Success : null;
     }
   }
 
-  private async Task<string?> ReadSequenceNameAsync(string sequenceId) {
+  private async Task<(string? Name, bool ExcludeSuccess)> ReadSequenceAsync(string sequenceId) {
     try {
       var sequence = await _sequences.GetAsync(sequenceId).ConfigureAwait(false);
-      return sequence?.Name;
+      return (sequence?.Name, sequence?.ExcludeFromSuccessNotifications ?? false);
     }
     catch (Exception ex) {
       Log.SequenceReadFailed(_logger, sequenceId, ex.GetType().Name);
-      return null;
+      return (null, false);
     }
   }
 
@@ -306,7 +310,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     [LoggerMessage(EventId = 12032, Level = LogLevel.Warning, Message = "The queue {QueueId} could not be read for a notification. Error type: {ErrorType}.")]
     public static partial void QueueReadFailed(ILogger logger, string queueId, string errorType);
 
-    [LoggerMessage(EventId = 12033, Level = LogLevel.Warning, Message = "The sequence {SequenceId} could not be read for a notification. The ID is used as the name. Error type: {ErrorType}.")]
+    [LoggerMessage(EventId = 12033, Level = LogLevel.Warning, Message = "The sequence {SequenceId} could not be read for a notification. The ID is used as the name. The option to exclude success notifications is treated as off. Error type: {ErrorType}.")]
     public static partial void SequenceReadFailed(ILogger logger, string sequenceId, string errorType);
 
     [LoggerMessage(EventId = 12034, Level = LogLevel.Warning, Message = "Notification dropped: {Cap} sends already run. Queue {QueueId}, sequence {SequenceId}.")]

@@ -1813,6 +1813,9 @@ internal sealed class SequenceRequestSchema {
 
   /// <summary>Validate only; never persist. Recognised on create (per-step body), update and patch.</summary>
   public bool? DryRun { get; set; }
+
+  /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
+  public bool? ExcludeFromSuccessNotifications { get; set; }
 }
 
 internal sealed class SequenceResponseSchema {
@@ -1825,6 +1828,9 @@ internal sealed class SequenceResponseSchema {
 
   /// <summary>Read-only: the bound that applies — the override when set, otherwise 240000 ms (feature 094).</summary>
   public int EffectiveWatchdogTimeoutMs { get; set; }
+
+  /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
+  public bool ExcludeFromSuccessNotifications { get; set; }
 }
 
 internal sealed class SequenceValidateResponseSchema {

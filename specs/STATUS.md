@@ -156,6 +156,7 @@ Status vocabulary:
 | 119 | Reject an unknown field in a reschedule-self payload | Implemented |
 | 120 | Queue Sequence Notifications | Implemented |
 | 121 | Device Not-Live Alert, Optional Recovery, and Capture Pile-Up Guard | Implemented |
+| 122 | Exclude Helper Sequences From Success Notifications | Implemented |
 
 ## Numbering notes
 

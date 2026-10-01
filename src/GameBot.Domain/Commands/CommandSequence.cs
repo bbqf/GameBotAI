@@ -42,6 +42,15 @@ namespace GameBot.Domain.Commands {
     public int? WatchdogTimeoutMs { get; set; }
 
     /// <summary>
+    /// When true, queues send no "success" notification for this sequence (feature 122). Failure,
+    /// cancelled and recovered notifications are still sent. Omitted from JSON when false, so an old
+    /// file with no member reads as false.
+    /// </summary>
+    [JsonPropertyName("excludeFromSuccessNotifications")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ExcludeFromSuccessNotifications { get; set; }
+
+    /// <summary>
     /// Parameters this sequence accepts (feature 078). Empty means the sequence is unparametrized and
     /// behaves exactly as before the feature. A sequence need <em>not</em> declare a parameter merely
     /// to pass it through to a nested command: unbound names inherit from the enclosing run scope.

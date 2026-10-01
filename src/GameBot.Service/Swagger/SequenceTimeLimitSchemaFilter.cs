@@ -29,9 +29,20 @@ internal sealed class SequenceTimeLimitSchemaFilter : ISchemaFilter {
   private const string TimeLimitDescription =
     "The time bound in milliseconds that applied to the firing; set exactly when cancellationReason is set.";
 
+  // Feature 122: the description of the sequence option that hides success notifications.
+  internal const string ExcludeFromSuccessNotificationsDescription =
+    "If true, queues send no success message for this sequence. Failure, cancelled and recovered messages "
+    + "are still sent. If absent on PUT or PATCH, the stored value does not change.";
+
   public void Apply(OpenApiSchema schema, SchemaFilterContext context) {
     if (context.Type == typeof(SequenceUpsertContract) || context.Type == typeof(SequencePatchContract)) {
       Describe(schema, "watchdogTimeoutMs", WatchdogDescription);
+      Describe(schema, "excludeFromSuccessNotifications", ExcludeFromSuccessNotificationsDescription);
+    }
+    else if (context.Type == typeof(SequenceRequestSchema)
+      || context.Type == typeof(SequenceResponseSchema)
+      || context.Type == typeof(SequenceListItemResponse)) {
+      Describe(schema, "excludeFromSuccessNotifications", ExcludeFromSuccessNotificationsDescription);
     }
     else if (context.Type == typeof(ExecutionLogEntryDto)) {
       Describe(schema, "cancellationReason", CancellationReasonDescription);

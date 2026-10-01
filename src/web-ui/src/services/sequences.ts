@@ -32,6 +32,8 @@ export type SequenceDto = {
   interStepDelayRangeMs?: InterStepDelayRangeMs | null;
   /** Parameters this sequence declares (feature 078); absent when unparametrized. */
   parameters?: ParameterDeclaration[] | null;
+  /** If true, queues send no success message for this sequence (feature 122). */
+  excludeFromSuccessNotifications?: boolean;
 };
 
 export type SequenceCreate = {
@@ -42,6 +44,8 @@ export type SequenceCreate = {
   links?: BranchLink[];
   interStepDelayRangeMs?: InterStepDelayRangeMs | null;
   parameters?: ParameterDeclaration[];
+  /** If true, queues send no success message for this sequence (feature 122). */
+  excludeFromSuccessNotifications?: boolean;
 };
 
 export type SequenceLinearCreate = SequenceLinearUpsertRequest;

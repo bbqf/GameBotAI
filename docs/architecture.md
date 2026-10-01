@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-09-30 (feature 121: device not-live alert, optional recovery, capture gate;
+_Last reviewed: 2026-10-01 (feature 122: sequence option to exclude success notifications;
+feature 121: device not-live alert, optional recovery, capture gate;
 feature 120: queue sequence notifications; feature 118: the queue-template
 endpoint and the sequence validator accept `timerTimeOfDay` in the same two forms, `HH:mm` and
 `HH:mm:ss`, #226)._
@@ -754,6 +755,13 @@ of feature 087, which acts on failed cycles.
   no message. A success after an open streak sends `recovered` and closes it, at both levels. Without an
   open streak, a success sends `success` at `successAndFailure` only. `cancelled` sends a message and
   changes no streak. Streaks are lost when the service restarts.
+- **Excluded sequences (feature 122).** `CommandSequence.ExcludeFromSuccessNotifications` (JSON
+  `excludeFromSuccessNotifications`, default false, omitted from the file when false) hides the plain
+  `success` message for one sequence, for example a helper that runs often. The worker reads the
+  sequence one time for each job, before it applies the state table, so a change applies to the next
+  job with no restart. The option hides only `success` that has no open streak. `failure`, `cancelled`
+  and `recovered` are still sent. If the sequence read fails, the option is treated as off and the
+  worker writes log event 12033. A stored streak is not changed by the option.
 - **Targets.** `NotificationTarget` (type, name, enabled, `Settings` map) is stored in
   `data/notifications/targets.json` by `FileNotificationTargetStore`. The store reloads the file when
   the write time or the length changes. A corrupt or empty file keeps the last good list. A write goes
@@ -1052,6 +1060,11 @@ Feature 120 added (see "Queue sequence notifications" above): `notificationLevel
 responses and on the create and update requests, `PUT /api/queues/{id}/notification-level`,
 `GET` and `POST /api/notifications/targets`, `PUT` and `DELETE /api/notifications/targets/{id}`,
 `POST /api/notifications/targets/{id}/test` and `GET /api/notifications/types`. A bad body gives 400.
+
+Feature 122 added (see "Excluded sequences" above): the boolean member `excludeFromSuccessNotifications`
+on the sequence create, update and patch requests and on the sequence get and list responses. An absent
+member on `POST` means false. An absent member on `PUT` and `PATCH` keeps the stored value. A value that
+is not `true` or `false` gives `400`. The sequence editor has a checkbox, and the list shows a badge.
 
 Feature 087 added, additively (see "Queue failure policy and outbound notification" above):
 
