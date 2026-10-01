@@ -148,6 +148,9 @@ namespace GameBot.Domain.Commands {
         // backstop, not the gate — SequenceStepValidationService runs first and turns these same
         // problems into a 400; anything reaching here unvalidated would otherwise become a 500.
         GuardConditionLeaves(step.Condition, step.StepId);
+
+        // Feature 123: backstop for the Cancel option. The validator gives the 400 first.
+        GuardCancelPayload(step);
       }
 
       foreach (var step in sequence.FlowSteps) {
@@ -172,6 +175,31 @@ namespace GameBot.Domain.Commands {
         if (!supportedActionTypes.Contains(actionType)) {
           throw new InvalidOperationException($"Action step '{step.StepId}' references unsupported action type '{actionType}'.");
         }
+      }
+    }
+
+    // Feature 123: a reschedule-self Cancel step must not carry timer fields or an ocrOffset.
+    private static void GuardCancelPayload(SequenceStep step) {
+      if (step.Action is null
+          || !string.Equals(step.Action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
+        return;
+      }
+      if (!GameBot.Domain.Commands.SelfReschedule.SelfReschedulePayload.TryRead(step.Action, out var payload, out _)
+          || payload is null
+          || payload.Option != GameBot.Domain.Commands.SelfReschedule.SelfRescheduleOption.Cancel) {
+        return;
+      }
+      if (payload.HasTimerTimeOfDay) {
+        throw new InvalidOperationException(
+          $"Step '{step.StepId}' reschedule-self timerTimeOfDay is only valid when option is Timer.");
+      }
+      if (payload.HasTimerRelativeOffset) {
+        throw new InvalidOperationException(
+          $"Step '{step.StepId}' reschedule-self timerRelativeOffset is only valid when option is Timer.");
+      }
+      if (payload.HasOcrOffset) {
+        throw new InvalidOperationException(
+          $"Step '{step.StepId}' reschedule-self ocrOffset is only valid when option is Timer.");
       }
     }
 

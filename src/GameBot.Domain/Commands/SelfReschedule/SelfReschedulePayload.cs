@@ -65,7 +65,7 @@ public sealed class SelfReschedulePayload {
       return false;
     }
     if (!Enum.TryParse<SelfRescheduleOption>(rawOption, ignoreCase: true, out var option)) {
-      error = $"option '{rawOption}' is not a known schedule option (expected one of AtQueueStart, OncePerRun, Timer, EveryStep)";
+      error = $"option '{rawOption}' is not a known schedule option (expected one of AtQueueStart, OncePerRun, Timer, EveryStep, Cancel)";
       return false;
     }
 

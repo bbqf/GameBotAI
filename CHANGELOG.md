@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Option `Cancel` for the `reschedule-self` step. It removes the pending Timer, OncePerRun and AtQueueStart bookings of its sequence in the current queue run, also a OncePerRun booking that the queue already copied for firing (123-reschedule-self-cancel, issue #264, FR-015)
+  - The step gives outcome `cancelled` with `removed` true, or `noop` with `removed` false. It never fails the run. `Cancel` with `timerTimeOfDay`, `timerRelativeOffset` or `ocrOffset` returns 400. The Web UI lists "Cancel pending booking".
 - Queue sequence notifications. A queue can send a short message when one of its entries ends (120-sequence-queue-notifications)
   - Each queue has a `notificationLevel`: `none` (default), `failure` or `successAndFailure`. Set it with `PUT /api/queues/{id}/notification-level` or on the new Notifications page of the Web UI. `POST` and `PUT /api/queues` accept an optional `notificationLevel`. Both queue responses show it. Every other queue change keeps the level. A duplicate gets `none`.
   - The message is plain text: `<queue> : <sequence> : <circle> <status>`. The circle is green for `success` and `recovered`, red for `failure` and yellow for `cancelled`. A manual run and a nested step send no message.

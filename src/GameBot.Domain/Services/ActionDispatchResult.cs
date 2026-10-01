@@ -8,4 +8,8 @@ namespace GameBot.Domain.Services;
 /// </summary>
 /// <param name="Outcome">Action outcome recorded on the step (e.g. <c>scheduled</c>, <c>noop</c>).</param>
 /// <param name="Message">Optional human-readable detail for the execution log.</param>
-public sealed record ActionDispatchResult(string Outcome, string? Message);
+/// <param name="Removed">
+/// For the <c>Cancel</c> option: true when the action removed a booking, false when it did nothing.
+/// Null for all other options.
+/// </param>
+public sealed record ActionDispatchResult(string Outcome, string? Message, bool? Removed = null);

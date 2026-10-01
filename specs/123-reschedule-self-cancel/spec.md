@@ -2,7 +2,7 @@
 
 **Feature Branch**: `123-reschedule-self-cancel`  
 **Created**: 2026-10-01  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Let a sequence remove its own pending booking (reschedule-self cancel). GitHub issue #264 (FR-015)."
 
 ## Clarifications

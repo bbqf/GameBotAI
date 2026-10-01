@@ -22,6 +22,8 @@ public sealed class SelfReschedulePayloadTests {
   [InlineData("OncePerRun", SelfRescheduleOption.OncePerRun)]
   [InlineData("Timer", SelfRescheduleOption.Timer)]
   [InlineData("EveryStep", SelfRescheduleOption.EveryStep)]
+  [InlineData("Cancel", SelfRescheduleOption.Cancel)]
+  [InlineData("cancel", SelfRescheduleOption.Cancel)] // feature 123, case-insensitive
   [InlineData("onceperrun", SelfRescheduleOption.OncePerRun)] // case-insensitive
   public void ParsesKnownOptions(string wire, SelfRescheduleOption expected) {
     SelfReschedulePayload.TryRead(Payload(("option", wire)), out var result, out var error).Should().BeTrue();

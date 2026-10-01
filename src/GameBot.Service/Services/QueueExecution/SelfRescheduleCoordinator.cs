@@ -75,6 +75,17 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
     }
   }
 
+  public SelfRescheduleCancelResult CancelSelf(string queueId, string sequenceId) {
+    if (!_registry.TryGet(queueId, out var handle)) {
+      return new SelfRescheduleCancelResult(SelfRescheduleCancelOutcome.NotRunning, 0);
+    }
+
+    var removed = handle.RemovePendingBookings(sequenceId);
+    return removed > 0
+      ? new SelfRescheduleCancelResult(SelfRescheduleCancelOutcome.Cancelled, removed)
+      : new SelfRescheduleCancelResult(SelfRescheduleCancelOutcome.NothingPending, 0);
+  }
+
   /// <summary>
   /// Resolves a Timer option to an absolute fire instant. A relative offset resolves to
   /// <c>now + offset</c>. A time of day resolves to its next occurrence on the local clock: today
