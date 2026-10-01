@@ -120,6 +120,7 @@ describe('SequencesPage', () => {
       version: 1,
       // Feature 078: update always sends the full declaration list so clearing the last one persists.
       parameters: [],
+      excludeFromSuccessNotifications: false,
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -211,6 +212,7 @@ describe('SequencesPage', () => {
       name: 'Wait Sequence',
       version: 4,
       parameters: [],
+      excludeFromSuccessNotifications: false,
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -283,6 +285,7 @@ describe('SequencesPage', () => {
       name: 'Loop Sequence',
       version: 3,
       parameters: [],
+      excludeFromSuccessNotifications: false,
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -434,6 +437,7 @@ describe('SequencesPage', () => {
       name: 'If In Loop',
       version: 2,
       parameters: [],
+      excludeFromSuccessNotifications: false,
       interStepDelayRangeMs: null,
       steps: [
         {

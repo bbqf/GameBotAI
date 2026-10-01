@@ -2,7 +2,7 @@
 
 **Feature Branch**: `122-exclude-helper-sequences-notifications`  
 **Created**: 2026-10-01  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "as an operator I need a way to exclude certain sequences -helpers to excluded from the success notifications in UI"
 
 ## Clarifications

@@ -66,6 +66,7 @@ describe('SequencesPage unresolved commands', () => {
       version: 7,
       // Feature 078: update always sends the full declaration list so clearing the last one persists.
       parameters: [],
+      excludeFromSuccessNotifications: false,
       interStepDelayRangeMs: null,
       steps: [
         {

@@ -106,7 +106,11 @@ type SequenceFormValue = {
    * so this is for values the sequence itself wants named and defaulted.
    */
   parameters: ParameterDeclaration[];
+  /** Feature 122: when true, queues send no success message for this sequence. */
+  excludeFromSuccessNotifications: boolean;
 };
+
+const EXCLUDE_NOTIFICATIONS_HELP = 'The queue sends no success message for this sequence. It still sends failure, cancelled and recovered messages.';
 
 // Collision detection that uses the cursor position rather than the dragged item's
 // bounding box, and only considers droppables in the same scope as the active item.
@@ -135,7 +139,8 @@ const emptyForm: SequenceFormValue = {
   useCustomDelayRange: false,
   delayMin: '',
   delayMax: '',
-  parameters: []
+  parameters: [],
+  excludeFromSuccessNotifications: false
 };
 
 const createDefaultStep = (commandId: string, stepId: string, commandReference?: SequenceCommandReference): SequenceStep => ({
@@ -999,7 +1004,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
 
   const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
   const editorCommandOptions = useMemo(() => mergeCommandOptionsWithUnresolved(commandOptions, form.steps), [commandOptions, form.steps]);
-  const sequenceRows = useMemo(() => sequences.map((s) => ({ id: s.id, name: s.name, stepCount: s.steps?.length ?? 0 })), [sequences]);
+  const sequenceRows = useMemo(() => sequences.map((s) => ({ id: s.id, name: s.name, stepCount: s.steps?.length ?? 0, excludeFromSuccessNotifications: s.excludeFromSuccessNotifications === true })), [sequences]);
 
   const displayedSequences = useMemo(() => {
     const query = filterName.trim().toLowerCase();
@@ -1037,7 +1042,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       useCustomDelayRange: delayRange !== null,
       delayMin: delayRange ? String(delayRange.min) : '',
       delayMax: delayRange ? String(delayRange.max) : '',
-      parameters: s.parameters ?? []
+      parameters: s.parameters ?? [],
+      excludeFromSuccessNotifications: s.excludeFromSuccessNotifications === true
     });
     setLoadedVersion(s.version ?? 1);
     setDirty(false);
@@ -1702,6 +1708,11 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 >
                   {s.name}
                 </button>
+                {s.excludeFromSuccessNotifications && (
+                  <span className="badge sequence-badge--no-success-notifications" title={EXCLUDE_NOTIFICATIONS_HELP}>
+                    No success notifications
+                  </span>
+                )}
               </td>
               <td>{s.stepCount}</td>
             </tr>
@@ -1753,7 +1764,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   version: linearPayload.version,
                   steps: linearPayload.steps,
                   interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
-                  ...(form.parameters.length > 0 ? { parameters: form.parameters } : {})
+                  ...(form.parameters.length > 0 ? { parameters: form.parameters } : {}),
+                  // Feature 122: sent only when on. An absent member means false on create.
+                  ...(form.excludeFromSuccessNotifications ? { excludeFromSuccessNotifications: true } : {})
                 }
               );
               setCreating(false);
@@ -1782,6 +1795,23 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 disabled={submitting || loading}
               />
               {errors?.name && <div id="sequence-name-error" className="field-error" role="alert">{errors.name}</div>}
+            </div>
+            <div className="field">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.excludeFromSuccessNotifications}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setForm((prev) => ({ ...prev, excludeFromSuccessNotifications: enabled }));
+                    setErrors(undefined);
+                    setDirty(true);
+                  }}
+                  disabled={submitting || loading}
+                />
+                Exclude from success notifications
+              </label>
+              <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
             </div>
             <div className="field">
               <label>
@@ -1991,7 +2021,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                     interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
                     // Always sent on update (even when empty) so clearing the last declaration
                     // actually persists — an absent member means "leave unchanged" server-side.
-                    parameters: form.parameters
+                    parameters: form.parameters,
+                    // Feature 122: always sent on update, so a save of another change keeps the value.
+                    excludeFromSuccessNotifications: form.excludeFromSuccessNotifications
                   }
                 );
                 await reloadSequences();
@@ -2023,6 +2055,23 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   disabled={submitting || loading}
                 />
                 {errors?.name && <div id="sequence-edit-name-error" className="field-error" role="alert">{errors.name}</div>}
+              </div>
+              <div className="field">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={form.excludeFromSuccessNotifications}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      setForm((prev) => ({ ...prev, excludeFromSuccessNotifications: enabled }));
+                      setErrors(undefined);
+                      setDirty(true);
+                    }}
+                    disabled={submitting || loading}
+                  />
+                  Exclude from success notifications
+                </label>
+                <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
               </div>
               <div className="field">
                 <label>

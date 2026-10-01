@@ -44,10 +44,16 @@ internal static class SequencesEndpoints {
       });
     }
 
+    // Feature 122: check the flag first, so a bad value gives 400 on each body shape and never 500.
+    if (!TryReadExcludeFlag(root, out var excludeFlag, out var excludeError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { excludeError } });
+    }
+
     var isPerStepCandidate = IsPerStepRequestCandidate(root);
     if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
       var perStepSequence = new GameBot.Domain.Commands.CommandSequence {
         Id = string.Empty,
+        ExcludeFromSuccessNotifications = excludeFlag ?? false,
         Name = perStepRequest.Name.Trim(),
         Version = perStepRequest.Version > 0 ? perStepRequest.Version : 1,
         CreatedAt = DateTimeOffset.UtcNow,
@@ -98,7 +104,7 @@ internal static class SequencesEndpoints {
     // Authoring shape: { name: string, steps?: string[] }
     if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
       var name = nameProp.GetString()!.Trim();
-      var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+      var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, ExcludeFromSuccessNotifications = excludeFlag ?? false, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
       // Issue #242: this shape keeps only string command ids. Reject each part of the request that
       // it cannot keep, so that the stored sequence never differs from the request.
       var oldShapeErrors = ValidateOldShapeRequest(root);
@@ -126,6 +132,7 @@ internal static class SequencesEndpoints {
     // Fallback to domain shape
     var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
     if (seqDomain is null) return Results.BadRequest(new { message = "Invalid sequence payload" });
+    seqDomain.ExcludeFromSuccessNotifications = excludeFlag ?? false;
     var errors = ValidateSequence(seqDomain);
     if (errors.Count > 0) return Results.BadRequest(new { message = "Invalid sequence", errors });
     if (IsDryRunRequested(root)) {
@@ -135,6 +142,17 @@ internal static class SequencesEndpoints {
     seqDomain.UpdatedAt = seqDomain.CreatedAt;
     var createdDomain = await repo.CreateAsync(seqDomain).ConfigureAwait(false);
     return Results.Created($"{ApiRoutes.Sequences}/{createdDomain.Id}", createdDomain);
+  }
+
+  // Feature 122: reads the optional flag. Only JSON true and false are valid. Absent gives null.
+  private static bool TryReadExcludeFlag(JsonElement root, out bool? value, out string? error) {
+    value = null;
+    error = null;
+    if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("excludeFromSuccessNotifications", out var prop)) return true;
+    if (prop.ValueKind == JsonValueKind.True) { value = true; return true; }
+    if (prop.ValueKind == JsonValueKind.False) { value = false; return true; }
+    error = "excludeFromSuccessNotifications must be true or false.";
+    return false;
   }
 
   private static async Task<IResult> GetSequenceAsync(ISequenceRepository repo, ICommandRepository commandRepository, string sequenceId, CancellationToken ct) {
@@ -169,6 +187,13 @@ internal static class SequencesEndpoints {
       var name = nameProp.GetString()!.Trim();
       if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
     }
+    // Feature 122: an absent member keeps the saved value. A bad value gives 400 before any change.
+    if (!TryReadExcludeFlag(root, out var excludeFlag, out var excludeError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { excludeError } });
+    }
+
+    if (excludeFlag is { } excludeValue) existing.ExcludeFromSuccessNotifications = excludeValue;
+
     var isPerStepCandidate = IsPerStepRequestCandidate(root);
     // Feature 114: only a per-step-shape body has a parameter check, so only its response shows warnings.
     ParameterValidationResult? parameterCheck = null;
@@ -256,6 +281,13 @@ internal static class SequencesEndpoints {
       var name = nameProp.GetString()!.Trim();
       if (!string.IsNullOrWhiteSpace(name)) existing.Name = name;
     }
+    // Feature 122: an absent member keeps the saved value. A bad value gives 400 before any change.
+    if (!TryReadExcludeFlag(root, out var excludeFlag, out var excludeError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { excludeError } });
+    }
+
+    if (excludeFlag is { } excludeValue) existing.ExcludeFromSuccessNotifications = excludeValue;
+
     var isPerStepCandidate = IsPerStepRequestCandidate(root);
     // Feature 114: only a per-step-shape body has a parameter check, so only its response shows warnings.
     ParameterValidationResult? parameterCheck = null;
@@ -357,7 +389,8 @@ internal static class SequencesEndpoints {
       Id = s.Id,
       Name = s.Name,
       Steps = new System.Collections.ObjectModel.Collection<string>(s.Steps.Select(x => x.CommandId).ToList()),
-      Parameters = ParameterDtoMapper.ToResponseDeclarations(s.Parameters)
+      Parameters = ParameterDtoMapper.ToResponseDeclarations(s.Parameters),
+      ExcludeFromSuccessNotifications = s.ExcludeFromSuccessNotifications
     });
     return Results.Ok(resp);
   }
@@ -504,7 +537,8 @@ internal static class SequencesEndpoints {
           ? new { min = sequence.InterStepDelayRangeMs.Min, max = sequence.InterStepDelayRangeMs.Max }
           : null,
         watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
-        effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs)
+        effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
+        excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications
       };
     }
 
@@ -519,7 +553,8 @@ internal static class SequencesEndpoints {
           : null,
         watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
         effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
-        parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters)
+        parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters),
+        excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications
       };
     }
 
@@ -533,7 +568,8 @@ internal static class SequencesEndpoints {
         : null,
       watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
       effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
-      parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters)
+      parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters),
+      excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications
     };
   }
 
