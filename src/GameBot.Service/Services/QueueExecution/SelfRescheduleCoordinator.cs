@@ -76,9 +76,7 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
         if (booking.Kind == TimerBookingKind.KeptPending && booking.PendingFireAt is { } pendingAt) {
           // Feature 125: a losing booking is a normal event. The step is a success.
           if (_logger is not null) {
-            SelfRescheduleLog.KeptPending(
-              _logger, sequenceId,
-              pendingAt.ToString("u", CultureInfo.InvariantCulture), timing);
+            SelfRescheduleLog.KeptPending(_logger, sequenceId, pendingAt, fireAt);
           }
           return new SelfRescheduleResult(
             SelfRescheduleOutcome.Scheduled, entryId, option, fireAt, timing,
@@ -137,6 +135,6 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
 }
 
 internal static partial class SelfRescheduleLog {
-  [LoggerMessage(EventId = 1161, Level = LogLevel.Information, Message = "Sequence {SequenceId} kept its pending booking for {PendingFireAt}; the new booking for {NewFireAt} is dropped (keep earliest)")]
-  public static partial void KeptPending(ILogger logger, string SequenceId, string PendingFireAt, string NewFireAt);
+  [LoggerMessage(EventId = 1161, Level = LogLevel.Information, Message = "Sequence {SequenceId} kept its pending booking for {PendingFireAt:u}; the new booking for {NewFireAt:u} is dropped (keep earliest)")]
+  public static partial void KeptPending(ILogger logger, string SequenceId, DateTimeOffset PendingFireAt, DateTimeOffset NewFireAt);
 }
