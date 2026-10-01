@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GameBot.Domain.Queues {
@@ -43,19 +44,35 @@ namespace GameBot.Domain.Queues {
       return true;
     }
 
+    // One gate for all file access. A running queue reads its file while an API call writes it.
+    // Without the gate, a reader can see an empty or locked file and the call fails with a 500.
+    private static readonly SemaphoreSlim _gate = new(1, 1);
+
     public async Task<ExecutionQueue?> GetAsync(string id) {
       if (!TryGetSafePath(id, out var path)) return null;
-      if (!File.Exists(path)) return null;
-      using var stream = File.OpenRead(path);
-      return await JsonSerializer.DeserializeAsync<ExecutionQueue>(stream, _jsonOptions).ConfigureAwait(false);
+      await _gate.WaitAsync().ConfigureAwait(false);
+      try {
+        if (!File.Exists(path)) return null;
+        using var stream = File.OpenRead(path);
+        return await JsonSerializer.DeserializeAsync<ExecutionQueue>(stream, _jsonOptions).ConfigureAwait(false);
+      }
+      finally {
+        _gate.Release();
+      }
     }
 
     public async Task<IReadOnlyList<ExecutionQueue>> ListAsync() {
       var list = new List<ExecutionQueue>();
-      foreach (var file in Directory.EnumerateFiles(_root, "*.json")) {
-        using var stream = File.OpenRead(file);
-        var queue = await JsonSerializer.DeserializeAsync<ExecutionQueue>(stream, _jsonOptions).ConfigureAwait(false);
-        if (queue != null) list.Add(queue);
+      await _gate.WaitAsync().ConfigureAwait(false);
+      try {
+        foreach (var file in Directory.EnumerateFiles(_root, "*.json")) {
+          using var stream = File.OpenRead(file);
+          var queue = await JsonSerializer.DeserializeAsync<ExecutionQueue>(stream, _jsonOptions).ConfigureAwait(false);
+          if (queue != null) list.Add(queue);
+        }
+      }
+      finally {
+        _gate.Release();
       }
       return list;
     }
@@ -72,9 +89,23 @@ namespace GameBot.Domain.Queues {
       if (!TryGetSafePath(queue.Id, out var path)) {
         throw new InvalidOperationException("Generated or provided queue ID is invalid for file storage.");
       }
-      using var stream = File.Create(path);
-      await JsonSerializer.SerializeAsync(stream, queue, _jsonOptions).ConfigureAwait(false);
+      await WriteAtomicAsync(path, queue).ConfigureAwait(false);
       return queue;
+    }
+
+    // Write to a temp file, then replace the target, so a reader never sees a partial file.
+    private async Task WriteAtomicAsync(string path, ExecutionQueue queue) {
+      var temp = path + ".tmp";
+      await _gate.WaitAsync().ConfigureAwait(false);
+      try {
+        using (var stream = File.Create(temp)) {
+          await JsonSerializer.SerializeAsync(stream, queue, _jsonOptions).ConfigureAwait(false);
+        }
+        File.Move(temp, path, overwrite: true);
+      }
+      finally {
+        _gate.Release();
+      }
     }
 
     public async Task<ExecutionQueue> UpdateAsync(ExecutionQueue queue) {
@@ -87,16 +118,21 @@ namespace GameBot.Domain.Queues {
         throw new InvalidOperationException("Invalid queue identifier");
       }
       queue.UpdatedAt = DateTimeOffset.UtcNow;
-      using var stream = File.Create(path);
-      await JsonSerializer.SerializeAsync(stream, queue, _jsonOptions).ConfigureAwait(false);
+      await WriteAtomicAsync(path, queue).ConfigureAwait(false);
       return queue;
     }
 
-    public Task<bool> DeleteAsync(string id) {
-      if (!TryGetSafePath(id, out var path)) return Task.FromResult(false);
-      if (!File.Exists(path)) return Task.FromResult(false);
-      File.Delete(path);
-      return Task.FromResult(true);
+    public async Task<bool> DeleteAsync(string id) {
+      if (!TryGetSafePath(id, out var path)) return false;
+      await _gate.WaitAsync().ConfigureAwait(false);
+      try {
+        if (!File.Exists(path)) return false;
+        File.Delete(path);
+        return true;
+      }
+      finally {
+        _gate.Release();
+      }
     }
 
     private static void Validate(ExecutionQueue queue) {
