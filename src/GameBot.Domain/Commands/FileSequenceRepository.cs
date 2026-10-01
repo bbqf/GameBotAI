@@ -179,14 +179,24 @@ namespace GameBot.Domain.Commands {
     }
 
     // Feature 123: a reschedule-self Cancel step must not carry timer fields or an ocrOffset.
+    // Feature 125: a step with a keep key must have option Timer, and the keep value must be valid.
     private static void GuardCancelPayload(SequenceStep step) {
       if (step.Action is null
           || !string.Equals(step.Action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
         return;
       }
-      if (!GameBot.Domain.Commands.SelfReschedule.SelfReschedulePayload.TryRead(step.Action, out var payload, out _)
-          || payload is null
-          || payload.Option != GameBot.Domain.Commands.SelfReschedule.SelfRescheduleOption.Cancel) {
+      if (!GameBot.Domain.Commands.SelfReschedule.SelfReschedulePayload.TryRead(step.Action, out var payload, out var parseError)
+          || payload is null) {
+        if (parseError is not null && parseError.StartsWith("keep ", StringComparison.Ordinal)) {
+          throw new InvalidOperationException($"Step '{step.StepId}' reschedule-self {parseError}.");
+        }
+        return;
+      }
+      if (payload.HasKeep && payload.Option != GameBot.Domain.Commands.SelfReschedule.SelfRescheduleOption.Timer) {
+        throw new InvalidOperationException(
+          $"Step '{step.StepId}' reschedule-self keep is only valid when option is Timer.");
+      }
+      if (payload.Option != GameBot.Domain.Commands.SelfReschedule.SelfRescheduleOption.Cancel) {
         return;
       }
       if (payload.HasTimerTimeOfDay) {

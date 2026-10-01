@@ -363,27 +363,46 @@ internal sealed class QueueRunHandle {
   /// Adds a resolved Timer firing (fires once at/after its <see cref="SelfRescheduleEntry.FireAt"/>).
   /// Most-recent-wins per sequence: any pending Timer firing already queued for the same
   /// <see cref="SelfRescheduleEntry.SequenceId"/> is replaced, so a self-rescheduling sequence never
-  /// stacks duplicate future firings (feature 075). Mirrors <see cref="PendingLiveSchedules"/>; the
+  /// stacks duplicate future firings (feature 075). The one exception (feature 125): with
+  /// <paramref name="keepEarliest"/>, a booking that has the same non-null run id as the pending booking
+  /// and is not earlier than it is dropped, and the result is <see cref="TimerBookingKind.KeptPending"/>.
+  /// The check and the write are one step under the lock. Mirrors <see cref="PendingLiveSchedules"/>; the
   /// other self-reschedule registers (<see cref="PendingOncePerRun"/>/<see cref="PendingNextCycleStart"/>)
   /// still accumulate, and <see cref="EveryStepInjections"/> stays idempotent per sequence.
   /// </summary>
-  public void AddTimerFiring(SelfRescheduleEntry entry) {
+  public TimerBookingResult AddTimerFiring(SelfRescheduleEntry entry, bool keepEarliest = false) {
+    ArgumentNullException.ThrowIfNull(entry);
     lock (_timerLock) {
-      _pendingTimerFirings.RemoveAll(x => string.Equals(x.SequenceId, entry.SequenceId, StringComparison.Ordinal));
+      // Feature 125: with keepEarliest, a booking of the same run does not replace an earlier pending
+      // booking. A booking of another run, a booking with no run id, and a re-armed booking are replaced.
+      if (keepEarliest && entry.RunId is not null) {
+        var pending = _pendingTimerFirings.Find(x => string.Equals(x.SequenceId, entry.SequenceId, StringComparison.Ordinal));
+        if (pending is not null
+            && string.Equals(pending.RunId, entry.RunId, StringComparison.Ordinal)
+            && entry.FireAt is { } newAt
+            && pending.FireAt is { } pendingAt
+            && newAt >= pendingAt) {
+          return new TimerBookingResult(TimerBookingKind.KeptPending, pendingAt);
+        }
+      }
+      var removed = _pendingTimerFirings.RemoveAll(x => string.Equals(x.SequenceId, entry.SequenceId, StringComparison.Ordinal));
       _pendingTimerFirings.Add(entry);
+      return new TimerBookingResult(removed > 0 ? TimerBookingKind.Replaced : TimerBookingKind.Added);
     }
   }
 
   /// <summary>
   /// Puts back a held self-reschedule Timer firing with its original <c>FireAt</c> (feature 106, research
   /// R-011). It adds the entry only when the register has no Timer firing for that sequence, so a newer
-  /// firing that the sequence booked during the hold wins.
+  /// firing that the sequence booked during the hold wins. The stored entry has no run id (feature 125),
+  /// so the first booking of the next run replaces it.
   /// </summary>
   public void RearmTimerFiring(SelfRescheduleEntry entry) {
     ArgumentNullException.ThrowIfNull(entry);
     lock (_timerLock) {
       if (_pendingTimerFirings.Exists(x => string.Equals(x.SequenceId, entry.SequenceId, StringComparison.Ordinal))) return;
-      _pendingTimerFirings.Add(entry);
+      // Feature 125: a re-armed booking is not a booking of the new run, so it has no run id.
+      _pendingTimerFirings.Add(entry with { RunId = null });
     }
   }
 
@@ -523,7 +542,29 @@ internal sealed record SelfRescheduleEntry(
   /// The parameter scope that the queue run loop gave the run that made the booking (feature 078
   /// FR-015, feature 116). The booked run uses this scope. Null means the queue scope.
   /// </summary>
-  GameBot.Domain.Parameters.ParameterScope? Scope = null);
+  GameBot.Domain.Parameters.ParameterScope? Scope = null,
+  /// <summary>
+  /// The id of the sequence run that made a Timer booking (feature 125). Null for a booking with no
+  /// known run, such as a re-armed booking.
+  /// </summary>
+  string? RunId = null);
+
+/// <summary>Kinds of result of <see cref="QueueRunHandle.AddTimerFiring"/> (feature 125).</summary>
+internal enum TimerBookingKind {
+  /// <summary>The sequence had no pending Timer booking. The new booking was added.</summary>
+  Added,
+
+  /// <summary>The new booking replaced the pending booking of the sequence.</summary>
+  Replaced,
+
+  /// <summary>The pending booking stayed. The new booking was dropped.</summary>
+  KeptPending
+}
+
+/// <summary>Result of <see cref="QueueRunHandle.AddTimerFiring"/> (feature 125).</summary>
+/// <param name="Kind">What the register did with the new booking.</param>
+/// <param name="PendingFireAt">The fire time of the pending booking that stayed. Set only for <see cref="TimerBookingKind.KeptPending"/>.</param>
+internal readonly record struct TimerBookingResult(TimerBookingKind Kind, DateTimeOffset? PendingFireAt = null);
 
 /// <summary>Outcome of a queue run, used to build the terminating execution-log entry.</summary>
 internal sealed record QueueRunResult(

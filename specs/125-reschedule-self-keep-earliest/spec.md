@@ -2,7 +2,7 @@
 
 **Feature Branch**: `125-reschedule-self-keep-earliest`  
 **Created**: 2026-10-01  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Give the reschedule-self action an option `keep: earliest` (GitHub issue #257). Closes #257."
 
 ## Clarifications

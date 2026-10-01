@@ -183,6 +183,49 @@ public sealed class SelfRescheduleRunIntegrationTests {
     taggedFiring.Should().NotBeNull();
   }
 
+  [Fact] // Feature 125 (SC-002): four Timer bookings without keep leave the last booking pending.
+  public async Task FourTimerBookingsWithoutKeepLeaveTheLastBookingPending() {
+    using var app = new WebApplicationFactory<Program>();
+    _ = app.CreateClient();
+    var services = app.Services;
+
+    var sequence = new CommandSequence { Id = "seq-nokeep-4", Name = "NoKeep4" };
+    var steps = new System.Collections.Generic.List<SequenceStep>();
+    var order = 0;
+    foreach (var offset in new[] { "00:15:00", "00:50:00", "00:30:00", "00:40:00" }) {
+      var action = new SequenceActionPayload { Type = ActionTypes.RescheduleSelf };
+      action.Parameters["option"] = "Timer";
+      action.Parameters["timerRelativeOffset"] = offset;
+      steps.Add(new SequenceStep { Order = order, StepId = $"r{order}", StepType = SequenceStepType.Action, Action = action });
+      order++;
+    }
+    sequence.SetSteps(steps);
+    await SeedAsync(services, sequence, "q-nokeep-4").ConfigureAwait(false);
+
+    var engine = services.GetRequiredService<IQueueExecutionService>();
+    (await engine.StartAsync("q-nokeep-4").ConfigureAwait(false)).Should().Be(QueueStartOutcome.Started);
+    try {
+      var registry = services.GetRequiredService<IQueueRunRegistry>();
+      var sw = Stopwatch.StartNew();
+      double ahead = 0;
+      while (sw.ElapsedMilliseconds < 30000) {
+        if (registry.TryGet("q-nokeep-4", out var handle)
+            && handle.SnapshotPendingTimerFirings().FirstOrDefault(e => e.SequenceId == sequence.Id)?.FireAt is { } fireAt) {
+          ahead = (fireAt - DateTimeOffset.Now).TotalMinutes;
+          if (ahead > 39) break;
+        }
+        await Task.Delay(50).ConfigureAwait(false);
+      }
+      await Task.Delay(500).ConfigureAwait(false);
+      registry.TryGet("q-nokeep-4", out var finalHandle).Should().BeTrue();
+      var pending = finalHandle!.SnapshotPendingTimerFirings().Should().ContainSingle().Subject;
+      (pending.FireAt!.Value - DateTimeOffset.Now).TotalMinutes.Should().BeInRange(39, 40.2);
+    }
+    finally {
+      await engine.StopAsync("q-nokeep-4").ConfigureAwait(false);
+    }
+  }
+
   // ── Feature 116 (#249): a booked run keeps the parameter scope of the run that booked it ──────
   // The tests do not upload images, so the tap result can be different on different hosts. The
   // tests assert what the log records about the resolved values, not the tap result.

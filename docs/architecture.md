@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-01 (feature 123: reschedule-self option `Cancel`;
+_Last reviewed: 2026-10-01 (feature 125: reschedule-self `keep: earliest`;
+feature 123: reschedule-self option `Cancel`;
 feature 122: sequence option to exclude success notifications;
 feature 121: device not-live alert, optional recovery, capture gate;
 feature 120: queue sequence notifications; feature 118: the queue-template
@@ -238,6 +239,16 @@ not survive a service restart; queue *configuration* and templates are persisted
   `noop` with `removed` false (nothing pending, no queue, queue run not active). The execution log of
   the step has the `removed` field. Cancel with `timerTimeOfDay`, `timerRelativeOffset` or `ocrOffset`
   is a 400 on create, update and PATCH.
+- **Self-reschedule keep earliest** (feature 125) — a Timer `reschedule-self` step can have
+  `keep: earliest`. The register keeps one Timer booking for each sequence. Without `keep`, the last
+  booking wins. With `keep: earliest`, a booking does not replace a pending booking of the same run when
+  that booking fires at the same time or earlier. The step then succeeds with the result `scheduled`,
+  the booking is dropped, and one Information log message gives both fire times. Every Timer booking
+  stores a run id. The run id is the id of the sequence execution (the id of its execution log entry).
+  A booking of another run, a booking with no run id, and a re-armed booking are always replaced.
+  `RearmTimerFiring` stores the held booking with no run id. The check and the write are one step
+  under the timer lock of `QueueRunHandle.AddTimerFiring`. `keep` is valid only with option `Timer`
+  (400 on create, update and PATCH).
 - **Self-reschedule action** (within a sequence) — an authorable sequence action (`reschedule-self`,
   placeable under IF/conditional flow) that, when reached during a queue-driven run, schedules **one
   additional firing of the same sequence into the current run** using any of the schedule options

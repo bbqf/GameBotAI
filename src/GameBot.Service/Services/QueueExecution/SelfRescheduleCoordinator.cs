@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Parameters;
+using Microsoft.Extensions.Logging;
 
 namespace GameBot.Service.Services.QueueExecution;
 
@@ -15,12 +16,15 @@ namespace GameBot.Service.Services.QueueExecution;
 internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
   private readonly IQueueRunRegistry _registry;
   private readonly TimeProvider _timeProvider;
+  private readonly ILogger? _logger;
 
   public SelfRescheduleCoordinator(
     IQueueRunRegistry registry,
-    TimeProvider? timeProvider = null) {
+    TimeProvider? timeProvider = null,
+    ILogger<SelfRescheduleCoordinator>? logger = null) {
     _registry = registry;
     _timeProvider = timeProvider ?? TimeProvider.System;
+    _logger = logger;
   }
 
   public SelfRescheduleResult ScheduleSelf(
@@ -29,7 +33,9 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
     SelfRescheduleOption option,
     TimeOnly? timerTimeOfDay,
     TimeSpan? timerRelativeOffset,
-    ParameterScope? scope = null) {
+    ParameterScope? scope = null,
+    SelfRescheduleKeep keep = SelfRescheduleKeep.None,
+    string? runId = null) {
     var entryId = Guid.NewGuid().ToString("n");
 
     if (!_registry.TryGet(queueId, out var handle)) {
@@ -64,9 +70,20 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
 
       case SelfRescheduleOption.Timer: {
         var fireAt = ResolveTimerFireAt(timerTimeOfDay, timerRelativeOffset);
-        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, fireAt, scope);
-        handle.AddTimerFiring(entry);
+        var entry = new SelfRescheduleEntry(entryId, sequenceId, option, fireAt, scope, runId);
+        var booking = handle.AddTimerFiring(entry, keep == SelfRescheduleKeep.Earliest);
         var timing = fireAt.ToString("u", CultureInfo.InvariantCulture);
+        if (booking.Kind == TimerBookingKind.KeptPending && booking.PendingFireAt is { } pendingAt) {
+          // Feature 125: a losing booking is a normal event. The step is a success.
+          if (_logger is not null) {
+            SelfRescheduleLog.KeptPending(
+              _logger, sequenceId,
+              pendingAt.ToString("u", CultureInfo.InvariantCulture), timing);
+          }
+          return new SelfRescheduleResult(
+            SelfRescheduleOutcome.Scheduled, entryId, option, fireAt, timing,
+            KeptPending: true, PendingFireAt: pendingAt);
+        }
         return new SelfRescheduleResult(SelfRescheduleOutcome.Scheduled, entryId, option, fireAt, timing);
       }
 
@@ -117,4 +134,9 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
     }
     return new DateTimeOffset(local, zone.GetUtcOffset(local));
   }
+}
+
+internal static partial class SelfRescheduleLog {
+  [LoggerMessage(EventId = 1161, Level = LogLevel.Information, Message = "Sequence {SequenceId} kept its pending booking for {PendingFireAt}; the new booking for {NewFireAt} is dropped (keep earliest)")]
+  public static partial void KeptPending(ILogger logger, string SequenceId, string PendingFireAt, string NewFireAt);
 }

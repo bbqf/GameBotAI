@@ -20,12 +20,16 @@ internal enum SelfRescheduleOutcome {
 /// <param name="Option">The chosen schedule option.</param>
 /// <param name="FireAt">Resolved fire instant for Timer options; null otherwise.</param>
 /// <param name="ResolvedTiming">Human-readable timing ("this cycle" / "next cycle" / target instant).</param>
+/// <param name="KeptPending">True when a <c>keep: earliest</c> booking lost and the pending booking stayed (feature 125).</param>
+/// <param name="PendingFireAt">The fire time of the pending booking that stayed. Set only when <paramref name="KeptPending"/> is true.</param>
 internal sealed record SelfRescheduleResult(
   SelfRescheduleOutcome Outcome,
   string EntryId,
   SelfRescheduleOption Option,
   DateTimeOffset? FireAt,
-  string ResolvedTiming);
+  string ResolvedTiming,
+  bool KeptPending = false,
+  DateTimeOffset? PendingFireAt = null);
 
 /// <summary>Result kinds of a Cancel request (feature 123).</summary>
 internal enum SelfRescheduleCancelOutcome {
@@ -64,13 +68,20 @@ internal interface ISelfRescheduleCoordinator {
   /// The parameter scope of the run that makes the booking. The booked run uses this scope. Null
   /// means the queue scope (feature 116).
   /// </param>
+  /// <param name="keep">
+  /// The keep rule of a Timer booking (feature 125). With <see cref="SelfRescheduleKeep.Earliest"/>, a
+  /// booking of the same run does not replace an earlier pending booking.
+  /// </param>
+  /// <param name="runId">The id of the run that makes the booking (feature 125). Null for an unknown run.</param>
   SelfRescheduleResult ScheduleSelf(
     string queueId,
     string sequenceId,
     SelfRescheduleOption option,
     TimeOnly? timerTimeOfDay,
     TimeSpan? timerRelativeOffset,
-    GameBot.Domain.Parameters.ParameterScope? scope = null);
+    GameBot.Domain.Parameters.ParameterScope? scope = null,
+    SelfRescheduleKeep keep = SelfRescheduleKeep.None,
+    string? runId = null);
 
   /// <summary>
   /// Removes the pending one-time bookings of <paramref name="sequenceId"/> from the active run of
