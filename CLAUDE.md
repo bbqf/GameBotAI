@@ -9,5 +9,5 @@ When editing UTF-8 files in this repo, prefer the Edit/Write tools over `Get-Con
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/123-reschedule-self-cancel/plan.md
+at specs/124-ocr-offset-day-part/plan.md
 <!-- SPECKIT END -->
