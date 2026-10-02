@@ -10,6 +10,7 @@ using GameBot.Service.Services;
 using GameBot.Service.Services.EnsureGameRunning;
 using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.ExecutionLog;
+using GameBot.Service.Services.StepThrough;
 using GameBot.Domain.Actions;
 using System.Globalization;
 
@@ -35,8 +36,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private readonly IEnsureGameRunningActionHandler? _ensureGameRunning;
   private readonly IEnsureEmulatorRunningActionHandler? _ensureEmulatorRunning;
   private readonly IGameReadinessProbe? _gameReadiness;
+  private readonly Func<CommandStep, string?> _previewRule;
 
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null, GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory? screenFactory = null, GameBot.Domain.Images.IImageAlternatesRepository? alternates = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, GameBot.Domain.Triggers.Evaluators.IReferenceImageStore images, GameBot.Domain.Triggers.Evaluators.IScreenSource screen, GameBot.Domain.Vision.ITemplateMatcher matcher, ISessionContextCache sessionCache, AppConfig appConfig, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null, GameBot.Domain.Triggers.Evaluators.IScreenSourceFactory? screenFactory = null, GameBot.Domain.Images.IImageAlternatesRepository? alternates = null, Func<CommandStep, string?>? previewRule = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -53,10 +55,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _ensureEmulatorRunning = ensureEmulatorRunning;
     _gameReadiness = gameReadiness;
     _alternates = alternates;
+    _previewRule = previewRule ?? DefaultPreviewRule;
   }
 
   // Fallback constructor for environments without detection services registered (non-Windows or tests)
-  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null) {
+  public CommandExecutor(ICommandRepository commands, ISessionManager sessions, ITriggerRepository triggers, TriggerEvaluationService triggerEval, ILogger<CommandExecutor> logger, ISessionContextCache sessionCache, IExecutionLogService? executionLogService = null, IEnsureGameRunningActionHandler? ensureGameRunning = null, IEnsureEmulatorRunningActionHandler? ensureEmulatorRunning = null, IGameReadinessProbe? gameReadiness = null, Func<CommandStep, string?>? previewRule = null) {
     _commands = commands;
     _sessions = sessions;
     _triggers = triggers;
@@ -72,7 +75,13 @@ internal sealed class CommandExecutor : ICommandExecutor {
     _ensureGameRunning = ensureGameRunning;
     _ensureEmulatorRunning = ensureEmulatorRunning;
     _gameReadiness = gameReadiness;
+    _previewRule = previewRule ?? DefaultPreviewRule;
   }
+
+  // Feature 127: the rule that decides which command steps a step-through previews. The default is the
+  // shared rule table. A test can pass its own rule.
+  private static string? DefaultPreviewRule(CommandStep step)
+    => PreviewEffectRules.TryDescribe(step, out var effect) ? effect : null;
 
   /// <summary>
   /// Returns the screen source detection should read for <paramref name="sessionId"/> (feature 079).
@@ -116,7 +125,10 @@ internal sealed class CommandExecutor : ICommandExecutor {
   /// <param name="context">Execution-log context.</param>
   /// <param name="scope">Parameter scope in effect at the call site.</param>
   /// <param name="ct">Cancellation token.</param>
-  public async Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, CancellationToken ct = default) {
+  public Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, CancellationToken ct = default)
+    => ForceExecuteDetailedAsync(sessionId, commandId, context, scope, null, ct);
+
+  public async Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, ExecutionOptions? options, CancellationToken ct = default) {
     ArgumentNullException.ThrowIfNull(context);
     ArgumentNullException.ThrowIfNull(scope);
     var resolvedSessionId = await ResolveSessionIdAsync(sessionId, commandId, ct).ConfigureAwait(false);
@@ -126,11 +138,13 @@ internal sealed class CommandExecutor : ICommandExecutor {
 
     var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var stepOutcomes = new List<PrimitiveTapStepOutcome>();
-    var accepted = await ExecuteCommandRecursiveAsync(resolvedSessionId, commandId, visited, stepOutcomes, scope, ct).ConfigureAwait(false);
+    var previewed = new List<string>();
+    var accepted = await ExecuteCommandRecursiveAsync(resolvedSessionId, commandId, visited, stepOutcomes, scope, options, previewed, ct).ConfigureAwait(false);
     if (_executionLogService is not null) {
       var cmd = await _commands.GetAsync(commandId, ct).ConfigureAwait(false);
       var cmdName = cmd?.Name ?? commandId;
-      var hasStepFailures = stepOutcomes.Any(o => !string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase));
+      var hasStepFailures = stepOutcomes.Any(o => !string.Equals(o.Status, "executed", StringComparison.OrdinalIgnoreCase)
+        && !string.Equals(o.Status, PreviewEffectRules.PreviewedStatus, StringComparison.OrdinalIgnoreCase));
       var status = accepted > 0 && !hasStepFailures ? "success" : "failure";
       await _executionLogService.LogCommandExecutionAsync(
         commandId,
@@ -140,7 +154,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
         context,
         ct).ConfigureAwait(false);
     }
-    return new CommandForceExecutionResult(accepted, stepOutcomes);
+    return new CommandForceExecutionResult(accepted, stepOutcomes, options?.PreviewEffects == true ? previewed : null);
   }
 
   public async Task<CommandEvaluationDecision> EvaluateAndExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default) {
@@ -283,7 +297,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     }
   }
 
-  private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, ParameterScope scope, CancellationToken ct) {
+  private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, ParameterScope scope, ExecutionOptions? options, List<string> previewed, CancellationToken ct) {
     if (!visited.Add(commandId))
       throw new InvalidOperationException("command_cycle_detected");
 
@@ -321,7 +335,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
           nestedScope = bound;
         }
 
-        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, nestedScope, ct).ConfigureAwait(false);
+        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, nestedScope, options, previewed, ct).ConfigureAwait(false);
         continue;
       }
 
@@ -332,6 +346,19 @@ internal sealed class CommandExecutor : ICommandExecutor {
           step.Order,
           "skipped_parameter_unresolved",
           resolutionError!.ToMessage(step.Order.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+          null,
+          null,
+          StepType: step.Type.ToString()));
+        continue;
+      }
+
+      // Feature 127: a step-through shows the effect of a step with an outside effect and does not run it.
+      if (options?.PreviewEffects == true && _previewRule(effectiveStep) is { } previewedEffect) {
+        previewed.Add(previewedEffect);
+        stepOutcomes.Add(new PrimitiveTapStepOutcome(
+          step.Order,
+          PreviewEffectRules.PreviewedStatus,
+          previewedEffect,
           null,
           null,
           StepType: step.Type.ToString()));

@@ -67,6 +67,8 @@ internal sealed class ExecutionLogEntryDto {
   public string? CancellationReason { get; init; }
   /// <summary>Feature 094: the time bound (ms) that applied; set exactly when <see cref="CancellationReason"/> is.</summary>
   public int? TimeLimitMs { get; init; }
+  /// <summary>Feature 127: <c>step-through</c> for a step that the author ran in a step-through; otherwise null.</summary>
+  public string? Origin { get; init; }
 }
 
 internal sealed class ExecutionTreeNodeDto {

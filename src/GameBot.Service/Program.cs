@@ -101,6 +101,8 @@ app.MapGameEndpoints();
 // Commands endpoints (protected if token set)
 app.MapCommandEndpoints();
 app.MapStepEndpoints();
+// Step-through of a saved sequence (feature 127)
+app.MapStepThroughEndpoints();
 app.MapQueueEndpoints();
 app.MapQueueTemplateEndpoints();
 // Notification targets and queue levels (feature 120)

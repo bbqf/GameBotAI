@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-02 (feature 126: failure message dedup by last sent message;
+_Last reviewed: 2026-10-02 (feature 127: step-through of a saved sequence;
+feature 126: failure message dedup by last sent message;
 feature 125: reschedule-self `keep: earliest`;
 feature 123: reschedule-self option `Cancel`;
 feature 122: sequence option to exclude success notifications;
@@ -990,12 +991,67 @@ validity or exercise runtime branching without ever touching a real emulator.
 - See `specs/082-dry-run-sequences/contracts/dry-run-sequences.md` for the
   full request/response contract and invariants.
 
+### Step-through of a saved sequence (feature 127)
+
+An author runs a saved sequence one step at a time on a game session and watches the emulator. The
+author selects any step as the next step. The view shows the history of the step runs. A step-through
+changes no queue schedule and no daily record.
+
+- **Stepper** (`GameBot.Domain/Services/StepThrough`): `SequenceStepper` keeps a cursor over the step
+  tree and runs one step that is not a container for each call. `StepPath` gives each step a path
+  (`2`, `1/body/0`, `3/else/1`), and flattens the tree into rows for the view. `StepperState` holds the
+  cursor, the frame stack (open loops and open if branches), the author values, the step outcomes, and
+  the history (at most 1,000 entries). The stepper runs a leaf step with
+  `SequenceRunner.ExecuteLeafAsync`. A real run uses the same code for the guard, the delay, the
+  gate, the wait-for-image, and the action and command dispatch. The helpers for conditions, loop
+  checks, and break checks are shared and `internal`. A parity test runs 18 fixtures through the real
+  runner and through the stepper. It compares the order of the commands and the order of the condition
+  checks.
+- **When it evaluates**: the stepper evaluates a loop or an if step when the author runs the next step,
+  not before. The cursor can therefore be on a header row. A manual selection into a loop body or an if
+  branch opens the frames for all parents at iteration 1. After a step, the cursor goes to the next step
+  by the normal order. A failed step does not stop the step-through. A break with no loop does not stop
+  it. The history entry of a step that a real run would end the sequence at has the note
+  `sequence would end here`.
+- **Differences from a real run**: a `lastRun` condition is always false, and the entry says
+  `lastRun is not evaluated`. The sequence time limit does not apply. Each step keeps its own timeout.
+  The time between steps is not limited. The inter-step delay of the sequence is not applied.
+- **No outside effects**: `reschedule-self` and `notify` do not run. The history entry shows the intended
+  effect (`would reschedule at 14:30`) and the outcome `previewed`. `ExecutionOptions.PreviewEffects` is an
+  optional argument of `ICommandExecutor.ForceExecuteDetailedAsync`. Today no command step type has an
+  outside effect, so `PreviewEffectRules` lists each `CommandStepType` as `runs`. A unit test fails for a
+  new command step type that is not listed. A contract test fails for a sequence action type that is not
+  listed as `runs` or `previews`.
+- **Service** (`GameBot.Service/Services/StepThrough`): `StepThroughService` owns the sessions in memory.
+  A session has one game session, one version hash (SHA-256 of the stored sequence JSON), a lock, and a
+  lease of 90 seconds. Each call renews the lease. A step runs in a background task on a copy of the
+  state, and the service adopts the copy when the step ends. The call that starts a step returns `202`.
+  `StepThroughLeaseSweeper` checks the leases every 10 seconds. An expired lease cancels the running
+  step, resumes a queue that the step-through paused, and removes the session. The wiring is the set of
+  command, action, gate, and condition callbacks. It comes from
+  `SequenceExecutionService.CreateStepWiring`. A step therefore reaches the device in the same way as
+  a step of a real run.
+- **Queue safety**: `StepThroughSessionGuard` finds the queue that owns the device with
+  `IDeviceClaimRegistry` and `IQueueRunRegistry`. `run-next` answers `409 queue_running` while that queue
+  runs and is not paused. The author can pause the queue (`POST .../pause-queue`). The guard uses the
+  policy pause of the queue run with the reason `step-through`. It does not pause a queue while a firing
+  runs (`409 queue_run_active`). It resumes only a pause with its own reason, so a queue that was paused
+  before stays paused. A restart keeps the pause. The end of the step-through resumes the queue, after
+  the cancelled step stops.
+- **Saved sequences only**: the Sequences page enables **Step through** only for a saved sequence with no
+  unsaved edits, and shows the reason otherwise. The service compares the version hash on `run-next` and
+  `select` and answers `409 sequence_changed`. A restart takes the new stored version. A flow-graph
+  sequence and a sequence with blocks give `400 unsupported_sequence_kind`.
+- **Execution log**: each step run writes one sequence entry with the new field `origin: "step-through"`,
+  and the commands of the step are its children. `GET /api/execution-logs` accepts `?origin=`. The Web UI
+  shows a badge and an origin filter.
+
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):
 adb, backup/restore, commands, config (+ files, logging), coverage, emulator-image,
 execution-logs, games, image-detections, image-references, metrics, notifications, queues,
-queue-templates, sessions, steps, triggers. Plus `SessionsController`. Swagger groups these into sections.
+queue-templates, sessions, step-through, steps, triggers. Plus `SessionsController`. Swagger groups these into sections.
 
 > Note: `TriggersEndpoints` still exists on the backend even though the Triggers authoring UI was
 > removed (spec 020). Treat the API as broader than the current UI.
@@ -1147,6 +1203,26 @@ Feature 106 added and changed (see "Device liveness" above; issue #220):
 - `health.deviceLiveness` on `GET /api/queues/{id}` (`state`, `reason`, `notLiveSince`, `stale`,
   `frameAgeMs`, `unchangedMs`, `gatedFirings`).
 - A new configuration section, `Service:DeviceLiveness`. No new persisted file.
+
+Feature 127 added, additively (see "Step-through of a saved sequence" above):
+
+- Routes under `/api/step-through`:
+  - `POST /api/step-through` starts a step-through (`201`).
+  - `GET /api/step-through/{id}` reads it and renews the lease. It has the optional `?afterSeq=`.
+  - `POST .../run-next` runs the next step (`202`).
+  - `POST .../select` sets the next step.
+  - `POST .../cancel` cancels the step (`202` when a step ran, else `200`).
+  - `POST .../restart`, `PUT .../values`, and `POST .../pause-queue`.
+  - `DELETE .../{id}` ends it (`204`, idempotent).
+- An error has the usual envelope
+  `{ error: { code, message, hint, details } }`. The codes are `sequence_not_found`,
+  `step_through_not_found`, `unsupported_sequence_kind`, `sequence_empty`, `unknown_step`,
+  `not_selectable`, `unknown_parameter`, `session_unavailable`, `session_in_use`, `step_running`,
+  `sequence_complete`, `sequence_changed`, `queue_running` (with `queueId`, `queueName`, `canPause` in
+  `details`), `no_owning_queue`, and `queue_run_active`.
+- The member `origin` on the execution log entry (`step-through` or absent), and the query parameter
+  `origin` on `GET /api/execution-logs`.
+- No new persisted file. A step-through lives in memory and ends with the view or the lease.
 
 ## Legacy / removed (don't be misled by old specs)
 

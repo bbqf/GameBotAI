@@ -72,6 +72,8 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .execution-logs-expand:hover { background: transparent; box-shadow: none; transform: none; color: var(--gb-color-primary); }
 .execution-logs-cell-timestamp, .execution-logs-cell-type, .execution-logs-cell-status { white-space: nowrap; }
 .execution-logs-cell-name { min-width: 12rem; }
+/* Feature 127: marks a step that the author ran in a step-through. */
+.execution-logs-badge-step-through { margin-left: 0.5rem; background: #e0f2fe; color: #075985; }
 .execution-logs-cell-info { min-width: 18rem; color: var(--gb-color-muted); }
 /* Feature 066: a break that did not fire is a distinct, neutral "No break" — never the alarming
    red failure styling, never "skipped". A calm slate badge marks it as a normal, non-failing state. */

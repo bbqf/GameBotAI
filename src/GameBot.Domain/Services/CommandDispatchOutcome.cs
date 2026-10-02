@@ -27,7 +27,15 @@ namespace GameBot.Domain.Services;
 /// being <c>false</c> for a genuine "nothing dispatched" miss, so it MUST NOT trip the
 /// <c>requireDispatch</c> failure check. Defaults to <c>false</c> for every existing caller.
 /// </param>
-public sealed record CommandDispatchOutcome(bool Dispatched, string? Reason, bool SkippedDryRun = false) {
+/// <param name="PreviewedEffects">
+/// Feature 127: the outside effects that a step-through previewed inside the command instead of applying
+/// them (for example <c>would reschedule at 14:30</c>). Null or empty for every real run.
+/// </param>
+public sealed record CommandDispatchOutcome(
+  bool Dispatched,
+  string? Reason,
+  bool SkippedDryRun = false,
+  IReadOnlyList<string>? PreviewedEffects = null) {
   /// <summary>The ordinary case: the command ran and its input reached the device.</summary>
   public static readonly CommandDispatchOutcome Executed = new(true, null);
 }

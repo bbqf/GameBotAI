@@ -21,6 +21,16 @@ internal interface ICommandExecutor {
   /// image-anchored tap never found its template.
   /// </summary>
   Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, CancellationToken ct = default);
+
+  /// <summary>
+  /// Feature 127: force-executes a command with run options (see <see cref="ExecutionOptions"/>).
+  /// </summary>
+  /// <param name="options">
+  /// Feature 127: run options. With <see cref="ExecutionOptions.PreviewEffects"/> the executor does not apply a step with
+  /// an outside effect and lists the intended effect in <see cref="CommandForceExecutionResult.PreviewedEffects"/>.
+  /// Null keeps the behavior of a real run.
+  /// </param>
+  Task<CommandForceExecutionResult> ForceExecuteDetailedAsync(string? sessionId, string commandId, ExecutionLogContext context, ParameterScope scope, ExecutionOptions? options, CancellationToken ct = default);
   Task<int> ForceExecuteAsync(string? sessionId, string commandId, CancellationToken ct = default);
   Task<int> ForceExecuteAsync(string? sessionId, string commandId, ExecutionLogContext context, CancellationToken ct = default);
 
@@ -77,7 +87,20 @@ internal sealed record PrimitiveTapStepOutcome(
   IReadOnlyList<ResolvedParameter>? ResolvedParameters = null,
   int? HoldMs = null);
 
-internal sealed record CommandForceExecutionResult(int Accepted, IReadOnlyList<PrimitiveTapStepOutcome> StepOutcomes);
+/// <summary>
+/// The options of one command run (feature 127).
+/// </summary>
+/// <param name="PreviewEffects">
+/// True for a step-through. A step with an outside effect (for example "reschedule-self" or "notify") does not run.
+/// The result lists its intended effect. Steps that only use the device run as in a real run.
+/// </param>
+internal sealed record ExecutionOptions(bool PreviewEffects = false);
+
+/// <param name="PreviewedEffects">The effects that the executor previewed and did not apply (feature 127). Null for a real run.</param>
+internal sealed record CommandForceExecutionResult(
+  int Accepted,
+  IReadOnlyList<PrimitiveTapStepOutcome> StepOutcomes,
+  IReadOnlyList<string>? PreviewedEffects = null);
 
 internal sealed record CommandEvaluationExecutionResult(
   int Accepted,

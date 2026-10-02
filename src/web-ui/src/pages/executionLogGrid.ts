@@ -16,6 +16,8 @@ export type GridRow = {
   type: string;
   status: string;
   info: string;
+  /** Feature 127: 'step-through' when the author ran the step in a step-through. */
+  origin?: string;
 };
 
 const NODE_TYPE_LABELS: Record<ExecutionTreeNodeKind, string> = {
@@ -107,7 +109,8 @@ export const projectEntryRow = (entry: ExecutionLogEntryDto, timestamp: string):
   name: entry.objectRef.displayNameSnapshot,
   type: typeLabel(entry.executionType),
   status: entry.finalStatus,
-  info: `${entry.summary}${rotationNote(entry)}`
+  info: `${entry.summary}${rotationNote(entry)}`,
+  origin: entry.origin ?? undefined
 });
 
 // Projects a sub-element node onto a grid row. Nodes backed by a recorded execution

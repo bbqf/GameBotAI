@@ -449,6 +449,51 @@ namespace GameBot.Domain.Services {
       }
     }
 
+    /// <summary>
+    /// The loop ceiling that a loop step without its own <c>maxIterations</c> uses (feature 127). The
+    /// step-through stepper reads it so a stepped loop stops at the same count as a real loop.
+    /// </summary>
+    internal int LoopMaxIterations => _config.LoopMaxIterations;
+
+    /// <summary>
+    /// Runs one step that is not a container (feature 127). It does the guard, the delay, the gate, the
+    /// wait-for-image, the action dispatch, and the command dispatch, and it records one entry in
+    /// <paramref name="result"/>. A real run and a step-through run call the same code, so the two cannot
+    /// drift apart. Returns <c>true</c> when a real run would stop the sequence after this step.
+    /// </summary>
+    internal Task<bool> ExecuteLeafAsync(
+        SequenceStep step,
+        Func<string, ParameterScope, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task<CommandDispatchOutcome>>? commandDispatcher,
+        Func<SequenceStep, CancellationToken, Task<bool>>? gateEvaluator,
+        Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+        Dictionary<string, string> stepOutcomes,
+        SequenceExecutionResult result,
+        string sequenceId,
+        Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>>? actionDispatcher,
+        ParameterScope scope,
+        CancellationToken ct) {
+      ArgumentNullException.ThrowIfNull(step);
+      if (step.StepType is SequenceStepType.Loop or SequenceStepType.If) {
+        throw new ArgumentException("A loop step or an if step is not a leaf step.", nameof(step));
+      }
+
+      return ExecuteSingleStepAsync(
+          step,
+          executeCommandAsync,
+          commandDispatcher,
+          gateEvaluator,
+          conditionEvaluator,
+          new DelayRangeMs { Min = DefaultInterStepDelayMinMs, Max = DefaultInterStepDelayMaxMs },
+          stepOutcomes,
+          result,
+          sequenceId,
+          actionDispatcher,
+          scope,
+          dryRun: false,
+          ct);
+    }
+
     private async Task<bool> ExecuteSingleStepAsync(
         SequenceStep originalStep,
         Func<string, ParameterScope, Task> executeCommandAsync,
@@ -797,7 +842,7 @@ namespace GameBot.Domain.Services {
     /// it cannot be carried out, and both run even when the device is unreachable — which for
     /// notify is precisely the case that matters.
     /// </summary>
-    private static bool IsServiceLevelAction(SequenceActionPayload? action) {
+    internal static bool IsServiceLevelAction(SequenceActionPayload? action) {
       return string.Equals(action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)
           || string.Equals(action?.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase);
     }
@@ -936,7 +981,7 @@ namespace GameBot.Domain.Services {
     // ══════════════════════════════════════════════════════════════════════
 
     /// <summary>What the guard (the step condition) of a step tells the runner to do.</summary>
-    private enum StepGuardDecision {
+    internal enum StepGuardDecision {
       /// <summary>The guard is true. Run the step.</summary>
       Run,
       /// <summary>The guard is false. The step is recorded as skipped. The sequence continues.</summary>
@@ -953,7 +998,7 @@ namespace GameBot.Domain.Services {
     /// outcome. For a skip, detail names the composite child that settled the guard, or is null. For a
     /// failure, detail is the failure message, and the method also fails the run result.
     /// </summary>
-    private static async Task<StepGuardDecision> EvaluateStepGuardAsync(
+    internal static async Task<StepGuardDecision> EvaluateStepGuardAsync(
         SequenceStepCondition condition,
         string? stepKey,
         ParameterScope scope,
@@ -1085,7 +1130,7 @@ namespace GameBot.Domain.Services {
     }
 
     /// <summary>The key of a Loop step in the run result and in the step outcomes.</summary>
-    private static string LoopStepKey(SequenceStep step)
+    internal static string LoopStepKey(SequenceStep step)
         => !string.IsNullOrWhiteSpace(step.StepId) ? step.StepId : $"loop@{step.Order}";
 
     /// <summary>
@@ -1609,7 +1654,7 @@ namespace GameBot.Domain.Services {
     /// placeholders of the condition against <paramref name="scope"/> (feature 114).
     /// Throws when a placeholder has no value, or when the evaluator is unavailable or throws.
     /// </summary>
-    private static Task<bool> EvaluateLoopConditionAsync(
+    internal static Task<bool> EvaluateLoopConditionAsync(
         SequenceStepCondition condition,
         ParameterScope scope,
         string fieldPathPrefix,
@@ -1626,7 +1671,7 @@ namespace GameBot.Domain.Services {
     /// <paramref name="scope"/> (feature 114). Throws <see cref="ConditionEvaluationException"/> with
     /// <see cref="ConditionEvaluationFailureKind.ParameterUnresolved"/> when a name has no value.
     /// </summary>
-    private static SequenceStepCondition ResolveCondition(
+    internal static SequenceStepCondition ResolveCondition(
         SequenceStepCondition condition,
         ParameterScope scope,
         string fieldPathPrefix,
@@ -1645,7 +1690,7 @@ namespace GameBot.Domain.Services {
     /// Evaluates a condition that has no placeholders left.
     /// Throws when the evaluator is unavailable or throws.
     /// </summary>
-    private static async Task<bool> EvaluateResolvedConditionAsync(
+    internal static async Task<bool> EvaluateResolvedConditionAsync(
         SequenceStepCondition condition,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
         Dictionary<string, string> stepOutcomes,
@@ -1662,7 +1707,7 @@ namespace GameBot.Domain.Services {
       return evaluation.Value;
     }
 
-    private static (string Type, string Detail) DescribeBreakCondition(SequenceStepCondition condition) {
+    internal static (string Type, string Detail) DescribeBreakCondition(SequenceStepCondition condition) {
       var negatePrefix = condition.Negate ? "NOT " : "";
       if (condition is ImageVisibleStepCondition img)
         return ("imageVisible", $"{negatePrefix}imageVisible(imageId={img.ImageId}, minSimilarity={img.MinSimilarity?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "default"})");

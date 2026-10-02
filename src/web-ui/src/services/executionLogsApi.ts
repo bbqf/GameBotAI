@@ -24,6 +24,8 @@ export type ExecutionLogEntryDto = {
   rotatedToExecutionId?: string;
   /** Set on a queue run segment opened by log rotation: the segment it continues from. */
   rotatedFromExecutionId?: string;
+  /** Feature 127: 'step-through' for a step that the author ran in a step-through. Absent for an ordinary run. */
+  origin?: string | null;
 };
 
 export type ExecutionTreeNodeKind =
@@ -143,6 +145,8 @@ export type ListExecutionLogsRequest = {
   filterStatus?: string;
   pageSize?: number;
   pageToken?: string;
+  /** Feature 127: only entries with this origin, for example 'step-through'. */
+  origin?: string;
 };
 
 const toQueryString = (query: ListExecutionLogsRequest): string => {
@@ -154,6 +158,7 @@ const toQueryString = (query: ListExecutionLogsRequest): string => {
   if (query.filterStatus) params.set('filterStatus', query.filterStatus);
   if (query.pageSize && query.pageSize > 0) params.set('pageSize', `${query.pageSize}`);
   if (query.pageToken) params.set('pageToken', query.pageToken);
+  if (query.origin) params.set('origin', query.origin);
   const rendered = params.toString();
   return rendered.length > 0 ? `?${rendered}` : '';
 };

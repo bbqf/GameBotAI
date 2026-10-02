@@ -27,7 +27,7 @@ namespace GameBot.Service.Services.SequenceExecution;
 /// Reusable sequence-execution orchestration extracted from the <c>sequences/{id}/execute</c>
 /// endpoint so the queue execution engine can run sequences with identical logging/wiring.
 /// </summary>
-internal sealed class SequenceExecutionService : ISequenceExecutionService {
+internal sealed partial class SequenceExecutionService : ISequenceExecutionService, IStepThroughWiring {
   private readonly SequenceRunner _runner;
   private readonly TriggerEvaluationService _evalSvc;
   private readonly IImageVisibleConditionAdapter _imageVisibleConditionAdapter;
@@ -276,35 +276,16 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       }
 
       {
-        try {
-          var childContext = new ExecutionLogContext {
-            ParentExecutionId = rootExecutionId,
-            RootExecutionId = childRootExecutionId,
-            Depth = childDepth,
-            SequenceIndex = ++childInvocationIndex,
-            SequenceId = sequenceId,
-            SequenceLabel = startSequenceName,
-            OriginatingQueueId = originatingQueueId
-          };
-          var detailed = await _commandExecutor.ForceExecuteDetailedAsync(sessionId, commandId, childContext, stepScope, ct).ConfigureAwait(false);
-          return ClassifyDispatch(detailed, ct);
-        }
-        catch (KeyNotFoundException ex) when (ex.Message == "cached_session_not_found") {
-          throw new InvalidOperationException($"No cached session found for command '{commandId}'. Start a session first.");
-        }
-        catch (InvalidOperationException ex) when (ex.Message == "missing_session_context") {
-          throw new InvalidOperationException($"No session available for command '{commandId}'. Start a session or pass a sessionId.");
-        }
-        catch (KeyNotFoundException ex) {
-          // Primitive action steps (tap/swipe/key/connect-to-game/ensure-game-running) never
-          // reach this path — they are dispatched via the action dispatcher below. What lands
-          // here is a dangling reference (missing command or session); it must fail the step
-          // loudly instead of reporting a fake success.
-          var reason = ex.Message == "Command not found"
-            ? $"Command '{commandId}' was not found; the sequence step references a missing command."
-            : $"Command '{commandId}' could not be executed: {ex.Message}.";
-          throw new InvalidOperationException(reason);
-        }
+        var childContext = new ExecutionLogContext {
+          ParentExecutionId = rootExecutionId,
+          RootExecutionId = childRootExecutionId,
+          Depth = childDepth,
+          SequenceIndex = ++childInvocationIndex,
+          SequenceId = sequenceId,
+          SequenceLabel = startSequenceName,
+          OriginatingQueueId = originatingQueueId
+        };
+        return await DispatchCommandCoreAsync(sessionId, commandId, stepScope, childContext, null, ct).ConfigureAwait(false);
       }
     }
 
@@ -314,48 +295,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       // call rather than a throwing stub so the legacy contract stays honest.
       async (commandId, stepScope) => await DispatchCommandAsync(commandId, stepScope).ConfigureAwait(false),
       commandDispatcher: DispatchCommandAsync,
-      gateEvaluator: (step, token) => {
-        // Temporary evaluator for integration tests:
-        // TargetId "always" => gate passes; "never" => gate fails
-        if (step.Gate == null) return Task.FromResult(true);
-        var tid = step.Gate.TargetId ?? string.Empty;
-        if (string.Equals(tid, "always", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(true);
-        if (string.Equals(tid, "never", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(false);
-        return Task.FromResult(true);
-      },
-      conditionEvaluator: (cond, token) => {
-        // Feature 082 (FR-015): under dryRun, an image/text-sourced condition never reads live
-        // capture state — it resolves the same neutral way an ordinary false-evaluated condition
-        // does today, so a dry-run execute never needs a session for these. A commandOutcome
-        // condition is untouched — SequenceRunner resolves it directly, never through this delegate.
-        if (dryRun && (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase))) {
-          return Task.FromResult(false);
-        }
-        if (string.Equals(cond.Source, "image", StringComparison.OrdinalIgnoreCase)) {
-          return EvaluateImageConditionAsync(cond, _imageRepository, _imageVisibleConditionAdapter, token);
-        }
-        if (string.Equals(cond.Source, "text", StringComparison.OrdinalIgnoreCase)) {
-          var region = cond.Region is null ? new GameBot.Domain.Triggers.Region { X = 0, Y = 0, Width = 1, Height = 1 }
-                                           : new GameBot.Domain.Triggers.Region { X = cond.Region.X, Y = cond.Region.Y, Width = cond.Region.Width, Height = cond.Region.Height };
-          var mode = string.Equals(cond.Mode, "Absent", StringComparison.OrdinalIgnoreCase) ? "not-found" : "found";
-          var trig = new GameBot.Domain.Triggers.Trigger {
-            Id = "inline-text",
-            Type = GameBot.Domain.Triggers.TriggerType.TextMatch,
-            Enabled = true,
-            Params = new GameBot.Domain.Triggers.TextMatchParams {
-              Target = cond.TargetId,
-              Region = region,
-              ConfidenceThreshold = cond.ConfidenceThreshold ?? 0.80,
-              Mode = mode,
-              Language = cond.Language
-            }
-          };
-          var r = _evalSvc.Evaluate(trig, DateTimeOffset.UtcNow);
-          return Task.FromResult(r.Status == GameBot.Domain.Triggers.TriggerStatus.Satisfied);
-        }
-        return Task.FromResult(false);
-      },
+      gateEvaluator: EvaluateGate,
+      conditionEvaluator: (cond, token) => EvaluateConditionAsync(cond, dryRun, token),
       ct: ct,
       scope: scope,
       dryRun: dryRun,

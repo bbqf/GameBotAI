@@ -24,6 +24,7 @@ import { PrimitiveActionFields, summarizePrimitiveAction } from '../components/s
 import type { ActionStepEntry, LoopStepEntry, BreakStepEntry, IfStepEntry, StepEntry } from '../types/stepEntry';
 import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
 import { ImageSelectorDropdown } from '../components/images/ImageSelectorDropdown';
+import { StepThroughPanel } from '../components/stepthrough/StepThroughPanel';
 
 type RescheduleOption = 'AtQueueStart' | 'OncePerRun' | 'Timer' | 'EveryStep' | 'Cancel';
 
@@ -856,6 +857,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // Feature 127: the step-through view. It runs the saved sequence, so it is open for a saved sequence only.
+  const [stepThroughOpen, setStepThroughOpen] = useState(false);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [isDragInvalid, setIsDragInvalid] = useState(false);
@@ -1003,6 +1006,29 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   const { confirmNavigate } = useUnsavedChangesPrompt(dirty);
   const editorOpen = creating || Boolean(editingId);
 
+  // FR-002: the step-through is for a saved sequence with no unsaved edits. The button shows the reason.
+  const stepThroughDisabledReason: string | undefined = !editingId
+    ? 'Save the sequence first. The step-through runs the saved sequence.'
+    : dirty
+      ? 'Save your changes first. The step-through runs the saved sequence, not the unsaved edits.'
+      : submitting || loading
+        ? 'Wait until the page has loaded.'
+        : undefined;
+  const stepThroughButton = (
+    <>
+      <button
+        type="button"
+        data-testid="step-through-button"
+        onClick={() => setStepThroughOpen(true)}
+        disabled={Boolean(stepThroughDisabledReason) || stepThroughOpen}
+        aria-describedby={stepThroughDisabledReason ? 'step-through-reason' : undefined}
+      >
+        Step through
+      </button>
+      {stepThroughDisabledReason && <span id="step-through-reason" className="form-hint">{stepThroughDisabledReason}</span>}
+    </>
+  );
+
   const commandLookup = useMemo(() => new Map(commandOptions.map((o) => [o.value, o.label])), [commandOptions]);
   const editorCommandOptions = useMemo(() => mergeCommandOptionsWithUnresolved(commandOptions, form.steps), [commandOptions, form.steps]);
   const sequenceRows = useMemo(() => sequences.map((s) => ({ id: s.id, name: s.name, stepCount: s.steps?.length ?? 0, excludeFromSuccessNotifications: s.excludeFromSuccessNotifications === true })), [sequences]);
@@ -1034,6 +1060,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
     const linearSteps = toLinearSteps(s.steps);
     const hasPerStep = isLinearStepArray(s.steps) && linearSteps.length > 0;
     const delayRange = toInterStepDelayRange(s.interStepDelayRangeMs);
+    setStepThroughOpen(false);
     setEditingId(id);
     setCreating(false);
     setPendingStepId(undefined);
@@ -1051,6 +1078,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
   };
 
   const resetForm = () => {
+    setStepThroughOpen(false);
     setForm(emptyForm);
     setPendingStepId(undefined);
     setLoadedVersion(1);
@@ -1060,6 +1088,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
 
   const backToList = () => {
     if (!confirmNavigate()) return;
+    setStepThroughOpen(false);
     setCreating(false);
     setEditingId(undefined);
     resetForm();
@@ -1976,6 +2005,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
 
           <FormActions submitting={submitting} onCancel={() => { if (!confirmNavigate()) return; setCreating(false); resetForm(); }}>
             {loading && <span className="form-hint">Loading…</span>}
+            {stepThroughButton}
           </FormActions>
           <FormError message={errors?.form} />
         </form>
@@ -2243,10 +2273,18 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               }}
             >
               {loading && <span className="form-hint">Loading…</span>}
+              {stepThroughButton}
               <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)} disabled={submitting}>Delete</button>
             </FormActions>
             <FormError message={errors?.form} />
           </form>
+          {stepThroughOpen && (
+            <StepThroughPanel
+              sequenceId={editingId}
+              sequenceName={form.name}
+              onClose={() => setStepThroughOpen(false)}
+            />
+          )}
         </section>
       )}
       <ConfirmDeleteModal

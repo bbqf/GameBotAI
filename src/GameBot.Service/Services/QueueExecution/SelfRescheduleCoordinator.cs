@@ -107,7 +107,7 @@ internal sealed class SelfRescheduleCoordinator : ISelfRescheduleCoordinator {
   /// when it is later than the local time now, else the next day (feature 109, issue #227). The
   /// offset is the offset of the local time zone for that date and time.
   /// </summary>
-  private DateTimeOffset ResolveTimerFireAt(TimeOnly? timeOfDay, TimeSpan? relativeOffset) {
+  public DateTimeOffset ResolveTimerFireAt(TimeOnly? timeOfDay, TimeSpan? relativeOffset) {
     var now = _timeProvider.GetLocalNow();
     if (relativeOffset is { } offset) {
       return now + offset;

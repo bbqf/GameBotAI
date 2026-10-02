@@ -13,6 +13,7 @@ import { GridRow, projectEntryRow, projectNodeRow, statusLabel } from './executi
 const PAGE_SIZE = 50;
 const POLL_INTERVAL_MS = 2000;
 const GRID_COLUMN_COUNT = 6;
+const STEP_THROUGH_ORIGIN = 'step-through';
 
 const formatRelativeTime = (timestampUtc: string): string => {
   const timestamp = new Date(timestampUtc);
@@ -51,6 +52,9 @@ const GridRowView: React.FC<{ row: GridRow; expanded: boolean; onToggle: () => v
     <td className="execution-logs-cell-timestamp">{row.timestamp}</td>
     <td className="execution-logs-cell-name" style={{ paddingLeft: `${0.5 + row.depth * 1.25}rem` }}>
       {row.name}
+      {row.origin === STEP_THROUGH_ORIGIN && (
+        <span className="badge execution-logs-badge-step-through" title="The author ran this step in a step-through.">step-through</span>
+      )}
     </td>
     <td className="execution-logs-cell-type">{row.type}</td>
     <td className="execution-logs-cell-status" aria-label={statusLabel(row.status)}>{statusLabel(row.status)}</td>
@@ -69,6 +73,7 @@ export const ExecutionLogsPage: React.FC = () => {
   const [filterTimestamp, setFilterTimestamp] = useState('');
   const [filterObjectName, setFilterObjectName] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterOrigin, setFilterOrigin] = useState('');
   const [timestampMode, setTimestampMode] = useState<'exact' | 'relative'>('exact');
 
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
@@ -79,8 +84,8 @@ export const ExecutionLogsPage: React.FC = () => {
   const listRequestId = useRef(0);
 
   const queryState = useMemo(
-    () => ({ sortBy, sortDirection, filterTimestamp, filterObjectName, filterStatus }),
-    [sortBy, sortDirection, filterTimestamp, filterObjectName, filterStatus]
+    () => ({ sortBy, sortDirection, filterTimestamp, filterObjectName, filterStatus, filterOrigin }),
+    [sortBy, sortDirection, filterTimestamp, filterObjectName, filterStatus, filterOrigin]
   );
 
   const loadSubtree = async (id: string) => {
@@ -129,6 +134,7 @@ export const ExecutionLogsPage: React.FC = () => {
         filterTimestamp: queryState.filterTimestamp.trim() || undefined,
         filterObjectName: queryState.filterObjectName.trim() || undefined,
         filterStatus: queryState.filterStatus.trim() || undefined,
+        origin: queryState.filterOrigin || undefined,
         pageSize: PAGE_SIZE
       });
 
@@ -248,6 +254,13 @@ export const ExecutionLogsPage: React.FC = () => {
         <div className="execution-logs-filter-group">
           <label htmlFor="filter-status">Status</label>
           <input id="filter-status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} placeholder="Filter status" />
+        </div>
+        <div className="execution-logs-filter-group">
+          <label htmlFor="filter-origin">Origin</label>
+          <select id="filter-origin" value={filterOrigin} onChange={(e) => setFilterOrigin(e.target.value)}>
+            <option value="">All runs</option>
+            <option value={STEP_THROUGH_ORIGIN}>Step-through only</option>
+          </select>
         </div>
         <div className="execution-logs-filter-group">
           <label htmlFor="timestamp-mode">Timestamp display</label>

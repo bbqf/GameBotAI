@@ -22,6 +22,7 @@ internal static class ExecutionLogsEndpoints {
       string? finalStatus,
       string? objectType,
       string? objectId,
+      string? origin,
       int? pageSize,
       string? cursor,
       IExecutionLogService svc,
@@ -41,6 +42,7 @@ internal static class ExecutionLogsEndpoints {
           FinalStatus = finalStatus,
           ObjectType = objectType,
           ObjectId = objectId,
+          Origin = origin,
           PageSize = pageSize ?? 50,
           Cursor = cursor,
           RootsOnly = true
@@ -146,7 +148,8 @@ internal static class ExecutionLogsEndpoints {
       RotatedToExecutionId = entry.RotatedToExecutionId,
       RotatedFromExecutionId = entry.RotatedFromExecutionId,
       CancellationReason = entry.CancellationReason,
-      TimeLimitMs = entry.TimeLimitMs
+      TimeLimitMs = entry.TimeLimitMs,
+      Origin = entry.Origin
     };
 
   private static ExecutionTreeNodeDto ToTreeNodeDto(ExecutionTreeNodeProjection node)
@@ -269,6 +272,7 @@ internal static class ExecutionLogsEndpoints {
       legacy.Summary,
       legacy.CancellationReason,
       legacy.TimeLimitMs,
+      legacy.Origin,
       legacy.Details,
       LegacyStepOutcomes = legacy.StepOutcomes,
       detail.ExecutionId,
