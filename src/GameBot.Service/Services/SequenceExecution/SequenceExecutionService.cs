@@ -361,7 +361,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       dryRun: dryRun,
       // Feature 116: send the scope that the caller gave this run (before the runner adds the
       // sequence layer), so that a run that reschedule-self books uses the same scope.
-      actionDispatcher: (action, token) => DispatchActionAsync(action, sequenceId, originatingQueueId, sessionId, scope, token)
+      // Feature 125: the id of this execution is the run key of the Timer bookings that it makes.
+      actionDispatcher: (action, token) => DispatchActionAsync(action, sequenceId, originatingQueueId, sessionId, scope, rootExecutionId, token)
     ).ConfigureAwait(false);
 
     var sequence = await _sequenceRepository.GetAsync(sequenceId).ConfigureAwait(false);
@@ -727,7 +728,8 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       string sequenceId,
       string? originatingQueueId,
       string? sessionId,
-      GameBot.Domain.Parameters.ParameterScope scope) {
+      GameBot.Domain.Parameters.ParameterScope scope,
+      string? runId) {
     var isCancel = SelfReschedulePayload.TryRead(action, out var peek, out _)
       && peek is not null
       && peek.Option == SelfRescheduleOption.Cancel;
@@ -776,7 +778,9 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       payload.Option,
       timerTimeOfDay,
       timerRelativeOffset,
-      scope);
+      scope,
+      payload.Keep,
+      runId);
 
     if (schedule.Outcome == SelfRescheduleOutcome.NotRunning) {
       return new ActionDispatchResult("noop", "originating queue run no longer active; no reschedule performed");
@@ -785,6 +789,13 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
     var message = ocrResolution is null
       ? $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); applies to the current run only"
       : $"rescheduled this sequence (option {schedule.Option}, {schedule.ResolvedTiming}); {DescribeOcrOffset(ocrResolution)}; applies to the current run only";
+    if (schedule.KeptPending && schedule.PendingFireAt is { } pendingFireAt) {
+      // Feature 125: the booking lost to an earlier pending booking. The step still succeeds.
+      message = $"kept the pending booking for {pendingFireAt.ToString("u", CultureInfo.InvariantCulture)} "
+        + $"(keep earliest); the new booking ({schedule.ResolvedTiming}) is dropped"
+        + (ocrResolution is null ? string.Empty : $"; {DescribeOcrOffset(ocrResolution)}")
+        + "; applies to the current run only";
+    }
 
     return new ActionDispatchResult("scheduled", message);
   }
@@ -817,9 +828,10 @@ internal sealed class SequenceExecutionService : ISequenceExecutionService {
       string? originatingQueueId,
       string? sessionId,
       GameBot.Domain.Parameters.ParameterScope scope,
+      string? runId,
       CancellationToken ct) {
     if (string.Equals(action.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)) {
-      return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId, sessionId, scope));
+      return Task.FromResult(DispatchSelfReschedule(action, sequenceId, originatingQueueId, sessionId, scope, runId));
     }
 
     if (string.Equals(action.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)) {

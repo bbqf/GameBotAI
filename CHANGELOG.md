@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Option `keep: earliest` for the Timer `reschedule-self` step. A booking does not replace an earlier pending booking of the same run (125-reschedule-self-keep-earliest, issue #257)
+  - Without `keep`, the last booking wins, as before. With `keep: earliest`, a later booking of the same run is dropped and the step still succeeds with the result `scheduled`. A booking of another run always replaces the pending booking.
+  - `keep` with an option other than `Timer`, or with a value other than `earliest`, returns 400. The OpenAPI text of the `reschedule-self` payload describes `keep`.
 - Option `Cancel` for the `reschedule-self` step. It removes the pending Timer, OncePerRun and AtQueueStart bookings of its sequence in the current queue run, also a OncePerRun booking that the queue already copied for firing (123-reschedule-self-cancel, issue #264, FR-015)
   - The step gives outcome `cancelled` with `removed` true, or `noop` with `removed` false. It never fails the run. `Cancel` with `timerTimeOfDay`, `timerRelativeOffset` or `ocrOffset` returns 400. The Web UI lists "Cancel pending booking".
 - Queue sequence notifications. A queue can send a short message when one of its entries ends (120-sequence-queue-notifications)

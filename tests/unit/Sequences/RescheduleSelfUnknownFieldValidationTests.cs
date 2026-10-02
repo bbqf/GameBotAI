@@ -48,7 +48,7 @@ public sealed class RescheduleSelfUnknownFieldValidationTests {
     var errors = Validate(Payload(("option", "Timer"), ("timerTimeOfDay", "11:00"), ("nextDay", true)));
     var error = errors.Should().ContainSingle().Subject;
     error.Should().Contain("unknown field(s): nextDay");
-    error.Should().Contain("Known fields: option, timerTimeOfDay, timerRelativeOffset, ocrOffset.");
+    error.Should().Contain("Known fields: option, timerTimeOfDay, timerRelativeOffset, ocrOffset, keep.");
   }
 
   [Fact]

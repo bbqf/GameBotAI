@@ -24,6 +24,11 @@ public sealed class SelfReschedulePayload {
   /// <summary>Wire key for the optional OCR-offset spec (feature 068).</summary>
   public const string OcrOffsetKey = "ocrOffset";
 
+  /// <summary>Wire key for the optional keep rule (feature 125).</summary>
+  public const string KeepKey = "keep";
+  /// <summary>The only accepted value of the <c>keep</c> key (feature 125).</summary>
+  public const string KeepEarliestValue = "earliest";
+
   /// <summary>Default lower bound for a parsed OCR duration when <c>min</c> is omitted.</summary>
   public static readonly TimeSpan DefaultOcrMin = TimeSpan.FromSeconds(1);
   /// <summary>Default upper bound for a parsed OCR duration when <c>max</c> is omitted.</summary>
@@ -43,6 +48,12 @@ public sealed class SelfReschedulePayload {
 
   /// <summary>True when a relative offset was supplied (regardless of option).</summary>
   public bool HasTimerRelativeOffset { get; init; }
+
+  /// <summary>The keep rule (feature 125). <see cref="SelfRescheduleKeep.None"/> when the key is absent.</summary>
+  public SelfRescheduleKeep Keep { get; init; }
+
+  /// <summary>True when the payload has the <c>keep</c> key with a valid value.</summary>
+  public bool HasKeep { get; init; }
 
   /// <summary>The OCR-offset spec (feature 068), when configured; otherwise null.</summary>
   public SelfRescheduleOcrOffset? OcrOffset { get; init; }
@@ -98,7 +109,26 @@ public sealed class SelfReschedulePayload {
       }
     }
 
+    var keep = SelfRescheduleKeep.None;
+    var hasKeep = false;
+    if (TryGetIgnoreCase(payload.Parameters, KeepKey, out var rawKeep) && rawKeep is not null && !IsJsonNull(rawKeep)) {
+      var keepText = rawKeep switch {
+        string s => s,
+        JsonElement je when je.ValueKind == JsonValueKind.String => je.GetString(),
+        _ => null
+      };
+      if (keepText is null || !string.Equals(keepText.Trim(), KeepEarliestValue, StringComparison.OrdinalIgnoreCase)) {
+        var shown = keepText ?? rawKeep.ToString();
+        error = $"keep '{shown}' is not valid; the only accepted value is '{KeepEarliestValue}'";
+        return false;
+      }
+      keep = SelfRescheduleKeep.Earliest;
+      hasKeep = true;
+    }
+
     result = new SelfReschedulePayload {
+      Keep = keep,
+      HasKeep = hasKeep,
       Option = option,
       TimerTimeOfDay = timeOfDay,
       TimerRelativeOffset = relativeOffset,

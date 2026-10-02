@@ -429,7 +429,8 @@ public sealed class SequenceStepValidationService {
       SelfReschedulePayload.OptionKey,
       SelfReschedulePayload.TimerTimeOfDayKey,
       SelfReschedulePayload.TimerRelativeOffsetKey,
-      SelfReschedulePayload.OcrOffsetKey
+      SelfReschedulePayload.OcrOffsetKey,
+      SelfReschedulePayload.KeepKey
     },
     StringComparer.OrdinalIgnoreCase);
 
@@ -449,7 +450,7 @@ public sealed class SequenceStepValidationService {
       .ToList();
     if (unknownFields.Count > 0) {
       errors.Add($"Step '{stepLabel}' reschedule-self payload has unknown field(s): {string.Join(", ", unknownFields)}. "
-        + "Known fields: option, timerTimeOfDay, timerRelativeOffset, ocrOffset.");
+        + "Known fields: option, timerTimeOfDay, timerRelativeOffset, ocrOffset, keep.");
     }
 
     if (payload.Option == SelfRescheduleOption.Timer) {
@@ -479,6 +480,9 @@ public sealed class SequenceStepValidationService {
       }
       if (payload.HasOcrOffset) {
         errors.Add($"Step '{stepLabel}' reschedule-self ocrOffset is only valid when option is Timer.");
+      }
+      if (payload.HasKeep) {
+        errors.Add($"Step '{stepLabel}' reschedule-self keep is only valid when option is Timer.");
       }
     }
   }

@@ -156,6 +156,60 @@ public sealed class SelfReschedulePayloadTests {
     error.Should().Contain("fallback");
   }
 
+  // ── Feature 125: keep ─────────────────────────────────────────────────────
+
+  [Theory]
+  [InlineData("earliest")]
+  [InlineData("Earliest")]
+  [InlineData("EARLIEST")]
+  public void KeepEarliestParsesInAnyCase(string wire) {
+    SelfReschedulePayload.TryRead(
+      Payload(("option", "Timer"), ("timerRelativeOffset", "00:10:00"), ("keep", wire)), out var result, out var error).Should().BeTrue();
+    error.Should().BeNull();
+    result!.Keep.Should().Be(SelfRescheduleKeep.Earliest);
+    result.HasKeep.Should().BeTrue();
+  }
+
+  [Fact]
+  public void KeepJsonNullCountsAsAbsent() {
+    using var doc = System.Text.Json.JsonDocument.Parse("null");
+    SelfReschedulePayload.TryRead(
+      Payload(("option", "Timer"), ("timerRelativeOffset", "00:10:00"), ("keep", doc.RootElement.Clone())), out var result, out _).Should().BeTrue();
+    result!.Keep.Should().Be(SelfRescheduleKeep.None);
+    result.HasKeep.Should().BeFalse();
+  }
+
+  [Theory]
+  [InlineData("latest")]
+  [InlineData("")]
+  [InlineData("   ")]
+  public void KeepWithAnotherStringValueIsRejectedAndNamesEarliest(string wire) {
+    SelfReschedulePayload.TryRead(
+      Payload(("option", "Timer"), ("timerRelativeOffset", "00:10:00"), ("keep", wire)), out _, out var error).Should().BeFalse();
+    error.Should().Contain("earliest");
+  }
+
+  [Theory]
+  [InlineData(true)]
+  [InlineData(5)]
+  public void KeepWithANonStringValueIsRejectedAndNamesEarliest(object wire) {
+    SelfReschedulePayload.TryRead(
+      Payload(("option", "Timer"), ("timerRelativeOffset", "00:10:00"), ("keep", wire)), out _, out var error).Should().BeFalse();
+    error.Should().Contain("earliest");
+  }
+
+  [Fact]
+  public void KeepInsideOcrOffsetIsNotRead() {
+    var ocr = new Dictionary<string, object?> {
+      ["region"] = Region(1, 2, 3, 4),
+      ["fallback"] = "00:06:00",
+      ["keep"] = "earliest"
+    };
+    SelfReschedulePayload.TryRead(Payload(("option", "Timer"), ("ocrOffset", ocr)), out var result, out _).Should().BeTrue();
+    result!.HasKeep.Should().BeFalse();
+    result.Keep.Should().Be(SelfRescheduleKeep.None);
+  }
+
   [Fact]
   public void OcrOffsetMalformedFallbackIsRejected() {
     var ocr = new Dictionary<string, object?> {

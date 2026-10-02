@@ -142,4 +142,159 @@ public sealed class QueueRunHandleTimerFiringTests {
 
     again.Scope.Should().BeSameAs(scope);
   }
+
+  // ── Feature 125: keep earliest (decision table of data-model.md) ──────────────────────────────
+
+  private static SelfRescheduleEntry Booking(string sequenceId, DateTimeOffset fireAt, string? runId) =>
+    Timer(sequenceId, fireAt) with { RunId = runId };
+
+  private static readonly DateTimeOffset Early = new(2026, 1, 1, 12, 15, 0, TimeSpan.Zero);
+  private static readonly DateTimeOffset Late = new(2026, 1, 1, 12, 50, 0, TimeSpan.Zero);
+
+  [Fact]
+  public void NoKeepAddsWhenNothingIsPending() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Late, "r1"), keepEarliest: false).Kind.Should().Be(TimerBookingKind.Added);
+  }
+
+  [Fact]
+  public void NoKeepReplacesAlsoForTheSameRunAndAnEarlierPendingTime() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Early, "r1"), keepEarliest: false);
+
+    handle.AddTimerFiring(Booking("seq-A", Late, "r1"), keepEarliest: false).Kind.Should().Be(TimerBookingKind.Replaced);
+
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.FireAt.Should().Be(Late);
+  }
+
+  [Fact]
+  public void KeepAddsWhenNothingIsPending() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Late, "r1"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.Added);
+  }
+
+  [Fact]
+  public void KeepReplacesAnEarlierBookingOfAnotherRun() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Early, "r1"), keepEarliest: false);
+
+    handle.AddTimerFiring(Booking("seq-A", Late, "r2"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.Replaced);
+
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.FireAt.Should().Be(Late);
+  }
+
+  [Fact]
+  public void KeepReplacesAnEarlierBookingWithNoRunId() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Early, null), keepEarliest: false);
+
+    handle.AddTimerFiring(Booking("seq-A", Late, "r1"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.Replaced);
+
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.FireAt.Should().Be(Late);
+  }
+
+  [Fact]
+  public void KeepWithNoRunIdReplacesEvenWhenThePendingBookingHasNoRunId() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Early, null), keepEarliest: false);
+
+    handle.AddTimerFiring(Booking("seq-A", Late, null), keepEarliest: true).Kind.Should().Be(TimerBookingKind.Replaced);
+  }
+
+  [Fact]
+  public void KeepReplacesWhenTheSameRunBooksAnEarlierTime() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Late, "r1"), keepEarliest: true);
+
+    handle.AddTimerFiring(Booking("seq-A", Early, "r1"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.Replaced);
+
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.FireAt.Should().Be(Early);
+  }
+
+  [Fact]
+  public void KeepKeepsThePendingBookingWhenTheSameRunBooksALaterTime() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Early, "r1"), keepEarliest: true);
+
+    var result = handle.AddTimerFiring(Booking("seq-A", Late, "r1"), keepEarliest: true);
+
+    result.Kind.Should().Be(TimerBookingKind.KeptPending);
+    result.PendingFireAt.Should().Be(Early);
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.FireAt.Should().Be(Early);
+  }
+
+  [Fact]
+  public void KeepKeepsThePendingBookingWhenTheTimesAreEqual() {
+    var handle = NewHandle();
+    var first = Booking("seq-A", Early, "r1");
+    handle.AddTimerFiring(first, keepEarliest: true);
+
+    handle.AddTimerFiring(Booking("seq-A", Early, "r1"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.KeptPending);
+
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.Id.Should().Be(first.Id);
+  }
+
+  [Fact]
+  public void APastFireTimeBeatsAFutureFireTime() {
+    var handle = NewHandle();
+    var past = T1.AddHours(-1);
+    handle.AddTimerFiring(Booking("seq-A", T1, "r1"), keepEarliest: true);
+
+    handle.AddTimerFiring(Booking("seq-A", past, "r1"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.Replaced);
+    handle.AddTimerFiring(Booking("seq-A", T1, "r1"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.KeptPending);
+
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.FireAt.Should().Be(past);
+  }
+
+  [Fact]
+  public void ABookingOfOneSequenceNeverChangesTheBookingOfAnotherSequence() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Early, "r1"), keepEarliest: true);
+    handle.AddTimerFiring(Booking("seq-B", Late, "r1"), keepEarliest: true);
+
+    handle.AddTimerFiring(Booking("seq-A", Late, "r1"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.KeptPending);
+
+    var pending = handle.SnapshotPendingTimerFirings();
+    pending.Should().HaveCount(2);
+    pending.Single(f => f.SequenceId == "seq-B").FireAt.Should().Be(Late);
+    pending.Single(f => f.SequenceId == "seq-A").FireAt.Should().Be(Early);
+  }
+
+  // ── Feature 125: the re-arm path drops the run id ────────────────────────────────────────────
+
+  [Fact]
+  public void RearmStoresTheEntryWithNoRunIdAndTheSameFireTime() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", T1, "r1"));
+    var drained = handle.DrainDueTimerFirings(T1).Should().ContainSingle().Subject;
+
+    handle.RearmTimerFiring(drained);
+
+    var again = handle.SnapshotPendingTimerFirings().Should().ContainSingle().Subject;
+    again.RunId.Should().BeNull();
+    again.FireAt.Should().Be(T1);
+  }
+
+  [Fact]
+  public void RearmAddsOnlyWhenNoTimerBookingExistsForTheSequence() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", T2, "r2"));
+
+    handle.RearmTimerFiring(Booking("seq-A", T1, "r1"));
+
+    var pending = handle.SnapshotPendingTimerFirings().Should().ContainSingle().Subject;
+    pending.FireAt.Should().Be(T2);
+    pending.RunId.Should().Be("r2");
+  }
+
+  [Fact]
+  public void AKeepBookingWithALaterTimeReplacesARearmedBooking() {
+    var handle = NewHandle();
+    handle.AddTimerFiring(Booking("seq-A", Early, "r1"));
+    handle.RearmTimerFiring(handle.DrainDueTimerFirings(Early).Single());
+
+    handle.AddTimerFiring(Booking("seq-A", Late, "r1"), keepEarliest: true).Kind.Should().Be(TimerBookingKind.Replaced);
+
+    handle.SnapshotPendingTimerFirings().Should().ContainSingle().Which.FireAt.Should().Be(Late);
+  }
 }
