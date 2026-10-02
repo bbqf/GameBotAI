@@ -138,6 +138,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyQueueTemplateExamples(operation, path, method, context);
     ApplyImageExamples(operation, path, method, context);
     ApplyExecutionLogExamples(operation, path, method, context);
+    ApplyStepThroughExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
     ApplyBackupRestoreExamples(operation, path, method, context);
     ApplyCaptureStalenessDocs(operation, path, method, context);
@@ -839,6 +840,12 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   private static void ApplyExecutionLogExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.ExecutionLogs)) {
       operation.Summary ??= "List execution logs";
+      // Feature 127: the origin filter.
+      var originParameter = operation.Parameters?.FirstOrDefault(p => string.Equals(p.Name, "origin", StringComparison.OrdinalIgnoreCase));
+      if (originParameter is not null) {
+        originParameter.Description = "Only entries with this origin, for example 'step-through' for the steps that the author ran in a step-through.";
+      }
+
       SetResponseExample(operation, "200", ExecutionLogListResponse(), context, typeof(GameBot.Service.Models.ExecutionLogListResponseDto));
     }
     else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.ExecutionLogs + "/", StringComparison.OrdinalIgnoreCase) && !path.EndsWith("/retention", StringComparison.OrdinalIgnoreCase)) {
@@ -860,6 +867,60 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       operation.Summary ??= "Update execution log retention policy";
       SetRequestExample(operation, ExecutionLogRetentionUpdateRequest(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyPatchDto));
       SetResponseExample(operation, "200", ExecutionLogRetentionResponse(), context, typeof(GameBot.Service.Models.ExecutionLogRetentionPolicyDto));
+    }
+  }
+
+  // Feature 127: examples of the step-through API.
+  private static void ApplyStepThroughExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!path.StartsWith(ApiRoutes.StepThrough, StringComparison.OrdinalIgnoreCase)) return;
+
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.StepThrough)) {
+      operation.Summary ??= "Start a step-through of a saved sequence";
+      SetRequestExample(operation, new OpenApiObject {
+        ["sequenceId"] = new OpenApiString("seq-abc123"),
+        ["gameSessionId"] = new OpenApiString("session-1")
+      }, context, typeof(GameBot.Service.Services.StepThrough.StartStepThroughRequest));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/select", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Select the next step";
+      SetRequestExample(operation, new OpenApiObject { ["path"] = new OpenApiString("1/body/0") }, context, typeof(GameBot.Service.Services.StepThrough.SelectStepRequest));
+    }
+    else if (IsMethod(method, HttpMethods.Put) && path.EndsWith("/values", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Set parameter values and step outcomes";
+      SetRequestExample(operation, new OpenApiObject {
+        ["parameterValues"] = new OpenApiObject { ["n"] = new OpenApiString("3") },
+        ["outcomes"] = new OpenApiObject { ["step-1"] = new OpenApiString("success") }
+      }, context, typeof(GameBot.Service.Services.StepThrough.SetValuesRequest));
+    }
+
+    var state = new OpenApiObject {
+      ["id"] = new OpenApiString("6f1c2d3e4a5b"),
+      ["sequenceId"] = new OpenApiString("seq-abc123"),
+      ["sequenceName"] = new OpenApiString("Daily"),
+      ["gameSessionId"] = new OpenApiString("session-1"),
+      ["state"] = new OpenApiString("idle"),
+      ["cursor"] = new OpenApiString("0"),
+      ["nodes"] = new OpenApiArray {
+        new OpenApiObject {
+          ["path"] = new OpenApiString("0"),
+          ["depth"] = new OpenApiInteger(0),
+          ["stepId"] = new OpenApiString("step-1"),
+          ["type"] = new OpenApiString("action"),
+          ["label"] = new OpenApiString("tap 100,200"),
+          ["container"] = new OpenApiBoolean(false),
+          ["selectable"] = new OpenApiBoolean(true)
+        }
+      },
+      ["history"] = new OpenApiArray(),
+      ["parameters"] = new OpenApiArray(),
+      ["outcomes"] = new OpenApiObject(),
+      ["leaseExpiresAt"] = new OpenApiString("2026-10-02T10:01:30Z")
+    };
+    foreach (var response in operation.Responses ?? new OpenApiResponses()) {
+      if (response.Value.Content is not null && response.Value.Content.TryGetValue("application/json", out var media)) {
+        media.Example ??= state;
+        media.Schema ??= GenerateSchema(context, typeof(GameBot.Service.Services.StepThrough.StepThroughStateDto));
+      }
     }
   }
 

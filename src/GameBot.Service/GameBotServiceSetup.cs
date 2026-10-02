@@ -112,6 +112,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<ParametrizedReferenceImageSchemaFilter>();
       options.SchemaFilter<LastRunConditionSchemaFilter>();
       options.SchemaFilter<TemplateTimerTimeOfDaySchemaFilter>();
+      options.SchemaFilter<StepThroughSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -276,6 +277,14 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<IImageVisibleConditionAdapter, ImageVisibleConditionAdapter>();
     builder.Services.AddSingleton(_ => BuildAppConfigFromEnvironment());
     builder.Services.AddSingleton<GameBot.Domain.Services.SequenceRunner>();
+    // Feature 127: step-through of a saved sequence. The wiring is the sequence execution service itself, so a
+    // step reaches the device in the same way as a step of a real run.
+    builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.IStepThroughWiring>(sp =>
+      sp.GetRequiredService<GameBot.Service.Services.SequenceExecution.ISequenceExecutionService>() as GameBot.Service.Services.SequenceExecution.IStepThroughWiring
+        ?? throw new InvalidOperationException("The sequence execution service does not support the step-through."));
+    builder.Services.AddSingleton<GameBot.Service.Services.StepThrough.IStepThroughSessionGuard, GameBot.Service.Services.StepThrough.StepThroughSessionGuard>();
+    builder.Services.AddSingleton<GameBot.Service.Services.StepThrough.IStepThroughService, GameBot.Service.Services.StepThrough.StepThroughService>();
+    builder.Services.AddHostedService<GameBot.Service.Services.StepThrough.StepThroughLeaseSweeper>();
     // Config snapshot service (for /config endpoints and persisted snapshot generation)
     builder.Services.AddSingleton<GameBot.Service.Services.IConfigApplier>(sp =>
         new GameBot.Service.Services.ConfigApplier(

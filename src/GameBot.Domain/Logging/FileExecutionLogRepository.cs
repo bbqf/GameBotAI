@@ -97,6 +97,7 @@ public sealed class FileExecutionLogRepository : IExecutionLogRepository, IDispo
       if (!string.IsNullOrWhiteSpace(query.FinalStatus) && !string.Equals(item.FinalStatus, query.FinalStatus, StringComparison.OrdinalIgnoreCase)) continue;
       if (!string.IsNullOrWhiteSpace(query.ObjectType) && !string.Equals(item.ObjectRef.ObjectType, query.ObjectType, StringComparison.OrdinalIgnoreCase)) continue;
       if (!string.IsNullOrWhiteSpace(query.ObjectId) && !string.Equals(item.ObjectRef.ObjectId, query.ObjectId, StringComparison.OrdinalIgnoreCase)) continue;
+      if (!string.IsNullOrWhiteSpace(query.Origin) && !string.Equals(item.Origin, query.Origin, StringComparison.OrdinalIgnoreCase)) continue;
       if (!string.IsNullOrWhiteSpace(query.FilterStatus) && !ContainsIgnoreCase(item.FinalStatus, query.FilterStatus)) continue;
       if (!string.IsNullOrWhiteSpace(query.FilterObjectName) && !ContainsIgnoreCase(item.ObjectRef.DisplayNameSnapshot, query.FilterObjectName)) continue;
       if (!string.IsNullOrWhiteSpace(query.FilterTimestamp) && !ContainsIgnoreCase(FormatTimestampSearchText(item.TimestampUtc), query.FilterTimestamp)) continue;

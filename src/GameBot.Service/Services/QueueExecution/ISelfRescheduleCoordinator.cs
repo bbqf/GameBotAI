@@ -90,4 +90,13 @@ internal interface ISelfRescheduleCoordinator {
   /// <param name="queueId">The queue of the active run.</param>
   /// <param name="sequenceId">The owner sequence of the bookings.</param>
   SelfRescheduleCancelResult CancelSelf(string queueId, string sequenceId);
+
+  /// <summary>
+  /// Resolves the fire time of a Timer booking without a write (feature 127). A relative offset gives now plus
+  /// the offset. A time of day gives its next occurrence on the local clock. A step-through uses this to show
+  /// <c>would reschedule at 14:30</c> and does not book anything.
+  /// </summary>
+  /// <param name="timerTimeOfDay">The time of day for a Timer booking.</param>
+  /// <param name="timerRelativeOffset">The relative offset for a Timer booking.</param>
+  DateTimeOffset ResolveTimerFireAt(TimeOnly? timerTimeOfDay, TimeSpan? timerRelativeOffset);
 }

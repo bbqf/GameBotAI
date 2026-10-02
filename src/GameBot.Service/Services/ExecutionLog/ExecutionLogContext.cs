@@ -33,4 +33,10 @@ internal sealed class ExecutionLogContext {
 
   /// <summary>On a sequence finalize: the time bound (ms) that applied; set together with <see cref="CancellationReason"/>.</summary>
   public int? TimeLimitMs { get; init; }
+
+  /// <summary>
+  /// Where the run came from (feature 127), for example <see cref="GameBot.Domain.Logging.ExecutionOrigins.StepThrough"/>.
+  /// Copied onto the entry as it is. Null for an ordinary run.
+  /// </summary>
+  public string? Origin { get; init; }
 }

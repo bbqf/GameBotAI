@@ -249,7 +249,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       Summary = TrimSummary($"Command '{commandName}' {NormalizeStatus(finalStatus)} with {stepOutcomes.Count} tracked step outcomes."),
       Details = TrimDetails(ExecutionLogSanitizer.SanitizeDetails(details)),
       StepOutcomes = stepOutcomes,
-      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue,
+      Origin = context.Origin
     };
 
     await _repository.AddAsync(entry, ct).ConfigureAwait(false);
@@ -350,7 +351,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       Summary = TrimSummary(summary),
       Details = trimmedDetails,
       StepOutcomes = stepOutcomes,
-      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue,
+      Origin = context.Origin
     };
 
     await _repository.AddAsync(entry, ct).ConfigureAwait(false);
@@ -397,7 +399,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       Navigation = ExecutionNavigationBuilder.Build("sequence", sequenceId, context),
       Hierarchy = hierarchy,
       Summary = TrimSummary($"Sequence '{sequenceName}' running."),
-      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue
+      RetentionExpiresUtc = retention.Enabled ? now.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue,
+      Origin = parentContext?.Origin
     };
     await _repository.AddAsync(entry, ct).ConfigureAwait(false);
     return id;
@@ -427,7 +430,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       StepOutcomes = stepOutcomes,
       RetentionExpiresUtc = retention.Enabled ? timestamp.AddDays(Math.Max(1, retention.RetentionDays)) : DateTimeOffset.MaxValue,
       CancellationReason = context.CancellationReason,
-      TimeLimitMs = context.CancellationReason is null ? null : context.TimeLimitMs
+      TimeLimitMs = context.CancellationReason is null ? null : context.TimeLimitMs,
+      Origin = existing?.Origin ?? context.Origin
     };
 
     await _repository.UpsertAsync(entry, ct).ConfigureAwait(false);
@@ -1097,6 +1101,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       FinalStatus = source.FinalStatus,
       ObjectType = source.ObjectType,
       ObjectId = source.ObjectId,
+      Origin = source.Origin,
       PageSize = source.PageSize <= 0 ? 50 : source.PageSize,
       Cursor = source.Cursor,
       RootsOnly = source.RootsOnly

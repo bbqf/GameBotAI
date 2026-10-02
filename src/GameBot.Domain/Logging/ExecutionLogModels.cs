@@ -115,6 +115,18 @@ public sealed class ExecutionLogEntry {
 
   /// <summary>The time bound in milliseconds that applied; set exactly when <see cref="CancellationReason"/> is.</summary>
   public int? TimeLimitMs { get; init; }
+
+  /// <summary>
+  /// Where the run came from (feature 127). <see cref="ExecutionOrigins.StepThrough"/> for a step that the author
+  /// ran in a step-through. Null for every other entry, including entries written before this field existed.
+  /// </summary>
+  public string? Origin { get; init; }
+}
+
+/// <summary>Values of <see cref="ExecutionLogEntry.Origin"/>.</summary>
+public static class ExecutionOrigins {
+  /// <summary>A step that the author ran in a step-through of a saved sequence.</summary>
+  public const string StepThrough = "step-through";
 }
 
 /// <summary>Values of <see cref="ExecutionLogEntry.CancellationReason"/>.</summary>
@@ -136,6 +148,9 @@ public sealed class ExecutionLogQuery {
   public string? FinalStatus { get; init; }
   public string? ObjectType { get; init; }
   public string? ObjectId { get; init; }
+
+  /// <summary>Feature 127: only entries with this <see cref="ExecutionLogEntry.Origin"/> (not case-sensitive).</summary>
+  public string? Origin { get; init; }
   public int PageSize { get; init; } = 50;
   public string? Cursor { get; init; }
 

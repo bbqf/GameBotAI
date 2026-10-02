@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Step-through of a saved sequence. The author runs the sequence one step at a time on a game session and watches the emulator (127-step-through-sequence-execution)
+  - The Sequences page has a **Step through** button. It is on for a saved sequence with no unsaved edits. Otherwise it is off and shows the reason. The panel has a step list with the nesting, a marker on the next step, **Run next step**, **Cancel step**, **Restart**, and a history list with status, message, time, and iteration. The author can click any step to make it the next step.
+  - One step is one action. Each action in a loop iteration and in an if branch is a separate step. The next step follows the same rules as a real run (guards, loops, `maxIterations`, if branches, break). A failed step does not stop the step-through.
+  - **Differences from a real run**: a `lastRun` condition is always false, and the entry says so. The sequence time limit does not apply. `reschedule-self` and `notify` do not run. The history shows the intended effect, for example `would reschedule at 14:30`. A step-through changes no queue schedule and no daily record.
+  - **Queue safety**: a step is refused while a queue runs on the same device (`409 queue_running`). The panel can pause that queue. The queue resumes when the author closes the panel, or 90 seconds after the last read of the view. A queue that was paused before stays paused.
+  - New routes under `/api/step-through`: start, read, `run-next`, `select`, `cancel`, `restart`, `values`, `pause-queue`, and `DELETE`. See `docs/architecture.md`.
+  - The execution log entry of a step run has the new member `origin: "step-through"`. `GET /api/execution-logs` accepts `?origin=step-through`, and the Execution Logs page shows a badge and a filter. An older entry has no `origin`.
+  - **Compatibility**: no change to a real run, to the API of a sequence, or to the stored files. The new optional argument of `ICommandExecutor.ForceExecuteDetailedAsync` defaults to the old behavior.
 - Option `keep: earliest` for the Timer `reschedule-self` step. A booking does not replace an earlier pending booking of the same run (125-reschedule-self-keep-earliest, issue #257)
   - Without `keep`, the last booking wins, as before. With `keep: earliest`, a later booking of the same run is dropped and the step still succeeds with the result `scheduled`. A booking of another run always replaces the pending booking.
   - `keep` with an option other than `Timer`, or with a value other than `earliest`, returns 400. The OpenAPI text of the `reschedule-self` payload describes `keep`.
