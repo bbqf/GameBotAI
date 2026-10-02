@@ -22,6 +22,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
   private readonly NotificationDispatchLimits _limits;
   private readonly ILogger<QueueNotificationWorker> _logger;
   private readonly NotificationStreakState _streaks = new();
+  private readonly NotificationLastSentState _lastSent = new();
   private readonly Dictionary<string, SendChain> _chains = new(StringComparer.Ordinal);
   private int _activeSends;
 
@@ -107,7 +108,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     if (message is null) return;
 
     var text = NotificationMessageFormatter.Format(queue.Name, queue.Id, sequenceName, job.SequenceId, message.Value);
-    StartSend(text, job);
+    StartSend(text, job, message.Value);
   }
 
   // Feature 121: a device alert goes to all enabled targets. It ignores the level of the queue and the
@@ -136,6 +137,10 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
       return;
     }
 
+    // Feature 126: an alert is never dropped. It is the last message sent to each target.
+    var alertMessage = new LastSentMessage(alert.QueueId, "alert", "alert", text);
+    foreach (var target in targets) _lastSent.Record(target.Id, alertMessage);
+
     var sends = targets.Select(target => ChainSend(target, text, alert.QueueId, "alert")).ToList();
     _ = Task.Run(async () => {
       try {
@@ -160,7 +165,8 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
         return NotificationMessageStatus.Cancelled;
 
       case NotificationRunStatus.Failure:
-        if (_streaks.IsOpen(job.QueueId, job.SequenceId)) return null;
+        // Feature 126: the streak decides only the "recovered" message. A repeated failure is dropped
+        // later, for each target, when the last message sent to the target is the same (StartSend).
         _streaks.Open(job.QueueId, job.SequenceId);
         return NotificationMessageStatus.Failure;
 
@@ -174,6 +180,13 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     }
   }
 
+  private static string StatusKey(NotificationMessageStatus status) => status switch {
+    NotificationMessageStatus.Failure => "failure",
+    NotificationMessageStatus.Success => "success",
+    NotificationMessageStatus.Recovered => "recovered",
+    _ => "cancelled"
+  };
+
   private async Task<(string? Name, bool ExcludeSuccess)> ReadSequenceAsync(string sequenceId) {
     try {
       var sequence = await _sequences.GetAsync(sequenceId).ConfigureAwait(false);
@@ -186,7 +199,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
   }
 
   // Starts one send task and does not wait for it. The task never touches the streak state.
-  private void StartSend(string text, QueueNotificationJob job) {
+  private void StartSend(string text, QueueNotificationJob job, NotificationMessageStatus status) {
     if (Interlocked.Increment(ref _activeSends) > _limits.MaxParallelSends) {
       Interlocked.Decrement(ref _activeSends);
       Log.SendDropped(_logger, job.QueueId, job.SequenceId, _limits.MaxParallelSends);
@@ -203,10 +216,18 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
       return;
     }
 
+    // Feature 126: a failure goes to a target only when the last message sent to it is not the same.
+    var message = new LastSentMessage(job.QueueId, job.SequenceId, StatusKey(status), text);
+    if (status == NotificationMessageStatus.Failure) {
+      targets = targets.Where(t => !_lastSent.IsSame(t.Id, message)).ToList();
+    }
+
     if (targets.Count == 0) {
       Interlocked.Decrement(ref _activeSends);
       return;
     }
+
+    foreach (var target in targets) _lastSent.Record(target.Id, message);
 
     // The worker thread chains here, in the order of the jobs. This gives the send order for each
     // target, queue and sequence (FR-024). Different targets and different pairs run in parallel.

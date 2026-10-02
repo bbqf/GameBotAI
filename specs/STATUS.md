@@ -154,11 +154,12 @@ Status vocabulary:
 | 117 | A Break outcome when its If branch did not run | Implemented |
 | 118 | One format for timerTimeOfDay | Implemented |
 | 119 | Reject an unknown field in a reschedule-self payload | Implemented |
-| 120 | Queue Sequence Notifications | Implemented |
+| 120 | Queue Sequence Notifications | Implemented (iterated by 126) |
 | 121 | Device Not-Live Alert, Optional Recovery, and Capture Pile-Up Guard | Implemented |
 | 122 | Exclude Helper Sequences From Success Notifications | Implemented |
 | 123 | Reschedule-Self Cancel | Implemented |
 | 125 | Reschedule-Self Keep Earliest | Implemented |
+| 126 | Failure Message Dedup By Last Sent Message | Implemented |
 
 ## Numbering notes
 

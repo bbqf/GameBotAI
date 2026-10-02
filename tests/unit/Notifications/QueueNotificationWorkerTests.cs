@@ -76,10 +76,11 @@ public sealed class QueueNotificationWorkerTests {
   public async Task V06_CancelledChangesNoStreak() {
     await using var h = new NotificationHarness(NotificationLevel.Failure);
 
+    // Feature 126: the cancelled message is the last message, so the next failure is new.
     var messages = await h.RunAsync(
       NotificationRunStatus.Failure, NotificationRunStatus.Cancelled, NotificationRunStatus.Failure, NotificationRunStatus.Success);
 
-    messages.Should().Equal(Text(Red, "failure"), Text(Yellow, "cancelled"), Text(Green, "recovered"));
+    messages.Should().Equal(Text(Red, "failure"), Text(Yellow, "cancelled"), Text(Red, "failure"), Text(Green, "recovered"));
   }
 
   [Fact]
@@ -341,6 +342,246 @@ public sealed class QueueNotificationWorkerTests {
     var messages = await h.RunAsync(NotificationRunStatus.Success, NotificationRunStatus.Success);
 
     messages.Should().Equal(Text(Red, "failure"), Text(Green, "recovered"));
+  }
+
+  // ---- Feature 126: a failure is dropped only when the last message sent to the target is the same ----
+
+  private const NotificationRunStatus Fail = NotificationRunStatus.Failure;
+  private const NotificationRunStatus Succeed = NotificationRunStatus.Success;
+
+  private static string OtherText(string circle, string status) => $"Farm-1 : Other : {circle} {status}";
+
+  [Fact]
+  public async Task Dedup_TwoFailuresWithNoOtherMessageSendOne() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+
+    var messages = await h.RunAsync(Fail, Fail);
+
+    messages.Should().Equal(Text(Red, "failure"));
+  }
+
+  [Fact]
+  public async Task Dedup_FailureSuccessFailureSendThree() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+    h.Sequences.Add("s2", "Other");
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Succeed, sequenceId: "s2");
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Select(m => m.Text).Should().Equal(
+      Text(Red, "failure"), OtherText(Green, "success"), Text(Red, "failure"));
+  }
+
+  [Fact]
+  public async Task Dedup_TwoQueuesOnOneTargetSendThree() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+    h.Queues.Add(new GameBot.Domain.Queues.ExecutionQueue { Id = "q2", Name = "Farm-2", EmulatorSerial = "emu-2", NotificationLevel = NotificationLevel.Failure });
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail, queueId: "q2");
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Select(m => m.Text).Should().Equal(
+      Text(Red, "failure"), $"Farm-2 : PNS.Collect : {Red} failure", Text(Red, "failure"));
+  }
+
+  [Fact]
+  public async Task Dedup_SameSequenceWithDifferentFailureTextIsSent() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    (await h.Sequences.GetAsync("s1"))!.Name = "Renamed";
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Select(m => m.Text).Should().Equal(Text(Red, "failure"), $"Farm-1 : Renamed : {Red} failure");
+  }
+
+  [Fact]
+  public async Task Dedup_SameSequenceOnAnotherQueueIsSent() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+    h.Queues.Add(new GameBot.Domain.Queues.ExecutionQueue { Id = "q2", Name = "Farm-1", EmulatorSerial = "emu-2", NotificationLevel = NotificationLevel.Failure });
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail, queueId: "q2");
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Should().HaveCount(2);
+  }
+
+  [Fact]
+  public async Task Dedup_TwoTargetsKeepSeparateRecords() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    var second = new NotificationTarget { Id = "t9", Type = "telegram", Name = "Target 9" };
+    second.Settings["chatId"] = "2";
+    h.Targets.Create(second);
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Select(m => m.TargetId).Should().Equal("t0", "t9");
+  }
+
+  [Fact]
+  public async Task Dedup_AMessageThatTheLevelFilterDropsDoesNotUpdateTheRecord() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+    h.Sequences.Add("s2", "Other");
+
+    var messages = await h.RunAsync(Fail);
+    await h.HandleAsync(Succeed, sequenceId: "s2");
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    messages.Should().HaveCount(1);
+    h.Channel.Sent.Should().ContainSingle();
+  }
+
+  [Fact]
+  public async Task Dedup_AMessageThatTheExcludeOptionDropsDoesNotUpdateTheRecord() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+    h.Sequences.Add("s2", "Other");
+    Exclude(h, true, "s2");
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Succeed, sequenceId: "s2");
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Should().ContainSingle();
+  }
+
+  [Fact]
+  public async Task Dedup_AMessageThatTheSendCapDropsDoesNotUpdateTheRecord() {
+    var limits = new NotificationDispatchLimits { MaxParallelSends = 1 };
+    await using var h = new NotificationHarness(NotificationLevel.Failure, limits);
+    var release = new TaskCompletionSource();
+    h.Channel.Behavior = async (_, _, _) => { await release.Task; return NotificationSendResult.Ok(); };
+    h.Sequences.Add("s2", "Other");
+
+    await h.HandleAsync(Fail);
+    await h.HandleAsync(Fail, sequenceId: "s2");
+    release.SetResult();
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Calls.Should().Be(1);
+  }
+
+  [Fact]
+  public async Task Dedup_AnAlertBetweenTwoEqualFailuresMakesTheNextFailureNew() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.Worker.HandleAsync(NotificationWork.ForAlert(Alert(QueueAlertKind.NotLive, reason: "capture_stalled")));
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 2);
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Should().HaveCount(3);
+  }
+
+  [Fact]
+  public async Task Dedup_ACancelledMessageBetweenTwoEqualFailuresMakesTheNextFailureNew() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+
+    var messages = await h.RunAsync(Fail, NotificationRunStatus.Cancelled, Fail);
+
+    messages.Should().Equal(Text(Red, "failure"), Text(Yellow, "cancelled"), Text(Red, "failure"));
+  }
+
+  [Fact]
+  public async Task Dedup_AFailedSendStillCountsAsTheLastMessage() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+    h.Channel.Behavior = (_, _, _) => Task.FromResult(NotificationSendResult.Failed("chat not found"));
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Calls.Should().Be(1);
+  }
+
+  [Fact]
+  public async Task Dedup_ANewWorkerAfterARestartSendsTheFailure() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+    await h.RunAsync(Fail);
+    using var restarted = new QueueNotificationWorker(h.Dispatcher, h.Queues, h.Sequences, h.Targets, new INotificationChannel[] { h.Channel }, h.WorkerLog);
+
+    await restarted.HandleAsync(NotificationWork.ForJob(NotificationHarness.Job(Fail)));
+    await NotificationHarness.WaitForAsync(() => h.Channel.Sent.Count == 2);
+
+    h.Channel.Sent.Should().HaveCount(2);
+  }
+
+  [Fact]
+  public async Task Dedup_ReplayOfTheTimelineOf20261001() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+    h.Sequences.Add("s2", "Other");
+
+    // failure 19:24, success 20:24:35, failure 20:24:46, success 21:24:54, failure 21:25:05, failure 22:25:19
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Succeed, sequenceId: "s2");
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Succeed, sequenceId: "s2");
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Select(m => m.Text).Should().Equal(
+      Text(Red, "failure"),
+      OtherText(Green, "success"),
+      Text(Red, "failure"),
+      OtherText(Green, "success"),
+      Text(Red, "failure"));
+  }
+
+  [Fact]
+  public async Task Dedup_RecoveredStillFollowsTwoFailures() {
+    await using var h = new NotificationHarness(NotificationLevel.Failure);
+
+    var messages = await h.RunAsync(Fail, Fail, Succeed);
+
+    messages.Should().Equal(Text(Red, "failure"), Text(Green, "recovered"));
+  }
+
+  [Fact]
+  public async Task Dedup_RecoveredIsSentOnceWhenTheStreakStayedOpen() {
+    await using var h = new NotificationHarness(NotificationLevel.SuccessAndFailure);
+    h.Sequences.Add("s2", "Other");
+
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Succeed, sequenceId: "s2");
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Fail);
+    await h.WaitIdleAsync();
+    await h.HandleAsync(Succeed);
+    await h.WaitIdleAsync();
+
+    h.Channel.Sent.Select(m => m.Text).Should().Equal(
+      Text(Red, "failure"), OtherText(Green, "success"), Text(Red, "failure"), Text(Green, "recovered"));
   }
 
   // ---- Feature 121: device alerts ----
