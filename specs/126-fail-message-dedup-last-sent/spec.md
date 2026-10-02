@@ -2,7 +2,7 @@
 
 **Feature Branch**: `126-fail-message-dedup-last-sent`
 **Created**: 2026-10-02
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Suppress a failure message only when the last message sent was the same (FR-016). Source: GitHub issue #269. Closes #269."
 
 ## Background
@@ -85,6 +85,7 @@ The first success after a failure still sends "recovered".
 - No message was sent through the target yet (service start): the service sends the failure message.
 - The service restarts between two equal failures: the service has no record of the last message and sends the failure message. This is acceptable.
 - Two queues share one target: the last message is the last one for that target, from any queue.
+- A queue reset or a level change sends no message and does not change the last-message record.
 
 ## Requirements *(mandatory)*
 

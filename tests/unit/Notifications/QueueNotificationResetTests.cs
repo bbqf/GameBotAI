@@ -28,11 +28,12 @@ public sealed class QueueNotificationResetTests {
     h.Worker.Streaks.OpenCount("q1").Should().Be(0);
     h.Channel.Calls.Should().Be(1);
 
-    // The next failure at level Failure sends one new "failure" message.
+    // The streak is closed, but a reset sends no message. The last sent message is still failure A.
+    // The last-sent rule drops the next equal failure, so only one message is sent in total.
     (await h.Queues.GetAsync("q1"))!.NotificationLevel = NotificationLevel.Failure;
     await h.HandleAsync(NotificationRunStatus.Failure);
     await h.WaitIdleAsync();
-    h.Channel.Sent.Select(m => m.Text).Should().Equal($"Farm-1 : PNS.Collect : {Red} failure", $"Farm-1 : PNS.Collect : {Red} failure");
+    h.Channel.Sent.Select(m => m.Text).Should().Equal($"Farm-1 : PNS.Collect : {Red} failure");
   }
 
   [Fact]

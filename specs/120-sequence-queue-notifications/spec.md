@@ -2,7 +2,7 @@
 
 **Feature Branch**: `120-sequence-queue-notifications`  
 **Created**: 2026-09-30  
-**Status**: Implemented  
+**Status**: Implemented (iterated by 126)  
 **Input**: User request (quotation): "I want a notification/alerting mechanism for the sequences in the game. The user configures the targets in the UI/configuration. The user sets the level per queue, so that all sequences that run as part of a queue can send a notification. Sequences that the user runs manually send none. Levels: None / Failure / Success+Failure. Telegram is the first target, but the design must allow more targets. The user creates a Telegram bot by hand and creates a chat with it. The bot ID, the chat ID and other data are stored in the configuration. The UI must guide the user through the bot setup. When a sequence in a queue finishes, the system checks the level of the queue and sends a short message with the queue name, the sequence name and the status, for example `Farm-1 : PNS.CollectResources : success`. Success is green and failure is red, if possible."
 
 ## Clarifications

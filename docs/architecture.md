@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-01 (feature 125: reschedule-self `keep: earliest`;
+_Last reviewed: 2026-10-02 (feature 126: failure message dedup by last sent message;
+feature 125: reschedule-self `keep: earliest`;
 feature 123: reschedule-self option `Cancel`;
 feature 122: sequence option to exclude success notifications;
 feature 121: device not-live alert, optional recovery, capture gate;
@@ -772,10 +773,16 @@ of feature 087, which acts on failed cycles.
   message. Each drop writes one log line. `ResetStreaks(queueId)` writes a control message to the same
   channel. It is never dropped. The level route calls it after a save of `none`. The delete route calls
   it after a delete.
-- **Streaks.** A failure at an allowed level opens a streak and sends `failure`. More failures send
-  no message. A success after an open streak sends `recovered` and closes it, at both levels. Without an
-  open streak, a success sends `success` at `successAndFailure` only. `cancelled` sends a message and
-  changes no streak. Streaks are lost when the service restarts.
+- **Streaks.** A failure at an allowed level opens a streak. A success after an open streak sends
+  `recovered` and closes it, at both levels. Without an open streak, a success sends `success` at
+  `successAndFailure` only. `cancelled` sends a message and changes no streak. Streaks are lost when
+  the service restarts.
+- **Failure dedup (feature 126).** The worker keeps the last message that it started to send to each
+  target (`NotificationLastSentState`, in memory). It drops a failure message for a target only when
+  that last message is the same (same queue, sequence, status, and text). Any other message that
+  reaches the target, such as a success, a `cancelled` message, or an alert, makes the next failure new.
+  A message that the level, the exclude option, or the send cap drops does not change the record. A
+  failed send still counts as the last message. The records are lost when the service restarts.
 - **Excluded sequences (feature 122).** `CommandSequence.ExcludeFromSuccessNotifications` (JSON
   `excludeFromSuccessNotifications`, default false, omitted from the file when false) hides the plain
   `success` message for one sequence, for example a helper that runs often. The worker reads the
