@@ -327,7 +327,7 @@ public sealed class LoopValidationTests {
 
     var errors = Svc.Validate(new[] { loop1, gate });
 
-    errors.Should().ContainSingle(e => e.Contains("must be one of success|failed|skipped|break|no_break"));
+    errors.Should().ContainSingle(e => e.Contains("must be one of success|failed|skipped|break|no_break|restarted"));
   }
 
   // ──────────────────────────────────────────────────────────────────────────

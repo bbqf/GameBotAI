@@ -58,6 +58,7 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
             durationMs: s.swipe.durationMs !== undefined ? String(s.swipe.durationMs) : undefined,
           }
           : undefined,
+        ensureGameRunning: s.ensureGameRunning?.forceRestart ? { forceRestart: true } : undefined,
         ensureEmulatorRunning: s.ensureEmulatorRunning
           ? {
             instanceName: s.ensureEmulatorRunning.instanceName,
@@ -124,7 +125,9 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
   }
 
   if (s.type === 'EnsureGameRunning') {
-    return { type: 'EnsureGameRunning', order: idx };
+    return s.ensureGameRunning?.forceRestart
+      ? { type: 'EnsureGameRunning', order: idx, ensureGameRunning: { forceRestart: true } }
+      : { type: 'EnsureGameRunning', order: idx };
   }
 
   if (s.type === 'GoToHomeScreen') {

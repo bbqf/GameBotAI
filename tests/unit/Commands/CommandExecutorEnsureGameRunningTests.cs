@@ -19,7 +19,7 @@ using Xunit;
 
 namespace GameBot.UnitTests.Commands;
 
-public sealed class CommandExecutorEnsureGameRunningTests {
+public sealed partial class CommandExecutorEnsureGameRunningTests {
   // ── Fakes ─────────────────────────────────────────────────────────────────
 
   private sealed class FakeCommandRepository : ICommandRepository {
@@ -62,7 +62,17 @@ public sealed class CommandExecutorEnsureGameRunningTests {
   private sealed class StubHandler : IEnsureGameRunningActionHandler {
     private readonly EnsureGameRunningActionResult _result;
     public StubHandler(EnsureGameRunningActionResult result) => _result = result;
-    public Task<EnsureGameRunningActionResult> ExecuteAsync(string sessionId, CancellationToken ct = default) => Task.FromResult(_result);
+    public int ExecuteCalls { get; private set; }
+    public int RestartCalls { get; private set; }
+    public EnsureGameRunningActionResult RestartResult { get; set; } = new(EnsureGameRunningOutcome.Restarted);
+    public Task<EnsureGameRunningActionResult> ExecuteAsync(string sessionId, CancellationToken ct = default) {
+      ExecuteCalls++;
+      return Task.FromResult(_result);
+    }
+    public Task<EnsureGameRunningActionResult> RestartAsync(string sessionId, CancellationToken ct = default) {
+      RestartCalls++;
+      return Task.FromResult(RestartResult);
+    }
   }
 
   private sealed class StubReadinessProbe : IGameReadinessProbe {

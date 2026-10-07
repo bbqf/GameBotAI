@@ -162,6 +162,7 @@ Status vocabulary:
 | 126 | Failure Message Dedup By Last Sent Message | Implemented |
 | 127 | Step-Through Sequence Execution | Implemented |
 | 128 | OCR Read Endpoint | Implemented |
+| 129 | Restart The Game From A Sequence (forceRestart) | Implemented |
 
 ## Numbering notes
 

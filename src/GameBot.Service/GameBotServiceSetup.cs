@@ -164,7 +164,8 @@ internal static class GameBotServiceSetup {
       return new SessionService(sessions, cache, captureService);
     });
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IAdbGameOperations, GameBot.Service.Services.EnsureGameRunning.AdbGameOperations>();
-    builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IEnsureGameRunningActionHandler, GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionHandler>();
+    // The handler takes an optional EnsureGameRunningRestartOptions (feature 129). It is not registered, so the defaults apply.
+    builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IEnsureGameRunningActionHandler,GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionHandler>();
     // Keeps the game in front across a long queue run, so a game pushed out of the foreground mid-run
     // is recovered at the next firing instead of leaving the queue running but achieving nothing.
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureGameRunning.IGameForegroundGuard>(sp =>

@@ -234,22 +234,26 @@ internal static class CommandsEndpoints {
   private static EnsureGameRunningConfig? ToDomainEnsureGame(EnsureGameRunningConfigDto? dto) {
     if (dto is null) return null;
     var readiness = ToDomainDetection(dto.ReadinessImage);
-    // No readiness image configured → represent as legacy behavior (null config).
-    if (readiness is null) return null;
+    var forceRestart = dto.ForceRestart == true;
+    // No readiness image and no restart → represent as legacy behavior (null config).
+    if (readiness is null && !forceRestart) return null;
     var timeoutMs = dto.ReadinessTimeoutMs ?? 90_000;
     if (timeoutMs < 0) {
       timeoutMs = 90_000;
     }
     return new EnsureGameRunningConfig {
       ReadinessImage = readiness,
-      ReadinessTimeoutMs = timeoutMs
+      ReadinessTimeoutMs = timeoutMs,
+      ForceRestart = forceRestart
     };
   }
 
   private static EnsureGameRunningConfigDto? ToResponseEnsureGame(EnsureGameRunningConfig? config) =>
     config is null ? null : new EnsureGameRunningConfigDto {
       ReadinessImage = ToResponseDetection(config.ReadinessImage),
-      ReadinessTimeoutMs = config.ReadinessTimeoutMs
+      ReadinessTimeoutMs = config.ReadinessTimeoutMs,
+      // Write the flag only when it is true, so a plain step has the same response as before.
+      ForceRestart = config.ForceRestart ? true : null
     };
 
   private static StepExecutionOutcomeDto ToResponseOutcome(PrimitiveTapStepOutcome outcome) => new() {
@@ -319,7 +323,14 @@ internal static class CommandsEndpoints {
     app.MapPost(ApiRoutes.Commands, async (HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
-      var req = root.Deserialize<CreateCommandRequest>(WebJsonOptions);
+      CreateCommandRequest? req;
+      try {
+        req = root.Deserialize<CreateCommandRequest>(WebJsonOptions);
+      }
+      catch (JsonException ex) when (ex.Path?.Contains("forceRestart", StringComparison.OrdinalIgnoreCase) == true) {
+        // Feature 129: a value that is not true or false gives 400, not 500.
+        return Results.BadRequest(new { error = new { code = "invalid_request", message = "ensureGameRunning.forceRestart must be true or false", hint = (string?)null } });
+      }
       if (req is null || string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
 

@@ -24,7 +24,7 @@ public static class CompositeConditionValidator {
   /// per-step validator enforces for a top-level condition.
   /// </summary>
   private static readonly HashSet<string> AllowedCommandOutcomeStates =
-    new(System.StringComparer.OrdinalIgnoreCase) { "success", "failed", "skipped", "break", "no_break" };
+    new(StepOutcomeStates.All, System.StringComparer.OrdinalIgnoreCase);
 
   /// <summary>
   /// Validates <paramref name="condition"/> and everything beneath it, appending one message per
@@ -124,7 +124,7 @@ public static class CompositeConditionValidator {
 
         if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
             || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
-          errors.Add($"Step '{stepLabel}' condition at {path}: commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+          errors.Add($"Step '{stepLabel}' condition at {path}: commandOutcome expectedState must be one of {StepOutcomeStates.AllText}.");
         }
 
         break;

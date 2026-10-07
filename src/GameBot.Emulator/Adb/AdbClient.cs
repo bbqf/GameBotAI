@@ -118,6 +118,14 @@ public sealed class AdbClient : IAdbSessionClient {
   }
 
   /// <summary>
+  /// Stops the app with the given package name on this device (<c>adb shell am force-stop</c>).
+  /// The caller must pass a safe package name.
+  /// </summary>
+  public Task<(int ExitCode, string StdOut, string StdErr)> ForceStopAppAsync(string packageName, CancellationToken ct = default) {
+    return ExecAsync($"shell am force-stop {packageName}", ct);
+  }
+
+  /// <summary>
   /// Asks the device if a <c>screencap</c> process still runs (<c>adb shell pidof screencap</c>), with a
   /// time limit of <paramref name="timeoutMs"/>. Returns true when the answer has a process ID. Returns
   /// false when the answer is empty and the exit is clean. Returns null (unknown) for an error, a

@@ -23,6 +23,11 @@ public sealed class ExecutionLogServiceMapStepStatusTests {
     status.Should().NotBe("skipped");
   }
 
+  [Fact] // Feature 129: a restart step is the step working.
+  public void MapsRestartedOutcomeToSuccess() {
+    ExecutionLogService.MapStepStatus("restarted").Should().Be("success");
+  }
+
   [Fact] // T021 (US2) — FR-008: no_break is not a failure and so contributes nothing to failure counts.
   public void NoBreakIsNotCountedAsFailure() {
     // Failure counts/health/alerts key on the "failure" node status; no_break must never map to it.

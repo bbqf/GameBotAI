@@ -54,6 +54,47 @@ public sealed class ActionTypePreviewListTests {
 
   public static IEnumerable<object[]> AllTypes() => SequenceActionTypes.All.Select(type => new object[] { type });
 
+  // Feature 129: an ensure-game-running step with forceRestart true stops the game, so the stepper
+  // previews it. A plain step still reaches the real dispatcher.
+  [Theory]
+  [InlineData(true, 0)]
+  [InlineData(false, 1)]
+  public async Task AnEnsureGameRunningStepIsPreviewedOnlyWithForceRestart(bool forceRestart, int expectedRealDispatches) {
+    var action = new SequenceActionPayload { Type = ActionTypes.EnsureGameRunning };
+    action.Parameters["forceRestart"] = forceRestart;
+    var step = new SequenceStep {
+      Order = 0,
+      StepId = "s",
+      CommandId = "cmd",
+      StepType = SequenceStepType.Action,
+      Action = action
+    };
+    var sequence = new CommandSequence { Id = "seq", Name = "seq" };
+    sequence.SetSteps(new[] { step });
+    var realDispatches = 0;
+    var dependencies = new StepperDependencies {
+      ExecuteCommandAsync = (_, _) => Task.CompletedTask,
+      ActionDispatcher = (_, _) => {
+        realDispatches++;
+        return Task.FromResult(new ActionDispatchResult("executed", null));
+      }
+    };
+    var state = new StepperState();
+    state.Restart(sequence);
+
+    var produced = await new SequenceStepper(new SequenceRunner(new StubRepo(sequence)))
+      .RunNextAsync(sequence, state, dependencies);
+
+    realDispatches.Should().Be(expectedRealDispatches);
+    var entry = produced.Single();
+    if (forceRestart) {
+      entry.Outcome.Should().Be(SequenceStepper.PreviewOutcome);
+    }
+    else {
+      entry.Outcome.Should().NotBe(SequenceStepper.PreviewOutcome);
+    }
+  }
+
   [Fact]
   public void EverySequenceActionTypeIsListedAsRunsOrPreviews() {
     foreach (var type in SequenceActionTypes.All) {

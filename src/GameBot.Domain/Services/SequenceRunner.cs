@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Text.Json;
 using GameBot.Domain.Commands.Blocks;
+using GameBot.Domain.Commands.EnsureGameRunning;
 using GameBot.Domain.Config;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Actions;
@@ -708,7 +709,12 @@ namespace GameBot.Domain.Services {
             conditionResult: step.Condition is null ? null : "true",
             actionOutcome: inputDispatch.Outcome,
             message: inputDispatch.Message);
-        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+        // Feature 129: a restart records its own state. A condition on success matches it too.
+        if (!string.IsNullOrWhiteSpace(stepKey)) {
+          stepOutcomes[stepKey] = string.Equals(inputDispatch.Outcome, StepOutcomeStates.Restarted, StringComparison.OrdinalIgnoreCase)
+              ? StepOutcomeStates.Restarted
+              : "success";
+        }
         return false;
       }
 
@@ -845,6 +851,16 @@ namespace GameBot.Domain.Services {
     internal static bool IsServiceLevelAction(SequenceActionPayload? action) {
       return string.Equals(action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)
           || string.Equals(action?.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// True for an <c>ensure-game-running</c> action with <c>forceRestart</c> true (feature 129).
+    /// A bad value gives false. The run reports that error itself.
+    /// </summary>
+    internal static bool IsForceRestartAction(SequenceActionPayload? action) {
+      return string.Equals(action?.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase)
+          && EnsureGameRunningPayload.TryRead(action, out var forceRestart, out _)
+          && forceRestart;
     }
 
     private static bool IsDispatchedPrimitiveAction(SequenceActionPayload? action) {

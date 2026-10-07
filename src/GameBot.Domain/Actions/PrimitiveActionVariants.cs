@@ -34,6 +34,50 @@ public sealed class PrimitiveCommandAction : PrimitiveActionBase {
 
 public sealed class PrimitiveEnsureGameRunningAction : PrimitiveActionBase {
   public PrimitiveEnsureGameRunningAction() : base(PrimitiveActionTypes.EnsureGameRunning) { }
+
+  /// <summary>
+  /// Feature 129: when true, the step stops the game, starts it again, and waits for the foreground.
+  /// Null and false both mean the plain check. Null is not written to storage.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(
+      Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public bool? ForceRestart { get; set; }
+
+  /// <summary>
+  /// Makes the stored payload of this action. The <c>forceRestart</c> key exists only when the value
+  /// is true or false.
+  /// </summary>
+  public GameBot.Domain.Commands.SequenceActionPayload ToActionPayload() {
+    var payload = new GameBot.Domain.Commands.SequenceActionPayload {
+      Type = Type,
+      SchemaVersion = SchemaVersion
+    };
+    if (ForceRestart is { } value) {
+      payload.Parameters[GameBot.Domain.Commands.EnsureGameRunning.EnsureGameRunningPayload.ForceRestartKey] = value;
+    }
+    return payload;
+  }
+
+  /// <summary>Reads a typed action from a stored payload. Returns false with an error for a bad value.</summary>
+  public static bool TryFromActionPayload(
+      GameBot.Domain.Commands.SequenceActionPayload? payload,
+      out PrimitiveEnsureGameRunningAction? action,
+      out string? error) {
+    action = null;
+    if (payload is null) {
+      error = "action payload is missing";
+      return false;
+    }
+    if (!GameBot.Domain.Commands.EnsureGameRunning.EnsureGameRunningPayload.TryRead(payload, out var forceRestart, out error)) {
+      return false;
+    }
+    var hasKey = payload.Parameters.ContainsKey(GameBot.Domain.Commands.EnsureGameRunning.EnsureGameRunningPayload.ForceRestartKey);
+    action = new PrimitiveEnsureGameRunningAction {
+      SchemaVersion = payload.SchemaVersion,
+      ForceRestart = hasKey ? forceRestart : null
+    };
+    return true;
+  }
 }
 
 /// <summary>

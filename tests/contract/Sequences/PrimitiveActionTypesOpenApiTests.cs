@@ -147,6 +147,15 @@ public sealed class PrimitiveActionTypesOpenApiTests {
       .Should().BeEquivalentTo(SequenceActionTypes.All);
   }
 
+  [Fact] // feature 129
+  public async Task EnsureGameRunningPayloadDescribesForceRestart() {
+    var section = PayloadSection(await PayloadDescriptionAsync().ConfigureAwait(false), "ensure-game-running");
+
+    foreach (var expected in new[] { "forceRestart", "boolean", "optional", "default false", "stops the game", "restarted", "400" }) {
+      section.Should().Contain(expected);
+    }
+  }
+
   [Fact]
   public async Task RescheduleSelfPayloadIsFullyDescribed() {
     var section = PayloadSection(await PayloadDescriptionAsync().ConfigureAwait(false), "reschedule-self");
@@ -183,7 +192,7 @@ public sealed class PrimitiveActionTypesOpenApiTests {
   [InlineData("ensure-emulator-running", "adbSerial", "instanceName")]
   [InlineData("connect-to-game", "gameId", "adbSerial")]
   [InlineData("WaitForImage", "detectionTarget", "timeoutMs")]
-  [InlineData("ensure-game-running", "no payload fields")]
+  [InlineData("ensure-game-running", "forceRestart")]
   [InlineData("go-to-home-screen", "no payload fields")]
   public async Task InputPayloadsNameTheirFields(string type, params string[] fields) {
     ArgumentNullException.ThrowIfNull(fields);

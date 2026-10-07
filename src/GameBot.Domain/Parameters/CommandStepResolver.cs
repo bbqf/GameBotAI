@@ -125,7 +125,8 @@ public static class CommandStepResolver {
               scope, used, ref error, out var readinessTimeout)) return false;
       ensureGame = new EnsureGameRunningConfig {
         ReadinessImage = readiness,
-        ReadinessTimeoutMs = readinessTimeout ?? step.EnsureGameRunning.ReadinessTimeoutMs
+        ReadinessTimeoutMs = readinessTimeout ?? step.EnsureGameRunning.ReadinessTimeoutMs,
+        ForceRestart = step.EnsureGameRunning.ForceRestart
       };
     }
 

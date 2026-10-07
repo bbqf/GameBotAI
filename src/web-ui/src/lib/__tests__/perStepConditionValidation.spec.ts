@@ -89,7 +89,7 @@ describe('validatePerStepConditions — reference resolution', () => {
 });
 
 describe('validatePerStepConditions — accepted outcome states', () => {
-  it.each(['success', 'failed', 'skipped', 'break', 'no_break'])(
+  it.each(['success', 'failed', 'skipped', 'break', 'no_break', 'restarted'])(
     'accepts the expectedState %s',
     (expectedState) => {
       // Deliberately a plain top-level prior reference, so this isolates the outcome-state rule.
@@ -101,11 +101,11 @@ describe('validatePerStepConditions — accepted outcome states', () => {
     }
   );
 
-  it('still rejects an expectedState outside the five the service accepts', () => {
+  it('still rejects an expectedState outside the six the service accepts', () => {
     const errors = validatePerStepConditions([tap('first'), tap('gate', outcomeRef('first', 'maybe'))]);
 
     expect(errors).toContain(
-      "Step 'gate' commandOutcome expectedState must be one of success|failed|skipped|break|no_break."
+      "Step 'gate' commandOutcome expectedState must be one of success|failed|skipped|break|no_break|restarted."
     );
   });
 });

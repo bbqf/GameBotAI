@@ -244,7 +244,7 @@ public sealed class ConditionReferenceScopeValidationTests {
     var errors = Validate(Action("first"), IfStep("branch", Ref("first", "maybe")));
 
     errors.Should().ContainSingle()
-      .Which.Should().Be("Step 'branch' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+      .Which.Should().Be("Step 'branch' commandOutcome expectedState must be one of success|failed|skipped|break|no_break|restarted.");
   }
 
   [Theory]

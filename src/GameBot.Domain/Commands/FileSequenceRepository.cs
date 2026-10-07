@@ -151,6 +151,9 @@ namespace GameBot.Domain.Commands {
 
         // Feature 123: backstop for the Cancel option. The validator gives the 400 first.
         GuardCancelPayload(step);
+
+        // Feature 129: backstop for the forceRestart option. The validator gives the 400 first.
+        GuardEnsureGamePayload(step);
       }
 
       foreach (var step in sequence.FlowSteps) {
@@ -175,6 +178,26 @@ namespace GameBot.Domain.Commands {
         if (!supportedActionTypes.Contains(actionType)) {
           throw new InvalidOperationException($"Action step '{step.StepId}' references unsupported action type '{actionType}'.");
         }
+      }
+    }
+
+    // Feature 129: an ensure-game-running step must have a boolean forceRestart (or none),
+    // and no parameter binding may supply it.
+    private static void GuardEnsureGamePayload(SequenceStep step) {
+      if (step.Action is null
+          || !string.Equals(step.Action.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase)) {
+        return;
+      }
+      if (!GameBot.Domain.Commands.EnsureGameRunning.EnsureGameRunningPayload.TryRead(step.Action, out _, out var parseError)) {
+        throw new InvalidOperationException($"Step '{step.StepId}' {parseError}.");
+      }
+      if (step.ParameterBindings is { Count: > 0 } bindings
+          && bindings.Any(b => string.Equals(
+            b.Name,
+            GameBot.Domain.Commands.EnsureGameRunning.EnsureGameRunningPayload.ForceRestartKey,
+            StringComparison.OrdinalIgnoreCase))) {
+        throw new InvalidOperationException(
+          $"Step '{step.StepId}' ensure-game-running forceRestart cannot be set with a parameter binding.");
       }
     }
 

@@ -36,6 +36,13 @@ internal static class PreviewEffectRules {
   /// </summary>
   public static bool TryDescribe(CommandStep step, out string effect) {
     ArgumentNullException.ThrowIfNull(step);
+
+    // Feature 129: a restart stops the game on the device. A step-through previews it and does not run it.
+    if (step.Type == CommandStepType.EnsureGameRunning && step.EnsureGameRunning?.ForceRestart == true) {
+      effect = "would stop the game, start it again, and wait for the foreground";
+      return true;
+    }
+
     if (ByType.TryGetValue(step.Type, out var previews) && previews) {
       effect = $"would run a '{step.Type}' step";
       return true;
