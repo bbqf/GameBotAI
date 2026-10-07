@@ -91,7 +91,8 @@ public sealed class ResourceLimitsTests : IDisposable {
     var prevBudget = Environment.GetEnvironmentVariable("Service__ResourceBudget__MaxWorkingSetMB");
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     // Set a generous budget unlikely to be exceeded in test runs
-    Environment.SetEnvironmentVariable("Service__ResourceBudget__MaxWorkingSetMB", "1024");
+    // The test host runs all integration tests in one process. It used 1.4 to 1.6 GB on CI.
+    Environment.SetEnvironmentVariable("Service__ResourceBudget__MaxWorkingSetMB", "3072");
     try {
       using var app = new WebApplicationFactory<Program>();
       var client = app.CreateClient();
