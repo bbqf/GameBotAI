@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-07 (feature 128: `POST /api/ocr/read`;
+_Last reviewed: 2026-10-08 (feature 129: `forceRestart` on ensure-game-running and the `restarted` outcome;
+feature 128: `POST /api/ocr/read`;
 feature 127: step-through of a saved sequence;
 feature 126: failure message dedup by last sent message;
 feature 125: reschedule-self `keep: earliest`;
@@ -147,6 +148,16 @@ not survive a service restart; queue *configuration* and templates are persisted
   (10s), `GAMEBOT_EMULATOR_BOOT_WAIT_MS` (120s), `GAMEBOT_EMULATOR_POLL_INTERVAL_MS` (3s). It degrades to a
   neutral no-op on non-Windows hosts or when ldconsole/ADB is unavailable, and fails the step for a
   nonexistent instance or a recovery timeout.
+  **Force restart** (feature 129): `ensure-game-running` has the optional boolean `forceRestart`
+  (a sequence action payload key, and `EnsureGameRunningConfig.ForceRestart` on a command step). When true,
+  `EnsureGameRunningActionHandler.RestartAsync` runs `adb shell am force-stop <package>` on the device of the
+  session, waits 1 s, starts the game with the monkey launch, and polls the foreground for up to 30 s.
+  Each ADB call has its own time limit (`EnsureGameRunningRestartOptions`), so the worst case is
+  10 s + 1 s + 10 s + 30 s. The failure reasons are `restart_no_device`, `restart_stop_failed`,
+  `restart_start_failed`, and `restart_foreground_timeout`. A sequence action step records the state
+  `restarted`; the command step shows the reason `restarted` in its own outcome list. A bad value is
+  rejected with 400 (`EnsureGameRunningPayload` is the one reader). A step-through previews a restart step
+  and does not run it. Without the option, the step is unchanged.
   **Connect to Game** (`connect-to-game`, feature 021) starts/attaches a session for a game on a device
   (`gameId` + `adbSerial`) and then runs Ensure Game Running to foreground/launch the app. Feature 071
   added an OPTIONAL emulator pre-heal: when the connect action also carries an LDPlayer instance
@@ -575,8 +586,12 @@ canonical two-token vocabulary (`GameBot.Domain.Services.BreakOutcomes`), carrie
   continues unchanged and the run's health is not affected: a break-condition (or `breakOn`)
   evaluation error is guarded and treated as `no_break`, so it never fails the run.
 
+A `commandOutcome` condition may also name the state `restarted` (feature 129). A sequence action step
+`ensure-game-running` with `forceRestart` true records `restarted`. A condition on `success` also matches
+it (`StepOutcomeStates.Matches`), and a condition on `restarted` matches only a restart step.
+
 `ExecutionLogService.MapStepStatus` maps these to node statuses (`break → success`,
-`no_break → no_break`); the web-ui renders `no_break` as a neutral "No break" badge distinct from
+`no_break → no_break`, `restarted → success`); the web-ui renders `no_break` as a neutral "No break" badge distinct from
 `failure` and `skipped`.
 
 **If steps** (feature 067) record their branch decision *before* the branch steps run:

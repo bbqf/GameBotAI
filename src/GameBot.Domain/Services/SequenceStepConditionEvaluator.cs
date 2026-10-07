@@ -189,7 +189,7 @@ public static class SequenceStepConditionEvaluator {
             $"commandOutcome reference '{outcome.StepRef}' is not available.");
         }
 
-        return string.Equals(actual, outcome.ExpectedState, StringComparison.OrdinalIgnoreCase);
+        return StepOutcomeStates.Matches(actual, outcome.ExpectedState);
 
       default:
         throw new ConditionEvaluationException(

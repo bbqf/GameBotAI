@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Option `forceRestart` for the `ensure-game-running` step. It stops the game, starts it again, and waits for the foreground (129-restart-game-force-restart, issue #277)
+  - Set `forceRestart: true` in the payload of a sequence action step, or in `ensureGameRunning.forceRestart` of a command step. The step uses `adb shell am force-stop` on the device of the session only. A step with no option, or with `false`, works as before.
+  - The step has the new outcome `restarted`. A `commandOutcome` condition accepts the new `expectedState` value `restarted`; a condition on `success` matches a restarted step too. A command step shows the reason `restarted` in its own outcome list.
+  - A restart that fails has its own reason: `restart_no_device`, `restart_stop_failed`, `restart_start_failed` or `restart_foreground_timeout`. Each device call has a time limit, so the restart ends in at most 51 s.
+  - A value that is not `true` or `false` returns 400 for a sequence and for a command. A step parameter binding cannot set `forceRestart`. A step-through shows a restart step and does not run it.
+  - The Web UI has a **Force restart** check box in the Ensure Game Running panel. The OpenAPI text lists the option.
+  - **Compatibility**: no new endpoint, step type, or stored-file change. A stored step without the key reads as false.
 - `POST /api/ocr/read` reads the text in a region of the live screen or of a stored capture (128-ocr-read-endpoint)
   - Set exactly one of `serial` and `captureId`, and a `region` in pixels. The answer has `text`, `confidence`, and the frame size. An optional `parser` (`hh:mm:ss`) adds a parsed duration. A text that does not parse gives status 200 with a `parseFailureReason`.
   - The endpoint sends no input to the emulator and keeps no cache. Errors use `{ code, message }`: 400, 404, 502 and 503 (never 500 for an input error or a host fault). The first fault in a fixed check order wins.

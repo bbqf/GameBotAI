@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Commands.EnsureGameRunning;
 using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Commands.Notify;
 using GameBot.Domain.Images;
@@ -763,7 +764,7 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   /// <c>ensure-game-running</c> to its action handler, and primitive inputs (tap/swipe/key)
   /// to the session input pipeline.
   /// </summary>
-  private Task<ActionDispatchResult> DispatchActionAsync(
+  internal Task<ActionDispatchResult> DispatchActionAsync(
       SequenceActionPayload action,
       string sequenceId,
       string? originatingQueueId,
@@ -784,7 +785,7 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     }
 
     if (string.Equals(action.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase)) {
-      return DispatchEnsureGameRunningAsync(sessionId, ct);
+      return DispatchEnsureGameRunningAsync(action, sessionId, ct);
     }
 
     if (string.Equals(action.Type, ActionTypes.GoToHomeScreen, StringComparison.OrdinalIgnoreCase)) {
@@ -872,10 +873,23 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   /// and stops the sequence.
   /// </summary>
   private async Task<ActionDispatchResult> DispatchEnsureGameRunningAsync(
+      SequenceActionPayload action,
       string? sessionId,
       CancellationToken ct) {
+    // Feature 129: read the option first. A bad value fails the step and makes no device call.
+    if (!EnsureGameRunningPayload.TryRead(action, out var forceRestart, out var readError)) {
+      return new ActionDispatchResult("failed", readError ?? EnsureGameRunningPayload.ForceRestartError);
+    }
+
     if (!TryResolveSessionId(sessionId, "ensure-game-running", out var resolvedSessionId, out var resolveError)) {
       return new ActionDispatchResult("failed", resolveError);
+    }
+
+    if (forceRestart) {
+      var restart = await _ensureGameRunning.RestartAsync(resolvedSessionId!, ct).ConfigureAwait(false);
+      return restart.Outcome == EnsureGameRunningOutcome.Restarted
+        ? new ActionDispatchResult(StepOutcomeStates.Restarted,"game was stopped and started again; it is in the foreground (restarted)")
+        : new ActionDispatchResult("failed", $"ensure-game-running failed: {restart.ReasonCode}");
     }
 
     var result = await _ensureGameRunning.ExecuteAsync(resolvedSessionId!, ct).ConfigureAwait(false);

@@ -11,7 +11,7 @@ using GameBot.Service.Services.QueueExecution;
 namespace GameBot.Service.Services.StepThrough;
 
 /// <summary>
-/// Describes the effect of an action with an outside effect (<c>reschedule-self</c> and <c>notify</c>)
+/// Describes the effect of an action with an outside effect (<c>reschedule-self</c>, <c>notify</c>, and a restart step)
 /// without applying it (feature 127, FR-015). It writes no queue state, sends no message, and reads no
 /// screen.
 /// </summary>
@@ -29,6 +29,10 @@ internal static class StepThroughActionPreview {
 
     if (string.Equals(action.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)) {
       return new ActionDispatchResult(SequenceStepper.PreviewOutcome, DescribeNotify(action));
+    }
+
+    if (string.Equals(action.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase)) {
+      return new ActionDispatchResult(SequenceStepper.PreviewOutcome, "would stop the game, start it again, and wait for the foreground");
     }
 
     return new ActionDispatchResult(SequenceStepper.PreviewOutcome, $"would run '{action.Type}'");

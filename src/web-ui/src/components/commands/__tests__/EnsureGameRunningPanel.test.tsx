@@ -34,6 +34,35 @@ describe('EnsureGameRunningPanel', () => {
     });
   });
 
+  describe('force restart option', () => {
+    it('shows the Force restart checkbox, unchecked by default', () => {
+      render(<EnsureGameRunningPanel onConfirm={() => {}} onCancel={() => {}} />);
+      const box = screen.getByRole('checkbox', { name: /force restart/i });
+      expect(box).toBeInTheDocument();
+      expect(box).not.toBeChecked();
+    });
+
+    it('passes false to onConfirm when the box is not checked', () => {
+      const onConfirm = jest.fn();
+      render(<EnsureGameRunningPanel onConfirm={onConfirm} onCancel={() => {}} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+      expect(onConfirm).toHaveBeenCalledWith(false);
+    });
+
+    it('passes true to onConfirm when the box is checked', () => {
+      const onConfirm = jest.fn();
+      render(<EnsureGameRunningPanel onConfirm={onConfirm} onCancel={() => {}} />);
+      fireEvent.click(screen.getByRole('checkbox', { name: /force restart/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+      expect(onConfirm).toHaveBeenCalledWith(true);
+    });
+
+    it('starts checked when the step has the option', () => {
+      render(<EnsureGameRunningPanel onConfirm={() => {}} onCancel={() => {}} initialForceRestart />);
+      expect(screen.getByRole('checkbox', { name: /force restart/i })).toBeChecked();
+    });
+  });
+
   describe('cancel', () => {
     it('calls onCancel and does not call onConfirm when Cancel is clicked', () => {
       const onConfirm = jest.fn();

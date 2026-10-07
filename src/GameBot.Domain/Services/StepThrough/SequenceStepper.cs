@@ -375,7 +375,8 @@ public sealed class SequenceStepper {
     if (dependencies.ActionDispatcher is null && dependencies.PreviewServiceAction is null) return null;
     return (action, token) => {
       // An action with an outside effect never reaches the real dispatcher (FR-015).
-      if (SequenceRunner.IsServiceLevelAction(action)) {
+      // A restart step stops the game on the device, so it is previewed too (feature 129, FR-012).
+      if (SequenceRunner.IsServiceLevelAction(action) || SequenceRunner.IsForceRestartAction(action)) {
         return dependencies.PreviewServiceAction is { } preview
           ? preview(action, token)
           : Task.FromResult(new ActionDispatchResult(PreviewOutcome, $"would run '{action.Type}'"));

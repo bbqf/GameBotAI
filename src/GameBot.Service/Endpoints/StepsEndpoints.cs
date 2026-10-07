@@ -159,6 +159,10 @@ internal static class StepsEndpoints {
           DurationMs = s.Swipe.DurationMs
         }
         : null,
+      // Feature 129: keep the restart option. The readiness settings are not part of this endpoint.
+      EnsureGameRunning = type == CommandStepType.EnsureGameRunning && s.EnsureGameRunning?.ForceRestart == true
+        ? new EnsureGameRunningConfig { ForceRestart = true }
+        : null,
     };
   }
 

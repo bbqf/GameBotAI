@@ -189,4 +189,64 @@ public sealed class CommandExecutorPreviewTests {
       PreviewEffectRules.TryDescribe(new CommandStep { Type = type }, out _).Should().BeFalse(type.ToString());
     }
   }
+
+  // Feature 129: a restart stops the game on the device, so a step-through previews it.
+  [Fact]
+  public void AnEnsureGameRunningStepWithForceRestartIsPreviewed() {
+    var restart = new CommandStep { Type = CommandStepType.EnsureGameRunning, EnsureGameRunning = new EnsureGameRunningConfig { ForceRestart = true } };
+    var plain = new CommandStep { Type = CommandStepType.EnsureGameRunning, EnsureGameRunning = new EnsureGameRunningConfig { ForceRestart = false } };
+    var none = new CommandStep { Type = CommandStepType.EnsureGameRunning };
+
+    PreviewEffectRules.TryDescribe(restart, out var effect).Should().BeTrue();
+    effect.Should().NotBeEmpty();
+    PreviewEffectRules.TryDescribe(plain, out _).Should().BeFalse();
+    PreviewEffectRules.TryDescribe(none, out _).Should().BeFalse();
+  }
+
+  private sealed class CountingHandler : GameBot.Service.Services.EnsureGameRunning.IEnsureGameRunningActionHandler {
+    public int ExecuteCalls { get; private set; }
+    public int RestartCalls { get; private set; }
+
+    public Task<GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionResult> ExecuteAsync(string sessionId, CancellationToken ct = default) {
+      ExecuteCalls++;
+      return Task.FromResult(new GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionResult(
+        GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningOutcome.GameRunning));
+    }
+
+    public Task<GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionResult> RestartAsync(string sessionId, CancellationToken ct = default) {
+      RestartCalls++;
+      return Task.FromResult(new GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningActionResult(
+        GameBot.Service.Services.EnsureGameRunning.EnsureGameRunningOutcome.Restarted));
+    }
+  }
+
+  [Fact]
+  public async Task ACommandStepWithForceRestartIsPreviewedAndNotRun() {
+    var cmds = new FakeCommandRepository();
+    cmds.Seed(new Command {
+      Id = "cmd1",
+      Name = "Restart",
+      Steps = new Collection<CommandStep> {
+        new() { Type = CommandStepType.EnsureGameRunning, Order = 1, EnsureGameRunning = new EnsureGameRunningConfig { ForceRestart = true } }
+      }
+    });
+    var handler = new CountingHandler();
+    var executor = new CommandExecutor(
+      cmds,
+      new RecordingSessionManager(RunningSession()),
+      new FakeTriggerRepository(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      NullLogger<CommandExecutor>.Instance,
+      new FakeSessionContextCache(),
+      ensureGameRunning: handler,
+      previewRule: step => PreviewEffectRules.TryDescribe(step, out var effect) ? effect : null);
+
+    var result = await executor.ForceExecuteDetailedAsync(
+      "session1", "cmd1", new ExecutionLogContext(), ParameterScope.Empty, new ExecutionOptions(PreviewEffects: true));
+
+    handler.RestartCalls.Should().Be(0);
+    handler.ExecuteCalls.Should().Be(0);
+    result.PreviewedEffects.Should().ContainSingle();
+    result.StepOutcomes.Single().Status.Should().Be(PreviewEffectRules.PreviewedStatus);
+  }
 }

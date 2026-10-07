@@ -32,6 +32,10 @@ public sealed class GameForegroundGuardTests {
       if (_script.Count > 0) _last = _script.Dequeue();
       return Task.FromResult(new EnsureGameRunningActionResult(_last));
     }
+
+    // The guard never restarts the game.
+    public Task<EnsureGameRunningActionResult> RestartAsync(string sessionId, CancellationToken ct = default) =>
+      throw new NotSupportedException();
   }
 
   // Short windows keep the confirm loop deterministic without waiting real seconds.

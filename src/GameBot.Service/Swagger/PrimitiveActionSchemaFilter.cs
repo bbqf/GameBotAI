@@ -46,8 +46,10 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
         + "(string, must not be empty when detectionTarget is given), confidence (number, default 0.8), offsetX and "
         + "offsetY (integers, default 0), selectionStrategy (HighestConfidence, the default, or FirstMatch).",
       [ActionTypes.EnsureGameRunning] =
-        "no payload fields. Checks that the run's session game is in the foreground and attempts a launch when it is "
-        + "not; the step fails unless the game ends up running.",
+        "forceRestart, boolean, optional (default false). Without it, or with false, the step checks that the run's "
+        + "session game is in the foreground and attempts a launch when it is not; the step fails unless the game ends "
+        + "up running. With true, the step stops the game on the device of the session, starts it again, and waits for "
+        + "the foreground; the step then has the outcome restarted. A value that is not true or false is rejected with 400.",
       [ActionTypes.GoToHomeScreen] =
         "no payload fields. Presses Android HOME on the run's session; the game keeps running in the background.",
       [ActionTypes.EnsureEmulatorRunning] =

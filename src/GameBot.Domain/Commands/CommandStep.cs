@@ -36,6 +36,14 @@ public sealed class EnsureEmulatorRunningConfig {
 public sealed class EnsureGameRunningConfig {
   public DetectionTarget? ReadinessImage { get; init; }
   public int ReadinessTimeoutMs { get; init; } = 90_000;
+
+  /// <summary>
+  /// When true (feature 129), the step stops the game, starts it again, and waits for the foreground
+  /// instead of the plain check. False is the default and is not written to storage.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(
+      Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+  public bool ForceRestart { get; init; }
 }
 
 public sealed class PrimitiveTapConfig {

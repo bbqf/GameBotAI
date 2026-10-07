@@ -36,6 +36,8 @@ export type CommandStepDto = {
   keyInput?: KeyInputConfigDto;
   swipe?: SwipeConfigDto;
   ensureEmulatorRunning?: EnsureEmulatorRunningConfigDto;
+  /** Option of an EnsureGameRunning step (feature 129). */
+  ensureGameRunning?: EnsureGameRunningConfigDto;
   /**
    * Placeholders for fields of this step, keyed by dotted path (features 078 and 114), e.g.
    * `{ 'swipe.startX': '{{originX}}' }`. The keys are the numeric fields and the two image keys
@@ -45,6 +47,11 @@ export type CommandStepDto = {
   fieldTemplates?: Record<string, string>;
   /** Values bound for the invoked command's parameters; only meaningful on a Command step. */
   parameterBindings?: ParameterBinding[];
+};
+
+export type EnsureGameRunningConfigDto = {
+  /** When true, the step stops the game, starts it again, and waits for the foreground. */
+  forceRestart?: boolean;
 };
 
 export type EnsureEmulatorRunningConfigDto = {

@@ -238,7 +238,7 @@ const validateConditionExpression = (expression: ConditionExpression, stepId: st
  * `break`/`no_break` were added by feature 081; this list was not updated until feature 103, so the
  * editor rejected what the API accepted.
  */
-const COMMAND_OUTCOME_STATES = ['success', 'failed', 'skipped', 'break', 'no_break'];
+const COMMAND_OUTCOME_STATES = ['success', 'failed', 'skipped', 'break', 'no_break', 'restarted'];
 
 /**
  * Flattens a step tree into authored (document) order — root steps, with each `Loop` body and each

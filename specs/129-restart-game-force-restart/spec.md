@@ -2,7 +2,7 @@
 
 **Feature Branch**: `129-restart-game-force-restart`
 **Created**: 2026-10-07
-**Status**: Draft
+**Status**: Implemented
 **Input**: GitHub issue #277 "FR-019: Restart the game from a sequence". Closes #277.
 
 ## Clarifications

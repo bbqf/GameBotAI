@@ -165,6 +165,10 @@ public sealed partial class QueueExecutionServiceTests {
       if (Throws is not null) throw Throws;
       return Task.FromResult(new EnsureGameRunningActionResult(EnsureGameRunningOutcome.GameRunning));
     }
+
+    // A queue run never restarts the game.
+    public Task<EnsureGameRunningActionResult> RestartAsync(string sessionId, CancellationToken ct = default) =>
+      throw new NotSupportedException();
   }
 
   // Records every foreground-guard pass the run makes, together with how many sequences had already

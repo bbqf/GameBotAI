@@ -1,5 +1,6 @@
 using GameBot.Domain.Commands;
 using GameBot.Domain.Commands.SelfReschedule;
+using GameBot.Domain.Commands.EnsureGameRunning;
 using GameBot.Domain.Commands.Notify;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Parameters;
@@ -11,13 +12,7 @@ namespace GameBot.Domain.Services;
 
 public sealed class SequenceStepValidationService {
   private readonly StringComparer _stepIdComparer = StringComparer.Ordinal;
-  private static readonly HashSet<string> AllowedCommandOutcomeStates = new(StringComparer.OrdinalIgnoreCase) {
-    "success",
-    "failed",
-    "skipped",
-    "break",
-    "no_break"
-  };
+  private static readonly HashSet<string> AllowedCommandOutcomeStates = new(StepOutcomeStates.All, StringComparer.OrdinalIgnoreCase);
   // Feature 102: the one list the published OpenAPI enum also uses. reschedule-self and notify are in it too, but are
   // routed to their own payload validators before this membership check runs.
   private static readonly HashSet<string> AllowedPrimitiveActionTypes = new(SequenceActionTypes.All, StringComparer.OrdinalIgnoreCase);
@@ -261,7 +256,7 @@ public sealed class SequenceStepValidationService {
         // FR-010a: this message named three of the five states it validates against, telling an
         // author that break/no_break were invalid in a slot that has accepted them since feature
         // 081 — the reported ceiling surviving as a message after the behaviour was fixed.
-        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of {StepOutcomeStates.AllText}.");
       }
     }
   }
@@ -338,6 +333,10 @@ public sealed class SequenceStepValidationService {
         // feature 087: a notify action carries an author-written message (+ optional destination).
         ValidateNotifyPayload(step.Action, stepLabel, errors);
       }
+      else if (string.Equals(step.Action.Type, ActionTypes.EnsureGameRunning, StringComparison.OrdinalIgnoreCase)) {
+        // feature 129: forceRestart must be a JSON boolean, and no parameter binding may supply it.
+        ValidateEnsureGameRunningPayload(step, stepLabel, errors);
+      }
       else if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
         errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type (expected one of {SequenceActionTypes.SupportedValuesText}).");
       }
@@ -383,7 +382,7 @@ public sealed class SequenceStepValidationService {
 
       if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
           || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
-        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+        errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of {StepOutcomeStates.AllText}.");
       }
     }
 
@@ -421,6 +420,25 @@ public sealed class SequenceStepValidationService {
       List<string> errors) {
     if (!NotifyPayload.TryRead(action, out _, out var parseError)) {
       errors.Add($"Step '{stepLabel}' notify action {parseError}");
+    }
+  }
+
+  /// <summary>
+  /// Validates an ensure-game-running action at save time (feature 129, FR-010). The option
+  /// <c>forceRestart</c> must be true or false. A step parameter binding cannot supply it, because
+  /// a placeholder is not a boolean.
+  /// </summary>
+  private static void ValidateEnsureGameRunningPayload(
+      SequenceStep step,
+      string stepLabel,
+      List<string> errors) {
+    if (!EnsureGameRunningPayload.TryRead(step.Action, out _, out var parseError)) {
+      errors.Add($"Step '{stepLabel}' {parseError}");
+    }
+
+    if (step.ParameterBindings is { Count: > 0 } bindings
+        && bindings.Any(b => string.Equals(b.Name, EnsureGameRunningPayload.ForceRestartKey, StringComparison.OrdinalIgnoreCase))) {
+      errors.Add($"Step '{stepLabel}' ensure-game-running forceRestart cannot be set with a parameter binding.");
     }
   }
 

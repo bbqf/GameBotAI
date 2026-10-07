@@ -701,6 +701,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       "failed" => "failure",
       // feature 065: self-reschedule outcomes. Scheduling the next firing is the step working.
       "scheduled" => "success",
+      // feature 129: a restart step stopped and started the game. That is the step working.
+      "restarted" => "success",
       "noop" => "skipped",
       // feature 067: if-step branch decisions — a taken branch is a success, a no-op is skipped.
       "then" or "else" => "success",

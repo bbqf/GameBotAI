@@ -10,4 +10,16 @@ internal interface IAdbGameOperations {
 
   /// <summary>Launches the app with <paramref name="packageName"/> on the given device (fire-and-forget).</summary>
   Task LaunchAppAsync(string deviceSerial, string packageName, CancellationToken ct = default);
+
+  /// <summary>
+  /// Stops the app with <paramref name="packageName"/> on the given device. Returns true when the exit code is 0.
+  /// Returns false for a blank serial, an unsafe package name, or a platform that is not Windows.
+  /// </summary>
+  Task<bool> ForceStopAppAsync(string deviceSerial, string packageName, CancellationToken ct = default);
+
+  /// <summary>
+  /// Starts the app with <paramref name="packageName"/> on the given device. Returns true when the exit code is 0.
+  /// Returns false for a blank serial, an unsafe package name, or a platform that is not Windows.
+  /// </summary>
+  Task<bool> TryLaunchAppAsync(string deviceSerial, string packageName, CancellationToken ct = default);
 }

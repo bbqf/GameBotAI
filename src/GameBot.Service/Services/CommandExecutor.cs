@@ -386,9 +386,13 @@ internal sealed class CommandExecutor : ICommandExecutor {
     }
 
     if (step.Type == CommandStepType.EnsureGameRunning) {
-      var result = _ensureGameRunning is not null
-        ? await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false)
-        : new EnsureGameRunningActionResult(EnsureGameRunningOutcome.PlatformUnsupported);
+      // Feature 129: a step with ForceRestart true stops and starts the game. Any other step keeps the plain check.
+      var forceRestart = step.EnsureGameRunning?.ForceRestart == true;
+      var result = _ensureGameRunning is null
+        ? new EnsureGameRunningActionResult(EnsureGameRunningOutcome.PlatformUnsupported)
+        : forceRestart
+          ? await _ensureGameRunning.RestartAsync(sessionId, ct).ConfigureAwait(false)
+          : await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false);
 
       var readiness = step.EnsureGameRunning?.ReadinessImage;
       var hasReadinessGate = _gameReadiness is not null
@@ -408,7 +412,11 @@ internal sealed class CommandExecutor : ICommandExecutor {
       if (result.Outcome is EnsureGameRunningOutcome.NoQueueContext
           or EnsureGameRunningOutcome.NoLinkedGame
           or EnsureGameRunningOutcome.NoPackageName
-          or EnsureGameRunningOutcome.PlatformUnsupported) {
+          or EnsureGameRunningOutcome.PlatformUnsupported
+          or EnsureGameRunningOutcome.RestartNoDevice
+          or EnsureGameRunningOutcome.RestartStopFailed
+          or EnsureGameRunningOutcome.RestartStartFailed
+          or EnsureGameRunningOutcome.RestartForegroundTimeout) {
         return (0, new PrimitiveTapStepOutcome(step.Order, result.ReasonCode, result.ReasonCode, null, null, StepType: "ensure-game-running"));
       }
 

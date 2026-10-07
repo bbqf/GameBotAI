@@ -17,7 +17,7 @@ namespace GameBot.UnitTests.Services.EnsureGameRunning;
 public sealed class EnsureGameRunningActionHandlerTests {
   // ── Fakes ─────────────────────────────────────────────────────────────────
 
-  private sealed class FakeSessionManager : ISessionManager {
+  internal sealed class FakeSessionManager : ISessionManager {
     private readonly Dictionary<string, EmulatorSession> _sessions = new(StringComparer.Ordinal);
     public int ActiveCount => _sessions.Count;
     public bool CanCreateSession => true;
@@ -31,7 +31,7 @@ public sealed class EnsureGameRunningActionHandlerTests {
     public Task<byte[]> GetSnapshotAsync(string id, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
   }
 
-  private sealed class FakeQueueRepository : IQueueRepository {
+  internal sealed class FakeQueueRepository : IQueueRepository {
     private readonly Dictionary<string, ExecutionQueue> _items = new(StringComparer.Ordinal);
     public void Seed(ExecutionQueue q) => _items[q.Id] = q;
     public Task<ExecutionQueue?> GetAsync(string id) => Task.FromResult(_items.TryGetValue(id, out var q) ? q : null);
@@ -41,7 +41,7 @@ public sealed class EnsureGameRunningActionHandlerTests {
     public Task<bool> DeleteAsync(string id) => Task.FromResult(_items.Remove(id));
   }
 
-  private sealed class FakeGameRepository : IGameRepository {
+  internal sealed class FakeGameRepository : IGameRepository {
     private readonly Dictionary<string, GameArtifact> _items = new(StringComparer.Ordinal);
     public void Seed(GameArtifact g) => _items[g.Id] = g;
     public Task<GameArtifact> AddAsync(GameArtifact g, CancellationToken ct = default) { _items[g.Id] = g; return Task.FromResult(g); }
@@ -49,13 +49,6 @@ public sealed class EnsureGameRunningActionHandlerTests {
     public Task<IReadOnlyList<GameArtifact>> ListAsync(CancellationToken ct = default) => Task.FromResult((IReadOnlyList<GameArtifact>)_items.Values.ToList());
     public Task<GameArtifact?> UpdateAsync(GameArtifact g, CancellationToken ct = default) { _items[g.Id] = g; return Task.FromResult<GameArtifact?>(g); }
     public Task<bool> DeleteAsync(string id, CancellationToken ct = default) => Task.FromResult(_items.Remove(id));
-  }
-
-  private sealed class FakeAdbGameOperations : IAdbGameOperations {
-    public string? ForegroundPackage { get; set; }
-    public List<string> LaunchedPackages { get; } = new();
-    public Task<string?> GetForegroundPackageAsync(string deviceSerial, CancellationToken ct = default) => Task.FromResult(ForegroundPackage);
-    public Task LaunchAppAsync(string deviceSerial, string packageName, CancellationToken ct = default) { LaunchedPackages.Add(packageName); return Task.CompletedTask; }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

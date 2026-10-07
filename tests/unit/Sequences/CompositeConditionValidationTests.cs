@@ -145,7 +145,7 @@ public sealed class CompositeConditionValidationTests {
     var errors = Validate(condition);
 
     errors.Should().ContainSingle()
-      .Which.Should().Be("Step 'S' condition at $.children[0]: commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+      .Which.Should().Be("Step 'S' condition at $.children[0]: commandOutcome expectedState must be one of success|failed|skipped|break|no_break|restarted.");
   }
 
   // Feature 103 (issue #193, FR-004/FR-013): the reported ceiling's second half was that
@@ -159,6 +159,7 @@ public sealed class CompositeConditionValidationTests {
   [InlineData("skipped")]
   [InlineData("break")]
   [InlineData("no_break")]
+  [InlineData("restarted")]
   public void EveryAcceptedExpectedStateIsAcceptedInsideEveryCompositeRule(string expectedState) {
     foreach (var rule in new[] { "all", "any", "none" }) {
       var child = new CommandOutcomeStepCondition { StepRef = "probe", ExpectedState = expectedState };
@@ -185,7 +186,7 @@ public sealed class CompositeConditionValidationTests {
     };
 
     Validate(condition).Should().ContainSingle()
-      .Which.Should().Be("Step 'S' condition at $.children[0]: commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+      .Which.Should().Be("Step 'S' condition at $.children[0]: commandOutcome expectedState must be one of success|failed|skipped|break|no_break|restarted.");
   }
 
   [Fact]
@@ -341,7 +342,7 @@ public sealed class CompositeConditionValidationTests {
 
     errors.Should().BeEquivalentTo(
       "Step 's1' imageVisible condition requires imageId.",
-      "Step 's2' commandOutcome expectedState must be one of success|failed|skipped|break|no_break.");
+      "Step 's2' commandOutcome expectedState must be one of success|failed|skipped|break|no_break|restarted.");
   }
 
   private static SequenceStep Action(string stepId, SequenceStepCondition? condition = null, int order = 0) => new() {

@@ -89,7 +89,7 @@ export type ImageVisibleStepCondition = {
  * fired, and have been accepted since feature 081; this type — and the validator beside it — still
  * listed only the first three, so the editor rejected them (feature 103, issue #193).
  */
-export type CommandOutcomeExpectedState = 'success' | 'failed' | 'skipped' | 'break' | 'no_break';
+export type CommandOutcomeExpectedState = 'success' | 'failed' | 'skipped' | 'break' | 'no_break' | 'restarted';
 
 export type CommandOutcomeStepCondition = {
   type: 'commandOutcome';

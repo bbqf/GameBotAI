@@ -108,6 +108,7 @@ Supported primitive types:
 - `key`
 - `command`
 - `connect-to-game`
+- `ensure-game-running`. The optional boolean `forceRestart` (default false) stops the game, starts it again, and waits for the foreground. The step then has the outcome `restarted`. A `commandOutcome` condition can use the state `restarted`.
 
 Inline primitive shape:
 ```json

@@ -146,6 +146,9 @@ internal sealed class WaitForImageConfigDto {
 internal sealed class EnsureGameRunningConfigDto {
   public DetectionTargetDto? ReadinessImage { get; init; }
   public int? ReadinessTimeoutMs { get; init; }
+
+  /// <summary>When true, the step stops the game, starts it again, and waits for the foreground (feature 129).</summary>
+  public bool? ForceRestart { get; init; }
 }
 
 internal sealed class CommandStepDto {

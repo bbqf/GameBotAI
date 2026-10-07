@@ -36,6 +36,8 @@ export type StepEntry = {
   keyInput?: { key: string };
   swipe?: { startX: string; startY: string; endX: string; endY: string; durationMs?: string };
   ensureEmulatorRunning?: { instanceName?: string; instanceIndex?: string; adbSerial: string };
+  /** The option of an EnsureGameRunning step (feature 129). Absent means false. */
+  ensureGameRunning?: { forceRestart: boolean };
 };
 
 export type DetectionTargetForm = {
@@ -99,7 +101,9 @@ const toStepItems = (steps: StepEntry[], commandOpts: SearchableOption[]): Reord
       return {
         id: step.id,
         label: 'Ensure game running',
-        description: 'Checks foreground app; starts game if not running',
+        description: step.ensureGameRunning?.forceRestart
+          ? 'Stops the game and starts it again'
+          : 'Checks foreground app; starts game if not running',
       };
     }
 
@@ -383,7 +387,14 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
         {pendingActionType === 'EnsureGameRunning' && (
           <EnsureGameRunningPanel
-            onConfirm={() => handlePanelConfirm({ type: 'EnsureGameRunning' })}
+            initialForceRestart={editingStep?.ensureGameRunning?.forceRestart ?? false}
+            onConfirm={(forceRestart) =>
+              handlePanelConfirm(
+                forceRestart
+                  ? { type: 'EnsureGameRunning', ensureGameRunning: { forceRestart: true } }
+                  : { type: 'EnsureGameRunning' }
+              )
+            }
             onCancel={handlePanelCancel}
             disabled={submitting}
           />
