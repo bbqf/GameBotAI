@@ -1,9 +1,8 @@
 <!--
 Sync Impact Report
-Version change: 1.2.0 → 1.3.0
-Modified principles: N/A
-Added sections: Core Principle VI (Simplified Technical English); Definition of Done bullet for STE;
-  Review bullet for STE
+Version change: 1.3.0 → 1.3.1
+Modified principles: VI (scope now includes conversation with the user)
+Added sections: N/A (1.3.0 added Principle VI, a Definition of Done bullet, and a Review bullet)
 Removed sections: N/A
 Templates requiring updates:
 - .specify/templates/plan-template.md ✅ updated (STE gate in Constitution Check)
@@ -93,6 +92,8 @@ All text that you write or change MUST obey ASD-STE100 Simplified Technical Engl
 - Scope: specs, plans, tasks, checklists, research notes, data models, contracts, quickstarts,
   docs, changelog entries, commit messages, PR titles and descriptions, code comments, and
   user-facing text (error messages, log messages, UI text, and API descriptions).
+- Conversation: ALWAYS use STE in conversation with the user also. This includes chat replies,
+  questions, status updates, and summaries. STE is not only for files and artifacts.
 - Write procedural sentences of 20 words or fewer. Write descriptive sentences of 25 words or
   fewer.
 - Write one instruction in each sentence. Use the imperative form for instructions.
@@ -126,8 +127,8 @@ A change is Done only when all gates pass:
 - Living docs: `docs/architecture.md` updated (with refreshed "Last reviewed" date) for any change
   to the domain model, capabilities, API surface, or persistence; touched specs carry an accurate
   `Status` line and `specs/STATUS.md` is consistent.
-- Language: all new or changed text in artifacts, commits, PRs, comments, and user-facing
-  messages obeys Principle VI (STE).
+- Language: all new or changed text in artifacts, commits, PRs, comments, user-facing
+  messages, and conversation obeys Principle VI (STE).
 
 ## Development Workflow and Review Process
 
@@ -144,4 +145,4 @@ A change is Done only when all gates pass:
 - Versioning: Semantic versioning for this document: MAJOR (principle removals/redefinitions), MINOR (new sections/principles), PATCH (clarifications).
 - Compliance: Periodic audits review adherence. Non-compliance requires remediation tasks prioritized in the next cycle.
 
-**Version**: 1.3.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-09-24
+**Version**: 1.3.1 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-10-02
