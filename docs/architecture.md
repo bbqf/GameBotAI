@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-02 (feature 127: step-through of a saved sequence;
+_Last reviewed: 2026-10-07 (feature 128: `POST /api/ocr/read`;
+feature 127: step-through of a saved sequence;
 feature 126: failure message dedup by last sent message;
 feature 125: reschedule-self `keep: earliest`;
 feature 123: reschedule-self option `Cancel`;
@@ -483,6 +484,13 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
 - `GET /api/emulator/screenshot` takes `sessionId` or `serial`; with several sessions and no selector
   it returns `409 ambiguous_session` instead of an arbitrary device. A `serial` with no bound session
   returns `404 session_not_found`, whose message says to start a session or a queue on that device.
+- `POST /api/ocr/read` (feature 128) reads the text in a region of the live screen (`serial`) or of a stored
+  capture (`captureId`). Set exactly one source. It returns the raw text and the confidence value. An optional
+  `parser` (`hh:mm:ss`) adds a parsed duration, or a reason when the text does not parse (still status 200).
+  The endpoint sends no input to the emulator and keeps no cache. It shares `OcrRegionReader` with the
+  `ocrOffset` step, so both read the same text for the same frame and region. Errors use `{ code, message }`.
+  The first fault wins in this order: request faults (400), lookup (404), capture (502 or 503), engine (503),
+  region inside the frame (400).
 - `POST /api/images/detect` takes `captureId` or `sessionId` (mutually exclusive; blank counts as
   absent) and follows the same rule, reusing the same codes: `409 ambiguous_session` when several
   sessions are running and none is named, `404 capture_not_found` / `404 session_not_found` for an

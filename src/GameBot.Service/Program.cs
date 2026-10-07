@@ -127,6 +127,7 @@ app.MapConfigEndpoints();
 app.MapConfigLoggingEndpoints();
 app.MapConfigFilesEndpoints(storageRoot);
 app.MapCoverageEndpoints();
+app.MapOcrReadEndpoints();
 app.MapExecutionLogEndpoints();
 app.MapBackupRestoreEndpoints();
 

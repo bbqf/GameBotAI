@@ -139,6 +139,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyImageExamples(operation, path, method, context);
     ApplyExecutionLogExamples(operation, path, method, context);
     ApplyStepThroughExamples(operation, path, method, context);
+    ApplyOcrReadExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
     ApplyBackupRestoreExamples(operation, path, method, context);
     ApplyCaptureStalenessDocs(operation, path, method, context);
@@ -921,6 +922,44 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         media.Example ??= state;
         media.Schema ??= GenerateSchema(context, typeof(GameBot.Service.Services.StepThrough.StepThroughStateDto));
       }
+    }
+  }
+
+  // Feature 128: examples of POST /api/ocr/read.
+  private static void ApplyOcrReadExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!IsMethod(method, HttpMethods.Post) || !IsPath(path, ApiRoutes.Ocr + "/read")) return;
+
+    SetRequestExample(operation, new OpenApiObject {
+      ["serial"] = new OpenApiString("emulator-5558"),
+      ["region"] = new OpenApiObject {
+        ["x"] = new OpenApiInteger(120), ["y"] = new OpenApiInteger(640),
+        ["width"] = new OpenApiInteger(300), ["height"] = new OpenApiInteger(60)
+      },
+      ["parser"] = new OpenApiString("hh:mm:ss")
+    }, context, typeof(GameBot.Service.Models.OcrReadRequest));
+
+    SetResponseExample(operation, "200", new OpenApiObject {
+      ["text"] = new OpenApiString("Refresh time: 02:10:35"),
+      ["confidence"] = new OpenApiDouble(0.91),
+      ["source"] = new OpenApiString("serial"),
+      ["frameWidth"] = new OpenApiInteger(540),
+      ["frameHeight"] = new OpenApiInteger(960),
+      ["parser"] = new OpenApiString("hh:mm:ss"),
+      ["parsed"] = new OpenApiObject { ["value"] = new OpenApiString("02:10:35"), ["totalSeconds"] = new OpenApiDouble(7835) },
+      ["parseFailureReason"] = new OpenApiNull()
+    }, context, typeof(GameBot.Service.Models.OcrReadResponse));
+
+    var errors = new (string Status, string Code, string Message)[] {
+      ("400", "invalid_region", "The region is not fully inside the frame. The frame is 540 x 960 pixels."),
+      ("404", "serial_not_found", "No running session has this serial. Start a session for the device and try again."),
+      ("502", "capture_failed", "The service has no frame for this session. Try again."),
+      ("503", "ocr_unavailable", "No OCR engine is available on this host.")
+    };
+    foreach (var (status, code, message) in errors) {
+      SetResponseExample(operation, status, new OpenApiObject {
+        ["code"] = new OpenApiString(code),
+        ["message"] = new OpenApiString(message)
+      }, context, typeof(GameBot.Service.Models.OcrErrorResponse));
     }
   }
 

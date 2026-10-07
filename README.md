@@ -222,6 +222,11 @@ Notes:
 | HighestConfidence | Picks the match with the highest score | Noisy screens; multiple similar candidates | Might jump between candidates across frames |
 | FirstMatch        | Picks the first match after sorting    | Stable UIs; deterministic selection needed | May choose a lower-confidence candidate     |
 
+- Read text from a region of the screen: `POST /api/ocr/read`
+  - Body: `{ "serial": "emulator-5558", "region": { "x": 120, "y": 640, "width": 300, "height": 60 }, "parser": "hh:mm:ss" }`.
+    Use `captureId` in place of `serial` to read a stored capture. `parser` is optional.
+  - The answer has `text`, `confidence`, and the frame size. With a parser it also has `parsed`, or `parseFailureReason`.
+    The endpoint sends no input to the emulator.
 - Detect matches: `POST /api/images/detect`
   - Body:
     ```json
