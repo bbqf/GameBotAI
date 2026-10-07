@@ -161,6 +161,7 @@ Status vocabulary:
 | 125 | Reschedule-Self Keep Earliest | Implemented |
 | 126 | Failure Message Dedup By Last Sent Message | Implemented |
 | 127 | Step-Through Sequence Execution | Implemented |
+| 128 | OCR Read Endpoint | Implemented |
 
 ## Numbering notes
 

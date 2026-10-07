@@ -1,9 +1,9 @@
 using System;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.Runtime.Versioning;
 using GameBot.Domain.Commands.SelfReschedule;
 using GameBot.Domain.Triggers.Evaluators;
+using GameBot.Service.Services.Ocr;
 
 namespace GameBot.Service.Services.SequenceExecution;
 
@@ -31,19 +31,18 @@ internal sealed class OcrOffsetResolver : IOcrOffsetResolver {
     }
 
     Bitmap? frame = null;
-    Bitmap? cropped = null;
     try {
       frame = _frameSource.Capture(sessionId);
       if (frame is null) {
         return Fallback(spec, "no-capture", null);
       }
 
-      cropped = CropRegion(frame, spec.Region);
-      if (cropped is null) {
+      var read = OcrRegionReader.Read(frame, spec.Region, _ocr);
+      if (read.CropFailed) {
         return Fallback(spec, "region-invalid", null);
       }
 
-      var text = _ocr.Recognize(cropped).Text;
+      var text = read.Text;
       if (string.IsNullOrWhiteSpace(text)) {
         return Fallback(spec, "ocr-empty", text ?? string.Empty);
       }
@@ -63,37 +62,10 @@ internal sealed class OcrOffsetResolver : IOcrOffsetResolver {
       return Fallback(spec, "ocr-error", null);
     }
     finally {
-      cropped?.Dispose();
       frame?.Dispose();
     }
   }
 
   private static OcrOffsetResolution Fallback(SelfRescheduleOcrOffset spec, string reason, string? text) =>
     new(spec.Fallback, OcrOffsetSource.Fallback, text, reason);
-
-  // Crops the region in absolute captured-screen pixel space (FR-002). Clamps to the frame; returns
-  // null when the region starts entirely outside the frame or has non-positive size.
-  private static Bitmap? CropRegion(Bitmap frame, OcrOffsetRegion region) {
-    if (region.Width <= 0 || region.Height <= 0) {
-      return null;
-    }
-    if (region.X >= frame.Width || region.Y >= frame.Height) {
-      return null;
-    }
-
-    var rx = Math.Clamp(region.X, 0, frame.Width - 1);
-    var ry = Math.Clamp(region.Y, 0, frame.Height - 1);
-    var rw = Math.Clamp(region.Width, 1, frame.Width - rx);
-    var rh = Math.Clamp(region.Height, 1, frame.Height - ry);
-
-    try {
-      var dest = new Bitmap(rw, rh, PixelFormat.Format24bppRgb);
-      using var g = Graphics.FromImage(dest);
-      g.DrawImage(frame, new Rectangle(0, 0, rw, rh), new Rectangle(rx, ry, rw, rh), GraphicsUnit.Pixel);
-      return dest;
-    }
-    catch (Exception ex) when (ex is ArgumentException or OutOfMemoryException) {
-      return null;
-    }
-  }
 }

@@ -113,6 +113,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<LastRunConditionSchemaFilter>();
       options.SchemaFilter<TemplateTimerTimeOfDaySchemaFilter>();
       options.SchemaFilter<StepThroughSchemaFilter>();
+      options.SchemaFilter<OcrReadSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -404,6 +405,8 @@ internal static class GameBotServiceSetup {
       // Text match evaluator (OCR): dynamic backend selection based on refreshed configuration
       builder.Services.AddSingleton<GameBot.Domain.Triggers.Evaluators.ITextOcr, GameBot.Service.Services.DynamicTextOcr>();
       builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator>();
+      // POST /api/ocr/read (feature 128): optional parts (frame source, OCR engine) resolve to null when absent.
+      builder.Services.AddSingleton<GameBot.Service.Services.Ocr.OcrReadService>();
     }
     // feature 068: OCR-offset resolver for reschedule-self. The real resolver needs the background
     // capture service (ADB) + OCR; when either is unavailable (non-Windows or ADB-disabled test

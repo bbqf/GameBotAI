@@ -2,7 +2,7 @@
 
 **Feature Branch**: `128-ocr-read-endpoint`
 **Created**: 2026-10-07
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Expose the OCR engine as a read endpoint (issue #274). An author must test a region, a parser, or an account before a production run, and see what the engine returns for a given picture."
 
 ## Clarifications

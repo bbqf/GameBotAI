@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `POST /api/ocr/read` reads the text in a region of the live screen or of a stored capture (128-ocr-read-endpoint)
+  - Set exactly one of `serial` and `captureId`, and a `region` in pixels. The answer has `text`, `confidence`, and the frame size. An optional `parser` (`hh:mm:ss`) adds a parsed duration. A text that does not parse gives status 200 with a `parseFailureReason`.
+  - The endpoint sends no input to the emulator and keeps no cache. Errors use `{ code, message }`: 400, 404, 502 and 503 (never 500 for an input error or a host fault). The first fault in a fixed check order wins.
+  - The endpoint and the `ocrOffset` step share one crop and read code, so both read the same text for the same frame and region. The step behavior, fallback logic, and log line do not change.
 - Step-through of a saved sequence. The author runs the sequence one step at a time on a game session and watches the emulator (127-step-through-sequence-execution)
   - The Sequences page has a **Step through** button. It is on for a saved sequence with no unsaved edits. Otherwise it is off and shows the reason. The panel has a step list with the nesting, a marker on the next step, **Run next step**, **Cancel step**, **Restart**, and a history list with status, message, time, and iteration. The author can click any step to make it the next step.
   - One step is one action. Each action in a loop iteration and in an if branch is a separate step. The next step follows the same rules as a real run (guards, loops, `maxIterations`, if branches, break). A failed step does not stop the step-through.
