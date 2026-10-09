@@ -177,7 +177,8 @@ public static class SequenceStepConditionEvaluator {
           Source = "image",
           TargetId = image.ImageId,
           Mode = "Present",
-          ConfidenceThreshold = image.MinSimilarity
+          ConfidenceThreshold = image.MinSimilarity,
+          PixelRegion = image.Region
         }, ct).ConfigureAwait(false);
 
       case CommandOutcomeStepCondition outcome:
@@ -264,7 +265,9 @@ public static class SequenceStepConditionEvaluator {
     switch (condition) {
       case ImageVisibleStepCondition image:
         var similarity = image.MinSimilarity?.ToString(CultureInfo.InvariantCulture) ?? "default";
-        return $"{negatePrefix}imageVisible(imageId={image.ImageId}, minSimilarity={similarity})";
+        // Feature 130: the region shows in the text only when it is set, so old text does not change.
+        var regionText = image.Region is null ? string.Empty : $", region={image.Region.Describe()}";
+        return $"{negatePrefix}imageVisible(imageId={image.ImageId}, minSimilarity={similarity}{regionText})";
 
       case CommandOutcomeStepCondition outcome:
         return $"{negatePrefix}commandOutcome(stepRef={outcome.StepRef}, expected={outcome.ExpectedState})";

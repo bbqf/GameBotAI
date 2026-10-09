@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Optional `region` for an `imageVisible` condition and for a detection target. The image search runs only inside the region (130-region-restricted-image-detection, issue #272)
+  - `region` is `{ "x", "y", "width", "height" }` in capture pixels. The whole image must be inside the region. Tap points and returned coordinates stay in full-capture pixels. Without `region`, nothing changes.
+  - Where it works: `imageVisible` in a step condition, an `if`, a loop, a break condition and the children of `all`, `any` and `none`; and `primitiveTap.detectionTarget`, `waitForImage.detectionTarget`, `ensureGameRunning.readinessImage`, the command-level `detection`, and the `detectionTarget` of a sequence `waitForImage` payload.
+  - A bad region (x or y below 0, width or height of 0 or less, a missing field) returns 400. The message names every invalid field and nothing is stored. A region past the capture is clipped. A region with no usable area gives "not found" and no error.
+  - The condition text in execution logs, trees and step-through shows `region=x,y,width,height`, only when a region is set. The OpenAPI document lists `region` and the `PixelRegion` schema.
+  - **Compatibility**: no new endpoint or step type. Stored data without `region` reads and writes as before.
 - Option `forceRestart` for the `ensure-game-running` step. It stops the game, starts it again, and waits for the foreground (129-restart-game-force-restart, issue #277)
   - Set `forceRestart: true` in the payload of a sequence action step, or in `ensureGameRunning.forceRestart` of a command step. The step uses `adb shell am force-stop` on the device of the session only. A step with no option, or with `false`, works as before.
   - The step has the new outcome `restarted`. A `commandOutcome` condition accepts the new `expectedState` value `restarted`; a condition on `success` matches a restarted step too. A command step shows the reason `restarted` in its own outcome list.

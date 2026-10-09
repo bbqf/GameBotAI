@@ -58,6 +58,9 @@ internal sealed class ConditionalFlowSchemaDocumentFilter : IDocumentFilter {
     AliasSchema(context, nameof(AnyConditionContract), "AnyCondition");
     AliasSchema(context, nameof(NoneConditionContract), "NoneCondition");
     AliasSchema(context, nameof(LastRunConditionContract), "LastRunCondition");
+    // Feature 130: the optional pixel region of an image condition and of a detection target.
+    AliasSchema(context, nameof(DetectionTargetDto), "DetectionTarget");
+    AliasSchema(context, nameof(PixelRegionDto), "PixelRegion");
   }
 
   private static void AliasSchema(DocumentFilterContext context, string sourceName, string aliasName) {

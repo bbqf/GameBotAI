@@ -8,7 +8,11 @@ namespace GameBot.Domain.Commands {
     public int OffsetY { get; }
     public DetectionSelectionStrategy SelectionStrategy { get; }
 
-    public DetectionTarget(string referenceImageId, double confidence = 0.8, int offsetX = 0, int offsetY = 0, DetectionSelectionStrategy selectionStrategy = DetectionSelectionStrategy.HighestConfidence) {
+    /// <summary>Optional search area in capture pixels (feature 130). Null means the whole capture.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public PixelRegion? Region { get; }
+
+    public DetectionTarget(string referenceImageId, double confidence = 0.8, int offsetX = 0, int offsetY = 0, DetectionSelectionStrategy selectionStrategy = DetectionSelectionStrategy.HighestConfidence, PixelRegion? region = null) {
       if (string.IsNullOrWhiteSpace(referenceImageId))
         throw new ArgumentException("referenceImageId is required", nameof(referenceImageId));
 
@@ -20,6 +24,7 @@ namespace GameBot.Domain.Commands {
       OffsetX = offsetX;
       OffsetY = offsetY;
       SelectionStrategy = selectionStrategy;
+      Region = region;
     }
   }
 }

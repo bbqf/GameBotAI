@@ -112,6 +112,13 @@ public static class CompositeConditionValidator {
           errors.Add($"Step '{stepLabel}' condition at {path}: imageVisible minSimilarity must be within 0..1.");
         }
 
+        // Feature 130: the region rule lives in PixelRegion.Validate. This validator only calls it.
+        if (imageVisible.Region is not null) {
+          foreach (var regionError in imageVisible.Region.Validate($"Step '{stepLabel}' condition at {path}: imageVisible region")) {
+            errors.Add(regionError);
+          }
+        }
+
         break;
 
       case CommandOutcomeStepCondition commandOutcome:

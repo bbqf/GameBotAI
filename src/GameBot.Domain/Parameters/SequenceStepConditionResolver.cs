@@ -136,7 +136,8 @@ public static class SequenceStepConditionResolver {
     resolved = new ImageVisibleStepCondition {
       ImageId = substituted,
       MinSimilarity = image.MinSimilarity,
-      Negate = image.Negate
+      Negate = image.Negate,
+      Region = image.Region
     };
     return true;
   }

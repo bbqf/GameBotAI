@@ -70,7 +70,8 @@ internal static class StepsEndpoints {
       if (step.PrimitiveTap is null || step.PrimitiveTap.DetectionTarget is null || string.IsNullOrWhiteSpace(step.PrimitiveTap.DetectionTarget.ReferenceImageId)) {
         return "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
       }
-      return CommandsEndpoints.ValidateHoldMs(step.PrimitiveTap.HoldMs);
+      return PixelRegionDto.ValidateTarget(step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget")
+        ?? CommandsEndpoints.ValidateHoldMs(step.PrimitiveTap.HoldMs);
     }
 
     if (step.Type == CommandStepTypeDto.WaitForImage) {
@@ -83,7 +84,7 @@ internal static class StepsEndpoints {
       if (step.WaitForImage.DetectionTarget is not null && string.IsNullOrWhiteSpace(step.WaitForImage.DetectionTarget.ReferenceImageId)) {
         return "waitForImage.detectionTarget.referenceImageId must not be empty when detectionTarget is provided";
       }
-      return null;
+      return PixelRegionDto.ValidateTarget(step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget");
     }
 
     if (step.Type == CommandStepTypeDto.EnsureGameRunning) {
@@ -130,7 +131,8 @@ internal static class StepsEndpoints {
             s.PrimitiveTap.DetectionTarget.Confidence ?? 0.8,
             s.PrimitiveTap.DetectionTarget.OffsetX ?? 0,
             s.PrimitiveTap.DetectionTarget.OffsetY ?? 0,
-            DetectionSelectionStrategy.HighestConfidence),
+            DetectionSelectionStrategy.HighestConfidence,
+            PixelRegionDto.ToDomain(s.PrimitiveTap.DetectionTarget.Region)),
           HoldMs = s.PrimitiveTap.HoldMs
         }
         : null,
@@ -143,7 +145,8 @@ internal static class StepsEndpoints {
               s.WaitForImage.DetectionTarget.Confidence ?? 0.8,
               s.WaitForImage.DetectionTarget.OffsetX ?? 0,
               s.WaitForImage.DetectionTarget.OffsetY ?? 0,
-              DetectionSelectionStrategy.HighestConfidence)
+              DetectionSelectionStrategy.HighestConfidence,
+              PixelRegionDto.ToDomain(s.WaitForImage.DetectionTarget.Region))
             : null
         }
         : null,

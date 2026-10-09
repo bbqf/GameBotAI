@@ -163,6 +163,7 @@ Status vocabulary:
 | 127 | Step-Through Sequence Execution | Implemented |
 | 128 | OCR Read Endpoint | Implemented |
 | 129 | Restart The Game From A Sequence (forceRestart) | Implemented |
+| 130 | Region-Restricted Image Detection | Implemented |
 
 ## Numbering notes
 

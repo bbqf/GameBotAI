@@ -2,7 +2,7 @@
 
 **Feature Branch**: `130-region-restricted-image-detection`
 **Created**: 2026-10-09
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Restrict an image condition or tap target to a screen region. Source: GitHub issue #272 (FR-017). Closes #272."
 
 ## Clarifications

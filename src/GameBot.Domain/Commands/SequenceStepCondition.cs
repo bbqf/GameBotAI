@@ -27,6 +27,10 @@ public sealed class ImageVisibleStepCondition : SequenceStepCondition {
   public override string Type => "imageVisible";
   public string ImageId { get; set; } = string.Empty;
   public double? MinSimilarity { get; set; }
+
+  /// <summary>Optional search area in capture pixels (feature 130). Null means the whole capture.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public PixelRegion? Region { get; set; }
 }
 
 public sealed class CommandOutcomeStepCondition : SequenceStepCondition {

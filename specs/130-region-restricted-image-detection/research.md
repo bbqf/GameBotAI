@@ -108,12 +108,18 @@ No item in the Technical Context needed clarification. This file records the dec
 
 ## Setup check results
 
-This section is a placeholder. The implementation fills it in during the setup phase. Later tasks and the PR text refer to it. Each result ends in a named change or in "no change" with the reason.
+Results of the setup checks (tasks T001 to T004), found in the code during the implementation. Each result ends in a named change or in "no change" with the reason.
 
 | Check | Result | Action |
 |-------|--------|--------|
-| Legacy class `ImageVisibleCondition` (`src\GameBot.Domain\Commands\ImageVisibleCondition.cs`): API read or write path | TO FILL | TO FILL |
-| `primitiveTap` sequence payload: typed map or raw dictionary | TO FILL | TO FILL |
-| `ImageDetectionHelper.cs`: reads a condition or a target field by field | TO FILL | TO FILL |
-| `ImageDetectionConditionAdapter.cs`: reads a condition or a target field by field | TO FILL | TO FILL |
-| Web UI types: drop `region` on save | TO FILL | TO FILL |
+| Legacy class `ImageVisibleCondition` (`src\GameBot.Domain\Commands\ImageVisibleCondition.cs`): API read or write path | The only use is the property `SequenceStep.ConditionExpression` (`SequenceStep.cs`). No file in `src\GameBot.Service` reads or writes it. The only other name hit is the OpenAPI alias `ImageVisibleCondition` for `ImageVisibleConditionContract` (`ConditionalFlowSchemaDocumentFilter.cs`), which is the active model. | No change (T025 skipped). The active model `ImageVisibleStepCondition` has the region. |
+| `primitiveTap` sequence payload: typed map or raw dictionary | Raw dictionary. A sequence step `primitiveAction.payload` is `Dictionary<string, object>` and the value is stored unchanged in `SequenceActionPayload.Parameters`. No code reads `detectionTarget` of a `tap` payload at run time. `MapWaitForImageDetectionTarget` reads the `waitForImage` payload field by field. | `region` of the `waitForImage` payload is read in `MapWaitForImageDetectionTarget` (new `TryReadRegion`). Both payload kinds are checked at save time in `ValidateRegionsInRequest` (any payload that has `detectionTarget`), so a bad region gives 400. A `primitiveTap` payload keeps the region by the raw pass-through. |
+| `ImageDetectionHelper.cs`: reads a condition or a target field by field | It passes the whole `DetectionTarget` to `ActionExecutionAdapter.TryApplyDetectionCoordinates`, then `CommandRunner`, then `DetectionCoordinateResolver`. It reads `Confidence` only. | No change. The region travels inside the `DetectionTarget` and the resolver crops. |
+| `ImageDetectionConditionAdapter.cs`: reads a condition or a target field by field | It takes a `ConditionOperand` (old operand model: `TargetRef`, `ExpectedState`, `Threshold`). `ConditionOperand` has no region and no API path sets one for an `imageVisible` condition. | No change (T019 recorded no change). `ImageVisibleConditionAdapter` copies `PixelRegion` instead. |
+| Web UI types: drop `region` on save | `DetectionTargetDto` (`services\commands.ts`) and `ImageVisibleStepCondition` (`types\sequenceFlow.ts`) do not declare `region`. The editors change a condition with an object spread (`{ ...condition, imageId }`), so an existing `region` is kept on save. The UI has no field to set a region. | No change. Authors set `region` through the API. A UI field is outside this feature. |
+
+Other findings during the implementation:
+
+- `StepsEndpoints.ValidateStep` does not read `ensureGameRunning.readinessImage` (the endpoint takes only `forceRestart` from that step). The readiness image is covered by `CommandsEndpoints` (save and read-back). T034 maps and validates the region for the `primitiveTap` and `waitForImage` targets of the steps endpoint only.
+- A sequence file is written with the default JSON options, so a stored region has the names `Region`, `X`, `Y`, `Width`, `Height`. A command file uses the web options (`region`, `x`, `y`, `width`, `height`). The API always uses `region` with lower-case fields.
+- `SequenceRunner` builds a `Blocks.Condition` for the `waitForImage` step of a sequence (`DetectionTarget`). It now carries `PixelRegion` too, so a `waitForImage` payload region limits the search at run time.

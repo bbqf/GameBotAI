@@ -217,4 +217,38 @@ internal sealed class DetectionTargetDto {
   public int? OffsetX { get; init; }
   public int? OffsetY { get; init; }
   public DetectionSelectionStrategyDto? SelectionStrategy { get; init; }
+
+  /// <summary>Optional search area in capture pixels (feature 130). Absent means the whole capture.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public PixelRegionDto? Region { get; init; }
+}
+
+/// <summary>
+/// A rectangle in capture pixels (feature 130). Each field is nullable so validation can name a
+/// missing field. <see cref="GameBot.Domain.Commands.PixelRegion"/> holds the rules.
+/// </summary>
+internal sealed class PixelRegionDto {
+  public int? X { get; init; }
+  public int? Y { get; init; }
+  public int? Width { get; init; }
+  public int? Height { get; init; }
+
+  /// <summary>Validates a region with the one domain rule. Null is valid (no region).</summary>
+  public static IReadOnlyList<string> Validate(PixelRegionDto? dto, string prefix = "region") =>
+    dto is null ? Array.Empty<string>() : GameBot.Domain.Commands.PixelRegion.Validate(dto.X, dto.Y, dto.Width, dto.Height, prefix);
+
+  /// <summary>Validates the region of a detection target and joins all messages in one text. Null when valid.</summary>
+  public static string? ValidateTarget(DetectionTargetDto? target, string targetPath) {
+    var errors = Validate(target?.Region, $"{targetPath}.region");
+    return errors.Count == 0 ? null : string.Join("; ", errors);
+  }
+
+  /// <summary>Maps to the domain type. Call only after <see cref="Validate"/> returned no error.</summary>
+  public static GameBot.Domain.Commands.PixelRegion? ToDomain(PixelRegionDto? dto) =>
+    dto is { X: not null, Y: not null, Width: not null, Height: not null }
+      ? new GameBot.Domain.Commands.PixelRegion(dto.X.Value, dto.Y.Value, dto.Width.Value, dto.Height.Value)
+      : null;
+
+  public static PixelRegionDto? FromDomain(GameBot.Domain.Commands.PixelRegion? region) =>
+    region is null ? null : new PixelRegionDto { X = region.X, Y = region.Y, Width = region.Width, Height = region.Height };
 }

@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-08 (feature 129: `forceRestart` on ensure-game-running and the `restarted` outcome;
+_Last reviewed: 2026-10-09 (feature 130: optional pixel `region` on `imageVisible` conditions and detection targets;
+feature 129: `forceRestart` on ensure-game-running and the `restarted` outcome;
 feature 128: `POST /api/ocr/read`;
 feature 127: step-through of a saved sequence;
 feature 126: failure message dedup by last sent message;
@@ -568,6 +569,22 @@ Every screen read is resolved against **one** device, so concurrent runs cannot 
   **An image without alternates never goes through the decorator**, so its scores are unchanged.
   POST /api/images/detect-all is unaffected. Lighting normalisation was rejected: TM_CCOEFF_NORMED
   already normalises global brightness/contrast, and any change would move every calibrated score.
+- **Region-restricted image detection** (feature 130, issue #272). An `imageVisible` condition and a
+  `detectionTarget` have the optional field `region`: `{ "x", "y", "width", "height" }`, integers in
+  capture pixels. The search runs only inside the region, and the whole image must be inside it.
+  Without a region, the code path is the old one. The field is on `imageVisible` in each condition
+  position (step, `if`, loop, break, and the children of `all`, `any`, `none`), and on
+  `primitiveTap.detectionTarget`, `waitForImage.detectionTarget`, `ensureGameRunning.readinessImage`,
+  the command-level `detection`, and the `detectionTarget` of a sequence `waitForImage` payload.
+  `PixelRegion` (Domain) holds the one validation rule (`Validate`: x and y 0 or more, width and height
+  more than 0, all four present) and the one clip rule (`ClipTo`). Every save path calls `Validate` and
+  gives 400 with every invalid field named. A tap target crops in `DetectionCoordinateResolver`
+  (both `ResolveCenter` overloads) before the match, then adds the region origin to each box, so a
+  stronger match outside the region cannot take a result slot and the tap point is in full-capture
+  pixels. A condition crops in `ImageMatchEvaluator.ComputeSimilarity`; `ImageMatchParams.PixelRegion`
+  wins over the fraction `Region`. A region past the capture is clipped; an empty or too small clip
+  gives "not found" and no error. `Describe` and `DescribeBreakCondition` add `, region=x,y,width,height`
+  only when a region is set. OpenAPI lists `region` and the `PixelRegion` schema.
 - `Service:Sessions:MaxConcurrentSessions` defaults to **8** (was 3); exceeding it fails a run with a
   message naming the limit and the setting.
 

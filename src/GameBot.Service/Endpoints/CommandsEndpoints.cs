@@ -113,7 +113,8 @@ internal static class CommandsEndpoints {
       if (step.PrimitiveTap is null || step.PrimitiveTap.DetectionTarget is null || string.IsNullOrWhiteSpace(step.PrimitiveTap.DetectionTarget.ReferenceImageId)) {
         return "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps";
       }
-      return ValidateHoldMs(step.PrimitiveTap.HoldMs);
+      return PixelRegionDto.ValidateTarget(step.PrimitiveTap.DetectionTarget, "primitiveTap.detectionTarget")
+        ?? ValidateHoldMs(step.PrimitiveTap.HoldMs);
     }
 
     if (step.Type == CommandStepTypeDto.WaitForImage) {
@@ -130,7 +131,7 @@ internal static class CommandsEndpoints {
         return "waitForImage.detectionTarget.referenceImageId must not be empty when detectionTarget is provided";
       }
 
-      return null;
+      return PixelRegionDto.ValidateTarget(step.WaitForImage.DetectionTarget, "waitForImage.detectionTarget");
     }
 
     if (step.Type == CommandStepTypeDto.EnsureGameRunning) {
@@ -141,7 +142,7 @@ internal static class CommandsEndpoints {
       if (cfg?.ReadinessTimeoutMs is < 0) {
         return "ensureGameRunning.readinessTimeoutMs must be greater than or equal to zero";
       }
-      return null;
+      return PixelRegionDto.ValidateTarget(cfg?.ReadinessImage, "ensureGameRunning.readinessImage");
     }
 
     if (step.Type == CommandStepTypeDto.GoToHomeScreen) {
@@ -289,7 +290,8 @@ internal static class CommandsEndpoints {
     var offsetX = dto.OffsetX ?? 0;
     var offsetY = dto.OffsetY ?? 0;
     var selection = MapSelectionFromDto(dto.SelectionStrategy);
-    return new DetectionTarget(dto.ReferenceImageId, confidence, offsetX, offsetY, selection);
+    // The save paths validate the region before this call, so a region here is complete and valid.
+    return new DetectionTarget(dto.ReferenceImageId, confidence, offsetX, offsetY, selection, PixelRegionDto.ToDomain(dto.Region));
   }
 
   private static DetectionTargetDto? ToResponseDetection(DetectionTarget? detection) {
@@ -299,7 +301,8 @@ internal static class CommandsEndpoints {
       Confidence = detection.Confidence,
       OffsetX = detection.OffsetX,
       OffsetY = detection.OffsetY,
-      SelectionStrategy = MapSelectionToDto(detection.SelectionStrategy)
+      SelectionStrategy = MapSelectionToDto(detection.SelectionStrategy),
+      Region = PixelRegionDto.FromDomain(detection.Region)
     };
   }
 
@@ -342,6 +345,10 @@ internal static class CommandsEndpoints {
       }
 
       var detectionDto = req.Detection ?? TryReadDetection(root);
+      var detectionRegionError = PixelRegionDto.ValidateTarget(detectionDto, "detection");
+      if (detectionRegionError is not null) {
+        return Results.BadRequest(new { error = new { code = "invalid_request", message = detectionRegionError, hint = (string?)null } });
+      }
 
       var command = new Command {
         Id = string.Empty,
@@ -422,6 +429,12 @@ internal static class CommandsEndpoints {
     app.MapPatch($"{ApiRoutes.Commands}/{{id}}", async (string id, UpdateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound();
+      if (req.DetectionSpecified) {
+        var detectionRegionError = PixelRegionDto.ValidateTarget(req.Detection, "detection");
+        if (detectionRegionError is not null) {
+          return Results.BadRequest(new { error = new { code = "invalid_request", message = detectionRegionError, hint = (string?)null } });
+        }
+      }
       if (!string.IsNullOrWhiteSpace(req.Name)) existing.Name = req.Name!;
       existing.TriggerId = req.TriggerId ?? existing.TriggerId;
       if (req.Steps is not null) {

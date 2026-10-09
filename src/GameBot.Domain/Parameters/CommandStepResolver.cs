@@ -228,7 +228,8 @@ public static class CommandStepResolver {
         effectiveConfidence,
         offsetX ?? target.OffsetX,
         offsetY ?? target.OffsetY,
-        target.SelectionStrategy);
+        target.SelectionStrategy,
+        target.Region);
     return true;
   }
 

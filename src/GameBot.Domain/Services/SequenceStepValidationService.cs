@@ -172,6 +172,7 @@ public sealed class SequenceStepValidationService {
             && string.IsNullOrWhiteSpace(brkImgVis.ImageId)) {
           errors.Add($"Break step '{bodyLabel}' imageVisible breakCondition requires imageId.");
         }
+        AddRegionErrors(bodyStep.BreakCondition as ImageVisibleStepCondition, bodyLabel, errors);
         // Feature 088: a break guard may be a composite; a leaf keeps the message above.
         CompositeConditionValidator.Validate(bodyStep.BreakCondition, bodyLabel, errors,
             positionByStepId: positionByStepId,
@@ -233,6 +234,8 @@ public sealed class SequenceStepValidationService {
     if (condition is ImageVisibleStepCondition imageVisible && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
     }
+
+    AddRegionErrors(condition as ImageVisibleStepCondition, stepLabel, errors);
 
     if (condition is CommandOutcomeStepCondition commandOutcome) {
       if (string.IsNullOrWhiteSpace(commandOutcome.StepRef)) {
@@ -301,6 +304,7 @@ public sealed class SequenceStepValidationService {
             && string.IsNullOrWhiteSpace(brkImgVis.ImageId)) {
           errors.Add($"Break step '{branchLabel}' imageVisible breakCondition requires imageId.");
         }
+        AddRegionErrors(branchStep.BreakCondition as ImageVisibleStepCondition, branchLabel, errors);
         // Feature 088: a break guard inside an if branch may be a composite too.
         CompositeConditionValidator.Validate(branchStep.BreakCondition, branchLabel, errors,
             positionByStepId: positionByStepId,
@@ -313,6 +317,13 @@ public sealed class SequenceStepValidationService {
       }
 
       ValidateStepCondition(branchStep, branchLabel, ownPosition, positionByStepId, errors, insideLoop: insideLoop);
+    }
+  }
+
+  // Feature 130: the region rule lives in PixelRegion.Validate. This method only calls it.
+  private static void AddRegionErrors(ImageVisibleStepCondition? image, string stepLabel, List<string> errors) {
+    if (image?.Region is { } region) {
+      errors.AddRange(region.Validate($"Step '{stepLabel}' imageVisible region"));
     }
   }
 
@@ -390,6 +401,8 @@ public sealed class SequenceStepValidationService {
         && string.IsNullOrWhiteSpace(imageVisible.ImageId)) {
       errors.Add($"Step '{stepLabel}' imageVisible condition requires imageId.");
     }
+
+    AddRegionErrors(step.Condition as ImageVisibleStepCondition, stepLabel, errors);
 
     // Feature 088: composite guards on this step and on its break condition. Leaves reaching here
     // are already covered by the checks above (and, for break conditions, by the caller), so the

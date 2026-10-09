@@ -44,7 +44,10 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
       [ActionTypes.WaitForImage] =
         "timeoutMs, integer >= 0, optional (default 1000). detectionTarget, object, optional: referenceImageId "
         + "(string, must not be empty when detectionTarget is given), confidence (number, default 0.8), offsetX and "
-        + "offsetY (integers, default 0), selectionStrategy (HighestConfidence, the default, or FirstMatch).",
+        + "offsetY (integers, default 0), selectionStrategy (HighestConfidence, the default, or FirstMatch), "
+        + "region (object, optional: x, y, width, height in capture pixels, all four required, x and y 0 or more, "
+        + "width and height more than 0; the search runs only inside the region; a bad region gives 400). "
+        + "A primitiveTap payload detectionTarget takes the same region.",
       [ActionTypes.EnsureGameRunning] =
         "forceRestart, boolean, optional (default false). Without it, or with false, the step checks that the run's "
         + "session game is in the foreground and attempts a launch when it is not; the step fails unless the game ends "
