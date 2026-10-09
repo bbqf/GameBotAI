@@ -65,18 +65,8 @@ internal sealed class UpdaterLauncher : IUpdaterLauncher {
       "--started-at", request.StartedAtUtc.ToString("o", CultureInfo.InvariantCulture)
     };
 
-    // The installer keeps the saved network values by itself. The bot passes known values too.
-    var port = _configuration["Service:Network:Port"] ?? Environment.GetEnvironmentVariable("GAMEBOT_PORT");
-    if (!string.IsNullOrWhiteSpace(port)) {
-      args.Add("--port");
-      args.Add(port);
-    }
-    var bindHost = _configuration["Service:Network:BindHost"] ?? Environment.GetEnvironmentVariable("GAMEBOT_BIND_HOST");
-    if (!string.IsNullOrWhiteSpace(bindHost)) {
-      args.Add("--bind-host");
-      args.Add(bindHost);
-    }
-
+    // The bot does not pass --port or --bind-host. The installer keeps the saved network values by
+    // itself, and a runtime override must not become a saved value (feature 132).
     return args;
   }
 

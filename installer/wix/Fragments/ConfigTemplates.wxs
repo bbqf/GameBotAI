@@ -11,5 +11,43 @@
     <ComponentGroup Id="PersistedConfigComponents">
       <ComponentRef Id="PersistNetworkConfigComponent" />
     </ComponentGroup>
+
+    <!-- Feature 132: the saved host and port file, [DATAROOTFOLDER]config\network.json.
+         The MSI does not track the file, so uninstall keeps it. Only deferred actions change it:
+         write (with an undo marker), rollback (restores the old state), commit (removes the markers).
+         A deferred action cannot read normal properties, so each action gets its own CustomActionData. -->
+    <SetProperty Id="WritePersistedNetworkFile" Action="SetWritePersistedNetworkFileData" Value="[DATAROOTFOLDER]|[BIND_HOST]|[PORT]" Sequence="execute" Before="InstallInitialize" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    <SetProperty Id="RollbackPersistedNetworkFile" Action="SetRollbackPersistedNetworkFileData" Value="[DATAROOTFOLDER]" Sequence="execute" Before="InstallInitialize" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    <SetProperty Id="CommitPersistedNetworkFile" Action="SetCommitPersistedNetworkFileData" Value="[DATAROOTFOLDER]" Sequence="execute" Before="InstallInitialize" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+
+    <CustomAction
+      Id="WritePersistedNetworkFile"
+      BinaryRef="PortResolverScript"
+      JScriptCall="WritePersistedNetworkFile"
+      Execute="deferred"
+      Impersonate="yes"
+      Return="ignore" />
+
+    <CustomAction
+      Id="RollbackPersistedNetworkFile"
+      BinaryRef="PortResolverScript"
+      JScriptCall="RollbackPersistedNetworkFile"
+      Execute="rollback"
+      Impersonate="yes"
+      Return="ignore" />
+
+    <CustomAction
+      Id="CommitPersistedNetworkFile"
+      BinaryRef="PortResolverScript"
+      JScriptCall="CommitPersistedNetworkFile"
+      Execute="commit"
+      Impersonate="yes"
+      Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="RollbackPersistedNetworkFile" Before="WritePersistedNetworkFile" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="WritePersistedNetworkFile" After="InstallFiles" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="CommitPersistedNetworkFile" After="WritePersistedNetworkFile" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
   </Fragment>
 </Wix>

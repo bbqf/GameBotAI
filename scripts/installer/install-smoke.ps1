@@ -54,6 +54,26 @@ if (Test-Path $networkConfigRoot) {
   Write-Host "Upgrade retention check: persisted BindHost=$bindHost Port=$port"
 }
 
+# Feature 132: the installer writes the host and port to <data root>\config\network.json.
+$networkFile = Join-Path $DataRoot "config/network.json"
+if (-not (Test-Path $networkFile)) {
+  throw "Expected saved network file was not found after install/upgrade: $networkFile"
+}
+$networkSettings = Get-Content -Path $networkFile -Raw | ConvertFrom-Json
+$savedPort = 0
+if (-not [int]::TryParse([string]$networkSettings.port, [ref]$savedPort) -or $savedPort -lt 1 -or $savedPort -gt 65535) {
+  throw "The saved network file has no valid port: $networkFile"
+}
+if ([string]::IsNullOrWhiteSpace([string]$networkSettings.bindHost)) {
+  throw "The saved network file has no valid bindHost: $networkFile"
+}
+foreach ($leftover in @("network.json.bak", "network.json.none", "network.json.tmp")) {
+  if (Test-Path (Join-Path (Split-Path $networkFile) $leftover)) {
+    throw "The installer left a temporary file next to the saved network file: $leftover"
+  }
+}
+Write-Host "Saved network file check: bindHost=$($networkSettings.bindHost) port=$savedPort"
+
 $logRoot = Join-Path $env:LocalAppData "GameBot/Installer/logs"
 if (Test-Path $logRoot) {
   $logFiles = Get-ChildItem -Path $logRoot -File | Sort-Object LastWriteTime -Descending

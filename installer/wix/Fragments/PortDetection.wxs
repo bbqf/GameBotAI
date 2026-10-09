@@ -26,12 +26,24 @@
       Execute="immediate"
       Return="ignore" />
 
+    <!-- Feature 132: reads [DATAROOTFOLDER]config\network.json. DATAROOTFOLDER is valid only after CostFinalize. -->
+    <CustomAction
+      Id="ReadPersistedNetworkFile"
+      BinaryRef="PortResolverScript"
+      JScriptCall="ReadPersistedNetworkFile"
+      Execute="immediate"
+      Return="ignore" />
+
+    <!-- The chain is: ReadPersistedNetworkFile, DiscoverBindInterfaces (UI only), DetectAvailablePorts,
+         then the SetProperty rows in InstallerProperties.wxs. -->
     <InstallUISequence>
-      <Custom Action="DiscoverBindInterfaces" Before="DetectAvailablePorts" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5" />
-      <Custom Action="DetectAvailablePorts" Before="CostFinalize" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5" />
+      <Custom Action="ReadPersistedNetworkFile" After="CostFinalize" />
+      <Custom Action="DiscoverBindInterfaces" After="ReadPersistedNetworkFile" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5" />
+      <Custom Action="DetectAvailablePorts" After="DiscoverBindInterfaces" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5" />
     </InstallUISequence>
     <InstallExecuteSequence>
-      <Custom Action="DetectAvailablePorts" Before="CostFinalize" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND UILevel &lt; 5" />
+      <Custom Action="ReadPersistedNetworkFile" After="CostFinalize" />
+      <Custom Action="DetectAvailablePorts" After="ReadPersistedNetworkFile" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &lt; 5" />
       <Custom Action="NormalizeStartMenuShortcut" After="CreateShortcuts" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND NOT REMOVE~=&quot;ALL&quot;" />
     </InstallExecuteSequence>
   </Fragment>

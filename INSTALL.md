@@ -30,7 +30,7 @@ This document explains how to run the GameBot Windows installer and all currentl
 Use `/quiet` with installer variables:
 
 ```powershell
-.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=auto WEB_PORT=auto BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" PORT=8080 BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
 ```
 
 ### Getting installer binaries from CI
@@ -56,9 +56,8 @@ These variables are supported by the bootstrapper and forwarded to MSI.
 | `MODE` | string | `backgroundApp` | `backgroundApp` | Yes | Runtime mode to configure. |
 | `SCOPE` | string | `perUser` | `perUser` | Yes | Installation scope. |
 | `DATA_ROOT` | string (path) | empty (resolved to per-user path) | Writable path | No | Runtime data path override. |
-| `BACKEND_PORT` | integer/string | `8080` | `1..65535`, `auto` | Yes | Backend API port input. `auto` resolves to first available at install time. |
-| `WEB_PORT` | integer/string | `8080` | `1..65535`, `auto` | Yes | Web UI port input. `auto` resolves to first available at install time. |
-| `BIND_HOST` | string | `127.0.0.1` | IPv4/hostname (for example `0.0.0.0`, `127.0.0.1`) | Yes | Backend bind interface/host. |
+| `PORT` | integer | empty (saved value, or first free of `8080,8088,8888,80` on a first install) | `1..65535` | No | Port of the service and the Web UI. An explicit value replaces the saved value. |
+| `BIND_HOST` | string | empty (saved value, or `127.0.0.1` on a first install) | IPv4/hostname (for example `0.0.0.0`, `127.0.0.1`) | No | Backend bind interface/host. An explicit value replaces the saved value. |
 | `PROTOCOL` | string | `http` | `http`, `https` | Yes | Endpoint protocol. |
 | `ENABLE_HTTPS` | boolean-ish string | `0` | `0`/`1` | No | Enable HTTPS validation path. |
 | `CERTIFICATE_REF` | string | empty | Certificate identifier | Conditionally | Required when `ENABLE_HTTPS=1`. |
@@ -67,6 +66,24 @@ These variables are supported by the bootstrapper and forwarded to MSI.
 Notes:
 - `DATA_ROOT` defaults to `%LocalAppData%\GameBot\data` when omitted.
 - Install root defaults to `%LocalAppData%\GameBot`.
+
+### Saved host and port
+
+The installer saves the host and port in `config\network.json` in the data directory.
+The installer keeps these values for:
+
+- an update from the Web UI,
+- a manual update with a newer installer,
+- an uninstall and a new install into the same data directory.
+
+Rules:
+- If you give `BIND_HOST` or `PORT` to the installer, your value replaces the saved value. The installer saves the new value.
+- If you give no option, the installer uses the saved value. The installer does not look for a free port again.
+- The uninstall keeps `config\network.json`.
+- A new install into a different folder has a different data directory. The first-install rules apply there.
+- A manual update under a different Windows account must pass `APPLICATIONFOLDER` of the existing install. Without it, the installer uses the default folder of that account. It finds no saved file, and the first-install rules apply.
+- A runtime override (`GAMEBOT_PORT`, `GAMEBOT_BIND_HOST`, or `Service:Network:*`) is not saved. The Web UI update does not pass it to the installer.
+- The service ignores a saved value that is not valid, writes a warning to the log, and uses the next source.
 
 ---
 
@@ -162,13 +179,13 @@ Example:
 ### Background app, per-user, HTTP
 
 ```powershell
-.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=auto WEB_PORT=auto BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" PORT=8080 BIND_HOST=0.0.0.0 PROTOCOL=http ENABLE_HTTPS=0 ALLOW_ONLINE_PREREQ_FALLBACK=1
 ```
 
 ### Background app, per-user, HTTPS
 
 ```powershell
-.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" BACKEND_PORT=5000 WEB_PORT=8088 PROTOCOL=https ENABLE_HTTPS=1 CERTIFICATE_REF="thumbprint:ABCDEF123456" ALLOW_ONLINE_PREREQ_FALLBACK=0
+.\GameBotInstaller.exe /quiet MODE=backgroundApp SCOPE=perUser DATA_ROOT="%LocalAppData%\GameBot\data" PORT=5000 PROTOCOL=https ENABLE_HTTPS=1 CERTIFICATE_REF="thumbprint:ABCDEF123456" ALLOW_ONLINE_PREREQ_FALLBACK=0
 ```
 
 ---

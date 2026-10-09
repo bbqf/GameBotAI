@@ -8,8 +8,9 @@
 
     <Variable Name="InstallFolder" Type="formatted" Value="[LocalAppDataFolder]GameBot" bal:Overridable="yes" />
     <Variable Name="DATA_ROOT" Type="string" Value="" Persisted="yes" bal:Overridable="yes" />
-    <Variable Name="BIND_HOST" Type="string" Value="127.0.0.1" bal:Overridable="yes" />
-    <Variable Name="PORT" Type="string" Value="8080" bal:Overridable="yes" />
+    <!-- BIND_HOST and PORT are empty by default. Empty means "not given", so the MSI can use the saved value. -->
+    <Variable Name="BIND_HOST" Type="string" Value="" bal:Overridable="yes" />
+    <Variable Name="PORT" Type="string" Value="" bal:Overridable="yes" />
     <Variable Name="ALLOW_ONLINE_PREREQ_FALLBACK" Type="string" Value="1" bal:Overridable="yes" />
 
     <BootstrapperApplication>
