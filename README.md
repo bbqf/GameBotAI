@@ -1,533 +1,257 @@
 # GameBot
 
-A .NET 9 (C#) minimal API service that controls Android emulator sessions on Windows, exposing a REST API for games, actions, commands, triggers, and session automation (snapshots + input execution). UI is a separate deployment.
+GameBot plays Android games for you. It runs on a Windows PC, watches an Android emulator, and taps, swipes, and
+presses keys on its own. You build the automation in a web page. You do not write code.
 
-## Specs and contracts
-- Spec, plans, and research: `specs/001-android-emulator-service/`
-- API endpoints: `specs/001-android-emulator-service/contracts/endpoints.md`
-- Save Configuration spec: `specs/001-save-config/`
-- Versioning guide: [VERSIONING.md](VERSIONING.md)
+Typical uses: collect daily rewards, run repeated tasks, and keep a game running all day.
 
-## Requirements
-- Windows 10/11
-- .NET SDK 9.x
-- LDPlayer installed is preferred (ADB autodetection). Otherwise ensure `adb` is available on PATH.
+## Contents
 
-## Quick start
+- [What GameBot does](#what-gamebot-does)
+- [How it works](#how-it-works)
+- [Install GameBot](#install-gamebot)
+- [Get started: your first automation](#get-started-your-first-automation)
+- [Update GameBot](#update-gamebot)
+- [Settings and data](#settings-and-data)
+- [Fix problems](#fix-problems)
+- [Uninstall](#uninstall)
+- [For developers](#for-developers)
+- [More documents](#more-documents)
 
-Set a bearer token (required for all non-health endpoints) and optionally a data directory for file-backed repositories:
+## What GameBot does
 
-```powershell
-# From repository root
-$env:GAMEBOT_AUTH_TOKEN = "test-token"
-# Optional: choose where games/profiles JSON files are stored
-$env:GAMEBOT_DATA_DIR = "C:\\data\\gamebot"
+- **Sees the screen.** GameBot takes pictures of the emulator screen all the time. It finds images (for example a
+  button) and reads text (for example a timer).
+- **Acts on its own.** It taps, swipes, and presses keys. It adds small random changes to the taps and the delays.
+- **Follows your plan.** You combine small actions into **commands**. You combine commands into **sequences**, with
+  conditions, loops, and delays.
+- **Runs all day.** A **queue** runs your sequences on one emulator. It can start a sequence at a set time, after a
+  delay, or again and again.
+- **Tells you what happened.** The execution logs show each step. GameBot can also send a message (for example to
+  Telegram) when something goes wrong.
+- **Starts the game for you.** GameBot can start the emulator and the game, and start them again if they stop.
+
+GameBot works with **LDPlayer** (best support) and with any emulator that you can reach through ADB.
+
+## How it works
+
+GameBot is one program that runs in the background on your PC. You control it with a web page in your browser.
+The page and the program are on the same PC (or on another PC in your network, if you choose that).
+
+```mermaid
+flowchart LR
+    You([You]) --> UI["Web UI<br/>(browser)"]
+    UI -- "REST API" --> Service["GameBot service<br/>(runs in the background)"]
+    Service --> Data[("Your data<br/>commands, sequences,<br/>images, queues, logs")]
+    Service -- "ADB: screenshots,<br/>taps, swipes, keys" --> Emu["Android emulator<br/>(LDPlayer)"]
+    Emu --- Game["Your game"]
+    Service -. "optional" .-> Notify["Notifications<br/>(Telegram)"]
+    Updater["GameBot Updater<br/>(small helper)"] -. "installs updates" .-> Service
+    GitHub[("GitHub Releases")] -. "new versions" .-> Service
 ```
 
-Run the service:
+| Part | What it is |
+|------|------------|
+| **Web UI** | The web page where you build and control your automation. The service serves it. |
+| **GameBot service** | The program in the background. It talks to the emulator, runs your queues, and keeps your data. It has a REST API, so other tools can control it too. |
+| **Emulator and ADB** | GameBot uses ADB (Android Debug Bridge) to get screenshots and to send input. LDPlayer includes ADB. |
+| **Vision and OCR** | GameBot finds images with OpenCV (included). It reads text with Tesseract (optional, you install it). |
+| **Updater** | A small helper that installs a new version for you (see [Update GameBot](#update-gamebot)). |
+| **Installer** | A normal Windows installer. It installs for your user only, so it needs no administrator rights. |
+
+### The web UI
+
+The menu on the left has these areas:
+
+| Area | Use it to |
+|------|-----------|
+| **Authoring** | Build your automation. Tabs: **Commands**, **Games**, **Sequences**, **Images**, **Backup & Restore**, and **Update**. |
+| **Queues** | Run sequences on an emulator. Set the schedule. Watch a running queue. |
+| **Execution** | Connect to an emulator, see its screen, and test a command or sequence by hand. |
+| **Execution Logs** | See what ran, step by step, and why a step failed. |
+| **Notifications** | Set up messages (for example Telegram) for queue events. |
+| **Configuration** | Set the access token, the log levels, and other settings. |
+
+### The building blocks
+
+| Block | Meaning |
+|-------|---------|
+| **Game** | The game that you automate. |
+| **Image** | A small picture of something on the screen, for example a button. GameBot looks for it. You cut it out of a screenshot in the UI. |
+| **Command** | A short list of steps: tap, swipe, press a key, or wait for an image. A command can tap on an image that it finds. |
+| **Sequence** | Commands in order, with delays, conditions (if an image is visible), loops, and a way to run again later. |
+| **Queue** | The runner. A queue belongs to one emulator and runs sequences on a schedule. Each emulator can have one running queue. |
+| **Queue template** | A saved plan for a queue. You can reuse it for more than one queue. |
+
+## Install GameBot
+
+### What you need
+
+- A PC with **Windows 10 or Windows 11** (64-bit).
+- An Android emulator. **LDPlayer 9** is the best choice. Install it from [ldplayer.net](https://www.ldplayer.net) and
+  turn on **ADB debugging** in its settings.
+- The **.NET 9 runtime** (ASP.NET Core Runtime 9.x, x64). The installer does not include it. Get it from
+  [dotnet.microsoft.com/download/dotnet/9.0](https://dotnet.microsoft.com/download/dotnet/9.0) and install it first.
+- Your game, installed in the emulator.
+- Optional: [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki). You need it only to read text on the
+  screen. Install it and set `GAMEBOT_TESSERACT_ENABLED` to `true` (see [Settings and data](#settings-and-data)).
+
+
+
+### Step by step
+
+1. Open the [Releases page](https://github.com/bbqf/GameBotAI/releases) of this project.
+2. Download **`GameBotInstaller.exe`** from the newest release.
+3. Start the file.
+   - Windows can show a blue **"Windows protected your PC"** window. This happens because the file is not signed.
+     Click **More info**, then **Run anyway**. You do this one time.
+4. Follow the wizard:
+   - Accept the license.
+   - Select the install folder. The default is `%LocalAppData%\GameBot`. Keep it unless you have a reason.
+   - Select the network address and the port. The default is `127.0.0.1` (only this PC) and port `8080`.
+     The installer picks the next free port (`8088`, `8888`, `80`) if `8080` is busy.
+5. At the end, keep **Run GameBot background app now** selected. Click **Finish**.
+6. Open the web UI: use the **GameBot** shortcut in the Start menu, or open <http://localhost:8080/> in your browser
+   (use your port if it is not `8080`).
+
+GameBot starts by itself each time you sign in to Windows. The Start menu has a **GameBot Background** shortcut to start
+it by hand, and a **GameBot** shortcut that only opens the web page.
+
+For silent install, HTTPS, and all installer options, read [INSTALL.md](INSTALL.md).
+
+### Is it safe to open to my network?
+
+By default GameBot listens only on the PC itself (`127.0.0.1`). If you choose `0.0.0.0` so that you can use the web
+page from another PC, set an **access token** first (see [Settings and data](#settings-and-data)). GameBot has full
+control of your emulator, so do not open it to the internet.
+
+## Get started: your first automation
+
+This short walk-through makes GameBot tap a button in your game. It takes about 15 minutes.
+
+1. **Start the emulator and your game.** Open LDPlayer and start the game. Stay on a screen that has a button you want
+   to tap.
+2. **Open the web UI** at <http://localhost:8080/>.
+3. **Add your game.** Open **Authoring**, then **Games**. Click **New**, type a name, and save.
+4. **Connect to the emulator.** Open **Execution**. Select your game and your emulator (GameBot lists the emulators
+   that ADB finds). Click **Connect**. You should see the emulator screen in the page.
+   If the list is empty, see [Fix problems](#fix-problems).
+5. **Cut out an image.** Open **Authoring**, then **Images**. Take a screenshot of the emulator, drag a box around the
+   button, give the image a name, and save.
+6. **Make a command.** Open **Authoring**, then **Commands**. Click **New**. Add a step that taps the image you saved.
+   Save the command. Test it in **Execution**: GameBot should tap the button.
+7. **Make a sequence.** Open **Authoring**, then **Sequences**. Add your command as a step. Add a delay or a condition
+   if you want. Save the sequence.
+8. **Put it in a queue.** Open **Queues**. Create a queue for your emulator. Add the sequence and set when it runs.
+   Click **Start**.
+9. **Watch it work.** Open **Execution Logs** to see each step and its result.
+
+Tips:
+
+- Start small. Test each command by hand before you put it in a queue.
+- Cut images that are small and clear. Do not include parts of the screen that change (for example a timer).
+- GameBot does only what you put in your sequences. Check a sequence before you run it for a long time. Be careful\n  with steps that tap on buttons that spend in-game money.
+- Use **Backup & Restore** (in **Authoring**) to save your commands, sequences, and images as a zip file.
+
+## Update GameBot
+
+You do not have to download the installer again.
+
+1. Open the web UI on the PC that runs GameBot.
+2. Open **Authoring**, then the **Update** tab. Click **Check for Update**.
+3. If a new version exists, click **Install update**. Read the warning and confirm.
+   **All running queues stop at once.** Queues that you set to resume after a restart start again by themselves.
+4. Wait. GameBot downloads the update, installs it, and starts again. The page shows the result.
+
+Windows shows no warning during an update. If an update fails, the old version still works, and the page shows what
+went wrong. You can install an update only from the PC that runs GameBot.
+
+## Settings and data
+
+Your data is in `%LocalAppData%\GameBot\data`: games, commands, sequences, images, queues, logs, and settings.
+Use **Backup & Restore** to make a copy.
+
+The most used settings:
+
+| Setting | How to set it | Use |
+|---------|---------------|-----|
+| Access token | Environment variable `GAMEBOT_AUTH_TOKEN` | If set, every request needs this token. Enter the same token in **Configuration** in the web UI. |
+| Data folder | `GAMEBOT_DATA_DIR` | Move your data to another folder. |
+| Port and address | The installer wizard | Change them by running the installer again. |
+| Tesseract OCR | `GAMEBOT_TESSERACT_ENABLED=true`, `GAMEBOT_TESSERACT_PATH` | Read text on the screen. |
+| ADB program | `GAMEBOT_ADB_PATH` | Use a different `adb.exe`. GameBot finds the one in LDPlayer by itself. |
+| Logs | **Configuration** in the web UI | Change the log level of each part while GameBot runs. |
+| Update source | `Update__Repository` | The GitHub project that GameBot checks for updates. |
+
+To set an environment variable for your user, open Windows Settings, search for "environment variables", and add the
+variable. Restart GameBot after you change it. [ENVIRONMENT.md](ENVIRONMENT.md) lists all variables.
+
+## Fix problems
+
+| Problem | What to do |
+|---------|------------|
+| The web page does not open. | Start **GameBot Background** from the Start menu. Check the port: the installer can pick `8088` or `8888` if `8080` is busy. |
+| No emulator in the list. | Start the emulator. Turn on ADB debugging in LDPlayer. Restart GameBot. |
+| GameBot cannot find an image. | Cut the image again from a fresh screenshot. Lower the match threshold a little. Do not include changing parts. |
+| A step taps at the wrong place. | Make sure that the emulator resolution did not change after you cut the images. |
+| Windows blocks the installer. | See step 3 of [Install GameBot](#install-gamebot). |
+| An update fails. | Read the message on the **Update** tab. It has an error code and a hint. The Windows Installer log is in `%LocalAppData%\GameBot\data\updates`. |
+| The installer fails. | Read the newest file in `%LocalAppData%\GameBot\Installer\logs`. See [INSTALL.md](INSTALL.md). |
+
+## Uninstall
+
+Open Windows **Settings**, then **Apps**, then **Installed apps**. Select **GameBot** and click **Uninstall**.
+Your data folder stays. Delete `%LocalAppData%\GameBot\data` yourself if you do not need it.
+
+## For developers
+
+GameBot is a .NET 9 (C#) service with a React and TypeScript web UI.
+
+```text
+src/GameBot.Domain     Core logic: commands, sequences, queues, vision, OCR, execution logs
+src/GameBot.Emulator   ADB client, sessions, screen capture
+src/GameBot.Service    ASP.NET Core host: REST API, queue and sequence execution, serves the web UI
+src/GameBot.Updater    Helper program that installs updates
+src/web-ui             React + TypeScript + Vite web UI
+installer/             WiX installer (MSI and EXE bootstrapper)
+tests/                 Unit, contract, and integration tests
+specs/                 One folder for each feature: spec, plan, and tasks
+```
+
+Run from source (needs the .NET 9 SDK and Node.js):
 
 ```powershell
-# Build and run in Release
-dotnet build -c Release
+# Terminal 1: the service. The API and Swagger UI are at http://localhost:5081/swagger
 dotnet run -c Release --project src/GameBot.Service
+
+# Terminal 2: the web UI with live reload
+cd src/web-ui
+npm install
+npm run dev
 ```
 
-Health check:
+Build and test:
 
 ```powershell
-# Should return { "status": "ok" }
-Invoke-RestMethod -Uri http://localhost:5000/health -Method GET
+dotnet build GameBot.sln -c Release   # warnings are errors; analyzers are on
+dotnet test GameBot.sln -c Release
+cd src/web-ui; npm test               # web UI tests
 ```
 
-Notes:
-- The service binds to http://localhost:5000 by default (via launchSettings.json). If you prefer a different port, set it before running:
-
-```powershell
-$env:ASPNETCORE_URLS = "http://localhost:5080"
-dotnet run -c Release --project src/GameBot.Service
-Invoke-RestMethod -Uri http://localhost:5080/health -Method GET
-```
-
-## OCR Logging & Coverage
-
-Tesseract invocations now emit structured logs and have a coverage gate so operators can diagnose OCR issues quickly.
-
-1. **Enable detailed OCR logging** when investigating:
-  ```powershell
-  $env:GAMEBOT_LOG_LEVEL__GameBot__Domain__Triggers__Evaluators__TesseractProcessOcr = "Debug"
-  $env:GAMEBOT_TESSERACT_PATH = "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
-  ```
-  Each OCR run generates a single `TesseractInvocationLogger` entry with sanitized CLI args, stdout/stderr (8 KB cap + truncation flag), correlation ID, duration, and exit code. Leave this log level at Info in production unless actively debugging.
-2. **Generate the OCR coverage report** using the bundled script (writes `data/coverage/latest.json` and a timestamped history file):
-  ```powershell
-  pwsh tools/coverage/report.ps1 `
-    -Project tests/integration/GameBot.IntegrationTests.csproj `
-    -NamespaceFilter "[GameBot.Domain]GameBot.Domain.Triggers.Evaluators.Tesseract*" `
-    -TargetPercent 70 `
-    -DataDirectory (Join-Path $PWD 'data')
-  ```
-  The command runs `dotnet test` with coverlet, prints pass/fail status, and exits non-zero if coverage drops below the target.
-3. **Serve the summary via API** by pointing the service at the same data directory:
-  ```powershell
-  $env:GAMEBOT_DATA_DIR = Join-Path $PWD 'data'
-  dotnet run -c Release --project src/GameBot.Service
-  curl https://localhost:5001/api/ocr/coverage -H "Authorization: Bearer dev-token" | jq
-  ```
-  On success the endpoint returns JSON containing the generated timestamp, coverage %, target, uncovered scenarios, and optional report URL. If the summary is missing or >24h old, the endpoint returns HTTP 503 instructing you to rerun the script.
-
-See `specs/001-tesseract-logging/quickstart.md` for the full workflow, including setting a custom `ReportUrl` and troubleshooting stale summaries.
-
-## Resources and domain
-
-### Games
-- Create: `POST /api/games`
-  - Body: `{ "name": "Game A", "description": "optional" }`
-  - Response: `{ id, name, description }`
-- Get: `GET /api/games/{id}` → `{ id, name, description }`
-- List: `GET /api/games` → `[{ id, name, description }]`
-
-Example create:
-
-```json
-{
-  "name": "Game A",
-  "description": "My ROM"
-}
-```
-
-### Domain Concepts (Post-Refactor)
-
-Profiles and standalone authored actions have been removed. Three first-class concepts now drive automation:
-
-#### Primitive Actions (Inline)
-Commands and sequences now persist primitive actions inline by value instead of referencing an Action entity.
-
-Supported primitive types:
-- `tap`
-- `swipe`
-- `key`
-- `command`
-- `connect-to-game`
-- `ensure-game-running`. The optional boolean `forceRestart` (default false) stops the game, starts it again, and waits for the foreground. The step then has the outcome `restarted`. A `commandOutcome` condition can use the state `restarted`.
-
-Inline primitive shape:
-```json
-{
-  "primitiveAction": {
-    "type": "tap",
-    "schemaVersion": "v1",
-    "payload": {
-      "x": 50,
-      "y": 50
-    }
-  }
-}
-```
-
-Notes:
-- Action CRUD and action-type catalog routes are intentionally removed.
-- Session start uses `POST /api/sessions/start` with a `connect-to-game` primitive payload.
-
-#### Triggers
-Standalone evaluators that determine readiness (Satisfied vs NotSatisfied) based on screen/image/text/schedule/delay.
-- CRUD: `POST /api/triggers`, `GET /api/triggers/{id}`, `PATCH /api/triggers/{id}`, `DELETE /api/triggers/{id}`.
-- Test single trigger (updates internal timestamps/cooldowns): `POST /api/triggers/{id}/test`.
-- Batch evaluate all enabled triggers: `POST /api/triggers/evaluate`.
-
-Example text-match trigger:
-```json
-{
-  "name": "ReadyBanner",
-  "type": "text-match",
-  "enabled": true,
-  "params": {
-    "text": "READY",
-    "confidenceThreshold": 0.75
-  }
-}
-```
-
-#### Reference Images (Persistent)
-Reference images used by `image-match` triggers can be persisted under the service storage root (`GAMEBOT_DATA_DIR` or `Service:Storage:Root`). Files are saved as PNG in `data/images`.
-
-Endpoints:
-- `POST /api/images` → `{ id }` (upload or overwrite). Body: `{ "id": "Home", "data": "<base64-png-or-data-url>" }`.
-- `GET /api/images/{id}` → `200 OK` if persisted; `404` if missing.
-- `DELETE /api/images/{id}` → removes the file.
-
-Workflow:
-1. Upload once via `POST /api/images`.
-2. Create an `image-match` trigger referencing `referenceImageId`.
-3. After service restart the image remains available (no re-upload required).
-
-Example image-match trigger referencing a persisted image:
-```json
-{
-  "type": "image-match",
-  "enabled": true,
-  "params": {
-    "referenceImageId": "Home",
-    "region": { "x": 0, "y": 0, "width": 1, "height": 1 },
-    "similarityThreshold": 0.90
-  }
-}
-```
-
-Validation rules:
-- `id` must match `^[A-Za-z0-9_-]{1,128}$`.
-- Image must decode successfully (PNG/JPEG); invalid data returns `400` with `invalid_image`.
-
-Overwrite: re-upload with same `id` atomically replaces the file.
-Delete: `DELETE /api/images/{id}`; subsequent evaluations treat the reference as missing until replaced.
-
-### Image detections (additive API)
-
-Find all occurrences of a persisted reference image on the current screenshot. Returns normalized bounding boxes and confidences in [0,1].
-
-Sample: execute a command that taps using image detection
-
-- Persist a reference image (PNG) for the UI element and note its id (e.g., `home_button`).
-- Ensure Windows with screen source available (ADB or `GAMEBOT_TEST_SCREEN_IMAGE_B64`).
-- Copy the sample command from `samples/sample-detect-command.json` to your data directory:
-  ```powershell
-  # Create the commands directory if it doesn't exist
-  New-Item -ItemType Directory -Force -Path "$env:GAMEBOT_DATA_DIR/commands" | Out-Null
-  # Copy the sample command
-  Copy-Item samples/sample-detect-command.json "$env:GAMEBOT_DATA_DIR/commands/00000000000000000000000000000001.json"
-  ```
-- The sample command includes:
-  - `detection.referenceImageId` set to `home_button`
-  - `confidence` set to `0.99` (high-confidence enforces a single match)
-  - `selectionStrategy` set to `HighestConfidence` (default). Use `FirstMatch` to choose the first detected match.
-  - One action step referencing an existing tap action (`targetId`: `d6bfccf...`).
-
-Run:
-
-```powershell
-dotnet run -c Debug --project src/GameBot.Service
-# Then call force-execute on the sample command
-curl -X POST "http://localhost:5273/api/commands/00000000000000000000000000000001/force-execute?sessionId=<your-session-id>"
-```
-
-Notes:
-- When detection is present, the service resolves `x`/`y` for `tap` actions using the center of the detected template plus any offsets.
-- Selection strategy:
-  - `HighestConfidence` (default): choose the match with the greatest confidence.
-  - `FirstMatch`: choose the first match in the sorted list.
-- With `confidence >= 0.99`, adapter caps results to one.
-
-### Strategy Comparison
-
-| Strategy          | How it selects                        | When to use                                | Trade-offs                                  |
-|-------------------|----------------------------------------|--------------------------------------------|---------------------------------------------|
-| HighestConfidence | Picks the match with the highest score | Noisy screens; multiple similar candidates | Might jump between candidates across frames |
-| FirstMatch        | Picks the first match after sorting    | Stable UIs; deterministic selection needed | May choose a lower-confidence candidate     |
-
-- Read text from a region of the screen: `POST /api/ocr/read`
-  - Body: `{ "serial": "emulator-5558", "region": { "x": 120, "y": 640, "width": 300, "height": 60 }, "parser": "hh:mm:ss" }`.
-    Use `captureId` in place of `serial` to read a stored capture. `parser` is optional.
-  - The answer has `text`, `confidence`, and the frame size. With a parser it also has `parsed`, or `parseFailureReason`.
-    The endpoint sends no input to the emulator.
-- Detect matches: `POST /api/images/detect`
-  - Body:
-    ```json
-    {
-      "referenceImageId": "Home",
-      "threshold": 0.85,
-      "maxResults": 10,
-      "overlap": 0.3
-    }
-    ```
-  - Response:
-    ```json
-    {
-      "matches": [
-        { "bbox": { "x": 0.12, "y": 0.45, "width": 0.08, "height": 0.08 }, "confidence": 0.93 }
-      ],
-      "limitsHit": false
-    }
-    ```
-Notes:
-- Coordinates scale with screenshot size (0–1 range).
-- Confidence is normalized (0–1). Increase `threshold` to reduce false positives.
-- `maxResults` limits returned matches; `overlap` applies NMS to de-duplicate boxes.
-
-Expanded example with multiple matches and truncation:
-```json
-POST /api/images/detect
-Request:
-{
-  "referenceImageId": "Home",
-  "threshold": 0.80,
-  "maxResults": 3,
-  "overlap": 0.45
-}
-Response:
-{
-  "matches": [
-    { "bbox": { "x": 0.12, "y": 0.45, "width": 0.08, "height": 0.08 }, "confidence": 0.93 },
-    { "bbox": { "x": 0.70, "y": 0.18, "width": 0.08, "height": 0.08 }, "confidence": 0.89 },
-    { "bbox": { "x": 0.31, "y": 0.52, "width": 0.08, "height": 0.08 }, "confidence": 0.87 }
-  ],
-  "limitsHit": true
-}
-```
-When `limitsHit=true`, more raw matches existed but were truncated after sorting by confidence. Raise `maxResults` or refine the template to reduce oversaturation.
-
-Time limit: each reference (the image and each alternate) has `Service__Detections__TimeoutMs`. When the limit expires, the call fails with `504` and `{ "code": "detection_timeout", "message": "..." }`. Send the request again. A `200` with an empty `matches` array always means that the image is not on the screen.
-
-Metrics & resource monitoring:
-- Duration and result count recorded internally (histogram/counter).
-- Process memory: `GET /api/metrics/process` → `{ workingSetMB, managedMemoryMB, budgetMB }` for headroom tracking.
-
-Configuration overrides (env or saved config snapshot):
-- `Service__Detections__Threshold` (default: 0.8)
-- `Service__Detections__MaxResults` (default: 5)
-- `Service__Detections__TimeoutMs` (default: 500, for each reference: the image and each alternate)
-- `Service__Detections__Overlap` (default: 0.45)
-Set via environment using double underscores, e.g.:
-```powershell
-$env:Service__Detections__Threshold = 0.9
-$env:Service__Detections__MaxResults = 10
-```
-Tune `Threshold` upward for noisy UIs; increase `TimeoutMs` only if legitimate detections routinely time out.
-
-#### Commands
-Composable orchestration objects referencing Actions (and optionally nested Commands) with cycle detection and optional trigger gating.
-- CRUD: `POST /api/commands`, `GET /api/commands/{id}`, `PATCH /api/commands/{id}`, `DELETE /api/commands/{id}`.
-- Evaluate triggers then execute eligible actions: `POST /api/commands/{id}/evaluate-and-execute` → returns counts of accepted steps.
-- Force execution (skip trigger gating): `POST /api/commands/{id}/force-execute`.
-
-Example command referencing an action and gating on a trigger:
-```json
-{
-  "name": "StartLoop",
-  "steps": [
-    {
-      "type": "action",
-      "refId": "<action-id>",
-      "gateTriggerIds": ["<trigger-id>"]
-    }
-  ]
-}
-```
-
-Common flow now:
-1. Create an Action (`/api/actions`).
-2. Create a Trigger (`/api/triggers`).
-3. Create a Command that references the Action and lists the Trigger as a gate.
-4. Run `POST /api/commands/{id}/evaluate-and-execute` until the trigger becomes `Satisfied` and the Action executes.
-5. Inspect trigger status via `POST /api/triggers/{id}/test` or batch `POST /api/triggers/evaluate`.
-
-### Sessions
-Run-time context used to execute inputs and take snapshots.
-
-- Create: `POST /api/sessions`
-  - Body: `{ gameId?: string, gamePath?: string, profileId?: string, adbSerial?: string }`
-    - Provide `gameId` (preferred) or `gamePath`.
-    - Optional `adbSerial` to bind a specific device/emulator; if omitted and ADB is enabled, the first available device is selected; if none, the API returns 404.
-  - Response: `{ id, status, gameId }`
-- Session cache (UI): the web UI stores the latest `sessionId` keyed by `(gameId + adbSerial)` after a successful connect-to-game action. A cached session is only reused when both values match; mismatched pairs trigger guidance to establish a new session.
-- Get: `GET /api/sessions/{id}` → `{ id, status, uptime, health, gameId }`
-- Device info: `GET /api/sessions/{id}/device` → `{ id, deviceSerial, mode: "ADB"|"STUB" }`
-- Health: `GET /api/sessions/{id}/health` → ADB connectivity details when applicable
-- Snapshot: `GET /api/sessions/{id}/snapshot` → `image/png`
-- Send inputs: `POST /api/sessions/{id}/inputs` → `{ accepted }`
-- Execute profile: `POST /api/sessions/{id}/execute?profileId={profileId}` → `{ accepted }`
-- Stop: `DELETE /api/sessions/{id}` → `{ status: "stopping" }`
-
-### Input actions
-Supported `type` values (case-insensitive). Numeric args may be provided as numbers or numeric strings (e.g., "50").
-
-- tap
-  - args: `x`, `y`
-  - Example:
-    ```json
-    { "actions": [ { "type": "tap", "args": { "x": 50, "y": 50 } } ] }
-    ```
-
-- swipe
-  - args: `x1`, `y1`, `x2`, `y2`
-  - optional: `durationMs` on the action
-  - Example:
-    ```json
-    {
-      "actions": [
-        {
-          "type": "swipe",
-          "args": { "x1": 0, "y1": 0, "x2": 200, "y2": 200 },
-          "durationMs": 300
-        }
-      ]
-    }
-    ```
-
-- key
-  - args: either `keyCode` (Android key code) or `key` (symbolic name)
-  - Examples:
-    ```json
-    { "actions": [ { "type": "key", "args": { "keyCode": 29 } } ] }
-    { "actions": [ { "type": "key", "args": { "key": "ESCAPE" } } ] }
-    ```
-  - Common key names: ESCAPE(111), BACK(4), HOME(3), ENTER(66), SPACE(62), TAB(61), DEL/DELETE(67), UP(19), DOWN(20), LEFT(21), RIGHT(22), VOLUME_UP(24), VOLUME_DOWN(25), POWER(26), A–Z(29–54).
-
-- Timing
-  - `delayMs` per action waits after the action finishes before the next action.
-  - `durationMs` is used by long-running actions like `swipe`.
-
-## Common flow (HTTP)
-- Create a game → `POST /api/games` with `{ name, description }`
-- Create an action → `POST /api/actions` with action steps
-- (Optional) Create a trigger → `POST /api/triggers`
-- (Optional) Create a command → `POST /api/commands` referencing the action and trigger
-- Start a session → `POST /api/sessions` with `{ gameId, adbSerial? }`
-- Execute an action directly → `POST /api/sessions/{sessionId}/execute-action?actionId={actionId}` (returns `{ accepted }`)
-- Or run a command with gating → `POST /api/commands/{id}/evaluate-and-execute`
-- Send ad-hoc inputs → `POST /api/sessions/{id}/inputs` with `{ actions: [...] }`
-- Grab a snapshot → `GET /api/sessions/{id}/snapshot` (image/png)
-- Evaluate triggers → `POST /api/triggers/evaluate`
-- Stop session → `DELETE /api/sessions/{id}`
-
-See full request/response shapes in the contracts doc linked above.
-
-## Command Sequences
-
-Orchestrate existing Commands via a file-backed sequence with per-step delays and detection gating.
-
-- Storage: saved under `data/commands/sequences` (configurable via `GAMEBOT_DATA_DIR` or `Service:Storage:Root`).
-- Endpoints:
-  - Create: `POST /api/sequences` → `201 Created` with sequence
-  - Get: `GET /api/sequences/{id}` → sequence or `404`
-  - Execute: `POST /api/sequences/{id}/execute` → `{ sequenceId, status, steps }`
-
-Auth header is required for all non-health endpoints:
-
-```powershell
-$headers = @{ Authorization = 'Bearer test-token' }
-```
-
-Example: create a sequence with a single step that waits a random delay then executes a command only when a gate passes:
-
-```powershell
-$seq = @{
-  id = 'daily-seq-1'
-  name = 'Daily Collection'
-  steps = @(
-    @{
-      order = 1
-      commandId = 'collect-command-id'
-      # Either a fixed delay
-      # delayMs = 250
-      # Or a delay range takes precedence (inclusive)
-      delayRangeMs = @{ min = 200; max = 500 }
-      # Optional: gate until present/absent or timeout fail
-      timeoutMs = 2000
-      gate = @{ targetId = 'always'; condition = 'Present' }
-    }
-  )
-} | ConvertTo-Json -Depth 10
-
-Invoke-RestMethod -Uri "http://localhost:5000/api/sequences" -Method POST -Headers $headers -ContentType 'application/json' -Body $seq
-```
-
-Execute it:
-
-```powershell
-Invoke-RestMethod -Uri "http://localhost:5000/api/sequences/daily-seq-1/execute" -Method POST -Headers $headers -Body ''
-```
-
-Response (simplified):
-
-```json
-{
-  "sequenceId": "daily-seq-1",
-  "status": "Succeeded",
-  "steps": [
-    { "commandId": "collect-command-id", "status": "Succeeded", "appliedDelayMs": 327 }
-  ]
-}
-```
-
-Notes:
-- Delay range takes precedence over `delayMs` when provided.
-- If a gate is set and does not pass before `timeoutMs`, the sequence stops and returns `status = "Failed"`.
-- During execution, the service logs sequence start/end, per-step delays, gate decisions, and command durations.
-
-## Configuration
-- Authentication token:
-  - Environment: `GAMEBOT_AUTH_TOKEN`
-  - Config: `Service:Auth:Token`
-- Storage root for file repositories:
-  - Environment: `GAMEBOT_DATA_DIR`
-  - Config: `Service:Storage:Root` (default: `<app>/data` under the running process)
-  - Execution-log file paths: see `ENVIRONMENT.md` → [Execution log storage paths (explicit)](ENVIRONMENT.md#execution-log-storage-paths-explicit)
-- Session settings (Options): `Service:Sessions`
-  - `MaxConcurrentSessions` (default 3)
-  - `IdleTimeoutSeconds` (default 1800)
-
-- Trigger evaluation worker (Options): `Service:Triggers:Worker`
-  - `IntervalSeconds` (default 2): base cadence for evaluating triggers.
-  - `GameFilter` (optional): limit evaluation to a specific `gameId`.
-  - `SkipWhenNoSessions` (default true): if there are no active sessions, skip evaluation to save CPU.
-  - `IdleBackoffSeconds` (default 5): delay used when idle due to no active sessions.
-
-Notes:
-- You can still force ADB-less screen evaluation in tests via `GAMEBOT_TEST_SCREEN_IMAGE_B64` (base64 PNG). When set and `GAMEBOT_USE_ADB=false`, the image-match evaluator compares against this image.
-- Text OCR (text-match triggers)
-  - Enable Tesseract backend: `$env:GAMEBOT_TESSERACT_ENABLED = 'true'`
-  - Optional path: `$env:GAMEBOT_TESSERACT_PATH = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'`
-  - Optional language: `$env:GAMEBOT_TESSERACT_LANG = 'eng'` (can be overridden per-trigger via `params.language`)
-  - Fallback (when disabled): Env-based OCR reads `$env:GAMEBOT_TEST_OCR_TEXT` and `$env:GAMEBOT_TEST_OCR_CONF` for deterministic tests.
-
-- ADB behavior
-  - `GAMEBOT_USE_ADB`: set to `false` to disable ADB integration (useful in tests/CI). By default on Windows, ADB is enabled.
-  - `GAMEBOT_ADB_PATH`: optional override path to `adb.exe`.
-  - `GAMEBOT_ADB_RETRIES`, `GAMEBOT_ADB_RETRY_DELAY_MS`: control retry count and delay (ms) for ADB actions.
-  - Emulator endpoints: `GET /api/adb/version`, `GET /api/adb/devices`.
-
-- Dynamic port (tests/CI)
-  - `GAMEBOT_DYNAMIC_PORT=true` binds to port 0 to avoid conflicts.
-
-- Logging
-  - Console logs include timestamps and scopes; ADB operations are logged at Debug.
-  - Enable verbose logs: `$env:Logging__LogLevel__Default = 'Debug'`
-  - Correlation ID: send `X-Correlation-ID` header; responses include it and it is added to log scopes.
-
-### Configuration Snapshot (Saved Config)
-The service maintains an "effective configuration" snapshot for auditability and diagnostics.
-
-- File: `data/config/config.json` under the storage root (defaults to `<app>/data`; override with `GAMEBOT_DATA_DIR`).
-- Precedence: Environment > Saved file > Other files > Defaults.
-- Secrets: Keys containing `TOKEN`, `SECRET`, `PASSWORD`, or `KEY` (case-insensitive) are fully redacted as `***` in the snapshot and API output.
-- Startup: On start, if a saved file exists it is loaded, env overrides are applied, defaults fill gaps, and the result is persisted. Malformed/missing file is ignored with a log; service continues.
-- Writes: Atomic (temp + move) to avoid partial/corrupt JSON.
-
-Endpoints (auth required when `GAMEBOT_AUTH_TOKEN` is set):
-- GET `/api/config/` → returns the current effective configuration JSON (generated lazily if missing)
-- POST `/api/config/refresh` → regenerates and persists the snapshot
-
-Examples (PowerShell):
-
-```powershell
-# Optional: set token used by the service
-$env:GAMEBOT_AUTH_TOKEN = "test-token"
-
-# Read current snapshot
-Invoke-RestMethod -Uri http://localhost:5000/api/config/ -Headers @{ Authorization = "Bearer $env:GAMEBOT_AUTH_TOKEN" }
-
-# Regenerate snapshot
-Invoke-RestMethod -Uri http://localhost:5000/api/config/refresh -Method POST -Headers @{ Authorization = "Bearer $env:GAMEBOT_AUTH_TOKEN" }
-```
-
-## Development
-Run tests:
-
-```powershell
-dotnet test -c Release
-```
-
-Notes:
-- If `dotnet` isn't recognized in your shell, open a new terminal where the .NET SDK is on PATH, or use the absolute path (Get-Command dotnet | Select-Object -ExpandProperty Source).
-- Warnings are treated as errors; analyzers are enabled across projects.
-- Windows-only APIs are annotated; the emulator integration is designed for Windows hosts.
-
+Build an installer: `.\scripts\build-installer.ps1 -Configuration Release`.
+
+Publish a release (owner): start the `release-installer` workflow on `master` with `publish_release` set to `true`.
+Installed bots see only releases that you publish this way. See [installer/README.md](installer/README.md).
+
+The REST API is described by Swagger at `/swagger` on the running service. A bot that runs from source cannot
+update itself. Only an installed bot can.
+
+## More documents
+
+- [docs/architecture.md](docs/architecture.md): the current architecture, domain model, and API surface.
+- [INSTALL.md](INSTALL.md): all installer options, silent install, ports, HTTPS, and exit codes.
+- [ENVIRONMENT.md](ENVIRONMENT.md): all environment variables.
+- [VERSIONING.md](VERSIONING.md): how version numbers work.
+- [CHANGELOG.md](CHANGELOG.md): what changed in each version.
+- [specs/STATUS.md](specs/STATUS.md): the history of each feature.
+- [LICENSE](LICENSE) (GPL) and [LICENSE_NOTICE.md](LICENSE_NOTICE.md): licenses of this project and its parts.

@@ -45,8 +45,8 @@ jobs:
       # per-area thresholds are enforced afterwards by the script, so the test
       # suite never has to be re-executed per coverage gate.
       - name: Test (with coverage collection)
-        run: dotnet test GameBot.sln --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=json /p:Include="[GameBot.Service]GameBot.Service.Endpoints.EmulatorImageEndpoints*%2c[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository"
-      - name: Coverage gates (installer endpoints, execution logs)
+        run: dotnet test GameBot.sln --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=json /p:Include="[GameBot.Service]GameBot.Service.Endpoints.EmulatorImageEndpoints*%2c[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository%2c[GameBot.Domain]GameBot.Domain.Updates*%2c[GameBot.Service]GameBot.Service.Services.Updates*%2c[GameBot.Updater]GameBot.Updater*"
+      - name: Coverage gates (installer endpoints, execution logs, auto-update)
         shell: pwsh
         run: ./scripts/check-coverage-thresholds.ps1
       - name: Performance gate (execution logs ci profile)

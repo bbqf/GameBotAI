@@ -14,10 +14,20 @@ name: release-installer
 # what the installer contains, so a path filter could never be complete, and an
 # incomplete one silently skips runs and leaves the latest master commit with no
 # installer of its own. The job takes ~3.5 minutes on windows-latest.
+#
+# A GitHub Release is published only on request (feature 131). Start this workflow by hand
+# on master with publish_release set to true. A plain push to master never creates a release.
+# The installed bots read the latest release to offer an update.
 on:
   push:
     branches: [ master ]
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish a GitHub Release with the MSI, the installer EXE, and the update manifest (master only)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -34,6 +44,8 @@ concurrency:
 jobs:
   build-release-installer:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
@@ -63,6 +75,7 @@ jobs:
         run: |
           Write-Host "Release signing verification must run in release pipeline with org certificates."
       - name: Compute artifact name
+        id: version
         shell: pwsh
         run: |
           $overridePath = "installer/versioning/version.override.json"
@@ -86,6 +99,7 @@ jobs:
           }
 
           "INSTALLER_ARTIFACT_NAME=$artifactName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host "Artifact name: $artifactName"
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v6
@@ -94,3 +108,50 @@ jobs:
           if-no-files-found: error
           path: |
             installer/wix/bin/x64/Release/GameBotInstaller.exe
+      # The release files are the files of this build. The publish job downloads them and does
+      # not build again. The steps run only when the owner asks for a release.
+      - name: Write update manifest
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item installer/wix/payload/GameBot.msi release-assets/GameBot.msi
+          Copy-Item installer/wix/bin/x64/Release/GameBotInstaller.exe release-assets/GameBotInstaller.exe
+          ./scripts/new-update-manifest.ps1 `
+            -MsiPath release-assets/GameBot.msi `
+            -OutputPath release-assets/update-manifest.json `
+            -Version "${{ steps.version.outputs.version }}"
+      - name: Upload release assets
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-assets
+          if-no-files-found: error
+          path: release-assets/*
+
+  publish-release:
+    # Runs only on master and only when the owner asks for it. A push to master never runs it.
+    needs: build-release-installer
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v6
+        with:
+          name: release-assets
+          path: release-assets
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build-release-installer.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            release-assets/GameBot.msi \
+            release-assets/GameBotInstaller.exe \
+            release-assets/update-manifest.json \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "v${VERSION}" \
+            --generate-notes

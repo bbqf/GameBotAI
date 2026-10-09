@@ -84,6 +84,27 @@ $checks = @(
     Module = "GameBot.Domain"
     ClassPrefix = "GameBot.Domain.Logging.FileExecutionLogRepository"
     CheckBranch = $true
+  },
+  [PSCustomObject]@{
+    Name = "Auto-update domain logic (unit run)"
+    Json = Join-Path $repoRoot "tests\unit\coverage.json"
+    Module = "GameBot.Domain"
+    ClassPrefix = "GameBot.Domain.Updates"
+    CheckBranch = $true
+  },
+  [PSCustomObject]@{
+    Name = "Auto-update service logic (unit run)"
+    Json = Join-Path $repoRoot "tests\unit\coverage.json"
+    Module = "GameBot.Service"
+    ClassPrefix = "GameBot.Service.Services.Updates"
+    CheckBranch = $true
+  },
+  [PSCustomObject]@{
+    Name = "Auto-update updater (unit run)"
+    Json = Join-Path $repoRoot "tests\unit\coverage.json"
+    Module = "GameBot.Updater"
+    ClassPrefix = "GameBot.Updater"
+    CheckBranch = $true
   }
 )
 

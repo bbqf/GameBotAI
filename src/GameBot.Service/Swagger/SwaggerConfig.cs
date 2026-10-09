@@ -140,6 +140,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyExecutionLogExamples(operation, path, method, context);
     ApplyStepThroughExamples(operation, path, method, context);
     ApplyOcrReadExamples(operation, path, method, context);
+    ApplyUpdateExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
     ApplyBackupRestoreExamples(operation, path, method, context);
     ApplyCaptureStalenessDocs(operation, path, method, context);
@@ -924,6 +925,60 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       }
     }
   }
+
+  // Feature 131: examples of the update routes.
+  private static void ApplyUpdateExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Update + "/status")) {
+      SetResponseExample(operation, "200", new OpenApiObject {
+        ["installedVersion"] = new OpenApiString("1.7.0.412"),
+        ["lastCheck"] = UpdateCheckExample(),
+        ["attempt"] = new OpenApiNull(),
+        ["lastResult"] = new OpenApiNull(),
+        ["canInstallHere"] = new OpenApiBoolean(true),
+        ["installBlockedReason"] = new OpenApiNull()
+      }, context, typeof(GameBot.Service.Models.UpdateStatusResponse));
+      return;
+    }
+
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Update + "/check")) {
+      SetResponseExample(operation, "200", UpdateCheckExample(), context, typeof(GameBot.Service.Models.UpdateCheckDto));
+      SetUpdateErrorExample(operation, "409", "update_in_progress", "An update is in progress.", "Wait until the update ends.", context);
+      return;
+    }
+
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Update + "/install")) {
+      SetRequestExample(operation, new OpenApiObject {
+        ["targetVersion"] = new OpenApiString("1.7.0.430"),
+        ["confirmStopQueues"] = new OpenApiBoolean(true)
+      }, context, typeof(GameBot.Service.Models.UpdateInstallRequest));
+      SetResponseExample(operation, "202", new OpenApiObject {
+        ["attemptId"] = new OpenApiString("6f1c0000-0000-0000-0000-000000000001"),
+        ["state"] = new OpenApiString("downloading")
+      }, context, typeof(GameBot.Service.Models.UpdateInstallAccepted));
+      SetUpdateErrorExample(operation, "400", "update_confirmation_required", "Confirm that all active queues stop.", "Send confirmStopQueues as true after the user confirms.", context);
+      SetUpdateErrorExample(operation, "403", "update_local_only", "Install from the bot PC.", "Open the UI on the PC that runs GameBot.", context);
+      SetUpdateErrorExample(operation, "409", "update_not_installed", "Update works only for an installed bot", "Install GameBot with the installer.", context);
+      SetUpdateErrorExample(operation, "422", "update_disk_space", "There is not enough free disk space for the update.", "Free disk space on the data drive, then try again.", context);
+    }
+  }
+
+  private static OpenApiObject UpdateCheckExample() => new OpenApiObject {
+    ["status"] = new OpenApiString("updateAvailable"),
+    ["installedVersion"] = new OpenApiString("1.7.0.412"),
+    ["latestVersion"] = new OpenApiString("1.7.0.430"),
+    ["notes"] = new OpenApiString("Release text"),
+    ["checkedAtUtc"] = new OpenApiString("2026-10-09T10:00:00Z"),
+    ["error"] = new OpenApiNull()
+  };
+
+  private static void SetUpdateErrorExample(OpenApiOperation operation, string status, string code, string message, string hint, OperationFilterContext context) =>
+    SetResponseExample(operation, status, new OpenApiObject {
+      ["error"] = new OpenApiObject {
+        ["code"] = new OpenApiString(code),
+        ["message"] = new OpenApiString(message),
+        ["hint"] = new OpenApiString(hint)
+      }
+    }, context, typeof(GameBot.Service.Models.UpdateErrorResponse));
 
   // Feature 128: examples of POST /api/ocr/read.
   private static void ApplyOcrReadExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {

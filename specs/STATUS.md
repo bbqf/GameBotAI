@@ -164,6 +164,7 @@ Status vocabulary:
 | 128 | OCR Read Endpoint | Implemented |
 | 129 | Restart The Game From A Sequence (forceRestart) | Implemented |
 | 130 | Region-Restricted Image Detection | Implemented |
+| 131 | Auto-Update | Implemented |
 
 ## Numbering notes
 

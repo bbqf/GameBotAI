@@ -17,6 +17,7 @@ using GameBot.Domain.Images;
 using Microsoft.Win32;
 using GameBot.Domain.Versioning;
 using GameBot.Service.Services.Conditions;
+using GameBot.Service.Services.Updates;
 
 namespace GameBot.Service;
 
@@ -57,6 +58,7 @@ internal static class GameBotServiceSetup {
     RegisterLoggingPolicyServices(builder, storageRoot, loggingGate, loggingComponentCatalog);
     RegisterTriggerAndImageServices(builder, storageRoot);
     RegisterHostedServices(builder);
+    builder.Services.AddUpdateServices(builder.Configuration, storageRoot);
     ConfigureWebHostUrls(builder);
 
     return storageRoot;

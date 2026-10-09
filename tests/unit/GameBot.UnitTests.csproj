@@ -29,5 +29,6 @@
     <ProjectReference Include="..\..\src\GameBot.Emulator\GameBot.Emulator.csproj" />
     <ProjectReference Include="..\..\src\GameBot.Domain\GameBot.Domain.csproj" />
     <ProjectReference Include="..\..\src\GameBot.Service\GameBot.Service.csproj" />
+    <ProjectReference Include="..\..\src\GameBot.Updater\GameBot.Updater.csproj" />
   </ItemGroup>
 </Project>
