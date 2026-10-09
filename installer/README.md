@@ -59,6 +59,6 @@ Windows Installer log is in `<data root>\updates\msiexec-<attempt id>.log`.
    The release has `GameBot.msi`, `GameBotInstaller.exe`, and `update-manifest.json`.
 5. Look at the **Releases** page. The release must be a normal release, not a draft and not a pre-release.
 
-A push to `master` builds an installer but creates no release. Installed bots see only the releases that you
+A push to `master` does not start this workflow. Installed bots see only the releases that you
 publish this way. The checksum in `update-manifest.json` finds damaged downloads. It gives no protection if an
 attacker controls the release, because the build is not signed.

@@ -1101,7 +1101,7 @@ The user clicks **Check for Update** in the **Update** section of **Configuratio
 new version and starts again. Windows shows no SmartScreen and no UAC prompt in this path.
 
 - **Release source**: the `release-installer` workflow publishes a GitHub Release `v<major>.<minor>.<patch>.<build>`
-  only when the owner starts it by hand on `master` with `publish_release: true`. A push to `master` creates no
+  only when the owner starts it by hand on `master` with `publish_release: true`. A push to `master` does not start the workflow, so it creates no
   release. The release has `GameBot.msi`, `GameBotInstaller.exe`, and `update-manifest.json` (version, size,
   SHA-256; made by `scripts/new-update-manifest.ps1`).
 - **Check**: `UpdateCheckService` reads `GET /repos/{Update:Repository}/releases/latest` through
