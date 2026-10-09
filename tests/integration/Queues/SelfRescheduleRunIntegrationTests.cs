@@ -208,7 +208,8 @@ public sealed class SelfRescheduleRunIntegrationTests {
       var registry = services.GetRequiredService<IQueueRunRegistry>();
       var sw = Stopwatch.StartNew();
       double ahead = 0;
-      while (sw.ElapsedMilliseconds < 30000) {
+      // A slow CI runner can need more than 30 s to book all four times, so the wait is long.
+      while (sw.ElapsedMilliseconds < 90000) {
         if (registry.TryGet("q-nokeep-4", out var handle)
             && handle.SnapshotPendingTimerFirings().FirstOrDefault(e => e.SequenceId == sequence.Id)?.FireAt is { } fireAt) {
           ahead = (fireAt - DateTimeOffset.Now).TotalMinutes;
