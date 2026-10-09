@@ -2,6 +2,7 @@ import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { UpdatePage, UPDATE_POLL_INTERVAL_MS } from '../UpdatePage';
 import { checkForUpdate, getUpdateStatus, installUpdate, UpdateApiError } from '../../services/update';
+import { reloadPage } from '../../lib/reload';
 import type { UpdateAttempt, UpdateCheckResult, UpdateStatus } from '../../services/update';
 
 jest.mock('../../services/update', () => ({
@@ -11,6 +12,8 @@ jest.mock('../../services/update', () => ({
   installUpdate: jest.fn()
 }));
 
+jest.mock('../../lib/reload', () => ({ reloadPage: jest.fn() }));
+const mockReload = reloadPage as jest.MockedFunction<typeof reloadPage>;
 const mockStatus = getUpdateStatus as jest.MockedFunction<typeof getUpdateStatus>;
 const mockCheck = checkForUpdate as jest.MockedFunction<typeof checkForUpdate>;
 const mockInstall = installUpdate as jest.MockedFunction<typeof installUpdate>;
@@ -165,6 +168,7 @@ describe('UpdatePage', () => {
     await act(async () => { jest.advanceTimersByTime(UPDATE_POLL_INTERVAL_MS); });
     expect(screen.getByText('The update to 1.7.0.430 is done.')).toBeInTheDocument();
     expect(screen.queryByText(/GameBot restarts/)).not.toBeInTheDocument();
+    expect(mockReload).toHaveBeenCalledTimes(1);
   });
 
   it('ignores an old result of another attempt while it waits', async () => {
@@ -206,6 +210,7 @@ describe('UpdatePage', () => {
 
     expect(screen.getByText(/The update to 1.7.0.430 failed/)).toBeInTheDocument();
     expect(screen.getByText('Error code: update_checksum_mismatch')).toBeInTheDocument();
+    expect(mockReload).not.toHaveBeenCalled();
   });
 
   it('shows a start error with its hint', async () => {
@@ -297,6 +302,7 @@ describe('UpdatePage', () => {
     render(<UpdatePage />);
 
     expect(await screen.findByText('The update to 1.7.0.430 is done.')).toBeInTheDocument();
+    expect(mockReload).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByText('The update to 1.7.0.430 is done.')).not.toBeInTheDocument();
   });

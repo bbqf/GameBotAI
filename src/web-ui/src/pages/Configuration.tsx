@@ -6,7 +6,6 @@ import { ConfigFileSection } from '../components/ConfigFileSection';
 import { getConfigSnapshot, updateParameters, reorderParameters } from '../services/config';
 import type { ConfigurationParameter } from '../services/config';
 import { ApiError } from '../lib/api';
-import { UpdatePage } from './UpdatePage';
 
 export const CONFIGURATION_AREA_PATH = '/configuration';
 
@@ -109,10 +108,6 @@ export const ConfigurationPage: React.FC<ConfigurationPageProps> = ({ token, onT
             applyError={applyError}
           />
         )}
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Update">
-        <UpdatePage />
       </CollapsibleSection>
 
       <CollapsibleSection title="Execution Log Policy (execution-log-policy.json)">

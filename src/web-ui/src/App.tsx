@@ -17,6 +17,7 @@ import { CONFIGURATION_AREA_PATH, ConfigurationPage } from './pages/Configuratio
 import { EXECUTION_AREA_PATH, EXECUTION_LOGS_AREA_PATH, ExecutionPage } from './pages/Execution';
 import { ExecutionLogsPage } from './pages/ExecutionLogs';
 import { NOTIFICATIONS_AREA_PATH, NotificationsPage } from './pages/NotificationsPage';
+import { UPDATE_AREA_PATH, UpdatePage } from './pages/UpdatePage';
 
 const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolean; id?: string } | undefined => {
   const segments = pathname.split('/').filter(Boolean);
@@ -38,11 +39,12 @@ const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolea
 const getInitialArea = (): NavigationAreaId => {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get('area');
-  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring' || requested === 'queues' || requested === 'notifications') return requested;
+  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring' || requested === 'queues' || requested === 'notifications' || requested === 'update') return requested;
   const path = window.location.pathname.toLowerCase();
   if (path.startsWith(CONFIGURATION_AREA_PATH)) return 'configuration';
   if (path.startsWith(EXECUTION_LOGS_AREA_PATH)) return 'execution-logs';
   if (path.startsWith(NOTIFICATIONS_AREA_PATH)) return 'notifications';
+  if (path.startsWith(UPDATE_AREA_PATH)) return 'update';
   if (path.startsWith(EXECUTION_AREA_PATH)) return 'execution';
   if (path.startsWith('/queues')) return 'queues';
   return 'authoring';
@@ -176,6 +178,15 @@ export const App: React.FC = () => {
     </section>
   );
 
+  const renderUpdate = () => (
+    <section id="update-panel" className="update">
+      <h1>Update</h1>
+      <ErrorBoundary>
+        <UpdatePage />
+      </ErrorBoundary>
+    </section>
+  );
+
   const renderNotFound = () => (
     <section id="not-found-panel" className="not-found">
       <h1>Not Found</h1>
@@ -189,6 +200,7 @@ export const App: React.FC = () => {
     if (activeArea === 'queues') return renderQueues();
     if (activeArea === 'configuration') return renderConfiguration();
     if (activeArea === 'notifications') return renderNotifications();
+    if (activeArea === 'update') return renderUpdate();
     if (activeArea === 'execution-logs') return renderExecutionLogs();
     return renderExecution();
   };

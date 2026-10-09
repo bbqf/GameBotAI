@@ -8,7 +8,9 @@ import {
   getUpdateStatus,
   installUpdate
 } from '../services/update';
+import { reloadPage } from '../lib/reload';
 
+export const UPDATE_AREA_PATH = '/update';
 export const UPDATE_POLL_INTERVAL_MS = 2000;
 
 type Phase = 'idle' | 'checking' | 'confirming' | 'starting' | 'installing';
@@ -104,6 +106,8 @@ export const UpdatePage: React.FC = () => {
         setResult(next.lastResult);
         setAttempt(null);
         setPhase('idle');
+        // The new bot serves the new web UI. Reload the whole page so the browser loads it.
+        if (next.lastResult.state === 'succeeded') reloadPage();
         return;
       }
       if (next.attempt && next.attempt.attemptId === id) {
