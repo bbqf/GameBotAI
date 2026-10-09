@@ -51,6 +51,9 @@ All notable changes to this project will be documented in this file.
   - The send never blocks a queue run. One worker reads one channel and sends to all targets in parallel with a 30 s limit. Above 256 jobs that wait, the new job is dropped and one log line is written. A hand edit of `targets.json` applies with no restart. The backup archive does not hold the file.
   - **Compatibility**: a queue file with no level reads as `none`. A new target type needs one `INotificationChannel` class and one DI registration.
 
+### Changed
+- The `release-installer` workflow no longer runs on a push to `master`. Start it by hand (`workflow_dispatch`). A merge no longer builds the installer twice. The minor version is now 8, so the next build is `1.8.0.<run number>`.
+
 ### Fixed
 - A `reschedule-self` payload with an unknown top-level field is now rejected on save with a 400 that names each unknown field (119-reject-unknown-reschedule-field, #228)
   - Known fields are `option`, `timerTimeOfDay`, `timerRelativeOffset` and `ocrOffset`. Field names match without regard to letter case. Before, a mistyped field (for example `nextDay`) was ignored and the step did the wrong thing without an error.

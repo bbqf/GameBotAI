@@ -1,26 +1,22 @@
 name: release-installer
 
-# Installers are release artifacts, so they are built from master: every push to
-# master - in practice, every PR merge - produces one installer for that merged
-# state. Open PRs deliberately do NOT build an installer; they are gated by
-# .NET CI and CodeQL instead. Use workflow_dispatch to build an installer from
-# any branch on demand.
+# This workflow runs only when you start it by hand (workflow_dispatch). A push or a PR
+# merge does not start it, so there is no double work. Open PRs do NOT build an installer;
+# they are gated by .NET CI and CodeQL instead.
 #
-# There is deliberately no `paths` filter: the installer payload is the full
-# publish closure of src/GameBot.Service (which transitively pulls in every
-# referenced project under src/**), the built src/web-ui/dist bundle, the root
-# LICENSE, and the repo-wide MSBuild/NuGet settings - see
-# scripts/package-installer-payload.ps1. Practically any source change alters
-# what the installer contains, so a path filter could never be complete, and an
-# incomplete one silently skips runs and leaves the latest master commit with no
-# installer of its own. The job takes ~3.5 minutes on windows-latest.
+# Start it from the Actions page. Select the branch to build. Leave publish_release off to
+# build an installer artifact only.
 #
-# A GitHub Release is published only on request (feature 131). Start this workflow by hand
-# on master with publish_release set to true. A plain push to master never creates a release.
-# The installed bots read the latest release to offer an update.
+# A GitHub Release is published only on request (feature 131). Start this workflow on
+# master with publish_release set to true. The installed bots read the latest release to
+# offer an update.
+#
+# There is deliberately no paths filter: the installer payload is the full publish
+# closure of src/GameBot.Service (which pulls in every referenced project under src/**),
+# the built src/web-ui/dist bundle, the root LICENSE, and the repo-wide MSBuild/NuGet
+# settings - see scripts/package-installer-payload.ps1. The job takes ~3.5 minutes on
+# windows-latest.
 on:
-  push:
-    branches: [ master ]
   workflow_dispatch:
     inputs:
       publish_release:
@@ -34,12 +30,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # Master pushes must never cancel each other: each one is the release build for
-  # a distinct merged commit, and a cancelled run leaves that commit with no
-  # installer (and burns the github.run_number that would have versioned it).
-  # Back-to-back merges queue instead. On-demand workflow_dispatch runs are just
-  # rebuilds of a branch tip, so a newer one may still supersede an older one.
-  cancel-in-progress: ${{ github.event_name != 'push' }}
+  # A run can publish a release, so a newer run must never cancel it.
+  cancel-in-progress: false
 
 jobs:
   build-release-installer:
