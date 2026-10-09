@@ -152,6 +152,18 @@ public sealed class UpdateDownloaderTests : IDisposable {
     File.Exists(path).Should().BeFalse();
   }
 
+  [Fact]
+  public async Task LockedTargetFileFailsTheDownloadWithACode() {
+    Directory.CreateDirectory(_paths.Directory);
+    await File.WriteAllTextAsync(_paths.MsiPath("1.7.0.430"), "old").ConfigureAwait(true);
+    using var locked = new FileStream(_paths.MsiPath("1.7.0.430"), FileMode.Open, FileAccess.Read, FileShare.None);
+    using var handler = new FakeHttpHandler(_ => Bytes(Content));
+
+    var act = () => Downloader(handler).DownloadAsync(Release(), CancellationToken.None);
+
+    var failure = (await act.Should().ThrowAsync<UpdateFailureException>().ConfigureAwait(true)).Which;
+    failure.Error.Code.Should().Be("update_download_failed");
+  }
   /// <summary>A stream that gives some bytes, then fails like a dropped connection.</summary>
   private sealed class BrokenStream : Stream {
     private readonly byte[] _data;

@@ -34,7 +34,7 @@ Return the current update state. This route has no side effects. The UI uses it 
 ```
 
 - `lastCheck`, `attempt`, and `lastResult` can be `null`.
-- `lastResult` is a finished attempt (`succeeded` or `failed`) from before the last restart. It appears one time.
+- `lastResult` is a finished attempt (`succeeded` or `failed`) from before the last restart. The bot keeps it in memory for the rest of the bot run, so each status request returns it.
 - `canInstallHere` is `true` only when two things are true. The request comes from the bot PC. The bot runs from an installed folder. The UI uses it to show or hide "Install update".
 - `installBlockedReason` is `null`, `"remote"`, or `"notInstalled"`. The UI uses it to choose the message. If both reasons apply, the value is `"remote"`.
 
@@ -83,8 +83,8 @@ Later failures do not change this response. The attempt gets `state: "failed"` a
 
 ## UI behavior (not a route)
 
-- The page shows the installed version and a "Check for Update" button.
+- The page is the top-level area "Update" in the main menu. It shows the installed version and a "Check for Update" button.
 - When `status` is `updateAvailable`, the page shows the new version. It shows the notes as plain text if the release has notes. It shows an "Install update" button.
 - If `canInstallHere` is `false`, the page shows no install button. For `remote`, the message is "Install from the bot PC". For `notInstalled`, the message is "Update works only for an installed bot".
 - The install dialog states that all active queues stop at once. The user must confirm.
-- In the states `installing` and `restarting`, the UI loses its connection. It requests `GET /api/update/status` at intervals until the bot answers. Then it shows `lastResult`.
+- In the states `installing` and `restarting`, the UI loses its connection. It requests `GET /api/update/status` at intervals until the bot answers. Then it shows `lastResult`. When `lastResult` is for the attempt that the UI started and its state is `succeeded`, the UI reloads the whole page, so the browser loads the new web UI.

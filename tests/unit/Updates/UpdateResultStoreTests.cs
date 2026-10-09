@@ -114,6 +114,35 @@ public sealed class UpdateResultStoreTests : IDisposable {
   }
 
   [Fact]
+  public async Task LockedResultFileReadsAsNull() {
+    await _store.WriteAsync(Attempt(), CancellationToken.None).ConfigureAwait(true);
+    using var locked = new FileStream(_paths.ResultFile, FileMode.Open, FileAccess.Read, FileShare.None);
+
+    (await _store.ReadAsync(CancellationToken.None).ConfigureAwait(true)).Should().BeNull();
+  }
+
+  [Fact]
+  public async Task MarkReportedOfALockedFileDoesNotThrow() {
+    await _store.WriteAsync(Attempt(), CancellationToken.None).ConfigureAwait(true);
+    using var locked = new FileStream(_paths.ResultFile, FileMode.Open, FileAccess.Read, FileShare.None);
+
+    var act = () => _store.MarkReported();
+
+    act.Should().NotThrow();
+    File.Exists(_paths.ResultFile).Should().BeTrue();
+  }
+
+  [Fact]
+  public void CleanupOfALockedDownloadDoesNotThrow() {
+    Directory.CreateDirectory(_paths.Directory);
+    File.WriteAllText(_paths.MsiPath("1.7.0.430"), "x");
+    using var locked = new FileStream(_paths.MsiPath("1.7.0.430"), FileMode.Open, FileAccess.Read, FileShare.None);
+
+    var act = () => _store.Cleanup(DateTimeOffset.UtcNow);
+
+    act.Should().NotThrow();
+  }
+  [Fact]
   public void CleanupDeletesDownloadsUpdaterCopyAndOldLogsOnly() {
     Directory.CreateDirectory(_paths.UpdaterCopyDirectory);
     File.WriteAllText(Path.Combine(_paths.UpdaterCopyDirectory, "GameBot.Updater.dll"), "x");

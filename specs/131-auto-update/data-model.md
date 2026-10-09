@@ -61,7 +61,7 @@ idle -> downloading -> verifying -> installing -> restarting -> succeeded
 | installedVersion | 4-part version | From the service assembly. |
 | lastCheck | UpdateCheckResult, optional | The last check in this bot run. |
 | attempt | UpdateAttempt, optional | The active attempt. |
-| lastResult | UpdateAttempt, optional | A finished attempt from before the last restart. The bot shows it one time. |
+| lastResult | UpdateAttempt, optional | A finished attempt from before the last restart. The bot keeps it in memory for the rest of the bot run. The UI shows it until the user closes it. |
 | canInstallHere | boolean | True only if the request is from the bot PC and the bot runs from an installed folder. |
 | installBlockedReason | enum, optional | `remote` or `notInstalled`. `remote` has priority. |
 
