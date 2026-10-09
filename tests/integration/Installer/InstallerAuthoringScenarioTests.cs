@@ -25,7 +25,7 @@ public sealed class InstallerAuthoringScenarioTests {
     bundle.Should().Contain("ShowVersion=\"yes\"");
 
     product.Should().Contain("Value=\"InstallDirDlg\"");
-    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot;\"");
+    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot;\"");
 
     networkUi.Should().Contain("Publish Dialog=\"InstallDirDlg\" Control=\"Next\" Event=\"NewDialog\" Value=\"NetworkConfigDlg\"");
     networkUi.Should().Contain("Control Id=\"BindHostCombo\"");
@@ -54,12 +54,12 @@ public sealed class InstallerAuthoringScenarioTests {
     var detection = File.ReadAllText(detectionPath);
 
     product.Should().Contain("Value=\"VerifyReadyDlg\"");
-    product.Should().Contain("Condition=\"NOT Installed AND (WIX_UPGRADE_DETECTED OR PERSISTED_PORT &lt;&gt; &quot;&quot; OR PERSISTED_BIND_HOST &lt;&gt; &quot;&quot;)\"");
+    product.Should().Contain("Condition=\"NOT Installed AND (WIX_UPGRADE_DETECTED OR PERSISTED_PORT &lt;&gt; &quot;&quot; OR PERSISTED_BIND_HOST &lt;&gt; &quot;&quot; OR PERSISTED_FILE_PORT &lt;&gt; &quot;&quot; OR PERSISTED_FILE_BIND_HOST &lt;&gt; &quot;&quot;)\"");
     product.Should().Contain("Value=\"InstallDirDlg\"");
-    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot;\"");
+    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot;\"");
 
-    detection.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5\"");
-    detection.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND UILevel &lt; 5\"");
+    detection.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5\"");
+    detection.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &lt; 5\"");
     detection.Should().Contain("NormalizeStartMenuShortcut");
     detection.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND NOT REMOVE~=&quot;ALL&quot;\"");
   }
@@ -72,8 +72,8 @@ public sealed class InstallerAuthoringScenarioTests {
     var product = File.ReadAllText(productPath);
 
     product.Should().Contain("Condition=\"WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND ((NOT Installed) OR (REINSTALL AND NOT REMOVE~=&quot;ALL&quot;))\"");
-    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot;\"");
-    product.Should().Contain("Condition=\"NOT Installed AND (WIX_UPGRADE_DETECTED OR PERSISTED_PORT &lt;&gt; &quot;&quot; OR PERSISTED_BIND_HOST &lt;&gt; &quot;&quot;)\"");
+    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot;\"");
+    product.Should().Contain("Condition=\"NOT Installed AND (WIX_UPGRADE_DETECTED OR PERSISTED_PORT &lt;&gt; &quot;&quot; OR PERSISTED_BIND_HOST &lt;&gt; &quot;&quot; OR PERSISTED_FILE_PORT &lt;&gt; &quot;&quot; OR PERSISTED_FILE_BIND_HOST &lt;&gt; &quot;&quot;)\"");
   }
 
   [Fact]

@@ -3,8 +3,8 @@
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="APPLICATIONFOLDER" Name="GameBot">
         <Directory Id="WEBUIFOLDER" Name="web-ui" />
-      </Directory>
-      <Directory Id="DATABASEFOLDER" Name="GameBot">
+        <!-- The data directory moves with the install folder, as the service expects
+             (default: [LocalAppDataFolder]GameBot\data). The saved network file lives here. -->
         <Directory Id="DATAROOTFOLDER" Name="data" />
       </Directory>
     </StandardDirectory>

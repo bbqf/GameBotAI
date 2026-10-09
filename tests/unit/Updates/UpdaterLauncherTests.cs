@@ -96,15 +96,28 @@ public sealed class UpdaterLauncherTests : IDisposable {
   }
 
   [Fact]
-  public void SavedNetworkValuesArePassedWhenKnown() {
-    Launcher(new Dictionary<string, string?> {
-      ["Service:Network:Port"] = "8088",
-      ["Service:Network:BindHost"] = "0.0.0.0"
-    }).Launch(Request());
+  public void RuntimeNetworkOverridesAreNotPassedToTheUpdater() {
+    var oldPort = Environment.GetEnvironmentVariable("GAMEBOT_PORT");
+    var oldHost = Environment.GetEnvironmentVariable("GAMEBOT_BIND_HOST");
+    try {
+      Environment.SetEnvironmentVariable("GAMEBOT_PORT", "7000");
+      Environment.SetEnvironmentVariable("GAMEBOT_BIND_HOST", "10.0.0.5");
 
+      Launcher(new Dictionary<string, string?> {
+        ["Service:Network:Port"] = "8088",
+        ["Service:Network:BindHost"] = "0.0.0.0"
+      }).Launch(Request());
+    }
+    finally {
+      Environment.SetEnvironmentVariable("GAMEBOT_PORT", oldPort);
+      Environment.SetEnvironmentVariable("GAMEBOT_BIND_HOST", oldHost);
+    }
+
+    _starter.Arguments.Should().NotContain("--port");
+    _starter.Arguments.Should().NotContain("--bind-host");
     var parsed = GameBot.Updater.UpdaterArguments.TryParse(_starter.Arguments!.ToList(), out _);
-    parsed!.Port.Should().Be("8088");
-    parsed.BindHost.Should().Be("0.0.0.0");
+    parsed!.Port.Should().BeNullOrEmpty();
+    parsed.BindHost.Should().BeNullOrEmpty();
   }
 
   [Fact]

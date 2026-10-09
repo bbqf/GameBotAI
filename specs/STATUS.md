@@ -165,6 +165,7 @@ Status vocabulary:
 | 129 | Restart The Game From A Sequence (forceRestart) | Implemented |
 | 130 | Region-Restricted Image Detection | Implemented |
 | 131 | Auto-Update | Implemented |
+| 132 | Persist The Listen Host And Port | Implemented |
 
 ## Numbering notes
 

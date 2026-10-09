@@ -482,3 +482,356 @@ function NormalizeStartMenuShortcut() {
 
   return 1;
 }
+
+// ---------------------------------------------------------------------------
+// Persisted network settings (feature 132).
+// The file is <data path>config\network.json. Each action has a core function
+// that takes plain arguments (no Session), so cscript tests can run it.
+// ---------------------------------------------------------------------------
+
+var NETWORK_FILE_NAME = "network.json";
+
+// A host is valid when it is not empty, has only visible ASCII characters, and has
+// no '/', ':', '"' or '\' character. (The writer only writes ASCII.)
+function isValidHostText(host) {
+  if (host === null || host === undefined) {
+    return false;
+  }
+
+  var text = "" + host;
+  return /^[\x21-\x7E]+$/.test(text) && !/[\/:"\\]/.test(text);
+}
+
+// Returns the port as a number from 1 to 65535, or -1 when the text is not valid.
+function parsePortText(text) {
+  var value = trimText(text === null || text === undefined ? "" : text);
+  if (!/^[0-9]{1,5}$/.test(value)) {
+    return -1;
+  }
+
+  var parsed = parseInt(value, 10);
+  if (parsed < 1 || parsed > 65535) {
+    return -1;
+  }
+
+  return parsed;
+}
+
+// Returns the data path with a trailing backslash, or "" when it is empty.
+function normalizeDataPath(dataPath) {
+  var text = trimText(dataPath === null || dataPath === undefined ? "" : dataPath);
+  if (text.length === 0) {
+    return "";
+  }
+
+  return text.charAt(text.length - 1) === "\\" ? text : text + "\\";
+}
+
+function networkFilePath(basePath) {
+  return basePath + "config\\" + NETWORK_FILE_NAME;
+}
+
+// True when the text is one JSON object with balanced braces and quotes.
+function looksLikeJsonObject(text) {
+  var trimmed = trimText(text);
+  if (trimmed.length < 2 || trimmed.charAt(0) !== "{" || trimmed.charAt(trimmed.length - 1) !== "}") {
+    return false;
+  }
+
+  var depth = 0;
+  var inString = false;
+  for (var index = 0; index < trimmed.length; index++) {
+    var ch = trimmed.charAt(index);
+    if (inString) {
+      if (ch === "\\") {
+        index++;
+      }
+      else if (ch === "\"") {
+        inString = false;
+      }
+    }
+    else if (ch === "\"") {
+      inString = true;
+    }
+    else if (ch === "{" || ch === "[") {
+      depth++;
+    }
+    else if (ch === "}" || ch === "]") {
+      depth--;
+      if (depth < 0) {
+        return false;
+      }
+    }
+  }
+
+  return depth === 0 && !inString;
+}
+
+function ensureFolder(fso, folder) {
+  if (fso.FolderExists(folder)) {
+    return;
+  }
+
+  var parent = fso.GetParentFolderName(folder);
+  if (parent.length > 0 && !fso.FolderExists(parent)) {
+    ensureFolder(fso, parent);
+  }
+
+  fso.CreateFolder(folder);
+}
+
+function deleteFileIfExists(fso, path) {
+  if (fso.FileExists(path)) {
+    fso.DeleteFile(path, true);
+  }
+}
+
+// Reads and checks the saved file. Each field is checked on its own.
+// Returns { host: string or null, port: number or null, problems: [string] }.
+function ReadNetworkFileCore(dataPath) {
+  var result = { host: null, port: null, problems: [] };
+  var basePath = normalizeDataPath(dataPath);
+  if (basePath.length === 0) {
+    return result;
+  }
+
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+  var path = networkFilePath(basePath);
+  if (!fso.FileExists(path)) {
+    return result;
+  }
+
+  var text = "";
+  try {
+    var stream = fso.OpenTextFile(path, 1, false);
+    text = stream.ReadAll();
+    stream.Close();
+  }
+  catch (readError) {
+    result.problems.push("Cannot read " + path + ": " + describeError(readError));
+    return result;
+  }
+
+  text = text.replace(/^(\xEF\xBB\xBF|\uFEFF)/, "");
+  if (!looksLikeJsonObject(text)) {
+    result.problems.push("The file " + path + " is not valid JSON. The file is ignored.");
+    return result;
+  }
+
+  if (/"bindHost"\s*:/.test(text)) {
+    var hostMatch = text.match(/"bindHost"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (hostMatch && isValidHostText(hostMatch[1])) {
+      result.host = hostMatch[1];
+    }
+    else {
+      result.problems.push("The field bindHost in " + path + " is not valid. The value is ignored.");
+    }
+  }
+
+  if (/"port"\s*:/.test(text)) {
+    var portMatch = text.match(/"port"\s*:\s*"([^"]*)"/);
+    if (!portMatch) {
+      portMatch = text.match(/"port"\s*:\s*(-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)/);
+    }
+
+    var port = portMatch ? parsePortText(portMatch[1]) : -1;
+    if (port > 0) {
+      result.port = port;
+    }
+    else {
+      result.problems.push("The field port in " + path + " is not valid. The value is ignored.");
+    }
+  }
+
+  return result;
+}
+
+// Writes the file in the six steps of the plan. A field that is not valid keeps the old value.
+// Returns { status: "written" or "skipped", problems: [string] }.
+function WriteNetworkFileCore(dataPath, host, port) {
+  var result = { status: "skipped", problems: [] };
+  var basePath = normalizeDataPath(dataPath);
+  if (basePath.length === 0) {
+    result.problems.push("The data path is empty. Nothing is written.");
+    return result;
+  }
+
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+  var path = networkFilePath(basePath);
+  var backupPath = path + ".bak";
+  var noneMarkerPath = path + ".none";
+  var tempPath = path + ".tmp";
+
+  // 1. Create the config folder.
+  ensureFolder(fso, basePath + "config");
+
+  // 2. Check the new values.
+  var newHost = trimText(host === null || host === undefined ? "" : host);
+  var newPort = parsePortText(port);
+  if (!isValidHostText(newHost)) {
+    result.problems.push("The host is not valid. The old value is kept.");
+    newHost = null;
+  }
+  if (newPort < 1) {
+    result.problems.push("The port is not valid. The old value is kept.");
+    newPort = null;
+  }
+  if (newHost === null && newPort === null) {
+    return result;
+  }
+
+  // 3. Recover from a hard stop of a former run.
+  if (fso.FileExists(backupPath)) {
+    fso.CopyFile(backupPath, path, true);
+    deleteFileIfExists(fso, backupPath);
+  }
+  deleteFileIfExists(fso, noneMarkerPath);
+  deleteFileIfExists(fso, tempPath);
+
+  var old = ReadNetworkFileCore(basePath);
+  var finalHost = newHost !== null ? newHost : old.host;
+  var finalPort = newPort !== null ? newPort : old.port;
+
+  // 4. Make the undo marker.
+  if (fso.FileExists(path)) {
+    fso.CopyFile(path, backupPath, true);
+  }
+  else {
+    fso.CreateTextFile(noneMarkerPath, true, false).Close();
+  }
+
+  // 5. Write the full new content to the temporary file (ASCII, no byte order mark).
+  var fields = [];
+  if (finalHost !== null) {
+    fields.push("  \"bindHost\": \"" + finalHost + "\"");
+  }
+  if (finalPort !== null) {
+    fields.push("  \"port\": \"" + finalPort + "\"");
+  }
+  var content = "{\r\n" + fields.join(",\r\n") + "\r\n}\r\n";
+  var tempFile = fso.CreateTextFile(tempPath, true, false);
+  tempFile.Write(content);
+  tempFile.Close();
+
+  // 6. Replace the file.
+  deleteFileIfExists(fso, path);
+  fso.MoveFile(tempPath, path);
+
+  result.status = "written";
+  return result;
+}
+
+// Restores the old state and removes the temporary files. Safe to run again.
+function RollbackNetworkFileCore(dataPath) {
+  var basePath = normalizeDataPath(dataPath);
+  if (basePath.length === 0) {
+    return;
+  }
+
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+  var path = networkFilePath(basePath);
+  var backupPath = path + ".bak";
+  var noneMarkerPath = path + ".none";
+
+  if (fso.FileExists(backupPath)) {
+    fso.CopyFile(backupPath, path, true);
+  }
+  else if (fso.FileExists(noneMarkerPath)) {
+    deleteFileIfExists(fso, path);
+  }
+
+  deleteFileIfExists(fso, path + ".tmp");
+  deleteFileIfExists(fso, backupPath);
+  deleteFileIfExists(fso, noneMarkerPath);
+}
+
+// Removes the temporary files. Never changes the file itself.
+function CommitNetworkFileCore(dataPath) {
+  var basePath = normalizeDataPath(dataPath);
+  if (basePath.length === 0) {
+    return;
+  }
+
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+  var path = networkFilePath(basePath);
+  deleteFileIfExists(fso, path + ".tmp");
+  deleteFileIfExists(fso, path + ".bak");
+  deleteFileIfExists(fso, path + ".none");
+}
+
+// Splits the CustomActionData of the write action: data path, host, port.
+// Returns null when the part count is not 3 or the data path is empty.
+function SplitWriteData(data) {
+  var parts = ("" + (data === null || data === undefined ? "" : data)).split("|");
+  if (parts.length !== 3 || trimText(parts[0]).length === 0) {
+    return null;
+  }
+
+  return { dataPath: parts[0], host: parts[1], port: parts[2] };
+}
+
+// Immediate action: sets PERSISTED_FILE_BIND_HOST and PERSISTED_FILE_PORT. Never fails the install.
+function ReadPersistedNetworkFile() {
+  try {
+    var result = ReadNetworkFileCore(Session.Property("DATAROOTFOLDER"));
+    if (result.host !== null) {
+      Session.Property("PERSISTED_FILE_BIND_HOST") = result.host;
+    }
+    if (result.port !== null) {
+      Session.Property("PERSISTED_FILE_PORT") = "" + result.port;
+    }
+    for (var index = 0; index < result.problems.length; index++) {
+      appendDebugLog("ReadPersistedNetworkFile: " + result.problems[index]);
+    }
+  }
+  catch (errorObject) {
+    appendDebugLog("ReadPersistedNetworkFile failed: " + describeError(errorObject));
+  }
+
+  return 1;
+}
+
+// Deferred action. CustomActionData is "<data path>|<host>|<port>". Never fails the install.
+function WritePersistedNetworkFile() {
+  try {
+    var parts = SplitWriteData(Session.Property("CustomActionData"));
+    if (parts === null) {
+      appendDebugLog("WritePersistedNetworkFile: the action data is not valid. Nothing is written.");
+      return 1;
+    }
+
+    var result = WriteNetworkFileCore(parts.dataPath, parts.host, parts.port);
+    for (var index = 0; index < result.problems.length; index++) {
+      appendDebugLog("WritePersistedNetworkFile: " + result.problems[index]);
+    }
+  }
+  catch (errorObject) {
+    appendDebugLog("WritePersistedNetworkFile failed: " + describeError(errorObject));
+  }
+
+  return 1;
+}
+
+// Rollback action. CustomActionData is the data path. Never fails the install.
+function RollbackPersistedNetworkFile() {
+  try {
+    RollbackNetworkFileCore(Session.Property("CustomActionData"));
+  }
+  catch (errorObject) {
+    appendDebugLog("RollbackPersistedNetworkFile failed: " + describeError(errorObject));
+  }
+
+  return 1;
+}
+
+// Commit action. CustomActionData is the data path. Never fails the install.
+function CommitPersistedNetworkFile() {
+  try {
+    CommitNetworkFileCore(Session.Property("CustomActionData"));
+  }
+  catch (errorObject) {
+    appendDebugLog("CommitPersistedNetworkFile failed: " + describeError(errorObject));
+  }
+
+  return 1;
+}

@@ -17,8 +17,8 @@ public sealed class UpgradePropertyRetentionTests {
     configContent.Should().Contain("Name=\"Port\"");
     propertyContent.Should().Contain("Property Id=\"PERSISTED_BIND_HOST\"");
     propertyContent.Should().Contain("Property Id=\"PERSISTED_PORT\"");
-    propertyContent.Should().Contain("SetProperty Id=\"BIND_HOST\" Value=\"[PERSISTED_BIND_HOST]\"");
-    propertyContent.Should().Contain("SetProperty Id=\"PORT\" Value=\"[PERSISTED_PORT]\"");
+    propertyContent.Should().Contain("SetProperty Id=\"BIND_HOST\" Action=\"SetBindHostFromRegistry\" Value=\"[PERSISTED_BIND_HOST]\"");
+    propertyContent.Should().Contain("SetProperty Id=\"PORT\" Action=\"SetPortFromRegistry\" Value=\"[PERSISTED_PORT]\"");
   }
 
   private static string FindRepoRoot() {

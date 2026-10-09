@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-09 (feature 131: auto-update from the Web UI, `/api/update/*`, the `GameBot.Updater` program;
+_Last reviewed: 2026-10-09 (feature 132: saved listen host and port, `config\network.json`;
+feature 131: auto-update from the Web UI, `/api/update/*`, the `GameBot.Updater` program;
 feature 130: optional pixel `region` on `imageVisible` conditions and detection targets;
 feature 129: `forceRestart` on ensure-game-running and the `restarted` outcome;
 feature 128: `POST /api/ocr/read`;
@@ -1128,6 +1129,31 @@ new version and starts again. Windows shows no SmartScreen and no UAC prompt in 
   and `installBlockedReason`. The reason `remote` has priority over `notInstalled`.
 - **Limit**: the manifest and the MSI come from the same release. The checksum finds damaged downloads. It gives no
   protection if an attacker controls the release. Only code signing fixes that, and the build is not signed.
+
+### Saved listen host and port (feature 132)
+
+The installer saves the listen host and port, so an update and a reinstall keep them (issue #65).
+
+- **File**: `<data root>\config\network.json` with the fields `bindHost` and `port` (both text). The
+  installer writes it. The service only reads it. The MSI does not track the file, so an uninstall keeps it.
+  The older registry values `HKCU\Software\GameBot\Network` stay as a fallback and the MSI still writes them.
+- **Data directory**: `DATAROOTFOLDER` is `<install folder>\data` (a child of `APPLICATIONFOLDER`). A given
+  `APPLICATIONFOLDER` stays (`SetApplicationFolder` runs only when it is empty), so an update finds the
+  data directory of the existing install.
+- **Address priority in the service** (`GameBotServiceSetup.ResolveListenAddress`, each field on its own):
+  configuration (`Service:Network:*`), environment variable (`GAMEBOT_BIND_HOST`, `GAMEBOT_PORT`),
+  `network.json`, registry, default (`127.0.0.1`, `8080`). `PersistedNetworkSettings` reads and checks the
+  saved values. A value that is not valid is ignored and `NetworkSettingsProblemLogger` writes a warning.
+- **Priority in the installer**: an explicit `BIND_HOST` or `PORT` option, then the file, then the registry,
+  then the first-install default (port detection). `BIND_HOST` and `PORT` are empty by default, so empty
+  means "not given".
+- **Install sequence**: `ReadPersistedNetworkFile` runs after `CostFinalize` (the data path is valid only
+  then). Then the port detection and the `SetProperty` rows run in a fixed chain. The deferred actions
+  `WritePersistedNetworkFile`, `RollbackPersistedNetworkFile`, and `CommitPersistedNetworkFile` (in
+  `PortResolver.jscript`) write the file with an undo marker (`.bak` or `.none`), so a failed or cancelled
+  install leaves the file as it was.
+- **Update from the Web UI**: `UpdaterLauncher` no longer passes `--port` and `--bind-host`. A runtime
+  override is therefore not saved. The updater command line still accepts both options.
 
 ## REST API surface
 

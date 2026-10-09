@@ -14,7 +14,6 @@ using System.Text.Json.Serialization;
 using GameBot.Service.Services.Detections;
 using GameBot.Service.Swagger;
 using GameBot.Domain.Images;
-using Microsoft.Win32;
 using GameBot.Domain.Versioning;
 using GameBot.Service.Services.Conditions;
 using GameBot.Service.Services.Updates;
@@ -59,7 +58,7 @@ internal static class GameBotServiceSetup {
     RegisterTriggerAndImageServices(builder, storageRoot);
     RegisterHostedServices(builder);
     builder.Services.AddUpdateServices(builder.Configuration, storageRoot);
-    ConfigureWebHostUrls(builder);
+    ConfigureWebHostUrls(builder, storageRoot);
 
     return storageRoot;
   }
@@ -506,7 +505,7 @@ internal static class GameBotServiceSetup {
   }
 
   // In CI/tests (or when explicitly requested), avoid fixed ports to prevent socket bind conflicts
-  private static void ConfigureWebHostUrls(WebApplicationBuilder builder) {
+  private static void ConfigureWebHostUrls(WebApplicationBuilder builder, string storageRoot) {
     var dynPort = Environment.GetEnvironmentVariable("GAMEBOT_DYNAMIC_PORT");
     var explicitUrlsEnv = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
     var hasUrlsArgument = Environment.GetCommandLineArgs().Any(arg =>
@@ -517,35 +516,44 @@ internal static class GameBotServiceSetup {
       builder.WebHost.UseUrls("http://127.0.0.1:0");
     }
     else if (string.IsNullOrWhiteSpace(explicitUrlsEnv) && !hasUrlsArgument) {
-      var bindHost = builder.Configuration["Service:Network:BindHost"]
-                     ?? Environment.GetEnvironmentVariable("GAMEBOT_BIND_HOST")
-                     ?? ReadInstallerNetworkValue("BindHost")
-                     ?? "127.0.0.1";
-
-      var portRaw = builder.Configuration["Service:Network:Port"]
-                    ?? Environment.GetEnvironmentVariable("GAMEBOT_PORT")
-                    ?? ReadInstallerNetworkValue("Port")
-                    ?? "8080";
-      if (!int.TryParse(portRaw, out var port) || port < 1 || port > 65535) {
-        port = 8080;
+      var address = ResolveListenAddress(
+        builder.Configuration, Environment.GetEnvironmentVariable, storageRoot, PersistedNetworkSettings.ReadRegistryValue);
+      builder.WebHost.UseUrls($"http://{address.Host}:{address.Port}");
+      if (address.Problems.Count > 0) {
+        builder.Services.AddHostedService(sp => new GameBot.Service.Hosted.NetworkSettingsProblemLogger(
+          address.Problems, sp.GetRequiredService<ILogger<GameBot.Service.Hosted.NetworkSettingsProblemLogger>>()));
       }
-
-      builder.WebHost.UseUrls($"http://{bindHost}:{port}");
     }
   }
 
-  private static string? ReadInstallerNetworkValue(string name) {
-    if (!OperatingSystem.IsWindows()) {
-      return null;
+  internal sealed record ListenAddress(string Host, int Port, IReadOnlyList<string> Problems);
+
+  internal static ListenAddress ResolveListenAddress(
+      IConfiguration configuration,
+      Func<string, string?> getEnvironmentVariable,
+      string storageRoot,
+      Func<string, string?> registryReader) {
+    // Priority for each field on its own: configuration, environment variable, saved file,
+    // older registry value, default (feature 132, FR-006).
+    var persisted = PersistedNetworkSettings.Read(storageRoot, registryReader);
+
+    var host = FirstNonBlank(configuration["Service:Network:BindHost"], getEnvironmentVariable("GAMEBOT_BIND_HOST"))
+               ?? persisted.BindHost
+               ?? "127.0.0.1";
+
+    var explicitPort = FirstNonBlank(configuration["Service:Network:Port"], getEnvironmentVariable("GAMEBOT_PORT"));
+    int port;
+    if (explicitPort is not null) {
+      // A port from configuration or environment that is not valid becomes the default.
+      port = PersistedNetworkSettings.TryParsePort(explicitPort, out var parsed) ? parsed : 8080;
+    }
+    else {
+      port = persisted.Port ?? 8080;
     }
 
-    const string subKey = @"Software\GameBot\Network";
-
-    var currentUser = Registry.GetValue($@"HKEY_CURRENT_USER\{subKey}", name, null)?.ToString();
-    if (!string.IsNullOrWhiteSpace(currentUser)) {
-      return currentUser;
-    }
-
-    return null;
+    return new ListenAddress(host, port, persisted.Problems);
   }
+
+  private static string? FirstNonBlank(params string?[] values) =>
+    values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 }

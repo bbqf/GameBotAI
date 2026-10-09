@@ -5,13 +5,15 @@
     <Property Id="PERSISTED_PROTOCOL">
       <RegistrySearch Id="PersistedProtocol" Root="HKCU" Key="Software\GameBot\Network" Name="Protocol" Type="raw" />
     </Property>
-    <Property Id="BIND_HOST" Value="127.0.0.1" />
+    <!-- BIND_HOST and PORT have no default value. An empty value means "not given" (feature 132).
+         The rows below apply the explicit value first, then the saved file value, then the older
+         registry value, then the first-install default. PERSISTED_FILE_BIND_HOST and PERSISTED_FILE_PORT
+         are set by ReadPersistedNetworkFile and are empty when the file has no valid value. -->
     <Property Id="SHORTCUT_HOST" Value="localhost" />
     <Property Id="SHORTCUT_URL" Value="http://localhost:8080/" />
     <Property Id="PERSISTED_BIND_HOST">
       <RegistrySearch Id="PersistedBindHost" Root="HKCU" Key="Software\GameBot\Network" Name="BindHost" Type="raw" />
     </Property>
-    <Property Id="PORT" Value="8080" />
     <Property Id="PERSISTED_PORT">
       <RegistrySearch Id="PersistedPort" Root="HKCU" Key="Software\GameBot\Network" Name="Port" Type="raw" />
     </Property>
@@ -22,28 +24,33 @@
     <SetProperty Id="ALLUSERS" Value="" Sequence="both" Before="CostFinalize" />
     <SetProperty Id="MSIINSTALLPERUSER" Value="1" Sequence="both" Before="CostFinalize" />
 
+    <!-- A given APPLICATIONFOLDER stays. The Web UI update passes the folder of the existing install,
+         so the update finds the data directory (and the saved file) of that install. -->
     <CustomAction Id="SetApplicationFolder" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot" />
 
-    <SetProperty Id="BIND_HOST" Value="[PERSISTED_BIND_HOST]" Before="CostFinalize" Condition="PERSISTED_BIND_HOST &lt;&gt; &quot;&quot;" />
-    <SetProperty Id="BIND_HOST" Value="127.0.0.1" Before="CostFinalize" Condition="BIND_HOST = &quot;&quot;" />
-    <SetProperty Id="PORT" Value="[PERSISTED_PORT]" Before="CostFinalize" Condition="PERSISTED_PORT &lt;&gt; &quot;&quot;" />
-    <SetProperty Id="PROTOCOL" Value="[PERSISTED_PROTOCOL]" Before="CostFinalize" Condition="PERSISTED_PROTOCOL &lt;&gt; &quot;&quot;" />
-    <SetProperty Id="PROTOCOL" Value="http" Before="CostFinalize" Condition="PROTOCOL = &quot;&quot;" />
-    <SetProperty Id="PORT" Value="8080" Before="CostFinalize" Condition="PORT = &quot;&quot;" />
-    <SetProperty Id="SHORTCUT_HOST" Value="localhost" Before="CostFinalize" Condition="BIND_HOST = &quot;&quot; OR BIND_HOST = &quot;127.0.0.1&quot; OR BIND_HOST = &quot;0.0.0.0&quot;" />
-    <SetProperty Id="SHORTCUT_HOST" Value="[BIND_HOST]" Before="CostFinalize" Condition="BIND_HOST &lt;&gt; &quot;&quot; AND BIND_HOST &lt;&gt; &quot;127.0.0.1&quot; AND BIND_HOST &lt;&gt; &quot;0.0.0.0&quot;" />
-    <SetProperty Id="SHORTCUT_HOST" Value="localhost" Before="CostFinalize" Condition="SHORTCUT_HOST = &quot;&quot;" />
-    <SetProperty Id="SHORTCUT_URL" Value="[PROTOCOL]://localhost:[PORT]/" Before="CostFinalize" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND BIND_HOST = &quot;127.0.0.1&quot;" />
-    <SetProperty Id="SHORTCUT_URL" Value="[PROTOCOL]://[SHORTCUT_HOST]:[PORT]/" Before="CostFinalize" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND SHORTCUT_HOST &lt;&gt; &quot;&quot;" />
-    <SetProperty Id="SHORTCUT_URL" Value="[PROTOCOL]://localhost:[PORT]/" Before="CostFinalize" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND SHORTCUT_URL = &quot;&quot;" />
-    <SetProperty Id="SHORTCUT_URL" Value="http://localhost:8080/" Before="CostFinalize" Condition="SHORTCUT_URL = &quot;&quot;" />
+    <!-- Fixed chain. It starts after ReadPersistedNetworkFile and port detection (PortDetection.wxs). -->
+    <SetProperty Id="BIND_HOST" Action="SetBindHostFromFile" Value="[PERSISTED_FILE_BIND_HOST]" Sequence="both" After="DetectAvailablePorts" Condition="BIND_HOST = &quot;&quot; AND PERSISTED_FILE_BIND_HOST &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="BIND_HOST" Action="SetBindHostFromRegistry" Value="[PERSISTED_BIND_HOST]" Sequence="both" After="SetBindHostFromFile" Condition="BIND_HOST = &quot;&quot; AND PERSISTED_BIND_HOST &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="BIND_HOST" Action="SetBindHostDefault" Value="127.0.0.1" Sequence="both" After="SetBindHostFromRegistry" Condition="BIND_HOST = &quot;&quot;" />
+    <SetProperty Id="PORT" Action="SetPortFromFile" Value="[PERSISTED_FILE_PORT]" Sequence="both" After="SetBindHostDefault" Condition="PORT = &quot;&quot; AND PERSISTED_FILE_PORT &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="PORT" Action="SetPortFromRegistry" Value="[PERSISTED_PORT]" Sequence="both" After="SetPortFromFile" Condition="PORT = &quot;&quot; AND PERSISTED_PORT &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="PORT" Action="SetPortDefault" Value="8080" Sequence="both" After="SetPortFromRegistry" Condition="PORT = &quot;&quot;" />
+    <SetProperty Id="PROTOCOL" Action="SetProtocolFromRegistry" Value="[PERSISTED_PROTOCOL]" Sequence="both" After="SetPortDefault" Condition="PERSISTED_PROTOCOL &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="PROTOCOL" Action="SetProtocolDefault" Value="http" Sequence="both" After="SetProtocolFromRegistry" Condition="PROTOCOL = &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_HOST" Action="SetShortcutHostLoopback" Value="localhost" Sequence="both" After="SetProtocolDefault" Condition="BIND_HOST = &quot;&quot; OR BIND_HOST = &quot;127.0.0.1&quot; OR BIND_HOST = &quot;0.0.0.0&quot;" />
+    <SetProperty Id="SHORTCUT_HOST" Action="SetShortcutHostCustom" Value="[BIND_HOST]" Sequence="both" After="SetShortcutHostLoopback" Condition="BIND_HOST &lt;&gt; &quot;&quot; AND BIND_HOST &lt;&gt; &quot;127.0.0.1&quot; AND BIND_HOST &lt;&gt; &quot;0.0.0.0&quot;" />
+    <SetProperty Id="SHORTCUT_HOST" Action="SetShortcutHostDefault" Value="localhost" Sequence="both" After="SetShortcutHostCustom" Condition="SHORTCUT_HOST = &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_URL" Action="SetShortcutUrlLoopback" Value="[PROTOCOL]://localhost:[PORT]/" Sequence="both" After="SetShortcutHostDefault" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND BIND_HOST = &quot;127.0.0.1&quot;" />
+    <SetProperty Id="SHORTCUT_URL" Action="SetShortcutUrlHost" Value="[PROTOCOL]://[SHORTCUT_HOST]:[PORT]/" Sequence="both" After="SetShortcutUrlLoopback" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND SHORTCUT_HOST &lt;&gt; &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_URL" Action="SetShortcutUrlFallback" Value="[PROTOCOL]://localhost:[PORT]/" Sequence="both" After="SetShortcutUrlHost" Condition="PROTOCOL &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND SHORTCUT_URL = &quot;&quot;" />
+    <SetProperty Id="SHORTCUT_URL" Action="SetShortcutUrlDefault" Value="http://localhost:8080/" Sequence="both" After="SetShortcutUrlFallback" Condition="SHORTCUT_URL = &quot;&quot;" />
 
     <InstallUISequence>
-      <Custom Action="SetApplicationFolder" Before="CostFinalize" />
+      <Custom Action="SetApplicationFolder" Before="CostFinalize" Condition="APPLICATIONFOLDER = &quot;&quot;" />
     </InstallUISequence>
 
     <InstallExecuteSequence>
-      <Custom Action="SetApplicationFolder" Before="CostFinalize" />
+      <Custom Action="SetApplicationFolder" Before="CostFinalize" Condition="APPLICATIONFOLDER = &quot;&quot;" />
     </InstallExecuteSequence>
   </Fragment>
 </Wix>

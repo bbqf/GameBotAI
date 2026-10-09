@@ -1,6 +1,5 @@
 using System.Text.Json;
 using GameBot.Service.Models;
-using Microsoft.Win32;
 
 namespace GameBot.Service.Services;
 
@@ -18,10 +17,16 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
   private readonly SemaphoreSlim _gate = new(1, 1);
   private int _refreshCount;
   private readonly IConfigApplier _applier;
+  private readonly Func<string, string?>? _registryReader;
 
   public ConfigurationSnapshot? Current { get; private set; }
 
-  public ConfigSnapshotService(string storageRoot, IConfigApplier applier) {
+  public ConfigSnapshotService(string storageRoot, IConfigApplier applier)
+      : this(storageRoot, applier, null) {
+  }
+
+  public ConfigSnapshotService(string storageRoot, IConfigApplier applier, Func<string, string?>? registryReader) {
+    _registryReader = registryReader;
     _storageRoot = storageRoot;
     _configDir = Path.Combine(_storageRoot, "config");
     _configFile = Path.Combine(_configDir, "config.json");
@@ -229,8 +234,10 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
   }
 
   private Dictionary<string, object?> BuildDefaultRelevantKeys() {
-    var installerBindHost = ReadInstallerNetworkValue("BindHost") ?? "127.0.0.1";
-    var installerPort = ReadInstallerNetworkValue("Port") ?? "8080";
+    // Default display values: saved file first, then the older registry value (feature 132).
+    var persisted = PersistedNetworkSettings.Read(_storageRoot, _registryReader);
+    var installerBindHost = persisted.BindHost ?? "127.0.0.1";
+    var installerPort = persisted.Port?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "8080";
 
     // Always include known GameBot-relevant env vars, even if not set
     var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
@@ -283,20 +290,6 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["Logging__LogLevel__Default"] = null,
     };
     return dict;
-  }
-
-  private static string? ReadInstallerNetworkValue(string name) {
-    if (!OperatingSystem.IsWindows()) {
-      return null;
-    }
-
-    const string subKey = @"Software\GameBot\Network";
-    var currentUser = Registry.GetValue($@"HKEY_CURRENT_USER\{subKey}", name, null)?.ToString();
-    if (!string.IsNullOrWhiteSpace(currentUser)) {
-      return currentUser;
-    }
-
-    return null;
   }
 
   private static Dictionary<string, object?> MergeWithPrecedence(
