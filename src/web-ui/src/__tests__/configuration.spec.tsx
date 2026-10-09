@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../App';
 import * as configService from '../services/config';
+import * as updateService from '../services/update';
 
 jest.mock('../pages/CommandsPage', () => ({ CommandsPage: () => <div role="heading" aria-level={2}>Commands</div> }));
 jest.mock('../pages/GamesPage', () => ({ GamesPage: () => <div role="heading" aria-level={2}>Games</div> }));
@@ -39,6 +40,14 @@ describe('Configuration area', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Configuration' })).toBeInTheDocument());
     await waitFor(() => expect(configService.getConfigFileParams).toHaveBeenCalledTimes(2));
   };
+
+  it('shows the Update section in Configuration and not as an Authoring tab', async () => {
+    render(<App />);
+    expect(screen.queryByRole('tab', { name: 'Update' })).not.toBeInTheDocument();
+    await openConfigurationArea();
+    expect(screen.getByText('Update', { selector: 'summary' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Check for Update' })).toBeInTheDocument();
+  });
 
   it('shows host/token controls in a collapsible section', async () => {
     render(<App />);

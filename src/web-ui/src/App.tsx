@@ -8,7 +8,6 @@ import { GamesPage } from './pages/GamesPage';
 import { SequencesPage } from './pages/SequencesPage';
 import { ImagesListPage } from './pages/images/ImagesListPage';
 import { BackupRestorePage } from './pages/BackupRestorePage';
-import { UpdatePage } from './pages/UpdatePage';
 import { QueuesPage } from './pages/QueuesPage';
 import { normalizeTab } from './lib/navigation';
 import { useNavigationCollapse } from './hooks/useNavigationCollapse';
@@ -127,7 +126,6 @@ export const App: React.FC = () => {
         {tab === 'Sequences' && <SequencesPage initialCreate={creationTarget === 'sequences'} initialEditId={requestedTab === 'Sequences' ? initialId : undefined} navResetSignal={authoringResetSignal} />}
         {tab === 'Images' && <ImagesListPage navResetSignal={authoringResetSignal} />}
         {tab === 'Backup & Restore' && <BackupRestorePage />}
-        {tab === 'Update' && <UpdatePage />}
       </ErrorBoundary>
     </section>
   );

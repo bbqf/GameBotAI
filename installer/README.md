@@ -39,7 +39,7 @@ one time. The installer is per-user, so Windows shows no UAC prompt.
 ## Update an installed bot
 
 1. Open the GameBot Web UI on the PC that runs GameBot.
-2. Open the **Update** tab and click **Check for Update**.
+2. Open **Configuration**, open the **Update** section, and click **Check for Update**.
 3. If a new version exists, click **Install update** and confirm. All active queues stop at once.
 4. Wait. The bot downloads the update, installs it, and starts again. The page shows the result.
 
