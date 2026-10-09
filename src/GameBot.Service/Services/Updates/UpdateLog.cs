@@ -1,3 +1,6 @@
+using GameBot.Domain.Updates;
+using GameBot.Domain.Versioning;
+
 namespace GameBot.Service.Services.Updates;
 
 internal static partial class UpdateLog {
@@ -5,7 +8,7 @@ internal static partial class UpdateLog {
   public static partial void TagIgnored(ILogger logger, string tag);
 
   [LoggerMessage(EventId = 7401, Level = LogLevel.Information, Message = "Update check finished: {Status}. Installed {Installed}, latest {Latest}.")]
-  public static partial void CheckFinished(ILogger logger, string status, string installed, string latest);
+  public static partial void CheckFinished(ILogger logger, UpdateCheckStatus status, SemanticVersion installed, SemanticVersion latest);
 
   [LoggerMessage(EventId = 7402, Level = LogLevel.Warning, Message = "Update check failed with code {Code}: {Message}")]
   public static partial void CheckFailed(ILogger logger, string code, string message);
@@ -14,7 +17,7 @@ internal static partial class UpdateLog {
   public static partial void InstallStarted(ILogger logger, Guid attemptId, string from, string target);
 
   [LoggerMessage(EventId = 7404, Level = LogLevel.Information, Message = "Update attempt {AttemptId} is now in state {State}.")]
-  public static partial void InstallState(ILogger logger, Guid attemptId, string state);
+  public static partial void InstallState(ILogger logger, Guid attemptId, UpdateState state);
 
   [LoggerMessage(EventId = 7405, Level = LogLevel.Error, Message = "Update attempt {AttemptId} failed with code {Code}: {Message}")]
   public static partial void InstallFailed(ILogger logger, Guid attemptId, string code, string message);
@@ -23,7 +26,7 @@ internal static partial class UpdateLog {
   public static partial void QueueStopFailed(ILogger logger, string message);
 
   [LoggerMessage(EventId = 7407, Level = LogLevel.Information, Message = "Update result of attempt {AttemptId} is {State}.")]
-  public static partial void ResultReported(ILogger logger, Guid attemptId, string state);
+  public static partial void ResultReported(ILogger logger, Guid attemptId, UpdateState state);
 
   [LoggerMessage(EventId = 7408, Level = LogLevel.Warning, Message = "The update result file cannot be read: {Message}")]
   public static partial void ResultUnreadable(ILogger logger, string message);

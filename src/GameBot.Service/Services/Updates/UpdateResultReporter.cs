@@ -62,7 +62,7 @@ internal sealed class UpdateResultReporter {
 
     _lastResult = result;
     _store.MarkReported();
-    UpdateLog.ResultReported(_logger, result.AttemptId, result.State.ToString());
+    UpdateLog.ResultReported(_logger, result.AttemptId, result.State);
 
     if (result.State == UpdateState.Succeeded) {
       _store.Cleanup(_time.GetUtcNow());

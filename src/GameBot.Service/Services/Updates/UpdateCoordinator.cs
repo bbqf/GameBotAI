@@ -164,7 +164,7 @@ internal sealed class UpdateCoordinator : IDisposable {
   private void SetState(UpdateState state) {
     var current = _attempt!;
     _attempt = current with { State = state };
-    UpdateLog.InstallState(_logger, current.AttemptId, state.ToString());
+    UpdateLog.InstallState(_logger, current.AttemptId, state);
   }
 
   private void Fail(UpdateError error) {

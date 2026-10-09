@@ -42,7 +42,7 @@ internal sealed class UpdateCheckService {
       var status = UpdateVersionSelector.Evaluate(installed, latest.Version);
       release = status == UpdateCheckStatus.UpdateAvailable ? latest : null;
       result = new UpdateCheckResult(status, installed, latest.Version, latest.Notes, _time.GetUtcNow(), null);
-      UpdateLog.CheckFinished(_logger, status.ToString(), installed.ToString(), latest.Version.ToString());
+      UpdateLog.CheckFinished(_logger, status, installed, latest.Version);
     }
     catch (UpdateFailureException ex) {
       result = new UpdateCheckResult(UpdateCheckStatus.CheckFailed, installed, null, null, _time.GetUtcNow(), ex.Error);
