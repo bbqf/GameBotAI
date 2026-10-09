@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Auto-update from the Web UI. The user clicks **Check for Update** in the new **Update** section of **Configuration** and confirms. The bot installs the new version and starts again (131-auto-update)
+- Auto-update from the Web UI. The user clicks **Check for Update** in the new **Update** area of the Web UI and confirms. The bot installs the new version and starts again (131-auto-update)
   - **Release**: the owner starts the `release-installer` workflow by hand on `master` with `publish_release: true`. The workflow creates the GitHub Release `v<version>` with `GameBot.msi`, `GameBotInstaller.exe`, and `update-manifest.json` (version, size, SHA-256). A push to `master` creates no release.
   - **No Windows prompts**: the bot downloads the MSI itself, so the file has no Mark of the Web and SmartScreen does not start. The MSI is per-user, so there is no UAC prompt. The first manual install can still show one SmartScreen warning, because the build is not signed.
   - **Safety**: the bot checks the SHA-256 checksum of the download. It accepts only https URLs on `github.com` and `*.githubusercontent.com`. It never installs an equal or a lower version. It needs free disk space of 3 times the MSI size. A failed install rolls back through Windows Installer, and the old version starts again. The checksum comes from the same release as the MSI. It gives no protection if an attacker controls the release.

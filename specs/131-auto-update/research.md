@@ -61,12 +61,12 @@ Each item below answers a question from the plan. No `NEEDS CLARIFICATION` remai
 
 ## R-008: Show the result after the restart
 
-- **Decision**: `update-result.json` holds the final state. At start, `UpdateResultReportingService` reads it. It keeps the result in memory for `GET /api/update/status`. It renames the file to `update-result.reported.json`. The UI shows the last result one time.
+- **Decision**: `update-result.json` holds the final state. At start, `UpdateResultReportingService` reads it. It keeps the result in memory for `GET /api/update/status`. It renames the file to `update-result.reported.json`. The bot keeps the result in memory for the rest of the bot run, so the UI can read it more than once. The file is renamed one time.
 - **Rationale**: The UI loses its connection during the restart. A file survives the restart. It needs no extra service.
 
 ## R-009: GitHub Actions release step
 
-- **Decision**: Add a boolean input `publish_release` to `workflow_dispatch` in `release-installer.yml`. A second job runs only when the input is true and the ref is `master`. This job has `contents: write`. It creates the release `v<version>` at the built commit. It attaches `GameBot.msi`, `GameBotInstaller.exe` and `update-manifest.json`. A normal push to master keeps its current behavior. It uploads an artifact only. It creates no release.
+- **Decision**: Add a boolean input `publish_release` to `workflow_dispatch` in `release-installer.yml`. A second job runs only when the input is true and the ref is `master`. This job has `contents: write`. It creates the release `v<version>` at the built commit. It attaches `GameBot.msi`, `GameBotInstaller.exe` and `update-manifest.json`. As built, the workflow has no push trigger. Only `workflow_dispatch` starts it, so a merge to master builds nothing and creates no release.
 - **Rationale**: The owner marks a release when the owner starts the workflow by hand (clarification, release choice). Write permission stays in one small job.
 - **Alternatives considered**: A release on tag push needs a separate tag step. A release on every master push was rejected in the clarification.
 - **Note**: The MSI must be an output of the build. `build-installer.ps1` already copies it to `installer/wix/payload/GameBot.msi`. The upload step adds this file as a build artifact. The publish job downloads the artifacts of the build job. It does not build a second time. This way, the released files are the files that the build tested.

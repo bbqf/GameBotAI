@@ -39,9 +39,9 @@ one time. The installer is per-user, so Windows shows no UAC prompt.
 ## Update an installed bot
 
 1. Open the GameBot Web UI on the PC that runs GameBot.
-2. Open **Configuration**, open the **Update** section, and click **Check for Update**.
+2. Open the **Update** area and click **Check for Update**.
 3. If a new version exists, click **Install update** and confirm. All active queues stop at once.
-4. Wait. The bot downloads the update, installs it, and starts again. The page shows the result.
+4. Wait. The bot downloads the update, installs it, and starts again. The page then reloads by itself and shows the result.
 
 Windows shows no SmartScreen warning and no UAC prompt in this path. The bot downloads the file itself, and the
 MSI is per-user. You can install an update only from the bot PC, and only when the bot runs from the installed

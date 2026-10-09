@@ -40,7 +40,7 @@ backed by a REST API.
 | `src/GameBot.Emulator` | ADB client and session management; the background screen-capture service. |
 | `src/GameBot.Service` | ASP.NET Core host: REST API (minimal-API `Endpoints/` + `SessionsController`), execution orchestration (`Services/QueueExecution`, `Services/SequenceExecution`), hosted background services, security, swagger. Serves the built Web UI. |
 | `src/GameBot.Updater` | Small console program for the auto-update (feature 131). It waits for the bot to exit, runs `msiexec` silent, starts the bot again, and writes `update-result.json`. Framework-dependent. The installer puts it in `updater\` next to the service. |
-| `src/web-ui` | React + TypeScript + Vite SPA. Authoring, Execution, Execution Logs, Queues, Configuration (with the Update section). |
+| `src/web-ui` | React + TypeScript + Vite SPA. Authoring, Execution, Execution Logs, Queues, Notifications, Configuration, Update. |
 
 Persistence is **file-based** under the `data/` directory (JSON documents + stored image files;
 an image's alternates list lives beside the images as `.alternates\{id}.json`, feature 097);
@@ -1097,7 +1097,7 @@ changes no queue schedule and no daily record.
 
 ### Auto-update (feature 131)
 
-The user clicks **Check for Update** in the **Update** section of **Configuration** in the Web UI and confirms. The bot installs the
+The user clicks **Check for Update** in the **Update** area of the Web UI and confirms. The bot installs the
 new version and starts again. Windows shows no SmartScreen and no UAC prompt in this path.
 
 - **Release source**: the `release-installer` workflow publishes a GitHub Release `v<major>.<minor>.<patch>.<build>`
