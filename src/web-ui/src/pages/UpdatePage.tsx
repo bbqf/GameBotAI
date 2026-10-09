@@ -142,7 +142,6 @@ export const UpdatePage: React.FC = () => {
   return (
     <div className="update-page">
       <section className="update-section">
-        <h2>Update</h2>
         {loadError && <p className="error">{loadError}</p>}
         {installedVersion && <p>Installed version: <strong>{installedVersion}</strong></p>}
 

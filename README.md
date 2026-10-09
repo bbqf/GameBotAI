@@ -65,12 +65,12 @@ The menu on the left has these areas:
 
 | Area | Use it to |
 |------|-----------|
-| **Authoring** | Build your automation. Tabs: **Commands**, **Games**, **Sequences**, **Images**, **Backup & Restore**, and **Update**. |
+| **Authoring** | Build your automation. Tabs: **Commands**, **Games**, **Sequences**, **Images**, and **Backup & Restore**. |
 | **Queues** | Run sequences on an emulator. Set the schedule. Watch a running queue. |
 | **Execution** | Connect to an emulator, see its screen, and test a command or sequence by hand. |
 | **Execution Logs** | See what ran, step by step, and why a step failed. |
 | **Notifications** | Set up messages (for example Telegram) for queue events. |
-| **Configuration** | Set the access token, the log levels, and other settings. |
+| **Configuration** | Set the access token, the log levels, and other settings. Also **Update** GameBot here. |
 
 ### The building blocks
 
@@ -158,7 +158,7 @@ Tips:
 You do not have to download the installer again.
 
 1. Open the web UI on the PC that runs GameBot.
-2. Open **Authoring**, then the **Update** tab. Click **Check for Update**.
+2. Open **Configuration**, then the **Update** section. Click **Check for Update**.
 3. If a new version exists, click **Install update**. Read the warning and confirm.
    **All running queues stop at once.** Queues that you set to resume after a restart start again by themselves.
 4. Wait. GameBot downloads the update, installs it, and starts again. The page shows the result.
@@ -195,7 +195,7 @@ variable. Restart GameBot after you change it. [ENVIRONMENT.md](ENVIRONMENT.md) 
 | GameBot cannot find an image. | Cut the image again from a fresh screenshot. Lower the match threshold a little. Do not include changing parts. |
 | A step taps at the wrong place. | Make sure that the emulator resolution did not change after you cut the images. |
 | Windows blocks the installer. | See step 3 of [Install GameBot](#install-gamebot). |
-| An update fails. | Read the message on the **Update** tab. It has an error code and a hint. The Windows Installer log is in `%LocalAppData%\GameBot\data\updates`. |
+| An update fails. | Read the message in the **Update** section of **Configuration**. It has an error code and a hint. The Windows Installer log is in `%LocalAppData%\GameBot\data\updates`. |
 | The installer fails. | Read the newest file in `%LocalAppData%\GameBot\Installer\logs`. See [INSTALL.md](INSTALL.md). |
 
 ## Uninstall
