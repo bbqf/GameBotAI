@@ -48,6 +48,34 @@ if (-not [string]::IsNullOrWhiteSpace($InstallerVersion)) {
 }
 
 dotnet @publishArgs
+if ($LASTEXITCODE -ne 0) {
+  throw "Service publish failed with exit code $LASTEXITCODE"
+}
+
+# The updater (feature 131) runs after the bot exits. It is framework-dependent like the
+# service and goes into the "updater" folder under the service folder of the payload.
+$updaterPublishArgs = @(
+  "publish",
+  (Join-Path $repoRoot "src/GameBot.Updater/GameBot.Updater.csproj"),
+  "-c", $Configuration,
+  "-r", $Runtime,
+  "--self-contained", "false",
+  "-o", (Join-Path $publishRoot "updater")
+)
+
+if (-not [string]::IsNullOrWhiteSpace($InstallerVersion)) {
+  $updaterPublishArgs += @(
+    "/p:Version=$InstallerVersion",
+    "/p:FileVersion=$InstallerVersion",
+    "/p:InformationalVersion=$InstallerVersion",
+    "/p:IncludeSourceRevisionInInformationalVersion=false"
+  )
+}
+
+dotnet @updaterPublishArgs
+if ($LASTEXITCODE -ne 0) {
+  throw "Updater publish failed with exit code $LASTEXITCODE"
+}
 
 $npmCandidates = @(
   (Join-Path ${env:ProgramFiles} "nodejs/npm.cmd"),
@@ -76,6 +104,9 @@ if (-not (Test-Path $webUiDist)) {
 }
 
 Copy-Item -Path (Join-Path $publishRoot "service/*") -Destination (Join-Path $payloadRoot "service") -Recurse -Force
+$updaterPayloadRoot = Join-Path $payloadRoot "service/updater"
+New-Item -Path $updaterPayloadRoot -ItemType Directory -Force | Out-Null
+Copy-Item -Path (Join-Path $publishRoot "updater/*") -Destination $updaterPayloadRoot -Recurse -Force
 Copy-Item -Path (Join-Path $webUiDist "*") -Destination (Join-Path $payloadRoot "web-ui") -Recurse -Force
 
 $serviceVersion = $null
@@ -214,4 +245,11 @@ $lines.Add('  </Fragment>') | Out-Null
 $lines.Add('</Wix>') | Out-Null
 
 $lines | Set-Content -Path $generatedFragmentPath -Encoding UTF8
+
+# Check that the generated file list has the updater files (feature 131).
+$generatedText = Get-Content -Path $generatedFragmentPath -Raw
+if ($generatedText -notmatch 'service\\\\?updater\\\\?GameBot\.Updater\.dll') {
+  throw "PayloadFiles.Generated.wxs does not list the updater files. Check the updater publish step."
+}
+
 Write-Host "Installer payload prepared at $payloadRoot"

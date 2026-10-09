@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>GameBot.Updater</AssemblyName>
+    <RootNamespace>GameBot.Updater</RootNamespace>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="GameBot.UnitTests" />
+  </ItemGroup>
+</Project>

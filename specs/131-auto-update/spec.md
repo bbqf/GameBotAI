@@ -2,7 +2,7 @@
 
 **Feature Branch**: `131-auto-update`
 **Created**: 2026-10-09
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "I want an auto-update feature for the bot. The packages will be built in the github. Suggest a way and ask me questions how to get what I want. The usual path should be: User downloads installer for the first time, then user clicks the "Check for Update" button in the UI, then the update gets installed. Note, Windows loves to ask questions about the unsigned code, so these queries should be avoided if possible."
 
 ## Suggested Approach *(summary for review)*

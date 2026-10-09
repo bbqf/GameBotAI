@@ -28,6 +28,7 @@ internal static class ApiRoutes {
   internal const string Ocr = Base + "/ocr";
   internal const string Steps = Base + "/steps";
   internal const string StepThrough = Base + "/step-through";
+  internal const string Update = Base + "/update";
   internal const string AuthoringBackup = Base + "/authoring/backup";
   internal const string AuthoringRestoreDryRun = Base + "/authoring/restore/dry-run";
   internal const string AuthoringRestoreApply = Base + "/authoring/restore/apply";

@@ -134,6 +134,9 @@ app.MapBackupRestoreEndpoints();
 // Versioning + installer endpoints
 app.MapVersioningEndpoints();
 
+// Auto-update endpoints (feature 131)
+app.MapUpdateEndpoints();
+
 // Sequences endpoints
 app.MapSequenceEndpoints();
 

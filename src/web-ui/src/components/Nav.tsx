@@ -1,13 +1,13 @@
 import React from 'react';
 
-export type AuthoringTab = 'Commands' | 'Games' | 'Sequences' | 'Images' | 'Backup & Restore';
+export type AuthoringTab = 'Commands' | 'Games' | 'Sequences' | 'Images' | 'Backup & Restore' | 'Update';
 
 type NavProps = {
   active: AuthoringTab;
   onChange: (tab: AuthoringTab) => void;
 };
 
-const tabs: AuthoringTab[] = ['Commands', 'Games', 'Sequences', 'Images', 'Backup & Restore'];
+const tabs: AuthoringTab[] = ['Commands', 'Games', 'Sequences', 'Images', 'Backup & Restore', 'Update'];
 
 export const Nav: React.FC<NavProps> = ({ active, onChange }) => {
   return (

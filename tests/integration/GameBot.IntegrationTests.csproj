@@ -36,6 +36,8 @@
   <ItemGroup>
     <!-- Feature 120: the notification fakes are shared with the unit tests. -->
     <Compile Include="..\unit\Notifications\NotificationTestSupport.cs" Link="Notifications\NotificationTestSupport.cs" />
+    <!-- Feature 131: the update fakes are shared with the unit tests. -->
+    <Compile Include="..\unit\Updates\UpdateTestSupport.cs" Link="Updates\UpdateTestSupport.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameBot.Service\GameBot.Service.csproj" />

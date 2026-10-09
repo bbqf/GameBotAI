@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Auto-update from the Web UI. The user clicks **Check for Update** on the new **Update** tab and confirms. The bot installs the new version and starts again (131-auto-update)
+  - **Release**: the owner starts the `release-installer` workflow by hand on `master` with `publish_release: true`. The workflow creates the GitHub Release `v<version>` with `GameBot.msi`, `GameBotInstaller.exe`, and `update-manifest.json` (version, size, SHA-256). A push to `master` creates no release.
+  - **No Windows prompts**: the bot downloads the MSI itself, so the file has no Mark of the Web and SmartScreen does not start. The MSI is per-user, so there is no UAC prompt. The first manual install can still show one SmartScreen warning, because the build is not signed.
+  - **Safety**: the bot checks the SHA-256 checksum of the download. It accepts only https URLs on `github.com` and `*.githubusercontent.com`. It never installs an equal or a lower version. It needs free disk space of 3 times the MSI size. A failed install rolls back through Windows Installer, and the old version starts again. The checksum comes from the same release as the MSI. It gives no protection if an attacker controls the release.
+  - **Queues**: all active queues stop at once when the user confirms. Queues with `resumeOnServiceStart` start again after the restart.
+  - **Who can install**: only a request from the bot PC can install. The bot reads the socket address, and a header has no effect. The bot must also run from the installed folder. A remote PC can check but cannot install.
+  - New routes, tag `Update`: `GET /api/update/status`, `POST /api/update/check`, `POST /api/update/install`. New settings `Update:Repository` (default `bbqf/GameBotAI`) and `Update:ApiBaseUrl`. New program `GameBot.Updater` in the `updater` folder of the install. See `docs/architecture.md`.
+  - **Compatibility**: no change to stored data. The first update to a version with this feature must be a manual install.
 - Optional `region` for an `imageVisible` condition and for a detection target. The image search runs only inside the region (130-region-restricted-image-detection, issue #272)
   - `region` is `{ "x", "y", "width", "height" }` in capture pixels. The whole image must be inside the region. Tap points and returned coordinates stay in full-capture pixels. Without `region`, nothing changes.
   - Where it works: `imageVisible` in a step condition, an `if`, a loop, a break condition and the children of `all`, `any` and `none`; and `primitiveTap.detectionTarget`, `waitForImage.detectionTarget`, `ensureGameRunning.readinessImage`, the command-level `detection`, and the `detectionTarget` of a sequence `waitForImage` payload.

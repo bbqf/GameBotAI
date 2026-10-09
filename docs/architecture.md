@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-09 (feature 130: optional pixel `region` on `imageVisible` conditions and detection targets;
+_Last reviewed: 2026-10-09 (feature 131: auto-update from the Web UI, `/api/update/*`, the `GameBot.Updater` program;
+feature 130: optional pixel `region` on `imageVisible` conditions and detection targets;
 feature 129: `forceRestart` on ensure-game-running and the `restarted` outcome;
 feature 128: `POST /api/ocr/read`;
 feature 127: step-through of a saved sequence;
@@ -38,12 +39,20 @@ backed by a REST API.
 | `src/GameBot.Domain` | Core domain model and logic — commands, sequences, queues, templates, primitive actions, trigger evaluation, vision/OCR, execution logging, versioning. No web/ADB dependencies. |
 | `src/GameBot.Emulator` | ADB client and session management; the background screen-capture service. |
 | `src/GameBot.Service` | ASP.NET Core host: REST API (minimal-API `Endpoints/` + `SessionsController`), execution orchestration (`Services/QueueExecution`, `Services/SequenceExecution`), hosted background services, security, swagger. Serves the built Web UI. |
-| `src/web-ui` | React + TypeScript + Vite SPA. Authoring, Execution, Execution Logs, Queues, Configuration. |
+| `src/GameBot.Updater` | Small console program for the auto-update (feature 131). It waits for the bot to exit, runs `msiexec` silent, starts the bot again, and writes `update-result.json`. Framework-dependent. The installer puts it in `updater\` next to the service. |
+| `src/web-ui` | React + TypeScript + Vite SPA. Authoring, Execution, Execution Logs, Queues, Configuration, Update. |
 
 Persistence is **file-based** under the `data/` directory (JSON documents + stored image files;
 an image's alternates list lives beside the images as `.alternates\{id}.json`, feature 097);
 there is no database. Queue *runtime* state (loaded entries, running status) is in-memory and does
 not survive a service restart; queue *configuration* and templates are persisted.
+
+The auto-update (feature 131) keeps its files in `<data root>\updates\`. The folder has these items:
+
+- `GameBot-<version>.msi`: the download. The bot deletes it after a successful update.
+- `updater\`: a copy of the updater files.
+- `update-result.json`: the result. The new bot renames it to `update-result.reported.json` after it reads it.
+- `msiexec-<attemptId>.log`: the Windows Installer log. The bot keeps it for 30 days.
 
 ## Domain model (current)
 
@@ -1086,12 +1095,56 @@ changes no queue schedule and no daily record.
   and the commands of the step are its children. `GET /api/execution-logs` accepts `?origin=`. The Web UI
   shows a badge and an origin filter.
 
+### Auto-update (feature 131)
+
+The user clicks **Check for Update** on the **Update** tab of the Web UI and confirms. The bot installs the
+new version and starts again. Windows shows no SmartScreen and no UAC prompt in this path.
+
+- **Release source**: the `release-installer` workflow publishes a GitHub Release `v<major>.<minor>.<patch>.<build>`
+  only when the owner starts it by hand on `master` with `publish_release: true`. A push to `master` creates no
+  release. The release has `GameBot.msi`, `GameBotInstaller.exe`, and `update-manifest.json` (version, size,
+  SHA-256; made by `scripts/new-update-manifest.ps1`).
+- **Check**: `UpdateCheckService` reads `GET /repos/{Update:Repository}/releases/latest` through
+  `GitHubReleaseClient` (no token; settings `Update:Repository` and `Update:ApiBaseUrl`). The installed version
+  is the `InformationalVersion` of the service assembly without a `+` suffix. `UpdateVersionSelector` offers
+  an update only when the release version is greater (no downgrade). A failed check is a result
+  (`checkFailed` with a code and a hint), not an HTTP error.
+- **Install**: `UpdateCoordinator` is a singleton with one gate. It runs these steps in order:
+  1. `UpdateDownloader` downloads the MSI with HttpClient, so the file has no Mark of the Web. It accepts https
+     on `github.com` and `*.githubusercontent.com` only. It checks each redirect step.
+  2. The downloader checks the SHA-256 of the file.
+  3. The coordinator writes `update-result.json` with the state `installing`.
+  4. It starts a copy of `GameBot.Updater` in `<data root>\updates\updater`.
+  5. It asks the host to stop, then it stops all queues at once. The host stops first, so queues with
+     `resumeOnServiceStart` start again after the restart (feature 098).
+- **Updater**: the program waits for the bot to exit. It runs `msiexec /i ... /qn /norestart` (per-user MSI with
+  `MajorUpgrade`). It starts the new bot and writes the final state. A failed install rolls back through
+  Windows Installer, and the old bot starts again.
+- **Result**: `UpdateResultReportingService` reads `update-result.json` at start. `lastResult` in
+  `GET /api/update/status` shows it.
+- **Guards**: an install needs two things. The request must come from the bot PC (`LoopbackGuard` reads the
+  socket address, and a header has no effect). The bot must run from the installed folder
+  (`InstallLocationGuard` reads the `HKCU\...\Run` value `GameBot`). The status route returns `canInstallHere`
+  and `installBlockedReason`. The reason `remote` has priority over `notInstalled`.
+- **Limit**: the manifest and the MSI come from the same release. The checksum finds damaged downloads. It gives no
+  protection if an attacker controls the release. Only code signing fixes that, and the build is not signed.
+
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):
 adb, backup/restore, commands, config (+ files, logging), coverage, emulator-image,
 execution-logs, games, image-detections, image-references, metrics, notifications, queues,
-queue-templates, sessions, step-through, steps, triggers. Plus `SessionsController`. Swagger groups these into sections.
+queue-templates, sessions, step-through, steps, triggers, update. Plus `SessionsController`. Swagger groups these into sections.
+
+Feature 131 added three routes, tag `Update` (errors use `{ "error": { code, message, hint } }`):
+
+- `GET /api/update/status`: installed version, last check, the active attempt, the last result, `canInstallHere`,
+  and `installBlockedReason`.
+- `POST /api/update/check`: always `200` (`upToDate`, `updateAvailable`, `checkFailed`), or `409 update_in_progress`.
+- `POST /api/update/install` (body `targetVersion`, `confirmStopQueues: true`): `202`, or `403 update_local_only`,
+  `409 update_not_installed`, `400 update_confirmation_required`, `400 update_not_available`,
+  `409 update_in_progress`, `422 update_disk_space`. Later failures show in the status (`update_download_failed`,
+  `update_checksum_mismatch`, `update_install_failed`, `update_restart_failed`).
 
 > Note: `TriggersEndpoints` still exists on the backend even though the Triggers authoring UI was
 > removed (spec 020). Treat the API as broader than the current UI.
