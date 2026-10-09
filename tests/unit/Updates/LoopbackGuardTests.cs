@@ -31,6 +31,42 @@ public sealed class LoopbackGuardTests {
     LoopbackGuard.IsLoopback(null).Should().BeFalse();
   }
 
+  [Theory]
+  [InlineData("192.168.1.5", "192.168.1.5")]
+  [InlineData("::ffff:192.168.1.5", "192.168.1.5")]
+  [InlineData("192.168.1.5", "::ffff:192.168.1.5")]
+  [InlineData("2001:db8::1", "2001:db8::1")]
+  public void ClientAddressEqualToServiceAddressIsLocal(string remote, string local) {
+    LoopbackGuard.IsLocal(IPAddress.Parse(remote), IPAddress.Parse(local)).Should().BeTrue();
+  }
+
+  [Theory]
+  [InlineData("192.168.1.20", "192.168.1.5")]
+  [InlineData("192.168.1.20", null)]
+  public void ClientAddressDifferentFromServiceAddressIsNotLocal(string remote, string? local) {
+    LoopbackGuard.IsLocal(IPAddress.Parse(remote), local is null ? null : IPAddress.Parse(local)).Should().BeFalse();
+  }
+
+  [Fact]
+  public void NetworkAddressOnBothEndsOfTheSocketIsLocal() {
+    var context = new DefaultHttpContext();
+    context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.5");
+    context.Connection.LocalIpAddress = IPAddress.Parse("192.168.1.5");
+    context.Request.Headers.Host = "192.168.1.5:8080";
+
+    LoopbackGuard.IsLocalRequest(context).Should().BeTrue();
+  }
+
+  [Fact]
+  public void FakeHostHeaderFromAnotherPcIsNotLocal() {
+    var context = new DefaultHttpContext();
+    context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.20");
+    context.Connection.LocalIpAddress = IPAddress.Parse("192.168.1.5");
+    context.Request.Headers.Host = "192.168.1.20:8080";
+
+    LoopbackGuard.IsLocalRequest(context).Should().BeFalse();
+  }
+
   [Fact]
   public void ForwardedForHeaderHasNoEffect() {
     var context = new DefaultHttpContext();

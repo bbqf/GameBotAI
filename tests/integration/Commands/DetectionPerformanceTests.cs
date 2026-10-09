@@ -44,7 +44,8 @@ public sealed class DetectionPerformanceTests : IDisposable {
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
     var durations = new List<long>();
-    for (var i = 0; i < 6; i++) {
+    // Round -1 is a warm-up (JIT, first request). It is not measured. With 6 samples the p95 is the slowest one.
+    for (var i = -1; i < 6; i++) {
       var sw = Stopwatch.StartNew();
       var createResp = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), new {
         name = $"perf-cmd-{i}",
@@ -72,7 +73,9 @@ public sealed class DetectionPerformanceTests : IDisposable {
       var getResp = await client.GetAsync(new Uri($"/api/commands/{commandId}", UriKind.Relative)).ConfigureAwait(true);
       getResp.StatusCode.Should().Be(HttpStatusCode.OK);
       sw.Stop();
-      durations.Add(sw.ElapsedMilliseconds);
+      if (i >= 0) {
+        durations.Add(sw.ElapsedMilliseconds);
+      }
     }
 
     var ordered = durations.OrderBy(x => x).ToArray();
