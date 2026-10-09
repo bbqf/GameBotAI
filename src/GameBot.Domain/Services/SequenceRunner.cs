@@ -917,7 +917,8 @@ namespace GameBot.Domain.Services {
         Source = "image",
         TargetId = detectionTarget.ReferenceImageId,
         Mode = "Present",
-        ConfidenceThreshold = detectionTarget.Confidence
+        ConfidenceThreshold = detectionTarget.Confidence,
+        PixelRegion = detectionTarget.Region
       };
 
       try {
@@ -1726,7 +1727,7 @@ namespace GameBot.Domain.Services {
     internal static (string Type, string Detail) DescribeBreakCondition(SequenceStepCondition condition) {
       var negatePrefix = condition.Negate ? "NOT " : "";
       if (condition is ImageVisibleStepCondition img)
-        return ("imageVisible", $"{negatePrefix}imageVisible(imageId={img.ImageId}, minSimilarity={img.MinSimilarity?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "default"})");
+        return ("imageVisible", SequenceStepConditionEvaluator.Describe(img));
       if (condition is CommandOutcomeStepCondition co)
         return ("commandOutcome", $"{negatePrefix}commandOutcome(stepRef={co.StepRef}, expected={co.ExpectedState})");
       // Feature 088: a composite renders as its rule over its children, e.g.

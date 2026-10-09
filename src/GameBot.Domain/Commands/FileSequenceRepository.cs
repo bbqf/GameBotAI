@@ -322,6 +322,12 @@ namespace GameBot.Domain.Commands {
             throw new InvalidOperationException($"Step '{stepId}' imageVisible minSimilarity must be within 0..1.");
           }
 
+          // Feature 130: the region rule lives in PixelRegion.Validate. A stored write refuses a bad region too.
+          var regionErrors = imageCondition.Region?.Validate($"Step '{stepId}' imageVisible region");
+          if (regionErrors is { Count: > 0 }) {
+            throw new InvalidOperationException(string.Join("; ", regionErrors));
+          }
+
           return;
 
         case CommandOutcomeStepCondition outcomeCondition:

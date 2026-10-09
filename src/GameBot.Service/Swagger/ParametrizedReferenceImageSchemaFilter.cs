@@ -35,12 +35,31 @@ internal sealed class ParametrizedReferenceImageSchemaFilter : ISchemaFilter {
     + "sequence or of a command that the sequence can reach, the save checks that an image has that id. "
     + "A missing image gives 400 unknown_image_reference, and the service saves nothing.";
 
+  internal const string RegionDescription =
+    "Optional. A search area in capture pixels: x, y, width, height. All four fields are required inside region. "
+    + "x and y must be 0 or more. width and height must be more than 0. The search runs only inside the region, and "
+    + "the whole image must be inside it. Returned coordinates and tap points are in full-capture pixels. If the region "
+    + "goes past the capture, the service uses the part inside the capture. If no usable area remains, the image is "
+    + "not found (it is not an error). Without region, the search covers the whole capture. A bad region gives 400 "
+    + "and the message names every invalid field.";
+
+  internal const string PixelRegionTypeDescription =
+    "A rectangle in capture pixels. x and y: integers, 0 or more, required. width and height: integers, more than 0, "
+    + "required. It covers the pixels x to x + width - 1 and y to y + height - 1.";
+
   public void Apply(OpenApiSchema schema, SchemaFilterContext context) {
     if (context.Type == typeof(CommandStepDto)) {
       Describe(schema, "fieldTemplates", FieldTemplatesDescription);
     }
     else if (context.Type == typeof(ImageVisibleConditionContract)) {
       Describe(schema, "imageId", ImageIdDescription);
+      Describe(schema, "region", RegionDescription);
+    }
+    else if (context.Type == typeof(DetectionTargetDto)) {
+      Describe(schema, "region", RegionDescription);
+    }
+    else if (context.Type == typeof(PixelRegionDto)) {
+      schema.Description = PixelRegionTypeDescription;
     }
     else if (context.Type == typeof(TemplateEntrySaveRequest)) {
       Describe(schema, "parameterValues", ParameterValuesDescription);

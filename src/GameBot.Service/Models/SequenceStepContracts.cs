@@ -136,6 +136,10 @@ internal abstract record SequenceStepConditionContract {
 internal sealed record ImageVisibleConditionContract : SequenceStepConditionContract {
   public required string ImageId { get; init; }
   public double? MinSimilarity { get; init; }
+
+  /// <summary>Optional search area in capture pixels (feature 130). Absent means the whole capture.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public PixelRegionDto? Region { get; init; }
 }
 
 internal sealed record CommandOutcomeConditionContract : SequenceStepConditionContract {

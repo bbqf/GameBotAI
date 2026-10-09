@@ -39,6 +39,7 @@ internal sealed class ImageVisibleConditionAdapter : IImageVisibleConditionAdapt
       Params = new ImageMatchParams {
         ReferenceImageId = condition.TargetId,
         Region = region,
+        PixelRegion = condition.PixelRegion,
         SimilarityThreshold = condition.ConfidenceThreshold ?? 0.85
       }
     };

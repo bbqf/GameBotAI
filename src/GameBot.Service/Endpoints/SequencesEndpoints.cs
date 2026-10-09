@@ -631,12 +631,21 @@ internal static class SequencesEndpoints {
 
   private static object? MapPerStepConditionToDto(SequenceStepCondition? condition) {
     return condition switch {
-      ImageVisibleStepCondition imageVisible => new {
-        type = "imageVisible",
-        imageId = imageVisible.ImageId,
-        minSimilarity = imageVisible.MinSimilarity,
-        negate = imageVisible.Negate
-      },
+      // Feature 130: the response has the region field only when a region is set, so old reads do not change.
+      ImageVisibleStepCondition imageVisible => imageVisible.Region is null
+        ? (object)new {
+          type = "imageVisible",
+          imageId = imageVisible.ImageId,
+          minSimilarity = imageVisible.MinSimilarity,
+          negate = imageVisible.Negate
+        }
+        : new {
+          type = "imageVisible",
+          imageId = imageVisible.ImageId,
+          minSimilarity = imageVisible.MinSimilarity,
+          negate = imageVisible.Negate,
+          region = PixelRegionDto.FromDomain(imageVisible.Region)
+        },
       CommandOutcomeStepCondition commandOutcome => new {
         type = "commandOutcome",
         stepRef = commandOutcome.StepRef,
@@ -889,6 +898,14 @@ internal static class SequencesEndpoints {
 
     if (request.Steps is null || request.Steps.Count == 0) {
       error = "steps must contain at least one step.";
+      return false;
+    }
+
+    // Feature 130: reject a bad region before any mapping, with every invalid field named in one error.
+    var regionErrors = ValidateRegionsInRequest(request.Steps);
+    if (regionErrors.Count > 0) {
+      request = null;
+      error = string.Join("; ", regionErrors);
       return false;
     }
 
@@ -1428,7 +1445,105 @@ internal static class SequencesEndpoints {
       ? DetectionSelectionStrategy.FirstMatch
       : DetectionSelectionStrategy.HighestConfidence;
 
-    return new DetectionTarget(referenceImageId, confidence, offsetX, offsetY, selectionStrategy);
+    // Feature 130: the request check in TryReadPerStepRequest has already rejected an invalid region.
+    var region = TryReadRegion(detectionTargetElement, out var regionDto, out _) ? PixelRegionDto.ToDomain(regionDto) : null;
+
+    return new DetectionTarget(referenceImageId, confidence, offsetX, offsetY, selectionStrategy, region);
+  }
+
+  /// <summary>
+  /// Reads the optional <c>region</c> of a raw <c>detectionTarget</c> object (feature 130). Returns false and
+  /// sets <paramref name="errors"/> when a field is not a whole number. A missing field stays null, so
+  /// <see cref="PixelRegionDto.Validate"/> can name it. No region gives true and a null result.
+  /// </summary>
+  private static bool TryReadRegion(JsonElement detectionTarget, out PixelRegionDto? region, out IReadOnlyList<string> errors, string prefix = "region") {
+    region = null;
+    errors = Array.Empty<string>();
+    if (detectionTarget.ValueKind != JsonValueKind.Object
+        || !detectionTarget.TryGetProperty("region", out var regionElement)
+        || regionElement.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) {
+      return true;
+    }
+
+    if (regionElement.ValueKind != JsonValueKind.Object) {
+      errors = new[] { $"{prefix} must be an object" };
+      return false;
+    }
+
+    var problems = new List<string>();
+    int? ReadField(string name) {
+      if (!regionElement.TryGetProperty(name, out var field) || field.ValueKind == JsonValueKind.Null) return null;
+      if (field.ValueKind == JsonValueKind.Number && field.TryGetInt32(out var value)) return value;
+      problems.Add($"{prefix}.{name} must be a whole number");
+      return null;
+    }
+
+    region = new PixelRegionDto { X = ReadField("x"), Y = ReadField("y"), Width = ReadField("width"), Height = ReadField("height") };
+    if (problems.Count > 0) {
+      errors = problems;
+      return false;
+    }
+    return true;
+  }
+
+  /// <summary>
+  /// Checks every region in a sequence request (feature 130): image conditions in step, break, if, and
+  /// loop conditions, and the <c>detectionTarget.region</c> of <c>waitForImage</c> and <c>primitiveTap</c>
+  /// payloads. The check runs on the request, before the map to domain types, because the domain region
+  /// cannot hold a missing field. Each message starts with the step label.
+  /// </summary>
+  private static List<string> ValidateRegionsInRequest(IReadOnlyList<SequenceStepContract>? steps) {
+    var errors = new List<string>();
+    CollectRegionErrors(steps, errors);
+    return errors;
+  }
+
+  private static void CollectRegionErrors(IReadOnlyList<SequenceStepContract>? steps, List<string> errors) {
+    if (steps is null) return;
+    for (var index = 0; index < steps.Count; index++) {
+      var step = steps[index];
+      var label = string.IsNullOrWhiteSpace(step.StepId) ? $"index:{index}" : step.StepId;
+      CollectConditionRegionErrors(step.Condition, $"Step '{label}' condition", errors);
+      CollectConditionRegionErrors(step.BreakCondition, $"Step '{label}' breakCondition", errors);
+      CollectConditionRegionErrors(step.If?.Condition, $"Step '{label}' if.condition", errors);
+      switch (step.Loop) {
+        case WhileLoopConfigContract whileLoop:
+          CollectConditionRegionErrors(whileLoop.Condition, $"Step '{label}' loop.condition", errors);
+          break;
+        case RepeatUntilLoopConfigContract repeatUntil:
+          CollectConditionRegionErrors(repeatUntil.Condition, $"Step '{label}' loop.condition", errors);
+          break;
+      }
+
+      // Any action payload with a detectionTarget is checked (waitForImage and primitiveTap use one).
+      if (step.PrimitiveAction is { } action
+          && action.Payload.TryGetValue("detectionTarget", out var target)
+          && target is JsonElement targetElement) {
+        var prefix = $"Step '{label}' {action.Type} payload detectionTarget.region";
+        if (!TryReadRegion(targetElement, out var regionDto, out var readErrors, prefix)) {
+          errors.AddRange(readErrors);
+        }
+        else {
+          errors.AddRange(PixelRegionDto.Validate(regionDto, prefix));
+        }
+      }
+
+      CollectRegionErrors(step.Body, errors);
+      CollectRegionErrors(step.ElseBody, errors);
+    }
+  }
+
+  private static void CollectConditionRegionErrors(SequenceStepConditionContract? condition, string path, List<string> errors) {
+    switch (condition) {
+      case ImageVisibleConditionContract imageVisible:
+        errors.AddRange(PixelRegionDto.Validate(imageVisible.Region, $"{path} region"));
+        break;
+      case CompositeConditionContract composite when composite.Children is not null:
+        for (var index = 0; index < composite.Children.Count; index++) {
+          CollectConditionRegionErrors(composite.Children[index], $"{path}.children[{index}]", errors);
+        }
+        break;
+    }
   }
 
   private static bool TryReadInt32(object? value, out int result) {
@@ -1456,7 +1571,9 @@ internal static class SequencesEndpoints {
       ImageVisibleConditionContract imageVisible => new ImageVisibleStepCondition {
         ImageId = imageVisible.ImageId,
         MinSimilarity = imageVisible.MinSimilarity,
-        Negate = imageVisible.Negate
+        Negate = imageVisible.Negate,
+        // The request check in TryReadPerStepRequest has already rejected an invalid region.
+        Region = PixelRegionDto.ToDomain(imageVisible.Region)
       },
       CommandOutcomeConditionContract commandOutcome => new CommandOutcomeStepCondition {
         StepRef = commandOutcome.StepRef,

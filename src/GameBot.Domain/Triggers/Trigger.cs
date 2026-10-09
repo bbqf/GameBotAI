@@ -34,6 +34,8 @@ public sealed class ScheduleParams : TriggerParams {
 public sealed class ImageMatchParams : TriggerParams {
   public required string ReferenceImageId { get; set; } = string.Empty;
   public required Region Region { get; set; } = default!;
+  /// <summary>Optional search area in capture pixels (feature 130). Wins over the fraction <see cref="Region"/>.</summary>
+  public GameBot.Domain.Commands.PixelRegion? PixelRegion { get; set; }
   public double SimilarityThreshold { get; set; } = 0.85;
 }
 

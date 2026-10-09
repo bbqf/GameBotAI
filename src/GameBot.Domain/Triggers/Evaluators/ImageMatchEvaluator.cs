@@ -81,15 +81,25 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
   }
 
   private double ComputeSimilarity(ImageMatchParams p, Bitmap tpl, Bitmap screenBmp) {
-    // Compute pixel region from normalized coordinates
-    var rx = (int)Math.Round(p.Region.X * screenBmp.Width);
-    var ry = (int)Math.Round(p.Region.Y * screenBmp.Height);
-    var rw = Math.Max(1, (int)Math.Round(p.Region.Width * screenBmp.Width));
-    var rh = Math.Max(1, (int)Math.Round(p.Region.Height * screenBmp.Height));
-    rx = Math.Clamp(rx, 0, Math.Max(0, screenBmp.Width - 1));
-    ry = Math.Clamp(ry, 0, Math.Max(0, screenBmp.Height - 1));
-    rw = Math.Clamp(rw, 1, screenBmp.Width - rx);
-    rh = Math.Clamp(rh, 1, screenBmp.Height - ry);
+    int rx, ry, rw, rh;
+    if (p.PixelRegion is not null) {
+      // Feature 130: a pixel region wins over the fraction region. The part outside the capture is
+      // cut off. No pixel left gives no match, not an error.
+      var clipped = p.PixelRegion.ClipTo(screenBmp.Width, screenBmp.Height);
+      if (clipped is null) return 0d;
+      (rx, ry, rw, rh) = (clipped.X, clipped.Y, clipped.Width, clipped.Height);
+    }
+    else {
+      // Compute pixel region from normalized coordinates
+      rx = (int)Math.Round(p.Region.X * screenBmp.Width);
+      ry = (int)Math.Round(p.Region.Y * screenBmp.Height);
+      rw = Math.Max(1, (int)Math.Round(p.Region.Width * screenBmp.Width));
+      rh = Math.Max(1, (int)Math.Round(p.Region.Height * screenBmp.Height));
+      rx = Math.Clamp(rx, 0, Math.Max(0, screenBmp.Width - 1));
+      ry = Math.Clamp(ry, 0, Math.Max(0, screenBmp.Height - 1));
+      rw = Math.Clamp(rw, 1, screenBmp.Width - rx);
+      rh = Math.Clamp(rh, 1, screenBmp.Height - ry);
+    }
 
     if (tpl.Width > rw || tpl.Height > rh) return 0d;
 
