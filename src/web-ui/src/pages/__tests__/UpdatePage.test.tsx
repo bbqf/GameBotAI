@@ -274,17 +274,6 @@ describe('UpdatePage', () => {
     expect(screen.getByText('Wait until the update ends.')).toBeInTheDocument();
   });
 
-  it('shows no install button on a remote PC and says why', async () => {
-    mockStatus.mockResolvedValue({ ...baseStatus, canInstallHere: false, installBlockedReason: 'remote' });
-    mockCheck.mockResolvedValue(available());
-    await renderPage();
-
-    await clickCheck();
-
-    expect(await screen.findByText('Install from the bot PC.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Install update' })).not.toBeInTheDocument();
-  });
-
   it('shows no install button for a bot that is not installed and says why', async () => {
     mockStatus.mockResolvedValue({ ...baseStatus, canInstallHere: false, installBlockedReason: 'notInstalled' });
     mockCheck.mockResolvedValue(available());

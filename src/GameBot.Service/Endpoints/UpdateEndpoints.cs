@@ -19,7 +19,7 @@ internal static class UpdateEndpoints {
       .WithSummary("Get the update state")
       .WithDescription(
         "Returns the installed version, the last check, the active attempt, and the result of the last attempt before a restart. "
-        + "canInstallHere is true only when the request comes from the bot PC and the bot runs from an installed folder.")
+        + "canInstallHere is true only when the bot runs from an installed folder. Any PC that reaches the service can ask.")
       .Produces<UpdateStatusResponse>(StatusCodes.Status200OK);
 
     app.MapPost(ApiRoutes.Update + "/check", CheckAsync)
@@ -36,25 +36,23 @@ internal static class UpdateEndpoints {
       .WithName("InstallUpdate")
       .WithSummary("Install the newest version")
       .WithDescription(
-        "Starts the update. Only a request from the bot PC is allowed. All active queues stop at once, so confirmStopQueues must be true. "
+        "Starts the update. Any PC that reaches the service may start it. All active queues stop at once, so confirmStopQueues must be true. "
         + "Later failures show in GET /api/update/status.")
       .Accepts<UpdateInstallRequest>("application/json")
       .Produces<UpdateInstallAccepted>(StatusCodes.Status202Accepted)
       .Produces<UpdateErrorResponse>(StatusCodes.Status400BadRequest)
-      .Produces<UpdateErrorResponse>(StatusCodes.Status403Forbidden)
       .Produces<UpdateErrorResponse>(StatusCodes.Status409Conflict)
       .Produces<UpdateErrorResponse>(StatusCodes.Status422UnprocessableEntity);
     return app;
   }
 
   private static IResult GetStatus(
-      HttpContext context,
       UpdateCheckService check,
       UpdateCoordinator coordinator,
       UpdateResultReporter reporter,
       IInstalledVersionProvider installed,
       IInstallLocationGuard locationGuard) {
-    var blocked = BlockedReason(LoopbackGuard.IsLocalRequest(context), locationGuard);
+    var blocked = BlockedReason(locationGuard);
     var response = new UpdateStatusResponse {
       InstalledVersion = installed.GetInstalledVersion().ToString(),
       LastCheck = check.LastCheck is null ? null : ToDto(check.LastCheck),
@@ -81,9 +79,6 @@ internal static class UpdateEndpoints {
       IInstallLocationGuard locationGuard,
       CancellationToken ct) {
     // Order of the checks: the contract in contracts/update-api.md. The first failed check decides.
-    if (!LoopbackGuard.IsLocalRequest(context)) {
-      return Error(StatusCodes.Status403Forbidden, "update_local_only", "Install from the bot PC.", "Open the UI on the PC that runs GameBot.");
-    }
     if (!locationGuard.IsInstalledHere()) {
       return Error(StatusCodes.Status409Conflict, "update_not_installed", "Update works only for an installed bot", "Install GameBot with the installer.");
     }
@@ -111,14 +106,8 @@ internal static class UpdateEndpoints {
     };
   }
 
-  /// <summary><c>remote</c> has priority over <c>notInstalled</c>.</summary>
-  private static string? BlockedReason(bool isLocal, IInstallLocationGuard locationGuard) {
-    if (!isLocal) {
-      return "remote";
-    }
-
-    return locationGuard.IsInstalledHere() ? null : "notInstalled";
-  }
+  private static string? BlockedReason(IInstallLocationGuard locationGuard) =>
+    locationGuard.IsInstalledHere() ? null : "notInstalled";
 
   private static IResult Error(int status, string code, string message, string? hint) =>
     Results.Json(

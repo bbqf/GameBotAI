@@ -33,7 +33,7 @@ export interface UpdateAttempt {
   logPath?: string | null;
 }
 
-export type InstallBlockedReason = 'remote' | 'notInstalled';
+export type InstallBlockedReason = 'notInstalled';
 
 export interface UpdateStatus {
   installedVersion: string;

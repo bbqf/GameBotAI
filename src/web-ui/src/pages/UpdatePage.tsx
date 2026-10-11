@@ -197,9 +197,6 @@ export const UpdatePage: React.FC = () => {
                 Install update
               </button>
             )}
-            {status && !status.canInstallHere && status.installBlockedReason === 'remote' && (
-              <p className="warning">Install from the bot PC.</p>
-            )}
             {status && !status.canInstallHere && status.installBlockedReason === 'notInstalled' && (
               <p className="warning">Update works only for an installed bot.</p>
             )}

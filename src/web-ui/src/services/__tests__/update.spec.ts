@@ -39,12 +39,12 @@ describe('update service', () => {
   });
 
   it('maps an error body to an UpdateApiError with code and hint', async () => {
-    mockPost.mockResolvedValue(fail(403, { error: { code: 'update_local_only', message: 'Install from the bot PC.', hint: 'Open the UI on the PC.' } }));
+    mockPost.mockResolvedValue(fail(409, { error: { code: 'update_not_installed', message: 'Update works only for an installed bot', hint: 'Install GameBot with the installer.' } }));
 
     const error = await installUpdate('1.7.0.430').catch((e) => e);
 
     expect(error).toBeInstanceOf(UpdateApiError);
-    expect(error).toMatchObject({ status: 403, code: 'update_local_only', message: 'Install from the bot PC.', hint: 'Open the UI on the PC.' });
+    expect(error).toMatchObject({ status: 409, code: 'update_not_installed', message: 'Update works only for an installed bot', hint: 'Install GameBot with the installer.' });
   });
 
   it('uses a generic error when the body has no error object', async () => {

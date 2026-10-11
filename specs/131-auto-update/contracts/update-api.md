@@ -3,7 +3,7 @@
 All routes use the current auth rules. All errors use this shape:
 
 ```json
-{ "error": { "code": "update_local_only", "message": "Install from the bot PC.", "hint": "Open the UI on the PC that runs GameBot." } }
+{ "error": { "code": "update_not_installed", "message": "Update works only for an installed bot", "hint": "Install GameBot with the installer." } }
 ```
 
 ## GET /api/update/status
@@ -35,8 +35,8 @@ Return the current update state. This route has no side effects. The UI uses it 
 
 - `lastCheck`, `attempt`, and `lastResult` can be `null`.
 - `lastResult` is a finished attempt (`succeeded` or `failed`) from before the last restart. The bot keeps it in memory for the rest of the bot run, so each status request returns it.
-- `canInstallHere` is `true` only when two things are true. The request comes from the bot PC. The bot runs from an installed folder. The UI uses it to show or hide "Install update".
-- `installBlockedReason` is `null`, `"remote"`, or `"notInstalled"`. The UI uses it to choose the message. If both reasons apply, the value is `"remote"`.
+- `canInstallHere` is `true` only when the bot runs from an installed folder. The service does not check where the request comes from. The UI uses it to show or hide "Install update".
+- `installBlockedReason` is `null` or `"notInstalled"`. The UI uses it to choose the message.
 
 ## POST /api/update/check
 
@@ -71,13 +71,12 @@ The route checks the request in this order. The first failed check decides the r
 
 | Order | Status | Code | When |
 |-------|--------|------|------|
-| 1 | 403 | `update_local_only` | The request is not from the bot PC (FR-014). |
-| 2 | 409 | `update_not_installed` | The bot does not run from an installed folder (FR-015). Message: "Update works only for an installed bot". |
-| 3 | 400 | `update_confirmation_required` | `confirmStopQueues` is not `true` (FR-003, FR-013). |
-| 4 | 400 | `update_not_available` | `targetVersion` is not greater than the installed version. Or it is not the latest checked version (FR-008). |
-| 5 | 409 | `update_in_progress` | Another attempt is active. |
-| 6 | 422 | `update_disk_space` | Free disk space is too low. |
-| 7 | 202 | | The attempt started. The body is `{ "attemptId": "...", "state": "downloading" }`. |
+| 1 | 409 | `update_not_installed` | The bot does not run from an installed folder (FR-015). Message: "Update works only for an installed bot". |
+| 2 | 400 | `update_confirmation_required` | `confirmStopQueues` is not `true` (FR-003, FR-013). |
+| 3 | 400 | `update_not_available` | `targetVersion` is not greater than the installed version. Or it is not the latest checked version (FR-008). |
+| 4 | 409 | `update_in_progress` | Another attempt is active. |
+| 5 | 422 | `update_disk_space` | Free disk space is too low. |
+| 6 | 202 | | The attempt started. The body is `{ "attemptId": "...", "state": "downloading" }`. |
 
 Later failures do not change this response. The attempt gets `state: "failed"` and an `errorCode`. The UI reads them from `GET /api/update/status`. The codes are `update_download_failed`, `update_checksum_mismatch`, `update_install_failed`, and `update_restart_failed`.
 
@@ -85,6 +84,6 @@ Later failures do not change this response. The attempt gets `state: "failed"` a
 
 - The page is the top-level area "Update" in the main menu. It shows the installed version and a "Check for Update" button.
 - When `status` is `updateAvailable`, the page shows the new version. It shows the notes as plain text if the release has notes. It shows an "Install update" button.
-- If `canInstallHere` is `false`, the page shows no install button. For `remote`, the message is "Install from the bot PC". For `notInstalled`, the message is "Update works only for an installed bot".
+- If `canInstallHere` is `false`, the page shows no install button. The message is "Update works only for an installed bot".
 - The install dialog states that all active queues stop at once. The user must confirm.
 - In the states `installing` and `restarting`, the UI loses its connection. It requests `GET /api/update/status` at intervals until the bot answers. Then it shows `lastResult`. When `lastResult` is for the attempt that the UI started and its state is `succeeded`, the UI reloads the whole page, so the browser loads the new web UI.

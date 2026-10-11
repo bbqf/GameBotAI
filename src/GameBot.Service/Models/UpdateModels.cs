@@ -8,7 +8,7 @@ internal sealed class UpdateStatusResponse {
   public UpdateAttemptDto? LastResult { get; set; }
   public bool CanInstallHere { get; set; }
 
-  /// <summary><c>remote</c> or <c>notInstalled</c>. Null when the install is allowed.</summary>
+  /// <summary><c>notInstalled</c>. Null when the install is allowed.</summary>
   public string? InstallBlockedReason { get; set; }
 }
 
