@@ -166,6 +166,7 @@ Status vocabulary:
 | 130 | Region-Restricted Image Detection | Implemented |
 | 131 | Auto-Update | Implemented |
 | 132 | Persist The Listen Host And Port | Implemented |
+| 133 | Reduce Build Time | Implemented |
 | 134 | Reduce CI Run Duration | Implemented |
 
 ## Numbering notes
