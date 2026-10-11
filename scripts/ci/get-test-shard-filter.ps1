@@ -12,6 +12,7 @@ param(
   [string]$Shard = "",
   [switch]$List,
   [switch]$Pinned,
+  [switch]$PerformanceShard,
   [string]$Manifest = ""
 )
 
@@ -27,10 +28,11 @@ if (-not ($data.PSObject.Properties.Name -contains $Project)) {
 
 $shards = @($data.$Project.shards)
 
-if ($Pinned) {
-  # Name of the shard that collects coverage and runs the performance gate, or nothing.
-  $pinnedShard = @($shards | Where-Object { $_.PSObject.Properties.Name -contains "collectsCoverage" -and $_.collectsCoverage } | ForEach-Object { $_.name })
-  if ($pinnedShard.Count -gt 1) { throw "More than one shard collects coverage in project '$Project'." }
+if ($Pinned -or $PerformanceShard) {
+  # Name of the shard that collects coverage (-Pinned) or runs the performance gate, or nothing.
+  $flag = if ($Pinned) { "collectsCoverage" } else { "performanceGate" }
+  $pinnedShard = @($shards | Where-Object { $_.PSObject.Properties.Name -contains $flag -and $_.$flag } | ForEach-Object { $_.name })
+  if ($pinnedShard.Count -gt 1) { throw "More than one shard has $flag in project '$Project'." }
   if ($pinnedShard.Count -eq 1) { $pinnedShard[0] }
   return
 }

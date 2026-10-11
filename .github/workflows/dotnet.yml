@@ -36,6 +36,7 @@ jobs:
       contract_shards: ${{ steps.shards.outputs.contract }}
       unit_pinned: ${{ steps.shards.outputs.unit_pinned }}
       integration_pinned: ${{ steps.shards.outputs.integration_pinned }}
+      integration_perf: ${{ steps.shards.outputs.integration_perf }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -81,7 +82,9 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value "integration=$integration"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "contract=$contract"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "unit_pinned=$unitPinned"
+          $perf = ./scripts/ci/get-test-shard-filter.ps1 -Project integration -PerformanceShard
           Add-Content -Path $env:GITHUB_OUTPUT -Value "integration_pinned=$pinned"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "integration_perf=$perf"
 
   # Builds the test projects once, without analyzers, and shares the output.
   # A compile error here stops the test jobs.
@@ -244,6 +247,7 @@ jobs:
         shard: ${{ fromJSON(needs.changes.outputs.integration_shards) }}
     env:
       PINNED: ${{ matrix.shard == needs.changes.outputs.integration_pinned }}
+      PERF: ${{ matrix.shard == needs.changes.outputs.integration_perf }}
     steps:
       - uses: actions/checkout@v5
       - name: Setup .NET
@@ -277,7 +281,7 @@ jobs:
           dotnet test @testArgs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Performance gate (execution logs ci profile)
-        if: env.PINNED == 'true'
+        if: env.PERF == 'true'
         env:
           GAMEBOT_PERF_PROFILE: ci
         run: dotnet test tests/integration/bin/Release/net9.0/GameBot.IntegrationTests.dll --filter "FullyQualifiedName~ExecutionLogsPerformanceIntegrationTests"
@@ -317,6 +321,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          sparse-checkout: scripts
       - name: Download unit coverage
         if: needs.test-unit.result == 'success' && needs.test-integration.result == 'success'
         uses: actions/download-artifact@v6

@@ -107,17 +107,16 @@ public class TestShardTests {
   [InlineData("integration")]
   public void PinnedClassesAreInThePinnedShard(string project) {
     var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(CiScriptRunner.FindRepoRoot(), "scripts", "ci", "test-shards.json")));
-    var integration = manifest.RootElement.GetProperty(project);
-    var pinnedShard = integration.GetProperty("pinnedShard").GetString()!;
-    var pinnedFilter = Filter(project, pinnedShard);
     var existing = FindTestClasses(project);
+    var names = ShardNames(project);
 
-    foreach (var pinned in integration.GetProperty("pinnedClasses").EnumerateArray().Select(e => e.GetString()!)) {
+    foreach (var pin in manifest.RootElement.GetProperty(project).GetProperty("pinned").EnumerateArray()) {
+      var pinned = pin.GetProperty("class").GetString()!;
+      var pinnedShard = pin.GetProperty("shard").GetString()!;
       existing.Should().Contain(pinned, "a pinned class must exist");
-      Matches(pinnedFilter, pinned).Should().BeTrue($"{pinned} must run in {pinnedShard}");
-      foreach (var other in ShardNames(project).Where(n => n != pinnedShard)) {
+      Matches(Filter(project, pinnedShard), pinned).Should().BeTrue($"{pinned} must run in {pinnedShard}");
+      foreach (var other in names.Where(n => n != pinnedShard)) {
         Matches(Filter(project, other), pinned).Should().BeFalse($"{pinned} must not run in {other}");
       }
-    }
-  }
+    }  }
 }
