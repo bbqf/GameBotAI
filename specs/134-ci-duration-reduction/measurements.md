@@ -114,8 +114,9 @@ Runs on the pushed branch. Times are from the first job start to the last job en
 | 38155738143 | Web UI plus backend push (test branch) | 230 s |
 | 38156025531 | Workflow-file push (test branch) | 222 s |
 | 38156283314 | Unknown-path push (test branch) | 228 s |
+| 38157082025 | Project file and lock file change (cache key test, T038) | 234 s |
 
-Median of the last four full runs: 229 s. Worst: 232 s. This meets SC-001 (4 min or less) and SC-002 (5 min or less).
+Median of the last five full runs: 230 s. Worst: 234 s. This meets SC-001 (4 min or less) and SC-002 (5 min or less).
 
 SC-003: in run 38154598184, `compile` ended at +113 s and the last test job ended at +215 s. That is 102 s. The old test step had a median of 239 s. The test time fell by 57 %.
 
@@ -170,8 +171,8 @@ CodeQL: it runs apart from this workflow on pull requests. Its time is recorded 
 | `SelfRescheduleRunIntegrationTests.FourTimerBookingsWithoutKeepLeaveTheLastBookingPending` | The wait ended when the first pending time was above 39 min. The second booking (50 min) also matches, so a slow runner read the state before the third booking. Cause found from the failure text (29.99 min is the third booking) | Fixed: the wait ends only when the pending time is between 39 and 40.2 min |
 | `ResourceLimitsTests.ProcessWorkingSetStaysUnderBudget` | The test host ran all integration tests in one process. The working set grew with the test count | Mitigated: each shard is a separate process with about one quarter of the tests. Watch it on `master` |
 | `DetectionPerformanceTests.DetectionSaveReloadP95Under500ms` | A time limit on a shared runner. The test already has a warm-up | Recorded. Owner: repository owner. Reason: the limit is the behavior under test |
-| `QueueResumeOnRestartTests.StoppedAndNotOptedInQueuesStayStoppedAfterRestart` | A 30 s wait failure, seen once | Recorded. Not reproduced in 4 full runs with the new layout. Owner: repository owner |
-| `DeviceRecoveryFlowTests.TwoQueuesOnOneInstanceShareOneRebootAndEachSendsItsOwnMessages` | Seen once | Recorded. Not reproduced in 4 full runs. Owner: repository owner |
+| `QueueResumeOnRestartTests.StoppedAndNotOptedInQueuesStayStoppedAfterRestart` | A 30 s wait failure, seen once | Recorded. Not reproduced in 5 full runs with the new layout. Owner: repository owner |
+| `DeviceRecoveryFlowTests.TwoQueuesOnOneInstanceShareOneRebootAndEachSendsItsOwnMessages` | Seen once | Recorded. Not reproduced in 5 full runs. Owner: repository owner |
 | Web UI `CommandsPage.spec.tsx` "loads and saves an existing command" | Seen once on `master` | Recorded. Not reproduced in the web UI job runs of this feature |
 | `MaskedTemplateMatchTests`, `QueueTemplateLink` (from the project notes) | Not in the last 60 runs | No action |
 
@@ -181,7 +182,7 @@ The two largest delays are the 15-second timeout test in `NotificationTestSendCo
 
 ## Full-suite proof (T030)
 
-The three local full runs after the changes were not done. The CI runs are the proof: four full runs of the final layout passed all tests, with the counts in the table of T022.
+Deviation: the three local full runs were not done. The local PC needs about 15 minutes for one run, and the local unit test DoesNotCallAdbDirectly fails there for a reason outside this feature. The CI runs are the proof: five full runs of the final layout passed all tests, with the counts in the table of T022.
 
 ## Fixed parts on the critical path (T036 to T038)
 
@@ -191,7 +192,8 @@ From run 38154598184, in seconds: `changes` 10, `compile` start-up (checkout 7, 
 - Three artifact uploads in series take 19 s. One combined artifact would add download time to every test job.
 - `npm ci` takes 25 to 57 s in the web UI job. The job is not on the critical path of a code push (131 s against 232 s). A web UI only push takes 153 s, below the 180 s limit. No `node_modules` cache.
 
-T038: the NuGet cache key hashes the project files. A change in a project file creates a new key, and the restore downloads the packages once. Not tested with a separate push. The key logic is unchanged from before this feature.
+T038: run 38157082025 on a test branch changed a project file (new NuGet cache key) and package-lock.json. The run passed in 234 s. The NuGet cache step took 13 s (restore-key fallback) and the restore 11 s. 
+pm ci took 63 s.
 
 ## Linux probe (T039)
 
@@ -215,3 +217,8 @@ No check is removed.
 ## Architecture document (T041)
 
 `docs/architecture.md` describes the domain, the API, and the persistence. None of them changed. No change to the document.
+## Final proof (T043 to T046)
+
+T043: the five full runs above are the final layout. Median 230 s, worst 234 s. SC-001 and SC-002 are met. SC-003 is met (see the result section).
+
+T044 (SC-007): a maintainer who did not write the guide has not repeated a measurement yet. This check is open and needs a person. Owner: the repository owner.

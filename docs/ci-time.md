@@ -8,8 +8,8 @@ a CI script, or the test layout.
 
 | Part | Budget | Measured (feature 134) |
 |------|--------|------------------------|
-| Code push, median `.NET CI` time | 4 min or less | 3 min 49 s (see "Final numbers") |
-| Code push, worst case | 5 min or less | 3 min 52 s |
+| Code push, median `.NET CI` time | 4 min or less | 3 min 50 s (see "Final numbers") |
+| Code push, worst case | 5 min or less | 3 min 54 s |
 | Docs-only or spec-only push | 1 min or less | 23 to 40 s |
 | Web-UI-only push | 3 min or less | 2 min 33 s |
 | Test time, end of `compile` to end of the last test job | 50 % less than the old test step | 102 s against 239 s (57 % less) |
@@ -20,8 +20,8 @@ setup, on pull requests). Its time is not in the numbers above.
 
 ### Final numbers
 
-Four full runs of the final layout (queue time included): 232, 230, 222, and 228 s.
-Median 229 s, worst 232 s. The runs are in `specs/134-ci-duration-reduction/measurements.md`.
+Five full runs of the final layout (queue time included): 232, 230, 222, 228, and 234 s.
+Median 230 s, worst 234 s. The runs are in `specs/134-ci-duration-reduction/measurements.md`.
 
 The check on the first 20 runs on `master` after the merge (SC-006: failures from flaky
 tests and late failures fall by half) is open. Owner: the repository owner. Date: when

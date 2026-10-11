@@ -97,7 +97,7 @@ description: "Task list for feature 134: reduce CI run duration"
 
 - [X] T028 [US3] Take each test named in T004. Include `MaskedTemplateMatchTests` and the queue template link tests. Find the cause. Fix the test so that it is deterministic. If a fix is not possible, isolate the test in a serial group. Or record an owner and a reason in `measurements.md`
 - [X] T029 [P] [US3] Take the 10 slowest tests of each project from T003 whose time comes from a fixed delay. Replace the delay with a fake clock, an event, or a shorter bounded wait. Find the files in the ranking in `specs/134-ci-duration-reduction/measurements.md`. The files are under `tests/unit`, `tests/integration`, and `tests/contract`. Change a delay only if the test stays deterministic. Record each change and the time gained
-- [ ] T030 [US3] Run the full test suite `C:\src\GameBot\GameBot.sln` locally 3 times after T028 and T029. All tests must pass. The number of tests must equal the baseline
+- [X] T030 [US3] Run the full test suite `C:\src\GameBot\GameBot.sln` locally 3 times after T028 and T029. All tests must pass. The number of tests must equal the baseline
 
 ---
 
@@ -123,7 +123,7 @@ description: "Task list for feature 134: reduce CI run duration"
 
 - [X] T036 [US5] Read the fixed-part times of the new runs with `measure-ci.ps1`. The parts are setup, cache restore, restore, and artifact transfer. List each part with a possible gain of 5 s or more in `measurements.md`
 - [X] T037 [US5] In `.github/workflows/dotnet.yml`, apply the changes for the parts of T036 that show a gain in a repeated measurement. For the web UI job, test a cache of `node_modules`. Do this only if `npm ci` stays above 60 s in 3 runs. Keep package versions pinned, so the cache keys stay stable. Revert any change without a clear gain
-- [ ] T038 [US5] Check that a change in a project file rebuilds the caches. Check the same for `package-lock.json`. The run must still pass. Record the run IDs in `measurements.md`
+- [X] T038 [US5] Check that a change in a project file rebuilds the caches. Check the same for `package-lock.json`. The run must still pass. Record the run IDs in `measurements.md`
 
 ---
 
@@ -142,9 +142,9 @@ description: "Task list for feature 134: reduce CI run duration"
 - [X] T040 Write a before and after list of all checks, gates, and scans to `measurements.md` (SC-008). The list has the secret scan, the warnings-as-errors build, and the unit, integration, and contract tests. It has the performance gate, the five coverage gates, and the web UI tests
 - [X] T041 Check `docs/architecture.md`. Change it only if a described behavior changed. Note the result in `measurements.md`
 - [X] T042 Set the `Status` line in `specs/134-ci-duration-reduction/spec.md` to `Implemented`. Add the line for 134 to `specs/STATUS.md`. If `docs/build-time.md` or an earlier CI spec describes the old workflow shape, mark it as iterated by 134
-- [ ] T043 Run `& "C:\src\GameBot\scripts\ci\measure-ci.ps1"` for at least 5 pushes of the final branch state. Write the median and the worst value to `docs/ci-time.md` and `measurements.md` (SC-001, SC-002). For SC-003, use the time from the end of `compile` to the end of the last test job. Compare it with the old test step. Suppose the median is above 4 minutes. Then record the measured floor and its cause. Record the end time of the CodeQL jobs next to the workflow time
+- [X] T043 Run `& "C:\src\GameBot\scripts\ci\measure-ci.ps1"` for at least 5 pushes of the final branch state. Write the median and the worst value to `docs/ci-time.md` and `measurements.md` (SC-001, SC-002). For SC-003, use the time from the end of `compile` to the end of the last test job. Compare it with the old test step. Suppose the median is above 4 minutes. Then record the measured floor and its cause. Record the end time of the CodeQL jobs next to the workflow time
 - [ ] T044 Give the guide to a maintainer who did not write it. Let them repeat one measurement. Record whether the numbers are within 20 % (SC-007)
-- [ ] T045 Remove temporary files and test branches. Check `git status` for stray folders: `TestResults`, `*.trx`, and binlog files
+- [X] T045 Remove temporary files and test branches. Check `git status` for stray folders: `TestResults`, `*.trx`, and binlog files
 - [ ] T046 Push the branch and open the pull request, if none exists. Wait for the final CI run to pass on the last commit. Use the run result of `.github/workflows/dotnet.yml` as the proof. Any later change needs a new run. This is the last task
 
 ---
