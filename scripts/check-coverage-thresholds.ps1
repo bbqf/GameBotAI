@@ -1,15 +1,39 @@
-# Enforces per-area coverage thresholds from coverlet JSON output produced by a
-# single "dotnet test GameBot.sln /p:CollectCoverage=true" run, so the test
-# suite does not have to be re-run once per coverage gate.
+# Enforces per-area coverage thresholds from coverlet JSON output, so the test
+# suite does not have to be re-run once per coverage gate. In CI the unit job
+# and the pinned integration shard each write one coverage.json; the folders
+# are passed with -UnitCoverageDir and -IntegrationCoverageDir.
 param(
   [Parameter(Mandatory = $false)]
-  [double]$Threshold = 80
+  [double]$Threshold = 80,
+  # Folder with the coverage.json of the unit test run. Default: the former single-run path.
+  [Parameter(Mandatory = $false)]
+  [string]$UnitCoverageDir = "",
+  # Folder with the coverage.json of the pinned integration shard.
+  [Parameter(Mandatory = $false)]
+  [string]$IntegrationCoverageDir = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+function Resolve-CoverageFile {
+  param(
+    [string]$Dir,
+    [string]$Default
+  )
+
+  if (-not $Dir) { return $Default }
+  if (-not (Test-Path $Dir)) { throw "Coverage folder not found: $Dir" }
+  $files = @(Get-ChildItem -Path $Dir -Recurse -Filter "coverage.json" -File)
+  if ($files.Count -eq 0) { throw "No coverage.json found in $Dir. The gate would be a silent no-op; failing instead." }
+  if ($files.Count -gt 1) { throw "More than one coverage.json found in ${Dir}: $($files.FullName -join ', ')" }
+  return $files[0].FullName
+}
+
+$integrationJson = Resolve-CoverageFile -Dir $IntegrationCoverageDir -Default (Join-Path $repoRoot "tests/integration/TestResults/coverage/coverage.json")
+$unitJson = Resolve-CoverageFile -Dir $UnitCoverageDir -Default (Join-Path $repoRoot "tests/unit/coverage.json")
 
 function Get-CoverageStats {
   param(
@@ -31,7 +55,8 @@ function Get-CoverageStats {
   $classesMatched = 0
 
   foreach ($moduleProp in $coverage.PSObject.Properties) {
-    $moduleKey = [System.IO.Path]::GetFileNameWithoutExtension($moduleProp.Name)
+    # Module paths come from a Windows runner; normalize so Linux can read them.
+    $moduleKey = [System.IO.Path]::GetFileNameWithoutExtension(($moduleProp.Name -replace '\\', '/'))
     if ($moduleKey -ne $ModuleName) { continue }
 
     foreach ($fileProp in $moduleProp.Value.PSObject.Properties) {
@@ -73,35 +98,35 @@ function Get-CoverageStats {
 $checks = @(
   [PSCustomObject]@{
     Name = "Installer endpoints (integration run)"
-    Json = Join-Path $repoRoot "tests\integration\TestResults\coverage\coverage.json"
+    Json = $integrationJson
     Module = "GameBot.Service"
     ClassPrefix = "GameBot.Service.Endpoints.EmulatorImageEndpoints"
     CheckBranch = $false
   },
   [PSCustomObject]@{
     Name = "Execution log repository (unit run)"
-    Json = Join-Path $repoRoot "tests\unit\coverage.json"
+    Json = $unitJson
     Module = "GameBot.Domain"
     ClassPrefix = "GameBot.Domain.Logging.FileExecutionLogRepository"
     CheckBranch = $true
   },
   [PSCustomObject]@{
     Name = "Auto-update domain logic (unit run)"
-    Json = Join-Path $repoRoot "tests\unit\coverage.json"
+    Json = $unitJson
     Module = "GameBot.Domain"
     ClassPrefix = "GameBot.Domain.Updates"
     CheckBranch = $true
   },
   [PSCustomObject]@{
     Name = "Auto-update service logic (unit run)"
-    Json = Join-Path $repoRoot "tests\unit\coverage.json"
+    Json = $unitJson
     Module = "GameBot.Service"
     ClassPrefix = "GameBot.Service.Services.Updates"
     CheckBranch = $true
   },
   [PSCustomObject]@{
     Name = "Auto-update updater (unit run)"
-    Json = Join-Path $repoRoot "tests\unit\coverage.json"
+    Json = $unitJson
     Module = "GameBot.Updater"
     ClassPrefix = "GameBot.Updater"
     CheckBranch = $true

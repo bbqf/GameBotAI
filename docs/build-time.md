@@ -1,6 +1,6 @@
 # Build Time Guide
 
-This guide is for maintainers. It tells you how long the build must take, what makes it slow, and how to measure it.
+This guide is for maintainers. It tells you how long the build must take, what makes it slow, and how to measure it. For the time of the CI run, see [ci-time.md](ci-time.md).
 
 ## Limits
 

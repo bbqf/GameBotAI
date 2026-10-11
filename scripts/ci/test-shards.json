@@ -1,0 +1,47 @@
+{
+  "unit": {
+    "pinned": [
+      { "class": "GameBot.UnitTests.Updates.UpdateCoordinatorTests", "shard": "unit-3" },
+      { "class": "GameBot.UnitTests.ExecutionLogs.ExecutionLogRepositoryQueryTests", "shard": "unit-3" }
+    ],
+    "shards": [
+      { "name": "unit-1", "include": [ "GameBot.UnitTests.Sequences." ] },
+      { "name": "unit-2", "include": [ "GameBot.UnitTests.Queues.", "GameBot.UnitTests.Emulator.", "GameBot.UnitTests.BackgroundScreenCaptureServiceTests" ] },
+      { "name": "unit-3", "complement": true, "collectsCoverage": true }
+    ]
+  },
+  "contract": {
+    "shards": [
+      { "name": "contract-1", "include": [
+          "GameBot.ContractTests.Sequences.Composite", "GameBot.ContractTests.Sequences.EnsureGameRunning",
+          "GameBot.ContractTests.Sequences.LastRun", "GameBot.ContractTests.Sequences.Primitive",
+          "GameBot.ContractTests.Update." ] },
+      { "name": "contract-2", "include": [
+          "GameBot.ContractTests.Sequences.Region", "GameBot.ContractTests.Sequences.Parametr",
+          "GameBot.ContractTests.Sequences.Parameter", "GameBot.ContractTests.Sequences.Self",
+          "GameBot.ContractTests.Sequences.RescheduleSelf", "GameBot.ContractTests.Notifications.",
+          "GameBot.ContractTests.Ocr." ] },
+      { "name": "contract-3", "include": [
+          "GameBot.ContractTests.Queues.", "GameBot.ContractTests.Images.",
+          "GameBot.ContractTests.QueueTemplates.", "GameBot.ContractTests.Sessions." ] },
+      { "name": "contract-4", "complement": true }
+    ]
+  },
+  "integration": {
+    "pinned": [
+      { "class": "GameBot.IntegrationTests.EmulatorImageEndpointsCaptureTests", "shard": "integration-pinned" },
+      { "class": "GameBot.IntegrationTests.EmulatorImageServicesTests", "shard": "integration-pinned" },
+      { "class": "GameBot.IntegrationTests.EmulatorScreenshotCaptureTests", "shard": "integration-pinned" },
+      { "class": "GameBot.IntegrationTests.ExecutionLogs.ExecutionLogsPerformanceIntegrationTests", "shard": "integration-pinned" }
+    ],
+    "shards": [
+      { "name": "integration-1", "include": [ "GameBot.IntegrationTests.Queues.", "GameBot.IntegrationTests.StepThrough." ] },
+      { "name": "integration-2", "include": [ "GameBot.IntegrationTests.Sequences.", "GameBot.IntegrationTests.Notifications.", "GameBot.IntegrationTests.Installer." ] },
+      { "name": "integration-3", "include": [ "GameBot.IntegrationTests.Commands.", "GameBot.IntegrationTests.QueueTemplates.", "GameBot.IntegrationTests.Device", "GameBot.IntegrationTests.ConfigEndpointTests" ] },
+      { "name": "integration-pinned", "collectsCoverage": true, "performanceGate": true, "include": [
+          "GameBot.IntegrationTests.EmulatorImage", "GameBot.IntegrationTests.EmulatorScreenshot",
+          "GameBot.IntegrationTests.Images.", "GameBot.IntegrationTests.ExecutionLogs.ExecutionLogsPerformanceIntegrationTests" ] },
+      { "name": "integration-rest", "complement": true }
+    ]
+  }
+}
