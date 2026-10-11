@@ -145,7 +145,7 @@ description: "Task list for feature 134: reduce CI run duration"
 - [X] T043 Run `& "C:\src\GameBot\scripts\ci\measure-ci.ps1"` for at least 5 pushes of the final branch state. Write the median and the worst value to `docs/ci-time.md` and `measurements.md` (SC-001, SC-002). For SC-003, use the time from the end of `compile` to the end of the last test job. Compare it with the old test step. Suppose the median is above 4 minutes. Then record the measured floor and its cause. Record the end time of the CodeQL jobs next to the workflow time
 - [ ] T044 Give the guide to a maintainer who did not write it. Let them repeat one measurement. Record whether the numbers are within 20 % (SC-007)
 - [X] T045 Remove temporary files and test branches. Check `git status` for stray folders: `TestResults`, `*.trx`, and binlog files
-- [ ] T046 Push the branch and open the pull request, if none exists. Wait for the final CI run to pass on the last commit. Use the run result of `.github/workflows/dotnet.yml` as the proof. Any later change needs a new run. This is the last task
+- [X] T046 Push the branch and open the pull request, if none exists. Wait for the final CI run to pass on the last commit. Use the run result of `.github/workflows/dotnet.yml` as the proof. Any later change needs a new run. This is the last task
 
 ---
 
