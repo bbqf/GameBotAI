@@ -1,0 +1,25 @@
+{
+  "unit": {
+    "shards": [
+      { "name": "unit", "complement": true, "collectsCoverage": true }
+    ]
+  },
+  "contract": {
+    "shards": [
+      { "name": "contract-1", "include": [ "GameBot.ContractTests.Sequences." ] },
+      { "name": "contract-2", "complement": true }
+    ]
+  },
+  "integration": {
+    "pinnedShard": "integration-3",
+    "pinnedClasses": [
+      "GameBot.IntegrationTests.EmulatorImageEndpointsCaptureTests",
+      "GameBot.IntegrationTests.ExecutionLogs.ExecutionLogsPerformanceIntegrationTests"
+    ],
+    "shards": [
+      { "name": "integration-1", "include": [ "GameBot.IntegrationTests.Queues.", "GameBot.IntegrationTests.StepThrough." ] },
+      { "name": "integration-2", "include": [ "GameBot.IntegrationTests.Sequences.", "GameBot.IntegrationTests.Notifications.", "GameBot.IntegrationTests.Installer." ] },
+      { "name": "integration-3", "complement": true, "collectsCoverage": true, "performanceGate": true }
+    ]
+  }
+}

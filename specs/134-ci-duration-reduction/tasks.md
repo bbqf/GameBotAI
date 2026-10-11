@@ -24,10 +24,10 @@ description: "Task list for feature 134: reduce CI run duration"
 
 **Purpose**: Get the numbers that every later decision needs.
 
-- [ ] T001 Create `scripts/ci/measure-ci.ps1`. It reads past runs with `gh run list` and `gh run view --json jobs`. It prints queue time, step time per job, critical path, and result for the last N runs. Parameters: `-Workflow`, `-Limit`, `-Branch`
-- [ ] T002 Run `measure-ci.ps1` for the last 20 successful runs on `master`. Write the baseline table to `specs/134-ci-duration-reduction/measurements.md`. Show the median and worst value per part. Show queue time apart
-- [ ] T003 Run all three test projects locally with a `trx` logger. Use `dotnet test` with `--logger "trx;LogFileName=<name>.trx"` and a results folder outside the repository. Rank the tests by time. Write the 30 slowest tests of each project to `specs/134-ci-duration-reduction/measurements.md`. Write the total time of fixed delays there also
-- [ ] T004 Classify the 16 failed runs of the last 60. Use `gh run view <id> --log-failed`. The classes are real-defect, flaky-test, build-warning, infrastructure, and other. Write the table to `specs/134-ci-duration-reduction/measurements.md`. List the tests that failed in more than one unrelated run
+- [X] T001 Create `scripts/ci/measure-ci.ps1`. It reads past runs with `gh run list` and `gh run view --json jobs`. It prints queue time, step time per job, critical path, and result for the last N runs. Parameters: `-Workflow`, `-Limit`, `-Branch`
+- [X] T002 Run `measure-ci.ps1` for the last 20 successful runs on `master`. Write the baseline table to `specs/134-ci-duration-reduction/measurements.md`. Show the median and worst value per part. Show queue time apart
+- [X] T003 Run all three test projects locally with a `trx` logger. Use `dotnet test` with `--logger "trx;LogFileName=<name>.trx"` and a results folder outside the repository. Rank the tests by time. Write the 30 slowest tests of each project to `specs/134-ci-duration-reduction/measurements.md`. Write the total time of fixed delays there also
+- [X] T004 Classify the 16 failed runs of the last 60. Use `gh run view <id> --log-failed`. The classes are real-defect, flaky-test, build-warning, infrastructure, and other. Write the table to `specs/134-ci-duration-reduction/measurements.md`. List the tests that failed in more than one unrelated run
 
 ---
 
@@ -37,13 +37,13 @@ description: "Task list for feature 134: reduce CI run duration"
 
 **CRITICAL**: The workflow tasks in Phases 3 and 4 need these scripts.
 
-- [ ] T005 [P] Create `scripts/ci/get-changed-groups.ps1`. Input: a list of files (`-Files`) or a base and head commit. Output: `dotnet=<bool>`, `webui=<bool>`, and `reason=<text>`. Use the groups in `data-model.md`. A `shared` path sets both values to true. A path in no group sets both to true. An empty file list sets both to true
-- [ ] T006 [P] Create `tests/unit/Ci/ChangedGroupsTests.cs`. Use CamelCase test names with no underscores. Cover these cases. Docs only. Spec only. Web UI only. Backend only. Web UI plus backend. Workflow file. `scripts/` file. Root build file. Project file. Lock file. Unknown path. Empty list
-- [ ] T007 Run the tests of T006. Fix `get-changed-groups.ps1` until all cases pass
-- [ ] T008 [P] Create `scripts/ci/get-test-shard-filter.ps1`. Input: `-Project` and `-Shard`, or `-List`. Output: the test filter string. The shards come from the manifest `scripts/ci/test-shards.json`. The last shard of a project is the complement of all named filters
-- [ ] T009 Create `scripts/ci/test-shards.json` with the first split of the integration tests into 3 shards. Use the timing data of T003. The first split is a start value, and T019 sets the real balance. Pin two groups to one named shard: all tests that cover `GameBot.Service.Endpoints.EmulatorImageEndpoints` (the integration coverage source), and the class `ExecutionLogsPerformanceIntegrationTests` (the performance gate). Add `unit` and `contract` as one shard each
-- [ ] T010 [P] Create `tests/unit/Ci/TestShardTests.cs`. Find the test classes of each test assembly by reflection. Do not start `dotnet test` from inside a test. Check that every class is in exactly one shard. Check that a made-up new class falls into the complement shard. Check that the pinned classes are in the pinned shard
-- [ ] T011 Run the tests of T010. Fix `get-test-shard-filter.ps1` and `test-shards.json` until the tests pass
+- [X] T005 [P] Create `scripts/ci/get-changed-groups.ps1`. Input: a list of files (`-Files`) or a base and head commit. Output: `dotnet=<bool>`, `webui=<bool>`, and `reason=<text>`. Use the groups in `data-model.md`. A `shared` path sets both values to true. A path in no group sets both to true. An empty file list sets both to true
+- [X] T006 [P] Create `tests/unit/Ci/ChangedGroupsTests.cs`. Use CamelCase test names with no underscores. Cover these cases. Docs only. Spec only. Web UI only. Backend only. Web UI plus backend. Workflow file. `scripts/` file. Root build file. Project file. Lock file. Unknown path. Empty list
+- [X] T007 Run the tests of T006. Fix `get-changed-groups.ps1` until all cases pass
+- [X] T008 [P] Create `scripts/ci/get-test-shard-filter.ps1`. Input: `-Project` and `-Shard`, or `-List`. Output: the test filter string. The shards come from the manifest `scripts/ci/test-shards.json`. The last shard of a project is the complement of all named filters
+- [X] T009 Create `scripts/ci/test-shards.json` with the first split of the integration tests into 3 shards. Use the timing data of T003. The first split is a start value, and T019 sets the real balance. Pin two groups to one named shard: all tests that cover `GameBot.Service.Endpoints.EmulatorImageEndpoints` (the integration coverage source), and the class `ExecutionLogsPerformanceIntegrationTests` (the performance gate). Add `unit` and `contract` as one shard each
+- [X] T010 [P] Create `tests/unit/Ci/TestShardTests.cs`. Find the test classes of each test assembly by reflection. Do not start `dotnet test` from inside a test. Check that every class is in exactly one shard. Check that a made-up new class falls into the complement shard. Check that the pinned classes are in the pinned shard
+- [X] T011 Run the tests of T010. Fix `get-test-shard-filter.ps1` and `test-shards.json` until the tests pass
 
 **Checkpoint**: Both scripts are proved by tests. The workflow can use them.
 

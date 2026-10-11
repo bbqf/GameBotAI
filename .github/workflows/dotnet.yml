@@ -7,6 +7,10 @@ permissions:
 # (the speckit pipeline waits for that run before opening a PR), and GitHub
 # surfaces the push run's checks on the PR for the same head commit. A
 # pull_request trigger would rebuild the identical SHA a second time.
+#
+# There is no paths filter on the trigger: a run must exist for every push.
+# The "changes" job sorts the changed files and switches jobs off instead; a
+# job skipped by a path rule counts as a pass in "ci-gate". See docs/ci-time.md.
 on:
   push:
     branches: [ "**" ]
@@ -16,8 +20,68 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
 jobs:
-  build:
+  # Secret scan, path groups, and the shard lists. About 10 s on Linux.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dotnet: ${{ steps.groups.outputs.dotnet }}
+      webui: ${{ steps.groups.outputs.webui }}
+      integration_shards: ${{ steps.shards.outputs.integration }}
+      contract_shards: ${{ steps.shards.outputs.contract }}
+      integration_pinned: ${{ steps.shards.outputs.integration_pinned }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      # The secret scan runs on every push, also for a docs-only push.
+      - name: Security and secret scans
+        shell: pwsh
+        run: ./scripts/installer/run-security-scans.ps1
+      - name: Sort changed files into groups
+        id: groups
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          $base = ''
+          if ($env:EVENT_NAME -eq 'push') {
+            $base = $env:BEFORE_SHA
+            if ($base -match '^0+$') {
+              # New branch: compare to the point where it left the default branch.
+              $base = (git merge-base "origin/$($env:DEFAULT_BRANCH)" $env:HEAD_SHA 2>$null)
+              if ($LASTEXITCODE -ne 0) { $base = '' }
+            }
+          }
+          if ($base) {
+            ./scripts/ci/get-changed-groups.ps1 -Base $base -Head $env:HEAD_SHA -GithubOutput
+          } else {
+            # Manual run, force push, or no base: run all jobs.
+            ./scripts/ci/get-changed-groups.ps1 -GithubOutput
+          }
+      - name: List test shards
+        id: shards
+        shell: pwsh
+        run: |
+          $integration = ./scripts/ci/get-test-shard-filter.ps1 -Project integration -List
+          $contract = ./scripts/ci/get-test-shard-filter.ps1 -Project contract -List
+          $pinned = ./scripts/ci/get-test-shard-filter.ps1 -Project integration -Pinned
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "integration=$integration"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "contract=$contract"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "integration_pinned=$pinned"
+
+  # Builds the test projects once, without analyzers, and shares the output.
+  # A compile error here stops the test jobs.
+  compile:
+    needs: changes
+    if: needs.changes.outputs.dotnet == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -31,30 +95,185 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
-      # The secret scan and the -warnaserror flag replace the former
-      # ci-installer workflow, which existed only to run these two gates and
-      # spent ~9 minutes recompiling the whole solution for them.
-      - name: Security and secret scans
-        shell: pwsh
-        run: ./scripts/installer/run-security-scans.ps1
       - name: Restore
         run: dotnet restore GameBot.sln
-      - name: Build
-        run: dotnet build GameBot.sln --no-restore -c Release -warnaserror
-      # Single full-suite run collects coverage for every gated area at once;
-      # per-area thresholds are enforced afterwards by the script, so the test
-      # suite never has to be re-executed per coverage gate.
-      - name: Test (with coverage collection)
-        run: dotnet test GameBot.sln --no-build --no-restore -c Release /p:CollectCoverage=true /p:CoverletOutputFormat=json /p:Include="[GameBot.Service]GameBot.Service.Endpoints.EmulatorImageEndpoints*%2c[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository%2c[GameBot.Domain]GameBot.Domain.Updates*%2c[GameBot.Service]GameBot.Service.Services.Updates*%2c[GameBot.Updater]GameBot.Updater*"
-      - name: Coverage gates (installer endpoints, execution logs, auto-update)
+      - name: Build (analyzers off)
+        run: dotnet build GameBot.sln --no-restore -c Release -p:RunAnalyzers=false
+      # The coverage collector is found by "dotnet test <dll>" only with an
+      # adapter path, and the test jobs do not restore. Copy it next to the output.
+      - name: Copy the coverage collector
         shell: pwsh
-        run: ./scripts/check-coverage-thresholds.ps1
+        run: |
+          $source = Join-Path $HOME '.nuget/packages/coverlet.collector/6.0.0/build/netstandard1.0'
+          foreach ($project in 'unit', 'integration') {
+            Copy-Item -Path $source -Destination "tests/$project/bin/Release/net9.0/coverlet-collector" -Recurse
+          }
+      - name: Upload unit test output
+        uses: actions/upload-artifact@v6
+        with:
+          name: bin-unit
+          path: tests/unit/bin/Release/net9.0
+          retention-days: 1
+          compression-level: 1
+      - name: Upload integration test output
+        uses: actions/upload-artifact@v6
+        with:
+          name: bin-integration
+          path: tests/integration/bin/Release/net9.0
+          retention-days: 1
+          compression-level: 1
+      - name: Upload OCR stub
+        uses: actions/upload-artifact@v6
+        with:
+          name: bin-stub
+          path: tests/TestAssets/TesseractStub/bin/Release
+          retention-days: 1
+          compression-level: 1
+      - name: Upload contract test output
+        uses: actions/upload-artifact@v6
+        with:
+          name: bin-contract
+          path: tests/contract/bin/Release/net9.0
+          retention-days: 1
+          compression-level: 1
+
+  # Full build with all analyzers and warnings as errors. It runs next to the
+  # test jobs. A warning fails this job and ci-gate, but does not stop the tests.
+  analyze:
+    needs: changes
+    if: needs.changes.outputs.dotnet == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore GameBot.sln
+      - name: Build (all analyzers, warnings as errors)
+        run: dotnet build GameBot.sln --no-restore -c Release -warnaserror
+
+  test-unit:
+    needs: [ changes, compile ]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+      - name: Download unit test output
+        uses: actions/download-artifact@v6
+        with:
+          name: bin-unit
+          path: tests/unit/bin/Release/net9.0
+      - name: Test (with coverage collection)
+        shell: pwsh
+        run: >
+          dotnet test tests/unit/bin/Release/net9.0/GameBot.UnitTests.dll
+          --collect "XPlat Code Coverage"
+          --settings scripts/ci/coverage.runsettings
+          --test-adapter-path tests/unit/bin/Release/net9.0/coverlet-collector
+          --results-directory "$env:RUNNER_TEMP/coverage-unit"
+      - name: Upload coverage file
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-unit
+          path: ${{ runner.temp }}/coverage-unit
+          retention-days: 1
+          if-no-files-found: error
+
+  test-contract:
+    needs: [ changes, compile ]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.changes.outputs.contract_shards) }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+      - name: Download contract test output
+        uses: actions/download-artifact@v6
+        with:
+          name: bin-contract
+          path: tests/contract/bin/Release/net9.0
+      - name: Test (${{ matrix.shard }})
+        shell: pwsh
+        run: |
+          $filter = ./scripts/ci/get-test-shard-filter.ps1 -Project contract -Shard '${{ matrix.shard }}'
+          $dll = 'tests/contract/bin/Release/net9.0/GameBot.ContractTests.dll'
+          if ($filter) { dotnet test $dll --filter "$filter" } else { dotnet test $dll }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  test-integration:
+    needs: [ changes, compile ]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.changes.outputs.integration_shards) }}
+    env:
+      PINNED: ${{ matrix.shard == needs.changes.outputs.integration_pinned }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+      - name: Download integration test output
+        uses: actions/download-artifact@v6
+        with:
+          name: bin-integration
+          path: tests/integration/bin/Release/net9.0
+      - name: Download OCR stub
+        uses: actions/download-artifact@v6
+        with:
+          name: bin-stub
+          path: tests/TestAssets/TesseractStub/bin/Release
+      # The pinned shard holds the tests that cover EmulatorImageEndpoints and
+      # the performance gate class, so the coverage gate reads full data.
+      - name: Test (${{ matrix.shard }})
+        shell: pwsh
+        run: |
+          $filter = ./scripts/ci/get-test-shard-filter.ps1 -Project integration -Shard '${{ matrix.shard }}'
+          $dll = 'tests/integration/bin/Release/net9.0/GameBot.IntegrationTests.dll'
+          $testArgs = @($dll)
+          if ($filter) { $testArgs += @('--filter', $filter) }
+          if ($env:PINNED -eq 'true') {
+            $testArgs += @('--collect', 'XPlat Code Coverage', '--settings', 'scripts/ci/coverage.runsettings',
+              '--test-adapter-path', 'tests/integration/bin/Release/net9.0/coverlet-collector',
+              '--results-directory', "$env:RUNNER_TEMP/coverage-integration")
+          }
+          dotnet test @testArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Performance gate (execution logs ci profile)
+        if: env.PINNED == 'true'
         env:
           GAMEBOT_PERF_PROFILE: ci
-        run: dotnet test tests/integration/GameBot.IntegrationTests.csproj --no-build --no-restore -c Release --filter "FullyQualifiedName~ExecutionLogsPerformanceIntegrationTests"
+        run: dotnet test tests/integration/bin/Release/net9.0/GameBot.IntegrationTests.dll --filter "FullyQualifiedName~ExecutionLogsPerformanceIntegrationTests"
+      - name: Upload coverage file
+        if: env.PINNED == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-integration
+          path: ${{ runner.temp }}/coverage-integration
+          retention-days: 1
+          if-no-files-found: error
 
   web-ui-tests:
+    needs: changes
+    if: needs.changes.outputs.webui == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -70,3 +289,36 @@ jobs:
       - name: Run frontend tests
         run: npm test -- --coverage --silent
         working-directory: src/web-ui
+
+  # The one pass signal of the run. It runs on Linux, so it adds no Windows
+  # start time. The coverage thresholds run here because the script takes 1 s.
+  ci-gate:
+    needs: [ changes, compile, analyze, test-unit, test-integration, test-contract, web-ui-tests ]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download unit coverage
+        if: needs.test-unit.result == 'success' && needs.test-integration.result == 'success'
+        uses: actions/download-artifact@v6
+        with:
+          name: coverage-unit
+          path: coverage/unit
+      - name: Download integration coverage
+        if: needs.test-unit.result == 'success' && needs.test-integration.result == 'success'
+        uses: actions/download-artifact@v6
+        with:
+          name: coverage-integration
+          path: coverage/integration
+      - name: Coverage gates (installer endpoints, execution logs, auto-update)
+        if: needs.test-unit.result == 'success' && needs.test-integration.result == 'success'
+        shell: pwsh
+        run: ./scripts/check-coverage-thresholds.ps1 -UnitCoverageDir coverage/unit -IntegrationCoverageDir coverage/integration
+      - name: Evaluate job results
+        if: always()
+        shell: pwsh
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          DOTNET: ${{ needs.changes.outputs.dotnet }}
+          WEBUI: ${{ needs.changes.outputs.webui }}
+        run: ./scripts/ci/evaluate-gate.ps1 -NeedsJson $env:NEEDS_JSON -Dotnet $env:DOTNET -Webui $env:WEBUI

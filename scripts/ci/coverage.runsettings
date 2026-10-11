@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Run settings for the coverlet.collector in CI. The module filter, the class
+     filter, and the output format live here because "dotnet test <dll>" cannot
+     use the coverlet.msbuild properties. The classes match the gates in
+     scripts/check-coverage-thresholds.ps1. -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>json</Format>
+          <Include>[GameBot.Service]GameBot.Service.Endpoints.EmulatorImageEndpoints*,[GameBot.Domain]GameBot.Domain.Logging.FileExecutionLogRepository,[GameBot.Domain]GameBot.Domain.Updates*,[GameBot.Service]GameBot.Service.Services.Updates*,[GameBot.Updater]GameBot.Updater*</Include>
+          <ExcludeByFile>**/PlatformSupport.cs,**/GlobalSuppressions.cs</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
