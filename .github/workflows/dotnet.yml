@@ -31,8 +31,10 @@ jobs:
     outputs:
       dotnet: ${{ steps.groups.outputs.dotnet }}
       webui: ${{ steps.groups.outputs.webui }}
+      unit_shards: ${{ steps.shards.outputs.unit }}
       integration_shards: ${{ steps.shards.outputs.integration }}
       contract_shards: ${{ steps.shards.outputs.contract }}
+      unit_pinned: ${{ steps.shards.outputs.unit_pinned }}
       integration_pinned: ${{ steps.shards.outputs.integration_pinned }}
     steps:
       - uses: actions/checkout@v5
@@ -70,11 +72,15 @@ jobs:
         id: shards
         shell: pwsh
         run: |
+          $unit = ./scripts/ci/get-test-shard-filter.ps1 -Project unit -List
           $integration = ./scripts/ci/get-test-shard-filter.ps1 -Project integration -List
           $contract = ./scripts/ci/get-test-shard-filter.ps1 -Project contract -List
+          $unitPinned = ./scripts/ci/get-test-shard-filter.ps1 -Project unit -Pinned
           $pinned = ./scripts/ci/get-test-shard-filter.ps1 -Project integration -Pinned
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "unit=$unit"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "integration=$integration"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "contract=$contract"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "unit_pinned=$unitPinned"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "integration_pinned=$pinned"
 
   # Builds the test projects once, without analyzers, and shares the output.
@@ -163,6 +169,12 @@ jobs:
   test-unit:
     needs: [ changes, compile ]
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.changes.outputs.unit_shards) }}
+    env:
+      PINNED: ${{ matrix.shard == needs.changes.outputs.unit_pinned }}
     steps:
       - uses: actions/checkout@v5
       - name: Setup .NET
@@ -174,15 +186,22 @@ jobs:
         with:
           name: bin-unit
           path: tests/unit/bin/Release/net9.0
-      - name: Test (with coverage collection)
+      # The pinned shard holds the tests that cover the unit coverage gates.
+      - name: Test (${{ matrix.shard }})
         shell: pwsh
-        run: >
-          dotnet test tests/unit/bin/Release/net9.0/GameBot.UnitTests.dll
-          --collect "XPlat Code Coverage"
-          --settings scripts/ci/coverage.runsettings
-          --test-adapter-path tests/unit/bin/Release/net9.0/coverlet-collector
-          --results-directory "$env:RUNNER_TEMP/coverage-unit"
+        run: |
+          $filter = ./scripts/ci/get-test-shard-filter.ps1 -Project unit -Shard '${{ matrix.shard }}'
+          $testArgs = @('tests/unit/bin/Release/net9.0/GameBot.UnitTests.dll')
+          if ($filter) { $testArgs += @('--filter', $filter) }
+          if ($env:PINNED -eq 'true') {
+            $testArgs += @('--collect', 'XPlat Code Coverage', '--settings', 'scripts/ci/coverage.runsettings',
+              '--test-adapter-path', 'tests/unit/bin/Release/net9.0/coverlet-collector',
+              '--results-directory', "$env:RUNNER_TEMP/coverage-unit")
+          }
+          dotnet test @testArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload coverage file
+        if: env.PINNED == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: coverage-unit

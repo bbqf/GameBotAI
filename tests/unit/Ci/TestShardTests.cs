@@ -58,12 +58,20 @@ public class TestShardTests {
       : filter.Split('&').All(Term);
   }
 
-  private static string[] ShardNames(string project) {
+  // Each script call starts PowerShell, so the answers are kept for the run.
+  private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string[]> NameCache = new();
+  private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> FilterCache = new();
+
+  private static string[] ShardNames(string project) => NameCache.GetOrAdd(project, LoadShardNames);
+
+  private static string[] LoadShardNames(string project) {
     var lines = CiScriptRunner.Run("get-test-shard-filter.ps1", "-Project", project, "-List");
     return JsonSerializer.Deserialize<string[]>(string.Concat(lines))!;
   }
 
-  private static string Filter(string project, string shard) {
+  private static string Filter(string project, string shard) => FilterCache.GetOrAdd(project + "/" + shard, _ => LoadFilter(project, shard));
+
+  private static string LoadFilter(string project, string shard) {
     var lines = CiScriptRunner.Run("get-test-shard-filter.ps1", "-Project", project, "-Shard", shard);
     return lines.Count == 0 ? string.Empty : lines[0];
   }
@@ -94,19 +102,21 @@ public class TestShardTests {
     owners.Should().Equal(names[^1]);
   }
 
-  [Fact]
-  public void PinnedIntegrationClassesAreInThePinnedShard() {
+  [Theory]
+  [InlineData("unit")]
+  [InlineData("integration")]
+  public void PinnedClassesAreInThePinnedShard(string project) {
     var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(CiScriptRunner.FindRepoRoot(), "scripts", "ci", "test-shards.json")));
-    var integration = manifest.RootElement.GetProperty("integration");
+    var integration = manifest.RootElement.GetProperty(project);
     var pinnedShard = integration.GetProperty("pinnedShard").GetString()!;
-    var pinnedFilter = Filter("integration", pinnedShard);
-    var existing = FindTestClasses("integration");
+    var pinnedFilter = Filter(project, pinnedShard);
+    var existing = FindTestClasses(project);
 
     foreach (var pinned in integration.GetProperty("pinnedClasses").EnumerateArray().Select(e => e.GetString()!)) {
       existing.Should().Contain(pinned, "a pinned class must exist");
       Matches(pinnedFilter, pinned).Should().BeTrue($"{pinned} must run in {pinnedShard}");
-      foreach (var other in ShardNames("integration").Where(n => n != pinnedShard)) {
-        Matches(Filter("integration", other), pinned).Should().BeFalse($"{pinned} must not run in {other}");
+      foreach (var other in ShardNames(project).Where(n => n != pinnedShard)) {
+        Matches(Filter(project, other), pinned).Should().BeFalse($"{pinned} must not run in {other}");
       }
     }
   }

@@ -207,16 +207,19 @@ public sealed class SelfRescheduleRunIntegrationTests {
     try {
       var registry = services.GetRequiredService<IQueueRunRegistry>();
       var sw = Stopwatch.StartNew();
-      double ahead = 0;
       // A slow CI runner can need more than 30 s to book all four times, so the wait is long.
+      // The second booking (50 min) is also later than 39 min. The wait must end only at the
+      // fourth booking (40 min), or a slow runner reads the state before the third booking.
       while (sw.ElapsedMilliseconds < 90000) {
-        if (registry.TryGet("q-nokeep-4", out var handle)
-            && handle.SnapshotPendingTimerFirings().FirstOrDefault(e => e.SequenceId == sequence.Id)?.FireAt is { } fireAt) {
-          ahead = (fireAt - DateTimeOffset.Now).TotalMinutes;
-          if (ahead > 39) break;
+        if (registry.TryGet("q-nokeep-4", out var handle)) {
+          if (handle.SnapshotPendingTimerFirings().FirstOrDefault(e => e.SequenceId == sequence.Id)?.FireAt is { } fireAt) {
+            var ahead = (fireAt - DateTimeOffset.Now).TotalMinutes;
+            if (ahead > 39 && ahead < 40.2) break;
+          }
         }
         await Task.Delay(50).ConfigureAwait(false);
       }
+      // Keep the former short wait: no later booking may replace the fourth.
       await Task.Delay(500).ConfigureAwait(false);
       registry.TryGet("q-nokeep-4", out var finalHandle).Should().BeTrue();
       var pending = finalHandle!.SnapshotPendingTimerFirings().Should().ContainSingle().Subject;
