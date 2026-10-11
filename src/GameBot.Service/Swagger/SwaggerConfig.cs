@@ -956,7 +956,6 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["state"] = new OpenApiString("downloading")
       }, context, typeof(GameBot.Service.Models.UpdateInstallAccepted));
       SetUpdateErrorExample(operation, "400", "update_confirmation_required", "Confirm that all active queues stop.", "Send confirmStopQueues as true after the user confirms.", context);
-      SetUpdateErrorExample(operation, "403", "update_local_only", "Install from the bot PC.", "Open the UI on the PC that runs GameBot.", context);
       SetUpdateErrorExample(operation, "409", "update_not_installed", "Update works only for an installed bot", "Install GameBot with the installer.", context);
       SetUpdateErrorExample(operation, "422", "update_disk_space", "There is not enough free disk space for the update.", "Free disk space on the data drive, then try again.", context);
     }

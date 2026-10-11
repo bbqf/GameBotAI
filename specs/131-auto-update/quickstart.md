@@ -46,7 +46,7 @@ npm --prefix "C:\src\GameBot\src\web-ui" test -- --testPathPattern=update
    - `PORT` and `BIND_HOST` keep their values (research R-002).
    - Record the number of clicks (SC-001) and the total time (SC-004).
 4. Repeat with a wrong `sha256` in the manifest. Check that the old version still works. Check that the UI shows `update_checksum_mismatch` (SC-005).
-5. Open the UI from a second PC. Check that **Install update** is hidden. Check that the API returns `403 update_local_only`.
+5. Open the UI from a second PC. Check that **Install update** shows and that the update starts there too. (The service does not check the request source.)
 6. Start a queue and install. Check that the warning appears. Check that the queue resumes after the restart if `resumeOnServiceStart` is on.
 7. Start the bot from source, not from the install folder. Check that "Check for Update" works. Check that "Install update" is refused with "Update works only for an installed bot" (FR-015).
 8. Close the browser tab while an update runs. Open the UI again. Check that the update finished and the UI shows the result.

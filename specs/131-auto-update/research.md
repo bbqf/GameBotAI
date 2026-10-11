@@ -36,12 +36,12 @@ Each item below answers a question from the plan. No `NEEDS CLARIFICATION` remai
 - **Rationale**: This reuses tested code. The 4-part version already orders builds from the same workflow.
 - **Rule**: Offer an update only when the release version is greater than the installed version (FR-008). Ignore a tag that does not parse, and write a log line.
 
-## R-006: Who may install (FR-014)
+## R-006: Who may install (FR-014) - removed
 
-- **Decision**: `POST /api/update/install` checks `HttpContext.Connection.RemoteIpAddress`. It must be a loopback address. `IPAddress.IsLoopback` covers IPv4-mapped IPv6. A remote request gets `403` with code `update_local_only`. Do not read `X-Forwarded-For`.
-- **Rationale**: The bot binds to `127.0.0.1` by default, but it can bind to a LAN address. The check uses the real socket address. A header cannot fake it. The token middleware stays active for all routes.
-- **Order**: This check runs before the install location check (R-012). A remote user learns nothing about the install state.
-- **Alternatives considered**: A confirmation code on the PC needs more UX work. It was rejected in the clarification.
+- **Decision (changed)**: `POST /api/update/install` does not check where the request comes from. `LoopbackGuard` and the `update_local_only` error are removed. The token middleware stays active for all routes.
+- **Why it changed**: The first design allowed only a loopback client address. When the bot listens on a LAN address, the user opens the UI by that address, and the update was blocked. A fix that compared the client address with the service address was tried and then dropped. The owner decided that any UI user may update, as for every other route.
+- **Risk accepted**: A user on another PC can stop all queues and update the bot. The confirmation dialog states this.
+- **Original decision (not in use)**: `RemoteIpAddress` had to be a loopback address. A remote request got `403 update_local_only`.
 
 ## R-007: Stop the bot and start it again
 

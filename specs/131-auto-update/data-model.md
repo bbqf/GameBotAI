@@ -62,8 +62,8 @@ idle -> downloading -> verifying -> installing -> restarting -> succeeded
 | lastCheck | UpdateCheckResult, optional | The last check in this bot run. |
 | attempt | UpdateAttempt, optional | The active attempt. |
 | lastResult | UpdateAttempt, optional | A finished attempt from before the last restart. The bot keeps it in memory for the rest of the bot run. The UI shows it until the user closes it. |
-| canInstallHere | boolean | True only if the request is from the bot PC and the bot runs from an installed folder. |
-| installBlockedReason | enum, optional | `remote` or `notInstalled`. `remote` has priority. |
+| canInstallHere | boolean | True only if the bot runs from an installed folder. The request source is not checked. |
+| installBlockedReason | enum, optional | `notInstalled`, or null when the install is allowed. |
 
 ## Persistence layout
 

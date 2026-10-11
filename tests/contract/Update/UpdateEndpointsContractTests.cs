@@ -81,10 +81,9 @@ public sealed class UpdateEndpointsContractTests : IDisposable {
         _lifetime,
         TimeProvider.System,
         NullLogger<UpdateCoordinator>.Instance));
-      // A filter at the start of the pipeline sets the remote address, because TestServer has none.
-      services.AddSingleton<IStartupFilter>(new RemoteAddressFilter());
     }));
 
+  // The remote IP is not used by the update routes (any PC may install). The tests still pass one to show that.
   private static HttpClient CreateClient(WebApplicationFactory<Program> factory, string? remoteIp = null) {
     var client = factory.CreateClient();
     client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
@@ -135,14 +134,14 @@ public sealed class UpdateEndpointsContractTests : IDisposable {
   }
 
   [Fact]
-  public async Task StatusForARemoteRequestSaysRemote() {
+  public async Task StatusForAnotherPcAllowsTheInstall() {
     using var factory = CreateFactory();
     var client = CreateClient(factory, "192.168.1.20");
 
     var json = await ReadJson(await client.GetAsync(new Uri("/api/update/status", UriKind.Relative)).ConfigureAwait(true)).ConfigureAwait(true);
 
-    json.GetProperty("canInstallHere").GetBoolean().Should().BeFalse();
-    json.GetProperty("installBlockedReason").GetString().Should().Be("remote");
+    json.GetProperty("canInstallHere").GetBoolean().Should().BeTrue();
+    json.GetProperty("installBlockedReason").ValueKind.Should().Be(JsonValueKind.Null);
   }
 
   [Fact]
@@ -155,17 +154,6 @@ public sealed class UpdateEndpointsContractTests : IDisposable {
 
     json.GetProperty("canInstallHere").GetBoolean().Should().BeFalse();
     json.GetProperty("installBlockedReason").GetString().Should().Be("notInstalled");
-  }
-
-  [Fact]
-  public async Task RemoteHasPriorityOverNotInstalled() {
-    _guard.Installed = false;
-    using var factory = CreateFactory();
-    var client = CreateClient(factory, "192.168.1.20");
-
-    var json = await ReadJson(await client.GetAsync(new Uri("/api/update/status", UriKind.Relative)).ConfigureAwait(true)).ConfigureAwait(true);
-
-    json.GetProperty("installBlockedReason").GetString().Should().Be("remote");
   }
 
   [Fact]
@@ -238,36 +226,15 @@ public sealed class UpdateEndpointsContractTests : IDisposable {
   }
 
   [Fact]
-  public async Task InstallFromARemoteAddressReturns403() {
+  public async Task InstallFromAnotherPcIsAllowed() {
     using var factory = CreateFactory();
     var client = CreateClient(factory, "192.168.1.20");
+    await CheckForUpdate(client).ConfigureAwait(true);
 
     var response = await client.PostAsync(new Uri("/api/update/install", UriKind.Relative), Body(InstallBody)).ConfigureAwait(true);
 
-    await AssertError(response, HttpStatusCode.Forbidden, "update_local_only").ConfigureAwait(true);
-    _launcher.Requests.Should().BeEmpty();
-  }
-
-  [Fact]
-  public async Task InstallFromARemoteAddressOfABotThatIsNotInstalledReturns403() {
-    _guard.Installed = false;
-    using var factory = CreateFactory();
-    var client = CreateClient(factory, "192.168.1.20");
-
-    var response = await client.PostAsync(new Uri("/api/update/install", UriKind.Relative), Body(InstallBody)).ConfigureAwait(true);
-
-    await AssertError(response, HttpStatusCode.Forbidden, "update_local_only").ConfigureAwait(true);
-  }
-
-  [Fact]
-  public async Task InstallForwardedForHeaderDoesNotMakeARemoteRequestLocal() {
-    using var factory = CreateFactory();
-    var client = CreateClient(factory, "192.168.1.20");
-    client.DefaultRequestHeaders.Add("X-Forwarded-For", "127.0.0.1");
-
-    var response = await client.PostAsync(new Uri("/api/update/install", UriKind.Relative), Body(InstallBody)).ConfigureAwait(true);
-
-    await AssertError(response, HttpStatusCode.Forbidden, "update_local_only").ConfigureAwait(true);
+    response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    await _coordinator!.Running.ConfigureAwait(true);
   }
 
   [Fact]
@@ -399,21 +366,11 @@ public sealed class UpdateEndpointsContractTests : IDisposable {
     paths.TryGetProperty("/api/update/check", out _).Should().BeTrue();
     var install = paths.GetProperty("/api/update/install").GetProperty("post");
     install.GetProperty("operationId").GetString().Should().Be("InstallUpdate");
-    foreach (var code in new[] { "202", "400", "403", "409", "422" }) {
+    foreach (var code in new[] { "202", "400", "409", "422" }) {
       install.GetProperty("responses").TryGetProperty(code, out _).Should().BeTrue(code);
     }
   }
 
-  private sealed class RemoteAddressFilter : IStartupFilter {
-    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app => {
-      app.Use(async (context, nextMiddleware) => {
-        var header = context.Request.Headers[RemoteHeader].ToString();
-        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(string.IsNullOrEmpty(header) ? "127.0.0.1" : header);
-        await nextMiddleware(context).ConfigureAwait(false);
-      });
-      next(app);
-    };
-  }
 }
 
 internal static class UpdateTestRelease {

@@ -1123,11 +1123,10 @@ new version and starts again. Windows shows no SmartScreen and no UAC prompt in 
   Windows Installer, and the old bot starts again.
 - **Result**: `UpdateResultReportingService` reads `update-result.json` at start. `lastResult` in
   `GET /api/update/status` shows it.
-- **Guards**: an install needs two things. The request must come from the bot PC (`LoopbackGuard` reads the
-  socket addresses, and a header has no effect). A request is local when the client address is a loopback
-  address or equals the service address of the socket. A browser on the bot PC can use the network address. The bot must run from the installed folder
+- **Guard**: an install needs one thing. The bot must run from the installed folder
   (`InstallLocationGuard` reads the `HKCU\...\Run` value `GameBot`). The status route returns `canInstallHere`
-  and `installBlockedReason`. The reason `remote` has priority over `notInstalled`.
+  and `installBlockedReason` (`notInstalled` or null). The service does not check where the request comes from:
+  any PC that reaches the service can start an update, as for every other route.
 - **Limit**: the manifest and the MSI come from the same release. The checksum finds damaged downloads. It gives no
   protection if an attacker controls the release. Only code signing fixes that, and the build is not signed.
 
@@ -1168,7 +1167,7 @@ Feature 131 added three routes, tag `Update` (errors use `{ "error": { code, mes
 - `GET /api/update/status`: installed version, last check, the active attempt, the last result, `canInstallHere`,
   and `installBlockedReason`.
 - `POST /api/update/check`: always `200` (`upToDate`, `updateAvailable`, `checkFailed`), or `409 update_in_progress`.
-- `POST /api/update/install` (body `targetVersion`, `confirmStopQueues: true`): `202`, or `403 update_local_only`,
+- `POST /api/update/install` (body `targetVersion`, `confirmStopQueues: true`): `202`, or
   `409 update_not_installed`, `400 update_confirmation_required`, `400 update_not_available`,
   `409 update_in_progress`, `422 update_disk_space`. Later failures show in the status (`update_download_failed`,
   `update_checksum_mismatch`, `update_install_failed`, `update_restart_failed`).

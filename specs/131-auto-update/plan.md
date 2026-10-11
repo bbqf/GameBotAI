@@ -20,7 +20,7 @@ The updater waits for the bot to exit. It runs `msiexec` silent. The MSI is per-
 **Target Platform**: Windows 11 and Windows 10, per-user install, x64
 **Project Type**: Web application (ASP.NET Core service with a React UI) and one small console program
 **Performance Goals**: One "Check for Update" takes 5 s or less on a normal network. The download and install take 5 minutes or less (SC-004).
-**Constraints**: No UAC prompt. No SmartScreen prompt in the update step. No code signing. No GitHub token on the user PC. A remote PC cannot start an update (FR-014).
+**Constraints**: No UAC prompt. No SmartScreen prompt in the update step. No code signing. No GitHub token on the user PC. (FR-014, which limited the update to the bot PC, is removed.)
 **Scale/Scope**: One user PC for each install. One release channel. About 1 check each day for each install. This is far below the GitHub limit of 60 requests each hour for each IP.
 
 ## Constitution Check
@@ -39,7 +39,7 @@ The updater waits for the bot to exit. It runs `msiexec` silent. The MSI is per-
 | IV. Performance | Pass | Goals are in Technical Context. A check is one HTTP call. |
 | V. Living documentation | Action | Update `docs/architecture.md` (API surface, capability map, persistence, "Last reviewed" date). Set the `Status` line of this spec and `specs/STATUS.md`. |
 | VI. STE | Pass | All artifacts follow STE. |
-| Security gate | Pass | Checksum check, install from the bot PC only, https download from `github.com` hosts only, no secrets. See `research.md` R-003, R-004, R-006. |
+| Security gate | Pass | Checksum check, https download from `github.com` hosts only, no secrets. See `research.md` R-003, R-004, R-006. |
 
 **Re-check after design**: Pass. The design adds one console project, `GameBot.Updater`. The Complexity Tracking table gives the reason.
 
@@ -71,7 +71,7 @@ src/
 │   ├── Services/Updates/             # GitHubReleaseClient, UpdateCheckService (check only),
 │   │                                 #   UpdateCoordinator (install flow: download, queue stop, launch),
 │   │                                 #   UpdateDownloader, UpdaterLauncher, UpdateResultStore,
-│   │                                 #   LoopbackGuard, InstallLocationGuard
+│   │                                 #   InstallLocationGuard
 │   └── Hosted/UpdateResultReportingService.cs   # Reads update-result.json at start
 ├── GameBot.Updater/                  # New console project: wait for exit, run msiexec, restart, write result
 └── web-ui/src/
@@ -85,8 +85,7 @@ scripts/new-update-manifest.ps1       # Write update-manifest.json from the buil
 
 tests/
 ├── unit/Updates/                     # Version selection, manifest, checksum, guards, state machine
-├── contract/Update/                  # Route contract tests (with the 403 for a remote request)
-└── integration/Updates/              # Coordinator with a fake release server and a fake launcher
+├── contract/Update/                  # Route contract tests└── integration/Updates/              # Coordinator with a fake release server and a fake launcher
 ```
 
 **Structure Decision**: Pure logic is in `GameBot.Domain/Updates`. All I/O is in `GameBot.Service/Services/Updates` behind interfaces. I/O means HTTP, files, and process start. One new console project does the work that must happen after the bot exits.

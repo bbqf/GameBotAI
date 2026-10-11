@@ -9,7 +9,7 @@ current-state summary.
 | Part | Files | Job |
 |------|-------|-----|
 | Domain logic | `src/GameBot.Domain/Updates/` | `UpdateVersionSelector` (tag parse, "greater" rule), `ChecksumVerifier` (SHA-256), `UpdateManifest` (parser, schema 1), and the types `ReleaseInfo`, `UpdateCheckResult`, `UpdateAttempt`, `UpdateState`, `UpdateError`. |
-| Service logic | `src/GameBot.Service/Services/Updates/` | `GitHubReleaseClient`, `UpdateHttp` (host list, redirect steps), `UpdateCheckService`, `UpdateDownloader`, `UpdateCoordinator`, `UpdaterLauncher`, `UpdateResultStore`, `UpdateResultReporter`, `UpdateQueueStopper`, `LoopbackGuard`, `InstallLocationGuard`, `InstalledVersionProvider`, `UpdateServiceRegistration`. |
+| Service logic | `src/GameBot.Service/Services/Updates/` | `GitHubReleaseClient`, `UpdateHttp` (host list, redirect steps), `UpdateCheckService`, `UpdateDownloader`, `UpdateCoordinator`, `UpdaterLauncher`, `UpdateResultStore`, `UpdateResultReporter`, `UpdateQueueStopper`, `InstallLocationGuard`, `InstalledVersionProvider`, `UpdateServiceRegistration`. |
 | Routes | `src/GameBot.Service/Endpoints/UpdateEndpoints.cs`, `Models/UpdateModels.cs` | `GET /api/update/status`, `POST /api/update/check`, `POST /api/update/install`. |
 | Start-up | `src/GameBot.Service/Hosted/UpdateResultReportingService.cs` | Reads the result of the last attempt before the first request. |
 | Updater | `src/GameBot.Updater/` | Console program: wait for the bot, run `msiexec`, start the bot, write the result. |
@@ -48,13 +48,14 @@ The route checks in this order. The first failed check decides.
 
 | Order | Answer | Code |
 |-------|--------|------|
-| 1 | 403 | `update_local_only` (the socket address is not loopback; a header such as `X-Forwarded-For` has no effect) |
-| 2 | 409 | `update_not_installed` (the folder of the `HKCU\...\Run` value `GameBot` is not the folder of the service) |
-| 3 | 400 | `update_confirmation_required` (`confirmStopQueues` is not `true`, or the body is not valid JSON) |
-| 4 | 400 | `update_not_available` (no check yet, a version that differs from the last checked newer release, or not greater) |
-| 5 | 409 | `update_in_progress` |
-| 6 | 422 | `update_disk_space` (free space on the data drive is below 3 times the MSI size) |
-| 7 | 202 | `{ attemptId, state: "downloading" }` |
+| 1 | 409 | `update_not_installed` (the folder of the `HKCU\...\Run` value `GameBot` is not the folder of the service) |
+| 2 | 400 | `update_confirmation_required` (`confirmStopQueues` is not `true`, or the body is not valid JSON) |
+| 3 | 400 | `update_not_available` (no check yet, a version that differs from the last checked newer release, or not greater) |
+| 4 | 409 | `update_in_progress` |
+| 5 | 422 | `update_disk_space` (free space on the data drive is below 3 times the MSI size) |
+| 6 | 202 | `{ attemptId, state: "downloading" }` |
+
+The service does not check where the request comes from. The earlier `update_local_only` check (`LoopbackGuard`) is removed.
 
 After the 202, `UpdateCoordinator` runs the attempt in the background:
 
@@ -103,8 +104,8 @@ The result file is written to a temporary file first and then moved, so the bot 
 ### Status route
 
 `GET /api/update/status` returns the installed version, `lastCheck`, the active `attempt` (also a failed one, until the
-next attempt), `lastResult`, `canInstallHere`, and `installBlockedReason`. The reason is `remote` or `notInstalled`.
-`remote` has priority.
+next attempt), `lastResult`, `canInstallHere`, and `installBlockedReason`. The reason is `notInstalled`, or
+null when the install is allowed.
 
 ## Web UI
 
@@ -113,8 +114,7 @@ next attempt), `lastResult`, `canInstallHere`, and `installBlockedReason`. The r
   **Check for Update**. The button is off while a check runs.
 - After a check, the page shows "up to date", the failed-check message with its hint, or the new version. The release
   notes show as plain text in a `<pre>` (React escapes the text). The notes area is hidden when the notes are empty.
-- **Install update** shows only when `canInstallHere` is not false. Otherwise the page says "Install from the bot PC."
-  or "Update works only for an installed bot."
+- **Install update** shows only when `canInstallHere` is not false. Otherwise the page says "Update works only for an installed bot."
 - A confirm dialog says that all active queues stop at once. The request carries `confirmStopQueues: true` only after
   the user accepts.
 - While the attempt runs, the page polls the status every 2 s and shows the step. When the bot is down, it shows
@@ -142,7 +142,7 @@ next attempt), `lastResult`, `canInstallHere`, and `installBlockedReason`. The r
 | Level | Where | Notes |
 |-------|-------|-------|
 | Unit | `tests/unit/Updates/` | Domain logic, client with a fake HTTP handler, downloader, launcher, store, reporter, coordinator, queue stopper, guards, registration, log, and the updater runner. |
-| Contract | `tests/contract/Update/UpdateEndpointsContractTests.cs` | All routes and codes. A test filter sets the remote address. A fake lifetime keeps the test host running. |
+| Contract | `tests/contract/Update/UpdateEndpointsContractTests.cs` | All routes and codes. A fake lifetime keeps the test host running. |
 | Integration | `tests/integration/Updates/` | Check and install with the real client, downloader, store, and launcher; only the release server and the process start are fakes. Also the resume of queues after the restart. |
 | Web UI | `pages/__tests__/UpdatePage.test.tsx`, `services/__tests__/update.spec.ts`, `__tests__/updateArea.spec.tsx` | Jest. |
 

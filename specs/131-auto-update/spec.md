@@ -17,11 +17,11 @@
 
 ### Session 2026-10-09
 
-- Q: Who may start an update? → A: Only requests from the same PC can install an update. Other users can check for an update but not install.
+- Q: Who may start an update? → A: Any user of the UI can check for an update and install it. The service does not check where the request comes from. (Changed after issue #65 follow-up. The first design allowed only the bot PC. That blocked the update when the bot listens on a network address.)
 - Q: What happens to active queues? → A: The user confirms after a warning. The bot stops all queues at once, updates, and restarts. Queues with "resume after service start" turned on start again.
 - Q: What happens when the bot does not run from an installed folder? → A: The bot refuses to install. "Check for Update" still works. The UI says "Update works only for an installed bot".
 - Q: Does the UI show the release notes? → A: Yes. The UI shows the release notes as plain text next to the new version number. If the release has no notes, the UI shows nothing extra.
-- Q: Which error comes first when a request is remote and the bot is not installed? → A: The remote error comes first. A remote user learns nothing about the install state.
+- Q: Which error comes first when a request is remote and the bot is not installed? → A: Not applicable now. The service has no remote check (see FR-014).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -96,7 +96,7 @@ The download is damaged, the checksum does not match, or the install fails.
 - Security software or a Windows policy blocks the installer: the update fails and the old version still works. The UI shows the exit code and the log path. The installer is per-user, so it does not need administrator rights.
 - A developer starts the bot from source, so it does not run from an installed folder. The bot refuses "Install update" with a clear message. "Check for Update" still works.
 - The user closes the UI during the update: the update still finishes.
-- A user on another PC clicks "Install update": the bot refuses the request. Nothing changes on the bot PC.
+- A user on another PC clicks "Install update": the bot accepts the request, as for a user on the bot PC. The confirmation dialog states that all active queues stop.
 - The user downloads the installer with a web browser for the first install: Windows can show a SmartScreen warning. See FR-010.
 
 ## Requirements *(mandatory)*
@@ -116,8 +116,8 @@ The download is damaged, the checksum does not match, or the install fails.
 - **FR-011**: Only builds that the owner marks as a release are update-eligible. The owner can use a version tag or a manual workflow run. A normal merge to master MUST NOT make a build visible to "Check for Update". There is one channel only.
 - **FR-012**: The installed bot MUST read the release list from the public GitHub Releases of the project repository. It MUST NOT need a login token.
 - **FR-013**: Before the update starts, the system MUST warn the user that all active queues and sequences stop at once. The system MUST NOT wait for them to become idle. After the restart, queues with "resume after service start" turned on MUST start again.
-- **FR-014**: The system MUST accept an "Install update" request only from the PC that runs the bot. The system MUST refuse a request from another PC with the message "Install from the bot PC". "Check for Update" stays open to all UI users.
-- **FR-015**: The system MUST refuse "Install update" when the bot does not run from an installed folder. The refusal MUST show the message "Update works only for an installed bot". "Check for Update" MUST still work in this case. If a request is remote and the bot is not installed, the remote refusal (FR-014) comes first.
+- **FR-014** *(removed)*: The system does not check where an "Install update" request comes from. Any UI user may install an update, as for every other route. The first design allowed only the PC that runs the bot. That rule blocked the update when the bot listens on a network address, so the rule is removed.
+- **FR-015**: The system MUST refuse "Install update" when the bot does not run from an installed folder. The refusal MUST show the message "Update works only for an installed bot". "Check for Update" MUST still work in this case.
 - **FR-016**: When an update is available, the UI MUST show the release notes of the new version as plain text. The UI MUST NOT run or render markup from the notes. If the release has no notes, the UI MUST NOT show an empty notes area.
 
 ### Key Entities
