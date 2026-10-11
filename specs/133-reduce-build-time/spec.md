@@ -2,7 +2,7 @@
 
 **Feature Branch**: `133-reduce-build-time`
 **Created**: 2026-10-11
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "We need to bring build time down. We did this before, but the time is rising again. Check for redundant steps and for code structure, and bring the build time down. Expected local duration of a build without tests: under 4 minutes, ideally 2-3 minutes."
 
 ## Clarifications

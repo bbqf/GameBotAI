@@ -250,6 +250,7 @@ update itself. Only an installed bot can.
 ## More documents
 
 - [docs/architecture.md](docs/architecture.md): the current architecture, domain model, and API surface.
+- [docs/build-time.md](docs/build-time.md): the build-time limits, the causes of a slow build, and how to measure it.
 - [INSTALL.md](INSTALL.md): all installer options, silent install, ports, HTTPS, and exit codes.
 - [ENVIRONMENT.md](ENVIRONMENT.md): all environment variables.
 - [VERSIONING.md](VERSIONING.md): how version numbers work.

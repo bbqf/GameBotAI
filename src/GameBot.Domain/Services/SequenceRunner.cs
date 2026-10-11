@@ -589,64 +589,17 @@ namespace GameBot.Domain.Services {
         await Task.Delay(appliedDelay, ct).ConfigureAwait(false);
       }
 
-      if (step.Gate != null && gateEvaluator != null) {
-        if (_logger != null) LogGateStart(_logger, step.CommandId, step.Gate.TargetId ?? string.Empty, step.Gate.Condition.ToString(), step.TimeoutMs.GetValueOrDefault(0), null);
-        var deadline = step.TimeoutMs.HasValue && step.TimeoutMs.Value > 0
-            ? DateTimeOffset.UtcNow.AddMilliseconds(step.TimeoutMs.Value)
-            : (DateTimeOffset?)null;
-        while (true) {
-          ct.ThrowIfCancellationRequested();
-          var ok = await gateEvaluator(step, ct).ConfigureAwait(false);
-          if (ok) {
-            if (_logger != null) LogGatePassed(_logger, step.CommandId, null);
-            break;
-          }
-
-          if (deadline.HasValue && DateTimeOffset.UtcNow >= deadline.Value) {
-            if (_logger != null) LogGateTimeout(_logger, step.CommandId, sequenceId, null);
-            result.Fail("Gating timeout reached");
-            return true; // early stop
-          }
-
-          await Task.Delay(100, ct).ConfigureAwait(false);
-        }
+      if (step.Gate != null && gateEvaluator != null
+          && await WaitForGateTimeoutAsync(step, gateEvaluator, sequenceId, result, ct).ConfigureAwait(false)) {
+        return true; // early stop
       }
 
-      // ── Dry-run leaf-dispatch gate (feature 082, FR-002/FR-006/FR-007/FR-015) ───────────
-      // Intercepts every step family that would otherwise dispatch input to the emulator, start or
-      // use a session, or read live capture state — wait-for-image, reschedule-self, and every
-      // dispatched primitive action (tap/swipe/key/connect-to-game/ensure-game-running/
-      // go-to-home-screen/ensure-emulator-running) — before any of those blocks run, reporting a
-      // uniform skipped_dry_run outcome instead. Deliberately does NOT intercept the ordinary
-      // command-referencing fallback below: that path preserves its own stale-commandId existence
-      // check via CommandDispatchOutcome.SkippedDryRun (see the RequireDispatch handling further
-      // down), which a blanket skip here would silently swallow (FR-010).
-      if (dryRun && (IsWaitForImageStep(step)
-          || (step.StepType == SequenceStepType.Action && IsServiceLevelAction(step.Action))
-          || (step.StepType == SequenceStepType.Action && IsDispatchedPrimitiveAction(step.Action)))) {
-        result.AddStep(
-            stepKey,
-            appliedDelay,
-            "Succeeded",
-            conditionType: step.Condition is null ? null : step.Condition.Type,
-            conditionResult: step.Condition is null ? null : "true",
-            actionOutcome: DryRunOutcomes.SkippedDryRun,
-            message: $"dry run: '{step.Action?.Type}' was not dispatched");
-        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = DryRunOutcomes.SkippedDryRun;
+      if (TryRecordDryRunSkip(step, stepKey, appliedDelay, dryRun, result, stepOutcomes)) {
         return false;
       }
 
       if (IsWaitForImageStep(step)) {
-        var waitOutcome = await WaitForImageAsync(step.WaitForImage, conditionEvaluator, ct).ConfigureAwait(false);
-        result.AddStep(
-            stepKey,
-            appliedDelay,
-            "Succeeded",
-            conditionType: step.Condition is null ? null : step.Condition.Type,
-            conditionResult: step.Condition is null ? null : "true",
-            actionOutcome: waitOutcome.ExitCondition,
-            waitForImageDetails: waitOutcome.Detail);
-        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+        await RecordWaitForImageStepAsync(step, stepKey, appliedDelay, conditionEvaluator, result, stepOutcomes, ct).ConfigureAwait(false);
         return false;
       }
 
@@ -660,17 +613,7 @@ namespace GameBot.Domain.Services {
       if (step.StepType == SequenceStepType.Action
           && actionDispatcher is not null
           && IsServiceLevelAction(step.Action)) {
-        var dispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
-        result.AddStep(
-            stepKey,
-            appliedDelay,
-            "Succeeded",
-            conditionType: step.Condition is null ? null : step.Condition.Type,
-            conditionResult: step.Condition is null ? null : "true",
-            actionOutcome: dispatch.Outcome,
-            message: dispatch.Message,
-            removed: dispatch.Removed);
-        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+        await RecordServiceLevelActionAsync(step, stepKey, appliedDelay, actionDispatcher, result, stepOutcomes, ct).ConfigureAwait(false);
         return false;
       }
 
@@ -683,41 +626,191 @@ namespace GameBot.Domain.Services {
       if (step.StepType == SequenceStepType.Action
           && actionDispatcher is not null
           && IsDispatchedPrimitiveAction(step.Action)) {
-        var inputDispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
-        if (string.Equals(inputDispatch.Outcome, "failed", StringComparison.OrdinalIgnoreCase)) {
-          var reason = !string.IsNullOrWhiteSpace(inputDispatch.Message)
-              ? inputDispatch.Message
-              : $"step '{stepKey}' {step.Action!.Type} dispatch failed";
-          result.AddStep(
-              stepKey,
-              appliedDelay,
-              "Failed",
-              conditionType: step.Condition is null ? null : step.Condition.Type,
-              conditionResult: step.Condition is null ? null : "true",
-              actionOutcome: "failed",
-              message: reason);
-          result.Fail(reason);
-          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
-          return true;
+        return await RunPrimitiveActionStepAsync(step, stepKey, appliedDelay, actionDispatcher, result, stepOutcomes, ct).ConfigureAwait(false);
+      }
+
+      return await RunCommandStepAsync(
+          originalStep,
+          step,
+          stepKey,
+          appliedDelay,
+          scope,
+          executeCommandAsync,
+          commandDispatcher,
+          result,
+          stepOutcomes).ConfigureAwait(false);
+    }
+
+    // The parts of ExecuteSingleStepAsync are named methods. The build-time analyzers need much time for
+    // one large method, so each part is its own method (feature 133). The behavior is the same.
+
+    /// <summary>
+    /// Waits until the gate of a step passes. Returns <c>true</c> when the gate timeout is reached
+    /// (the sequence stops early), <c>false</c> when the gate passed.
+    /// </summary>
+    private async Task<bool> WaitForGateTimeoutAsync(
+        SequenceStep step,
+        Func<SequenceStep, CancellationToken, Task<bool>> gateEvaluator,
+        string sequenceId,
+        SequenceExecutionResult result,
+        CancellationToken ct) {
+      if (_logger != null) LogGateStart(_logger, step.CommandId, step.Gate!.TargetId ?? string.Empty, step.Gate.Condition.ToString(), step.TimeoutMs.GetValueOrDefault(0), null);
+      var deadline = step.TimeoutMs.HasValue && step.TimeoutMs.Value > 0
+          ? DateTimeOffset.UtcNow.AddMilliseconds(step.TimeoutMs.Value)
+          : (DateTimeOffset?)null;
+      while (true) {
+        ct.ThrowIfCancellationRequested();
+        var ok = await gateEvaluator(step, ct).ConfigureAwait(false);
+        if (ok) {
+          if (_logger != null) LogGatePassed(_logger, step.CommandId, null);
+          return false;
         }
 
-        result.AddStep(
-            stepKey,
-            appliedDelay,
-            "Succeeded",
-            conditionType: step.Condition is null ? null : step.Condition.Type,
-            conditionResult: step.Condition is null ? null : "true",
-            actionOutcome: inputDispatch.Outcome,
-            message: inputDispatch.Message);
-        // Feature 129: a restart records its own state. A condition on success matches it too.
-        if (!string.IsNullOrWhiteSpace(stepKey)) {
-          stepOutcomes[stepKey] = string.Equals(inputDispatch.Outcome, StepOutcomeStates.Restarted, StringComparison.OrdinalIgnoreCase)
-              ? StepOutcomeStates.Restarted
-              : "success";
+        if (deadline.HasValue && DateTimeOffset.UtcNow >= deadline.Value) {
+          if (_logger != null) LogGateTimeout(_logger, step.CommandId, sequenceId, null);
+          result.Fail("Gating timeout reached");
+          return true; // early stop
         }
+
+        await Task.Delay(100, ct).ConfigureAwait(false);
+      }
+    }
+
+    // ── Dry-run leaf-dispatch gate (feature 082, FR-002/FR-006/FR-007/FR-015) ───────────
+    // Intercepts every step family that would otherwise dispatch input to the emulator, start or
+    // use a session, or read live capture state — wait-for-image, reschedule-self, and every
+    // dispatched primitive action (tap/swipe/key/connect-to-game/ensure-game-running/
+    // go-to-home-screen/ensure-emulator-running) — before any of those blocks run, reporting a
+    // uniform skipped_dry_run outcome instead. Deliberately does NOT intercept the ordinary
+    // command-referencing fallback below: that path preserves its own stale-commandId existence
+    // check via CommandDispatchOutcome.SkippedDryRun (see the RequireDispatch handling further
+    // down), which a blanket skip here would silently swallow (FR-010).
+    private static bool TryRecordDryRunSkip(
+        SequenceStep step,
+        string stepKey,
+        int appliedDelay,
+        bool dryRun,
+        SequenceExecutionResult result,
+        Dictionary<string, string> stepOutcomes) {
+      if (!(dryRun && (IsWaitForImageStep(step)
+          || (step.StepType == SequenceStepType.Action && IsServiceLevelAction(step.Action))
+          || (step.StepType == SequenceStepType.Action && IsDispatchedPrimitiveAction(step.Action))))) {
         return false;
       }
 
+      result.AddStep(
+          stepKey,
+          appliedDelay,
+          "Succeeded",
+          conditionType: step.Condition is null ? null : step.Condition.Type,
+          conditionResult: step.Condition is null ? null : "true",
+          actionOutcome: DryRunOutcomes.SkippedDryRun,
+          message: $"dry run: '{step.Action?.Type}' was not dispatched");
+      if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = DryRunOutcomes.SkippedDryRun;
+      return true;
+    }
+
+    private async Task RecordWaitForImageStepAsync(
+        SequenceStep step,
+        string stepKey,
+        int appliedDelay,
+        Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+        SequenceExecutionResult result,
+        Dictionary<string, string> stepOutcomes,
+        CancellationToken ct) {
+      var waitOutcome = await WaitForImageAsync(step.WaitForImage, conditionEvaluator, ct).ConfigureAwait(false);
+      result.AddStep(
+          stepKey,
+          appliedDelay,
+          "Succeeded",
+          conditionType: step.Condition is null ? null : step.Condition.Type,
+          conditionResult: step.Condition is null ? null : "true",
+          actionOutcome: waitOutcome.ExitCondition,
+          waitForImageDetails: waitOutcome.Detail);
+      if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+    }
+
+    private static async Task RecordServiceLevelActionAsync(
+        SequenceStep step,
+        string stepKey,
+        int appliedDelay,
+        Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>> actionDispatcher,
+        SequenceExecutionResult result,
+        Dictionary<string, string> stepOutcomes,
+        CancellationToken ct) {
+      var dispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
+      result.AddStep(
+          stepKey,
+          appliedDelay,
+          "Succeeded",
+          conditionType: step.Condition is null ? null : step.Condition.Type,
+          conditionResult: step.Condition is null ? null : "true",
+          actionOutcome: dispatch.Outcome,
+          message: dispatch.Message,
+          removed: dispatch.Removed);
+      if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+    }
+
+    /// <summary>
+    /// Runs a primitive action step through the action dispatcher. Returns <c>true</c> when the
+    /// dispatch failed (the sequence stops early).
+    /// </summary>
+    private static async Task<bool> RunPrimitiveActionStepAsync(
+        SequenceStep step,
+        string stepKey,
+        int appliedDelay,
+        Func<SequenceActionPayload, CancellationToken, Task<ActionDispatchResult>> actionDispatcher,
+        SequenceExecutionResult result,
+        Dictionary<string, string> stepOutcomes,
+        CancellationToken ct) {
+      var inputDispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
+      if (string.Equals(inputDispatch.Outcome, "failed", StringComparison.OrdinalIgnoreCase)) {
+        var reason = !string.IsNullOrWhiteSpace(inputDispatch.Message)
+            ? inputDispatch.Message
+            : $"step '{stepKey}' {step.Action!.Type} dispatch failed";
+        result.AddStep(
+            stepKey,
+            appliedDelay,
+            "Failed",
+            conditionType: step.Condition is null ? null : step.Condition.Type,
+            conditionResult: step.Condition is null ? null : "true",
+            actionOutcome: "failed",
+            message: reason);
+        result.Fail(reason);
+        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+        return true;
+      }
+
+      result.AddStep(
+          stepKey,
+          appliedDelay,
+          "Succeeded",
+          conditionType: step.Condition is null ? null : step.Condition.Type,
+          conditionResult: step.Condition is null ? null : "true",
+          actionOutcome: inputDispatch.Outcome,
+          message: inputDispatch.Message);
+      // Feature 129: a restart records its own state. A condition on success matches it too.
+      if (!string.IsNullOrWhiteSpace(stepKey)) {
+        stepOutcomes[stepKey] = string.Equals(inputDispatch.Outcome, StepOutcomeStates.Restarted, StringComparison.OrdinalIgnoreCase)
+            ? StepOutcomeStates.Restarted
+            : "success";
+      }
+      return false;
+    }
+
+    /// <summary>
+    /// Runs a step that refers to a command. Returns <c>true</c> when the sequence must stop early.
+    /// </summary>
+    private async Task<bool> RunCommandStepAsync(
+        SequenceStep originalStep,
+        SequenceStep step,
+        string stepKey,
+        int appliedDelay,
+        ParameterScope scope,
+        Func<string, ParameterScope, Task> executeCommandAsync,
+        Func<string, ParameterScope, Task<CommandDispatchOutcome>>? commandDispatcher,
+        SequenceExecutionResult result,
+        Dictionary<string, string> stepOutcomes) {
       // The step's bindings become an inner layer, so the invoked command sees them ahead of
       // anything inherited. The command's own declarations are layered on by the caller, which is
       // the only place that can load them (feature 078). A {{name}} placeholder in a binding value
@@ -777,56 +870,7 @@ namespace GameBot.Domain.Services {
       // "tap it if it is there" is a legitimate and common pattern (loops that drain a list until
       // nothing matches end precisely on a miss), so only a step marked RequireDispatch fails.
       if (!cmdDispatch.Dispatched) {
-        // Feature 082 (FR-002/FR-006/FR-010): the commandId resolved to a real command, but a
-        // dry-run skipped actually dispatching it — distinct from a genuine "nothing dispatched"
-        // miss, so it must never trip the RequireDispatch failure check below.
-        if (cmdDispatch.SkippedDryRun) {
-          result.AddStep(
-              step.CommandId,
-              appliedDelay,
-              "Succeeded",
-              conditionType: step.Condition is null ? null : step.Condition.Type,
-              conditionResult: step.Condition is null ? null : "true",
-              actionOutcome: DryRunOutcomes.SkippedDryRun,
-              message: "dry run: command was not dispatched",
-              stepId: step.StepId);
-          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = DryRunOutcomes.SkippedDryRun;
-          if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
-          return false;
-        }
-
-        var missReason = !string.IsNullOrWhiteSpace(cmdDispatch.Reason)
-            ? cmdDispatch.Reason!
-            : "command dispatched no input to the device";
-        if (originalStep.RequireDispatch) {
-          var failure = $"step '{stepKey}' requires dispatch but {missReason}";
-          result.AddStep(
-              step.CommandId,
-              appliedDelay,
-              "Failed",
-              conditionType: step.Condition is null ? null : step.Condition.Type,
-              conditionResult: step.Condition is null ? null : "true",
-              actionOutcome: "not_executed",
-              message: failure,
-              stepId: step.StepId);
-          result.Fail(failure);
-          if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
-          if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
-          return true;
-        }
-
-        result.AddStep(
-            step.CommandId,
-            appliedDelay,
-            "Succeeded",
-            conditionType: step.Condition is null ? null : step.Condition.Type,
-            conditionResult: step.Condition is null ? null : "true",
-            actionOutcome: "not_executed",
-            message: missReason,
-            stepId: step.StepId);
-        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "not_executed";
-        if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
-        return false;
+        return RecordUndispatchedCommand(originalStep, step, stepKey, appliedDelay, cmdDispatch, durationMs, result, stepOutcomes);
       }
 
       result.AddStep(
@@ -838,6 +882,71 @@ namespace GameBot.Domain.Services {
           actionOutcome: "executed",
           stepId: step.StepId);
       if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+      if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
+      return false;
+    }
+
+    /// <summary>
+    /// Records a command that ran but dispatched no input to the device. Returns <c>true</c> when
+    /// the step requires dispatch (the sequence stops early).
+    /// </summary>
+    private bool RecordUndispatchedCommand(
+        SequenceStep originalStep,
+        SequenceStep step,
+        string stepKey,
+        int appliedDelay,
+        CommandDispatchOutcome cmdDispatch,
+        int durationMs,
+        SequenceExecutionResult result,
+        Dictionary<string, string> stepOutcomes) {
+      // Feature 082 (FR-002/FR-006/FR-010): the commandId resolved to a real command, but a
+      // dry-run skipped actually dispatching it — distinct from a genuine "nothing dispatched"
+      // miss, so it must never trip the RequireDispatch failure check below.
+      if (cmdDispatch.SkippedDryRun) {
+        result.AddStep(
+            step.CommandId,
+            appliedDelay,
+            "Succeeded",
+            conditionType: step.Condition is null ? null : step.Condition.Type,
+            conditionResult: step.Condition is null ? null : "true",
+            actionOutcome: DryRunOutcomes.SkippedDryRun,
+            message: "dry run: command was not dispatched",
+            stepId: step.StepId);
+        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = DryRunOutcomes.SkippedDryRun;
+        if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
+        return false;
+      }
+
+      var missReason = !string.IsNullOrWhiteSpace(cmdDispatch.Reason)
+          ? cmdDispatch.Reason!
+          : "command dispatched no input to the device";
+      if (originalStep.RequireDispatch) {
+        var failure = $"step '{stepKey}' requires dispatch but {missReason}";
+        result.AddStep(
+            step.CommandId,
+            appliedDelay,
+            "Failed",
+            conditionType: step.Condition is null ? null : step.Condition.Type,
+            conditionResult: step.Condition is null ? null : "true",
+            actionOutcome: "not_executed",
+            message: failure,
+            stepId: step.StepId);
+        result.Fail(failure);
+        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+        if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
+        return true;
+      }
+
+      result.AddStep(
+          step.CommandId,
+          appliedDelay,
+          "Succeeded",
+          conditionType: step.Condition is null ? null : step.Condition.Type,
+          conditionResult: step.Condition is null ? null : "true",
+          actionOutcome: "not_executed",
+          message: missReason,
+          stepId: step.StepId);
+      if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "not_executed";
       if (_logger != null) LogCommandEnd(_logger, step.CommandId, durationMs, null);
       return false;
     }
