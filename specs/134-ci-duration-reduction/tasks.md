@@ -57,17 +57,17 @@ description: "Task list for feature 134: reduce CI run duration"
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] In `.github/workflows/dotnet.yml`, fix the final job names: `changes`, `compile`, `analyze`, `test-unit`, `test-integration`, `test-contract`, `web-ui-tests`, and `ci-gate`. Search the docs and notes for the old check name `build`. Update each hit
-- [ ] T013 [US1] In `.github/workflows/dotnet.yml`, split the old `build` job into `compile` and `analyze`. The `compile` job restores, builds with `-p:RunAnalyzers=false`, and uploads one artifact per test project. The `analyze` job builds with all analyzers and `-warnaserror`. Measure the compile time. Keep the split only if `compile` is at least 30 s faster than the old build step (research R2). If you drop the split, keep one build job with all analyzers (FR-007 fallback). Record the result
-- [ ] T014 [US1] In `.github/workflows/dotnet.yml`, add the jobs `test-unit`, `test-contract`, and `test-integration`. The `test-integration` job is a matrix over the shards of `test-shards.json`. Each job downloads its artifact. Each job runs `dotnet test <dll>` with its shard filter. Measure upload plus download time. If it is above 45 s, try the one-runner variant of research R3. Keep the better variant
-- [ ] T015 [US1] Move coverage collection to `test-unit` and to the pinned integration shard. Use `coverlet.collector` with a run settings file (`--collect`, `--settings`). The reason: `dotnet test <dll>` cannot use `coverlet.msbuild`. Set the module filter, the class filter, the output format, and the output path in the run settings. Remove coverage from `test-contract` and from the other shards (research R4). Upload the coverage files as artifacts
-- [ ] T016 [US1] In the pinned integration shard job, add a second test step for the performance gate. Set `GAMEBOT_PERF_PROFILE: ci`. Use the filter `ExecutionLogsPerformanceIntegrationTests`. The other shards must not run this class
-- [ ] T017 [US1] Change `scripts/check-coverage-thresholds.ps1`. It must read the collector files from folders that you pass as parameters. It must run on Linux (no backslash paths). Keep the rule that a missing file or a class with no data fails the gate. Check that the five gates give the same percent as a local run. Check the negative case: delete a coverage file and confirm that the gate fails
-- [ ] T018 [US1] In `.github/workflows/dotnet.yml`, run the coverage thresholds in the Linux `ci-gate` job. The job downloads the two coverage artifacts and runs `check-coverage-thresholds.ps1` with `pwsh`. Reason: a separate Windows job adds about 40 s of start time to the critical path (analysis C2)
-- [ ] T019 [US1] Make a compile failure stop the test jobs, with job `needs`. Make an analysis warning fail only `analyze` and `ci-gate` (FR-007). Test with a test branch. Push one deliberate compile error: `compile` fails and the test jobs do not start. Push one deliberate analysis warning: `analyze` and `ci-gate` fail and the run fails. Delete the test branch after
-- [ ] T020 [US1] Experiment: turn on in-process parallel tests for the unit tests only. The setting is in `tests/unit/xunit.runner.json`. First scan the unit tests for shared state: environment variables, ports, static values, and shared folders. List the result in `measurements.md`. Keep the change only if 3 runs in a row pass and the gain is above 20 s. Otherwise revert
-- [ ] T021 [US1] Re-balance the integration shards in `scripts/ci/test-shards.json`. Use the times of the first real runs. The slowest shard must be close to the other jobs. Keep the shard count only if the slowest shard plus its fixed cost is below the longest other job. Keep the pinned tests of T009 together in one shard
-- [ ] T022 [US1] Compare the test counts of the first full run to the baseline in SC-004. Count unit, integration, contract, and performance tests. Record the numbers in `specs/134-ci-duration-reduction/measurements.md`
+- [X] T012 [US1] In `.github/workflows/dotnet.yml`, fix the final job names: `changes`, `compile`, `analyze`, `test-unit`, `test-integration`, `test-contract`, `web-ui-tests`, and `ci-gate`. Search the docs and notes for the old check name `build`. Update each hit
+- [X] T013 [US1] In `.github/workflows/dotnet.yml`, split the old `build` job into `compile` and `analyze`. The `compile` job restores, builds with `-p:RunAnalyzers=false`, and uploads one artifact per test project. The `analyze` job builds with all analyzers and `-warnaserror`. Measure the compile time. Keep the split only if `compile` is at least 30 s faster than the old build step (research R2). If you drop the split, keep one build job with all analyzers (FR-007 fallback). Record the result
+- [X] T014 [US1] In `.github/workflows/dotnet.yml`, add the jobs `test-unit`, `test-contract`, and `test-integration`. The `test-integration` job is a matrix over the shards of `test-shards.json`. Each job downloads its artifact. Each job runs `dotnet test <dll>` with its shard filter. Measure upload plus download time. If it is above 45 s, try the one-runner variant of research R3. Keep the better variant
+- [X] T015 [US1] Move coverage collection to `test-unit` and to the pinned integration shard. Use `coverlet.collector` with a run settings file (`--collect`, `--settings`). The reason: `dotnet test <dll>` cannot use `coverlet.msbuild`. Set the module filter, the class filter, the output format, and the output path in the run settings. Remove coverage from `test-contract` and from the other shards (research R4). Upload the coverage files as artifacts
+- [X] T016 [US1] In the pinned integration shard job, add a second test step for the performance gate. Set `GAMEBOT_PERF_PROFILE: ci`. Use the filter `ExecutionLogsPerformanceIntegrationTests`. The other shards must not run this class
+- [X] T017 [US1] Change `scripts/check-coverage-thresholds.ps1`. It must read the collector files from folders that you pass as parameters. It must run on Linux (no backslash paths). Keep the rule that a missing file or a class with no data fails the gate. Check that the five gates give the same percent as a local run. Check the negative case: delete a coverage file and confirm that the gate fails
+- [X] T018 [US1] In `.github/workflows/dotnet.yml`, run the coverage thresholds in the Linux `ci-gate` job. The job downloads the two coverage artifacts and runs `check-coverage-thresholds.ps1` with `pwsh`. Reason: a separate Windows job adds about 40 s of start time to the critical path (analysis C2)
+- [X] T019 [US1] Make a compile failure stop the test jobs, with job `needs`. Make an analysis warning fail only `analyze` and `ci-gate` (FR-007). Test with a test branch. Push one deliberate compile error: `compile` fails and the test jobs do not start. Push one deliberate analysis warning: `analyze` and `ci-gate` fail and the run fails. Delete the test branch after
+- [X] T020 [US1] Experiment: turn on in-process parallel tests for the unit tests only. The setting is in `tests/unit/xunit.runner.json`. First scan the unit tests for shared state: environment variables, ports, static values, and shared folders. List the result in `measurements.md`. Keep the change only if 3 runs in a row pass and the gain is above 20 s. Otherwise revert
+- [X] T021 [US1] Re-balance the integration shards in `scripts/ci/test-shards.json`. Use the times of the first real runs. The slowest shard must be close to the other jobs. Keep the shard count only if the slowest shard plus its fixed cost is below the longest other job. Keep the pinned tests of T009 together in one shard
+- [X] T022 [US1] Compare the test counts of the first full run to the baseline in SC-004. Count unit, integration, contract, and performance tests. Record the numbers in `specs/134-ci-duration-reduction/measurements.md`
 
 **Checkpoint**: A code push runs in the new shape. The numbers are in `measurements.md`.
 
@@ -79,11 +79,11 @@ description: "Task list for feature 134: reduce CI run duration"
 
 **Independent Test**: Push a docs-only branch, a web-UI-only branch, and a backend-only branch. Check which jobs run. Check that every run ends in success.
 
-- [ ] T023 [US2] In `.github/workflows/dotnet.yml`, add the `changes` job on Linux. It checks out with enough history. It calls `get-changed-groups.ps1` for the pushed range. It runs `scripts/installer/run-security-scans.ps1`. It sets the outputs `dotnet` and `webui`. For a new branch, compare to the default branch. For a force push, run all jobs
-- [ ] T024 [US2] In `.github/workflows/dotnet.yml`, add `if` rules to the .NET jobs: `needs.changes.outputs.dotnet == 'true'`. Add an `if` rule to `web-ui-tests`: `needs.changes.outputs.webui == 'true'`. Remove the secret scan from the old build job
-- [ ] T025 [US2] In `.github/workflows/dotnet.yml`, complete the `ci-gate` job. It has `if: always()` and needs all jobs. It passes if each needed job passed or was skipped by a path rule. It fails on a failed or cancelled job. If the logic is in a script, add a unit test for the pass and fail rules
-- [ ] T026 [US2] Prove each path rule with a real push on a test branch. Push a docs-only change, a spec-only change, a web-UI-only change, a backend-only change, and a web UI plus backend change. Push a workflow-file change and an unknown path. Check the jobs and the times against SC-005. Also push twice quickly to one branch. Check that the first run is cancelled and that each push makes one run (FR-011). Record the CodeQL time of a docs-only pull request apart. Record the run IDs and times in `measurements.md`. Delete the test branches after
-- [ ] T027 [US2] Check that the speckit pipeline still finds and watches the run for a docs-only head commit. Use `gh run list --branch <b> --commit <sha>` and `gh run watch --exit-status`. If the wait fails, fix the workflow. Do not change the pipeline
+- [X] T023 [US2] In `.github/workflows/dotnet.yml`, add the `changes` job on Linux. It checks out with enough history. It calls `get-changed-groups.ps1` for the pushed range. It runs `scripts/installer/run-security-scans.ps1`. It sets the outputs `dotnet` and `webui`. For a new branch, compare to the default branch. For a force push, run all jobs
+- [X] T024 [US2] In `.github/workflows/dotnet.yml`, add `if` rules to the .NET jobs: `needs.changes.outputs.dotnet == 'true'`. Add an `if` rule to `web-ui-tests`: `needs.changes.outputs.webui == 'true'`. Remove the secret scan from the old build job
+- [X] T025 [US2] In `.github/workflows/dotnet.yml`, complete the `ci-gate` job. It has `if: always()` and needs all jobs. It passes if each needed job passed or was skipped by a path rule. It fails on a failed or cancelled job. If the logic is in a script, add a unit test for the pass and fail rules
+- [X] T026 [US2] Prove each path rule with a real push on a test branch. Push a docs-only change, a spec-only change, a web-UI-only change, a backend-only change, and a web UI plus backend change. Push a workflow-file change and an unknown path. Check the jobs and the times against SC-005. Also push twice quickly to one branch. Check that the first run is cancelled and that each push makes one run (FR-011). Record the CodeQL time of a docs-only pull request apart. Record the run IDs and times in `measurements.md`. Delete the test branches after
+- [X] T027 [US2] Check that the speckit pipeline still finds and watches the run for a docs-only head commit. Use `gh run list --branch <b> --commit <sha>` and `gh run watch --exit-status`. If the wait fails, fix the workflow. Do not change the pipeline
 
 **Checkpoint**: Real runs prove all path rules.
 
@@ -95,8 +95,8 @@ description: "Task list for feature 134: reduce CI run duration"
 
 **Independent Test**: Each test in the flaky list is fixed, isolated, or recorded with a reason. The guide shows the failure classes.
 
-- [ ] T028 [US3] Take each test named in T004. Include `MaskedTemplateMatchTests` and the queue template link tests. Find the cause. Fix the test so that it is deterministic. If a fix is not possible, isolate the test in a serial group. Or record an owner and a reason in `measurements.md`
-- [ ] T029 [P] [US3] Take the 10 slowest tests of each project from T003 whose time comes from a fixed delay. Replace the delay with a fake clock, an event, or a shorter bounded wait. Find the files in the ranking in `specs/134-ci-duration-reduction/measurements.md`. The files are under `tests/unit`, `tests/integration`, and `tests/contract`. Change a delay only if the test stays deterministic. Record each change and the time gained
+- [X] T028 [US3] Take each test named in T004. Include `MaskedTemplateMatchTests` and the queue template link tests. Find the cause. Fix the test so that it is deterministic. If a fix is not possible, isolate the test in a serial group. Or record an owner and a reason in `measurements.md`
+- [X] T029 [P] [US3] Take the 10 slowest tests of each project from T003 whose time comes from a fixed delay. Replace the delay with a fake clock, an event, or a shorter bounded wait. Find the files in the ranking in `specs/134-ci-duration-reduction/measurements.md`. The files are under `tests/unit`, `tests/integration`, and `tests/contract`. Change a delay only if the test stays deterministic. Record each change and the time gained
 - [ ] T030 [US3] Run the full test suite `C:\src\GameBot\GameBot.sln` locally 3 times after T028 and T029. All tests must pass. The number of tests must equal the baseline
 
 ---
@@ -107,11 +107,11 @@ description: "Task list for feature 134: reduce CI run duration"
 
 **Independent Test**: A maintainer follows the guide and measures a run. The numbers are within 20 % of the recorded numbers.
 
-- [ ] T031 [US4] Create `docs/ci-time.md` in STE. Include the time budget per part. Include the baseline and final numbers from `measurements.md`. Include the job table and the path-group table. Include the sharding rule: a new test runs in the complement shard
-- [ ] T032 [US4] In `docs/ci-time.md`, list each pattern that raises the time. Give the measured effect and a rule for each. Use the pattern list in research R10. Add the patterns that the measurements show
-- [ ] T033 [US4] In `docs/ci-time.md`, state three facts. `ci-gate` is the merge signal. A docs-only push cannot change a test result. CodeQL runs apart from the workflow. Name the date and the owner of the SC-006 check on the first 20 runs on `master`
-- [ ] T034 [US4] In `docs/ci-time.md`, add the measure steps. Use `scripts/ci/measure-ci.ps1`. Explain how to read queue time versus step time. Add the check list for a change (FR-014). Ask these questions. Does the change add a second build? Does it add a serial test group or a fixed delay? Does it add coverage to a project with no gate? Does it add a new full-run trigger?
-- [ ] T035 [P] [US4] Add a link to `docs/ci-time.md` in `README.md`. Add a link from `docs/build-time.md` to the new guide
+- [X] T031 [US4] Create `docs/ci-time.md` in STE. Include the time budget per part. Include the baseline and final numbers from `measurements.md`. Include the job table and the path-group table. Include the sharding rule: a new test runs in the complement shard
+- [X] T032 [US4] In `docs/ci-time.md`, list each pattern that raises the time. Give the measured effect and a rule for each. Use the pattern list in research R10. Add the patterns that the measurements show
+- [X] T033 [US4] In `docs/ci-time.md`, state three facts. `ci-gate` is the merge signal. A docs-only push cannot change a test result. CodeQL runs apart from the workflow. Name the date and the owner of the SC-006 check on the first 20 runs on `master`
+- [X] T034 [US4] In `docs/ci-time.md`, add the measure steps. Use `scripts/ci/measure-ci.ps1`. Explain how to read queue time versus step time. Add the check list for a change (FR-014). Ask these questions. Does the change add a second build? Does it add a serial test group or a fixed delay? Does it add coverage to a project with no gate? Does it add a new full-run trigger?
+- [X] T035 [P] [US4] Add a link to `docs/ci-time.md` in `README.md`. Add a link from `docs/build-time.md` to the new guide
 
 ---
 
@@ -121,8 +121,8 @@ description: "Task list for feature 134: reduce CI run duration"
 
 **Independent Test**: Compare the fixed-part times of runs before and after.
 
-- [ ] T036 [US5] Read the fixed-part times of the new runs with `measure-ci.ps1`. The parts are setup, cache restore, restore, and artifact transfer. List each part with a possible gain of 5 s or more in `measurements.md`
-- [ ] T037 [US5] In `.github/workflows/dotnet.yml`, apply the changes for the parts of T036 that show a gain in a repeated measurement. For the web UI job, test a cache of `node_modules`. Do this only if `npm ci` stays above 60 s in 3 runs. Keep package versions pinned, so the cache keys stay stable. Revert any change without a clear gain
+- [X] T036 [US5] Read the fixed-part times of the new runs with `measure-ci.ps1`. The parts are setup, cache restore, restore, and artifact transfer. List each part with a possible gain of 5 s or more in `measurements.md`
+- [X] T037 [US5] In `.github/workflows/dotnet.yml`, apply the changes for the parts of T036 that show a gain in a repeated measurement. For the web UI job, test a cache of `node_modules`. Do this only if `npm ci` stays above 60 s in 3 runs. Keep package versions pinned, so the cache keys stay stable. Revert any change without a clear gain
 - [ ] T038 [US5] Check that a change in a project file rebuilds the caches. Check the same for `package-lock.json`. The run must still pass. Record the run IDs in `measurements.md`
 
 ---
@@ -131,7 +131,7 @@ description: "Task list for feature 134: reduce CI run duration"
 
 **Purpose**: One bounded probe. Stop at the first sign that product changes are needed.
 
-- [ ] T039 Run the unit tests once on a Linux runner on a test branch. Record how many tests fail and why. Keep the idea only if all tests pass without test or product changes, and the gain is above the noise. Otherwise write the reason in `measurements.md` and in `docs/ci-time.md`. Delete the test branch after
+- [X] T039 Run the unit tests once on a Linux runner on a test branch. Record how many tests fail and why. Keep the idea only if all tests pass without test or product changes, and the gain is above the noise. Otherwise write the reason in `measurements.md` and in `docs/ci-time.md`. Delete the test branch after
 
 ---
 
@@ -139,9 +139,9 @@ description: "Task list for feature 134: reduce CI run duration"
 
 **Purpose**: Final measurement, documents, and cleanup. Do the CI proof last.
 
-- [ ] T040 Write a before and after list of all checks, gates, and scans to `measurements.md` (SC-008). The list has the secret scan, the warnings-as-errors build, and the unit, integration, and contract tests. It has the performance gate, the five coverage gates, and the web UI tests
-- [ ] T041 Check `docs/architecture.md`. Change it only if a described behavior changed. Note the result in `measurements.md`
-- [ ] T042 Set the `Status` line in `specs/134-ci-duration-reduction/spec.md` to `Implemented`. Add the line for 134 to `specs/STATUS.md`. If `docs/build-time.md` or an earlier CI spec describes the old workflow shape, mark it as iterated by 134
+- [X] T040 Write a before and after list of all checks, gates, and scans to `measurements.md` (SC-008). The list has the secret scan, the warnings-as-errors build, and the unit, integration, and contract tests. It has the performance gate, the five coverage gates, and the web UI tests
+- [X] T041 Check `docs/architecture.md`. Change it only if a described behavior changed. Note the result in `measurements.md`
+- [X] T042 Set the `Status` line in `specs/134-ci-duration-reduction/spec.md` to `Implemented`. Add the line for 134 to `specs/STATUS.md`. If `docs/build-time.md` or an earlier CI spec describes the old workflow shape, mark it as iterated by 134
 - [ ] T043 Run `& "C:\src\GameBot\scripts\ci\measure-ci.ps1"` for at least 5 pushes of the final branch state. Write the median and the worst value to `docs/ci-time.md` and `measurements.md` (SC-001, SC-002). For SC-003, use the time from the end of `compile` to the end of the last test job. Compare it with the old test step. Suppose the median is above 4 minutes. Then record the measured floor and its cause. Record the end time of the CodeQL jobs next to the workflow time
 - [ ] T044 Give the guide to a maintainer who did not write it. Let them repeat one measurement. Record whether the numbers are within 20 % (SC-007)
 - [ ] T045 Remove temporary files and test branches. Check `git status` for stray folders: `TestResults`, `*.trx`, and binlog files

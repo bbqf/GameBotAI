@@ -101,3 +101,117 @@ Tests that failed in more than one unrelated run:
 - `ResourceLimitsTests.ProcessWorkingSetStaysUnderBudget` (2 runs).
 
 The 4 build-warning failures are the `analyze` gate working as intended. They stay (FR-001).
+
+## Results of the new layout (T013 to T027)
+
+Runs on the pushed branch. Times are from the first job start to the last job end, plus queue time.
+
+| Run | What | Time |
+|-----|------|------|
+| 38153029763 | First new layout (3 + 2 shards), one flaky test failed | 326 s |
+| 38153929824 | 3 unit, 4 contract, 3 integration shards. All green | 306 s |
+| 38154598184 | 3 unit, 4 contract, 5 integration shards (pinned shard apart). All green | 232 s |
+| 38155738143 | Web UI plus backend push (test branch) | 230 s |
+| 38156025531 | Workflow-file push (test branch) | 222 s |
+| 38156283314 | Unknown-path push (test branch) | 228 s |
+
+Median of the last four full runs: 229 s. Worst: 232 s. This meets SC-001 (4 min or less) and SC-002 (5 min or less).
+
+SC-003: in run 38154598184, `compile` ended at +113 s and the last test job ended at +215 s. That is 102 s. The old test step had a median of 239 s. The test time fell by 57 %.
+
+Compile split (T013): the build with `-p:RunAnalyzers=false` takes 35 to 37 s. The old build took 142 s. The gain is more than 100 s, so the split stays. The `analyze` job takes 156 to 185 s and runs next to the tests. It is not on the critical path.
+
+Artifact transfer (T014): upload 6 to 7 s for each of 3 artifacts (about 80 MB each). Download 3 to 5 s in the test jobs. This is below 45 s, so the shared artifacts stay. One combined artifact would add about 7 s to each download and would save about 11 s once. Not changed.
+
+Coverage (T015 to T018): coverage now comes from `coverlet.collector` with `scripts/ci/coverage.runsettings`. The collector files travel in the unit and integration artifacts (`coverlet-collector` folder), because `dotnet test <dll>` finds no collector without `--test-adapter-path` and the test jobs do not restore. The thresholds run in the Linux `ci-gate` job (6 s). Local check: the five gates give 100 %, 100 %, 98.97 %, 99.32 %, and 99.36 %. Negative check: a missing coverage folder fails the script. The module path in the collector file is a Windows path, so the script now normalizes the separators.
+
+The gate classes for `EmulatorImageEndpoints` need these integration classes: `EmulatorImageEndpointsCaptureTests`, `EmulatorImageServicesTests`, `EmulatorScreenshotCaptureTests`, and the `Images.` tests. With the capture test class alone the gate reads 37 %. The first design (coverage on the complement shard) took 150 s, so these tests moved to the small `integration-pinned` shard (49 s).
+
+Failure paths (T019), real runs on a test branch:
+
+- Compile error (run 38154922731): `compile` and `analyze` failed, the test jobs were skipped, `ci-gate` failed, the run failed.
+- Analysis warning CA2201 (run 38155149512): `analyze` and `ci-gate` failed, the run failed. All test jobs passed.
+
+Unit test in-process parallelism (T020): not applied. The unit jobs are no longer on the critical path (3 shards, 66 to 101 s, shorter than `compile` plus the integration and contract shards). 236 test files read or set `GAMEBOT_*` variables, which are global for the process. A gain on a job that is not on the critical path gives no gain in run time. Left as it was (`parallelizeTestCollections: false`).
+
+Shard balance (T021): final shards and their times in run 38154598184 (job time with about 25 s fixed cost): unit 66 to 101 s, contract 81 to 104 s, integration 49 to 99 s. The slowest test job (104 s) is close to `compile` (101 s).
+
+Test counts (T022), compared with the baseline of SC-004. Baseline from the local runs and the old CI run:
+
+| Project | Before | After (sum of shards) |
+|---------|--------|-----------------------|
+| Unit | 2936 | 2971 (2936 plus 35 new CI script tests) |
+| Integration | 656 passed, 1 skipped (657) | 657 passed, 1 skipped, plus 1 performance test that runs a second time with the `ci` profile, as before |
+| Contract | 726 | 726 |
+| Web UI | 796 | 796 |
+
+Path rules (T026), real pushes on a test branch:
+
+| Push | Run | Result | Time | Jobs that ran |
+|------|-----|--------|------|---------------|
+| Docs only | 38155459967 | success | 40 s | changes, ci-gate |
+| Spec only | 38155514260 | success | 23 s | changes, ci-gate |
+| Web UI only | 38155548728 | success | 153 s | changes, web-ui-tests, ci-gate |
+| Backend only | 38155149512 | (failed on purpose, see T019) | | web-ui-tests skipped, all .NET jobs ran |
+| Web UI plus backend | 38155738143 | success | 230 s | all jobs |
+| Workflow file | 38156025531 | success | 222 s | all jobs |
+| Unknown path | 38156283314 | success | 228 s | all jobs |
+
+Two pushes 12 s apart (runs 38156561875 and 38156578932): the first run was cancelled and each push made one run (FR-011).
+
+Speckit pipeline (T027): `gh run list --branch <b> --workflow dotnet.yml` lists a run for the head commit of a docs-only push (runs 38155459967 and 38155514260). A docs-only run ends in `success`, so `gh run watch --exit-status` returns 0. No change to the pipeline.
+
+CodeQL: it runs apart from this workflow on pull requests. Its time is recorded in the pull request, not here.
+
+## Flaky tests (T028)
+
+| Test | Finding | Action |
+|------|---------|--------|
+| `SelfRescheduleRunIntegrationTests.FourTimerBookingsWithoutKeepLeaveTheLastBookingPending` | The wait ended when the first pending time was above 39 min. The second booking (50 min) also matches, so a slow runner read the state before the third booking. Cause found from the failure text (29.99 min is the third booking) | Fixed: the wait ends only when the pending time is between 39 and 40.2 min |
+| `ResourceLimitsTests.ProcessWorkingSetStaysUnderBudget` | The test host ran all integration tests in one process. The working set grew with the test count | Mitigated: each shard is a separate process with about one quarter of the tests. Watch it on `master` |
+| `DetectionPerformanceTests.DetectionSaveReloadP95Under500ms` | A time limit on a shared runner. The test already has a warm-up | Recorded. Owner: repository owner. Reason: the limit is the behavior under test |
+| `QueueResumeOnRestartTests.StoppedAndNotOptedInQueuesStayStoppedAfterRestart` | A 30 s wait failure, seen once | Recorded. Not reproduced in 4 full runs with the new layout. Owner: repository owner |
+| `DeviceRecoveryFlowTests.TwoQueuesOnOneInstanceShareOneRebootAndEachSendsItsOwnMessages` | Seen once | Recorded. Not reproduced in 4 full runs. Owner: repository owner |
+| Web UI `CommandsPage.spec.tsx` "loads and saves an existing command" | Seen once on `master` | Recorded. Not reproduced in the web UI job runs of this feature |
+| `MaskedTemplateMatchTests`, `QueueTemplateLink` (from the project notes) | Not in the last 60 runs | No action |
+
+## Fixed delays (T029)
+
+The two largest delays are the 15-second timeout test in `NotificationTestSendContractTests` and the 10.6-second timeout test in `StepExecutionLogIntegrationTests`. The delay is the behavior that each test checks (a real timeout), so a fake clock would change what the test proves. They are not changed. Sharding removes their effect on the run time: `contract-1` and `contract-2` end in 81 to 104 s and the integration shards in 49 to 99 s. All other delays in the ranking are 3.5 s or less.
+
+## Full-suite proof (T030)
+
+The three local full runs after the changes were not done. The CI runs are the proof: four full runs of the final layout passed all tests, with the counts in the table of T022.
+
+## Fixed parts on the critical path (T036 to T038)
+
+From run 38154598184, in seconds: `changes` 10, `compile` start-up (checkout 7, setup 3, NuGet cache 13 to 34, restore 12) about 40, uploads 19, test job start-up (checkout 5 to 14, setup 3 to 4, download 3 to 5) about 15, `ci-gate` 9. No part has a safe gain of 5 s or more:
+
+- The NuGet cache varies from 13 to 34 s. Without it the restore is longer.
+- Three artifact uploads in series take 19 s. One combined artifact would add download time to every test job.
+- `npm ci` takes 25 to 57 s in the web UI job. The job is not on the critical path of a code push (131 s against 232 s). A web UI only push takes 153 s, below the 180 s limit. No `node_modules` cache.
+
+T038: the NuGet cache key hashes the project files. A change in a project file creates a new key, and the restore downloads the packages once. Not tested with a separate push. The key logic is unchanged from before this feature.
+
+## Linux probe (T039)
+
+The unit tests ran on `ubuntu-latest` on a test branch (run 38156676346). 290 of 2971 tests failed (for example `TypeInitializationException` for `PInvokeGdiPlus`). The failures come from Windows-only parts, so a move needs product changes. The idea is dropped. The test branch is deleted.
+
+## Before and after: checks, gates, and scans (T040, SC-008)
+
+| Check | Before | After |
+|-------|--------|-------|
+| Secret scan | `build` job | `changes` job (Linux), on every push |
+| Warnings-as-errors build with all analyzers | `build` job | `analyze` job |
+| Unit tests | `build` job | `test-unit` (3 shards) |
+| Integration tests | `build` job | `test-integration` (4 shards) |
+| Contract tests | `build` job | `test-contract` (4 shards) |
+| Performance gate (`ci` profile) | `build` job | `integration-pinned` shard |
+| Five coverage gates | `build` job | `ci-gate` job (Linux) |
+| Web UI tests with coverage | `web-ui-tests` job | `web-ui-tests` job (runs when the web UI or a shared file changes) |
+
+No check is removed.
+
+## Architecture document (T041)
+
+`docs/architecture.md` describes the domain, the API, and the persistence. None of them changed. No change to the document.

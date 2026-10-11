@@ -270,7 +270,7 @@ This section documents the current installer CI/release behavior and operational
 
 - PRs should wait for all CI checks to complete before merge.
 - Typical check set includes:
-  - `.NET CI` (`build`, `web-ui-tests`) - `build` also enforces `-warnaserror` and the installer secret scan
+  - `.NET CI` (`ci-gate` is the single pass signal; jobs: `changes`, `compile`, `analyze`, `test-unit`, `test-integration`, `test-contract`, `web-ui-tests`) - `analyze` enforces `-warnaserror`, and `changes` runs the installer secret scan. See `docs/ci-time.md`
   - `CodeQL`
 - `release-installer` (`build-release-installer`) is **not** a PR check and will
   not appear in a PR's status rollup. It does not run after a merge either. Its

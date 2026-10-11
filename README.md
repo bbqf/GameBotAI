@@ -250,6 +250,7 @@ update itself. Only an installed bot can.
 ## More documents
 
 - [docs/architecture.md](docs/architecture.md): the current architecture, domain model, and API surface.
+- [docs/ci-time.md](docs/ci-time.md): the CI time budget, the job layout, the slow-time patterns, and how to measure a run.
 - [INSTALL.md](INSTALL.md): all installer options, silent install, ports, HTTPS, and exit codes.
 - [ENVIRONMENT.md](ENVIRONMENT.md): all environment variables.
 - [VERSIONING.md](VERSIONING.md): how version numbers work.
