@@ -317,6 +317,42 @@ internal static class CommandsEndpoints {
     return null;
   }
 
+  /// <summary>Feature 135: HTTP 400 that names every unknown field path of a command body.</summary>
+  private static IResult UnknownFieldsResult(IReadOnlyList<string> paths) =>
+    Results.BadRequest(new {
+      error = new {
+        code = "invalid_request",
+        message = $"Unknown field(s): {string.Join(", ", paths)}",
+        hint = "Remove the field or check its name in the OpenAPI schema."
+      }
+    });
+
+  /// <summary>
+  /// Feature 135: reads the PATCH body. An empty or malformed body throws, so the error middleware
+  /// answers as it did when the framework bound the body.
+  /// </summary>
+  private static async Task<(UpdateCommandRequest Request, JsonElement Body)> ReadUpdateBodyAsync(HttpRequest http, CancellationToken ct) {
+    string text;
+    using (var reader = new StreamReader(http.Body, System.Text.Encoding.UTF8, leaveOpen: true)) {
+      text = await reader.ReadToEndAsync(ct).ConfigureAwait(false);
+    }
+    if (string.IsNullOrWhiteSpace(text)) {
+      throw new BadHttpRequestException("Implicit body inferred for parameter \"req\" but no body was provided. Did you mean to use a Service instead?");
+    }
+    try {
+      using var doc = JsonDocument.Parse(text);
+      var body = doc.RootElement.Clone();
+      var request = body.Deserialize<UpdateCommandRequest>(WebJsonOptions);
+      if (request is null) {
+        throw new BadHttpRequestException("Failed to read parameter \"UpdateCommandRequest req\" from the request body as JSON.");
+      }
+      return (request, body);
+    }
+    catch (JsonException ex) {
+      throw new BadHttpRequestException("Failed to read parameter \"UpdateCommandRequest req\" from the request body as JSON.", ex);
+    }
+  }
+
   private static JsonSerializerOptions CreateJsonOptions() {
     var opts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     opts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
@@ -326,6 +362,11 @@ internal static class CommandsEndpoints {
     app.MapPost(ApiRoutes.Commands, async (HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
+      // Feature 135: the root alias "detectionTarget" stays accepted (see TryReadDetection).
+      var unknown = UnknownFieldScanner.Find(root, typeof(CreateCommandRequest))
+        .Where(p => !string.Equals(p, "detectionTarget", StringComparison.OrdinalIgnoreCase))
+        .ToList();
+      if (unknown.Count > 0) return UnknownFieldsResult(unknown);
       CreateCommandRequest? req;
       try {
         req = root.Deserialize<CreateCommandRequest>(WebJsonOptions);
@@ -426,9 +467,14 @@ internal static class CommandsEndpoints {
     .WithName("ListCommands")
     .WithTags("Commands");
 
-    app.MapPatch($"{ApiRoutes.Commands}/{{id}}", async (string id, UpdateCommandRequest req, ICommandRepository repo, CancellationToken ct) => {
+    app.MapPatch($"{ApiRoutes.Commands}/{{id}}", async (string id, HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
+      // Feature 135: the body is read by hand so the unknown-field scan can see the raw JSON. A bad
+      // body fails before the lookup, as it did when the framework bound the body.
+      var (req, body) = await ReadUpdateBodyAsync(http, ct).ConfigureAwait(false);
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound();
+      var unknown = UnknownFieldScanner.Find(body, typeof(UpdateCommandRequest));
+      if (unknown.Count > 0) return UnknownFieldsResult(unknown);
       if (req.DetectionSpecified) {
         var detectionRegionError = PixelRegionDto.ValidateTarget(req.Detection, "detection");
         if (detectionRegionError is not null) {
@@ -476,6 +522,7 @@ internal static class CommandsEndpoints {
         Warnings = ParameterDtoMapper.ToResponseWarnings(parameterCheck.Warnings)
       });
     })
+    .Accepts<UpdateCommandRequest>("application/json")
     .WithName("UpdateCommand")
     .WithTags("Commands");
 

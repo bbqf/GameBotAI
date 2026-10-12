@@ -168,6 +168,7 @@ Status vocabulary:
 | 132 | Persist The Listen Host And Port | Implemented |
 | 133 | Reduce Build Time | Implemented |
 | 134 | Reduce CI Run Duration | Implemented |
+| 135 | Reject Unknown Command Step Fields | Implemented |
 
 ## Numbering notes
 

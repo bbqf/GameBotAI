@@ -10,7 +10,9 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-09 (feature 132: saved listen host and port, `config\network.json`;
+_Last reviewed: 2026-10-12 (feature 135: `POST /api/commands` and `PATCH /api/commands/{id}` answer
+400 with every unknown field path, and store or change nothing;
+feature 132: saved listen host and port, `config\network.json`;
 feature 131: auto-update from the Web UI, `/api/update/*`, the `GameBot.Updater` program;
 feature 130: optional pixel `region` on `imageVisible` conditions and detection targets;
 feature 129: `forceRestart` on ensure-game-running and the `restarted` outcome;
@@ -1181,6 +1183,10 @@ Feature 078 added, all additively (absent members mean pre-feature behaviour):
 - `fieldTemplates` and `parameterBindings` on a command step; `parameterBindings` on a sequence step.
 - `parameterValues` on a queue-template entry save; `parameterValues`, `hasParameterOverrides` and
   `effectiveParameters` on the entry in the template detail response.
+- `POST /api/commands` and `PATCH /api/commands/{id}` answer `400 invalid_request` when the body has a
+  field that the schema does not list. The message names each unknown path (for example
+  `steps[0].primitiveTap.bogusField`). Nothing is stored or changed. The undocumented root alias
+  `detectionTarget` on create stays accepted.
 - `GET /api/commands/{id}/parameter-scope` and `GET /api/sequences/{id}/parameter-scope` — read-only,
   serving the names an editor may offer (plus, for sequences, each command step's callee
   declarations). Served from the backend so the resolution rules have exactly one implementation.
