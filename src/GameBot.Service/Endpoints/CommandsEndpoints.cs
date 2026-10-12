@@ -328,10 +328,29 @@ internal static class CommandsEndpoints {
     });
 
   /// <summary>
-  /// Feature 135: reads the PATCH body. An empty or malformed body throws, so the error middleware
-  /// answers as it did when the framework bound the body.
+  /// Feature 136: true when the JSON error is at "parameters" or under it.
   /// </summary>
-  private static async Task<(UpdateCommandRequest Request, JsonElement Body)> ReadUpdateBodyAsync(HttpRequest http, CancellationToken ct) {
+  private static bool IsParametersPath(string? path) =>
+    path is not null
+    && (string.Equals(path, "$.parameters", StringComparison.Ordinal)
+      || path.StartsWith("$.parameters.", StringComparison.Ordinal)
+      || path.StartsWith("$.parameters[", StringComparison.Ordinal));
+
+  private static IResult ParametersTypeResult() =>
+    Results.BadRequest(new {
+      error = new {
+        code = "invalid_request",
+        message = "parameters must be a list of parameter declarations",
+        hint = "Send an array, even for one declaration."
+      }
+    });
+
+  /// <summary>
+  /// Feature 135: reads the PATCH body. An empty or malformed body throws, so the error middleware
+  /// answers as it did when the framework bound the body. Feature 136: a type error at "parameters"
+  /// returns <c>Error</c> (400) instead.
+  /// </summary>
+  private static async Task<(UpdateCommandRequest? Request, JsonElement Body, IResult? Error)> ReadUpdateBodyAsync(HttpRequest http, CancellationToken ct) {
     string text;
     using (var reader = new StreamReader(http.Body, System.Text.Encoding.UTF8, leaveOpen: true)) {
       text = await reader.ReadToEndAsync(ct).ConfigureAwait(false);
@@ -346,7 +365,10 @@ internal static class CommandsEndpoints {
       if (request is null) {
         throw new BadHttpRequestException("Failed to read parameter \"UpdateCommandRequest req\" from the request body as JSON.");
       }
-      return (request, body);
+      return (request, body, null);
+    }
+    catch (JsonException ex) when (IsParametersPath(ex.Path)) {
+      return (null, default, ParametersTypeResult());
     }
     catch (JsonException ex) {
       throw new BadHttpRequestException("Failed to read parameter \"UpdateCommandRequest req\" from the request body as JSON.", ex);
@@ -374,6 +396,10 @@ internal static class CommandsEndpoints {
       catch (JsonException ex) when (ex.Path?.Contains("forceRestart", StringComparison.OrdinalIgnoreCase) == true) {
         // Feature 129: a value that is not true or false gives 400, not 500.
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "ensureGameRunning.forceRestart must be true or false", hint = (string?)null } });
+      }
+      catch (JsonException ex) when (IsParametersPath(ex.Path)) {
+        // Feature 136: a wrong type at "parameters" gives 400, not 500.
+        return ParametersTypeResult();
       }
       if (req is null || string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
@@ -470,7 +496,9 @@ internal static class CommandsEndpoints {
     app.MapPatch($"{ApiRoutes.Commands}/{{id}}", async (string id, HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
       // Feature 135: the body is read by hand so the unknown-field scan can see the raw JSON. A bad
       // body fails before the lookup, as it did when the framework bound the body.
-      var (req, body) = await ReadUpdateBodyAsync(http, ct).ConfigureAwait(false);
+      var (parsed, body, readError) = await ReadUpdateBodyAsync(http, ct).ConfigureAwait(false);
+      if (readError is not null) return readError;
+      var req = parsed!;
       var existing = await repo.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound();
       var unknown = UnknownFieldScanner.Find(body, typeof(UpdateCommandRequest));
