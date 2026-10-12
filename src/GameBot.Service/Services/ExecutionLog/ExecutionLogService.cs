@@ -703,6 +703,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       "scheduled" => "success",
       // feature 129: a restart step stopped and started the game. That is the step working.
       "restarted" => "success",
+      // feature 137: a notify step with a dedupe key either sent the alert or skipped it on purpose.
+      "sent" or "suppressed" => "success",
       "noop" => "skipped",
       // feature 067: if-step branch decisions — a taken branch is a success, a no-op is skipped.
       "then" or "else" => "success",

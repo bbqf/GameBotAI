@@ -123,4 +123,126 @@ public class NotifyStepValidationTests {
     ok.Should().BeTrue();
     payload!.Message.Should().Be("escalating");
   }
+
+  // ---- Feature 137: dedupe fields ----
+
+  private static SequenceActionPayload Dedupe(params (string Key, object Value)[] fields) {
+    var action = Payload("escalating");
+    foreach (var (key, value) in fields) action.Parameters[key] = value;
+    return action;
+  }
+
+  [Fact]
+  public void KeyWithSince_IsAccepted() {
+    var ok = NotifyPayload.TryRead(Dedupe(("dedupeKey", "  daily  "), ("since", "02:05")), out var payload, out _);
+
+    ok.Should().BeTrue();
+    payload!.DedupeKey.Should().Be("daily");
+    payload.Since.Should().Be(new TimeOnly(2, 5));
+    payload.Within.Should().BeNull();
+    payload.HasDedupe.Should().BeTrue();
+  }
+
+  [Theory]
+  [InlineData("00:00:01")]
+  [InlineData("00:30:00")]
+  [InlineData("24:00:00")]
+  public void KeyWithWithin_IsAccepted(string within) {
+    var ok = NotifyPayload.TryRead(Dedupe(("dedupeKey", "k"), ("within", within)), out var payload, out _);
+
+    ok.Should().BeTrue();
+    payload!.Within.Should().NotBeNull();
+  }
+
+  [Fact]
+  public void KeyAtLimit_IsAccepted() {
+    var key = new string('k', NotifyPayload.MaxDedupeKeyLength);
+
+    NotifyPayload.TryRead(Dedupe(("dedupeKey", key), ("since", "02:05")), out _, out _).Should().BeTrue();
+  }
+
+  [Fact]
+  public void NoDedupeFields_GiveNoDedupe() {
+    NotifyPayload.TryRead(Payload("escalating"), out var payload, out _).Should().BeTrue();
+    payload!.HasDedupe.Should().BeFalse();
+  }
+
+  [Theory]
+  [InlineData("dedupeKey", "k", null, null, "'dedupeKey' requires 'since' or 'within'")]
+  [InlineData("since", "02:05", null, null, "'since' and 'within' require 'dedupeKey'")]
+  [InlineData("within", "00:30:00", null, null, "'since' and 'within' require 'dedupeKey'")]
+  [InlineData("dedupeKey", "k", "since", "02:05", null)]
+  public void MissingPartner_IsRejected(string field, string value, string? other, string? otherValue, string? expectedOrNull) {
+    var fields = other is null ? new[] { (field, (object)value) } : new[] { (field, (object)value), (other, (object)otherValue!) };
+    var ok = NotifyPayload.TryRead(Dedupe(fields), out _, out var error);
+
+    if (expectedOrNull is null) {
+      ok.Should().BeTrue();
+      return;
+    }
+
+    ok.Should().BeFalse();
+    error.Should().Contain(expectedOrNull);
+  }
+
+  [Fact]
+  public void SinceAndWithinTogether_AreRejected() {
+    var ok = NotifyPayload.TryRead(Dedupe(("dedupeKey", "k"), ("since", "02:05"), ("within", "00:30:00")), out _, out var error);
+
+    ok.Should().BeFalse();
+    error.Should().Contain("use either 'since' or 'within', not both");
+  }
+
+  [Fact]
+  public void BlankKey_IsRejected() {
+    var ok = NotifyPayload.TryRead(Dedupe(("dedupeKey", "   "), ("since", "02:05")), out _, out var error);
+
+    ok.Should().BeFalse();
+    error.Should().Contain("'dedupeKey' must not be blank");
+  }
+
+  [Fact]
+  public void LongKey_IsRejected() {
+    var key = new string('k', NotifyPayload.MaxDedupeKeyLength + 1);
+    var ok = NotifyPayload.TryRead(Dedupe(("dedupeKey", key), ("since", "02:05")), out _, out var error);
+
+    ok.Should().BeFalse();
+    error.Should().Contain("'dedupeKey' must be at most 100 characters");
+  }
+
+  [Theory]
+  [InlineData("2:05")]
+  [InlineData("25:00")]
+  [InlineData("02:60")]
+  [InlineData("02:05:00")]
+  [InlineData("noon")]
+  public void BadSince_IsRejected(string since) {
+    var ok = NotifyPayload.TryRead(Dedupe(("dedupeKey", "k"), ("since", since)), out _, out var error);
+
+    ok.Should().BeFalse();
+    error.Should().Contain("'since' must be a time of day in HH:mm format");
+  }
+
+  [Theory]
+  [InlineData("00:30")]
+  [InlineData("0:30:00")]
+  [InlineData("00:61:00")]
+  [InlineData("nope")]
+  public void BadWithinFormat_IsRejected(string within) {
+    var ok = NotifyPayload.TryRead(Dedupe(("dedupeKey", "k"), ("within", within)), out _, out var error);
+
+    ok.Should().BeFalse();
+    error.Should().Contain("'within' must be a duration in HH:mm:ss format");
+  }
+
+  [Theory]
+  [InlineData("00:00:00")]
+  [InlineData("24:00:01")]
+  [InlineData("25:00:00")]
+  public void WithinOutOfRange_IsRejected(string within) {
+    var ok = NotifyPayload.TryRead(Dedupe(("dedupeKey", "k"), ("within", within)), out _, out var error);
+
+    ok.Should().BeFalse();
+    error.Should().Contain("'within' must be from 00:00:01 to 24:00:00");
+  }
 }

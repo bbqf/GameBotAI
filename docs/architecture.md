@@ -10,7 +10,9 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-12 (feature 136: a `parameters` type error in a command request gives 400
+_Last reviewed: 2026-10-12 (feature 137: the `notify` step sends an alert at most once for each queue
+and key in a window, `dedupeKey` with `since` or `within`;
+feature 136: a `parameters` type error in a command request gives 400
 `invalid_request`, not 500;
 feature 135: `POST /api/commands` and `PATCH /api/commands/{id}` answer
 400 with every unknown field path, and store or change nothing;
@@ -411,6 +413,16 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
   restored. Store writes are serialized and atomic (temp file + replace); a corrupt record makes the
   resume pass log and resume nothing, while the next start/stop overwrites it. A store failure never
   fails a start or a run teardown (logged, event ids 1128/1129).
+- **Notify alert dedupe** (feature 137) — a `notify` step with `dedupeKey` and `since` or `within`
+  sends the alert at most once for each (queue, key) in the window. `ISentAlertStore`
+  (`FileSentAlertStore`, `<data>/notify-alert-dedupe/sent-alerts.json`, `schemaVersion: 1`) keeps the
+  time of the last delivered alert for each scope. A run outside a queue uses the scope `adhoc`.
+  `DispatchNotifyAsync` claims the slot first (an in-memory claim that dies after 5 minutes), sends,
+  then commits the record on success or releases the claim on failure. A second run in the window,
+  or a run while a claim is live, reports the outcome `suppressed`; a sent alert reports `sent`.
+  `since` uses `LastRunWindow.SinceStart`, the same math as the `lastRun` condition. A commit removes
+  records older than 48 hours. A queue delete removes the records of the queue. The step-through
+  preview reads the store and writes nothing. A step without `dedupeKey` sends every time.
 - **Sequence run statistics** (feature 105, #224) — the queue records each sequence run that it
   starts (all schedule types, guard sequences too) in `ISequenceRunStatisticsStore`
   (`FileSequenceRunStatisticsStore`, `<data>/queue-sequence-stats/<queueId>.json`, `schemaVersion: 1`).

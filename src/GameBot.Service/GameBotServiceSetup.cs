@@ -222,6 +222,9 @@ internal static class GameBotServiceSetup {
     // Feature 105: run statistics of each sequence in each queue, one file for each queue.
     builder.Services.AddSingleton<GameBot.Domain.Queues.ISequenceRunStatisticsStore>(sp => new GameBot.Domain.Queues.FileSequenceRunStatisticsStore(
       storageRoot, sp.GetService<ILogger<GameBot.Domain.Queues.FileSequenceRunStatisticsStore>>()));
+    // Feature 137: records of delivered notify alerts, for the dedupe window of a notify step.
+    builder.Services.AddSingleton<GameBot.Domain.Queues.ISentAlertStore>(sp => new GameBot.Domain.Queues.FileSentAlertStore(
+      storageRoot, sp.GetService<ILogger<GameBot.Domain.Queues.FileSentAlertStore>>()));
     builder.Services.AddSingleton<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>(_ => new GameBot.Domain.QueueTemplates.FileQueueTemplateRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));

@@ -113,6 +113,61 @@ public sealed class NotifyActionContractTests {
   }
 
   [Fact]
+  public async Task NotifyActionWithDedupeFieldsRoundTrips() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var create = await client.PostAsJsonAsync("/api/sequences", new {
+      name = "notify-dedupe-" + Guid.NewGuid().ToString("N"),
+      version = 1,
+      steps = new object[] { NotifyStep(new { message = "m", dedupeKey = "daily-timeout", since = "02:05" }) }
+    }).ConfigureAwait(false);
+
+    create.StatusCode.Should().Be(HttpStatusCode.Created);
+    var id = (await create.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false)).GetProperty("id").GetString();
+    var get = await client.GetAsync(new Uri($"/api/sequences/{id}", UriKind.Relative)).ConfigureAwait(false);
+    var payload = (await get.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false))
+      .GetProperty("steps")[0].GetProperty("primitiveAction").GetProperty("payload");
+    payload.GetProperty("dedupeKey").GetString().Should().Be("daily-timeout");
+    payload.GetProperty("since").GetString().Should().Be("02:05");
+  }
+
+  [Theory]
+  [InlineData("{\"message\":\"m\",\"dedupeKey\":\"k\"}", "'dedupeKey' requires 'since' or 'within'")]
+  [InlineData("{\"message\":\"m\",\"since\":\"02:05\"}", "'since' and 'within' require 'dedupeKey'")]
+  [InlineData("{\"message\":\"m\",\"dedupeKey\":\"k\",\"since\":\"02:05\",\"within\":\"00:30:00\"}", "use either 'since' or 'within', not both")]
+  [InlineData("{\"message\":\"m\",\"dedupeKey\":\"  \",\"since\":\"02:05\"}", "'dedupeKey' must not be blank")]
+  [InlineData("{\"message\":\"m\",\"dedupeKey\":\"k\",\"since\":\"25:00\"}", "'since' must be a time of day in HH:mm format")]
+  [InlineData("{\"message\":\"m\",\"dedupeKey\":\"k\",\"within\":\"00:00:00\"}", "'within' must be from 00:00:01 to 24:00:00")]
+  [InlineData("{\"message\":\"m\",\"dedupeKey\":\"k\",\"within\":\"nope\"}", "'within' must be a duration in HH:mm:ss format")]
+  public async Task InvalidDedupeFieldsAreRejectedWith400(string payloadJson, string expected) {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+    var payload = JsonSerializer.Deserialize<JsonElement>(payloadJson);
+
+    var create = await client.PostAsJsonAsync("/api/sequences", new {
+      name = "notify-baddedupe-" + Guid.NewGuid().ToString("N"),
+      version = 1,
+      steps = new object[] { NotifyStep(payload) }
+    }).ConfigureAwait(false);
+
+    create.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    (await create.Content.ReadAsStringAsync().ConfigureAwait(false)).Should().Contain(expected);
+  }
+
+  [Fact]
+  public async Task OpenApiDescribesDedupeFieldsAndOutcomes() {
+    using var app = CreateFactory();
+    var client = AuthedClient(app);
+
+    var text = await client.GetStringAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative)).ConfigureAwait(false);
+
+    text.Should().Contain("dedupeKey");
+    text.Should().Contain("suppressed");
+    text.Should().Contain("within");
+  }
+
+  [Fact]
   public async Task NotifyActionWithMalformedUrlIsRejected() {
     using var app = CreateFactory();
     var client = AuthedClient(app);

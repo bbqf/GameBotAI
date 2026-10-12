@@ -195,7 +195,7 @@ internal static class QueuesEndpoints {
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("DuplicateQueue");
 
-    group.MapDelete("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRunStatisticsStore stats, INotificationDispatcher notifications) => {
+    group.MapDelete("{id}", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRunStatisticsStore stats, INotificationDispatcher notifications, ISentAlertStore sentAlerts) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
       if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
@@ -203,6 +203,8 @@ internal static class QueuesEndpoints {
       await repo.DeleteAsync(id).ConfigureAwait(false);
       // Feature 105: the statistics of a deleted queue go too.
       await stats.DeleteQueueAsync(id).ConfigureAwait(false);
+      // Feature 137: the sent-alert records of the queue go too.
+      await sentAlerts.DeleteQueueAsync(id).ConfigureAwait(false);
       runtime.Remove(id);
       // Feature 120 (FR-023): the worker removes the failure streaks of the deleted queue.
       notifications.ResetStreaks(id);
