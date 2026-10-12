@@ -59,4 +59,24 @@
   Manual body binding must give the same status and body as the framework binding gave.
 - Alternatives considered: Assume the framework answers. Rejected: a guess can change valid behaviour.
 
+### Recorded answers (T002)
+
+PATCH /api/commands/{id} before the change (measured with the new tests):
+
+- (a) Valid PATCH: 200 with the updated command.
+- (b) Empty body: 500 `internal_error`, hint "Implicit body inferred for parameter "req" but no body was provided...".
+- (c) Malformed JSON on an existing command: 500 `internal_error`, hint "Failed to read parameter "UpdateCommandRequest req" from the request body as JSON.".
+- (d) Malformed JSON on a missing command id: the same 500 (the framework binds the body before the lookup).
+
+The change keeps these answers. A 500 for a bad body is a separate defect and is out of scope.
+
+### Result of the caller search (T003)
+
+No caller of the root alias `detectionTarget` on POST /api/commands exists in the web-ui, the
+tests, or the docs. The alias stays accepted (FR-004); the scanner skips it on create.
+
+### Docs check (T020)
+
+`docs/architecture.md` now lists the 400 answer for unknown fields. "Last reviewed" is 2026-10-12.
+
 No NEEDS CLARIFICATION items remain.

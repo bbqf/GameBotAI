@@ -2,7 +2,7 @@
 
 **Feature Branch**: `135-reject-unknown-command-fields`  
 **Created**: 2026-10-12  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #237 (B-027): POST /api/commands accepts a step field that the schema excludes (additionalProperties: false) and drops it.
 
 ## User Scenarios & Testing *(mandatory)*

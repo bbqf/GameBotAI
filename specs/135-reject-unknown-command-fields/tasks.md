@@ -12,9 +12,9 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Build the solution and run the existing command tests. Record that they pass: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~Commands"`. Stop if a test fails (constitution gate).
-- [ ] T002 Record the current PATCH /api/commands/{id} answers (status and body) in `C:\src\GameBot\specs\135-reject-unknown-command-fields\research.md` under D-7. Read `C:\src\GameBot\src\GameBot.Service\Endpoints\CommandsEndpoints.cs` and call the running service or a temporary test. Record four answers: (a) valid PATCH status, (b) empty body, (c) malformed JSON on an existing command, (d) malformed JSON on a missing command id. Do not guess the values.
-- [ ] T003 [P] Search for real callers of the root alias `detectionTarget` on POST /api/commands (`TryReadDetection` in `C:\src\GameBot\src\GameBot.Service\Endpoints\CommandsEndpoints.cs`, web-ui, tests, docs). Record the result in `C:\src\GameBot\specs\135-reject-unknown-command-fields\research.md` under D-3. The alias stays accepted.
+- [X] T001 Build the solution and run the existing command tests. Record that they pass: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~Commands"`. Stop if a test fails (constitution gate).
+- [X] T002 Record the current PATCH /api/commands/{id} answers (status and body) in `C:\src\GameBot\specs\135-reject-unknown-command-fields\research.md` under D-7. Read `C:\src\GameBot\src\GameBot.Service\Endpoints\CommandsEndpoints.cs` and call the running service or a temporary test. Record four answers: (a) valid PATCH status, (b) empty body, (c) malformed JSON on an existing command, (d) malformed JSON on a missing command id. Do not guess the values.
+- [X] T003 [P] Search for real callers of the root alias `detectionTarget` on POST /api/commands (`TryReadDetection` in `C:\src\GameBot\src\GameBot.Service\Endpoints\CommandsEndpoints.cs`, web-ui, tests, docs). Record the result in `C:\src\GameBot\specs\135-reject-unknown-command-fields\research.md` under D-3. The alias stays accepted.
 
 **Checkpoint**: Baseline is green and the PATCH answers are recorded.
 
@@ -30,16 +30,16 @@ No shared prerequisite task. The scanner is part of User Story 1.
 
 ### Tests for User Story 1 (write first, they MUST fail before the fix)
 
-- [ ] T004 [US1] Create `C:\src\GameBot\tests\contract\Commands\UnknownStepFieldContractTests.cs`. Add POST tests: (a) unknown `primitiveTap.bogusField` gives 400, the message contains `steps[0].primitiveTap.bogusField`, and the hint is not null; (b) after the 400, GET /api/commands shows no new command; (c) unknown fields in two places give 400 and both full paths; (d) unknown step top-level field gives `steps[0].bogus`; (e) unknown nested field gives `steps[0].primitiveTap.detectionTarget.bogus`; (f) unknown root field gives 400 with the field name; (g) a `null` value for an unknown field gives 400.
-- [ ] T005 [US1] Run the new POST tests and confirm they FAIL with 201 instead of 400 (FR-009): `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~UnknownStepField"`. Record the failure in the task notes.
-- [ ] T006 [P] [US1] Create `C:\src\GameBot\tests\unit\Commands\UnknownFieldScannerTests.cs`. Define a small test-only type with a `[JsonIgnore]` property in this file. Add cases: unknown field path with `[i]` array index; nested path; OrdinalIgnoreCase match is not unknown; `[JsonIgnore]` property counts as unknown; `Dictionary<string,string>` keys are not flagged; `null` value for an unknown name is unknown; all unknown paths are returned in order; a body with only known fields returns an empty list. The scanner class does not exist yet, so these tests do not compile until T007.
+- [X] T004 [US1] Create `C:\src\GameBot\tests\contract\Commands\UnknownStepFieldContractTests.cs`. Add POST tests: (a) unknown `primitiveTap.bogusField` gives 400, the message contains `steps[0].primitiveTap.bogusField`, and the hint is not null; (b) after the 400, GET /api/commands shows no new command; (c) unknown fields in two places give 400 and both full paths; (d) unknown step top-level field gives `steps[0].bogus`; (e) unknown nested field gives `steps[0].primitiveTap.detectionTarget.bogus`; (f) unknown root field gives 400 with the field name; (g) a `null` value for an unknown field gives 400.
+- [X] T005 [US1] Run the new POST tests and confirm they FAIL with 201 instead of 400 (FR-009): `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~UnknownStepField"`. Record the failure in the task notes.
+- [X] T006 [P] [US1] Create `C:\src\GameBot\tests\unit\Commands\UnknownFieldScannerTests.cs`. Define a small test-only type with a `[JsonIgnore]` property in this file. Add cases: unknown field path with `[i]` array index; nested path; OrdinalIgnoreCase match is not unknown; `[JsonIgnore]` property counts as unknown; `Dictionary<string,string>` keys are not flagged; `null` value for an unknown name is unknown; all unknown paths are returned in order; a body with only known fields returns an empty list. The scanner class does not exist yet, so these tests do not compile until T007.
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Create `C:\src\GameBot\src\GameBot.Service\Endpoints\UnknownFieldScanner.cs` with `Find(JsonElement root, Type dtoType)`. Use cached reflection on public properties and OrdinalIgnoreCase. Return full paths from the body root (`steps[0].primitiveTap.bogusField`). Do not recurse into `Dictionary<string,string>`. Treat `[JsonIgnore]` properties as unknown. Walk arrays and nested DTOs. Do not change any DTO in `C:\src\GameBot\src\GameBot.Service\Models\Commands.cs`.
-- [ ] T008 [US1] Run the scanner unit tests and fix until they pass: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~UnknownFieldScanner"`.
-- [ ] T009 [US1] Edit POST in `C:\src\GameBot\src\GameBot.Service\Endpoints\CommandsEndpoints.cs`. After `ParseAsync` and before `Deserialize`, scan with `CreateCommandRequest`. Skip the root alias `detectionTarget`. If the list is not empty, return 400 `invalid_request` with message `Unknown field(s): <paths>` and hint `Remove the field or check its name in the OpenAPI schema.` Do not change Program.cs.
-- [ ] T010 [US1] Run the POST contract tests and confirm they pass: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~UnknownStepField"`.
+- [X] T007 [US1] Create `C:\src\GameBot\src\GameBot.Service\Endpoints\UnknownFieldScanner.cs` with `Find(JsonElement root, Type dtoType)`. Use cached reflection on public properties and OrdinalIgnoreCase. Return full paths from the body root (`steps[0].primitiveTap.bogusField`). Do not recurse into `Dictionary<string,string>`. Treat `[JsonIgnore]` properties as unknown. Walk arrays and nested DTOs. Do not change any DTO in `C:\src\GameBot\src\GameBot.Service\Models\Commands.cs`.
+- [X] T008 [US1] Run the scanner unit tests and fix until they pass: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~UnknownFieldScanner"`.
+- [X] T009 [US1] Edit POST in `C:\src\GameBot\src\GameBot.Service\Endpoints\CommandsEndpoints.cs`. After `ParseAsync` and before `Deserialize`, scan with `CreateCommandRequest`. Skip the root alias `detectionTarget`. If the list is not empty, return 400 `invalid_request` with message `Unknown field(s): <paths>` and hint `Remove the field or check its name in the OpenAPI schema.` Do not change Program.cs.
+- [X] T010 [US1] Run the POST contract tests and confirm they pass: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~UnknownStepField"`.
 
 **Checkpoint**: User Story 1 works alone.
 
@@ -49,9 +49,9 @@ No shared prerequisite task. The scanner is part of User Story 1.
 
 **Independent Test**: Existing command tests pass with no change. A request with `holdMs` in `primitiveTap` is stored.
 
-- [ ] T011 [US2] In `C:\src\GameBot\tests\contract\Commands\UnknownStepFieldContractTests.cs` add valid-request tests: (a) a valid request gives 201; (b) `primitiveTap.holdMs` gives 201 and the stored command keeps `holdMs`; (c) field names in a different letter case give 201; (d) the root alias `detectionTarget` gives 201 as before. Run them; they must pass.
-- [ ] T012 [US2] Run all existing command contract and unit tests with no edit to expected values: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~Commands"`. Confirm SC-002.
-- [ ] T013 [US2] Check that the OpenAPI schema for command steps is unchanged (FR-006, SC-004). Compare the generated schema before and after, or confirm that no file in `C:\src\GameBot\src\GameBot.Service\Models\Commands.cs` has a diff. `additionalProperties` stays false.
+- [X] T011 [US2] In `C:\src\GameBot\tests\contract\Commands\UnknownStepFieldContractTests.cs` add valid-request tests: (a) a valid request gives 201; (b) `primitiveTap.holdMs` gives 201 and the stored command keeps `holdMs`; (c) field names in a different letter case give 201; (d) the root alias `detectionTarget` gives 201 as before. Run them; they must pass.
+- [X] T012 [US2] Run all existing command contract and unit tests with no edit to expected values: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~Commands"`. Confirm SC-002.
+- [X] T013 [US2] Check that the OpenAPI schema for command steps is unchanged (FR-006, SC-004). Compare the generated schema before and after, or confirm that no file in `C:\src\GameBot\src\GameBot.Service\Models\Commands.cs` has a diff. `additionalProperties` stays false.
 
 **Checkpoint**: User Stories 1 and 2 pass.
 
@@ -63,24 +63,24 @@ No shared prerequisite task. The scanner is part of User Story 1.
 
 ### Tests for User Story 3 (write first, they MUST fail before the fix)
 
-- [ ] T014 [US3] In `C:\src\GameBot\tests\contract\Commands\UnknownStepFieldContractTests.cs` add PATCH tests: (a) unknown step field gives 400 with `steps[0].primitiveTap.bogusField` and a hint; (b) GET after the 400 shows the stored command unchanged; (c) unknown field on a missing id gives 404; (d) valid PATCH keeps the status recorded in T002; (e) empty body keeps the answer recorded in T002; (f) malformed JSON keeps the answer recorded in T002; (g) malformed JSON on a missing id keeps the answer recorded in T002.
-- [ ] T015 [US3] Run the new PATCH tests and confirm the unknown-field tests FAIL with a success status instead of 400 (FR-009). Cases (c) to (g) must already pass: they pin today's answers.
+- [X] T014 [US3] In `C:\src\GameBot\tests\contract\Commands\UnknownStepFieldContractTests.cs` add PATCH tests: (a) unknown step field gives 400 with `steps[0].primitiveTap.bogusField` and a hint; (b) GET after the 400 shows the stored command unchanged; (c) unknown field on a missing id gives 404; (d) valid PATCH keeps the status recorded in T002; (e) empty body keeps the answer recorded in T002; (f) malformed JSON keeps the answer recorded in T002; (g) malformed JSON on a missing id keeps the answer recorded in T002.
+- [X] T015 [US3] Run the new PATCH tests and confirm the unknown-field tests FAIL with a success status instead of 400 (FR-009). Cases (c) to (g) must already pass: they pin today's answers.
 
 ### Implementation for User Story 3
 
-- [ ] T016 [US3] Edit PATCH in `C:\src\GameBot\src\GameBot.Service\Endpoints\CommandsEndpoints.cs`. Read and parse the body by hand. Do the 404 lookup first. Then scan with `UpdateCommandRequest`. Then deserialize with `WebJsonOptions`. Run the scan before any change to the stored command. Keep the answers recorded in T002 for empty body, malformed JSON, and malformed JSON on a missing id. Return the same 400 message and hint as POST.
-- [ ] T017 [US3] Run the PATCH tests and confirm all pass: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~UnknownStepField"`.
+- [X] T016 [US3] Edit PATCH in `C:\src\GameBot\src\GameBot.Service\Endpoints\CommandsEndpoints.cs`. Read and parse the body by hand. Do the 404 lookup first. Then scan with `UpdateCommandRequest`. Then deserialize with `WebJsonOptions`. Run the scan before any change to the stored command. Keep the answers recorded in T002 for empty body, malformed JSON, and malformed JSON on a missing id. Return the same 400 message and hint as POST.
+- [X] T017 [US3] Run the PATCH tests and confirm all pass: `dotnet test C:\src\GameBot\GameBot.sln --filter "FullyQualifiedName~UnknownStepField"`.
 
 **Checkpoint**: All three stories pass.
 
 ## Phase 6: Polish and Cross-Cutting
 
-- [ ] T018 Run the full test suite for the solution: `dotnet test C:\src\GameBot\GameBot.sln`. Fix any failure.
-- [ ] T019 FR-007 scope diff check. Run `git -C C:\src\GameBot diff --name-only master...HEAD` and `git -C C:\src\GameBot status --short`. Confirm that the diff touches only the scanner, `CommandsEndpoints.cs`, tests, specs, and docs. Confirm no new step field, no hold behaviour, no reschedule-self validator change, and no fix for issue #251.
-- [ ] T020 [P] FR-009 docs: check `C:\src\GameBot\docs\architecture.md`. If the API surface description changes (400 for unknown fields), update it and set a new "Last reviewed" date. If it does not change, record that in `C:\src\GameBot\specs\135-reject-unknown-command-fields\research.md`.
-- [ ] T021 [P] FR-009 status: set the `**Status**:` line in `C:\src\GameBot\specs\135-reject-unknown-command-fields\spec.md` to Implemented. Update the row for 135 in `C:\src\GameBot\specs\STATUS.md`.
-- [ ] T022 STE polish: read all new or changed text (spec, plan, research, tasks, code comments, error messages, docs) and fix any text that does not follow ASD-STE100.
-- [ ] T023 Run the quickstart steps in `C:\src\GameBot\specs\135-reject-unknown-command-fields\quickstart.md` and confirm the results. Do not commit.
+- [X] T018 Run the full test suite for the solution: `dotnet test C:\src\GameBot\GameBot.sln`. Fix any failure.
+- [X] T019 FR-007 scope diff check. Run `git -C C:\src\GameBot diff --name-only master...HEAD` and `git -C C:\src\GameBot status --short`. Confirm that the diff touches only the scanner, `CommandsEndpoints.cs`, tests, specs, and docs. Confirm no new step field, no hold behaviour, no reschedule-self validator change, and no fix for issue #251.
+- [X] T020 [P] FR-009 docs: check `C:\src\GameBot\docs\architecture.md`. If the API surface description changes (400 for unknown fields), update it and set a new "Last reviewed" date. If it does not change, record that in `C:\src\GameBot\specs\135-reject-unknown-command-fields\research.md`.
+- [X] T021 [P] FR-009 status: set the `**Status**:` line in `C:\src\GameBot\specs\135-reject-unknown-command-fields\spec.md` to Implemented. Update the row for 135 in `C:\src\GameBot\specs\STATUS.md`.
+- [X] T022 STE polish: read all new or changed text (spec, plan, research, tasks, code comments, error messages, docs) and fix any text that does not follow ASD-STE100.
+- [X] T023 Run the quickstart steps in `C:\src\GameBot\specs\135-reject-unknown-command-fields\quickstart.md` and confirm the results. Do not commit.
 
 ## Dependencies and Order
 
