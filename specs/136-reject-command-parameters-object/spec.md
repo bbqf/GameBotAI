@@ -2,7 +2,7 @@
 
 **Feature Branch**: `136-reject-command-parameters-object`  
 **Created**: 2026-10-12  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #251 (B-033): POST /api/commands with `parameters` as an object instead of a list returns 500, not 400. Closes #251.
 
 ## Clarifications

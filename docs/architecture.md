@@ -10,7 +10,9 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-12 (feature 135: `POST /api/commands` and `PATCH /api/commands/{id}` answer
+_Last reviewed: 2026-10-12 (feature 136: a `parameters` type error in a command request gives 400
+`invalid_request`, not 500;
+feature 135: `POST /api/commands` and `PATCH /api/commands/{id}` answer
 400 with every unknown field path, and store or change nothing;
 feature 132: saved listen host and port, `config\network.json`;
 feature 131: auto-update from the Web UI, `/api/update/*`, the `GameBot.Updater` program;
