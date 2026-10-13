@@ -1,6 +1,6 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-10-13 (feature 139)
+Last reviewed: 2026-10-13 (features 139 and 140)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
 
@@ -20,6 +20,7 @@ Code reads the mode with `useLayoutMode()`. CSS uses the same query. The mode ch
 | `full` | Same functions as on the desktop, in a phone layout. | The area has short forms and lists. |
 | `reduced` | A subset of the functions. Other functions show "Use a larger screen". | The main task is status and control. Editing needs a large screen. |
 | `desktop-only` | The area shows a notice and a way back. | The area needs a large screen, a mouse, or drag and drop. |
+| `hidden` | The area is not part of the phone UI. No list shows it. A phone link to it shows Queues. | The area has no use on a phone and a desktop-only notice would only add noise. |
 
 The level is the field `phone` in `src/types/navigation.ts`. A new area cannot compile without it.
 
@@ -28,12 +29,34 @@ The level is the field `phone` in `src/types/navigation.ts`. A new area cannot c
 | Area | Level |
 |------|-------|
 | Queues | `reduced` |
-| Execution | `full` |
+| Execution | `hidden` |
 | Notifications | `full` |
 | Configuration | `full` |
 | Update | `full` |
 | Authoring | `desktop-only` |
 | Execution Logs | `desktop-only` |
+
+## Queue activity on a phone
+
+The queue detail shows what the queue does now and what it will do next.
+
+- The "Now" block shows the state, the running sequence (or "Waiting until <time>"), and the last result.
+- The schedule list shows one row for each template entry. Enabled rows with a next run time come first, in time order.
+  Enabled rows with no time come next. Disabled rows come last, marked "disabled".
+- Each queue card shows one summary line: the running sequence, else the next run time, else "Stopped".
+- The data refreshes every 5 s while the page is visible and the connection is up (`usePolling`). The refresh stops when
+  the page is hidden or the connection is lost. When it starts again, one refresh runs at once.
+- When a refresh fails, the last data stays on the screen with an "Old data" mark.
+- The phone shows no control to create, reorder, or edit a schedule.
+
+## Back navigation on a phone
+
+- Each screen has its own history entry (`pushState`). The address holds `area` and, for a queue detail, `queue`.
+- Back and forward restore the screen of the entry. They add no entry.
+- The first screen of the session has `history.state.idx` = 0. Back from it leaves the application.
+- The on-screen back control of the queue detail calls `history.back()`. On the first entry it replaces the entry with the queue list.
+- A phone link to a `hidden` area (`?area=execution` or `/execution`) shows Queues and replaces the entry.
+- The desktop layout keeps `replaceState` only.
 
 ## Rules
 
@@ -78,7 +101,7 @@ Do this check on a real phone before a release that changes the phone UI. Record
 2. Open the UI from the home screen. Check that no browser bar shows.
 3. Read the status of each queue. Start one queue, then stop it. Do not zoom.
 4. Switch one entry on and off in the queue detail.
-5. Open Execution, Notifications, Configuration, and Update. Do one typical task in each area.
+5. Open Notifications, Configuration, and Update. Do one typical task in each area.
 6. Open **More**, then Authoring. Check that the notice shows and **Back to Queues** works.
 7. Turn the phone to landscape. Check that no control is cut off.
 8. Turn Wi-Fi off. Check that "Connection lost" shows. Turn Wi-Fi on. Check that the banner goes away.

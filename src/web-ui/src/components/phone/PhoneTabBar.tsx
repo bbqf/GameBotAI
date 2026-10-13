@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationArea, NavigationAreaId } from '../../types/navigation';
+import { NavigationArea, NavigationAreaId, isPhoneVisible } from '../../types/navigation';
 
 export type PhoneTabBarProps = {
   areas: NavigationArea[];
@@ -11,7 +11,6 @@ type TabDef = { id: NavigationAreaId; label: string; icon: string };
 
 const MAIN_TABS: TabDef[] = [
   { id: 'queues', label: 'Queues', icon: '☰' },
-  { id: 'execution', label: 'Execution', icon: '▶' },
   { id: 'notifications', label: 'Notifications', icon: '🔔' }
 ];
 
@@ -42,7 +41,7 @@ export const PhoneTabBar: React.FC<PhoneTabBarProps> = ({ areas, activeArea, onC
   const mainIds = MAIN_TABS.map((t) => t.id);
   const moreActive = !mainIds.includes(activeArea);
   const moreAreas = [...areas]
-    .filter((a) => !mainIds.includes(a.id))
+    .filter((a) => isPhoneVisible(a) && !mainIds.includes(a.id))
     .sort((a, b) => a.order - b.order);
 
   const select = (id: NavigationAreaId) => {

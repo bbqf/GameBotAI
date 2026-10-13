@@ -2,7 +2,7 @@
 
 **Feature Branch**: `139-mobile-friendly-ui`  
 **Created**: 2026-10-13  
-**Status**: Implemented  
+**Status**: Implemented (iterated by feature 140)  
 **Input**: User description: "I want to access the UI from my phone. Now it is very poorly optimized for the small screen. Optimized web page or app are the options. Compare approaches (including the effort to implement new vs. optimize based on the current codebase), bring the arguments, and I will decide. Afterwards document the principles to follow for future features, so that these are accessible on the small screen. Not all features make sense, for example Execution logs will not be usable. If UI rework is needed in general, do it. I want an 'app look and feel' - little scrolling, few controls, etc."
 
 ## Clarifications

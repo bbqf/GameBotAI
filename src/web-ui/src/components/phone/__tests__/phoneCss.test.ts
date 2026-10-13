@@ -64,3 +64,30 @@ describe.each(cssFiles)('phone css file %s', (file) => {
     }
   });
 });
+
+describe('phone queue activity styles (FR-008, SC-006)', () => {
+  const css = stripComments(readFileSync(cssFiles[0], 'utf8'));
+  const rule = (selector: string): string => {
+    const escaped = selector.replace(/[.[\]"=]/g, (ch) => `\\${ch}`);
+    const match = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css);
+    return match ? match[1] : '';
+  };
+
+  it('gives each new control a tap target of at least 44 px', () => {
+    expect(rule('.phone-schedule-row')).toMatch(/min-height:\s*44px/);
+    expect(rule('.phone-schedule-row input[type="checkbox"]')).toMatch(/min-height:\s*44px/);
+    expect(rule('.phone-queue-detail button')).toMatch(/min-height:\s*44px/);
+  });
+
+  it('sets no sideways scroll on the activity view', () => {
+    expect(rule('.phone-queue-activity')).not.toMatch(/overflow-x:\s*(scroll|auto)/);
+    expect(rule('.phone-queue-activity')).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(rule('.phone-card__summary')).toMatch(/text-overflow:\s*ellipsis/);
+  });
+
+  it('uses no fixed width above 320 px', () => {
+    const block = css.slice(css.indexOf('.phone-queue-activity {'), css.indexOf('.phone-stale {') + 200);
+    const widths = [...block.matchAll(/(?:^|[\s;])(?:min-)?width:\s*(\d+)px/g)].map((m) => Number(m[1]));
+    for (const w of widths) expect(w).toBeLessThanOrEqual(320);
+  });
+});

@@ -19,7 +19,8 @@ import { PhoneTabBar } from './components/phone/PhoneTabBar';
 import { ConnectionBanner } from './components/phone/ConnectionBanner';
 import { DesktopOnlyNotice } from './components/phone/DesktopOnlyNotice';
 import { PhoneQueuesView } from './components/queues/PhoneQueuesView';
-import { NavigationAreaId, navigationAreas } from './types/navigation';
+import { NavigationAreaId, navigationAreas, isPhoneVisible } from './types/navigation';
+import { initFirstEntry, parseAddress, pushScreen, replaceScreen } from './lib/phoneHistory';
 import { CONFIGURATION_AREA_PATH, ConfigurationPage } from './pages/Configuration';
 import { EXECUTION_AREA_PATH, EXECUTION_LOGS_AREA_PATH, ExecutionPage } from './pages/Execution';
 import { ExecutionLogsPage } from './pages/ExecutionLogs';
@@ -60,6 +61,19 @@ const getInitialArea = (phone: boolean): NavigationAreaId => {
 
 const isAreaVisible = (_areaId: NavigationAreaId): boolean => true;
 
+/** A phone request for a hidden area shows Queues (contract A-03). */
+const phoneAreaOrQueues = (area: NavigationAreaId): NavigationAreaId => {
+  const def = navigationAreas.find((a) => a.id === area);
+  return def && isPhoneVisible(def) ? area : 'queues';
+};
+
+const getInitialQueueId = (): string | null => {
+  const params = new URLSearchParams(window.location.search);
+  const requested = params.get('area');
+  const queue = params.get('queue');
+  return (requested === null || requested === 'queues') && queue ? queue : null;
+};
+
 export const App: React.FC = () => {
   const [token, setTokenState] = useState<string>(token$.get() ?? '');
   const layoutMode = useLayoutMode();
@@ -84,7 +98,14 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const [activeArea, setActiveArea] = useState<NavigationAreaId>(() => getInitialArea(phone));
+  const [activeArea, setActiveArea] = useState<NavigationAreaId>(() => {
+    const area = getInitialArea(phone);
+    return phone ? phoneAreaOrQueues(area) : area;
+  });
+  // The open queue of the phone Queues area. It lives here so the address and the history own it (plan D-7).
+  const [selectedQueueId, setSelectedQueueId] = useState<string | null>(() => (
+    getInitialArea(phone) === 'queues' ? getInitialQueueId() : null
+  ));
   const [tab, setTab] = useState<AuthoringTab>(initialLocation.tab);
   // Bumped when the user re-clicks the already-active tab/area, signalling the
   // mounted page to return to its list view (honoring unsaved changes).
@@ -97,12 +118,20 @@ export const App: React.FC = () => {
   };
 
   const handleAreaChange = (next: NavigationAreaId) => {
+    if (phone) pushScreen({ area: next, queueId: null });
     if (next === activeArea) {
       if (next === 'authoring') setAuthoringResetSignal((s) => s + 1);
       else if (next === 'queues') setQueuesResetSignal((s) => s + 1);
+      setSelectedQueueId(null);
       return;
     }
     setActiveArea(next);
+    setSelectedQueueId(null);
+  };
+
+  const handleOpenQueue = (id: string | null) => {
+    if (id !== null) pushScreen({ area: 'queues', queueId: id });
+    setSelectedQueueId(id);
   };
   const creationTarget = initialLocation.creationTarget;
   const requestedTab = initialLocation.tab;
@@ -117,15 +146,43 @@ export const App: React.FC = () => {
     return () => unsub();
   }, []);
 
+  // Phone mode: mark the first entry and restore the screen on back and forward (contract H-01 to H-06).
+  useEffect(() => {
+    if (!phone) return;
+    initFirstEntry();
+    const onPopState = () => {
+      const position = parseAddress(window.location, 'queues');
+      const area = phoneAreaOrQueues(position.area);
+      setActiveArea(area);
+      setSelectedQueueId(area === position.area ? position.queueId : null);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [phone]);
+
+  // A hidden area never shows on a phone. The redirect replaces the entry (contract H-05).
+  useEffect(() => {
+    if (!phone) return;
+    const target = phoneAreaOrQueues(activeArea);
+    if (target !== activeArea) {
+      setActiveArea(target);
+      setSelectedQueueId(null);
+      replaceScreen({ area: target, queueId: null });
+    }
+  }, [phone, activeArea]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     params.set('tab', tab);
     params.set('area', activeArea);
+    if (activeArea === 'queues' && selectedQueueId) params.set('queue', selectedQueueId);
+    else params.delete('queue');
     if (params.has('create')) params.delete('create');
     if (params.has('id')) params.delete('id');
     const next = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState(null, '', next);
-  }, [tab, activeArea]);
+    // Keep the current state, so the entry index stays after a sync (contract H-06). The desktop state is null.
+    window.history.replaceState(window.history.state, '', next);
+  }, [tab, activeArea, selectedQueueId]);
 
   const Navbar = useMemo(() => (
     <nav className="navbar">
@@ -152,7 +209,7 @@ export const App: React.FC = () => {
       {!phone && <h1>Queues</h1>}
       <ErrorBoundary>
         {phone
-          ? <PhoneQueuesView connectionState={connectionState} reloadSignal={reloadSignal} resetSignal={queuesResetSignal} />
+          ? <PhoneQueuesView connectionState={connectionState} reloadSignal={reloadSignal} queueId={selectedQueueId} onOpenQueue={handleOpenQueue} />
           : <QueuesPage navResetSignal={queuesResetSignal} />}
       </ErrorBoundary>
     </section>

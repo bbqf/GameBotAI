@@ -204,6 +204,65 @@
     overflow-wrap: anywhere;
   }
 
+  .phone-queue-activity {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-1);
+    min-width: 0;
+    margin: var(--gb-space-3) 0;
+    padding: var(--gb-space-3);
+    border: 1px solid var(--gb-color-border);
+    border-radius: var(--gb-radius-md);
+    background: var(--gb-color-surface);
+    overflow-wrap: anywhere;
+  }
+
+  .phone-queue-activity p {
+    margin: 0;
+  }
+
+  .phone-queue-activity__label {
+    color: var(--gb-color-muted);
+  }
+
+  .phone-card__summary {
+    display: block;
+    max-width: 100%;
+    color: var(--gb-color-muted);
+    font-size: 0.8125rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .phone-schedule-row {
+    min-height: 44px;
+  }
+
+  .phone-schedule-row--disabled .phone-card__title {
+    color: var(--gb-color-muted);
+  }
+
+  .phone-schedule-row input[type="checkbox"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .phone-queue-detail button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .phone-stale {
+    align-self: flex-start;
+    padding: 2px 8px;
+    border-radius: var(--gb-radius-md);
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
   .phone-banner {
     margin: 0 0 var(--gb-space-3);
     padding: var(--gb-space-2) var(--gb-space-3);
