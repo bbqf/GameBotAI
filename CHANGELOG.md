@@ -52,7 +52,7 @@ All notable changes to this project will be documented in this file.
   - **Compatibility**: a queue file with no level reads as `none`. A new target type needs one `INotificationChannel` class and one DI registration.
 
 ### Changed
-- The OpenAPI document now shows the command `parameters` list in the create request, and its example. The `fieldTemplates` text now states the rule: each `{{placeholder}}` must be declared in the `parameters` list. This is a documentation change only. The minor version is now 9, so the next build is `1.9.0.<run number>` (138-document-command-parameters-openapi)
+- The OpenAPI document now shows the command `parameters` list in the create request, and its example. The `fieldTemplates` text now states the rule: you must declare each `{{placeholder}}` in the `parameters` list. This is a documentation change only. The minor version is now 9, so the next build is `1.9.0.<run number>` (138-document-command-parameters-openapi)
 - The `release-installer` workflow no longer runs on a push to `master`. Start it by hand (`workflow_dispatch`). A merge no longer builds the installer twice. The minor version is now 8, so the next build is `1.8.0.<run number>`.
 
 ### Fixed

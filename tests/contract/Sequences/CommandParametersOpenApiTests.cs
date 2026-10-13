@@ -11,7 +11,7 @@ namespace GameBot.ContractTests.Sequences;
 
 /// <summary>
 /// Feature 138 (issue #247): the OpenAPI document shows the command <c>parameters</c> list
-/// and the rule that a placeholder must be declared.
+/// and the rule that you must declare a placeholder.
 /// </summary>
 public sealed class CommandParametersOpenApiTests {
   private static readonly string[] ItemProperties = { "name", "type", "default", "required", "description" };

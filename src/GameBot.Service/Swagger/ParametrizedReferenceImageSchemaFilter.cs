@@ -23,9 +23,9 @@ internal sealed class ParametrizedReferenceImageSchemaFilter : ISchemaFilter {
     + "value replaces the inline referenceImageId. The save gives the warning static_check_skipped for an image key. "
     + "Errors: an unknown key gives unknown_field_template_path. An image key with a value that is not one whole "
     + "placeholder gives invalid_field_template_value. "
-    + "Declaration rule: each {{placeholder}} in a step must be declared in the top-level `parameters` list of the "
-    + "command, or be a queue built-in. A step-level parameterBindings does not satisfy this check. If a name is not "
-    + "declared, the service gives 400 unresolvable_parameter_reference.";
+    + "Declaration rule: you must declare each {{placeholder}} of a step in the top-level `parameters` list of the "
+    + "command, or use a queue built-in. A step-level parameterBindings does not satisfy this check. If you do not "
+    + "declare a name, the service gives 400 unresolvable_parameter_reference.";
 
   internal const string ParameterTypeDescription =
     "Type of the parameter value: text or number. If you omit it, the type is text.";
