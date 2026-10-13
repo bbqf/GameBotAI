@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
+using GameBot.Service.Services.EnsureEmulatorRunning;
 using GameBot.Service.Services.Liveness;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +49,9 @@ public sealed class SessionMonitoringListContractTests : MonitoringContractTestB
     using var app = Factory(baseFactory, services => {
       services.RemoveAll<ISessionManager>();
       services.AddSingleton<ISessionManager>(sessions);
+      // The real ldconsole is not on the CI runner, so a fake keeps the restart check the same everywhere.
+      services.RemoveAll<IEmulatorControl>();
+      services.AddSingleton<IEmulatorControl>(new FakeEmulatorControl());
     });
 
     var resp = await Client(app).GetAsync(ListUri);
