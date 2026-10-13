@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- A Monitoring area in the Web UI. The operator sees a live picture of each session and can restart a whole emulator (141-emulator-monitoring)
+  - **Monitoring area**: it is in the desktop navigation and in the phone More sheet (phone level `full`). It lists all sessions with a state: live, no answer, restarting, or stopping. The selected session shows a screenshot that updates every 2 s. The UI sends one screenshot request at a time, only for the selected session, and pauses when the page is hidden. A failed request keeps the last picture and shows "No live picture".
+  - **Restart emulator**: a confirm dialog starts the restart. The dialog warns when a queue uses the emulator. The page shows each step and the result. The restart stops and starts the LDPlayer instance with `ldconsole reboot`, waits for the device, and connects the session again with the same session id. It ends in at most 2 minutes.
+  - New routes, tag `Sessions`: `GET /api/sessions/monitoring`, `POST /api/sessions/{id}/restart` (202, 404, 409 `restart_in_progress`, 422 `restart_unavailable`), `GET /api/sessions/{id}/restart` (404 `not_found` or `no_restart`). The route for the existing snapshot is unchanged. A failed screenshot request now writes one log entry with the session id and the result.
+  - New settings in the section `Service:Monitoring`: `RestartTimeoutMs` (default 120000) and `RestartPollIntervalMs` (default 3000). The poll interval is the wait between two device checks during a restart.
+  - A restart works only for an LDPlayer serial such as `emulator-5558` (instance index 2). Other serials give 422. See `docs/architecture.md`.
+  - **Compatibility**: no change to stored data. The order of the navigation areas changes: Monitoring is now the third area, so the later areas move up by one.
 - A phone layout for the Web UI. The operator can monitor and control GameBot from a phone (139-mobile-friendly-ui)
   - The UI uses the phone layout on a screen 768 px wide or less, or 500 px high or less. It changes layout with no reload. The phone layout has a header, a bottom tab bar (Queues, Execution, Notifications, More), and a More sheet.
   - **Queues**: cards with Start and Stop. The detail shows one switch for each entry of the linked template. A switch saves the template, and the change applies when the queue starts again. Create, edit, schedule, reorder, duplicate, and delete need a larger screen.

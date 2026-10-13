@@ -4,7 +4,7 @@ import { Navigation } from '../Navigation';
 import { navigationAreas } from '../../types/navigation';
 
 describe('Navigation', () => {
-  it('renders top-level areas in order with Queues after Authoring', () => {
+  it('renders top-level areas in order with Queues after Authoring and Monitoring after Queues', () => {
     render(
       <Navigation
         areas={navigationAreas}
@@ -14,6 +14,6 @@ describe('Navigation', () => {
     );
 
     const tabs = screen.getAllByRole('tab').map((item) => item.textContent?.trim());
-    expect(tabs).toEqual(['Authoring', 'Queues', 'Execution', 'Execution Logs', 'Notifications', 'Configuration', 'Update']);
+    expect(tabs).toEqual(['Authoring', 'Queues', 'Monitoring', 'Execution', 'Execution Logs', 'Notifications', 'Configuration', 'Update']);
   });
 });

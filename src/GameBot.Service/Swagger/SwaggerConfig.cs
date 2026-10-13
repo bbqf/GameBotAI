@@ -140,6 +140,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyExecutionLogExamples(operation, path, method, context);
     ApplyStepThroughExamples(operation, path, method, context);
     ApplyOcrReadExamples(operation, path, method, context);
+    ApplyMonitoringExamples(operation, path, method, context);
     ApplyUpdateExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
     ApplyBackupRestoreExamples(operation, path, method, context);
@@ -1040,6 +1041,64 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     var trimmed = relativePath.TrimStart('/');
     return "/" + trimmed;
   }
+
+  // ── Feature 141: emulator monitoring ─────────────────────────────────────────────────────────
+
+  private static void ApplyMonitoringExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Sessions + "/monitoring")) {
+      SetResponseExample(operation, "200", new OpenApiObject {
+        ["sessions"] = new OpenApiArray {
+          new OpenApiObject {
+            ["id"] = new OpenApiString("a1b2"),
+            ["name"] = new OpenApiString("pns (emulator-5558)"),
+            ["gameId"] = new OpenApiString("pns"),
+            ["deviceSerial"] = new OpenApiString("emulator-5558"),
+            ["state"] = new OpenApiString("live"),
+            ["reason"] = new OpenApiNull(),
+            ["ownerQueueId"] = new OpenApiString("q1"),
+            ["ownerQueueName"] = new OpenApiString("PNS Daily 5558"),
+            ["restartAvailable"] = new OpenApiBoolean(true),
+            ["restartUnavailableReason"] = new OpenApiNull(),
+            ["startedAtUtc"] = new OpenApiString("2026-10-13T08:00:00Z")
+          }
+        }
+      }, context, typeof(GameBot.Service.Endpoints.Dto.SessionMonitoringListResponse));
+      return;
+    }
+
+    if (!IsPath(path, ApiRoutes.Sessions + "/{id}/restart")) return;
+
+    if (IsMethod(method, HttpMethods.Post)) {
+      SetResponseExample(operation, "202", RestartRecordExample("restarting", "rebooting"), context,
+        typeof(GameBot.Service.Endpoints.Dto.SessionRestartRecordDto));
+      SetResponseExample(operation, "404", MonitoringError("not_found", "Session not found"), context);
+      SetResponseExample(operation, "409", MonitoringError("restart_in_progress", "A restart is already running for this emulator."), context);
+      SetResponseExample(operation, "422", MonitoringError("restart_unavailable",
+        "The system cannot restart this emulator (unsupported_serial). The emulator did not change."), context);
+    }
+    else if (IsMethod(method, HttpMethods.Get)) {
+      SetResponseExample(operation, "200", RestartRecordExample("success", "done"), context,
+        typeof(GameBot.Service.Endpoints.Dto.SessionRestartRecordDto));
+      SetResponseExample(operation, "404", MonitoringError("no_restart", "No restart was made for this session."), context);
+    }
+  }
+
+  private static OpenApiObject RestartRecordExample(string state, string step) => new OpenApiObject {
+    ["sessionId"] = new OpenApiString("a1b2"),
+    ["state"] = new OpenApiString(state),
+    ["step"] = new OpenApiString(step),
+    ["startedAtUtc"] = new OpenApiString("2026-10-13T08:10:00Z"),
+    ["endedAtUtc"] = state == "restarting" ? new OpenApiNull() : new OpenApiString("2026-10-13T08:11:00Z"),
+    ["reason"] = new OpenApiNull()
+  };
+
+  private static OpenApiObject MonitoringError(string code, string message) => new OpenApiObject {
+    ["error"] = new OpenApiObject {
+      ["code"] = new OpenApiString(code),
+      ["message"] = new OpenApiString(message),
+      ["hint"] = new OpenApiNull()
+    }
+  };
 
   private static bool IsPath(string actual, string expected) {
     static string Normalize(string path) => path.EndsWith('/') ? path.TrimEnd('/') : path;

@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-13 (feature 140: phone queue activity view and schedule list, in-app back navigation with the History API, the phone support level `hidden` for Execution;
+_Last reviewed: 2026-10-13 (feature 141: the Monitoring area, the session list with a state, the emulator restart, the `Service:Monitoring` options;
+feature 140: phone queue activity view and schedule list, in-app back navigation with the History API, the phone support level `hidden` for Execution;
 feature 139: phone layout mode, phone support levels, web manifest, connection banner;
 feature 137: the `notify` step sends an alert at most once for each queue
 and key in a window, `dedupeKey` with `since` or `within`;
@@ -1210,6 +1211,34 @@ The web UI has two layout modes. One React code base serves both. The service AP
   type `application/manifest+json`. See [phone-access.md](phone-access.md) for the network setup.
 - **Phone CSS**: all phone rules sit inside the phone media query (`components/phone/phone.css`,
   `pages/Execution.phone.css`). Hover rules sit inside `@media (hover: hover)`. Tests check both rules.
+### Emulator monitoring (feature 141)
+
+The Monitoring area (desktop navigation order 2, phone level `full`) shows all sessions, a live picture of the
+selected session, and a restart of the whole emulator.
+
+- **Session list**: `GET /api/sessions/monitoring` (`Endpoints/SessionMonitoringEndpoints.cs`) lists all sessions from
+  `ISessionManager.ListSessions()` with no status filter. Each item has `state` (`restarting`, then `no_answer` from
+  `ISessionLivenessService.Evaluate`, then `stopping`, else `live`), the owner queue, and `restartAvailable`. The call
+  does not probe the device. The route is a literal segment, so it wins over `GET /api/sessions/{id}`. Contract tests
+  prove this.
+- **Screenshot**: the UI reuses `GET /api/sessions/{id}/snapshot`. The hook `useSequentialPolling` sends one request at a
+  time, 2 s after the start of the last request, only for the selected session. It pauses when the page is hidden.
+  Each failed snapshot request writes one log entry (`MonitoringLog`, event 7505) with the session id and the result.
+  A successful request writes none.
+- **Emulator restart**: `POST /api/sessions/{id}/restart` answers 202 at once (404 unknown session, 409
+  `restart_in_progress`, 422 `restart_unavailable`). `GET /api/sessions/{id}/restart` returns the last record (404
+  `not_found` or `no_restart`). `SessionRestartService` runs in the background and does not use the request token. Steps:
+  `ldconsole reboot` through `IEmulatorControl`, wait until `IEmulatorDeviceProbe` reports the device (every
+  `RestartPollIntervalMs`), `ISessionReconnector` stops and starts the capture loop of the session (same session id),
+  one direct capture. The run ends in at most `RestartTimeoutMs`. The record is in memory, and one restart can run for
+  each session. The service does not stop the queue that owns the session; the queue recovers by its normal rules.
+- **Instance index**: `LdInstanceMapper` (`GameBot.Emulator/Adb`) maps a serial such as `emulator-5558` to the LDPlayer
+  index (`(port - 5554) / 2`, here 2). Other serials give 422 `restart_unavailable` and the emulator is not changed.
+  The index comes only from the serial of the requested session, and `isrunning` must report `running`.
+- **Options** (section `Service:Monitoring`, default values apply when the section is missing): `RestartTimeoutMs`
+  (120000) and `RestartPollIntervalMs` (3000, the wait between device checks; the screenshot interval is fixed at 2 s).
+- **OpenAPI**: `SessionMonitoringSchemaFilter` describes the DTOs and the enum values.
+
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):

@@ -1,0 +1,94 @@
+/* Rules for the Monitoring area (feature 141). Phone rules sit inside the phone query. Hover rules sit in a hover query only. */
+
+/* Desktop: two columns. These classes exist only in the desktop layout. */
+.monitoring-columns {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: var(--gb-space-4);
+  align-items: start;
+}
+
+.monitoring-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gb-space-2);
+}
+
+.monitoring-list__button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gb-space-2);
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+}
+
+.monitoring-list__button--selected {
+  border-color: var(--gb-color-border-strong);
+  font-weight: 600;
+}
+
+.monitoring-screenshot__image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.monitoring-detail__restart {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .monitoring-page--phone {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-3);
+    max-width: 100%;
+  }
+
+  .monitoring-page--phone .monitoring-detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-3);
+    min-width: 0;
+  }
+
+  .monitoring-page--phone .monitoring-screenshot__image {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .monitoring-page--phone .monitoring-detail__name {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .monitoring-page--phone .monitoring-detail__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gb-space-2);
+  }
+
+  .monitoring-page--phone .monitoring-detail__back,
+  .monitoring-page--phone .monitoring-detail__restart {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .monitoring-page--phone .monitoring-detail__restart {
+    width: 100%;
+  }
+}
+
+@media (hover: hover) {
+  .monitoring-list__button:hover {
+    border-color: var(--gb-color-border-strong);
+  }
+}

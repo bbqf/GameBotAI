@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using System.Threading.Tasks;
 using GameBot.Service.Services;
 using GameBot.Service.Services.Liveness;
+using GameBot.Service.Services.Monitoring;
 using Microsoft.Extensions.Logging;
 
 namespace GameBot.Service.Endpoints;
@@ -102,7 +103,7 @@ internal static class SessionsEndpoints {
       return Results.Ok(new { id = s.Id, mode = "STUB", deviceSerial = (string?)null, adb = new { ok = true }, liveness = livenessBlock });
     }).WithName("GetSessionHealth").WithTags("Sessions");
 
-    group.MapGet("{id}/snapshot", async (string id, HttpContext ctx, ISessionManager mgr, ISessionLivenessService liveness, IDeviceLivenessTracker tracker, CancellationToken ct) => {
+    group.MapGet("{id}/snapshot", async (string id, HttpContext ctx, ISessionManager mgr, ISessionLivenessService liveness, IDeviceLivenessTracker tracker, ILogger<MonitoringLoggingTag> monitoringLogger, CancellationToken ct) => {
       // Feature 106 (FR-011): the direct capture gets the limit CaptureTimeoutMs. A cancel by the
       // client (ct) is not a 504 and keeps its current behavior.
       var limitMs = liveness.Options.CaptureTimeoutMs;
@@ -114,9 +115,12 @@ internal static class SessionsEndpoints {
         return Results.File(png, contentType: "image/png");
       }
       catch (KeyNotFoundException) {
+        // Feature 141 (FR-017): each failed screenshot request is logged. A successful one is not.
+        MonitoringLog.ScreenshotFailed(monitoringLogger, id, "not_found");
         return Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
       }
       catch (OperationCanceledException) when (limit.IsCancellationRequested && !ct.IsCancellationRequested) {
+        MonitoringLog.ScreenshotFailed(monitoringLogger, id, "capture_timeout");
         return Results.Json(new {
           error = new {
             code = "capture_timeout",

@@ -6,6 +6,10 @@ jest.mock('../pages/CommandsPage', () => ({ CommandsPage: () => <div role="headi
 jest.mock('../pages/GamesPage', () => ({ GamesPage: () => <div role="heading" aria-level={2}>Games</div> }));
 jest.mock('../pages/SequencesPage', () => ({ SequencesPage: () => <div role="heading" aria-level={2}>Sequences</div> }));
 jest.mock('../pages/images/ImagesListPage', () => ({ ImagesListPage: (_: any) => <div role="heading" aria-level={2}>Images</div> }));
+jest.mock('../pages/MonitoringPage', () => ({
+  MONITORING_AREA_PATH: '/monitoring',
+  MonitoringPage: () => <div data-testid="monitoring-page-mock">Monitoring content</div>
+}));
 jest.mock('../pages/Configuration', () => ({
   CONFIGURATION_AREA_PATH: '/configuration',
   ConfigurationPage: () => <div data-testid="configuration-page-mock">Configuration content</div>
@@ -72,5 +76,35 @@ describe('Top navigation', () => {
     fireEvent.click(more);
     fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
     expect(screen.getByRole('heading', { name: 'Configuration' })).toBeInTheDocument();
+  });
+
+  it('opens Monitoring from the tab, from ?area=monitoring and from /monitoring (feature 141)', () => {
+    setMatchMedia(false);
+    const { unmount } = render(<App />);
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.trim());
+    expect(tabs.indexOf('Monitoring')).toBe(tabs.indexOf('Queues') + 1);
+    fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+    expect(screen.getByTestId('monitoring-page-mock')).toBeInTheDocument();
+    expect(window.location.search).toContain('area=monitoring');
+    unmount();
+
+    window.history.replaceState(null, '', '/?area=monitoring');
+    const second = render(<App />);
+    expect(screen.getByTestId('monitoring-page-mock')).toBeInTheDocument();
+    second.unmount();
+
+    window.history.replaceState(null, '', '/monitoring');
+    render(<App />);
+    expect(screen.getByTestId('monitoring-page-mock')).toBeInTheDocument();
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('lists Monitoring in the phone More sheet (feature 141)', () => {
+    setMatchMedia(true);
+    window.history.replaceState(null, '', '/');
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /More/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    expect(screen.getByTestId('monitoring-page-mock')).toBeInTheDocument();
   });
 });

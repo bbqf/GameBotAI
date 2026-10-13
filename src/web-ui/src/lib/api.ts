@@ -44,10 +44,11 @@ const tracked = async (input: string, init: RequestInit): Promise<Response> => {
   return res;
 };
 
-export const apiGet = (path: string) => {
+export const apiGet = (path: string, signal?: AbortSignal) => {
   return tracked(buildUrl(path), {
     method: 'GET',
-    headers: buildHeaders()
+    headers: buildHeaders(),
+    ...(signal ? { signal } : {})
   });
 };
 

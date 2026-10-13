@@ -95,6 +95,8 @@ if (!hasInstalledWebUi) {
 
 // Sessions endpoints (protected if token set)
 app.MapSessionEndpoints();
+// Emulator monitoring: session list with state, emulator restart (feature 141)
+app.MapSessionMonitoringEndpoints();
 
 // Games endpoints (protected if token set)
 app.MapGameEndpoints();
