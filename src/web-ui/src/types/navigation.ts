@@ -24,14 +24,14 @@ export type NavigationState = {
 };
 
 export const navigationAreas: NavigationArea[] = [
-  { id: 'authoring', label: 'Authoring', path: '/', order: 0, phone: 'desktop-only' },
-  { id: 'queues', label: 'Queues', path: '/queues', order: 1, phone: 'reduced' },
-  { id: 'monitoring', label: 'Monitoring', path: '/monitoring', order: 2, phone: 'full' },
+  { id: 'queues', label: 'Queues', path: '/queues', order: 0, phone: 'reduced' },
+  { id: 'monitoring', label: 'Monitoring', path: '/monitoring', order: 1, phone: 'full' },
+  { id: 'authoring', label: 'Authoring', path: '/', order: 2, phone: 'desktop-only' },
   { id: 'execution', label: 'Execution', path: '/execution', order: 3, phone: 'hidden' },
   { id: 'execution-logs', label: 'Execution Logs', path: '/execution-logs', order: 4, phone: 'desktop-only' },
-  { id: 'notifications', label: 'Notifications', path: '/notifications', order: 5, phone: 'full' },
-  { id: 'configuration', label: 'Configuration', path: '/configuration', order: 6, phone: 'full' },
-  { id: 'update', label: 'Update', path: '/update', order: 7, phone: 'full' }
+  { id: 'configuration', label: 'Configuration', path: '/configuration', order: 5, phone: 'full' },
+  { id: 'update', label: 'Update', path: '/update', order: 6, phone: 'full' },
+  { id: 'notifications', label: 'Notifications', path: '/notifications', order: 7, phone: 'full' }
 ];
 /** True when the phone UI lists the area. */
 export const isPhoneVisible = (area: Pick<NavigationArea, 'phone'>): boolean => area.phone !== 'hidden';

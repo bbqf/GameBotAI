@@ -51,7 +51,7 @@
 
 ## R8. Web UI: area, layout, and selection
 
-- Decision: New area id `monitoring`, label "Monitoring", path `/monitoring`, phone level `full`, order 2 (after Queues). Later orders move up by one.
+- Decision: New area id `monitoring`, label "Monitoring", path `/monitoring`, phone level `full`, order 1 (after Queues; changed on 2026-10-13, see FR-029 and FR-030).
 - One component serves both layouts; it reads `useLayoutMode()`. The selected session id is kept in page state above the layout branch and in the URL query (`session=<id>`), so a layout change keeps it (FR-020). On a phone, the list is the first screen and the detail is the second screen with its own history entry (same method as the queue detail: `pushState`, back control calls `history.back()`).
 - `phone.css` classes and `PhoneCard` are reused for the list. The primary action on the detail screen is "Restart emulator". Hover rules go in `@media (hover: hover)`.
 - Connection lost: the existing `ConnectionBanner` shows. The restart button is off. The UI never sends the restart again after a connection loss; it only reads the record.

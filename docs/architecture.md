@@ -50,7 +50,7 @@ backed by a REST API.
 | `src/GameBot.Emulator` | ADB client and session management; the background screen-capture service. |
 | `src/GameBot.Service` | ASP.NET Core host: REST API (minimal-API `Endpoints/` + `SessionsController`), execution orchestration (`Services/QueueExecution`, `Services/SequenceExecution`), hosted background services, security, swagger. Serves the built Web UI. |
 | `src/GameBot.Updater` | Small console program for the auto-update (feature 131). It waits for the bot to exit, runs `msiexec` silent, starts the bot again, and writes `update-result.json`. Framework-dependent. The installer puts it in `updater\` next to the service. |
-| `src/web-ui` | React + TypeScript + Vite SPA. Authoring, Execution, Execution Logs, Queues, Notifications, Configuration, Update. |
+| `src/web-ui` | React + TypeScript + Vite SPA. Queues, Monitoring, Authoring, Execution, Execution Logs, Configuration, Update, Notifications. |
 
 Persistence is **file-based** under the `data/` directory (JSON documents + stored image files;
 an image's alternates list lives beside the images as `.alternates\{id}.json`, feature 097);
@@ -1181,7 +1181,7 @@ The web UI has two layout modes. One React code base serves both. The service AP
 - **Layout mode**: `useLayoutMode()` reads the media query `PHONE_MEDIA_QUERY` = `(max-width: 768px), (max-height: 500px)`.
   A match gives `phone`. Other screens give `desktop`. The mode changes with the window size, without a reload.
   `App.tsx` keeps one `<main>` element in both modes, so the area content does not remount on a change.
-- **Phone shell**: `PhoneHeader` (area title) and `PhoneTabBar` (bottom bar: Queues, Notifications, More).
+- **Phone shell**: `PhoneHeader` (area title) and `PhoneTabBar` (bottom bar: Queues, Monitoring, More; Notifications is in the More sheet).
   The More sheet lists Configuration, Update, and the desktop-only areas. In phone mode with no `area` URL
   parameter, the app opens Queues. Desktop opens Authoring.
 - **Phone support levels**: each `NavigationArea` has the field `phone`: `full`, `reduced`, `desktop-only`, or `hidden`.
@@ -1213,7 +1213,7 @@ The web UI has two layout modes. One React code base serves both. The service AP
   `pages/Execution.phone.css`). Hover rules sit inside `@media (hover: hover)`. Tests check both rules.
 ### Emulator monitoring (feature 141)
 
-The Monitoring area (desktop navigation order 2, phone level `full`) shows all sessions, a live picture of the
+The Monitoring area (desktop navigation order 1, after Queues, phone level `full`) shows all sessions, a live picture of the
 selected session, and a restart of the whole emulator.
 
 - **Session list**: `GET /api/sessions/monitoring` (`Endpoints/SessionMonitoringEndpoints.cs`) lists all sessions from

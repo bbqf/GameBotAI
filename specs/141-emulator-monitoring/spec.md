@@ -9,6 +9,8 @@
 
 ### Session 2026-10-13
 
+- Change (late 2026-10-13): The operator asked to swap Notifications and Monitoring on the phone, and to reorder the desktop areas. See FR-029 and FR-030. The operator did not name Notifications in the new desktop order, so it is last. (Rationale: it keeps the area and changes nothing else.)
+
 - Q: Which sessions does the list show? → A: All sessions that the service holds, each with a state. A session with no live emulator shows "no answer". (Rationale: the operator needs to find broken sessions, not only healthy ones.)
 - Q: What does "restart the whole emulator" mean? → A: Stop the emulator process and start it again, then reconnect the session. It is not an in-game restart. (Rationale: matches the user words "whole emulator".)
 - Q: What does a restart do to a queue that uses the session? → A: The queue is not stopped by the restart. The queue sees a failed or held cycle and recovers by its normal rules. The confirmation warns about this. (Rationale: keeps the change small and uses the existing liveness hold.)
@@ -119,6 +121,8 @@ The operator uses the Monitoring area in the desktop layout and in the phone lay
 - **FR-025**: The manual checks on a real emulator (SC-001, SC-002, SC-004, SC-006) MUST be ONE final verification step. This step is separate from the code stories. No code story depends on a manual check.
 - **FR-026**: The change MUST update `docs/architecture.md` in the same pull request (constitution Principle V). The update MUST cover the new API routes, the monitoring capability, and the emulator restart capability. The update MUST set a new "Last reviewed" date.
 - **FR-027**: When the work ends, the `Status` line of this spec MUST show the final state. The change MUST also update `specs/STATUS.md` with a row for this feature. Use the status words in `specs/STATUS.md`. Spec 140 is an example.
+- **FR-029**: The desktop navigation MUST list the areas in this order: Queues, Monitoring, Authoring, Execution, Execution Logs, Configuration, Update, Notifications. Monitoring is the second area. (Change of 2026-10-13: Notifications moved to the end.)
+- **FR-030**: The phone tab bar MUST show Queues, Monitoring, and More. Notifications MUST be in the More sheet. (Change of 2026-10-13: Monitoring took the tab of Notifications.)
 - **FR-028**: The change MUST add an entry to `CHANGELOG.md` under `[Unreleased]` > `Added`. The entry MUST describe the Monitoring area, the new routes, and the new setting `RestartPollIntervalMs`. The entry MUST name this feature (141-emulator-monitoring). Follow the style of the existing entries.
 
 ### Key Entities *(include if feature involves data)*

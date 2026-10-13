@@ -11,7 +11,7 @@ type TabDef = { id: NavigationAreaId; label: string; icon: string };
 
 const MAIN_TABS: TabDef[] = [
   { id: 'queues', label: 'Queues', icon: '☰' },
-  { id: 'notifications', label: 'Notifications', icon: '🔔' }
+  { id: 'monitoring', label: 'Monitoring', icon: '📺' }
 ];
 
 const isTextInput = (el: Element | null): boolean => {
