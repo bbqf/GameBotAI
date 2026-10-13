@@ -1,0 +1,384 @@
+/* Phone layout rules. Every rule sits inside the phone query (contract C-05, C-12). */
+
+@media (max-width: 768px), (max-height: 500px) {
+  html, body {
+    overflow-x: hidden;
+  }
+
+  .app.app--phone {
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .app--phone .content {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--gb-space-3);
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    overflow-wrap: anywhere;
+  }
+
+  .phone-header {
+    display: flex;
+    align-items: center;
+    gap: var(--gb-space-2);
+    min-height: 48px;
+    padding: var(--gb-space-2) var(--gb-space-3);
+    border-bottom: 1px solid var(--gb-color-border-strong);
+    background: var(--gb-color-surface);
+  }
+
+  .phone-header__title {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    font-size: 1.125rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .phone-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    background: var(--gb-color-surface);
+    border-top: 1px solid var(--gb-color-border-strong);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .phone-tabbar--hidden {
+    display: none;
+  }
+
+  .phone-tabbar__item {
+    flex: 1;
+    min-width: 44px;
+    height: auto;
+    min-height: 56px;
+    padding: var(--gb-space-1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--gb-color-muted);
+    font-size: 0.75rem;
+    touch-action: manipulation;
+  }
+
+  .phone-tabbar__item[aria-current="page"] {
+    color: var(--gb-color-primary);
+    font-weight: 700;
+  }
+
+  .phone-tabbar__icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .phone-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    max-height: 80dvh;
+    overflow-y: auto;
+    padding: var(--gb-space-3) var(--gb-space-3) calc(var(--gb-space-3) + env(safe-area-inset-bottom));
+    background: var(--gb-color-surface);
+    border-top-left-radius: var(--gb-radius-lg);
+    border-top-right-radius: var(--gb-radius-lg);
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.2);
+  }
+
+  .phone-sheet__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .phone-sheet__item {
+    width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gb-space-2);
+    padding: var(--gb-space-2) var(--gb-space-3);
+    border: 0;
+    border-bottom: 1px solid var(--gb-color-border);
+    background: transparent;
+    font-size: 1rem;
+    text-align: left;
+    touch-action: manipulation;
+  }
+
+  .phone-sheet__note {
+    color: var(--gb-color-muted);
+    font-size: 0.8125rem;
+  }
+
+  .phone-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-3);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .phone-card {
+    display: flex;
+    align-items: center;
+    gap: var(--gb-space-2);
+    min-width: 0;
+    padding: var(--gb-space-3);
+    border: 1px solid var(--gb-color-border);
+    border-radius: var(--gb-radius-md);
+    background: var(--gb-color-surface);
+  }
+
+  /* The global button rule sets a fixed height, a border, and a gradient. A card body needs none of them. */
+  .phone-card__body {
+    flex: 1;
+    min-width: 0;
+    height: auto;
+    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--gb-space-1);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    touch-action: manipulation;
+  }
+
+  .phone-card__body {
+    overflow: hidden;
+  }
+
+  .phone-card__title {
+    display: block;
+    max-width: 100%;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .phone-card .status-chip {
+    min-width: 0;
+    align-self: flex-start;
+    padding: 4px 10px;
+    font-size: 0.8125rem;
+  }
+
+  .phone-queue-detail__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gb-space-3);
+    margin: var(--gb-space-3) 0;
+  }
+
+  .phone-queue-detail__name {
+    margin: var(--gb-space-3) 0 0;
+    overflow-wrap: anywhere;
+  }
+
+  .phone-banner {
+    margin: 0 0 var(--gb-space-3);
+    padding: var(--gb-space-2) var(--gb-space-3);
+    border-radius: var(--gb-radius-md);
+    background: #fef3c7;
+    color: #92400e;
+    font-weight: 600;
+  }
+
+  .phone-banner--error {
+    background: #fee2e2;
+    color: var(--gb-color-danger);
+  }
+
+  .phone-notice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-3);
+    padding: var(--gb-space-4);
+  }
+
+  /* Tap targets: every control reaches 44 x 44 px (contract C-05). */
+  .app--phone button,
+  .app--phone [role="button"],
+  .app--phone [role="tab"],
+  .app--phone [role="switch"],
+  .app--phone select,
+  .app--phone summary {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  .app--phone a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .app--phone input[type="checkbox"],
+  .app--phone input[type="radio"] {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    margin: 10px;
+  }
+
+  /* Input font of 16 px stops the iOS zoom on focus. */
+  .app--phone input:not([type="checkbox"]):not([type="radio"]),
+  .app--phone select,
+  .app--phone textarea {
+    font-size: 16px;
+    min-height: 44px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .app--phone table {
+    max-width: 100%;
+  }
+
+  .app--phone img,
+  .app--phone pre {
+    max-width: 100%;
+  }
+
+  .app--phone pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* Collapsible blocks: the summary is a tap target. */
+  .app--phone .collapsible-section-title {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* Configuration: stack the fields; full-width inputs (US2). */
+  .app--phone .token-gate .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app--phone .token-gate .row label {
+    min-width: 0;
+  }
+
+  .app--phone .token-gate .row input[type="text"],
+  .app--phone .token-gate .row input[type="password"] {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .app--phone .token-gate .remember {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .app--phone .config-param-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app--phone .config-param-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app--phone .config-param-name {
+    min-width: 0;
+  }
+
+  .app--phone .config-param-input,
+  .app--phone .config-param-filter {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* In a column toolbar, the flex-basis of the filter would set its height. */
+  .app--phone .config-param-filter {
+    flex: 0 0 auto;
+  }
+
+  /* Update: one column, one primary action (US2). */
+  .app--phone .update-page .update-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-3);
+  }
+
+  .app--phone .update-page .update-section > button,
+  .app--phone .update-page .dialog-actions button {
+    width: 100%;
+  }
+
+  .app--phone .update-page .dialog-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-2);
+  }
+
+  /* Notifications: rows as cards (US2). */
+  .app--phone .phone-row-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-2);
+    padding: var(--gb-space-3);
+    border: 1px solid var(--gb-color-border);
+    border-radius: var(--gb-radius-md);
+    background: var(--gb-color-surface);
+    overflow-wrap: anywhere;
+  }
+
+  .app--phone .phone-row-card select {
+    width: 100%;
+  }
+
+  .app--phone .phone-row-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gb-space-2);
+  }}
+
+/* Hover rules live in a hover query only (FR-011). */
+@media (hover: hover) {
+  .phone-tabbar__item:hover,
+  .phone-sheet__item:hover {
+    background: var(--gb-color-surface-alt);
+  }
+
+  .phone-card:hover {
+    border-color: var(--gb-color-border-strong);
+  }
+}

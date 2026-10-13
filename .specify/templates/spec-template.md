@@ -95,6 +95,8 @@
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
 - **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
 
+- **FR-0XX** *(include if the feature changes the web UI)*: The feature MUST state its phone support level (full, reduced, or desktop-only) and follow docs/mobile-ui-principles.md.
+
 ### Key Entities *(include if feature involves data)*
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]

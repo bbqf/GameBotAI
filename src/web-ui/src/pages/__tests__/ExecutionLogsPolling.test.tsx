@@ -4,9 +4,6 @@ import { ExecutionLogsPage } from '../ExecutionLogs';
 import { getExecutionLogDetail, getExecutionSubtree, listExecutionLogs } from '../../services/executionLogsApi';
 
 jest.mock('../../services/executionLogsApi');
-jest.mock('../../hooks/useNavigationCollapse', () => ({
-  useNavigationCollapse: () => ({ isCollapsed: false })
-}));
 
 const listExecutionLogsMock = listExecutionLogs as jest.MockedFunction<typeof listExecutionLogs>;
 const getExecutionLogDetailMock = getExecutionLogDetail as jest.MockedFunction<typeof getExecutionLogDetail>;

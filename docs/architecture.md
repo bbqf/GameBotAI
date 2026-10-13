@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-12 (feature 137: the `notify` step sends an alert at most once for each queue
+_Last reviewed: 2026-10-13 (feature 139: phone layout mode, phone support levels, web manifest, connection banner;
+feature 137: the `notify` step sends an alert at most once for each queue
 and key in a window, `dedupeKey` with `since` or `within`;
 feature 136: a `parameters` type error in a command request gives 400
 `invalid_request`, not 500;
@@ -1171,6 +1172,33 @@ The installer saves the listen host and port, so an update and a reinstall keep 
 - **Update from the Web UI**: `UpdaterLauncher` no longer passes `--port` and `--bind-host`. A runtime
   override is therefore not saved. The updater command line still accepts both options.
 
+### Phone layout (feature 139)
+
+The web UI has two layout modes. One React code base serves both. The service API does not change.
+
+- **Layout mode**: `useLayoutMode()` reads the media query `PHONE_MEDIA_QUERY` = `(max-width: 768px), (max-height: 500px)`.
+  A match gives `phone`. Other screens give `desktop`. The mode changes with the window size, without a reload.
+  `App.tsx` keeps one `<main>` element in both modes, so the area content does not remount on a change.
+- **Phone shell**: `PhoneHeader` (area title) and `PhoneTabBar` (bottom bar: Queues, Execution, Notifications, More).
+  The More sheet lists Configuration, Update, and the desktop-only areas. In phone mode with no `area` URL
+  parameter, the app opens Queues. Desktop opens Authoring.
+- **Phone support levels**: each `NavigationArea` has the field `phone`: `full`, `reduced`, or `desktop-only`.
+  Queues is `reduced`. Authoring and Execution Logs are `desktop-only`. Other areas are `full`. In phone mode a
+  `desktop-only` area renders `DesktopOnlyNotice` and never mounts its content. The rules and the review checklist
+  are in [mobile-ui-principles.md](mobile-ui-principles.md).
+- **Phone Queues**: `PhoneQueuesView` replaces `QueuesPage` in phone mode. It shows cards with Start or Stop. The detail
+  shows one switch for each entry of the linked template. A switch saves the template with `overwrite: true`
+  (`lib/queueEntryToggle.ts`). The change applies when the queue starts again. Create, edit, schedule, reorder,
+  duplicate, and delete are not available on a phone.
+- **Connection**: `useConnectionState()` uses `navigator.onLine` and a `GET /health` call every 10 s while the page
+  is visible. When the state is `lost`, `ConnectionBanner` shows "Connection lost" and the control buttons turn off.
+  The UI never sends an action again. It loads the data again when the state returns to `online`. A 401 answer
+  (`lib/unauthorized.ts`) shows "Access token needed. Open Configuration."
+- **Install**: `public/manifest.webmanifest` (standalone display, icons) and the Apple meta tags in `index.html`.
+  There is no service worker, because the service uses plain HTTP. The service returns the manifest with the content
+  type `application/manifest+json`. See [phone-access.md](phone-access.md) for the network setup.
+- **Phone CSS**: all phone rules sit inside the phone media query (`components/phone/phone.css`,
+  `pages/Execution.phone.css`). Hover rules sit inside `@media (hover: hover)`. Tests check both rules.
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):

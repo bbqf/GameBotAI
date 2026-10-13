@@ -35,6 +35,8 @@
 
 *NON-NEGOTIABLE*: All text in this plan and in the artifacts it produces (research, data model, contracts, quickstart, tasks, code comments, user-facing messages) MUST obey Simplified Technical English (Constitution Principle VI).
 
+*Phone check (Constitution Principle III)*: If the feature changes the web UI, state its phone support level (full, reduced, or desktop-only) and confirm it follows docs/mobile-ui-principles.md.
+
 [Gates determined based on constitution file]
 
 ## Project Structure

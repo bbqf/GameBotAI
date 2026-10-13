@@ -4,6 +4,7 @@ import { App } from './App';
 import { applyThemeTokens } from './theme/tokens';
 import './theme/global.css';
 import './styles.css';
+import './components/phone/phone.css';
 
 applyThemeTokens();
 

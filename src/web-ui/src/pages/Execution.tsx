@@ -9,6 +9,13 @@ import { StatusChip } from '../features/execution/StatusChip';
 import { RunDetails } from '../features/execution/RunDetails';
 import { ParameterBindingForm } from '../components/parameters/ParameterBindingForm';
 import type { ParameterBinding } from '../components/parameters/types';
+import { CollapsibleSection } from '../components/CollapsibleSection';
+import { useLayoutMode } from '../hooks/useLayoutMode';
+import './Execution.phone.css';
+
+/** On a phone a form section sits in a collapsible block, so one primary action shows at a time. */
+const PhoneSection: React.FC<{ phone: boolean; title: string; children: React.ReactNode }> = ({ phone, title, children }) =>
+  phone ? <CollapsibleSection title={title}>{children}</CollapsibleSection> : <>{children}</>;
 
 export const EXECUTION_AREA_PATH = '/execution';
 export const EXECUTION_LOGS_AREA_PATH = '/execution-logs';
@@ -20,6 +27,7 @@ export function formatCaptureRate(fps?: number | null): string {
 }
 
 export const ExecutionPage: React.FC = () => {
+  const phone = useLayoutMode() === 'phone';
   const { data: gamesData, error: gamesError } = useGames();
   const { devices, loading: loadingDevices, error: devicesError } = useAdbDevices(true);
   const [commands, setCommands] = useState<CommandDto[]>([]);
@@ -311,7 +319,7 @@ export const ExecutionPage: React.FC = () => {
 
   return (
     <div className="execution-view">
-      <h1>Execution</h1>
+      {!phone && <h1>Execution</h1>}
       {gamesError && <div className="form-error" role="alert">{gamesError}</div>}
       {devicesError && <div className="form-error" role="alert">{devicesError}</div>}
       {error && <div className="form-error" role="alert">{error}</div>}
@@ -332,6 +340,7 @@ export const ExecutionPage: React.FC = () => {
         </div>
       )}
 
+      <PhoneSection phone={phone} title="Start a session">
       <section aria-label="Connect to game">
         <h2>Start a session</h2>
         <p>Select game and adb serial, then start a session. The returned sessionId will be cached on the service for reuse.</p>
@@ -379,6 +388,7 @@ export const ExecutionPage: React.FC = () => {
           <button type="button" onClick={handleRun} disabled={running || !selectedGameId || !selectedAdbSerial}>Start session</button>
         </div>
       </section>
+      </PhoneSection>
 
       <section aria-label="Running sessions">
         <h2>Running sessions</h2>
@@ -416,6 +426,7 @@ export const ExecutionPage: React.FC = () => {
         />
       </section>
 
+      <PhoneSection phone={phone} title="Execute a command">
       <section aria-label="Execute command">
         <h2>Execute a command</h2>
         <p>Reuse a running session when sessionId is left blank.</p>
@@ -454,7 +465,9 @@ export const ExecutionPage: React.FC = () => {
           <button type="button" onClick={handleExecuteCommand} disabled={executing || loadingCommands || commands.length === 0}>Execute command</button>
         </div>
       </section>
+      </PhoneSection>
 
+      <PhoneSection phone={phone} title="Execute a sequence">
       <section aria-label="Execute sequence">
         <h2>Execute a sequence</h2>
         <p>Run a sequence directly. The sequence runner will execute all steps in order.</p>
@@ -510,6 +523,7 @@ export const ExecutionPage: React.FC = () => {
           </button>
         </div>
       </section>
+      </PhoneSection>
     </div>
   );
 };

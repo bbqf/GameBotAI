@@ -10,7 +10,6 @@ describe('Navigation', () => {
         areas={navigationAreas}
         activeArea="authoring"
         onChange={() => undefined}
-        isCollapsed={false}
       />
     );
 

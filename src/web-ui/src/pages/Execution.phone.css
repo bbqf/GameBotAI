@@ -1,0 +1,54 @@
+/* Phone rules for the Execution area. Every rule sits inside the phone query. */
+
+@media (max-width: 768px), (max-height: 500px) {
+  .execution-view {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-3);
+  }
+
+  .execution-view .session-banner,
+  .execution-view .running-session-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-1);
+    padding: var(--gb-space-3);
+    border: 1px solid var(--gb-color-border);
+    border-radius: var(--gb-radius-md);
+    background: var(--gb-color-surface);
+    overflow-wrap: anywhere;
+  }
+
+  .execution-view .running-sessions-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-3);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* The block title in the collapsible summary replaces the section heading. */
+  .execution-view .collapsible-section-content > section > h2:first-child {
+    display: none;
+  }
+
+  .execution-view .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gb-space-1);
+    margin-bottom: var(--gb-space-3);
+  }
+
+  .execution-view .field select,
+  .execution-view .field input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .execution-view .form-actions button,
+  .execution-view .session-banner button,
+  .execution-view .running-session-row button {
+    width: 100%;
+  }
+}

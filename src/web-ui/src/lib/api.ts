@@ -1,5 +1,6 @@
 import { getBaseUrl } from './config';
 import { token$ } from './token';
+import { noteResponseStatus } from './unauthorized';
 
 export type ApiValidationError = {
   field?: string;
@@ -36,15 +37,22 @@ export const buildAuthHeaders = (includeJsonContentType = true) => {
 const buildUrl = buildApiUrl;
 const buildHeaders = () => buildAuthHeaders(true);
 
+// Every API call reports a 401 so the UI can ask for the token (contract C-10).
+const tracked = async (input: string, init: RequestInit): Promise<Response> => {
+  const res = await fetch(input, init);
+  noteResponseStatus(res?.status);
+  return res;
+};
+
 export const apiGet = (path: string) => {
-  return fetch(buildUrl(path), {
+  return tracked(buildUrl(path), {
     method: 'GET',
     headers: buildHeaders()
   });
 };
 
 export const apiPost = (path: string, body: unknown) => {
-  return fetch(buildUrl(path), {
+  return tracked(buildUrl(path), {
     method: 'POST',
     headers: buildHeaders(),
     body: JSON.stringify(body)
@@ -52,7 +60,7 @@ export const apiPost = (path: string, body: unknown) => {
 };
 
 export const apiPatch = (path: string, body: unknown) => {
-  return fetch(buildUrl(path), {
+  return tracked(buildUrl(path), {
     method: 'PATCH',
     headers: buildHeaders(),
     body: JSON.stringify(body)
@@ -60,7 +68,7 @@ export const apiPatch = (path: string, body: unknown) => {
 };
 
 export const apiDelete = (path: string) => {
-  return fetch(buildUrl(path), {
+  return tracked(buildUrl(path), {
     method: 'DELETE',
     headers: buildHeaders()
   });
@@ -76,7 +84,7 @@ const parseJsonSafe = async <T>(res: Response): Promise<T | undefined> => {
 };
 
 const request = async <T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> => {
-  const res = await fetch(buildUrl(path), {
+  const res = await tracked(buildUrl(path), {
     method,
     headers: buildHeaders(),
     body: body === undefined ? undefined : JSON.stringify(body)

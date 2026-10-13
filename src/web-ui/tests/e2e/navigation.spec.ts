@@ -36,12 +36,12 @@ test('tabs switch between areas and hide triggers', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Execution' })).toBeVisible();
 });
 
-test('collapsed navigation select works on small screens', async ({ page }) => {
+test('bottom tab bar replaces the tabs on small screens', async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 800 });
   await page.goto('/');
-  const menu = page.getByLabel('Navigation menu');
-  await expect(menu).toBeVisible();
-  await menu.selectOption('configuration');
+  await expect(page.getByRole('tab', { name: 'Authoring' })).toHaveCount(0);
+  await page.getByRole('button', { name: /More/ }).click();
+  await page.getByRole('button', { name: 'Configuration' }).click();
   await expect(page.getByRole('heading', { name: 'Configuration' })).toBeVisible();
 });
 

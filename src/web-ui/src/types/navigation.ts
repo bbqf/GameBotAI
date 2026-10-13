@@ -1,10 +1,19 @@
 export type NavigationAreaId = 'authoring' | 'queues' | 'configuration' | 'execution' | 'execution-logs' | 'notifications' | 'update';
 
+/**
+ * How much of an area works on a phone.
+ * - `full`: same functions as on the desktop, in a phone layout.
+ * - `reduced`: a subset of the functions.
+ * - `desktop-only`: the area shows a notice and a way back.
+ */
+export type PhoneSupportLevel = 'full' | 'reduced' | 'desktop-only';
+
 export type NavigationArea = {
   id: NavigationAreaId;
   label: string;
   path: string;
   order: number;
+  phone: PhoneSupportLevel;
 };
 
 export type NavigationState = {
@@ -14,11 +23,11 @@ export type NavigationState = {
 };
 
 export const navigationAreas: NavigationArea[] = [
-  { id: 'authoring', label: 'Authoring', path: '/', order: 0 },
-  { id: 'queues', label: 'Queues', path: '/queues', order: 1 },
-  { id: 'execution', label: 'Execution', path: '/execution', order: 2 },
-  { id: 'execution-logs', label: 'Execution Logs', path: '/execution-logs', order: 3 },
-  { id: 'notifications', label: 'Notifications', path: '/notifications', order: 4 },
-  { id: 'configuration', label: 'Configuration', path: '/configuration', order: 5 },
-  { id: 'update', label: 'Update', path: '/update', order: 6 }
+  { id: 'authoring', label: 'Authoring', path: '/', order: 0, phone: 'desktop-only' },
+  { id: 'queues', label: 'Queues', path: '/queues', order: 1, phone: 'reduced' },
+  { id: 'execution', label: 'Execution', path: '/execution', order: 2, phone: 'full' },
+  { id: 'execution-logs', label: 'Execution Logs', path: '/execution-logs', order: 3, phone: 'desktop-only' },
+  { id: 'notifications', label: 'Notifications', path: '/notifications', order: 4, phone: 'full' },
+  { id: 'configuration', label: 'Configuration', path: '/configuration', order: 5, phone: 'full' },
+  { id: 'update', label: 'Update', path: '/update', order: 6, phone: 'full' }
 ];

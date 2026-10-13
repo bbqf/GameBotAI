@@ -39,13 +39,15 @@ describe('Top navigation', () => {
     expect(screen.getByRole('heading', { name: 'Configuration' })).toBeInTheDocument();
   });
 
-  it('renders collapsed select on narrow screens and is keyboard/focus usable', () => {
+  it('renders the bottom tab bar on narrow screens and is keyboard/focus usable', () => {
     setMatchMedia(true);
     render(<App />);
-    const select = screen.getByLabelText('Navigation menu');
-    select.focus();
-    expect(select).toHaveFocus();
-    fireEvent.change(select, { target: { value: 'configuration' } });
+    expect(screen.queryByLabelText('Navigation menu')).toBeNull();
+    const more = screen.getByRole('button', { name: /More/ });
+    more.focus();
+    expect(more).toHaveFocus();
+    fireEvent.click(more);
+    fireEvent.click(screen.getByRole('button', { name: 'Configuration' }));
     expect(screen.getByRole('heading', { name: 'Configuration' })).toBeInTheDocument();
   });
 });

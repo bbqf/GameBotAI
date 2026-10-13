@@ -6,6 +6,7 @@ import { ConfigFileSection } from '../components/ConfigFileSection';
 import { getConfigSnapshot, updateParameters, reorderParameters } from '../services/config';
 import type { ConfigurationParameter } from '../services/config';
 import { ApiError } from '../lib/api';
+import { useLayoutMode } from '../hooks/useLayoutMode';
 
 export const CONFIGURATION_AREA_PATH = '/configuration';
 
@@ -17,6 +18,7 @@ type ConfigurationPageProps = {
 };
 
 export const ConfigurationPage: React.FC<ConfigurationPageProps> = ({ token, onTokenChange, onRememberChange, onBaseUrlChange }) => {
+  const phone = useLayoutMode() === 'phone';
   const [params, setParams] = useState<ConfigurationParameter[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -83,7 +85,8 @@ export const ConfigurationPage: React.FC<ConfigurationPageProps> = ({ token, onT
 
   return (
     <div className="configuration-view">
-      <CollapsibleSection title="Backend Connection">
+      {/* On a phone the token field opens by default, because a new phone needs the token first. */}
+      <CollapsibleSection title="Backend Connection" defaultOpen={phone}>
         <TokenGate
           token={token}
           onTokenChange={onTokenChange}

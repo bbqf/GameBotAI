@@ -5,32 +5,14 @@ export type NavigationProps = {
   areas: NavigationArea[];
   activeArea: NavigationAreaId;
   onChange: (id: NavigationAreaId) => void;
-  isCollapsed: boolean;
   isAreaVisible?: (id: NavigationAreaId) => boolean;
 };
 
-export const Navigation: React.FC<NavigationProps> = ({ areas, activeArea, onChange, isCollapsed, isAreaVisible }) => {
+/** Desktop navigation tabs. The phone layout uses the bottom tab bar instead. */
+export const Navigation: React.FC<NavigationProps> = ({ areas, activeArea, onChange, isAreaVisible }) => {
   const sorted = [...areas]
     .filter((area) => (isAreaVisible ? isAreaVisible(area.id) : true))
     .sort((a, b) => a.order - b.order);
-
-  if (isCollapsed) {
-    return (
-      <nav aria-label="Primary Navigation" className="top-nav top-nav--collapsed">
-        <label htmlFor="nav-select" className="sr-only">Navigation</label>
-        <select
-          id="nav-select"
-          aria-label="Navigation menu"
-          value={activeArea}
-          onChange={(e) => onChange(e.target.value as NavigationAreaId)}
-        >
-          {sorted.map((area) => (
-            <option key={area.id} value={area.id}>{area.label}</option>
-          ))}
-        </select>
-      </nav>
-    );
-  }
 
   return (
     <nav aria-label="Primary Navigation" className="top-nav">
