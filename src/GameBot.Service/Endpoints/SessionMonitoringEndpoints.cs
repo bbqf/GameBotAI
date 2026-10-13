@@ -48,6 +48,17 @@ internal static class SessionMonitoringEndpoints {
     return Results.Ok(new SessionMonitoringListResponse { Sessions = items });
   }
 
+  /// <summary>
+  /// The display name of a session. A queue session has the game id "queue:{id}", and the id means nothing to the
+  /// operator. It shows the queue name when it is known, and the emulator serial alone when it is not.
+  /// </summary>
+  private static string DisplayName(EmulatorSession s, string? queueName) {
+    var serial = string.IsNullOrWhiteSpace(s.DeviceSerial) ? null : s.DeviceSerial;
+    var label = s.GameId.StartsWith("queue:", StringComparison.Ordinal) ? queueName : s.GameId;
+    if (string.IsNullOrWhiteSpace(label)) return serial ?? "Emulator";
+    return serial is null ? label : $"{label} ({serial})";
+  }
+
   /// <summary>The name of the sequence that the owner queue runs now, or null when it runs none.</summary>
   private static async Task<string?> ResolveSequenceNameAsync(string? queueId, IQueueRunRegistry runs, ISequenceRepository sequences) {
     if (queueId is null || !runs.TryGet(queueId, out var handle)) return null;
@@ -65,7 +76,7 @@ internal static class SessionMonitoringEndpoints {
     if (s.OwnerQueueId is { } queueId) queueNames.TryGetValue(queueId, out queueName);
     return new MonitoredSessionDto {
       Id = s.Id,
-      Name = string.IsNullOrWhiteSpace(s.DeviceSerial) ? s.GameId : $"{s.GameId} ({s.DeviceSerial})",
+      Name = DisplayName(s, queueName),
       GameId = s.GameId,
       DeviceSerial = s.DeviceSerial,
       State = state,
