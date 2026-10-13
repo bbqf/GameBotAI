@@ -39,6 +39,29 @@ describe('Top navigation', () => {
     expect(screen.getByRole('heading', { name: 'Configuration' })).toBeInTheDocument();
   });
 
+  it('keeps the desktop address rules: replaceState only, tab and area set, create and id removed (H-07, T-01 to T-03)', () => {
+    setMatchMedia(false);
+    window.history.replaceState(null, '', '/?tab=Images&create=commands&id=abc&keep=1');
+    const push = jest.spyOn(window.history, 'pushState');
+    const replace = jest.spyOn(window.history, 'replaceState');
+    render(<App />);
+    expect(window.location.search).toContain('tab=Images');
+    expect(window.location.search).toContain('area=authoring');
+    expect(window.location.search).toContain('keep=1');
+    expect(window.location.search).not.toContain('create=');
+    expect(window.location.search).not.toContain('id=');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Games' }));
+    expect(window.location.search).toContain('tab=Games');
+    fireEvent.click(screen.getByRole('tab', { name: 'Configuration' }));
+    expect(window.location.search).toContain('area=configuration');
+    expect(replace).toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    push.mockRestore();
+    replace.mockRestore();
+    window.history.replaceState(null, '', '/');
+  });
+
   it('renders the bottom tab bar on narrow screens and is keyboard/focus usable', () => {
     setMatchMedia(true);
     render(<App />);

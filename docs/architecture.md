@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-13 (feature 139: phone layout mode, phone support levels, web manifest, connection banner;
+_Last reviewed: 2026-10-13 (feature 140: phone queue activity view and schedule list, in-app back navigation with the History API, the phone support level `hidden` for Execution;
+feature 139: phone layout mode, phone support levels, web manifest, connection banner;
 feature 137: the `notify` step sends an alert at most once for each queue
 and key in a window, `dedupeKey` with `since` or `within`;
 feature 136: a `parameters` type error in a command request gives 400
@@ -1179,17 +1180,27 @@ The web UI has two layout modes. One React code base serves both. The service AP
 - **Layout mode**: `useLayoutMode()` reads the media query `PHONE_MEDIA_QUERY` = `(max-width: 768px), (max-height: 500px)`.
   A match gives `phone`. Other screens give `desktop`. The mode changes with the window size, without a reload.
   `App.tsx` keeps one `<main>` element in both modes, so the area content does not remount on a change.
-- **Phone shell**: `PhoneHeader` (area title) and `PhoneTabBar` (bottom bar: Queues, Execution, Notifications, More).
+- **Phone shell**: `PhoneHeader` (area title) and `PhoneTabBar` (bottom bar: Queues, Notifications, More).
   The More sheet lists Configuration, Update, and the desktop-only areas. In phone mode with no `area` URL
   parameter, the app opens Queues. Desktop opens Authoring.
-- **Phone support levels**: each `NavigationArea` has the field `phone`: `full`, `reduced`, or `desktop-only`.
-  Queues is `reduced`. Authoring and Execution Logs are `desktop-only`. Other areas are `full`. In phone mode a
+- **Phone support levels**: each `NavigationArea` has the field `phone`: `full`, `reduced`, `desktop-only`, or `hidden`.
+  Queues is `reduced`. Authoring and Execution Logs are `desktop-only`. Execution is `hidden` (feature 140): no phone list
+  shows it, and a phone link to it shows Queues. Other areas are `full`. In phone mode a
   `desktop-only` area renders `DesktopOnlyNotice` and never mounts its content. The rules and the review checklist
   are in [mobile-ui-principles.md](mobile-ui-principles.md).
 - **Phone Queues**: `PhoneQueuesView` replaces `QueuesPage` in phone mode. It shows cards with Start or Stop. The detail
   shows one switch for each entry of the linked template. A switch saves the template with `overwrite: true`
   (`lib/queueEntryToggle.ts`). The change applies when the queue starts again. Create, edit, schedule, reorder,
   duplicate, and delete are not available on a phone.
+- **Phone queue activity (feature 140)**: the detail also shows a "Now" block (state, running sequence, last result) and a
+  schedule list. `components/queues/queueActivity.ts` builds the rows from the queue template and
+  `GET /api/queues/{id}/monitor` (enabled rows by next run time, then enabled rows with no time, then disabled rows).
+  Each card shows a one-line summary. `hooks/usePolling.ts` refreshes the data every 5 s while the page is visible
+  and the connection is up. A failed refresh keeps the last data with an "Old data" mark.
+- **Phone history (feature 140)**: in phone mode `App.tsx` uses the History API. `lib/phoneHistory.ts` adds one entry for
+  each new screen (`pushState`) and stores `idx` in `history.state`. A `popstate` listener restores the screen. The
+  address holds `area` and `queue`. The open queue id lives in `App.tsx` and `PhoneQueuesView` gets it as a prop.
+  The desktop layout keeps `replaceState` only.
 - **Connection**: `useConnectionState()` uses `navigator.onLine` and a `GET /health` call every 10 s while the page
   is visible. When the state is `lost`, `ConnectionBanner` shows "Connection lost" and the control buttons turn off.
   The UI never sends an action again. It loads the data again when the state returns to `online`. A 401 answer

@@ -9,18 +9,18 @@ const renderBar = (activeArea = 'queues' as const, onChange = jest.fn()) => {
 };
 
 describe('PhoneTabBar', () => {
-  it('shows Queues, Execution, Notifications and More', () => {
+  it('shows Queues, Notifications and More, and no Execution', () => {
     renderBar();
     const nav = screen.getByRole('navigation', { name: 'Primary Navigation' });
     expect(within(nav).getByRole('button', { name: 'Queues' })).toBeInTheDocument();
-    expect(within(nav).getByRole('button', { name: 'Execution' })).toBeInTheDocument();
+    expect(within(nav).queryByRole('button', { name: 'Execution' })).toBeNull();
     expect(within(nav).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(within(nav).getByRole('button', { name: /More/ })).toBeInTheDocument();
   });
 
   it('marks the current item with aria-current', () => {
-    renderBar('execution');
-    expect(screen.getByRole('button', { name: 'Execution' })).toHaveAttribute('aria-current', 'page');
+    renderBar('notifications');
+    expect(screen.getByRole('button', { name: 'Notifications' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Queues' })).not.toHaveAttribute('aria-current');
   });
 
@@ -43,6 +43,7 @@ describe('PhoneTabBar', () => {
     expect(within(sheet).getByRole('button', { name: 'Update' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: /Authoring/ })).toHaveTextContent('Desktop only');
     expect(within(sheet).getByRole('button', { name: /Execution Logs/ })).toHaveTextContent('Desktop only');
+    expect(within(sheet).queryByRole('button', { name: /^Execution$/ })).toBeNull();
     expect(within(sheet).getByRole('button', { name: 'Configuration' })).not.toHaveTextContent('Desktop only');
     fireEvent.click(within(sheet).getByRole('button', { name: 'Update' }));
     expect(onChange).toHaveBeenCalledWith('update');
