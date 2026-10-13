@@ -2,7 +2,7 @@
 
 **Feature Branch**: `138-document-command-parameters-openapi`
 **Created**: 2026-10-13
-**Status**: Draft (becomes Implemented in the final check, FR-011)
+**Status**: Implemented
 **Input**: GitHub issue #247 (tracker row B-030, documentation, P3) - "Document the parameters list in the OpenAPI schema for command create". Closes #247.
 
 ## Background

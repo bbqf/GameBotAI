@@ -45,6 +45,15 @@
 - **Decision**: The final check sets the spec Status to Implemented and adds the row for 138 to `specs\STATUS.md`. `docs\architecture.md` does not change.
 - **Rationale**: Principle V. The API surface is the same; only the documentation text changes.
 
+## Baseline (T001)
+
+Read from the generated `/swagger/v1/swagger.json` before any edit.
+
+- (a) The `parameters` item in `UpdateCommandRequest` and `CommandResponse` is a `$ref` to `ParameterDeclarationDto`. That schema has the five properties `name`, `type`, `default`, `required`, `description` (all nullable, no `enum`, no `required` list, no description on `type`).
+- (b) The create request example is at `paths./api/commands.post.requestBody.content.application/json.example`. The body schema there is `CommandCreateSchema`.
+- (c) Fallback condition: `default` is in the item `required` list, or one of the five item properties is missing. Result: the condition is false. The fallback (inline item type or public DTO) is not needed.
+- `CommandCreateSchema` did not show `parameters`. `UpdateCommandRequest` and `CommandResponse` already show `parameters` (already correct). The schema `CreateCommandRequest` does not exist in the document.
+
 ## Open items
 
 None. The implementation step confirms that the update and response schemas show `parameters` and corrects them if not.

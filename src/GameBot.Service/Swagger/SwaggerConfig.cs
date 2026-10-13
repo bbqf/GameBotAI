@@ -1760,12 +1760,24 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
 
   private static OpenApiObject CommandCreateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Wait for home banner"),
+    ["parameters"] = new OpenApiArray
+    {
+      new OpenApiObject
+      {
+        ["name"] = new OpenApiString("banner"),
+        ["type"] = new OpenApiString("text")
+      }
+    },
     ["steps"] = new OpenApiArray
     {
       new OpenApiObject
       {
         ["type"] = new OpenApiString("WaitForImage"),
         ["order"] = new OpenApiInteger(0),
+        ["fieldTemplates"] = new OpenApiObject
+        {
+          ["waitForImage.detectionTarget.referenceImageId"] = new OpenApiString("{{banner}}")
+        },
         ["waitForImage"] = new OpenApiObject
         {
           ["detectionTarget"] = new OpenApiObject
@@ -2118,6 +2130,7 @@ internal sealed class CommandCreateSchema {
   public required string Name { get; set; }
   public string? TriggerId { get; set; }
   public ICollection<GameBot.Service.Models.CommandStepDto>? Steps { get; set; }
+  public ICollection<GameBot.Service.Models.ParameterDeclarationDto>? Parameters { get; set; }
 }
 
 internal sealed class CommandEvaluateResponseSchema {
