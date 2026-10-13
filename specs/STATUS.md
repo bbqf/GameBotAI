@@ -171,6 +171,7 @@ Status vocabulary:
 | 135 | Reject Unknown Command Step Fields | Implemented |
 | 136 | Reject a Parameters Object in Command Requests | Implemented |
 | 137 | Notify Alert Dedupe Window | Implemented |
+| 138 | Document the command "parameters" list in OpenAPI | Implemented |
 
 ## Numbering notes
 
