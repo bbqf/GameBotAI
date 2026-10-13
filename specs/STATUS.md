@@ -174,6 +174,7 @@ Status vocabulary:
 | 138 | Document the command "parameters" list in OpenAPI | Implemented |
 | 139 | Mobile-Friendly UI | Implemented (iterated by 140) |
 | 140 | Phone UI Queue Activity and Navigation | Implemented (real-phone check pending) |
+| 141 | Emulator Monitoring | Implemented (real-emulator check pending) |
 
 ## Numbering notes
 

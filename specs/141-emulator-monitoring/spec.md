@@ -2,7 +2,7 @@
 
 **Feature Branch**: `141-emulator-monitoring`  
 **Created**: 2026-10-13  
-**Status**: Draft  
+**Status**: Implemented (real-emulator check pending)  
 **Input**: User description: "As an operator, I want to have a possibility to monitor the connected emulators. I need a special area Monitoring in both UIs, where I'll be able to connect to the running sessions and get the automatically obtained - live screenshots. I also need a possibility to restart the whole emulator from that area. If there's no API exposes this function, expose this."
 
 ## Clarifications

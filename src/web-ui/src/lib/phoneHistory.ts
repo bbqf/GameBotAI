@@ -7,7 +7,7 @@ export type NavigationPosition = {
 };
 
 const KNOWN_AREAS: NavigationAreaId[] = [
-  'authoring', 'queues', 'configuration', 'execution', 'execution-logs', 'notifications', 'update'
+  'authoring', 'queues', 'monitoring', 'configuration', 'execution', 'execution-logs', 'notifications', 'update'
 ];
 
 /** Build the address query for a position: `?area=<area>[&queue=<id>]`. */

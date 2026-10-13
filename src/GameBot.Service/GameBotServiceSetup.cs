@@ -115,6 +115,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<TemplateTimerTimeOfDaySchemaFilter>();
       options.SchemaFilter<StepThroughSchemaFilter>();
       options.SchemaFilter<OcrReadSchemaFilter>();
+      options.SchemaFilter<SessionMonitoringSchemaFilter>();
     });
     builder.Services.AddControllers().AddJsonOptions(o => {
       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -187,8 +188,17 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorControl, GameBot.Service.Services.EnsureEmulatorRunning.LdConsoleEmulatorControl>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEmulatorDeviceProbe, GameBot.Service.Services.EnsureEmulatorRunning.AdbEmulatorDeviceProbe>();
     builder.Services.AddSingleton<GameBot.Service.Services.EnsureEmulatorRunning.IEnsureEmulatorRunningActionHandler, GameBot.Service.Services.EnsureEmulatorRunning.EnsureEmulatorRunningActionHandler>();
+    RegisterMonitoringServices(builder);
     builder.Services.AddSingleton<GameBot.Service.Services.ICommandExecutor, GameBot.Service.Services.CommandExecutor>();
     builder.Services.AddSingleton<GameBot.Service.Services.BackupService>();
+  }
+
+  /// <summary>Feature 141: the options, the reconnector and the restart service of the emulator monitoring.</summary>
+  private static void RegisterMonitoringServices(WebApplicationBuilder builder) {
+    builder.Services.Configure<GameBot.Service.Services.Monitoring.SessionMonitoringOptions>(
+      builder.Configuration.GetSection(GameBot.Service.Services.Monitoring.SessionMonitoringOptions.SectionName));
+    builder.Services.AddSingleton<GameBot.Service.Services.Monitoring.ISessionReconnector, GameBot.Service.Services.Monitoring.SessionReconnector>();
+    builder.Services.AddSingleton<GameBot.Service.Services.Monitoring.ISessionRestartService, GameBot.Service.Services.Monitoring.SessionRestartService>();
   }
 
   /// <summary>

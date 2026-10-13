@@ -115,8 +115,10 @@ public sealed class GoHomeAndEnsureEmulatorUnchangedTests {
     using var document = JsonDocument.Parse(text);
 
     var paths = document.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name).ToList();
-    // The only path with "restart" is the step-through restart of feature 127. Feature 129 adds no path.
-    paths.Where(p => p.Contains("restart", StringComparison.OrdinalIgnoreCase)).Should().Equal("/api/step-through/{id}/restart");
+    // The paths with "restart" are the step-through restart of feature 127 and the emulator restart of
+    // feature 141. Feature 129 adds no path.
+    paths.Where(p => p.Contains("restart", StringComparison.OrdinalIgnoreCase)).OrderBy(p => p, StringComparer.Ordinal)
+      .Should().Equal("/api/sessions/{id}/restart", "/api/step-through/{id}/restart");
     paths.Should().NotContain(p => p.Contains("force-stop", StringComparison.OrdinalIgnoreCase));
   }
 }

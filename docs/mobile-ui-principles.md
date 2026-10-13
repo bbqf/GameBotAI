@@ -29,6 +29,7 @@ The level is the field `phone` in `src/types/navigation.ts`. A new area cannot c
 | Area | Level |
 |------|-------|
 | Queues | `reduced` |
+| Monitoring | `full` |
 | Execution | `hidden` |
 | Notifications | `full` |
 | Configuration | `full` |
