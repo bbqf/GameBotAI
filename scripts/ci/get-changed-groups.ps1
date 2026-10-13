@@ -52,8 +52,17 @@ $groups = @(
 if ($Files.Count -eq 0 -and $Base) {
   # A new branch has an all-zero base: compare to nothing, so run all jobs.
   if ($Base -notmatch '^0+$') {
-    $Files = @(& git diff --name-only "$Base" "$Head" 2>$null)
-    if ($LASTEXITCODE -ne 0) { $Files = @() }
+    try {
+      $Files = @(& git diff --name-only "$Base" "$Head" 2>$null)
+      if ($LASTEXITCODE -ne 0) { $Files = @() }
+    }
+    catch {
+      # Windows PowerShell 5.1 turns the stderr text of a failed git call into an error.
+      $Files = @()
+    }
+    # A failed diff (for example after a force push, when the old commit is gone) is handled above.
+    # Clear the code, or it becomes the exit code of the whole script and fails the CI step.
+    $global:LASTEXITCODE = 0
   }
 }
 
