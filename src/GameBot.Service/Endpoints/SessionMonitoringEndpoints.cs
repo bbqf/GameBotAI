@@ -1,9 +1,11 @@
+using GameBot.Domain.Commands;
 using GameBot.Domain.Queues;
 using GameBot.Domain.Sessions;
 using GameBot.Emulator.Session;
 using GameBot.Service.Endpoints.Dto;
 using GameBot.Service.Services.Liveness;
 using GameBot.Service.Services.Monitoring;
+using GameBot.Service.Services.QueueExecution;
 
 namespace GameBot.Service.Endpoints;
 
@@ -31,7 +33,8 @@ internal static class SessionMonitoringEndpoints {
   }
 
   private static async Task<IResult> ListAsync(
-      ISessionManager sessions, ISessionLivenessService liveness, ISessionRestartService restarts, IQueueRepository queues) {
+      ISessionManager sessions, ISessionLivenessService liveness, ISessionRestartService restarts, IQueueRepository queues,
+      IQueueRunRegistry runs, ISequenceRepository sequences) {
     var list = sessions.ListSessions();
     restarts.Prune(list.Select(s => s.Id).ToList());
     var queueNames = (await queues.ListAsync().ConfigureAwait(false)).ToDictionary(q => q.Id, q => q.Name, StringComparer.Ordinal);
@@ -39,7 +42,19 @@ internal static class SessionMonitoringEndpoints {
       .OrderBy(s => s.StartTime)
       .Select(s => ToDto(s, liveness, restarts, queueNames))
       .ToList();
+    foreach (var item in items) {
+      item.CurrentSequenceName = await ResolveSequenceNameAsync(item.OwnerQueueId, runs, sequences).ConfigureAwait(false);
+    }
     return Results.Ok(new SessionMonitoringListResponse { Sessions = items });
+  }
+
+  /// <summary>The name of the sequence that the owner queue runs now, or null when it runs none.</summary>
+  private static async Task<string?> ResolveSequenceNameAsync(string? queueId, IQueueRunRegistry runs, ISequenceRepository sequences) {
+    if (queueId is null || !runs.TryGet(queueId, out var handle)) return null;
+    var sequenceId = handle.CurrentSequenceId;
+    if (sequenceId is null) return null;
+    var sequence = await sequences.GetAsync(sequenceId).ConfigureAwait(false);
+    return sequence?.Name;
   }
 
   private static MonitoredSessionDto ToDto(

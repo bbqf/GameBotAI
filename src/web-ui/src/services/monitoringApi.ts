@@ -12,6 +12,7 @@ export type MonitoredSessionDto = {
   reason: string | null;
   ownerQueueId: string | null;
   ownerQueueName: string | null;
+  currentSequenceName: string | null;
   restartAvailable: boolean;
   restartUnavailableReason: string | null;
   startedAtUtc: string;

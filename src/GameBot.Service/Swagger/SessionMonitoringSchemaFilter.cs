@@ -38,6 +38,7 @@ internal sealed class SessionMonitoringSchemaFilter : ISchemaFilter {
     Describe(schema, "reason", "The device liveness reason when the state is 'no_answer'. Null in the other states.");
     Describe(schema, "ownerQueueId", "The id of the queue that uses this session. Null for an ad-hoc session.");
     Describe(schema, "ownerQueueName", "The name of the queue that uses this session. Null when no queue uses it.");
+    Describe(schema, "currentSequenceName", "The name of the sequence that the owner queue runs now. Null when no queue uses the session or the queue runs no sequence.");
     Describe(schema, "restartAvailable", "True when the system can restart the emulator of this session.");
     Describe(schema, "restartUnavailableReason",
       "Why a restart is not available. Null when restartAvailable is true.", RestartUnavailableReasons.All);

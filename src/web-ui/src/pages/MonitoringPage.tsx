@@ -222,8 +222,8 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ layout, connecti
         <SessionStateChip state={session.state} />
         {session.state === 'no_answer' && session.reason && <span className="form-hint">{session.reason}</span>}
       </div>
-      {session.ownerQueueId && (
-        <p className="form-hint">Queue: {session.ownerQueueName ?? session.ownerQueueId}</p>
+      {session.currentSequenceName && (
+        <p className="form-hint" data-testid="monitoring-sequence">Sequence: {session.currentSequenceName}</p>
       )}
       <ScreenshotView sessionId={session.id} sessionName={session.name} enabled={!lost} />
       <div className="monitoring-detail__actions">

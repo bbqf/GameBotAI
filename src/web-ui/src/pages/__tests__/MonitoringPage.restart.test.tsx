@@ -67,6 +67,21 @@ describe('MonitoringPage restart (feature 141, US2)', () => {
     expect(screen.getByTestId('restart-queue-warning')).toHaveTextContent('Queue PNS Daily 5558 uses this emulator.');
   });
 
+  it('shows the sequence name, never the queue id, in the detail', async () => {
+    api.listMonitoredSessions.mockResolvedValue([
+      makeSession('a', { ownerQueueId: 'q-id-1', ownerQueueName: null, currentSequenceName: 'Help All' })
+    ]);
+    await openSession(<MonitoringPage layout="desktop" />);
+    expect(screen.getByTestId('monitoring-sequence')).toHaveTextContent('Sequence: Help All');
+    expect(screen.queryByText(/q-id-1/)).toBeNull();
+  });
+
+  it('shows no sequence line when the queue runs no sequence', async () => {
+    api.listMonitoredSessions.mockResolvedValue([makeSession('a', { ownerQueueId: 'q1', ownerQueueName: 'PNS' })]);
+    await openSession(<MonitoringPage layout="desktop" />);
+    expect(screen.queryByTestId('monitoring-sequence')).toBeNull();
+  });
+
   it('shows the step text while the restart runs and the control is off', async () => {
     api.startRestart.mockResolvedValue(makeRecord('a', { step: 'rebooting' }));
     api.getRestart.mockResolvedValue(makeRecord('a', { step: 'waiting_for_device' }));
