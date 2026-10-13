@@ -9,18 +9,18 @@ const renderBar = (activeArea = 'queues' as const, onChange = jest.fn()) => {
 };
 
 describe('PhoneTabBar', () => {
-  it('shows Queues, Notifications and More, and no Execution', () => {
+  it('shows Queues, Monitoring and More, and no Execution', () => {
     renderBar();
     const nav = screen.getByRole('navigation', { name: 'Primary Navigation' });
     expect(within(nav).getByRole('button', { name: 'Queues' })).toBeInTheDocument();
     expect(within(nav).queryByRole('button', { name: 'Execution' })).toBeNull();
-    expect(within(nav).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+    expect(within(nav).getByRole('button', { name: 'Monitoring' })).toBeInTheDocument();
     expect(within(nav).getByRole('button', { name: /More/ })).toBeInTheDocument();
   });
 
   it('marks the current item with aria-current', () => {
-    renderBar('notifications');
-    expect(screen.getByRole('button', { name: 'Notifications' })).toHaveAttribute('aria-current', 'page');
+    renderBar('monitoring');
+    expect(screen.getByRole('button', { name: 'Monitoring' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Queues' })).not.toHaveAttribute('aria-current');
   });
 
@@ -31,8 +31,8 @@ describe('PhoneTabBar', () => {
 
   it('calls onChange for a main tab', () => {
     const onChange = renderBar();
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
-    expect(onChange).toHaveBeenCalledWith('notifications');
+    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    expect(onChange).toHaveBeenCalledWith('monitoring');
   });
 
   it('lists the other areas in the More sheet and labels the desktop-only ones', () => {

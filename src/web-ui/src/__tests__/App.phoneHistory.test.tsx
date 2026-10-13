@@ -11,6 +11,10 @@ jest.mock('../pages/Configuration', () => ({
 }));
 jest.mock('../pages/CommandsPage', () => ({ CommandsPage: () => <div>Commands page</div> }));
 jest.mock('../pages/QueuesPage', () => ({ QueuesPage: () => <div data-testid="desktop-queues-page">Desktop queues</div> }));
+jest.mock('../pages/MonitoringPage', () => ({
+  MONITORING_AREA_PATH: '/monitoring',
+  MonitoringPage: () => <div data-testid="monitoring-page">Monitoring page</div>
+}));
 jest.mock('../pages/NotificationsPage', () => ({
   NOTIFICATIONS_AREA_PATH: '/notifications',
   NotificationsPage: () => <div data-testid="notifications-page">Notifications page</div>
@@ -83,8 +87,8 @@ describe('App phone history', () => {
     expect(window.history.state.idx).toBe(0);
     await openDaily();
     expect(window.location.search).toContain('queue=q1');
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
-    expect(await screen.findByTestId('notifications-page')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    expect(await screen.findByTestId('monitoring-page')).toBeInTheDocument();
     expect(window.history.state.idx).toBe(2);
 
     await goBack();
@@ -133,10 +137,10 @@ describe('App phone history', () => {
     render(<App />);
     await screen.findByTestId('phone-queues');
     const length = window.history.length;
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
-    await screen.findByTestId('notifications-page');
+    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    await screen.findByTestId('monitoring-page');
     expect(window.history.length).toBe(length + 1);
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
     expect(window.history.length).toBe(length + 1);
   });
 
@@ -150,7 +154,7 @@ describe('App phone history', () => {
 
   it.each([
     ['queues', 'phone-queues'],
-    ['notifications', 'notifications-page'],
+    ['monitoring', 'monitoring-page'],
     ['update', 'update-page']
   ])('opens a direct link to %s', async (area, testId) => {
     window.history.replaceState(null, '', `/?area=${area}`);
@@ -245,8 +249,8 @@ describe('App phone Execution redirect', () => {
     mock = mockViewport(360, 640);
     render(<App />);
     await screen.findByTestId('phone-queues');
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
-    await screen.findByTestId('notifications-page');
+    fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
+    await screen.findByTestId('monitoring-page');
     await goBack();
     expect(await screen.findByTestId('phone-queues')).toBeInTheDocument();
     expect(screen.queryByTestId('execution-page')).toBeNull();

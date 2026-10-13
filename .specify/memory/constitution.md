@@ -1,7 +1,7 @@
 <!--
 Sync Impact Report
-Version change: 1.3.1 → 1.4.0
-Modified principles: III (each UI feature MUST state its phone support level and follow docs/mobile-ui-principles.md)
+Version change: 1.4.0 → 1.5.0
+Modified principles: N/A (1.5.0 added a Definition of Done bullet and a Workflow bullet: raise the patch number before a PR is created). Earlier, 1.4.0: III (each UI feature MUST state its phone support level and follow docs/mobile-ui-principles.md)
 Added sections: N/A (1.3.1 widened Principle VI to conversation with the user; 1.3.0 added Principle VI, a Definition of Done bullet, and a Review bullet)
 Removed sections: N/A
 Templates requiring updates:
@@ -129,6 +129,8 @@ A change is Done only when all gates pass:
 - Living docs: `docs/architecture.md` updated (with refreshed "Last reviewed" date) for any change
   to the domain model, capabilities, API surface, or persistence; touched specs carry an accurate
   `Status` line and `specs/STATUS.md` is consistent.
+- Version: the patch number in `installer/versioning/version.override.json` is raised by one before a
+  PR is created (see Development Workflow).
 - Language: all new or changed text in artifacts, commits, PRs, comments, user-facing
   messages, and conversation obeys Principle VI (STE).
 
@@ -139,6 +141,11 @@ A change is Done only when all gates pass:
 - Review: reviewers MUST check against this constitution (quality, tests, UX, performance, STE) and request evidence as needed.
 - Gate: CI enforces quality/test gates; red build/test states block progression; maintainers may approve explicit, time-bound waivers with follow-up tasks.
 - Traceability: link PRs to plans/specs and record decisions in the PR description.
+- Version bump: before a PR is created, raise the patch number in
+  installer/versioning/version.override.json by one, and set updatedBy and updatedAtUtc. Make
+  this change in the same branch, and add it to the CHANGELOG text of the PR. Do not raise it when the
+  PR already raises minor or major and sets patch to 0. Do not raise it twice for one PR.
+  Agents MUST do this step on their own before gh pr create, with no prompt from the user.
 
 ## Governance
 
@@ -147,4 +154,4 @@ A change is Done only when all gates pass:
 - Versioning: Semantic versioning for this document: MAJOR (principle removals/redefinitions), MINOR (new sections/principles), PATCH (clarifications).
 - Compliance: Periodic audits review adherence. Non-compliance requires remediation tasks prioritized in the next cycle.
 
-**Version**: 1.4.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-10-13
+**Version**: 1.5.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-10-13

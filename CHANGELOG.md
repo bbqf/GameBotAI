@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- The navigation order changed (141-emulator-monitoring)
+  - **Desktop**: Queues, Monitoring, Authoring, Execution, Execution Logs, Configuration, Update, Notifications.
+  - **Phone**: the bottom bar shows Queues, Monitoring, and More. Notifications is now in the More sheet.
+  - The patch version is now 2, so the next build is `1.10.2.<run number>`.
+
 ### Added
 - A Monitoring area in the Web UI. The operator sees a live picture of each session and can restart a whole emulator (141-emulator-monitoring)
   - **Monitoring area**: it is in the desktop navigation and in the phone More sheet (phone level `full`). It lists all sessions with a state: live, no answer, restarting, or stopping. The selected session shows a screenshot that updates every 2 s. The UI sends one screenshot request at a time, only for the selected session, and pauses when the page is hidden. A failed request keeps the last picture and shows "No live picture".
@@ -12,7 +18,7 @@ All notable changes to this project will be documented in this file.
   - New settings in the section `Service:Monitoring`: `RestartTimeoutMs` (default 120000) and `RestartPollIntervalMs` (default 3000). The poll interval is the wait between two device checks during a restart.
   - A restart works only for an LDPlayer serial such as `emulator-5558` (instance index 2). Other serials give 422. See `docs/architecture.md`.
   - **Sequence name**: the session list item currentSequenceName gives the name of the sequence that the owner queue runs now. It is null when no sequence runs. The detail shows the sequence name instead of the queue id. The session name of a queue session shows the queue name and the emulator serial, for example PNS Daily (emulator-5560). It shows the serial alone when the queue name is not known, and never the queue id. The patch version is now 1, so the next build is 1.10.1.<run number>.
-  - **Compatibility**: no change to stored data. The order of the navigation areas changes: Monitoring is now the third area, so the later areas move up by one.
+  - **Compatibility**: no change to stored data. The order of the navigation areas changes: The later areas move down by one. See the Changed entry above for the final order.
 - A phone layout for the Web UI. The operator can monitor and control GameBot from a phone (139-mobile-friendly-ui)
   - The UI uses the phone layout on a screen 768 px wide or less, or 500 px high or less. It changes layout with no reload. The phone layout has a header, a bottom tab bar (Queues, Execution, Notifications, More), and a More sheet.
   - **Queues**: cards with Start and Stop. The detail shows one switch for each entry of the linked template. A switch saves the template, and the change applies when the queue starts again. Create, edit, schedule, reorder, duplicate, and delete need a larger screen.

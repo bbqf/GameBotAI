@@ -74,7 +74,7 @@ src/
 │   │                                                           # ISessionReconnector + impl, logging
 │   └── Swagger/                                                # ISchemaFilter for new DTOs
 └── web-ui/src/
-    ├── types/navigation.ts                                     # area `monitoring`, order 2
+    ├── types/navigation.ts                                     # area `monitoring`, order 1
     ├── services/monitoringApi.ts
     ├── hooks/useSequentialPolling.ts
     ├── components/monitoring/                                  # ScreenshotView, SessionList, RestartEmulatorDialog
