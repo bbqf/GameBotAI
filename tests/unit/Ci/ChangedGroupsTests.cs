@@ -77,6 +77,17 @@ public class ChangedGroupsTests {
   }
 
   [Fact]
+  public void UnknownBaseCommitRunsEveryJobAndExitsWithZero() {
+    // After a force push, the old commit does not exist, so "git diff" fails. The script must not fail.
+    var (exitCode, lines, error) = CiScriptRunner.RunWithExitCode(
+      "get-changed-groups.ps1", "-Base", "1111111111111111111111111111111111111111", "-Head", "HEAD");
+
+    exitCode.Should().Be(0, because: error);
+    lines.Should().Contain("dotnet=true");
+    lines.Should().Contain("webui=true");
+  }
+
+  [Fact]
   public void ReasonNamesTheGroupsThatWereFound() {
     var result = Classify("docs/ci-time.md", "src/web-ui/src/App.tsx");
     result.Reason.Should().Contain("docs").And.Contain("webui");

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- A phone layout for the Web UI. The operator can monitor and control GameBot from a phone (139-mobile-friendly-ui)
+  - The UI uses the phone layout on a screen 768 px wide or less, or 500 px high or less. It changes layout with no reload. The phone layout has a header, a bottom tab bar (Queues, Execution, Notifications, More), and a More sheet.
+  - **Queues**: cards with Start and Stop. The detail shows one switch for each entry of the linked template. A switch saves the template, and the change applies when the queue starts again. Create, edit, schedule, reorder, duplicate, and delete need a larger screen.
+  - **Other areas**: Execution, Notifications, Configuration, and Update are usable on a phone. Authoring and Execution Logs show the notice "Use a larger screen for this area."
+  - A banner shows "Connection lost" and turns the controls off. The UI never sends an action again after the connection returns. A 401 answer shows "Access token needed. Open Configuration."
+  - A web manifest and icons let the operator add the UI to the home screen. There is no service worker, because the service uses plain HTTP.
+  - See `docs/phone-access.md` for the network setup and `docs/mobile-ui-principles.md` for the rules. The service API does not change. The minor version is now 10, so the next build is `1.10.0.<run number>`.
 - Auto-update from the Web UI. The user clicks **Check for Update** in the new **Update** area of the Web UI and confirms. The bot installs the new version and starts again (131-auto-update)
   - **Release**: the owner starts the `release-installer` workflow by hand on `master` with `publish_release: true`. The workflow creates the GitHub Release `v<version>` with `GameBot.msi`, `GameBotInstaller.exe`, and `update-manifest.json` (version, size, SHA-256). A push to `master` creates no release.
   - **No Windows prompts**: the bot downloads the MSI itself, so the file has no Mark of the Web and SmartScreen does not start. The MSI is per-user, so there is no UAC prompt. The first manual install can still show one SmartScreen warning, because the build is not signed.
