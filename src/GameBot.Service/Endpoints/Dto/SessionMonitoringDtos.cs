@@ -67,6 +67,7 @@ internal sealed class MonitoredSessionDto {
   public string? Reason { get; set; }
   public string? OwnerQueueId { get; set; }
   public string? OwnerQueueName { get; set; }
+  public string? CurrentSequenceName { get; set; }
   public bool RestartAvailable { get; set; }
   public string? RestartUnavailableReason { get; set; }
   public DateTimeOffset StartedAtUtc { get; set; }

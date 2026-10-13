@@ -1057,6 +1057,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
             ["reason"] = new OpenApiNull(),
             ["ownerQueueId"] = new OpenApiString("q1"),
             ["ownerQueueName"] = new OpenApiString("PNS Daily 5558"),
+            ["currentSequenceName"] = new OpenApiString("Help All"),
             ["restartAvailable"] = new OpenApiBoolean(true),
             ["restartUnavailableReason"] = new OpenApiNull(),
             ["startedAtUtc"] = new OpenApiString("2026-10-13T08:00:00Z")
