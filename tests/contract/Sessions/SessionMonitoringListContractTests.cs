@@ -71,6 +71,23 @@ public sealed class SessionMonitoringListContractTests : MonitoringContractTestB
   }
 
   [Fact]
+  public async Task AQueueSessionWithAnUnknownQueueShowsOnlyTheEmulator() {
+    var sessions = new LivenessFakeSessionManager();
+    var session = sessions.Add("emulator-5560", "queue:cec14fb03d9f4919a7caa2b52bf885e9");
+    using var baseFactory = new WebApplicationFactory<Program>();
+    using var app = Factory(baseFactory, services => {
+      services.RemoveAll<ISessionManager>();
+      services.AddSingleton<ISessionManager>(sessions);
+    });
+
+    var resp = await Client(app).GetAsync(ListUri);
+
+    var item = Items(await ReadJsonAsync(resp)).Single();
+    item.GetProperty("id").GetString().Should().Be(session.Id);
+    item.GetProperty("name").GetString().Should().Be("emulator-5560");
+  }
+
+  [Fact]
   public async Task ASessionWithNoAnswerShowsTheNoAnswerStateAndReason() {
     var sessions = new LivenessFakeSessionManager();
     var session = sessions.Add("emulator-5558");

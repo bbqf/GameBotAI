@@ -29,10 +29,10 @@ internal sealed class LivenessFakeSessionManager : ISessionManager {
   public int ActiveCount => _sessions.Count;
   public bool CanCreateSession => true;
 
-  public EmulatorSession Add(string? serial) {
+  public EmulatorSession Add(string? serial, string gameId = "game-liveness") {
     var session = new EmulatorSession {
       Id = Guid.NewGuid().ToString("N"),
-      GameId = "game-liveness",
+      GameId = gameId,
       DeviceSerial = serial,
       Status = SessionStatus.Running
     };
