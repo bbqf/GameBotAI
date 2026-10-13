@@ -46,8 +46,8 @@ internal sealed partial class SequenceExecutionService {
       // callback: the stepper previews them (FR-015).
       ActionDispatcher = (action, token) => DispatchActionAsync(
         action, request.SequenceId, null, request.SessionId, ParameterScope.Empty, request.RootExecutionId, token),
-      PreviewServiceAction = (action, _) => Task.FromResult(
-        StepThroughActionPreview.Describe(action, _selfRescheduleCoordinator, DateTimeOffset.Now))
+      PreviewServiceAction = (action, token) => StepThroughActionPreview.DescribeAsync(
+        action, _selfRescheduleCoordinator, DateTimeOffset.Now, _sentAlertStore, _timeProvider, token)
     };
   }
 

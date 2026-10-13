@@ -9,7 +9,12 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using GameBot.Domain.Actions;
+using GameBot.Domain.Commands;
+using GameBot.Domain.Logging;
+using GameBot.Service.Services.ExecutionLog;
 using GameBot.Service.Services.Notifications;
+using GameBot.Service.Services.SequenceExecution;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -187,5 +192,204 @@ public sealed class NotifyStepRunTests {
     health!.Value.GetProperty("lastCycleStatus").GetString().Should()
       .Be("success", "an undeliverable alert must not fail the sequence that raised it");
     health.Value.GetProperty("consecutiveFailedCycles").GetInt32().Should().Be(0);
+  }
+
+  // ---- Feature 137: dedupe window -------------------------------------------------------------
+
+  /// <summary>A real clock that tests can move forward. The local zone is UTC, so the window math is exact.</summary>
+  private sealed class OffsetClock : TimeProvider {
+    public TimeSpan Offset { get; set; }
+    public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + Offset;
+    public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+  }
+
+  /// <summary>A notifier that holds each delivery until the test opens the gate.</summary>
+  private sealed class GatedNotifier : IFailureNotifier {
+    private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public int Calls;
+    public void Open() => _gate.TrySetResult();
+
+    public async Task<FailureNotificationResult> NotifyAsync(
+      FailureNotificationEvent evt, string? overrideUrl, CancellationToken ct = default) {
+      Interlocked.Increment(ref Calls);
+      await _gate.Task.ConfigureAwait(false);
+      return new FailureNotificationResult(true, DateTimeOffset.Now, null);
+    }
+  }
+
+  private static WebApplicationFactory<Program> NewDedupeApp(IFailureNotifier notifier, OffsetClock clock) =>
+    new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+      builder.ConfigureServices(services => {
+        foreach (var d in services.Where(d => d.ServiceType == typeof(IFailureNotifier)).ToList()) services.Remove(d);
+        services.AddSingleton(notifier);
+        foreach (var d in services.Where(d => d.ServiceType == typeof(TimeProvider)).ToList()) services.Remove(d);
+        services.AddSingleton<TimeProvider>(clock);
+      }));
+
+  private static async Task<string> SaveNotifySequenceAsync(IServiceProvider services, string id, params (string Key, string Value)[] extra) {
+    var action = new SequenceActionPayload { Type = ActionTypes.Notify };
+    action.Parameters["message"] = "Daily task timed out";
+    foreach (var (key, value) in extra) action.Parameters[key] = value;
+    var sequence = new CommandSequence { Id = id, Name = "Notify-" + id };
+    sequence.SetSteps(new[] {
+      new SequenceStep { Order = 0, StepId = "alert", StepType = SequenceStepType.Action, Action = action }
+    });
+    await services.GetRequiredService<ISequenceRepository>().CreateAsync(sequence).ConfigureAwait(false);
+    return id;
+  }
+
+  private static async Task<(string Outcome, string? Message)> RunAsync(IServiceProvider services, string sequenceId, string? queueId = null) {
+    var context = queueId is null ? null : new ExecutionLogContext { OriginatingQueueId = queueId };
+    var result = await services.GetRequiredService<ISequenceExecutionService>()
+      .ExecuteAsync(sequenceId, sessionId: null, parentContext: context).ConfigureAwait(false);
+    result.Status.Should().Be("Succeeded");
+    var step = result.Steps.Single();
+    return (step.ActionOutcome ?? string.Empty, step.Message);
+  }
+
+  [Fact]
+  public async Task TenRunsInOneWindowSendOnce() {
+    var notifier = new CapturingNotifier();
+    var clock = new OffsetClock();
+    using var app = NewDedupeApp(notifier, clock);
+    _ = app.CreateClient();
+    await SaveNotifySequenceAsync(app.Services, "s10", ("dedupeKey", "timeout"), ("within", "01:00:00")).ConfigureAwait(false);
+
+    var outcomes = new System.Collections.Generic.List<string>();
+    for (var i = 0; i < 10; i++) {
+      outcomes.Add((await RunAsync(app.Services, "s10").ConfigureAwait(false)).Outcome);
+      clock.Offset += TimeSpan.FromMinutes(1);
+    }
+
+    outcomes.Count(o => o == "sent").Should().Be(1);
+    outcomes.Count(o => o == "suppressed").Should().Be(9);
+    notifier.Sent.Should().HaveCount(1);
+  }
+
+  [Fact]
+  public async Task NewWindowSendsAgain() {
+    var notifier = new CapturingNotifier();
+    var clock = new OffsetClock();
+    using var app = NewDedupeApp(notifier, clock);
+    _ = app.CreateClient();
+    await SaveNotifySequenceAsync(app.Services, "swin", ("dedupeKey", "k"), ("within", "00:30:00")).ConfigureAwait(false);
+
+    (await RunAsync(app.Services, "swin").ConfigureAwait(false)).Outcome.Should().Be("sent");
+    clock.Offset += TimeSpan.FromMinutes(10);
+    var suppressed = await RunAsync(app.Services, "swin").ConfigureAwait(false);
+    suppressed.Outcome.Should().Be("suppressed");
+    suppressed.Message.Should().Contain("notification suppressed: sent at");
+    clock.Offset += TimeSpan.FromMinutes(40);
+    (await RunAsync(app.Services, "swin").ConfigureAwait(false)).Outcome.Should().Be("sent");
+    notifier.Sent.Should().HaveCount(2);
+  }
+
+  [Fact]
+  public async Task SinceWindowStartsAtTheTimeOfDay() {
+    var notifier = new CapturingNotifier();
+    var clock = new OffsetClock();
+    using var app = NewDedupeApp(notifier, clock);
+    _ = app.CreateClient();
+    // The window starts at the latest 00:00, so a run in the same UTC day is suppressed.
+    await SaveNotifySequenceAsync(app.Services, "ssince", ("dedupeKey", "k"), ("since", "00:00")).ConfigureAwait(false);
+
+    // Move the clock to 12:00 UTC of the next day, so the two runs below share one window.
+    var now = DateTimeOffset.UtcNow;
+    clock.Offset = now.Date.AddDays(1).AddHours(12) - now;
+    (await RunAsync(app.Services, "ssince").ConfigureAwait(false)).Outcome.Should().Be("sent");
+    clock.Offset += TimeSpan.FromHours(1);
+    (await RunAsync(app.Services, "ssince").ConfigureAwait(false)).Outcome.Should().Be("suppressed");
+    clock.Offset += TimeSpan.FromHours(13);
+    (await RunAsync(app.Services, "ssince").ConfigureAwait(false)).Outcome.Should().Be("sent");
+  }
+
+  [Fact]
+  public async Task FailedDeliveryDoesNotStartAWindow() {
+    var notifier = new CapturingNotifier { Succeeds = false };
+    var clock = new OffsetClock();
+    using var app = NewDedupeApp(notifier, clock);
+    _ = app.CreateClient();
+    await SaveNotifySequenceAsync(app.Services, "sfail", ("dedupeKey", "k"), ("within", "01:00:00")).ConfigureAwait(false);
+
+    var first = await RunAsync(app.Services, "sfail").ConfigureAwait(false);
+    first.Outcome.Should().Be("success");
+    first.Message.Should().Contain("notification not delivered");
+
+    notifier.Succeeds = true;
+    (await RunAsync(app.Services, "sfail").ConfigureAwait(false)).Outcome.Should().Be("sent");
+    notifier.Sent.Should().HaveCount(2);
+  }
+
+  [Fact]
+  public async Task RestartKeepsTheWindow() {
+    var notifier = new CapturingNotifier();
+    var clock = new OffsetClock();
+    using var app = NewDedupeApp(notifier, clock);
+    _ = app.CreateClient();
+    await SaveNotifySequenceAsync(app.Services, "srestart", ("dedupeKey", "k"), ("within", "01:00:00")).ConfigureAwait(false);
+    (await RunAsync(app.Services, "srestart").ConfigureAwait(false)).Outcome.Should().Be("sent");
+
+    var store = (GameBot.Domain.Queues.FileSentAlertStore)app.Services.GetRequiredService<GameBot.Domain.Queues.ISentAlertStore>();
+    var dataRoot = System.IO.Directory.GetParent(store.FolderPath)!.FullName;
+    using var reloaded = new GameBot.Domain.Queues.FileSentAlertStore(dataRoot);
+    (await reloaded.WasSentSinceAsync(GameBot.Domain.Commands.Notify.NotifyPayload.AdhocScope, "k", DateTimeOffset.Now.AddHours(-1)).ConfigureAwait(false))
+      .Should().NotBeNull("the record is on disk");
+  }
+
+  [Fact]
+  public async Task ParallelRunsSendOnceAndLiveReservationSuppresses() {
+    var notifier = new GatedNotifier();
+    var clock = new OffsetClock();
+    using var app = NewDedupeApp(notifier, clock);
+    _ = app.CreateClient();
+    await SaveNotifySequenceAsync(app.Services, "spar", ("dedupeKey", "k"), ("within", "01:00:00")).ConfigureAwait(false);
+
+    var tasks = Enumerable.Range(0, 3).Select(_ => Task.Run(() => RunAsync(app.Services, "spar"))).ToList();
+    var sw = Stopwatch.StartNew();
+    while (sw.ElapsedMilliseconds < 15000 && tasks.Count(t => t.IsCompleted) < 2) await Task.Delay(20).ConfigureAwait(false);
+
+    tasks.Count(t => t.IsCompleted).Should().Be(2, "two runs are suppressed while the first run holds the slot");
+    notifier.Open();
+    var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+    results.Count(r => r.Outcome == "sent").Should().Be(1);
+    results.Count(r => r.Outcome == "suppressed").Should().Be(2);
+    notifier.Calls.Should().Be(1);
+  }
+
+  [Fact]
+  public async Task ScopeIsQueueAndKeyAndQueueDeleteClearsIt() {
+    var notifier = new CapturingNotifier();
+    var clock = new OffsetClock();
+    using var app = NewDedupeApp(notifier, clock);
+    var client = NewClient(app);
+    await SaveNotifySequenceAsync(app.Services, "sa", ("dedupeKey", "a"), ("within", "01:00:00")).ConfigureAwait(false);
+    await SaveNotifySequenceAsync(app.Services, "sb", ("dedupeKey", "b"), ("within", "01:00:00")).ConfigureAwait(false);
+    var q1 = await CreateQueueAsync(client).ConfigureAwait(true);
+    var q2 = await CreateQueueAsync(client).ConfigureAwait(true);
+
+    (await RunAsync(app.Services, "sa", q1).ConfigureAwait(true)).Outcome.Should().Be("sent");
+    (await RunAsync(app.Services, "sa", q2).ConfigureAwait(true)).Outcome.Should().Be("sent", "another queue is another scope");
+    (await RunAsync(app.Services, "sb", q1).ConfigureAwait(true)).Outcome.Should().Be("sent", "another key is another scope");
+    (await RunAsync(app.Services, "sa").ConfigureAwait(true)).Outcome.Should().Be("sent", "ad hoc is its own scope");
+    (await RunAsync(app.Services, "sa", q1).ConfigureAwait(true)).Outcome.Should().Be("suppressed");
+
+    (await client.DeleteAsync(new Uri($"/api/queues/{q1}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+    var store = app.Services.GetRequiredService<GameBot.Domain.Queues.ISentAlertStore>();
+    (await store.WasSentSinceAsync(q1, "a", DateTimeOffset.MinValue).ConfigureAwait(true)).Should().BeNull();
+    (await store.WasSentSinceAsync(q2, "a", DateTimeOffset.MinValue).ConfigureAwait(true)).Should().NotBeNull();
+  }
+
+  [Fact]
+  public async Task StepWithoutDedupeFieldsSendsEveryTime() {
+    var notifier = new CapturingNotifier();
+    var clock = new OffsetClock();
+    using var app = NewDedupeApp(notifier, clock);
+    _ = app.CreateClient();
+    await SaveNotifySequenceAsync(app.Services, "sold").ConfigureAwait(false);
+
+    (await RunAsync(app.Services, "sold").ConfigureAwait(false)).Should().Be(("success", "notification delivered"));
+    (await RunAsync(app.Services, "sold").ConfigureAwait(false)).Should().Be(("success", "notification delivered"));
+    notifier.Sent.Should().HaveCount(2);
   }
 }

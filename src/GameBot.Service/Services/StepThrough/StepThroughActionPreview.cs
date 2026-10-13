@@ -1,6 +1,9 @@
 using System;
 using System.Globalization;
+using System.Threading;
+using System.Threading.Tasks;
 using GameBot.Domain.Actions;
+using GameBot.Domain.Queues;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Commands.Notify;
 using GameBot.Domain.Commands.SelfReschedule;
@@ -64,6 +67,47 @@ internal static class StepThroughActionPreview {
       default:
         return "would reschedule this sequence";
     }
+  }
+
+  /// <summary>
+  /// Like <see cref="Describe"/>, and a notify step with a dedupe key also reads the sent-alert store
+  /// (feature 137, FR-014). The read has no side effect. A step-through is not in a queue, so the scope
+  /// is the ad hoc scope, as in a real run outside a queue.
+  /// </summary>
+  public static async Task<ActionDispatchResult> DescribeAsync(
+      SequenceActionPayload action,
+      ISelfRescheduleCoordinator coordinator,
+      DateTimeOffset localNow,
+      ISentAlertStore? store,
+      TimeProvider timeProvider,
+      CancellationToken ct) {
+    ArgumentNullException.ThrowIfNull(action);
+    if (!string.Equals(action.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)) {
+      return Describe(action, coordinator, localNow);
+    }
+
+    return new ActionDispatchResult(
+      SequenceStepper.PreviewOutcome,
+      await DescribeNotifyAsync(action, store, timeProvider, ct).ConfigureAwait(false));
+  }
+
+  private static async Task<string> DescribeNotifyAsync(SequenceActionPayload action, ISentAlertStore? store, TimeProvider timeProvider, CancellationToken ct) {
+    if (store is null || !NotifyPayload.TryRead(action, out var payload, out _) || payload is null || !payload.HasDedupe) {
+      return DescribeNotify(action);
+    }
+
+    var now = timeProvider.GetLocalNow();
+    var windowStart = payload.WindowStart(now, timeProvider.LocalTimeZone);
+    var sentAt = await store.WasSentSinceAsync(NotifyPayload.AdhocScope, payload.DedupeKey!, windowStart, ct).ConfigureAwait(false);
+    if (sentAt is { } at) {
+      return $"would suppress the notification: sent at {at.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)} in this window";
+    }
+
+    if (await store.HasLiveReservationAsync(NotifyPayload.AdhocScope, payload.DedupeKey!, now, ct).ConfigureAwait(false)) {
+      return "would suppress the notification: another run is sending it now";
+    }
+
+    return DescribeNotify(action);
   }
 
   private static string DescribeNotify(SequenceActionPayload action) {

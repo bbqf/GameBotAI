@@ -84,7 +84,13 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
         + "active. The removed field is in the execution log of the step.",
       [ActionTypes.Notify] =
         "message, string, required, at most 1000 characters; url, optional absolute http or https URL that overrides "
-        + "the service's default destination. Raises an outbound alert and always succeeds."
+        + "the service's default destination. Raises an outbound alert and always succeeds. "
+        + "dedupeKey, string, optional, at most 100 characters, needs since or within: the service sends the alert at most "
+        + "once for each queue and key in the window. since, string HH:mm, optional: the window starts at the latest "
+        + "local time of day (as in the lastRun condition). within, string HH:mm:ss, optional, from 00:00:01 to 24:00:00: "
+        + "the window is the last such duration. Use since or within, not both. The step outcome is sent when the alert "
+        + "was delivered and suppressed when the window already has an alert; a delivery that fails does not start a window. "
+        + "A step without dedupeKey sends every time."
     };
 
   /// <summary>The published <c>payload</c> description: an intro, then one <c>- type: fields</c> line per type.</summary>

@@ -170,6 +170,7 @@ Status vocabulary:
 | 134 | Reduce CI Run Duration | Implemented |
 | 135 | Reject Unknown Command Step Fields | Implemented |
 | 136 | Reject a Parameters Object in Command Requests | Implemented |
+| 137 | Notify Alert Dedupe Window | Implemented |
 
 ## Numbering notes
 

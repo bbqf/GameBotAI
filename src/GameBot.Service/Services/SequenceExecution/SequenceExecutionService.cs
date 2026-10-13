@@ -58,6 +58,8 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   // Feature 105: answers a lastRun condition in a queue run. Optional, so the hand-built test instances
   // keep compiling; without it a lastRun condition is false.
   private readonly LastRunConditionEvaluator? _lastRunEvaluator;
+  private readonly GameBot.Domain.Queues.ISentAlertStore? _sentAlertStore;
+  private readonly TimeProvider _timeProvider;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -79,7 +81,11 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     GameBot.Service.Services.Notifications.IFailureNotifier? notifier = null,
     GameBot.Domain.Queues.IQueueRepository? queueRepository = null,
     GameBot.Service.Services.QueueExecution.IQueueRunRegistry? runRegistry = null,
-    LastRunConditionEvaluator? lastRunEvaluator = null) {
+    LastRunConditionEvaluator? lastRunEvaluator = null,
+    GameBot.Domain.Queues.ISentAlertStore? sentAlertStore = null,
+    TimeProvider? timeProvider = null) {
+    _sentAlertStore = sentAlertStore;
+    _timeProvider = timeProvider ?? TimeProvider.System;
     _runner = runner;
     _evalSvc = evalSvc;
     _imageVisibleConditionAdapter = imageVisibleConditionAdapter;
@@ -614,25 +620,59 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       return new ActionDispatchResult("noop", "notify not sent: no notifier configured");
     }
 
-    var evt = new GameBot.Service.Services.Notifications.FailureNotificationEvent {
-      EventType = GameBot.Service.Services.Notifications.FailureNotificationEvent.SequenceNotifyEvent,
-      RaisedAt = DateTimeOffset.Now,
-      FailedSequenceId = sequenceId,
-      FailedSequenceName = await ResolveSequenceNameAsync(sequenceId).ConfigureAwait(false),
-      Message = payload.Message
-    };
-    await PopulateQueueContextAsync(evt, originatingQueueId).ConfigureAwait(false);
+    // Feature 137: claim the slot of the (queue, key) scope before the send, so two runs cannot both send.
+    GameBot.Domain.Queues.SentAlertReservation? reservation = null;
+    var dedupe = payload.HasDedupe && _sentAlertStore is not null;
+    if (dedupe) {
+      var scope = string.IsNullOrWhiteSpace(originatingQueueId) ? NotifyPayload.AdhocScope : originatingQueueId!;
+      var now = _timeProvider.GetLocalNow();
+      var windowStart = payload.WindowStart(now, _timeProvider.LocalTimeZone);
+      reservation = await _sentAlertStore!.TryReserveAsync(scope, payload.DedupeKey!, windowStart, now, ct).ConfigureAwait(false);
+      if (reservation is null) {
+        var sentAt = await _sentAlertStore.WasSentSinceAsync(scope, payload.DedupeKey!, windowStart, ct).ConfigureAwait(false);
+        var detail = sentAt is { } at
+          ? $"sent at {at.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)} in this window"
+          : "another run is sending it now";
+        return new ActionDispatchResult("suppressed", $"notification suppressed: {detail}");
+      }
+    }
 
-    var result = await _notifier.NotifyAsync(evt, payload.Url, ct).ConfigureAwait(false);
+    GameBot.Service.Services.Notifications.FailureNotificationResult result;
+    try {
+      var evt = new GameBot.Service.Services.Notifications.FailureNotificationEvent {
+        EventType = GameBot.Service.Services.Notifications.FailureNotificationEvent.SequenceNotifyEvent,
+        RaisedAt = DateTimeOffset.Now,
+        FailedSequenceId = sequenceId,
+        FailedSequenceName = await ResolveSequenceNameAsync(sequenceId).ConfigureAwait(false),
+        Message = payload.Message
+      };
+      await PopulateQueueContextAsync(evt, originatingQueueId).ConfigureAwait(false);
+
+      result = await _notifier.NotifyAsync(evt, payload.Url, ct).ConfigureAwait(false);
+    }
+    catch {
+      // A failed send must free the slot, so a later run can try again.
+      if (reservation is not null) await _sentAlertStore!.ReleaseAsync(reservation, CancellationToken.None).ConfigureAwait(false);
+      throw;
+    }
+
     if (originatingQueueId is not null
         && _runRegistry is not null
         && _runRegistry.TryGet(originatingQueueId, out var handle)) {
       handle.RecordNotification(result.CompletedAt, result.Succeeded, result.Error);
     }
 
-    return result.Succeeded
-      ? new ActionDispatchResult("success", "notification delivered")
-      : new ActionDispatchResult("success", $"notification not delivered: {result.Error}");
+    if (reservation is not null) {
+      if (result.Succeeded) {
+        await _sentAlertStore!.CommitAsync(reservation, _timeProvider.GetLocalNow(), CancellationToken.None).ConfigureAwait(false);
+      }
+      else {
+        await _sentAlertStore!.ReleaseAsync(reservation, CancellationToken.None).ConfigureAwait(false);
+      }
+    }
+
+    if (!result.Succeeded) return new ActionDispatchResult("success", $"notification not delivered: {result.Error}");
+    return new ActionDispatchResult(reservation is null ? "success" : "sent", "notification delivered");
   }
 
   /// <summary>
