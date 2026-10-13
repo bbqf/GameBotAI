@@ -85,6 +85,8 @@ Rules:
 - A runtime override (`GAMEBOT_PORT`, `GAMEBOT_BIND_HOST`, or `Service:Network:*`) is not saved. The Web UI update does not pass it to the installer.
 - The service ignores a saved value that is not valid, writes a warning to the log, and uses the next source.
 
+To open the web UI on a phone, set `BIND_HOST` to a network address, set an access token, and open the firewall port. See [docs/phone-access.md](docs/phone-access.md).
+
 ---
 
 ## 3) Mode/scope constraints

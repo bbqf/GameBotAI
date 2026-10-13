@@ -34,7 +34,12 @@ Use this checklist to verify consistency across Action, Command, Trigger, Game, 
 - **Detail readability**: Selected row shows summary, related objects, snapshot availability, and step outcomes in plain language.
 - **Responsive behavior**:
 	- Desktop: split list/detail panes shown together.
-	- Phone: list-first drill-down with Back-to-list preserving prior filter/sort/timestamp mode state.
+	- Phone: the area is desktop-only. It shows the notice "Use a larger screen for this area." and a way back (feature 139).
+
+## Phone checklist
+- For each new or changed UI screen, state its phone support level (`full`, `reduced`, or `desktop-only`).
+- Apply the pass/fail checklist in [mobile-ui-principles.md](mobile-ui-principles.md#checklist-pass-or-fail).
+- Record the result in the Signoff section below.
 
 ## Signoff
 - **Date/Reviewer**:

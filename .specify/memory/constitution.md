@@ -1,11 +1,12 @@
 <!--
 Sync Impact Report
-Version change: 1.3.0 → 1.3.1
-Modified principles: VI (scope now includes conversation with the user)
-Added sections: N/A (1.3.0 added Principle VI, a Definition of Done bullet, and a Review bullet)
+Version change: 1.3.1 → 1.4.0
+Modified principles: III (each UI feature MUST state its phone support level and follow docs/mobile-ui-principles.md)
+Added sections: N/A (1.3.1 widened Principle VI to conversation with the user; 1.3.0 added Principle VI, a Definition of Done bullet, and a Review bullet)
 Removed sections: N/A
 Templates requiring updates:
-- .specify/templates/plan-template.md ✅ updated (STE gate in Constitution Check)
+- .specify/templates/plan-template.md ✅ updated (STE gate and phone check in Constitution Check)
+- .specify/templates/spec-template.md ✅ updated (Phone support level prompt)
 - CLAUDE.md ✅ updated (STE rule for agent-written text outside speckit, e.g. commits and PRs)
 - .specify/templates/spec-template.md ✅ no change needed (principle applies to all text it produces)
 - .specify/templates/tasks-template.md ✅ no change needed
@@ -53,6 +54,7 @@ Behavior and interfaces MUST be consistent and predictable:
 - Inputs/outputs MUST be stable and versioned when breaking changes are required.
 - Accessibility and internationalization considerations SHOULD be respected where applicable (e.g., color contrast, text).
 - Provide help/usage for CLI and API schemas for programmatic usage.
+- Each UI feature MUST state its phone support level and follow docs/mobile-ui-principles.md.
 
 Rationale: Consistency builds user trust and reduces support burden.
 
@@ -145,4 +147,4 @@ A change is Done only when all gates pass:
 - Versioning: Semantic versioning for this document: MAJOR (principle removals/redefinitions), MINOR (new sections/principles), PATCH (clarifications).
 - Compliance: Periodic audits review adherence. Non-compliance requires remediation tasks prioritized in the next cycle.
 
-**Version**: 1.3.1 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-10-02
+**Version**: 1.4.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-10-13

@@ -10,8 +10,15 @@ import { ImagesListPage } from './pages/images/ImagesListPage';
 import { BackupRestorePage } from './pages/BackupRestorePage';
 import { QueuesPage } from './pages/QueuesPage';
 import { normalizeTab } from './lib/navigation';
-import { useNavigationCollapse } from './hooks/useNavigationCollapse';
+import { useLayoutMode } from './hooks/useLayoutMode';
+import { useConnectionState } from './hooks/useConnectionState';
+import { clearUnauthorized, useUnauthorized } from './lib/unauthorized';
 import { Navigation } from './components/Navigation';
+import { PhoneHeader } from './components/phone/PhoneShell';
+import { PhoneTabBar } from './components/phone/PhoneTabBar';
+import { ConnectionBanner } from './components/phone/ConnectionBanner';
+import { DesktopOnlyNotice } from './components/phone/DesktopOnlyNotice';
+import { PhoneQueuesView } from './components/queues/PhoneQueuesView';
 import { NavigationAreaId, navigationAreas } from './types/navigation';
 import { CONFIGURATION_AREA_PATH, ConfigurationPage } from './pages/Configuration';
 import { EXECUTION_AREA_PATH, EXECUTION_LOGS_AREA_PATH, ExecutionPage } from './pages/Execution';
@@ -36,7 +43,7 @@ const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolea
   return { tab: mappedTab };
 };
 
-const getInitialArea = (): NavigationAreaId => {
+const getInitialArea = (phone: boolean): NavigationAreaId => {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get('area');
   if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring' || requested === 'queues' || requested === 'notifications' || requested === 'update') return requested;
@@ -47,14 +54,19 @@ const getInitialArea = (): NavigationAreaId => {
   if (path.startsWith(UPDATE_AREA_PATH)) return 'update';
   if (path.startsWith(EXECUTION_AREA_PATH)) return 'execution';
   if (path.startsWith('/queues')) return 'queues';
-  return 'authoring';
+  // Phone mode opens Queues when the URL names no area (contract C-03).
+  return phone ? 'queues' : 'authoring';
 };
 
 const isAreaVisible = (_areaId: NavigationAreaId): boolean => true;
 
 export const App: React.FC = () => {
   const [token, setTokenState] = useState<string>(token$.get() ?? '');
-  const { isCollapsed } = useNavigationCollapse();
+  const layoutMode = useLayoutMode();
+  const phone = layoutMode === 'phone';
+  const [reloadSignal, setReloadSignal] = useState(0);
+  const connectionState = useConnectionState(() => setReloadSignal((s) => s + 1), phone);
+  const unauthorized = useUnauthorized();
   const initialLocation = useMemo(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const requestedTab = normalizeTab(searchParams.get('tab'));
@@ -72,7 +84,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const [activeArea, setActiveArea] = useState<NavigationAreaId>(getInitialArea());
+  const [activeArea, setActiveArea] = useState<NavigationAreaId>(() => getInitialArea(phone));
   const [tab, setTab] = useState<AuthoringTab>(initialLocation.tab);
   // Bumped when the user re-clicks the already-active tab/area, signalling the
   // mounted page to return to its list view (honoring unsaved changes).
@@ -98,7 +110,10 @@ export const App: React.FC = () => {
   const isLegacyTriggersPath = useMemo(() => window.location.pathname.toLowerCase().startsWith('/triggers'), []);
 
   useEffect(() => {
-    const unsub = token$.subscribe((t) => setTokenState(t ?? ''));
+    const unsub = token$.subscribe((t) => {
+      setTokenState(t ?? '');
+      if (t) clearUnauthorized();
+    });
     return () => unsub();
   }, []);
 
@@ -134,16 +149,18 @@ export const App: React.FC = () => {
 
   const renderQueues = () => (
     <section id="queues-panel" className="queues">
-      <h1>Queues</h1>
+      {!phone && <h1>Queues</h1>}
       <ErrorBoundary>
-        <QueuesPage navResetSignal={queuesResetSignal} />
+        {phone
+          ? <PhoneQueuesView connectionState={connectionState} reloadSignal={reloadSignal} resetSignal={queuesResetSignal} />
+          : <QueuesPage navResetSignal={queuesResetSignal} />}
       </ErrorBoundary>
     </section>
   );
 
   const renderConfiguration = () => (
     <section id="configuration-panel" className="configuration">
-      <h1>Configuration</h1>
+      {!phone && <h1>Configuration</h1>}
       <ConfigurationPage
         token={token}
         onTokenChange={(t) => setToken(t)}
@@ -171,7 +188,7 @@ export const App: React.FC = () => {
 
   const renderNotifications = () => (
     <section id="notifications-panel" className="notifications">
-      <h1>Notifications</h1>
+      {!phone && <h1>Notifications</h1>}
       <ErrorBoundary>
         <NotificationsPage />
       </ErrorBoundary>
@@ -180,7 +197,7 @@ export const App: React.FC = () => {
 
   const renderUpdate = () => (
     <section id="update-panel" className="update">
-      <h1>Update</h1>
+      {!phone && <h1>Update</h1>}
       <ErrorBoundary>
         <UpdatePage />
       </ErrorBoundary>
@@ -194,8 +211,14 @@ export const App: React.FC = () => {
     </section>
   );
 
+  const activeAreaDef = navigationAreas.find((a) => a.id === activeArea);
+
   const renderActiveArea = () => {
     if (isLegacyTriggersPath) return renderNotFound();
+    // A desktop-only area never renders its content on a phone (contract C-04).
+    if (phone && activeAreaDef?.phone === 'desktop-only') {
+      return <DesktopOnlyNotice areaLabel={activeAreaDef.label} onBack={() => handleAreaChange('queues')} />;
+    }
     if (activeArea === 'authoring') return renderAuthoring();
     if (activeArea === 'queues') return renderQueues();
     if (activeArea === 'configuration') return renderConfiguration();
@@ -206,18 +229,32 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="app">
-      {Navbar}
-      <Navigation
-        areas={navigationAreas}
-        activeArea={activeArea}
-        onChange={handleAreaChange}
-        isCollapsed={isCollapsed}
-        isAreaVisible={isAreaVisible}
-      />
+    <div className={phone ? 'app app--phone' : 'app'}>
+      {/* The <main> element keeps its position in both modes, so area content does not remount on a mode change. */}
+      {phone ? (
+        <PhoneHeader title={activeAreaDef?.label ?? ''} />
+      ) : (
+        <>
+          {Navbar}
+          <Navigation
+            areas={navigationAreas}
+            activeArea={activeArea}
+            onChange={handleAreaChange}
+            isAreaVisible={isAreaVisible}
+          />
+        </>
+      )}
       <main className="content">
+        {phone && (
+          <ConnectionBanner
+            state={connectionState}
+            unauthorized={unauthorized}
+            onOpenConfiguration={() => handleAreaChange('configuration')}
+          />
+        )}
         {renderActiveArea()}
       </main>
+      {phone && <PhoneTabBar areas={navigationAreas} activeArea={activeArea} onChange={handleAreaChange} />}
     </div>
   );
 };

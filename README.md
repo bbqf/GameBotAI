@@ -177,6 +177,7 @@ The most used settings:
 | Setting | How to set it | Use |
 |---------|---------------|-----|
 | Access token | Environment variable `GAMEBOT_AUTH_TOKEN` | If set, every request needs this token. Enter the same token in **Configuration** in the web UI. |
+| Phone access | See [docs/phone-access.md](docs/phone-access.md) | Open the web UI on a phone and add it to the home screen. |
 | Data folder | `GAMEBOT_DATA_DIR` | Move your data to another folder. |
 | Port and address | The installer wizard | Change them by running the installer again. |
 | Tesseract OCR | `GAMEBOT_TESSERACT_ENABLED=true`, `GAMEBOT_TESSERACT_PATH` | Read text on the screen. |
