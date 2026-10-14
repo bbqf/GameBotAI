@@ -60,6 +60,11 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   private readonly LastRunConditionEvaluator? _lastRunEvaluator;
   private readonly GameBot.Domain.Queues.ISentAlertStore? _sentAlertStore;
   private readonly TimeProvider _timeProvider;
+  // Feature 142: the quiz steps. Optional, so the hand-built test instances keep compiling; without a
+  // handler a quiz step gives the outcome service_unavailable.
+  private readonly GameBot.Service.Services.Quiz.QuizLookupHandler? _quizLookup;
+  private readonly GameBot.Service.Services.Quiz.QuizLearnHandler? _quizLearn;
+  private readonly GameBot.Service.Services.Quiz.QuizLookupResultKeeper? _quizKeeper;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -83,7 +88,13 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     GameBot.Service.Services.QueueExecution.IQueueRunRegistry? runRegistry = null,
     LastRunConditionEvaluator? lastRunEvaluator = null,
     GameBot.Domain.Queues.ISentAlertStore? sentAlertStore = null,
-    TimeProvider? timeProvider = null) {
+    TimeProvider? timeProvider = null,
+    GameBot.Service.Services.Quiz.QuizLookupHandler? quizLookup = null,
+    GameBot.Service.Services.Quiz.QuizLearnHandler? quizLearn = null,
+    GameBot.Service.Services.Quiz.QuizLookupResultKeeper? quizKeeper = null) {
+    _quizLookup = quizLookup;
+    _quizLearn = quizLearn;
+    _quizKeeper = quizKeeper;
     _sentAlertStore = sentAlertStore;
     _timeProvider = timeProvider ?? TimeProvider.System;
     _runner = runner;
@@ -257,6 +268,8 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     opened.ExecutionId = rootExecutionId;
     opened.SequenceId = sequenceId;
     opened.SequenceName = startSequenceName;
+    // Feature 142: the lookup results of a quiz step live as long as this run. The slot is removed at the end.
+    using var quizSlot = _quizKeeper?.Open(rootExecutionId);
     var childRootExecutionId = string.IsNullOrWhiteSpace(parentContext?.RootExecutionId) ? rootExecutionId : parentContext!.RootExecutionId!;
     var childDepth = (parentContext?.Depth ?? 0) + 1;
     var childInvocationIndex = 0;
@@ -486,6 +499,30 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
             ["reasonCode"] = actionOutcome,
             ["conditionType"] = step.ConditionType,
             ["conditionResult"] = step.ConditionResult,
+            ["message"] = step.Message,
+            ["sequenceId"] = sequenceId,
+            ["sequenceLabel"] = sequenceName,
+            ["stepId"] = stepId,
+            ["stepLabel"] = stepLabel
+          },
+          "normal"));
+        continue;
+      }
+
+      // Feature 142: a quiz step shows its outcome (pick_N, unreadable, stored, ...), known or guess, the
+      // normalized question, and the position in its own entry. The message of the step holds them.
+      if (SequenceRunner.IsQuizAction(stepById?.Action)) {
+        detailItems.Add(new ExecutionDetailItem(
+          "step",
+          !string.IsNullOrWhiteSpace(step.Message)
+            ? $"Quiz step '{stepLabel}' {actionOutcome}: {step.Message}"
+            : $"Quiz step '{stepLabel}' {actionOutcome}.",
+          new Dictionary<string, object?> {
+            ["stepOrder"] = stepOrder++,
+            ["stepType"] = stepById!.Action!.Type,
+            ["status"] = step.Status,
+            ["actionOutcome"] = actionOutcome,
+            ["reasonCode"] = actionOutcome,
             ["message"] = step.Message,
             ["sequenceId"] = sequenceId,
             ["sequenceLabel"] = sequenceName,
@@ -820,6 +857,10 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       return DispatchNotifyAsync(action, sequenceId, originatingQueueId, ct);
     }
 
+    if (SequenceRunner.IsQuizAction(action)) {
+      return DispatchQuizAsync(action, sequenceId, sessionId, runId, ct);
+    }
+
     if (string.Equals(action.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)) {
       return DispatchConnectToGameAsync(action, ct);
     }
@@ -837,6 +878,32 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     }
 
     return DispatchPrimitiveInputAsync(action, sessionId, ct);
+  }
+
+  /// <summary>
+  /// Routes a <c>quiz-lookup</c> or <c>quiz-learn</c> step (feature 142) to its handler. The step id comes from
+  /// <see cref="GameBot.Domain.Quiz.QuizStepScope"/>. A quiz step never fails the sequence: a host with no quiz
+  /// handler gives the outcome <c>service_unavailable</c>.
+  /// </summary>
+  private Task<ActionDispatchResult> DispatchQuizAsync(
+      SequenceActionPayload action,
+      string sequenceId,
+      string? sessionId,
+      string? runId,
+      CancellationToken ct) {
+    var isLookup = string.Equals(action.Type, ActionTypes.QuizLookup, StringComparison.OrdinalIgnoreCase);
+    if ((isLookup ? _quizLookup is null : _quizLearn is null)) {
+      return Task.FromResult(new ActionDispatchResult(
+        GameBot.Domain.Quiz.QuizOutcomes.ServiceUnavailable, "the quiz service is not available on this host"));
+    }
+
+    var stepId = GameBot.Domain.Quiz.QuizStepScope.Current ?? action.Type;
+    var runKey = string.IsNullOrWhiteSpace(runId) ? "adhoc:" + sequenceId : runId;
+    // A session that cannot be resolved gives no screen read, so a lookup gives the outcome unreadable.
+    var resolvedSession = TryResolveSessionId(sessionId, action.Type, out var resolved, out _) ? resolved : null;
+    return isLookup
+      ? _quizLookup!.ExecuteAsync(action, stepId, resolvedSession, runKey, ct)
+      : _quizLearn!.ExecuteAsync(action, stepId, resolvedSession, runKey, ct);
   }
 
   /// <summary>

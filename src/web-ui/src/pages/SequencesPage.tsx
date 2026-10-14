@@ -21,6 +21,7 @@ import { isLinearStepArray, toCommandStepIds, toInterStepDelayRange, toLinearSte
 import { LoopBlock } from '../components/sequences/LoopBlock';
 import { IfBlock } from '../components/sequences/IfBlock';
 import { PrimitiveActionFields, summarizePrimitiveAction } from '../components/sequences/PrimitiveActionFields';
+import { QUIZ_LEARN_TYPE, QUIZ_LOOKUP_TYPE, createDefaultQuizAction } from '../components/sequences/QuizActionFields';
 import type { ActionStepEntry, LoopStepEntry, BreakStepEntry, IfStepEntry, StepEntry } from '../types/stepEntry';
 import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
 import { ImageSelectorDropdown } from '../components/images/ImageSelectorDropdown';
@@ -94,6 +95,13 @@ const createDefaultRescheduleStep = (stepId: string): SequenceStep => ({
   rescheduleTimerMode: 'relative',
   rescheduleTimerRelativeOffset: '00:10:00',
   rescheduleTimerTimeOfDay: '12:00'
+});
+
+// Feature 142: a new quiz-lookup or quiz-learn step. It is an inline action, so the editor shows its own field form.
+const createDefaultQuizStep = (type: string, stepId: string): SequenceStep => ({
+  ...createDefaultStep('', stepId),
+  actionType: 'primitive',
+  primitiveAction: createDefaultQuizAction(type),
 });
 
 type SequenceFormValue = {
@@ -1995,6 +2003,28 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   >
                     Add reschedule step
                   </button>
+                  <button
+                    type="button"
+                    data-testid="add-quiz-lookup-button"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultQuizStep(QUIZ_LOOKUP_TYPE, nextGeneratedStepId(prev.steps))] }));
+                      setDirty(true);
+                    }}
+                    disabled={submitting || loading}
+                  >
+                    Add quiz lookup step
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="add-quiz-learn-button"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultQuizStep(QUIZ_LEARN_TYPE, nextGeneratedStepId(prev.steps))] }));
+                      setDirty(true);
+                    }}
+                    disabled={submitting || loading}
+                  >
+                    Add quiz learn step
+                  </button>
                 </div>
               </div>
             </div>
@@ -2255,6 +2285,28 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                       disabled={submitting || loading}
                     >
                       Add reschedule step
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="add-quiz-lookup-button"
+                      onClick={() => {
+                        setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultQuizStep(QUIZ_LOOKUP_TYPE, nextGeneratedStepId(prev.steps))] }));
+                        setDirty(true);
+                      }}
+                      disabled={submitting || loading}
+                    >
+                      Add quiz lookup step
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="add-quiz-learn-button"
+                      onClick={() => {
+                        setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultQuizStep(QUIZ_LEARN_TYPE, nextGeneratedStepId(prev.steps))] }));
+                        setDirty(true);
+                      }}
+                      disabled={submitting || loading}
+                    >
+                      Add quiz learn step
                     </button>
                   </div>
                 </div>

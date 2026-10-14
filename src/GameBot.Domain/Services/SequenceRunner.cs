@@ -738,6 +738,8 @@ namespace GameBot.Domain.Services {
         SequenceExecutionResult result,
         Dictionary<string, string> stepOutcomes,
         CancellationToken ct) {
+      // Feature 142: a quiz handler needs the id of its own step. The id is ambient only for the dispatch.
+      using var quizStep = IsQuizAction(step.Action) ? GameBot.Domain.Quiz.QuizStepScope.Push(stepKey) : null;
       var dispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
       result.AddStep(
           stepKey,
@@ -748,7 +750,13 @@ namespace GameBot.Domain.Services {
           actionOutcome: dispatch.Outcome,
           message: dispatch.Message,
           removed: dispatch.Removed);
-      if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
+      // Feature 142: a quiz step records its own outcome (pick_N, unreadable, stored, ...), so a later
+      // commandOutcome condition can read it. Other service-level steps record "success".
+      if (!string.IsNullOrWhiteSpace(stepKey)) {
+        stepOutcomes[stepKey] = IsQuizAction(step.Action) && !string.IsNullOrWhiteSpace(dispatch.Outcome)
+          ? dispatch.Outcome
+          : "success";
+      }
     }
 
     /// <summary>
@@ -959,7 +967,14 @@ namespace GameBot.Domain.Services {
     /// </summary>
     internal static bool IsServiceLevelAction(SequenceActionPayload? action) {
       return string.Equals(action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)
-          || string.Equals(action?.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase);
+          || string.Equals(action?.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)
+          || IsQuizAction(action);
+    }
+
+    /// <summary>True for a <c>quiz-lookup</c> or <c>quiz-learn</c> action (feature 142).</summary>
+    public static bool IsQuizAction(SequenceActionPayload? action) {
+      return string.Equals(action?.Type, ActionTypes.QuizLookup, StringComparison.OrdinalIgnoreCase)
+          || string.Equals(action?.Type, ActionTypes.QuizLearn, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

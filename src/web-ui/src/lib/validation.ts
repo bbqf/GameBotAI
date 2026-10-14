@@ -239,6 +239,13 @@ const validateConditionExpression = (expression: ConditionExpression, stepId: st
  * editor rejected what the API accepted.
  */
 const COMMAND_OUTCOME_STATES = ['success', 'failed', 'skipped', 'break', 'no_break', 'restarted'];
+// Feature 142: the outcomes of the quiz steps. A lookup gives pick_N (N from 1). A learn gives stored or a skip.
+const QUIZ_OUTCOME_STATES = ['unreadable', 'service_unavailable', 'stored', 'skipped_no_match', 'skipped_ambiguous'];
+const QUIZ_PICK_OUTCOME = /^pick_[1-9][0-9]*$/i;
+const isAllowedExpectedState = (state: string): boolean =>
+  COMMAND_OUTCOME_STATES.includes(state)
+  || QUIZ_OUTCOME_STATES.includes(state.toLowerCase())
+  || QUIZ_PICK_OUTCOME.test(state);
 
 /**
  * Flattens a step tree into authored (document) order — root steps, with each `Loop` body and each
@@ -327,7 +334,7 @@ export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[]
         }
       }
 
-      if (!COMMAND_OUTCOME_STATES.includes(step.condition.expectedState)) {
+      if (!isAllowedExpectedState(step.condition.expectedState)) {
         errors.push(
           `Step '${stepLabel}' commandOutcome expectedState must be one of ${COMMAND_OUTCOME_STATES.join('|')}.`
         );

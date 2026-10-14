@@ -38,6 +38,19 @@ internal static class StepThroughActionPreview {
       return new ActionDispatchResult(SequenceStepper.PreviewOutcome, "would stop the game, start it again, and wait for the foreground");
     }
 
+    // Feature 142 (R9): a quiz step reads no screen and changes no store in a step-through.
+    if (string.Equals(action.Type, ActionTypes.QuizLookup, StringComparison.OrdinalIgnoreCase)) {
+      return new ActionDispatchResult(
+        SequenceStepper.PreviewOutcome,
+        "would read the question and the answers from the screen and look the question up in the quiz store (the screen is not read and the store is not used in a step-through)");
+    }
+
+    if (string.Equals(action.Type, ActionTypes.QuizLearn, StringComparison.OrdinalIgnoreCase)) {
+      return new ActionDispatchResult(
+        SequenceStepper.PreviewOutcome,
+        "would store the correct answer of the lookup step in the quiz store (the store is not changed in a step-through)");
+    }
+
     return new ActionDispatchResult(SequenceStepper.PreviewOutcome, $"would run '{action.Type}'");
   }
 

@@ -126,7 +126,9 @@ namespace GameBot.Domain.Commands {
                 ActionTypes.EnsureEmulatorRunning,
                 ActionTypes.WaitForImage,
                 ActionTypes.RescheduleSelf,
-                ActionTypes.Notify
+                ActionTypes.Notify,
+                ActionTypes.QuizLookup,
+                ActionTypes.QuizLearn
             };
 
       foreach (var step in sequence.Steps) {
@@ -154,6 +156,9 @@ namespace GameBot.Domain.Commands {
 
         // Feature 129: backstop for the forceRestart option. The validator gives the 400 first.
         GuardEnsureGamePayload(step);
+
+        // Feature 142: backstop for the quiz steps. The validator gives the 400 first.
+        GuardQuizPayload(step);
       }
 
       foreach (var step in sequence.FlowSteps) {
@@ -178,6 +183,22 @@ namespace GameBot.Domain.Commands {
         if (!supportedActionTypes.Contains(actionType)) {
           throw new InvalidOperationException($"Action step '{step.StepId}' references unsupported action type '{actionType}'.");
         }
+      }
+    }
+
+    // Feature 142: a quiz step must have a valid payload shape.
+    private static void GuardQuizPayload(SequenceStep step) {
+      if (step.Action is null) {
+        return;
+      }
+
+      IReadOnlyList<string> errors = string.Equals(step.Action.Type, ActionTypes.QuizLookup, StringComparison.OrdinalIgnoreCase)
+        ? GameBot.Domain.Quiz.QuizLookupPayload.Validate(step.Action)
+        : string.Equals(step.Action.Type, ActionTypes.QuizLearn, StringComparison.OrdinalIgnoreCase)
+          ? GameBot.Domain.Quiz.QuizLearnPayload.Validate(step.Action)
+          : Array.Empty<string>();
+      if (errors.Count > 0) {
+        throw new InvalidOperationException($"Step '{step.StepId}' {step.Action.Type} {errors[0]}.");
       }
     }
 

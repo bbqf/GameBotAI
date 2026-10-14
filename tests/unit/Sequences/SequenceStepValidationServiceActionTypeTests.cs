@@ -78,8 +78,8 @@ public sealed class SequenceStepValidationServiceActionTypeTests {
   [Fact]
   public void SupportedValuesTextJoinsAllInOrder() {
     SequenceActionTypes.SupportedValuesText.Split(", ").Should().Equal(SequenceActionTypes.All);
-    SequenceActionTypes.All.Should().HaveCount(11)
-      .And.Contain(new[] { ActionTypes.RescheduleSelf, ActionTypes.Notify });
+    SequenceActionTypes.All.Should().HaveCount(13)
+      .And.Contain(new[] { ActionTypes.RescheduleSelf, ActionTypes.Notify, ActionTypes.QuizLookup, ActionTypes.QuizLearn });
     SequenceActionTypes.All.Take(PrimitiveActionTypes.All.Count).Should().Equal(PrimitiveActionTypes.All);
   }
 

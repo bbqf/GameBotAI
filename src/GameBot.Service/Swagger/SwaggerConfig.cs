@@ -141,6 +141,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyStepThroughExamples(operation, path, method, context);
     ApplyOcrReadExamples(operation, path, method, context);
     ApplyMonitoringExamples(operation, path, method, context);
+    ApplyQuizExamples(operation, path, method, context);
     ApplyUpdateExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
     ApplyBackupRestoreExamples(operation, path, method, context);
@@ -1083,6 +1084,30 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetResponseExample(operation, "404", MonitoringError("no_restart", "No restart was made for this session."), context);
     }
   }
+
+  // Feature 142: examples of the quiz record routes.
+  private static void ApplyQuizExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!IsMethod(method, HttpMethods.Get)) return;
+
+    if (IsPath(path, ApiRoutes.QuizRecords)) {
+      SetResponseExample(operation, "200", new OpenApiArray { QuizRecordExample() }, context,
+        typeof(List<GameBot.Domain.Quiz.QuizRecord>));
+    }
+    else if (IsPath(path, ApiRoutes.QuizRecords + "/{id}")) {
+      SetResponseExample(operation, "200", QuizRecordExample(), context, typeof(GameBot.Domain.Quiz.QuizRecord));
+    }
+  }
+
+  private static OpenApiObject QuizRecordExample() => new OpenApiObject {
+    ["id"] = new OpenApiString("3f2a9c1e5b7d4a608c2e1f0a9b8c7d6e"),
+    ["store"] = new OpenApiString("pns-quiz"),
+    ["game"] = new OpenApiString("pns"),
+    ["category"] = new OpenApiString("radio"),
+    ["question"] = new OpenApiString("which planet is red"),
+    ["answer"] = new OpenApiString("mars"),
+    ["createdAt"] = new OpenApiString("2026-10-14T10:00:00Z"),
+    ["updatedAt"] = new OpenApiString("2026-10-14T10:00:00Z")
+  };
 
   private static OpenApiObject RestartRecordExample(string state, string step) => new OpenApiObject {
     ["sessionId"] = new OpenApiString("a1b2"),

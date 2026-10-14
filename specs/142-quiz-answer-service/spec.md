@@ -2,7 +2,7 @@
 
 **Feature Branch**: `142-quiz-answer-service`  
 **Created**: 2026-10-14  
-**Status**: Draft  
+**Status**: Implemented (real-emulator check pending)  
 **Input**: User description: "FR-020 (issue #302): Two new sequence steps, `quiz-lookup` and `quiz-learn`, and a shared answer store with list, get, and delete access for the operator. An unattended run reads a quiz question and its answers, gets the correct answer from the store, taps by the answer, and later stores the correct answer that the game shows."
 
 ## Clarifications

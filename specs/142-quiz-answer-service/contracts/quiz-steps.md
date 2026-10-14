@@ -1,6 +1,7 @@
 # Contract: Sequence step shapes
 
-A step has `action.type` and `action.parameters`. Region = `{ "x": int, "y": int, "width": int, "height": int }`
+A step has `action.type` and `action.parameters`. The API request names the same field `payload`
+(`primitiveAction.payload`). The example in `PayloadDescriptions` uses `payload`. Region = `{ "x": int, "y": int, "width": int, "height": int }`
 in captured-screen pixels (same as `ocrOffset`).
 
 ## quiz-lookup
