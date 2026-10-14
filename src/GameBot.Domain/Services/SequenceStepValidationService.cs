@@ -4,6 +4,7 @@ using GameBot.Domain.Commands.EnsureGameRunning;
 using GameBot.Domain.Commands.Notify;
 using GameBot.Domain.Actions;
 using GameBot.Domain.Parameters;
+using GameBot.Domain.Quiz;
 using GameBot.Domain.Utils;
 using System.Text.RegularExpressions;
 using System.Text.Json;
@@ -12,7 +13,6 @@ namespace GameBot.Domain.Services;
 
 public sealed class SequenceStepValidationService {
   private readonly StringComparer _stepIdComparer = StringComparer.Ordinal;
-  private static readonly HashSet<string> AllowedCommandOutcomeStates = new(StepOutcomeStates.All, StringComparer.OrdinalIgnoreCase);
   // Feature 102: the one list the published OpenAPI enum also uses. reschedule-self and notify are in it too, but are
   // routed to their own payload validators before this membership check runs.
   private static readonly HashSet<string> AllowedPrimitiveActionTypes = new(SequenceActionTypes.All, StringComparer.OrdinalIgnoreCase);
@@ -255,7 +255,7 @@ public sealed class SequenceStepValidationService {
       }
 
       if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
-          || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
+          || !StepOutcomeStates.IsExpectedStateAllowed(commandOutcome.ExpectedState)) {
         // FR-010a: this message named three of the five states it validates against, telling an
         // author that break/no_break were invalid in a slot that has accepted them since feature
         // 081 — the reported ceiling surviving as a message after the behaviour was fixed.
@@ -348,6 +348,16 @@ public sealed class SequenceStepValidationService {
         // feature 129: forceRestart must be a JSON boolean, and no parameter binding may supply it.
         ValidateEnsureGameRunningPayload(step, stepLabel, errors);
       }
+      else if (string.Equals(step.Action.Type, ActionTypes.QuizLookup, StringComparison.OrdinalIgnoreCase)) {
+        // feature 142: game, category, store, regions, and the similarity limit.
+        foreach (var quizError in QuizLookupPayload.Validate(step.Action)) {
+          errors.Add($"Step '{stepLabel}' quiz-lookup {quizError}.");
+        }
+      }
+      else if (string.Equals(step.Action.Type, ActionTypes.QuizLearn, StringComparison.OrdinalIgnoreCase)) {
+        // feature 142: the lookup step reference and the correct answer.
+        ValidateQuizLearnPayload(step, stepLabel, ownPosition, errors);
+      }
       else if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
         errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type (expected one of {SequenceActionTypes.SupportedValuesText}).");
       }
@@ -392,7 +402,7 @@ public sealed class SequenceStepValidationService {
       }
 
       if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
-          || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
+          || !StepOutcomeStates.IsExpectedStateAllowed(commandOutcome.ExpectedState)) {
         errors.Add($"Step '{stepLabel}' commandOutcome expectedState must be one of {StepOutcomeStates.AllText}.");
       }
     }
@@ -452,6 +462,37 @@ public sealed class SequenceStepValidationService {
     if (step.ParameterBindings is { Count: > 0 } bindings
         && bindings.Any(b => string.Equals(b.Name, EnsureGameRunningPayload.ForceRestartKey, StringComparison.OrdinalIgnoreCase))) {
       errors.Add($"Step '{stepLabel}' ensure-game-running forceRestart cannot be set with a parameter binding.");
+    }
+  }
+
+  /// <summary>
+  /// Validates a quiz-learn action at save time (feature 142): the payload shape, and that
+  /// <c>lookupStepId</c> names a <c>quiz-lookup</c> step that comes before this step.
+  /// </summary>
+  private static void ValidateQuizLearnPayload(
+      SequenceStep step,
+      string stepLabel,
+      Dictionary<SequenceStep, int> ownPosition,
+      List<string> errors) {
+    foreach (var quizError in QuizLearnPayload.Validate(step.Action)) {
+      errors.Add($"Step '{stepLabel}' quiz-learn {quizError}.");
+    }
+
+    var lookupStepId = QuizPayloadReader.ReadString(step.Action!, QuizLearnPayload.LookupStepIdKey)?.Trim();
+    if (string.IsNullOrWhiteSpace(lookupStepId)) {
+      return;
+    }
+
+    var lookup = ownPosition.Keys.FirstOrDefault(candidate =>
+      string.Equals(candidate.StepId, lookupStepId, StringComparison.Ordinal));
+    if (lookup is null
+        || !string.Equals(lookup.Action?.Type, ActionTypes.QuizLookup, StringComparison.OrdinalIgnoreCase)) {
+      errors.Add($"Step '{stepLabel}' quiz-learn lookupStepId '{lookupStepId}' must name a quiz-lookup step.");
+      return;
+    }
+
+    if (!ownPosition.TryGetValue(step, out var ownPos) || ownPosition[lookup] >= ownPos) {
+      errors.Add($"Step '{stepLabel}' quiz-learn lookupStepId '{lookupStepId}' must name a quiz-lookup step that is before this step.");
     }
   }
 

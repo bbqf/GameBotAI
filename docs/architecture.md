@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-13 (feature 141: the Monitoring area, the session list with a state, the emulator restart, the `Service:Monitoring` options;
+_Last reviewed: 2026-10-14 (feature 142: the quiz answer service, the step types `quiz-lookup` and `quiz-learn`, `/api/quiz/records`, the folder `quiz` in the data root;
+feature 141: the Monitoring area, the session list with a state, the emulator restart, the `Service:Monitoring` options;
 feature 140: phone queue activity view and schedule list, in-app back navigation with the History API, the phone support level `hidden` for Execution;
 feature 139: phone layout mode, phone support levels, web manifest, connection banner;
 feature 137: the `notify` step sends an alert at most once for each queue
@@ -657,6 +658,7 @@ Break is rejected — are published on the OpenAPI `SequenceStep` schema and its
 properties by `SequenceNestingRulesSchemaFilter` (feature 099, issue #178). The accepted
 `primitiveAction.type` values — `SequenceActionTypes.All`: tap, swipe, key, command, connect-to-game,
 WaitForImage, ensure-game-running, go-to-home-screen, ensure-emulator-running, reschedule-self, notify,
+quiz-lookup, quiz-learn,
 matched case-insensitively — are the single list behind the step validator, `ActionPayloadValidationService`
 and the OpenAPI `PrimitiveAction.type` enum. `PrimitiveActionSchemaFilter` describes each type's payload fields
 on `PrimitiveAction.payload`, and an unsupported type is rejected with 400 whose message appends
@@ -1239,12 +1241,56 @@ selected session, and a restart of the whole emulator.
   (120000) and `RestartPollIntervalMs` (3000, the wait between device checks; the screenshot interval is fixed at 2 s).
 - **OpenAPI**: `SessionMonitoringSchemaFilter` describes the DTOs and the enum values.
 
+### Quiz answer service (feature 142)
+
+A sequence can answer a quiz from a stored answer and can learn a new answer. Two service-level step types do this.
+Neither step taps. The author reads the outcome with a `commandOutcome` condition and taps the answer.
+
+- **`quiz-lookup`**: parameters `game`, `category`, `store` (all required, not blank), `question` (region),
+  `answers` (two or more regions), and `similarity` (0 to 1, default 0.85). The step reads one frame
+  (`ISessionFrameSource`) and reads the regions with `OcrRegionReader` and `ITextOcr`, the same code as `ocrOffset` and
+  `POST /api/ocr/read`. `IQuizScreenReader` wraps this (`NullQuizScreenReader` on a host with no capture). The step
+  normalizes the text (`QuizTextNormalizer`: form KC, lower case, runs of other characters become one space) and
+  looks up the best record (`QuizSimilarity`: `1 - levenshtein / max length`). A known question gives the position of
+  the stored answer text (found by the same similarity). An unknown question, or a stored answer that no current answer
+  matches, gives a random position (`IQuizRandom`). Outcomes: `pick_N` (N from 1), `unreadable` (a region has no text,
+  or the OCR engine failed; no pick), `service_unavailable` (the store cannot be used).
+- **`quiz-learn`**: parameters `lookupStepId` (an earlier `quiz-lookup` step) and one of `correctPosition` or
+  `correctRegion`. The correct text must reach the similarity limit of the lookup for exactly one answer. Outcomes:
+  `stored`, `skipped_no_match` (also when the lookup kept no result), `skipped_ambiguous`, `service_unavailable`. The
+  same key with a new answer replaces the answer and logs "replaced". A guess is never stored.
+- **Lookup result**: `QuizLookupResultKeeper` keeps the result of each lookup step for the run (key: the execution id).
+  It is in memory only. The slot is removed when the run ends. The runner sets the step id for the handler with
+  `QuizStepScope`.
+- **Outcomes in conditions**: the runner records the outcome of a quiz step as the step state, so a `commandOutcome`
+  condition can name `pick_2`, `unreadable`, and so on. `StepOutcomeStates.IsExpectedStateAllowed` accepts these names
+  (the fixed list `StepOutcomeStates.All` does not change). `success` matches `pick_N` and `stored`. A quiz step never
+  stops the sequence.
+- **Storage**: `<data root>/quiz/<hash>.json`, one file for each store. The hash is the first 32 hex characters of
+  SHA-256 of the lower-case store name. The file holds `{ name, records[] }`. A record has `id` (GUID, "N" format),
+  `store`, `game`, `category`, `question`, `answer` (normalized), `createdAt`, and `updatedAt`. The key is (store, game,
+  category, question). `game` is an exact match. `store` and `category` ignore case. `FileQuizAnswerRepository` uses a
+  gate for each store and a temporary file with a replace. A damaged file makes only its store unavailable.
+- **API**: `GET /api/quiz/records` (filters `store`, `game`, `category`), `GET /api/quiz/records/{id}`, and
+  `DELETE /api/quiz/records/{id}` (tag `Quiz`, `Endpoints/QuizEndpoints.cs`). A bad or unknown id gives 404. No route
+  creates or changes a record. Only `quiz-learn` does.
+- **Six sites**: the type list (`SequenceActionTypes.All`), the repository allow-list (`FileSequenceRepository`), the
+  step validator (`SequenceStepValidationService`), `SequenceRunner.IsServiceLevelAction`, the dispatcher
+  (`SequenceExecutionService.DispatchActionAsync`), and `StepThroughActionPreview`; plus the OpenAPI text
+  (`PrimitiveActionSchemaFilter.PayloadDescriptions`). The test `SequenceActionTypeSyncTests` fails when a type misses
+  a site. A step-through only describes a quiz step.
+- **Web UI**: the sequence editor adds the buttons "Add quiz lookup step" and "Add quiz learn step" and a field form
+  (`QuizActionFields`) with the text fields and the region inputs. There is no new page. The phone support level does
+  not change.
+- **Log**: one line for each step with the step id, the outcome, `known` or `guess`, the normalized question, and the
+  position. The log never has a secret.
+
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):
 adb, backup/restore, commands, config (+ files, logging), coverage, emulator-image,
 execution-logs, games, image-detections, image-references, metrics, notifications, queues,
-queue-templates, sessions, step-through, steps, triggers, update. Plus `SessionsController`. Swagger groups these into sections.
+queue-templates, quiz, sessions, step-through, steps, triggers, update. Plus `SessionsController`. Swagger groups these into sections.
 
 Feature 131 added three routes, tag `Update` (errors use `{ "error": { code, message, hint } }`):
 

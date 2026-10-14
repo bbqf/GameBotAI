@@ -43,4 +43,17 @@ public static class ActionTypes {
   /// </para>
   /// </summary>
   public const string Notify = "notify";
+
+  /// <summary>
+  /// Quiz-lookup action (feature 142): reads a quiz question and its answers from the screen, looks the
+  /// question up in a quiz answer store, and gives the outcome <c>pick_N</c> (the position to tap),
+  /// <c>unreadable</c>, or <c>service_unavailable</c>. A service-level action: it never taps.
+  /// </summary>
+  public const string QuizLookup = "quiz-lookup";
+
+  /// <summary>
+  /// Quiz-learn action (feature 142): stores the correct answer of an earlier <see cref="QuizLookup"/>
+  /// step in the quiz answer store. A service-level action.
+  /// </summary>
+  public const string QuizLearn = "quiz-learn";
 }

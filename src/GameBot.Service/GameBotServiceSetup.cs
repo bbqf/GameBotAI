@@ -53,6 +53,7 @@ internal static class GameBotServiceSetup {
     RegisterSessionServices(builder);
     RegisterRepositories(builder, storageRoot);
     RegisterNotificationServices(builder, storageRoot);
+    RegisterQuizServices(builder, storageRoot);
     RegisterSequenceAndQueueServices(builder);
     RegisterLoggingPolicyServices(builder, storageRoot, loggingGate, loggingComponentCatalog);
     RegisterTriggerAndImageServices(builder, storageRoot);
@@ -257,6 +258,18 @@ internal static class GameBotServiceSetup {
     builder.Services.AddHostedService<GameBot.Service.Services.Notifications.QueueNotificationWorker>();
   }
 
+  // Feature 142: the quiz answer store, the random pick, the per-run lookup results, and the two step handlers.
+  // The screen reader is registered with the screen capture services (RegisterTriggerAndImageServices).
+  private static void RegisterQuizServices(WebApplicationBuilder builder, string storageRoot) {
+    builder.Services.AddSingleton<GameBot.Domain.Quiz.IQuizAnswerRepository>(sp => new GameBot.Domain.Quiz.FileQuizAnswerRepository(
+      storageRoot, sp.GetService<ILogger<GameBot.Domain.Quiz.FileQuizAnswerRepository>>(), sp.GetService<TimeProvider>()));
+    builder.Services.AddSingleton<GameBot.Domain.Quiz.IQuizRandom, GameBot.Domain.Quiz.SystemQuizRandom>();
+    builder.Services.AddSingleton<GameBot.Service.Services.Quiz.QuizLookupResultKeeper>(sp =>
+      new GameBot.Service.Services.Quiz.QuizLookupResultKeeper(sp.GetService<TimeProvider>()));
+    builder.Services.AddSingleton<GameBot.Service.Services.Quiz.QuizLookupHandler>();
+    builder.Services.AddSingleton<GameBot.Service.Services.Quiz.QuizLearnHandler>();
+  }
+
   private static void RegisterSequenceAndQueueServices(WebApplicationBuilder builder) {
     builder.Services.AddSingleton<GameBot.Service.Services.ExecutionLog.IExecutionLogService, GameBot.Service.Services.ExecutionLog.ExecutionLogService>();
     builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.ISequenceExecutionService, GameBot.Service.Services.SequenceExecution.SequenceExecutionService>();
@@ -431,10 +444,16 @@ internal static class GameBotServiceSetup {
         GameBot.Service.Services.SequenceExecution.BackgroundCaptureSessionFrameSource>();
       builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.IOcrOffsetResolver,
         GameBot.Service.Services.SequenceExecution.OcrOffsetResolver>();
+      // Feature 142: the quiz steps read the screen through the same frame source and OCR engine.
+      builder.Services.AddSingleton<GameBot.Service.Services.Quiz.IQuizScreenReader,
+        GameBot.Service.Services.Quiz.QuizScreenReader>();
     }
     else {
       builder.Services.AddSingleton<GameBot.Service.Services.SequenceExecution.IOcrOffsetResolver,
         GameBot.Service.Services.SequenceExecution.StaticFallbackOcrOffsetResolver>();
+      // Feature 142: no screen capture or no OCR on this host, so a quiz lookup gives unreadable.
+      builder.Services.AddSingleton<GameBot.Service.Services.Quiz.IQuizScreenReader,
+        GameBot.Service.Services.Quiz.NullQuizScreenReader>();
     }
     // Register template matcher (no endpoint yet; foundational only in Phase 2)
     builder.Services.AddSingleton<GameBot.Domain.Vision.ITemplateMatcher, GameBot.Domain.Vision.TemplateMatcher>();

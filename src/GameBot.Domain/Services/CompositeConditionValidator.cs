@@ -20,13 +20,6 @@ namespace GameBot.Domain.Services;
 /// </summary>
 public static class CompositeConditionValidator {
   /// <summary>
-  /// The set of <c>commandOutcome</c> expected states a condition may name. Mirrors the list the
-  /// per-step validator enforces for a top-level condition.
-  /// </summary>
-  private static readonly HashSet<string> AllowedCommandOutcomeStates =
-    new(StepOutcomeStates.All, System.StringComparer.OrdinalIgnoreCase);
-
-  /// <summary>
   /// Validates <paramref name="condition"/> and everything beneath it, appending one message per
   /// problem to <paramref name="errors"/>.
   /// </summary>
@@ -130,7 +123,7 @@ public static class CompositeConditionValidator {
         }
 
         if (string.IsNullOrWhiteSpace(commandOutcome.ExpectedState)
-            || !AllowedCommandOutcomeStates.Contains(commandOutcome.ExpectedState)) {
+            || !StepOutcomeStates.IsExpectedStateAllowed(commandOutcome.ExpectedState)) {
           errors.Add($"Step '{stepLabel}' condition at {path}: commandOutcome expectedState must be one of {StepOutcomeStates.AllText}.");
         }
 

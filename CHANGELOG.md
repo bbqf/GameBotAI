@@ -12,6 +12,16 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Added
+- A quiz answer service for sequences. A sequence can answer a quiz from a stored answer and can learn a new answer (142-quiz-answer-service)
+  - **Step `quiz-lookup`**: it reads the question and the answers from the screen (one frame, the same OCR code as `ocrOffset`). It looks the question up in a store for one game and one category. The outcome is `pick_N` (the position to tap, N from 1), `unreadable`, or `service_unavailable`. A known question gives the stored answer. An unknown question gives a random pick (a guess). The step never taps. A later `commandOutcome` condition can read the outcome, for example `pick_2`.
+  - **Step `quiz-learn`**: it stores the correct answer of an earlier lookup step, by position or by screen region. The outcome is `stored`, `skipped_no_match`, `skipped_ambiguous`, or `service_unavailable`. A guess is never stored.
+  - **Store**: one JSON file for each store in the folder `quiz` of the data root. `game` is an exact match. `store` and `category` ignore case. A damaged file makes only its store unavailable.
+  - New routes, tag `Quiz`: `GET /api/quiz/records` (filters `store`, `game`, `category`), `GET /api/quiz/records/{id}`, `DELETE /api/quiz/records/{id}`. No route creates or changes a record.
+  - A `commandOutcome` condition now also accepts `pick_N`, `unreadable`, `service_unavailable`, `stored`, `skipped_no_match`, and `skipped_ambiguous`. The list of the six other states does not change.
+  - **Web UI**: the sequence editor has the buttons "Add quiz lookup step" and "Add quiz learn step" and a field form with the region inputs.
+  - A test now checks that each type in `SequenceActionTypes.All` is in all six backend sites. See `docs/architecture.md`.
+  - **Compatibility**: no change to stored data. The new folder `quiz` is made on the first learn.
+  - The patch version is now 4, so the next build is `1.10.4.<run number>`.
 - A Monitoring area in the Web UI. The operator sees a live picture of each session and can restart a whole emulator (141-emulator-monitoring)
   - **Monitoring area**: it is in the desktop navigation and in the phone More sheet (phone level `full`). It lists all sessions with a state: live, no answer, restarting, or stopping. The selected session shows a screenshot that updates every 2 s. The UI sends one screenshot request at a time, only for the selected session, and pauses when the page is hidden. A failed request keeps the last picture and shows "No live picture".
   - **Restart emulator**: a confirm dialog starts the restart. The dialog warns when a queue uses the emulator. The page shows each step and the result. The restart stops and starts the LDPlayer instance with `ldconsole reboot`, waits for the device, and connects the session again with the same session id. It ends in at most 2 minutes.

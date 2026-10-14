@@ -92,7 +92,7 @@ public sealed class PrimitiveActionTypesOpenApiTests {
     var values = EnumValues(Property(PrimitiveActionSchema(document), "type"));
 
     values.Should().Equal(SequenceActionTypes.All);
-    values.Should().HaveCount(11);
+    values.Should().HaveCount(13);
   }
 
   [Fact]

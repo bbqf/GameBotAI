@@ -90,8 +90,39 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
         + "local time of day (as in the lastRun condition). within, string HH:mm:ss, optional, from 00:00:01 to 24:00:00: "
         + "the window is the last such duration. Use since or within, not both. The step outcome is sent when the alert "
         + "was delivered and suppressed when the window already has an alert; a delivery that fails does not start a window. "
-        + "A step without dedupeKey sends every time."
+        + "A step without dedupeKey sends every time.",
+      [ActionTypes.QuizLookup] =
+        "game, category, store, strings, required, not blank. question, region {x, y, width, height} (integers in capture "
+        + "pixels, width and height more than 0), required: where the question text is. answers, list of 2 or more regions, "
+        + "required: where the answer texts are, in order. similarity, number from 0 to 1, optional (default 0.85): the "
+        + "lowest text similarity for a match. The step reads one frame, looks the question up in the store of that game "
+        + "and category (game exact, category and store without case) and never taps. The outcome is pick_N (N from 1: "
+        + "the position of the answer, as a stored answer or as a random guess when the question is not known), "
+        + "unreadable (a region has no readable text or the OCR engine failed; no pick is made), or service_unavailable "
+        + "(the store cannot be used). A later commandOutcome condition can read the outcome, for example expectedState "
+        + "pick_2. The step never fails the sequence. Example step: " + QuizLookupExample,
+      [ActionTypes.QuizLearn] =
+        "lookupStepId, string, required: the id of a quiz-lookup step that is before this step. Exactly one of "
+        + "correctPosition (integer from 1: the position of the correct answer) or correctRegion (region {x, y, width, "
+        + "height}: where the screen shows the correct answer text). The correct text must reach the similarity limit "
+        + "of the lookup for exactly one answer. The outcome is stored, skipped_no_match (no lookup result, or no "
+        + "matching answer), skipped_ambiguous (more than one matching answer), or service_unavailable (the store "
+        + "cannot be used). A step with a wrong shape is rejected with 400. Example step: " + QuizLearnExample
     };
+
+  /// <summary>
+  /// The example <c>quiz-lookup</c> action of <c>contracts/quiz-steps.md</c>. The request names the fields <c>payload</c>.
+  /// The stored step names them <c>parameters</c>.
+  /// </summary>
+  internal const string QuizLookupExample =
+    "{\"type\":\"quiz-lookup\",\"payload\":{\"game\":\"pns\",\"category\":\"radio\",\"store\":\"pns-quiz\","
+    + "\"question\":{\"x\":40,\"y\":200,\"width\":400,\"height\":90},"
+    + "\"answers\":[{\"x\":40,\"y\":320,\"width\":400,\"height\":60},{\"x\":40,\"y\":400,\"width\":400,\"height\":60},"
+    + "{\"x\":40,\"y\":480,\"width\":400,\"height\":60}],\"similarity\":0.85}}";
+
+  /// <summary>The example <c>quiz-learn</c> action of <c>contracts/quiz-steps.md</c>.</summary>
+  internal const string QuizLearnExample =
+    "{\"type\":\"quiz-learn\",\"payload\":{\"lookupStepId\":\"lookup-1\",\"correctPosition\":2}}";
 
   /// <summary>The published <c>payload</c> description: an intro, then one <c>- type: fields</c> line per type.</summary>
   internal static readonly string PayloadDescription = BuildPayloadDescription();

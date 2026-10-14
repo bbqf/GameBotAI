@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { SequencePrimitiveActionPayload } from '../../types/sequenceFlow';
 import type { ParameterScopeEntry } from '../parameters/types';
 import { ParameterizableField } from '../parameters/ParameterizableField';
+import { QuizActionFields, isQuizActionType } from './QuizActionFields';
 
 /**
  * How one payload slot is edited. Decided once from the value the sequence was loaded with, not
@@ -63,7 +64,7 @@ export type PrimitiveActionFieldsProps = {
  * Slots holding an object or array (an OCR region, say) are preserved verbatim and shown read-only:
  * they round-trip untouched, which matters more than editing them here.
  */
-export const PrimitiveActionFields: React.FC<PrimitiveActionFieldsProps> = ({
+const GenericPrimitiveActionFields: React.FC<PrimitiveActionFieldsProps> = ({
   action, onChange, scope, disabled, idPrefix,
 }) => {
   const payload = action.payload ?? {};
@@ -136,3 +137,12 @@ export const PrimitiveActionFields: React.FC<PrimitiveActionFieldsProps> = ({
     </div>
   );
 };
+
+/**
+ * Picks the editor for an inline action. The quiz steps (feature 142) have their own field form with region
+ * inputs. Every other inline action uses the generic payload form above.
+ */
+export const PrimitiveActionFields: React.FC<PrimitiveActionFieldsProps> = (props) =>
+  isQuizActionType(props.action.type)
+    ? <QuizActionFields {...props} />
+    : <GenericPrimitiveActionFields {...props} />;

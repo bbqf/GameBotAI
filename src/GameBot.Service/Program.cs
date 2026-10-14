@@ -131,6 +131,8 @@ app.MapConfigFilesEndpoints(storageRoot);
 app.MapCoverageEndpoints();
 app.MapOcrReadEndpoints();
 app.MapExecutionLogEndpoints();
+// Quiz answer store: list, read, delete (feature 142)
+app.MapQuizEndpoints();
 app.MapBackupRestoreEndpoints();
 
 // Versioning + installer endpoints

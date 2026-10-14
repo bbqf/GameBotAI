@@ -36,12 +36,23 @@ public static class StepOutcomeStates {
   public static bool IsAllowed(string? state) => state is not null && AllSet.Contains(state);
 
   /// <summary>
+  /// True when a <c>commandOutcome</c> condition may expect <paramref name="state"/>: one of <see cref="All"/>, or
+  /// an outcome of a quiz step (feature 142), for example <c>pick_2</c>.
+  /// </summary>
+  public static bool IsExpectedStateAllowed(string? state) => IsAllowed(state) || GameBot.Domain.Quiz.QuizOutcomes.IsQuizOutcome(state);
+
+  /// <summary>
   /// True when a step whose recorded state is <paramref name="actual"/> satisfies a condition that
   /// expects <paramref name="expected"/>. A restarted step also matches <c>success</c>, so an existing
   /// condition on <c>success</c> keeps working. <c>restarted</c> matches only a restarted step.
   /// </summary>
   public static bool Matches(string? actual, string? expected) {
     if (string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase)) return true;
+    // Feature 142: a quiz step that did its work (a pick or a stored answer) also matches success.
+    if (string.Equals(expected, Success, StringComparison.OrdinalIgnoreCase)
+        && GameBot.Domain.Quiz.QuizOutcomes.IsSuccessful(actual)) {
+      return true;
+    }
     return string.Equals(actual, Restarted, StringComparison.OrdinalIgnoreCase)
         && string.Equals(expected, Success, StringComparison.OrdinalIgnoreCase);
   }

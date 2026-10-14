@@ -10,11 +10,14 @@ namespace GameBot.Domain.Actions;
 public static class SequenceActionTypes {
   /// <summary>
   /// Every supported type in canonical spelling: the device primitives of <see cref="PrimitiveActionTypes.All"/> in
-  /// their order, then the service-level <see cref="ActionTypes.RescheduleSelf"/> and <see cref="ActionTypes.Notify"/>.
+  /// their order, then the service-level <see cref="ActionTypes.RescheduleSelf"/>, <see cref="ActionTypes.Notify"/>,
+  /// <see cref="ActionTypes.QuizLookup"/>, and <see cref="ActionTypes.QuizLearn"/>.
   /// Callers match against it case-insensitively.
   /// </summary>
   public static IReadOnlyList<string> All { get; } = new ReadOnlyCollection<string>(
-    PrimitiveActionTypes.All.Concat(new[] { ActionTypes.RescheduleSelf, ActionTypes.Notify }).ToArray());
+    PrimitiveActionTypes.All
+      .Concat(new[] { ActionTypes.RescheduleSelf, ActionTypes.Notify, ActionTypes.QuizLookup, ActionTypes.QuizLearn })
+      .ToArray());
 
   /// <summary>
   /// <see cref="All"/> joined with ", " in its order, the form validation messages use after "expected one of".
