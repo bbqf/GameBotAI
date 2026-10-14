@@ -108,7 +108,14 @@ hard failure (see Halting rules) stops the run.
 8. **`/speckit-implement`** *(sub-agent)* — execute the tasks. Report: tasks
    completed / skipped, test and build results, anything left undone.
 9. **Commit the implementation** *(sub-agent)* — run `/speckit-git-commit` again
-   to commit all changes produced by `implement`. Report: the commit SHA.
+   to commit all changes produced by `implement`. **Before this commit, the
+   sub-agent bumps the version** (constitution, "Version bump"): compare
+   `installer/versioning/version.override.json` with `origin/master`
+   (`git fetch origin master` first). If `minor` or `major` changed, set `patch`
+   to `"0"`. Otherwise set `patch` to the `patch` on `origin/master` plus 1. Do
+   nothing if the file already has that value. Set `updatedBy` and
+   `updatedAtUtc`, and add a line about the version to the `CHANGELOG.md` entry.
+   Report: the commit SHA and the new version.
 10. **Push and wait for CI** *(sub-agent)* — push the branch to `origin`, then
     wait for the GitHub Actions CI runs to finish. **This can take several
     minutes; the sub-agent must keep waiting and not give up early** (a single

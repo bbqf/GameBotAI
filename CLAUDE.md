@@ -6,6 +6,8 @@ Write all new or changed text in ASD-STE100 Simplified Technical English (STE): 
 
 When editing UTF-8 files in this repo, prefer the Edit/Write tools over `Get-Content`/`Set-Content`: PS 5.1 reads as ANSI and writes a BOM, which turns em-dashes and arrows into mojibake.
 
+Before you push a branch for a new PR, bump the version in `installer/versioning/version.override.json` (constitution, "Version bump"). Run `git fetch origin master` and compare the file with `origin/master`. If `minor` or `major` changed, set `patch` to `"0"`. If not, set `patch` to the `patch` on `origin/master` plus 1. Do nothing if the file already has this value. Set `updatedBy` and `updatedAtUtc`. Do this on your own, with no prompt.
+
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
