@@ -28,6 +28,12 @@ public static class GamepackFileSerializer {
   private static readonly JsonSerializerOptions ManifestOptions = new(JsonSerializerDefaults.Web);
   private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
+  /// <summary>The JSON options for a sequence. The queue settings document (feature 145) uses the same options.</summary>
+  internal static JsonSerializerOptions SequenceJsonOptions => SequenceOptions;
+
+  /// <summary>The JSON options for a command. The queue settings document (feature 145) uses the same options.</summary>
+  internal static JsonSerializerOptions CommandJsonOptions => CommandOptions;
+
   /// <summary>Parses the text of a gamepack file.</summary>
   /// <param name="json">The file text.</param>
   public static GamepackParseResult Parse(string json) {

@@ -56,6 +56,7 @@ internal static class GameBotServiceSetup {
     RegisterNotificationServices(builder, storageRoot);
     RegisterQuizServices(builder, storageRoot);
     builder.Services.AddGamepacks(storageRoot);
+ builder.Services.AddQueueSettings();
     RegisterSequenceAndQueueServices(builder);
     RegisterLoggingPolicyServices(builder, storageRoot, loggingGate, loggingComponentCatalog);
     RegisterTriggerAndImageServices(builder, storageRoot);
@@ -107,6 +108,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<QueueDeviceRecoverySchemaFilter>();
       options.SchemaFilter<QueueSequenceStatsSchemaFilter>();
       options.SchemaFilter<GamepackSchemaFilter>();
+ options.SchemaFilter<QueueSettingsSchemaFilter>();
       options.SchemaFilter<ApiVersionSchemaFilter>();
       options.SchemaFilter<ImageAlternatesSchemaFilter>();
       options.SchemaFilter<SequenceNestingRulesSchemaFilter>();

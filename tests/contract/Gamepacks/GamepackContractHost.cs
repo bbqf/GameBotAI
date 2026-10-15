@@ -23,7 +23,7 @@ namespace GameBot.ContractTests.Gamepacks;
 internal sealed class GamepackContractHost : IDisposable {
   private readonly WebApplicationFactory<Program> _factory;
 
-  public GamepackContractHost(bool withThrowingGate = false) {
+  public GamepackContractHost(bool withThrowingGate = false, Action<IServiceCollection, string>? configure = null) {
     Root = Path.Combine(Path.GetTempPath(), "GameBotContract", "gp" + Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(Root);
     Environment.SetEnvironmentVariable("GAMEBOT_DATA_DIR", Root);
@@ -33,6 +33,10 @@ internal sealed class GamepackContractHost : IDisposable {
     Environment.SetEnvironmentVariable("GAMEBOT_AUTH_TOKEN", "test-token");
     Gate = new ThrowingWriteGate();
     _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => {
+      if (configure is not null) {
+        builder.ConfigureServices(services => configure(services, Root));
+      }
+
       if (withThrowingGate) {
         builder.ConfigureServices(services => {
           services.RemoveAll<IGamepackWriteGate>();

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `145-export-import-queue-settings`  
 **Created**: 2026-10-15  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Export and import queue settings by name, without copies of gamepack content. GitHub issue #306 (FR-023). Closes #306."
 
 ## Clarifications
