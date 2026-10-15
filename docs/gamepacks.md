@@ -23,7 +23,9 @@ version as the owner of each object. This page tells how to use the three routes
   is not a reserved Windows device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, with or without
   an extension). Two names that differ only in case are the same gamepack.
 - `manifest.version`: text. It must not be empty. The service does not order versions.
-- `manifest.requiredApiMajor`: optional. The service stores it and shows it in the list. It never checks it.
+- `manifest.requiredApiMajor`: optional. It is a whole number of 1 or more. The install and the dry run refuse a file when
+  it differs from the running API major version. The service stores it and shows it in the list. See the section "API
+  version and compatibility".
 - An image has `id` (its name), `contentType` (`image/png` or `image/jpeg`), an optional `filename`, and `dataBase64`. The
   decoded image has at most 10,000,000 bytes. The image `id` follows the rule of the existing image ids.
 - A request has at most 100 MB. A larger request gets a 413 problem response, and nothing changes.
@@ -46,7 +48,7 @@ The check finds all problems. It does not stop at the first. A problem has `cate
 `conflict`), `objectType`, `name`, `owner` (text), and `message`.
 
 - **Structure**: a missing manifest field, a bad name, two objects with the same name in the file, a bad image type, bad
-  base64, or an image larger than the limit.
+  base64, an image larger than the limit, or a `requiredApiMajor` that differs from the running API major version.
 - **Reference**: a step names a command or an image that is not in the file and not in the installation. A target that the
   install removes does not count.
 - **Conflict**: an object in the file has the same type and name as an object that the user made or that another gamepack
@@ -77,6 +79,32 @@ The route returns a gamepack to its kept previous version. The name matches with
 - Hand edits that you make after the install of the newer version are lost by a rollback.
 
 No route uninstalls a gamepack.
+
+## API version and compatibility
+
+The platform has one API version. The next line shows it. A test keeps this line equal to the code.
+
+API version: 1.0.0, schema format 1
+
+The rule: inside one major version, a sequence or command that was valid stays valid. A change that breaks this rule
+raises the major version.
+
+- **Major**: a change that can make an existing valid sequence or command invalid.
+- **Minor**: a new feature that keeps all existing content valid.
+- **Patch**: a fix that does not change the contract.
+- **Schema format**: the version of the stored format of sequences and commands.
+
+Read the version with `GET /api/version`. The response has `major`, `minor`, `patch`, and `schemaFormat`. Two calls give the
+same values.
+
+A gamepack can state `manifest.requiredApiMajor`. If the value differs from the running major version, the install and the
+dry run refuse the file. The install gives 422, and the dry run gives 200 with `valid: false`. The problem has the
+category `structure`, the object type `manifest`, and a message such as
+`The gamepack needs API major version 2. This platform runs API major version 1.` A value below 1 gives the message
+`The required API major version must be a whole number of 1 or more.` A value that is not a whole number gives the message
+`The manifest has a wrong shape.` Nothing changes when the check finds a problem. Minor and patch numbers are not compared.
+
+The rollback does not check the API major version. It restores content that the platform accepted before.
 
 ## The owner field
 

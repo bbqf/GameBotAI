@@ -38,14 +38,16 @@ public sealed class GamepackValidator {
   /// <param name="file">The file. Its objects change when there is no problem (references are rewritten).</param>
   /// <param name="parseProblems">Problems that the parse found, or null.</param>
   /// <param name="ct">The cancellation token.</param>
-  public async Task<GamepackValidationResult> ValidateAsync(GamepackFile file, IReadOnlyList<GamepackProblem>? parseProblems = null, CancellationToken ct = default) {
+  /// <param name="checkApiVersion">True to compare <c>requiredApiMajor</c> with the running API major version. A rollback passes false.</param>
+  [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "The new optional flag goes last, so that existing callers keep their call shape.")]
+  public async Task<GamepackValidationResult> ValidateAsync(GamepackFile file, IReadOnlyList<GamepackProblem>? parseProblems = null, CancellationToken ct = default, bool checkApiVersion = true) {
     ArgumentNullException.ThrowIfNull(file);
     var problems = new List<GamepackProblem>();
     if (parseProblems is not null) {
       problems.AddRange(parseProblems);
     }
 
-    var decoded = CheckStructure(file, problems);
+    var decoded = CheckStructure(file, problems, checkApiVersion);
 
     var existingSequences = await _sequences.ListAsync().ConfigureAwait(false);
     var existingCommands = await _commands.ListAsync(ct).ConfigureAwait(false);
@@ -73,7 +75,7 @@ public sealed class GamepackValidator {
 
   // ---- structure ----
 
-  private static Dictionary<string, byte[]> CheckStructure(GamepackFile file, List<GamepackProblem> problems) {
+  private static Dictionary<string, byte[]> CheckStructure(GamepackFile file, List<GamepackProblem> problems, bool checkApiVersion) {
     var decoded = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
     var manifest = file.Manifest;
     if (manifest is not null) {
@@ -84,6 +86,18 @@ public sealed class GamepackValidator {
 
       if (string.IsNullOrWhiteSpace(manifest.Version)) {
         problems.Add(Structure(GamepackObjectTypes.Manifest, manifest.Name, "The gamepack version is required."));
+      }
+
+      if (checkApiVersion && manifest.RequiredApiMajor is { } required) {
+        if (required < 1) {
+          problems.Add(Structure(GamepackObjectTypes.Manifest, manifest.Name, "The required API major version must be a whole number of 1 or more."));
+        }
+        else if (required != ApiVersion.Major) {
+          problems.Add(Structure(
+            GamepackObjectTypes.Manifest,
+            manifest.Name,
+            $"The gamepack needs API major version {required.ToString(CultureInfo.InvariantCulture)}. This platform runs API major version {ApiVersion.Major.ToString(CultureInfo.InvariantCulture)}."));
+        }
       }
     }
 

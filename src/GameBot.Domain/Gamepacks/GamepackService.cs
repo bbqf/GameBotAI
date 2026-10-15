@@ -251,7 +251,8 @@ public sealed partial class GamepackService : IDisposable {
         return new GamepackRollbackOutcome { Status = GamepackRollbackStatus.Refused, Name = record.Name, Problems = parsed.Problems };
       }
 
-      var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct).ConfigureAwait(false);
+      // A rollback restores kept content that the install accepted before. It does not check the API major version.
+      var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct, checkApiVersion: false).ConfigureAwait(false);
       if (!check.IsValid || check.Plan is null) {
         return new GamepackRollbackOutcome { Status = GamepackRollbackStatus.Refused, Name = record.Name, Version = record.Version, Problems = check.Problems };
       }

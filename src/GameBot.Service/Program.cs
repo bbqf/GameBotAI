@@ -135,6 +135,7 @@ app.MapExecutionLogEndpoints();
 app.MapQuizEndpoints();
 // Gamepack install, list, and rollback (feature 143)
 app.MapGamepackEndpoints();
+app.MapVersionEndpoints();
 app.MapBackupRestoreEndpoints();
 
 // Versioning + installer endpoints

@@ -21,7 +21,7 @@ public sealed class GamepackListContractTests {
   public async Task TwoInstalledGamepacksAreListedWithTheirFields() {
     using var host = new GamepackContractHost();
     (await host.InstallAsync(GamepackTestKit.Pack("beta", "2.0", changelog: "Beta text."))).StatusCode.Should().Be(HttpStatusCode.OK);
-    (await host.InstallAsync("{\"manifest\":{\"name\":\"alpha\",\"version\":\"1.0\",\"changelog\":\"Alpha text.\",\"requiredApiMajor\":3}}")).StatusCode.Should().Be(HttpStatusCode.OK);
+    (await host.InstallAsync("{\"manifest\":{\"name\":\"alpha\",\"version\":\"1.0\",\"changelog\":\"Alpha text.\",\"requiredApiMajor\":" + GameBot.Domain.Gamepacks.ApiVersion.Major + "}}")).StatusCode.Should().Be(HttpStatusCode.OK);
     (await host.InstallAsync(GamepackTestKit.Pack("beta", "2.1", changelog: "Beta two."))).StatusCode.Should().Be(HttpStatusCode.OK);
 
     var list = await host.GetJsonAsync("/api/gamepacks");
@@ -31,7 +31,7 @@ public sealed class GamepackListContractTests {
     alpha.GetProperty("name").GetString().Should().Be("alpha");
     alpha.GetProperty("version").GetString().Should().Be("1.0");
     alpha.GetProperty("changelog").GetString().Should().Be("Alpha text.");
-    alpha.GetProperty("requiredApiMajor").GetInt32().Should().Be(3);
+    alpha.GetProperty("requiredApiMajor").GetInt32().Should().Be(GameBot.Domain.Gamepacks.ApiVersion.Major);
     alpha.GetProperty("hasPreviousVersion").GetBoolean().Should().BeFalse();
     alpha.GetProperty("installedAtUtc").GetDateTimeOffset().Should().BeAfter(DateTimeOffset.UtcNow.AddMinutes(-5));
     var beta = list[1];
