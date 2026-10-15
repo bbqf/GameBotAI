@@ -22,7 +22,8 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
     + "stored object (member names are not case-sensitive). An image has id, contentType (image/png or image/jpeg), filename, "
     + "and dataBase64 (at most 10,000,000 bytes decoded). The request can have at most 100 MB. The manifest has name (1 to 64 "
     + "characters from letters, digits, underscore, hyphen, and dot; no leading dot; no reserved device name), version, "
-    + "changelog, and the optional requiredApiMajor. The service stores requiredApiMajor and does not check it.";
+    + "changelog, and the optional requiredApiMajor. The install refuses a gamepack when requiredApiMajor differs from the running API major version "
+    + "(read it with GET /api/version). The field is optional.";
 
   private static readonly Dictionary<string, string> ProblemFields = new() {
     ["category"] = "structure, reference, or conflict.",

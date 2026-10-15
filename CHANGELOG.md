@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Added
+- API version and gamepack compatibility. The service has an API version, and a gamepack can say which API major version it needs (144-api-version-compat)
+  - **Route**: `GET /api/version` returns the API version of the service.
+  - **Check**: a gamepack for another API major version is refused at install, and in the dry run, with a clear report.
+  - See `docs/gamepacks.md` and `docs/architecture.md`.
+  - The patch version is now 6, so the next build is `1.10.6.<run number>`.
 - Gamepack install. A gamepack is one JSON file with a manifest and lists of sequences, commands, and images. The service installs it as one unit: all objects, or none (143-gamepack-install)
   - **Install**: `POST /api/gamepacks/install`. Query `dryRun=true` checks the file and changes no data. The check finds all problems of three kinds: `structure`, `reference`, and `conflict`. An install with problems gives 422 and changes nothing. A write failure gives 500, and the service restores the state from before the request. If the restore also fails, the body has `"result": "partial_restore"`.
   - **Owner**: the service records the gamepack name and version as the owner of each object. A read of a sequence, a command, or an image (metadata) shows a read-only `owner` (`{ "kind": "user" }` or `{ "kind": "gamepack", "name", "version" }`). The image list adds `items` next to `ids`. A gamepack never overwrites or removes an object of the user or of another gamepack. A conflict report names the type, the name, and the owner.

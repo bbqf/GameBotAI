@@ -74,13 +74,13 @@ public sealed class GamepackImageRulesContractTests {
   }
 
   [Fact]
-  public async Task AManifestWithRequiredApiMajorIsStoredAndShownButNotChecked() {
+  public async Task AManifestWithRequiredApiMajorIsStoredAndShown() {
     using var host = new GamepackContractHost();
-    var json = "{\"manifest\":{\"name\":\"p\",\"version\":\"1\",\"requiredApiMajor\":99}}";
+    var json = "{\"manifest\":{\"name\":\"p\",\"version\":\"1\",\"requiredApiMajor\":" + GameBot.Domain.Gamepacks.ApiVersion.Major + "}}";
     var response = await host.InstallAsync(json);
     response.StatusCode.Should().Be(HttpStatusCode.OK);
     var list = await host.GetJsonAsync("/api/gamepacks");
-    list[0].GetProperty("requiredApiMajor").GetInt32().Should().Be(99);
+    list[0].GetProperty("requiredApiMajor").GetInt32().Should().Be(GameBot.Domain.Gamepacks.ApiVersion.Major);
   }
 
   [Fact]

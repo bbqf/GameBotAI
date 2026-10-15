@@ -1317,6 +1317,10 @@ user guide is `docs/gamepacks.md`. The code is in `src/GameBot.Domain/Gamepacks/
 - **Hand routes**: the delete routes of the three stores call `GamepackService.RemoveOwner`. The create routes call
   `GamepackOwnedNameGuard` and give 409 when the name belongs to a gamepack object. Edit routes do not change.
 - **OpenAPI**: `Swagger/GamepackSchemaFilter` describes the new schemas and the `owner` member.
+- **API version (feature 144)**: `ApiVersion` in `src/GameBot.Domain/Gamepacks/` is the one source of the API version.
+  `GET /api/version` (tag `Version`) shows it. The validator refuses a `requiredApiMajor` that differs from the running
+  major version. The rollback skips this check. The rule is in the section "API version and compatibility" of
+  `docs/gamepacks.md`.
 
 ## REST API surface
 

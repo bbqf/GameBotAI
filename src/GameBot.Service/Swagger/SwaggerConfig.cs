@@ -143,6 +143,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyMonitoringExamples(operation, path, method, context);
     ApplyQuizExamples(operation, path, method, context);
     ApplyGamepackExamples(operation, path, method, context);
+    ApplyVersionExamples(operation, path, method, context);
     ApplyUpdateExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
     ApplyBackupRestoreExamples(operation, path, method, context);
@@ -1088,6 +1089,16 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
 
   // Feature 142: examples of the quiz record routes.
   // ── Feature 143: gamepack install, list, and rollback ───────────────────────────────────────
+
+  private static void ApplyVersionExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!IsMethod(method, HttpMethods.Get) || !IsPath(path, ApiRoutes.Version)) return;
+    SetResponseExample(operation, "200", new OpenApiObject {
+      ["major"] = new OpenApiInteger(1),
+      ["minor"] = new OpenApiInteger(0),
+      ["patch"] = new OpenApiInteger(0),
+      ["schemaFormat"] = new OpenApiInteger(1)
+    }, context, typeof(GameBot.Service.Endpoints.Dto.ApiVersionResponse));
+  }
 
   private static void ApplyGamepackExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Gamepacks + "/install")) {
