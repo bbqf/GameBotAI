@@ -133,6 +133,8 @@ app.MapOcrReadEndpoints();
 app.MapExecutionLogEndpoints();
 // Quiz answer store: list, read, delete (feature 142)
 app.MapQuizEndpoints();
+// Gamepack install, list, and rollback (feature 143)
+app.MapGamepackEndpoints();
 app.MapBackupRestoreEndpoints();
 
 // Versioning + installer endpoints

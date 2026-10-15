@@ -142,6 +142,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyOcrReadExamples(operation, path, method, context);
     ApplyMonitoringExamples(operation, path, method, context);
     ApplyQuizExamples(operation, path, method, context);
+    ApplyGamepackExamples(operation, path, method, context);
     ApplyUpdateExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
     ApplyBackupRestoreExamples(operation, path, method, context);
@@ -1086,6 +1087,80 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
   }
 
   // Feature 142: examples of the quiz record routes.
+  // ── Feature 143: gamepack install, list, and rollback ───────────────────────────────────────
+
+  private static void ApplyGamepackExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Gamepacks + "/install")) {
+      operation.Summary ??= "Install a gamepack as one unit, or check it with dryRun=true";
+      SetRequestExample(operation, new OpenApiObject {
+        ["manifest"] = new OpenApiObject {
+          ["name"] = new OpenApiString("demo-pack"),
+          ["version"] = new OpenApiString("1.0.0"),
+          ["changelog"] = new OpenApiString("First version.")
+        },
+        ["sequences"] = new OpenApiArray(),
+        ["commands"] = new OpenApiArray(),
+        ["images"] = new OpenApiArray()
+      }, context, typeof(GameBot.Service.Endpoints.GamepacksEndpoints.GamepackInstallRequestBody));
+      var gamepack = new OpenApiObject { ["name"] = new OpenApiString("demo-pack"), ["version"] = new OpenApiString("1.0.0") };
+      SetResponseExample(operation, "200", new OpenApiObject {
+        ["dryRun"] = new OpenApiBoolean(false),
+        ["valid"] = new OpenApiBoolean(true),
+        ["problems"] = new OpenApiArray(),
+        ["gamepack"] = gamepack,
+        ["created"] = new OpenApiInteger(3),
+        ["updated"] = new OpenApiInteger(0),
+        ["removed"] = new OpenApiInteger(0)
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackInstallResponse));
+      var problems = new OpenApiArray { GamepackProblemExample() };
+      var invalid = new OpenApiObject {
+        ["dryRun"] = new OpenApiBoolean(false),
+        ["valid"] = new OpenApiBoolean(false),
+        ["problems"] = problems,
+        ["created"] = new OpenApiInteger(0),
+        ["updated"] = new OpenApiInteger(0),
+        ["removed"] = new OpenApiInteger(0)
+      };
+      SetResponseExample(operation, "422", invalid, context, typeof(GameBot.Service.Endpoints.Dto.GamepackInstallResponse));
+      SetResponseExample(operation, "400", invalid, context, typeof(GameBot.Service.Endpoints.Dto.GamepackInstallResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.Gamepacks)) {
+      SetResponseExample(operation, "200", new OpenApiArray {
+        new OpenApiObject {
+          ["name"] = new OpenApiString("demo-pack"),
+          ["version"] = new OpenApiString("1.0.0"),
+          ["changelog"] = new OpenApiString("First version."),
+          ["requiredApiMajor"] = new OpenApiNull(),
+          ["hasPreviousVersion"] = new OpenApiBoolean(false),
+          ["installedAtUtc"] = new OpenApiString("2026-10-15T10:00:00Z")
+        }
+      }, context, typeof(List<GameBot.Service.Endpoints.Dto.GamepackListItemDto>));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Gamepacks + "/{name}/rollback")) {
+      SetResponseExample(operation, "200", new OpenApiObject {
+        ["name"] = new OpenApiString("demo-pack"),
+        ["version"] = new OpenApiString("1.0.0"),
+        ["result"] = new OpenApiString("rolled_back"),
+        ["created"] = new OpenApiInteger(0),
+        ["updated"] = new OpenApiInteger(2),
+        ["removed"] = new OpenApiInteger(1)
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackRollbackResponse));
+      SetResponseExample(operation, "422", new OpenApiObject {
+        ["result"] = new OpenApiString("refused"),
+        ["valid"] = new OpenApiBoolean(false),
+        ["problems"] = new OpenApiArray { GamepackProblemExample() }
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackRollbackRefusedResponse));
+    }
+  }
+
+  private static OpenApiObject GamepackProblemExample() => new() {
+    ["category"] = new OpenApiString("conflict"),
+    ["objectType"] = new OpenApiString("sequence"),
+    ["name"] = new OpenApiString("daily-run"),
+    ["owner"] = new OpenApiString("user"),
+    ["message"] = new OpenApiString("The sequence daily-run belongs to user. A gamepack does not overwrite it.")
+  };
+
   private static void ApplyQuizExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     if (!IsMethod(method, HttpMethods.Get)) return;
 

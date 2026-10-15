@@ -381,7 +381,7 @@ internal static class CommandsEndpoints {
     return opts;
   }
   public static IEndpointRouteBuilder MapCommandEndpoints(this IEndpointRouteBuilder app) {
-    app.MapPost(ApiRoutes.Commands, async (HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
+    app.MapPost(ApiRoutes.Commands, async (HttpRequest http, ICommandRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
       // Feature 135: the root alias "detectionTarget" stays accepted (see TryReadDetection).
@@ -403,6 +403,10 @@ internal static class CommandsEndpoints {
       }
       if (req is null || string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "name is required", hint = (string?)null } });
+
+      // Feature 143 (US2 scenario 5): a hand create with the name of a gamepack-owned command gives 409.
+      var ownedNameConflict = await GamepackOwnedNameGuard.CheckNameAsync(gamepacks, GameBot.Domain.Gamepacks.GamepackObjectTypes.Command, req.Name, ct).ConfigureAwait(false);
+      if (ownedNameConflict is not null) return ownedNameConflict;
 
       foreach (var s in req.Steps) {
         var err = ValidateStep(s);
@@ -449,7 +453,7 @@ internal static class CommandsEndpoints {
     .WithName("CreateCommand")
     .WithTags("Commands");
 
-    app.MapGet($"{ApiRoutes.Commands}/{{id}}", async (string id, ICommandRepository repo, CancellationToken ct) => {
+    app.MapGet($"{ApiRoutes.Commands}/{{id}}", async (string id, ICommandRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks, CancellationToken ct) => {
       var c = await repo.GetAsync(id, ct).ConfigureAwait(false);
       return c is null
           ? Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } })
@@ -459,7 +463,8 @@ internal static class CommandsEndpoints {
             TriggerId = c.TriggerId,
             Steps = new Collection<CommandStepDto>(c.Steps.Select(ToResponseStep).ToList()),
             Detection = ToResponseDetection(c.Detection),
-            Parameters = ParameterDtoMapper.ToResponseDeclarations(c.Parameters)
+            Parameters = ParameterDtoMapper.ToResponseDeclarations(c.Parameters),
+            Owner = GamepackOwnerResponse.For(gamepacks.LoadOwners(), GameBot.Domain.Gamepacks.GamepackObjectTypes.Command, c.Id)
           });
     })
     .WithName("GetCommand")
@@ -476,8 +481,9 @@ internal static class CommandsEndpoints {
     .WithName("GetCommandParameterScope")
     .WithTags("Commands");
 
-    app.MapGet(ApiRoutes.Commands, async (ICommandRepository repo, CancellationToken ct) => {
+    app.MapGet(ApiRoutes.Commands, async (ICommandRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks, CancellationToken ct) => {
       var list = await repo.ListAsync(ct).ConfigureAwait(false);
+      var owners = gamepacks.LoadOwners();
       var resp = list.Select(c => new CommandResponse {
         Id = c.Id,
         Name = c.Name,
@@ -486,7 +492,8 @@ internal static class CommandsEndpoints {
         Detection = ToResponseDetection(c.Detection),
         // Feature 078: the sequence editor renders a binding form per command step, so it needs each
         // command's declarations up front — without this it would refetch every command one by one.
-        Parameters = ParameterDtoMapper.ToResponseDeclarations(c.Parameters)
+        Parameters = ParameterDtoMapper.ToResponseDeclarations(c.Parameters),
+        Owner = GamepackOwnerResponse.For(owners, GameBot.Domain.Gamepacks.GamepackObjectTypes.Command, c.Id)
       });
       return Results.Ok(resp);
     })
@@ -554,7 +561,7 @@ internal static class CommandsEndpoints {
     .WithName("UpdateCommand")
     .WithTags("Commands");
 
-    app.MapDelete($"{ApiRoutes.Commands}/{{id}}", async (string id, ICommandRepository commands, GameBot.Domain.Commands.ISequenceRepository sequences, CancellationToken ct) => {
+    app.MapDelete($"{ApiRoutes.Commands}/{{id}}", async (string id, ICommandRepository commands, GameBot.Domain.Commands.ISequenceRepository sequences, GameBot.Domain.Gamepacks.GamepackService gamepacks, CancellationToken ct) => {
       var existing = await commands.GetAsync(id, ct).ConfigureAwait(false);
       if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } });
       // Check references from other commands (steps of type Command)
@@ -571,6 +578,8 @@ internal static class CommandsEndpoints {
         return Results.Conflict(new { error = new { code = "delete_blocked", message = "Command is referenced.", hint = (string?)null }, references = new { commands = referencingCommands, sequences = referencingSequences } });
       }
       var ok = await commands.DeleteAsync(id, ct).ConfigureAwait(false);
+      // Feature 143 (FR-015): a hand delete removes the owner entry at once.
+      if (ok) gamepacks.RemoveOwner(GameBot.Domain.Gamepacks.GamepackObjectTypes.Command, id);
       return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Command not found", hint = (string?)null } });
     })
     .WithName("DeleteCommand")

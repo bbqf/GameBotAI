@@ -54,6 +54,9 @@ internal sealed class CreateCommandRequest {
 
   /// <summary>Parameters this command accepts (feature 078); absent means unparametrized.</summary>
   public Collection<ParameterDeclarationDto>? Parameters { get; init; }
+
+  /// <summary>The read-only owner (feature 143). A write request accepts it and ignores it.</summary>
+  public GameBot.Service.Endpoints.Dto.GamepackOwnerDto? Owner { get; init; }
 }
 
 internal sealed class UpdateCommandRequest {
@@ -63,6 +66,9 @@ internal sealed class UpdateCommandRequest {
 
   /// <summary>Parameters this command accepts (feature 078); absent leaves them unchanged.</summary>
   public Collection<ParameterDeclarationDto>? Parameters { get; init; }
+
+  /// <summary>The read-only owner (feature 143). A write request accepts it and ignores it.</summary>
+  public GameBot.Service.Endpoints.Dto.GamepackOwnerDto? Owner { get; init; }
 
   private DetectionTargetDto? _detection;
 
@@ -95,6 +101,10 @@ internal sealed class CommandResponse {
   /// <summary>Non-blocking parameter advisories; omitted when there are none.</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Collection<ParameterWarningDto>? Warnings { get; init; }
+
+  /// <summary>The read-only owner: the user or a gamepack (feature 143). Set on reads. A write request ignores it.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public GameBot.Service.Endpoints.Dto.GamepackOwnerDto? Owner { get; init; }
 }
 
 internal enum CommandStepTypeDto {

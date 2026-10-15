@@ -176,6 +176,7 @@ Status vocabulary:
 | 140 | Phone UI Queue Activity and Navigation | Implemented (real-phone check pending) |
 | 141 | Emulator Monitoring | Implemented (real-emulator check pending) |
 | 142 | Quiz Answer Service for Sequences | Implemented (real-emulator check pending) |
+| 143 | Gamepack Install | Implemented |
 
 ## Numbering notes
 

@@ -68,14 +68,17 @@ internal static class ImageReferencesEndpoints {
     return app;
   }
 
-  private static async Task<IResult> ListImagesAsync(IImageRepository repo) {
+  private static async Task<IResult> ListImagesAsync(IImageRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks) {
     var ids = await repo.ListIdsAsync().ConfigureAwait(false);
     var ordered = ids.OrderBy(i => i, StringComparer.OrdinalIgnoreCase).ToArray();
     ImageReferencesMetrics.RecordListRequest(ordered.Length);
-    return Results.Ok(new { ids = ordered });
+    // Feature 143: "items" adds the read-only owner of each image. "ids" stays as it was.
+    var owners = gamepacks.LoadOwners();
+    var items = ordered.Select(i => new { id = i, owner = GamepackOwnerResponse.For(owners, GameBot.Domain.Gamepacks.GamepackObjectTypes.Image, i) }).ToArray();
+    return Results.Ok(new { ids = ordered, items });
   }
 
-  private static async Task<IResult> UploadImageAsync(HttpRequest http, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
+  private static async Task<IResult> UploadImageAsync(HttpRequest http, IImageRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
     UploadImageRequest? req;
     if (http.HasFormContentType) {
       req = new UploadImageRequest {
@@ -95,6 +98,10 @@ internal static class ImageReferencesEndpoints {
     if (!ReferenceImageIdValidator.IsValid(req.Id)) {
       return Results.BadRequest(new { error = new { code = "invalid_id", message = "id must be alphanumeric/dash/underscore (1-128 chars)", hint = (string?)null } });
     }
+
+    // Feature 143 (US2 scenario 5): a hand create with the id of a gamepack-owned image gives 409.
+    var ownedNameConflict = await GamepackOwnedNameGuard.CheckNameAsync(gamepacks, GameBot.Domain.Gamepacks.GamepackObjectTypes.Image, req.Id, http.HttpContext.RequestAborted).ConfigureAwait(false);
+    if (ownedNameConflict is not null) return ownedNameConflict;
 
     byte[] bytes;
     string contentType;
@@ -174,10 +181,11 @@ internal static class ImageReferencesEndpoints {
     return Results.Stream(stream, contentType: meta.ContentType, lastModified: meta.UpdatedAtUtc, enableRangeProcessing: true);
   }
 
-  private static async Task<IResult> GetImageMetadataAsync(string id, IImageRepository repo, IImageAlternatesRepository alternates) {
+  private static async Task<IResult> GetImageMetadataAsync(string id, IImageRepository repo, IImageAlternatesRepository alternates, GameBot.Domain.Gamepacks.GamepackService gamepacks) {
     var meta = await repo.GetAsync(id).ConfigureAwait(false);
     if (meta is null) return Results.NotFound(new { error = new { code = "not_found", message = "Image not found" } });
-    return Results.Ok(new { id = meta.Id, contentType = meta.ContentType, sizeBytes = meta.SizeBytes, filename = meta.Filename, createdAtUtc = meta.CreatedAtUtc, updatedAtUtc = meta.UpdatedAtUtc, alternates = alternates.GetAlternates(id) });
+    var owner = GamepackOwnerResponse.For(gamepacks.LoadOwners(), GameBot.Domain.Gamepacks.GamepackObjectTypes.Image, meta.Id);
+    return Results.Ok(new { id = meta.Id, contentType = meta.ContentType, sizeBytes = meta.SizeBytes, filename = meta.Filename, createdAtUtc = meta.CreatedAtUtc, updatedAtUtc = meta.UpdatedAtUtc, alternates = alternates.GetAlternates(id), owner });
   }
 
   private static async Task<IResult> OverwriteImageAsync(string id, HttpRequest http, IImageRepository repo, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
@@ -261,7 +269,7 @@ internal static class ImageReferencesEndpoints {
     }
   }
 
-  private static async Task<IResult> DeleteImageAsync(string id, IImageRepository repo, IImageReferenceRepository refs, IImageAlternatesRepository alternates, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
+  private static async Task<IResult> DeleteImageAsync(string id, IImageRepository repo, IImageReferenceRepository refs, IImageAlternatesRepository alternates, GameBot.Domain.Gamepacks.GamepackService gamepacks, Microsoft.Extensions.Logging.ILogger<ImageReferenceEndpointComponent> logger) {
     ArgumentNullException.ThrowIfNull(id);
     var safeId = SanitizeForLog(id);
     if (!ReferenceImageIdValidator.IsValid(id)) {
@@ -288,6 +296,8 @@ internal static class ImageReferencesEndpoints {
     // The image's own alternates list goes with it (feature 097); lists naming it as an alternate are
     // kept and report it as missing, so deleting one crop never breaks another image's detection.
     alternates.DeleteAlternates(id);
+    // Feature 143 (FR-015): a hand delete removes the owner entry at once.
+    gamepacks.RemoveOwner(GameBot.Domain.Gamepacks.GamepackObjectTypes.Image, id);
     logger.LogImageDeleted(safeId);
     ImageReferencesMetrics.RecordDeleteSuccess();
     return Results.NoContent();

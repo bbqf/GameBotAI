@@ -1,0 +1,52 @@
+using System.Net;
+using System.Text.Json;
+using FluentAssertions;
+using Xunit;
+
+#pragma warning disable CA2007, CA1861, CA1707, CA2000
+
+namespace GameBot.ContractTests.Gamepacks;
+
+/// <summary>Feature 143 (T045): the OpenAPI document shows the gamepack routes and the owner schema.</summary>
+public sealed class GamepackOpenApiTests {
+  private static async Task<JsonElement> ReadDocumentAsync() {
+    using var host = new GamepackContractHost();
+    var response = await host.Client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative));
+    response.StatusCode.Should().Be(HttpStatusCode.OK);
+    using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    return document.RootElement.Clone();
+  }
+
+  [Fact]
+  public async Task TheThreeRoutesAreInTheDocument() {
+    var document = await ReadDocumentAsync();
+    var paths = document.GetProperty("paths");
+
+    paths.GetProperty("/api/gamepacks/install").TryGetProperty("post", out _).Should().BeTrue();
+    paths.GetProperty("/api/gamepacks").TryGetProperty("get", out _).Should().BeTrue();
+    paths.GetProperty("/api/gamepacks/{name}/rollback").TryGetProperty("post", out _).Should().BeTrue();
+
+    var install = paths.GetProperty("/api/gamepacks/install").GetProperty("post");
+    install.GetProperty("parameters").EnumerateArray().Should().Contain(p => p.GetProperty("name").GetString() == "dryRun");
+    var responses = install.GetProperty("responses");
+    foreach (var status in new[] { "200", "400", "413", "422", "500" }) {
+      responses.TryGetProperty(status, out _).Should().BeTrue("the install route lists status " + status);
+    }
+  }
+
+  [Fact]
+  public async Task TheOwnerSchemaAndTheOwnerMembersAreDescribed() {
+    var document = await ReadDocumentAsync();
+    var schemas = document.GetProperty("components").GetProperty("schemas");
+
+    var owner = schemas.GetProperty("GamepackOwnerDto");
+    owner.GetProperty("description").GetString().Should().Contain("read-only");
+    owner.GetProperty("properties").GetProperty("kind").GetProperty("enum").GetArrayLength().Should().Be(2);
+
+    schemas.GetProperty("CommandResponse").GetProperty("properties").TryGetProperty("owner", out _).Should().BeTrue();
+    schemas.GetProperty("GamepackProblemDto").GetProperty("properties").GetProperty("owner").GetProperty("description").GetString()
+      .Should().Contain("user");
+    schemas.TryGetProperty("GamepackInstallResponse", out _).Should().BeTrue();
+    schemas.TryGetProperty("GamepackListItemDto", out _).Should().BeTrue();
+  }
+}

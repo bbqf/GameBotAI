@@ -17,6 +17,7 @@ using GameBot.Domain.Images;
 using GameBot.Domain.Versioning;
 using GameBot.Service.Services.Conditions;
 using GameBot.Service.Services.Updates;
+using GameBot.Service.Endpoints;
 
 namespace GameBot.Service;
 
@@ -54,6 +55,7 @@ internal static class GameBotServiceSetup {
     RegisterRepositories(builder, storageRoot);
     RegisterNotificationServices(builder, storageRoot);
     RegisterQuizServices(builder, storageRoot);
+    builder.Services.AddGamepacks(storageRoot);
     RegisterSequenceAndQueueServices(builder);
     RegisterLoggingPolicyServices(builder, storageRoot, loggingGate, loggingComponentCatalog);
     RegisterTriggerAndImageServices(builder, storageRoot);
@@ -104,6 +106,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<DeviceLivenessSchemaFilter>();
       options.SchemaFilter<QueueDeviceRecoverySchemaFilter>();
       options.SchemaFilter<QueueSequenceStatsSchemaFilter>();
+      options.SchemaFilter<GamepackSchemaFilter>();
       options.SchemaFilter<ImageAlternatesSchemaFilter>();
       options.SchemaFilter<SequenceNestingRulesSchemaFilter>();
       options.SchemaFilter<QueueRosterSchemaFilter>();
