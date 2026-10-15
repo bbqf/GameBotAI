@@ -2,7 +2,7 @@
 
 **Feature Branch**: `143-gamepack-install`  
 **Created**: 2026-10-15  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Issue #304: Install a gamepack as one atomic unit. A gamepack is a named, versioned set of sequences, commands, and images, with a manifest. The platform installs it all-or-nothing, records which gamepack and version own each object, lists the installed gamepacks, rolls one back to the previous version, and can check a gamepack with a dry run that changes nothing."
 
 ## Clarifications

@@ -34,9 +34,12 @@ internal static class SequencesEndpoints {
     return app;
   }
 
-  private static async Task<IResult> CreateSequenceAsync(HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, CancellationToken ct) {
+  private static async Task<IResult> CreateSequenceAsync(HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, GameBot.Domain.Gamepacks.GamepackService gamepacks, CancellationToken ct) {
     using var doc = await System.Text.Json.JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
     var root = doc.RootElement;
+    // Feature 143 (US2 scenario 5): a hand create with the name of a gamepack-owned sequence gives 409.
+    var ownedNameConflict = await GamepackOwnedNameGuard.CheckAsync(gamepacks, GameBot.Domain.Gamepacks.GamepackObjectTypes.Sequence, root, "name", ct).ConfigureAwait(false);
+    if (ownedNameConflict is not null) return ownedNameConflict;
     if (HasLegacyBranchingFields(root)) {
       return Results.BadRequest(new {
         message = "Invalid sequence payload",
@@ -155,10 +158,13 @@ internal static class SequencesEndpoints {
     return false;
   }
 
-  private static async Task<IResult> GetSequenceAsync(ISequenceRepository repo, ICommandRepository commandRepository, string sequenceId, CancellationToken ct) {
+  private static async Task<IResult> GetSequenceAsync(ISequenceRepository repo, ICommandRepository commandRepository, GameBot.Domain.Gamepacks.GamepackService gamepacks, string sequenceId, CancellationToken ct) {
     var found = await repo.GetAsync(sequenceId).ConfigureAwait(false);
     if (found is null) return Results.NotFound();
-    return Results.Ok(await ToSequenceResponseAsync(found, commandRepository, ct).ConfigureAwait(false));
+    var response = await ToSequenceResponseAsync(found, commandRepository, ct).ConfigureAwait(false);
+    // Feature 143: the read-only owner of the sequence.
+    var owner = GamepackOwnerResponse.For(gamepacks.LoadOwners(), GameBot.Domain.Gamepacks.GamepackObjectTypes.Sequence, found.Id);
+    return Results.Ok(GamepackOwnerResponse.With(response, owner));
   }
 
   private static async Task<IResult> UpdateSequenceAsync(HttpRequest http, ISequenceRepository repo, ICommandRepository commandRepository, SequenceStepValidationService stepValidationService, IImageRepository imageRepository, string sequenceId, CancellationToken ct) {
@@ -378,8 +384,9 @@ internal static class SequencesEndpoints {
     return Results.Ok(new { valid = true, errors = Array.Empty<string>() });
   }
 
-  private static async Task<IResult> ListSequencesAsync(ISequenceRepository repo) {
+  private static async Task<IResult> ListSequencesAsync(ISequenceRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks) {
     var list = await repo.ListAsync().ConfigureAwait(false);
+    var owners = gamepacks.LoadOwners();
     // Feature 078: the list carries declarations because the queue-template editor renders a binding
     // form per entry. Without them it would have to refetch every sequence one at a time to learn
     // what each declares — and, before this, simply showed no parameters at all. A typed row rather
@@ -390,15 +397,18 @@ internal static class SequencesEndpoints {
       Name = s.Name,
       Steps = new System.Collections.ObjectModel.Collection<string>(s.Steps.Select(x => x.CommandId).ToList()),
       Parameters = ParameterDtoMapper.ToResponseDeclarations(s.Parameters),
-      ExcludeFromSuccessNotifications = s.ExcludeFromSuccessNotifications
+      ExcludeFromSuccessNotifications = s.ExcludeFromSuccessNotifications,
+      Owner = GamepackOwnerResponse.For(owners, GameBot.Domain.Gamepacks.GamepackObjectTypes.Sequence, s.Id)
     });
     return Results.Ok(resp);
   }
 
-  private static async Task<IResult> DeleteSequenceAsync(ISequenceRepository repo, string sequenceId) {
+  private static async Task<IResult> DeleteSequenceAsync(ISequenceRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks, string sequenceId) {
     var existing = await repo.GetAsync(sequenceId).ConfigureAwait(false);
     if (existing is null) return Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
     var ok = await repo.DeleteAsync(sequenceId).ConfigureAwait(false);
+    // Feature 143 (FR-015): a hand delete removes the owner entry at once.
+    if (ok) gamepacks.RemoveOwner(GameBot.Domain.Gamepacks.GamepackObjectTypes.Sequence, sequenceId);
     return ok ? Results.NoContent() : Results.NotFound(new { error = new { code = "not_found", message = "Sequence not found", hint = (string?)null } });
   }
 

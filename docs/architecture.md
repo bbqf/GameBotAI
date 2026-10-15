@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-14 (feature 142: the quiz answer service, the step types `quiz-lookup` and `quiz-learn`, `/api/quiz/records`, the folder `quiz` in the data root;
+_Last reviewed: 2026-10-15 (feature 143: gamepack install, `/api/gamepacks`, the read-only `owner` field, the folder `gamepacks` in the data root;
+feature 142: the quiz answer service, the step types `quiz-lookup` and `quiz-learn`, `/api/quiz/records`, the folder `quiz` in the data root;
 feature 141: the Monitoring area, the session list with a state, the emulator restart, the `Service:Monitoring` options;
 feature 140: phone queue activity view and schedule list, in-app back navigation with the History API, the phone support level `hidden` for Execution;
 feature 139: phone layout mode, phone support levels, web manifest, connection banner;
@@ -1285,11 +1286,43 @@ Neither step taps. The author reads the outcome with a `commandOutcome` conditio
 - **Log**: one line for each step with the step id, the outcome, `known` or `guess`, the normalized question, and the
   position. The log never has a secret.
 
+### Gamepack install (feature 143)
+
+A gamepack is one JSON file: a manifest and lists of sequences, commands, and images. The service installs it as one atomic
+unit, records the owner of each object, lists the installed gamepacks, rolls one back, and checks a file with a dry run. The
+user guide is `docs/gamepacks.md`. The code is in `src/GameBot.Domain/Gamepacks/`.
+
+- **API** (tag `Gamepacks`, `Endpoints/GamepacksEndpoints.cs`): `POST /api/gamepacks/install` (query `dryRun`; 200, 400, 413,
+  422, 500), `GET /api/gamepacks`, and `POST /api/gamepacks/{name}/rollback` (200, 404, 409, 422, 500). No route uninstalls a
+  gamepack. A request has at most 100 MB (the handler reads the body with a size cap and gives a 413 problem response).
+- **Owner**: reads of a sequence, a command, and an image (metadata) add a read-only `owner`: `{ "kind": "user" }` or
+  `{ "kind": "gamepack", "name", "version" }`. A conflict report uses text (`user`, or `<name> <version>`). An object with no
+  owner entry belongs to the user. The owner is found by object type and stored id (`GamepackOwnerResolver`), so a hand
+  rename keeps the owner. The read checks that the object exists.
+- **One check**: `GamepackValidator` is the check for the dry run, the install, and the rollback. It collects all problems
+  (structure, reference, conflict) and builds the `GamepackPlan` (writes, removals, counts). Identity is object type plus name
+  (image: the id), compared without case. The same gamepack is an update that keeps the stored id and rewrites the command
+  references in the file. A new object never takes the id of a stored object.
+- **One apply path**: `GamepackApplier` serves the install and the rollback. It takes an undo snapshot of each object it
+  touches, writes images, commands, and sequences, deletes the dropped objects, writes the previous-version file, and writes
+  the registry last. On any exception it restores the snapshot in reverse order. If the restore fails too, it logs the object
+  and the route gives 500 with `result: partial_restore`. `GamepackService` holds one `SemaphoreSlim`, so only one install or
+  rollback runs at a time. The hand-edit routes do not take it.
+- **Test seam**: `IGamepackWriteGate.BeforeWrite(operation, key)` runs before each write (`create`, `update`, `delete`,
+  `previous-file`, `registry`) and each restore step (`restore`). Production uses `NoOpGamepackWriteGate`. A test gate throws
+  at the Nth call (fault injection).
+- **Storage**: `<data root>/gamepacks/registry.json` (installed gamepacks and owner entries keyed by `type:name` in lower case)
+  and `<data root>/gamepacks/previous/<name>.json` (full content of the kept previous version, captured from the live objects
+  before an install of a different version). Writes use a temporary file and a replace. The object stores do not change.
+- **Hand routes**: the delete routes of the three stores call `GamepackService.RemoveOwner`. The create routes call
+  `GamepackOwnedNameGuard` and give 409 when the name belongs to a gamepack object. Edit routes do not change.
+- **OpenAPI**: `Swagger/GamepackSchemaFilter` describes the new schemas and the `owner` member.
+
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):
 adb, backup/restore, commands, config (+ files, logging), coverage, emulator-image,
-execution-logs, games, image-detections, image-references, metrics, notifications, queues,
+execution-logs, gamepacks, games, image-detections, image-references, metrics, notifications, queues,
 queue-templates, quiz, sessions, step-through, steps, triggers, update. Plus `SessionsController`. Swagger groups these into sections.
 
 Feature 131 added three routes, tag `Update` (errors use `{ "error": { code, message, hint } }`):

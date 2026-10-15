@@ -226,4 +226,7 @@ internal sealed record SequenceListItemResponse {
 
   /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
   public bool ExcludeFromSuccessNotifications { get; init; }
+
+  /// <summary>The read-only owner: the user or a gamepack (feature 143). A write request ignores it.</summary>
+  public GameBot.Service.Endpoints.Dto.GamepackOwnerDto? Owner { get; init; }
 }

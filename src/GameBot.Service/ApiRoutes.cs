@@ -26,6 +26,7 @@ internal static class ApiRoutes {
   internal const string ExecutionLogs = Base + "/execution-logs";
   internal const string Adb = Base + "/adb";
   internal const string Ocr = Base + "/ocr";
+  internal const string Gamepacks = Base + "/gamepacks";
   internal const string QuizRecords = Base + "/quiz/records";
   internal const string Steps = Base + "/steps";
   internal const string StepThrough = Base + "/step-through";
