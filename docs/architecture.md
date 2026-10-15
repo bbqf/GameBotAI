@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-15 (feature 143: gamepack install, `/api/gamepacks`, the read-only `owner` field, the folder `gamepacks` in the data root;
+_Last reviewed: 2026-10-15 (feature 145: queue settings export and import by name, `/api/queue-settings`;
+feature 143: gamepack install, `/api/gamepacks`, the read-only `owner` field, the folder `gamepacks` in the data root;
 feature 142: the quiz answer service, the step types `quiz-lookup` and `quiz-learn`, `/api/quiz/records`, the folder `quiz` in the data root;
 feature 141: the Monitoring area, the session list with a state, the emulator restart, the `Service:Monitoring` options;
 feature 140: phone queue activity view and schedule list, in-app back navigation with the History API, the phone support level `hidden` for Execution;
@@ -1321,13 +1322,23 @@ user guide is `docs/gamepacks.md`. The code is in `src/GameBot.Domain/Gamepacks/
   `GET /api/version` (tag `Version`) shows it. The validator refuses a `requiredApiMajor` that differs from the running
   major version. The rollback skips this check. The rule is in the section "API version and compatibility" of
   `docs/gamepacks.md`.
+- **Queue settings export and import (feature 145)**: `GET /api/queue-settings/export` and `POST /api/queue-settings/import`
+  (tag `QueueSettings`, `Endpoints/QueueSettingsEndpoints.cs`; import gives 200, 400, 413, 500). The code is in
+  `src/GameBot.Domain/QueueSettings/`. The export writes one document with the queues, the queue templates, and the sequences
+  and commands that no gamepack owns. All links use names, and the document has no id and no time stamp. A gamepack-owned
+  object is only a name reference. The import checks the document first, then writes by name in the order commands,
+  sequences, templates, queues. It never writes a gamepack-owned object, never deletes, and never stops or starts a queue. The
+  "unchanged" test and the export use one normalized form (`SettingsNormalizer`), so a second import writes nothing. The import
+  runs inside `GamepackService.RunExclusiveAsync`, the gate of install and rollback. A store failure gives 500 with a partial
+  report (applied, failed, not applied). `Swagger/QueueSettingsSchemaFilter` describes the types. The user guide is the section
+  "Back up and restore settings" of `docs/gamepacks.md`.
 
 ## REST API surface
 
 Minimal-API endpoint groups under `src/GameBot.Service/Endpoints/` (all under `/api`):
 adb, backup/restore, commands, config (+ files, logging), coverage, emulator-image,
 execution-logs, gamepacks, games, image-detections, image-references, metrics, notifications, queues,
-queue-templates, quiz, sessions, step-through, steps, triggers, update. Plus `SessionsController`. Swagger groups these into sections.
+queue-settings, queue-templates, quiz, sessions, step-through, steps, triggers, update. Plus `SessionsController`. Swagger groups these into sections.
 
 Feature 131 added three routes, tag `Update` (errors use `{ "error": { code, message, hint } }`):
 

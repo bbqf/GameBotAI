@@ -130,6 +130,40 @@ shows `owner`. The image list route adds `items` (`id` and `owner`) next to `ids
   can be lost or can fail.
 - The service does not check the references from your own objects to an object that an install drops.
 
+## Back up and restore settings
+
+Use `GET /api/queue-settings/export` to save the queue settings and your own artifacts in one JSON document. Use
+`POST /api/queue-settings/import` to put the document back on this or on another instance. One export request and one import
+request are enough.
+
+What the document holds:
+
+- The settings of all queues, with the entries of each queue as sequence names. The device fields (`emulatorSerial`,
+  `emulatorInstanceName`, `emulatorInstanceIndex`) are exported as stored and imported as given. Edit them after you import on a
+  new machine.
+- All queue templates.
+- The sequences and commands that no gamepack owns, in full.
+- A `references` list. It names each gamepack-owned object that your queues, templates, sequences, or commands use, with the
+  gamepack name and version. It has no content of these objects. Install the gamepack on the target instance first.
+- No id and no time stamp of the instance. All links use names. Case is ignored in names.
+
+How the import works:
+
+- It checks the whole document first. A bad JSON body, a `formatVersion` other than 1, an empty name, or a repeated name gives
+  status 400 and changes nothing.
+- It makes or updates objects by name, in this order: commands, sequences, queue templates, queues.
+- It never changes an object that a gamepack owns. An object in the document with the name of an owned object is `skipped`.
+- It never deletes an object.
+- A second import of the same document changes nothing (all items are `unchanged`).
+- A link whose target is missing does not fail the import. The report lists it in `unresolvedReferences`, with the gamepack
+  name and version when the document has them.
+- It does not stop or start a queue. A queue that is not stopped and that the import updates has `restartRequired: true`.
+  Stop and start it to use the new settings.
+- It waits while a gamepack install or rollback runs, and an install waits while the import runs.
+
+If an import fails with status 500, send the same document again. The import is safe to repeat and it finishes the items that it
+did not apply. The 500 body has a `report` with `items` (applied), `failed` (the item that failed), and `notApplied`.
+
 ## Where the data is
 
 `<data root>/gamepacks/registry.json` holds the installed gamepacks and the owner records. `<data root>/gamepacks/previous/<name>.json`

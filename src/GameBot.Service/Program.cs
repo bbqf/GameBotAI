@@ -135,6 +135,8 @@ app.MapExecutionLogEndpoints();
 app.MapQuizEndpoints();
 // Gamepack install, list, and rollback (feature 143)
 app.MapGamepackEndpoints();
+// Queue settings export and import by name (feature 145)
+app.MapQueueSettingsEndpoints();
 app.MapVersionEndpoints();
 app.MapBackupRestoreEndpoints();
 

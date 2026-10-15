@@ -177,6 +177,7 @@ Status vocabulary:
 | 141 | Emulator Monitoring | Implemented (real-emulator check pending) |
 | 142 | Quiz Answer Service for Sequences | Implemented (real-emulator check pending) |
 | 143 | Gamepack Install | Implemented |
+| 145 | Export and Import Queue Settings by Name | Implemented |
 
 ## Numbering notes
 

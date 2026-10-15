@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Added
+- Export and import of queue settings by name (145-export-import-queue-settings)
+  - **Routes**: `GET /api/queue-settings/export` writes one JSON document with all queues, queue templates, and your own sequences and commands. `POST /api/queue-settings/import` puts it back by name.
+  - **Safe import**: it checks the whole document first, never changes a gamepack-owned object, never deletes, and a second import changes nothing. A missing target is listed in the report. A store failure gives status 500 with a partial report, and you send the same document again to finish.
+  - See `docs/gamepacks.md` and `docs/architecture.md`.
+  - The patch version is now 7, so the next build is `1.10.7.<run number>`.
 - API version and gamepack compatibility. The service has an API version, and a gamepack can say which API major version it needs (144-api-version-compat)
   - **Route**: `GET /api/version` returns the API version of the service.
   - **Check**: a gamepack for another API major version is refused at install, and in the dry run, with a clear report.

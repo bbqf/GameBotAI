@@ -143,6 +143,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyMonitoringExamples(operation, path, method, context);
     ApplyQuizExamples(operation, path, method, context);
     ApplyGamepackExamples(operation, path, method, context);
+    ApplyQueueSettingsExamples(operation, path, method, context);
     ApplyVersionExamples(operation, path, method, context);
     ApplyUpdateExamples(operation, path, method, context);
     ApplyInstallerExamples(operation, path, method, context);
@@ -1161,6 +1162,75 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["valid"] = new OpenApiBoolean(false),
         ["problems"] = new OpenApiArray { GamepackProblemExample() }
       }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackRollbackRefusedResponse));
+    }
+  }
+
+  // ── Feature 145: queue settings export and import ───────────────────────────────────────────
+
+  private static OpenApiObject QueueSettingsDocumentExample() => new() {
+    ["formatVersion"] = new OpenApiInteger(1),
+    ["queues"] = new OpenApiArray {
+      new OpenApiObject {
+        ["name"] = new OpenApiString("PNS Daily"),
+        ["emulatorSerial"] = new OpenApiString("emulator-5554"),
+        ["linkedTemplate"] = new OpenApiString("Daily"),
+        ["entries"] = new OpenApiArray { new OpenApiString("My Sequence") }
+      }
+    },
+    ["queueTemplates"] = new OpenApiArray {
+      new OpenApiObject {
+        ["name"] = new OpenApiString("Daily"),
+        ["entries"] = new OpenApiArray {
+          new OpenApiObject { ["sequence"] = new OpenApiString("My Sequence"), ["enabled"] = new OpenApiBoolean(true), ["scheduleType"] = new OpenApiString("OncePerRun") }
+        }
+      }
+    },
+    ["sequences"] = new OpenApiArray(),
+    ["commands"] = new OpenApiArray(),
+    ["references"] = new OpenApiArray {
+      new OpenApiObject {
+        ["type"] = new OpenApiString("sequence"),
+        ["name"] = new OpenApiString("Pit Mining"),
+        ["gamepack"] = new OpenApiString("pns"),
+        ["version"] = new OpenApiString("1.4.0"),
+        ["usedBy"] = new OpenApiString("queueTemplate:Daily")
+      }
+    }
+  };
+
+  private static void ApplyQueueSettingsExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.QueueSettings + "/export")) {
+      SetResponseExample(operation, "200", QueueSettingsDocumentExample(), context, typeof(GameBot.Domain.QueueSettings.SettingsDocument));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.QueueSettings + "/import")) {
+      SetRequestExample(operation, QueueSettingsDocumentExample(), context, typeof(GameBot.Service.Endpoints.QueueSettingsEndpoints.QueueSettingsImportRequestBody));
+      SetResponseExample(operation, "200", new OpenApiObject {
+        ["items"] = new OpenApiArray {
+          new OpenApiObject {
+            ["type"] = new OpenApiString("queue"),
+            ["name"] = new OpenApiString("PNS Daily"),
+            ["outcome"] = new OpenApiString("updated"),
+            ["reason"] = new OpenApiNull(),
+            ["restartRequired"] = new OpenApiBoolean(true)
+          }
+        },
+        ["unresolvedReferences"] = new OpenApiArray {
+          new OpenApiObject {
+            ["type"] = new OpenApiString("sequence"),
+            ["name"] = new OpenApiString("Pit Mining"),
+            ["usedBy"] = new OpenApiString("queueTemplate:Daily"),
+            ["gamepack"] = new OpenApiString("pns"),
+            ["version"] = new OpenApiString("1.4.0")
+          }
+        },
+        ["summary"] = new OpenApiObject {
+          ["created"] = new OpenApiInteger(0),
+          ["updated"] = new OpenApiInteger(1),
+          ["unchanged"] = new OpenApiInteger(0),
+          ["skipped"] = new OpenApiInteger(0)
+        },
+        ["notApplied"] = new OpenApiArray()
+      }, context, typeof(GameBot.Domain.QueueSettings.ImportReport));
     }
   }
 

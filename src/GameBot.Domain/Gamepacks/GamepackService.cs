@@ -281,6 +281,24 @@ public sealed partial class GamepackService : IDisposable {
     }
   }
 
+  /// <summary>
+  /// Runs an action while it holds the gate of this service (feature 145, FR-017). An install, a rollback, and this
+  /// action run one at a time. The behavior of install, rollback, and list does not change.
+  /// </summary>
+  /// <typeparam name="T">The result type of the action.</typeparam>
+  /// <param name="action">The action to run.</param>
+  /// <param name="ct">The cancellation token.</param>
+  public async Task<T> RunExclusiveAsync<T>(Func<Task<T>> action, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(action);
+    await _gate.WaitAsync(ct).ConfigureAwait(false);
+    try {
+      return await action().ConfigureAwait(false);
+    }
+    finally {
+      _gate.Release();
+    }
+  }
+
   /// <summary>Lists the installed gamepacks, ordered by name.</summary>
   public IReadOnlyList<GamepackListItem> List() =>
     _store.Load().Gamepacks.Values
