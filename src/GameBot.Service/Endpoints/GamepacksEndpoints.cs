@@ -34,7 +34,31 @@ internal static class GamepacksEndpoints {
         + "The request can have at most 100 MB. The request is the gamepack file as application/json (no signature), or multipart/form-data "
         + "with the part gamepack and the optional part signature. The response has a signature block with status, policy, and wouldReject. "
         + "If the policy is required and the status is not valid, an install gives 422 with result signature_rejected and changes nothing. "
-        + "A dry run gives 200 and shows wouldReject. If the policy is off, the signature part is not read and the status is not_checked.");
+        + "A dry run gives 200 and shows wouldReject. If the policy is off, the signature part is not read and the status is not_checked. "
+        + "SIGNATURE FILE: The signature part is a UTF-8 JSON text, not raw signature bytes: "
+        + "{\"format\":\"gamepack-signature-1\",\"algorithm\":\"ecdsa-p256-sha256\",\"publicKey\":\"<base64 SubjectPublicKeyInfo of a P-256 key>\","
+        + "\"manifestSha256\":\"<64 lower case hex>\",\"files\":[{\"type\":\"sequence|command|image\",\"name\":\"<name, or id for an image>\","
+        + "\"sha256\":\"<64 lower case hex>\"}],\"signature\":\"<base64 of 64 bytes>\"}. "
+        + "SIGNED BYTES: The platform does not sign or check the raw gamepack file bytes. The signer signs the UTF-8 bytes of the canonical JSON of "
+        + "{\"files\":[...],\"format\":\"gamepack-signature-1\",\"manifestSha256\":\"...\"}. Each item of files has the keys name, sha256, and type. "
+        + "Sort files by type, then by lower case name (ordinal). The platform builds these bytes again from the signature file, "
+        + "so the signed files list must be the sorted list. "
+        + "HASHES: manifestSha256 is the SHA-256 (lower case hex) of the canonical JSON of the manifest object (of the text null if the file has no manifest). "
+        + "For each item of sequences, commands (name field), and images (id field), sha256 is the SHA-256 of the canonical JSON of that item. "
+        + "An unknown field is part of the hash. A name or id that is not a string gives an empty name. "
+        + "CANONICAL JSON: no white space. Object keys in ordinal order at each level. Array order stays. Strings are UTF-8. "
+        + "Only these are escaped: quote, backslash, \\b, \\f, \\n, \\r, \\t, and \\u00xx (lower case hex) for other characters below U+0020. "
+        + "All other characters, also non-ASCII and slash, are raw. An integer is plain digits, with no fraction and no exponent. "
+        + "Other numbers use the .NET round-trip text of a double with the invariant culture (the exponent is written as e, with no plus sign). "
+        + "true, false, and null are lower case. "
+        + "ALGORITHM: ECDSA, curve P-256, SHA-256. The signature is the IEEE P1363 form (r then s, 64 bytes), not DER, written as base64. "
+        + "In .NET use ECDsa.SignData(bytes, HashAlgorithmName.SHA256). "
+        + "STATUS: invalid = the text is empty, is not JSON, has an unknown format or algorithm, a bad key, a bad base64 text, a signature that is not 64 bytes, "
+        + "or the signature does not pass for the signed bytes and the key in the file. A signature over the raw file bytes gives invalid. "
+        + "content_mismatch = the signature is correct, but the hashes differ from the gamepack (changed, extra, or missing item). "
+        + "untrusted = the signature and the content are correct, but the SHA-256 fingerprint of the key (lower case hex of the SPKI bytes) is not on the trusted list. "
+        + "valid = all checks pass. missing = no signature part. "
+        + "The catalog index (index.json) is described on GET /api/gamepacks/catalog.");
 
     group.MapGet("", List)
       .Produces<IReadOnlyList<GamepackListItemDto>>(StatusCodes.Status200OK)

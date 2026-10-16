@@ -39,7 +39,14 @@ internal static class GamepackCatalogEndpoints {
       .WithSummary("List the gamepacks of the catalog")
       .WithDescription(
         "Reads the catalog index on each request. Gives each gamepack with its versions from new to old, the change text, "
-        + "the installed marker, and updateAvailable. The instance never changes.");
+        + "the installed marker, and updateAvailable. The instance never changes. "
+        + "INDEX: The index is the file index.json at the catalog location (at most 5 MB): "
+        + "{\"formatVersion\":1,\"gamepacks\":[{\"name\":\"pns-daily\",\"versions\":[{\"version\":\"1.2.0\",\"changelog\":\"<optional text>\","
+        + "\"file\":\"pns-daily/1.2.0/pns-daily.gamepack.json\",\"signature\":\"<optional relative path of the signature file>\","
+        + "\"sha256\":\"<optional 64 hex of the gamepack file>\"}]}]}. "
+        + "formatVersion must be 1. A file location is relative to the catalog location. The platform skips a version entry that has an invalid version, "
+        + "an invalid hash, or a file location that is absolute, has .., has a backslash, or leaves the catalog. For a duplicate name and version, "
+        + "the first entry wins. The signature file has the format that the description of POST /api/gamepacks/install gives.");
 
     group.MapPost("install", InstallAsync)
       .Accepts<GamepackCatalogInstallRequest>("application/json")
