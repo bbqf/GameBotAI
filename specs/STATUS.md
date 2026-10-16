@@ -178,6 +178,7 @@ Status vocabulary:
 | 142 | Quiz Answer Service for Sequences | Implemented (real-emulator check pending) |
 | 143 | Gamepack Install | Implemented |
 | 145 | Export and Import Queue Settings by Name | Implemented |
+| 146 | Gamepack Signature Verify | Implemented |
 
 ## Numbering notes
 

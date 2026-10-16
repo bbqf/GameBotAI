@@ -143,6 +143,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyMonitoringExamples(operation, path, method, context);
     ApplyQuizExamples(operation, path, method, context);
     ApplyGamepackExamples(operation, path, method, context);
+    ApplyGamepackSignatureExamples(operation, path, method, context);
     ApplyQueueSettingsExamples(operation, path, method, context);
     ApplyVersionExamples(operation, path, method, context);
     ApplyUpdateExamples(operation, path, method, context);
@@ -1122,7 +1123,12 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["gamepack"] = gamepack,
         ["created"] = new OpenApiInteger(3),
         ["updated"] = new OpenApiInteger(0),
-        ["removed"] = new OpenApiInteger(0)
+        ["removed"] = new OpenApiInteger(0),
+        ["signature"] = new OpenApiObject {
+          ["status"] = new OpenApiString("valid"),
+          ["policy"] = new OpenApiString("required"),
+          ["wouldReject"] = new OpenApiBoolean(false)
+        }
       }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackInstallResponse));
       var problems = new OpenApiArray { GamepackProblemExample() };
       var invalid = new OpenApiObject {
@@ -1162,6 +1168,35 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["valid"] = new OpenApiBoolean(false),
         ["problems"] = new OpenApiArray { GamepackProblemExample() }
       }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackRollbackRefusedResponse));
+    }
+  }
+
+  // ── Feature 146: gamepack signature policy and trusted keys ─────────────────────────────────
+
+  private static void ApplyGamepackSignatureExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    var policyPath = ApiRoutes.GamepackSignature + "/policy";
+    var keysPath = ApiRoutes.GamepackSignature + "/keys";
+    var policy = new OpenApiObject { ["policy"] = new OpenApiString("required") };
+    var key = new OpenApiObject {
+      ["label"] = new OpenApiString("Builder A"),
+      ["fingerprint"] = new OpenApiString("3b7f0c1d5e9a4f6b8c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b")
+    };
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, policyPath)) {
+      SetResponseExample(operation, "200", policy, context, typeof(GameBot.Service.Endpoints.Dto.GamepackSignaturePolicyDto));
+    }
+    else if (IsMethod(method, HttpMethods.Put) && IsPath(path, policyPath)) {
+      SetRequestExample(operation, policy, context, typeof(GameBot.Service.Endpoints.Dto.GamepackSignaturePolicyDto));
+      SetResponseExample(operation, "200", policy, context, typeof(GameBot.Service.Endpoints.Dto.GamepackSignaturePolicyDto));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, keysPath)) {
+      SetResponseExample(operation, "200", new OpenApiArray { key }, context, typeof(List<GameBot.Service.Endpoints.Dto.GamepackSignatureKeyDto>));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, keysPath)) {
+      SetRequestExample(operation, new OpenApiObject {
+        ["label"] = new OpenApiString("Builder A"),
+        ["publicKey"] = new OpenApiString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...")
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackSignatureKeyRequest));
+      SetResponseExample(operation, "201", key, context, typeof(GameBot.Service.Endpoints.Dto.GamepackSignatureKeyDto));
     }
   }
 

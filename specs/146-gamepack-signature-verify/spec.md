@@ -2,7 +2,7 @@
 
 **Feature Branch**: `146-gamepack-signature-verify`  
 **Created**: 2026-10-16  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Verify the detached signature of a gamepack before install. GitHub issue #307 (FR-024). Closes #307."
 
 ## Clarifications

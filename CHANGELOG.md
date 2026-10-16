@@ -12,6 +12,12 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Added
+- Gamepack signature check (146-gamepack-signature-verify)
+  - **Policy**: the instance has the policy `required`, `optional`, or `off`. The default is `off`. Read and set it with `GET` and `PUT /api/gamepacks/signature/policy`. A change applies to the next install with no restart.
+  - **Keys**: `GET` and `POST /api/gamepacks/signature/keys` and `DELETE /api/gamepacks/signature/keys/{fingerprint}` manage the trusted ECDSA P-256 keys. The list does not show key text.
+  - **Install**: send `multipart/form-data` with the parts `gamepack` and `signature`. The response has a `signature` block with `status`, `policy`, and `wouldReject`. Under `required`, a status other than `valid` gives 422 and changes nothing. Under `off`, the signature is not read. A dry run shows `wouldReject`. A request with raw `application/json` still works.
+  - See `docs/gamepacks.md` ("Signed gamepacks") and `docs/architecture.md`.
+  - The patch version is now 8, so the next build is `1.10.8.<run number>`.
 - Export and import of queue settings by name (145-export-import-queue-settings)
   - **Routes**: `GET /api/queue-settings/export` writes one JSON document with all queues, queue templates, and your own sequences and commands. `POST /api/queue-settings/import` puts it back by name.
   - **Safe import**: it checks the whole document first, never changes a gamepack-owned object, never deletes, and a second import changes nothing. A missing target is listed in the report. A store failure gives status 500 with a partial report, and you send the same document again to finish.

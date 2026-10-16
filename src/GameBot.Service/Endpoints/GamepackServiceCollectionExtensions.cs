@@ -1,5 +1,6 @@
 using GameBot.Domain.Commands;
 using GameBot.Domain.Gamepacks;
+using GameBot.Domain.Gamepacks.Signing;
 using GameBot.Domain.Images;
 
 namespace GameBot.Service.Endpoints;
@@ -7,7 +8,8 @@ namespace GameBot.Service.Endpoints;
 /// <summary>Registers the gamepack services (feature 143).</summary>
 internal static class GamepackServiceCollectionExtensions {
   /// <summary>
-  /// Adds the registry store, the no-op write gate, the validator, the applier, and the service.
+  /// Adds the registry store, the no-op write gate, the signature settings store, the verifier, the checker, the validator,
+  /// the applier, and the service.
   /// A test can replace <see cref="IGamepackWriteGate"/> to inject a fault.
   /// </summary>
   /// <param name="services">The service collection.</param>
@@ -16,6 +18,12 @@ internal static class GamepackServiceCollectionExtensions {
     ArgumentNullException.ThrowIfNull(services);
     services.AddSingleton<IGamepackRegistryStore>(_ => new GamepackRegistryStore(dataRoot));
     services.AddSingleton<IGamepackWriteGate, NoOpGamepackWriteGate>();
+    services.AddSingleton<IGamepackSignatureSettingsStore>(_ => new GamepackSignatureSettingsStore(dataRoot));
+    services.AddSingleton<IGamepackSignatureVerifier, GamepackSignatureVerifier>();
+    services.AddSingleton(sp => new GamepackSignatureChecker(
+      sp.GetRequiredService<IGamepackSignatureSettingsStore>(),
+      sp.GetRequiredService<IGamepackSignatureVerifier>(),
+      sp.GetService<ILogger<GamepackSignatureChecker>>()));
     services.AddSingleton(sp => new GamepackValidator(
       sp.GetRequiredService<ISequenceRepository>(),
       sp.GetRequiredService<ICommandRepository>(),
@@ -36,7 +44,8 @@ internal static class GamepackServiceCollectionExtensions {
       sp.GetRequiredService<IGamepackRegistryStore>(),
       sp.GetRequiredService<GamepackValidator>(),
       sp.GetRequiredService<GamepackApplier>(),
-      sp.GetService<ILogger<GamepackService>>()));
+      sp.GetService<ILogger<GamepackService>>(),
+      sp.GetRequiredService<GamepackSignatureChecker>()));
     return services;
   }
 }
