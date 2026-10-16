@@ -59,8 +59,24 @@ internal sealed class GamepackContractHost : IDisposable {
     _factory.Dispose();
   }
 
-  public Task<HttpResponseMessage> InstallAsync(string json, bool dryRun = false) =>
-    Client.PostAsync(new Uri("/api/gamepacks/install" + (dryRun ? "?dryRun=true" : string.Empty), UriKind.Relative),
+  private static string InstallQuery(bool dryRun, bool takeOver) {
+    var parts = new List<string>();
+    if (dryRun) {
+      parts.Add("dryRun=true");
+    }
+
+    if (takeOver) {
+      parts.Add("takeOver=true");
+    }
+
+    return parts.Count == 0 ? string.Empty : "?" + string.Join("&", parts);
+  }
+
+  public Task<HttpResponseMessage> RestoreTakeOverAsync(string backupId) =>
+    Client.PostAsync(new Uri($"/api/gamepacks/takeover-backups/{backupId}/restore", UriKind.Relative), content: null);
+
+  public Task<HttpResponseMessage> InstallAsync(string json, bool dryRun = false, bool takeOver = false) =>
+    Client.PostAsync(new Uri("/api/gamepacks/install" + InstallQuery(dryRun, takeOver), UriKind.Relative),
       new StringContent(json, Encoding.UTF8, "application/json"));
 
   /// <summary>Sends a multipart install request with the gamepack part and an optional signature part (feature 146).</summary>
@@ -114,8 +130,8 @@ internal sealed class GamepackContractHost : IDisposable {
 
   public Task<HttpResponseMessage> CatalogListAsync() => Client.GetAsync(new Uri("/api/gamepacks/catalog", UriKind.Relative));
 
-  public Task<HttpResponseMessage> CatalogInstallAsync(string? name, string? version, bool dryRun = false) =>
-    Client.PostAsJsonAsync(new Uri("/api/gamepacks/catalog/install", UriKind.Relative), new { name, version, dryRun });
+  public Task<HttpResponseMessage> CatalogInstallAsync(string? name, string? version, bool dryRun = false, bool takeOver = false) =>
+    Client.PostAsJsonAsync(new Uri("/api/gamepacks/catalog/install", UriKind.Relative), new { name, version, dryRun, takeOver });
 
   public static async Task<string> CodeOfAsync(HttpResponseMessage response) =>
     (await ReadAsync(response)).GetProperty("code").GetString()!;

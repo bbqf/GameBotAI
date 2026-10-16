@@ -61,7 +61,39 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
 
     if (context.Type == typeof(GamepackInstallResponse)) {
       schema.Description = "The result of an install or a dry run. A dry run with problems gives 200 with valid false. "
-        + "An install with problems gives 422. created, updated, and removed show what the install did, or would do for a dry run.";
+        + "An install with problems gives 422. created, updated, and removed show what the install did, or would do for a dry run. "
+        + "takenOver is the number of user objects that the gamepack took over (feature 149). It is always present and is 0 when takeOver is off.";
+      Describe(schema, "takenOver", "The number of user objects of the same type and name that the install took over (planned for a dry run). 0 when takeOver is off or nothing was taken over. It does not count an update of an object that the gamepack already owned.");
+      Describe(schema, "takeOverBackupId", "The id of the take-over backup. Present only for a real install that replaced at least one object. Use it with POST /api/gamepacks/takeover-backups/{backupId}/restore.");
+      Describe(schema, "takeOvers", "Present only for a dry run with takeOver=true and no problem. One entry for each object to take over, with identical true when the content of the user object equals the content of the gamepack object.");
+      return;
+    }
+
+    if (context.Type == typeof(GamepackTakeOverEntryDto)) {
+      schema.Description = "One object that an install takes over from the user.";
+      Describe(schema, "type", "sequence, command, or image.");
+      Describe(schema, "name", "The object name. For an image, the id.");
+      Describe(schema, "identical", "True when the canonical content of the user object equals the canonical content of the gamepack object. The file name of an image does not count.");
+      return;
+    }
+
+    if (context.Type == typeof(GamepackTakeOverRestoreResponse)) {
+      schema.Description = "The result of a restore of a take-over backup that worked. The objects have their old content and the owner user. The backup file stays.";
+      Describe(schema, "restored", "The number of objects that were put back.");
+      return;
+    }
+
+    if (context.Type == typeof(GamepackTakeOverRestoreRefusedResponse)) {
+      schema.Description = "A restore that a check refused (HTTP 409). Nothing changed. A second restore of the same backup gives owner_changed.";
+      Describe(schema, "reasons", "One reason for each refused object.");
+      return;
+    }
+
+    if (context.Type == typeof(GamepackTakeOverRestoreReasonDto)) {
+      schema.Description = "One reason for a refused restore.";
+      Describe(schema, "code", "object_missing (the object no longer exists), object_changed (the live object differs from the content that the install wrote), or owner_changed (the gamepack no longer owns the object, or is not installed). There are no other codes.");
+      Describe(schema, "type", "sequence, command, or image.");
+      Describe(schema, "name", "The object name. For an image, the id.");
       return;
     }
 
@@ -165,6 +197,7 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       Describe(schema, "name", "The gamepack name.");
       Describe(schema, "version", "The version.");
       Describe(schema, "dryRun", "True to check only. No data changes.");
+      Describe(schema, "takeOver", "True to take over user objects of the same type and name (default false). The response has takenOver and takeOverBackupId.");
       return true;
     }
 

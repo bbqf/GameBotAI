@@ -48,6 +48,12 @@ public sealed class GamepackApplyOutcome {
 
   /// <summary>The number of removed objects.</summary>
   public int Removed { get; init; }
+
+  /// <summary>The number of user objects that the apply took over (feature 149).</summary>
+  public int TakenOver { get; init; }
+
+  /// <summary>The id of the take-over backup. Set only when the apply worked and replaced at least one object.</summary>
+  public string? TakeOverBackupId { get; init; }
 }
 
 /// <summary>
@@ -64,6 +70,7 @@ public sealed partial class GamepackApplier {
   private readonly IGamepackWriteGate _gate;
   private readonly ILogger _logger;
   private readonly TimeProvider _time;
+  private readonly ITakeOverBackupStore? _takeOverBackups;
 
   /// <summary>Creates the applier.</summary>
   /// <param name="sequences">The sequence store.</param>
@@ -73,6 +80,10 @@ public sealed partial class GamepackApplier {
   /// <param name="gate">The write gate.</param>
   /// <param name="logger">The logger, or null.</param>
   /// <param name="timeProvider">The clock, or null.</param>
+  /// <param name="takeOverBackups">
+  /// The take-over backup store, or null (feature 149). Without a store, an apply with a take-over in the plan returns
+  /// <see cref="GamepackApplyStatus.Failed"/> and changes nothing.
+  /// </param>
   public GamepackApplier(
       ISequenceRepository sequences,
       ICommandRepository commands,
@@ -80,7 +91,9 @@ public sealed partial class GamepackApplier {
       IGamepackRegistryStore store,
       IGamepackWriteGate gate,
       ILogger<GamepackApplier>? logger = null,
-      TimeProvider? timeProvider = null) {
+      TimeProvider? timeProvider = null,
+      ITakeOverBackupStore? takeOverBackups = null) {
+    _takeOverBackups = takeOverBackups;
     _sequences = sequences ?? throw new ArgumentNullException(nameof(sequences));
     _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     _images = images ?? throw new ArgumentNullException(nameof(images));
@@ -105,6 +118,7 @@ public sealed partial class GamepackApplier {
     string? capturedText = null;
     PreviousVersion? capturedRecord = null;
     InstalledGamepack? oldRecord;
+    string? backupId = null;
 
     try {
       registryExistedBefore = _store.RegistryExists;
@@ -116,11 +130,17 @@ public sealed partial class GamepackApplier {
       }
 
       foreach (var write in plan.Writes) {
-        undo.Add(await TakeSnapshotAsync(write.Type, write.Key, write.FinalId, ct).ConfigureAwait(false));
+        // A take-over carries the stored object that the validator has read in the same request (feature 149).
+        undo.Add(PreloadedSnapshot(write) ?? await TakeSnapshotAsync(write.Type, write.Key, write.FinalId, ct).ConfigureAwait(false));
       }
 
       foreach (var removal in plan.Removals) {
         undo.Add(await TakeSnapshotAsync(removal.Type, removal.Key, removal.Id, ct).ConfigureAwait(false));
+      }
+
+      // The backup of the replaced user objects exists before the first object write (feature 149, FR-008).
+      if (plan.TakenOver > 0) {
+        backupId = WriteTakeOverBackup(plan, undo);
       }
     }
     catch (Exception ex) when (ex is not OperationCanceledException) {
@@ -155,6 +175,7 @@ public sealed partial class GamepackApplier {
     }
     catch (Exception ex) {
       var failed = await RestoreAsync(registryTouched, registryBefore, registryExistedBefore, previousTouched, packName, previousFileBefore, touched).ConfigureAwait(false);
+      DropTakeOverBackup(backupId, failed.Count == 0);
       return new GamepackApplyOutcome {
         Status = failed.Count == 0 ? GamepackApplyStatus.Failed : GamepackApplyStatus.PartialRestore,
         Error = ex,
@@ -162,11 +183,17 @@ public sealed partial class GamepackApplier {
       };
     }
 
+    if (backupId is not null) {
+      LogTakeOver(_logger, packName, plan.TakenOver, backupId);
+    }
+
     return new GamepackApplyOutcome {
       Status = GamepackApplyStatus.Applied,
       Created = plan.Created,
       Updated = plan.Updated,
-      Removed = plan.Removed
+      Removed = plan.Removed,
+      TakenOver = plan.TakenOver,
+      TakeOverBackupId = backupId
     };
   }
 

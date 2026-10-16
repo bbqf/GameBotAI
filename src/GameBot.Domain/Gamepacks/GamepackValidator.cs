@@ -39,8 +39,9 @@ public sealed class GamepackValidator {
   /// <param name="parseProblems">Problems that the parse found, or null.</param>
   /// <param name="ct">The cancellation token.</param>
   /// <param name="checkApiVersion">True to compare <c>requiredApiMajor</c> with the running API major version. A rollback passes false.</param>
+  /// <param name="takeOver">True to take over user objects of the same type and name (feature 149). A rollback passes false.</param>
   [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "The new optional flag goes last, so that existing callers keep their call shape.")]
-  public async Task<GamepackValidationResult> ValidateAsync(GamepackFile file, IReadOnlyList<GamepackProblem>? parseProblems = null, CancellationToken ct = default, bool checkApiVersion = true) {
+  public async Task<GamepackValidationResult> ValidateAsync(GamepackFile file, IReadOnlyList<GamepackProblem>? parseProblems = null, CancellationToken ct = default, bool checkApiVersion = true, bool takeOver = false) {
     ArgumentNullException.ThrowIfNull(file);
     var problems = new List<GamepackProblem>();
     if (parseProblems is not null) {
@@ -56,9 +57,9 @@ public sealed class GamepackValidator {
     var owners = new GamepackOwnerResolver(registry);
     var packName = file.Manifest?.Name;
 
-    var sequenceDecisions = DecideSequences(file, existingSequences, owners, packName, problems);
-    var commandDecisions = DecideCommands(file, existingCommands, owners, packName, problems);
-    var imageDecisions = DecideImages(file, existingImageIds, owners, packName, problems);
+    var sequenceDecisions = DecideSequences(file, existingSequences, owners, packName, problems, takeOver);
+    var commandDecisions = DecideCommands(file, existingCommands, owners, packName, problems, takeOver);
+    var imageDecisions = DecideImages(file, existingImageIds, owners, packName, problems, takeOver);
 
     var removals = FindRemovals(registry, owners, packName, existingSequences, existingCommands, existingImageIds,
       sequenceDecisions, commandDecisions, imageDecisions);
@@ -70,7 +71,57 @@ public sealed class GamepackValidator {
     }
 
     var plan = BuildPlan(file, existingSequences, existingCommands, sequenceDecisions, commandDecisions, imageDecisions, decoded, removals);
+    if (plan.TakenOver > 0) {
+      var entries = await CompareTakeOversAsync(plan, ct).ConfigureAwait(false);
+      plan = new GamepackPlan { Manifest = plan.Manifest, Writes = plan.Writes, Removals = plan.Removals, TakeOvers = entries };
+    }
+
     return new GamepackValidationResult { Problems = problems, Plan = plan };
+  }
+
+  // The compare runs after the plan, on the objects that the plan carries. The plan has already rewritten the references to the final ids (feature 149, research R3).
+  private async Task<List<TakeOverEntry>> CompareTakeOversAsync(GamepackPlan plan, CancellationToken ct) {
+    var entries = new List<TakeOverEntry>();
+    foreach (var write in plan.Writes.Where(w => w.IsTakeOver)) {
+      var identical = false;
+      switch (write.Type) {
+        case GamepackObjectTypes.Sequence: {
+          var live = write.LiveSequence;
+          write.PostHash = GamepackContentComparer.Hash(write.Sequence!);
+          identical = live is not null && string.Equals(GamepackContentComparer.Hash(live), write.PostHash, StringComparison.Ordinal);
+          break;
+        }
+
+        case GamepackObjectTypes.Command: {
+          var live = write.LiveCommand;
+          write.PostHash = GamepackContentComparer.Hash(write.Command!);
+          identical = live is not null && string.Equals(GamepackContentComparer.Hash(live), write.PostHash, StringComparison.Ordinal);
+          break;
+        }
+
+        case GamepackObjectTypes.Image:
+          identical = await ImageIsIdenticalAsync(write, ct).ConfigureAwait(false);
+          break;
+      }
+
+      entries.Add(new TakeOverEntry(write.Type, write.Name, identical));
+    }
+
+    return entries;
+  }
+
+  private async Task<bool> ImageIsIdenticalAsync(PlannedObject write, CancellationToken ct) {
+    var asset = await _images.GetAsync(write.ExistingId!, ct).ConfigureAwait(false);
+    var stream = asset is null ? null : await _images.OpenReadAsync(write.ExistingId!, ct).ConfigureAwait(false);
+    if (asset is null || stream is null) {
+      return false;
+    }
+
+    await using (stream.ConfigureAwait(false)) {
+      using var buffer = new MemoryStream();
+      await stream.CopyToAsync(buffer, ct).ConfigureAwait(false);
+      return GamepackContentComparer.ImagesIdentical(asset.ContentType, buffer.ToArray(), write.Image!.ContentType, write.ImageBytes!);
+    }
   }
 
   // ---- structure ----
@@ -184,10 +235,10 @@ public sealed class GamepackValidator {
 
   // ---- conflicts and update decisions ----
 
-  private sealed record Decision(string? ExistingId);
+  private sealed record Decision(string? ExistingId, bool IsTakeOver = false);
 
   private static Dictionary<string, Decision> DecideSequences(
-      GamepackFile file, IReadOnlyList<CommandSequence> existing, GamepackOwnerResolver owners, string? packName, List<GamepackProblem> problems) {
+      GamepackFile file, IReadOnlyList<CommandSequence> existing, GamepackOwnerResolver owners, string? packName, List<GamepackProblem> problems, bool takeOver) {
     var result = new Dictionary<string, Decision>(StringComparer.OrdinalIgnoreCase);
     foreach (var sequence in file.Sequences) {
       if (string.IsNullOrWhiteSpace(sequence.Name) || result.ContainsKey(sequence.Name)) {
@@ -195,14 +246,14 @@ public sealed class GamepackValidator {
       }
 
       var candidates = existing.Where(e => string.Equals(e.Name, sequence.Name, StringComparison.OrdinalIgnoreCase)).Select(e => e.Id);
-      result[sequence.Name] = Decide(GamepackObjectTypes.Sequence, sequence.Name, candidates, owners, packName, problems);
+      result[sequence.Name] = Decide(GamepackObjectTypes.Sequence, sequence.Name, candidates, owners, packName, problems, takeOver);
     }
 
     return result;
   }
 
   private static Dictionary<string, Decision> DecideCommands(
-      GamepackFile file, IReadOnlyList<Command> existing, GamepackOwnerResolver owners, string? packName, List<GamepackProblem> problems) {
+      GamepackFile file, IReadOnlyList<Command> existing, GamepackOwnerResolver owners, string? packName, List<GamepackProblem> problems, bool takeOver) {
     var result = new Dictionary<string, Decision>(StringComparer.OrdinalIgnoreCase);
     foreach (var command in file.Commands) {
       if (string.IsNullOrWhiteSpace(command.Name) || result.ContainsKey(command.Name)) {
@@ -210,14 +261,14 @@ public sealed class GamepackValidator {
       }
 
       var candidates = existing.Where(e => string.Equals(e.Name, command.Name, StringComparison.OrdinalIgnoreCase)).Select(e => e.Id);
-      result[command.Name] = Decide(GamepackObjectTypes.Command, command.Name, candidates, owners, packName, problems);
+      result[command.Name] = Decide(GamepackObjectTypes.Command, command.Name, candidates, owners, packName, problems, takeOver);
     }
 
     return result;
   }
 
   private static Dictionary<string, Decision> DecideImages(
-      GamepackFile file, IReadOnlyCollection<string> existingIds, GamepackOwnerResolver owners, string? packName, List<GamepackProblem> problems) {
+      GamepackFile file, IReadOnlyCollection<string> existingIds, GamepackOwnerResolver owners, string? packName, List<GamepackProblem> problems, bool takeOver) {
     var result = new Dictionary<string, Decision>(StringComparer.OrdinalIgnoreCase);
     foreach (var image in file.Images) {
       if (!ReferenceImageIdValidator.IsValid(image.Id) || result.ContainsKey(image.Id!)) {
@@ -225,18 +276,33 @@ public sealed class GamepackValidator {
       }
 
       var candidates = existingIds.Where(e => string.Equals(e, image.Id, StringComparison.OrdinalIgnoreCase));
-      result[image.Id!] = Decide(GamepackObjectTypes.Image, image.Id!, candidates, owners, packName, problems);
+      result[image.Id!] = Decide(GamepackObjectTypes.Image, image.Id!, candidates, owners, packName, problems, takeOver);
     }
 
     return result;
   }
 
-  private static Decision Decide(string type, string name, IEnumerable<string> candidateIds, GamepackOwnerResolver owners, string? packName, List<GamepackProblem> problems) {
+  // An object of the same gamepack is an update. With takeOver on, the first object of the user is a take-over and keeps its
+  // id (feature 149). Any other match is a conflict. An object of another gamepack is always a conflict.
+  private static Decision Decide(string type, string name, IEnumerable<string> candidateIds, GamepackOwnerResolver owners, string? packName, List<GamepackProblem> problems, bool takeOver) {
+    var candidates = candidateIds.ToList();
     string? updateId = null;
-    foreach (var id in candidateIds) {
+    string? takeOverId = null;
+    foreach (var id in candidates) {
       var owner = owners.Resolve(type, id);
       if (!owner.IsUser && packName is not null && GamepackNameRules.Comparer.Equals(owner.Name, packName)) {
         updateId ??= id;
+      }
+    }
+
+    foreach (var id in candidates) {
+      var owner = owners.Resolve(type, id);
+      if (!owner.IsUser && packName is not null && GamepackNameRules.Comparer.Equals(owner.Name, packName)) {
+        continue;
+      }
+
+      if (owner.IsUser && takeOver && updateId is null && takeOverId is null) {
+        takeOverId = id;
         continue;
       }
 
@@ -250,7 +316,7 @@ public sealed class GamepackValidator {
         owner.ToText()));
     }
 
-    return new Decision(updateId);
+    return takeOverId is not null ? new Decision(takeOverId, IsTakeOver: true) : new Decision(updateId);
   }
 
   // ---- removals ----
@@ -403,7 +469,7 @@ public sealed class GamepackValidator {
       }
 
       command.Id = finalId;
-      commandWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Command, Name = command.Name, FinalId = finalId, ExistingId = existingId, Command = command });
+      commandWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Command, Name = command.Name, FinalId = finalId, ExistingId = existingId, IsTakeOver = commandDecisions[command.Name].IsTakeOver, Command = command, LiveCommand = commandDecisions[command.Name].IsTakeOver ? existingCommands.FirstOrDefault(c => string.Equals(c.Id, existingId, StringComparison.OrdinalIgnoreCase)) : null });
     }
 
     string? Map(string id) => commandIdMap.TryGetValue(id, out var mapped) ? mapped : null;
@@ -417,7 +483,7 @@ public sealed class GamepackValidator {
       var finalId = existingId ?? PickNewId(sequence.Id, sequenceUsed);
       sequence.Id = finalId;
       GamepackReferences.RewriteCommandIds(sequence, Map);
-      sequenceWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Sequence, Name = sequence.Name, FinalId = finalId, ExistingId = existingId, Sequence = sequence });
+      sequenceWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Sequence, Name = sequence.Name, FinalId = finalId, ExistingId = existingId, IsTakeOver = sequenceDecisions[sequence.Name].IsTakeOver, Sequence = sequence, LiveSequence = sequenceDecisions[sequence.Name].IsTakeOver ? existingSequences.FirstOrDefault(s => string.Equals(s.Id, existingId, StringComparison.OrdinalIgnoreCase)) : null });
     }
 
     var imageWrites = new List<PlannedObject>();
@@ -428,6 +494,7 @@ public sealed class GamepackValidator {
         Name = image.Id!,
         FinalId = existingId ?? image.Id!,
         ExistingId = existingId,
+        IsTakeOver = imageDecisions[image.Id!].IsTakeOver,
         Image = image,
         ImageBytes = decoded[image.Id!]
       });

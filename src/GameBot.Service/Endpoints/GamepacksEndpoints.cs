@@ -33,6 +33,10 @@ internal static class GamepacksEndpoints {
       .WithDescription(
         "Installs all objects of a gamepack file as one unit, or none. Query dryRun=true checks the file and changes no data. "
         + "An object with the same type and name as an object of the user or of another gamepack is a conflict. "
+        + "Query takeOver=true changes this for an object of the user only: the gamepack takes the object over, the id stays, and the old content goes to one "
+        + "take-over backup (takeOverBackupId) that the route POST /api/gamepacks/takeover-backups/{backupId}/restore can put back. "
+        + "A conflict with an object of another gamepack stays a conflict. With takeOver=true and dryRun=true, the response has the list takeOvers "
+        + "(type, name, identical). The count takenOver is always in the response. "
         + "The request can have at most 100 MB. The request is the gamepack file as application/json (no signature), or multipart/form-data "
         + "with the part gamepack and the optional part signature. The response has a signature block with status, policy, and wouldReject. "
         + "If the policy is required and the status is not valid, an install gives 422 with result signature_rejected and changes nothing. "
@@ -61,6 +65,22 @@ internal static class GamepacksEndpoints {
         + "untrusted = the signature and the content are correct, but the SHA-256 fingerprint of the key (lower case hex of the SPKI bytes) is not on the trusted list. "
         + "valid = all checks pass. missing = no signature part. "
         + "The catalog index (index.json) is described on GET /api/gamepacks/catalog.");
+
+    group.MapPost("takeover-backups/{backupId}/restore", RestoreTakeOverAsync)
+      .Produces<GamepackTakeOverRestoreResponse>(StatusCodes.Status200OK)
+      .Produces<GamepackTakeOverRestoreRefusedResponse>(StatusCodes.Status409Conflict)
+      .ProducesProblem(StatusCodes.Status404NotFound)
+      .ProducesProblem(StatusCodes.Status500InternalServerError)
+      .WithName("RestoreGamepackTakeOverBackup")
+      .WithSummary("Give the objects of a take-over backup back to the user")
+      .WithDescription(
+        "Puts back the old content of the objects that one install with takeOver=true replaced. The objects are owned by the user again. "
+        + "The route takes the same gate as install and rollback. It does not stop or start a queue. "
+        + "It checks three things for each object: object_missing (the object no longer exists), object_changed (the live object differs from the "
+        + "content that the install wrote), and owner_changed (the gamepack no longer owns the object, or the gamepack is not installed). "
+        + "If a check fails, the route gives 409 with the list of reasons and changes nothing. A restore works as one unit: all objects or none. "
+        + "A second restore of the same backup gives 409 with owner_changed and changes nothing, because the backup file stays. "
+        + "An id that is unknown or has a wrong form gives 404. A failed write gives 500.");
 
     group.MapGet("", List)
       .Produces<IReadOnlyList<GamepackListItemDto>>(StatusCodes.Status200OK)
@@ -94,7 +114,7 @@ internal static class GamepacksEndpoints {
   internal sealed class GamepackInstallRequestBody { }
 
   private static async Task<IResult> InstallAsync(
-      HttpRequest http, GamepackService service, GamepackSignatureChecker checker, bool? dryRun, CancellationToken ct) {
+      HttpRequest http, GamepackService service, GamepackSignatureChecker checker, bool? dryRun, bool? takeOver, CancellationToken ct) {
     var isDryRun = dryRun ?? false;
     InstallRequestParts parts;
     try {
@@ -115,8 +135,25 @@ internal static class GamepacksEndpoints {
       return ProblemResult(StatusCodes.Status400BadRequest, "missing_gamepack_part", "The multipart request has no gamepack part.");
     }
 
-    var outcome = await service.InstallAsync(parts.Gamepack, isDryRun, parts.Signature, ct).ConfigureAwait(false);
+    var outcome = await service.InstallAsync(parts.Gamepack, new GamepackInstallOptions(isDryRun, takeOver ?? false, parts.Signature), ct).ConfigureAwait(false);
     return ToInstallResult(outcome, isDryRun);
+  }
+
+  private static async Task<IResult> RestoreTakeOverAsync(string backupId, GamepackService service, CancellationToken ct) {
+    // The public route never uses the force mode. The service method takes the install gate and checks all three reasons.
+    var outcome = await service.RestoreTakeOverAsync(backupId, ct).ConfigureAwait(false);
+    return outcome.Status switch {
+      TakeOverRestoreStatus.Restored => Results.Ok(new GamepackTakeOverRestoreResponse { BackupId = outcome.BackupId, Restored = outcome.Restored }),
+      TakeOverRestoreStatus.NotFound => ProblemResult(StatusCodes.Status404NotFound, "not_found", "No take-over backup has this id."),
+      TakeOverRestoreStatus.Refused => Results.Json(
+        new GamepackTakeOverRestoreRefusedResponse {
+          BackupId = outcome.BackupId,
+          Reasons = outcome.Reasons.Select(r => new GamepackTakeOverRestoreReasonDto { Code = r.Code, Type = r.Type, Name = r.Name, Message = r.Message }).ToList()
+        },
+        statusCode: StatusCodes.Status409Conflict),
+      TakeOverRestoreStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage),
+      _ => WriteFailed("failed", outcome.ErrorMessage)
+    };
   }
 
   /// <summary>Maps an install outcome to the response of the install routes (the manual route and the catalog route).</summary>
@@ -182,6 +219,9 @@ internal static class GamepacksEndpoints {
     Created = outcome.Created,
     Updated = outcome.Updated,
     Removed = outcome.Removed,
+    TakenOver = outcome.TakenOver,
+    TakeOverBackupId = outcome.TakeOverBackupId,
+    TakeOvers = outcome.TakeOvers?.Select(GamepackTakeOverEntryDto.From).ToList(),
     Result = outcome.Status == GamepackInstallStatus.SignatureRejected ? "signature_rejected" : null,
     Signature = outcome.Signature is null ? null : GamepackSignatureStatusDto.From(outcome.Signature)
   };

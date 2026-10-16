@@ -90,6 +90,20 @@ internal sealed record GamepackInstallResponse {
   /// <summary>The number of removed objects (planned for a dry run).</summary>
   public int Removed { get; init; }
 
+  /// <summary>
+  /// The number of user objects taken over (planned for a dry run). It is always present. It is 0 when the option takeOver is off
+  /// or nothing was taken over (feature 149).
+  /// </summary>
+  public int TakenOver { get; init; }
+
+  /// <summary>The id of the take-over backup. Set only for a real install that replaced at least one object.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? TakeOverBackupId { get; init; }
+
+  /// <summary>The objects to take over, each with the mark identical. Set only for a dry run with takeOver on and no problem.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<GamepackTakeOverEntryDto>? TakeOvers { get; init; }
+
   /// <summary>Always <c>signature_rejected</c> for a gamepack that the signature policy rejected. Else not set.</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Result { get; init; }
@@ -97,6 +111,62 @@ internal sealed record GamepackInstallResponse {
   /// <summary>The signature check result (feature 146).</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public GamepackSignatureStatusDto? Signature { get; init; }
+}
+
+/// <summary>One object that an install takes over from the user (feature 149).</summary>
+internal sealed record GamepackTakeOverEntryDto {
+  /// <summary><c>sequence</c>, <c>command</c>, or <c>image</c>.</summary>
+  public required string Type { get; init; }
+
+  /// <summary>The object name. For an image, the id.</summary>
+  public required string Name { get; init; }
+
+  /// <summary>True when the content of the user object equals the content of the gamepack object.</summary>
+  public bool Identical { get; init; }
+
+  internal static GamepackTakeOverEntryDto From(TakeOverEntry entry) {
+    ArgumentNullException.ThrowIfNull(entry);
+    return new GamepackTakeOverEntryDto { Type = entry.Type, Name = entry.Name, Identical = entry.Identical };
+  }
+}
+
+/// <summary>One reason for a refused restore of a take-over backup.</summary>
+internal sealed record GamepackTakeOverRestoreReasonDto {
+  /// <summary><c>object_missing</c>, <c>object_changed</c>, or <c>owner_changed</c>.</summary>
+  public required string Code { get; init; }
+
+  /// <summary>The object type.</summary>
+  public required string Type { get; init; }
+
+  /// <summary>The object name.</summary>
+  public required string Name { get; init; }
+
+  /// <summary>The message.</summary>
+  public required string Message { get; init; }
+}
+
+/// <summary>The response of a restore of a take-over backup that worked.</summary>
+internal sealed record GamepackTakeOverRestoreResponse {
+  /// <summary>The backup id.</summary>
+  public required string BackupId { get; init; }
+
+  /// <summary>Always <c>restored</c>.</summary>
+  public string Result { get; init; } = "restored";
+
+  /// <summary>The number of objects that were put back.</summary>
+  public int Restored { get; init; }
+}
+
+/// <summary>The response of a refused restore of a take-over backup (HTTP 409). Nothing changed.</summary>
+internal sealed record GamepackTakeOverRestoreRefusedResponse {
+  /// <summary>The backup id.</summary>
+  public required string BackupId { get; init; }
+
+  /// <summary>Always <c>refused</c>.</summary>
+  public string Result { get; init; } = "refused";
+
+  /// <summary>One reason for each refused object.</summary>
+  public IReadOnlyList<GamepackTakeOverRestoreReasonDto> Reasons { get; init; } = Array.Empty<GamepackTakeOverRestoreReasonDto>();
 }
 
 /// <summary>The response of a rollback that worked.</summary>

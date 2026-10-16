@@ -67,4 +67,7 @@ internal sealed record GamepackCatalogInstallRequest {
 
   /// <summary>True to check only. No data changes.</summary>
   public bool DryRun { get; init; }
+
+  /// <summary>True to take over user objects of the same type and name (feature 149). A missing value means false.</summary>
+  public bool TakeOver { get; init; }
 }

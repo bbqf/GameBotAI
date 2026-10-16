@@ -39,4 +39,23 @@ public sealed class ManagedUpdateReportCompletenessTests {
     after.Entries.Should().HaveCount(3);
     after.Entries.Take(2).Should().OnlyContain(e => e.Enabled);
   }
+
+  [Fact]
+  public async Task ATakeOverReportHasTheCountTheBackupIdAndTheDryRunList() {
+    using var rig = new ManagedTestRig();
+    await rig.Packs.AddUserObjectsAsync(GamepackTestKit.Pack("u", "1", sequences: new[] { GamepackTestKit.Seq("u-alpha", "alpha") }));
+    var file = ManagedTestRig.Pack("1.0.0", "alpha");
+
+    var planned = await rig.RunAsync(new ManagedUpdateRequest { Mode = ManagedUpdateMode.Update, FileText = file, DryRun = true, TakeOver = true });
+    var done = await rig.RunAsync(new ManagedUpdateRequest { Mode = ManagedUpdateMode.Update, FileText = file, TakeOver = true });
+
+    planned.Result.Should().Be(ManagedUpdateResults.Planned, ManagedTestRig.Describe(planned));
+    planned.TakenOver.Should().Be(1);
+    planned.TakeOvers.Should().ContainSingle().Which.Name.Should().Be("alpha");
+    planned.TakeOverBackupId.Should().BeNull();
+    done.Result.Should().Be(ManagedUpdateResults.Done, ManagedTestRig.Describe(done));
+    done.TakenOver.Should().Be(1);
+    done.TakeOverBackupId.Should().MatchRegex("^to-[0-9]{8}T[0-9]{9}-[0-9a-f]{8}$");
+    done.TakeOvers.Should().BeEmpty();
+  }
 }

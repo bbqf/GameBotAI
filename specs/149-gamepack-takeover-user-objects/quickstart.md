@@ -58,12 +58,12 @@ Performance check: run the performance test. Expected: the take-over install ove
 
 ## 7. Failure check
 
-Run the unit test `GamepackApplierFaultInjectionTests` for the take-over. It injects a fault at each write step. Expected: after each fault, no object differs from the state before the call, and no backup file stays.
+Run the unit test `GamepackApplierTakeOverBackupTests` (and `GamepackTakeOverRestoreTests` in the integration project). It injects a fault at each write step. Expected: after each fault, no object differs from the state before the call, and no backup file stays.
 
 ## Test commands
 
 ```powershell
-dotnet test "C:\src\GameBot\tests\unit\GameBot.Unit.Tests.csproj" --filter "FullyQualifiedName~Gamepack"
+dotnet test "C:\src\GameBot\tests\unit\GameBot.UnitTests.csproj" --filter "FullyQualifiedName~Gamepack"
 ```
 
 Use the contract and integration test projects in the same way.

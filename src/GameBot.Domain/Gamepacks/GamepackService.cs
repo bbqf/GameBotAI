@@ -56,6 +56,15 @@ public sealed class GamepackInstallOutcome {
   /// <summary>The error text for a failed write, or null.</summary>
   public string? ErrorMessage { get; init; }
 
+  /// <summary>The number of user objects taken over (planned for a dry run). 0 when the option is off (feature 149).</summary>
+  public int TakenOver { get; init; }
+
+  /// <summary>The id of the take-over backup. Set only for a real install that replaced at least one object.</summary>
+  public string? TakeOverBackupId { get; init; }
+
+  /// <summary>The list of objects to take over. Set for a dry run with the option on and no problem. Null otherwise.</summary>
+  public IReadOnlyList<TakeOverEntry>? TakeOvers { get; init; }
+
   /// <summary>The signature check result, or null when the service has no checker (feature 146).</summary>
   public SignatureCheckResult? Signature { get; init; }
 }
@@ -184,8 +193,22 @@ public sealed partial class GamepackService : IDisposable {
   /// <param name="dryRun">True to check only. No data changes.</param>
   /// <param name="signatureText">The detached signature file text, or null when none was sent.</param>
   /// <param name="ct">The cancellation token.</param>
-  public async Task<GamepackInstallOutcome> InstallAsync(string json, bool dryRun, string? signatureText, CancellationToken ct) {
+  public Task<GamepackInstallOutcome> InstallAsync(string json, bool dryRun, string? signatureText, CancellationToken ct) =>
+    InstallAsync(json, new GamepackInstallOptions(dryRun, TakeOver: false, signatureText), ct);
+
+  /// <summary>
+  /// Installs a gamepack file, or checks it when the option <see cref="GamepackInstallOptions.DryRun"/> is true (feature 149).
+  /// With <see cref="GamepackInstallOptions.TakeOver"/> on, a user object of the same type and name is taken over: the
+  /// gamepack owns it and the id stays. The old content goes to one take-over backup before the first write.
+  /// </summary>
+  /// <param name="json">The file text.</param>
+  /// <param name="options">The options of the request.</param>
+  /// <param name="ct">The cancellation token.</param>
+  public async Task<GamepackInstallOutcome> InstallAsync(string json, GamepackInstallOptions options, CancellationToken ct = default) {
     ArgumentNullException.ThrowIfNull(json);
+    ArgumentNullException.ThrowIfNull(options);
+    var dryRun = options.DryRun;
+    var signatureText = options.SignatureText;
     var parsed = GamepackFileSerializer.Parse(json);
     if (parsed.InvalidJson || parsed.File is null) {
       return new GamepackInstallOutcome { Status = GamepackInstallStatus.InvalidJson, DryRun = dryRun, Problems = parsed.Problems };
@@ -215,7 +238,7 @@ public sealed partial class GamepackService : IDisposable {
 
     await _gate.WaitAsync(ct).ConfigureAwait(false);
     try {
-      var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct).ConfigureAwait(false);
+      var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct, takeOver: options.TakeOver).ConfigureAwait(false);
       var manifest = parsed.File.Manifest;
       if (!check.IsValid || check.Plan is null) {
         return new GamepackInstallOutcome {
@@ -238,7 +261,9 @@ public sealed partial class GamepackService : IDisposable {
           Version = plan.Manifest.Version,
           Created = plan.Created,
           Updated = plan.Updated,
-          Removed = plan.Removed
+          Removed = plan.Removed,
+          TakenOver = plan.TakenOver,
+          TakeOvers = options.TakeOver ? plan.TakeOvers : null
         };
       }
 
@@ -265,12 +290,43 @@ public sealed partial class GamepackService : IDisposable {
         Version = plan.Manifest.Version,
         Created = applied.Created,
         Updated = applied.Updated,
-        Removed = applied.Removed
+        Removed = applied.Removed,
+        TakenOver = applied.TakenOver,
+        TakeOverBackupId = applied.TakeOverBackupId
       };
     }
     finally {
       _gate.Release();
     }
+  }
+
+  /// <summary>
+  /// Puts back the objects of a take-over backup (feature 149). The restore checks <c>object_missing</c>, <c>object_changed</c>,
+  /// and <c>owner_changed</c>. It holds the install gate. It does not stop or start a queue. The public route uses this method only.
+  /// </summary>
+  /// <param name="backupId">The backup id.</param>
+  /// <param name="ct">The cancellation token.</param>
+  public async Task<TakeOverRestoreOutcome> RestoreTakeOverAsync(string backupId, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(backupId);
+    await _gate.WaitAsync(ct).ConfigureAwait(false);
+    try {
+      return await _applier.RestoreTakeOverAsync(backupId, TakeOverRestoreMode.Strict, ct).ConfigureAwait(false);
+    }
+    finally {
+      _gate.Release();
+    }
+  }
+
+  /// <summary>
+  /// Puts back the objects of a take-over backup and skips the owner check (feature 149). Only the managed update calls it, and it
+  /// runs inside the exclusive scope of <see cref="RunExclusiveAsync{T}"/>. This method does not take the gate a second time.
+  /// No route uses it.
+  /// </summary>
+  /// <param name="backupId">The backup id.</param>
+  /// <param name="ct">The cancellation token.</param>
+  internal Task<TakeOverRestoreOutcome> RestoreTakeOverForcedInGateAsync(string backupId, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(backupId);
+    return _applier.RestoreTakeOverAsync(backupId, TakeOverRestoreMode.Force, ct);
   }
 
   /// <summary>Rolls a gamepack back to its kept previous version.</summary>

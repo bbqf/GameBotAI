@@ -108,6 +108,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     public int Created { get; set; }
     public int Updated { get; set; }
     public int Removed { get; set; }
+    public int TakenOver { get; set; }
+    public IReadOnlyList<TakeOverEntry> TakeOvers { get; set; } = Array.Empty<TakeOverEntry>();
     public List<string> NewFileSequenceNames { get; } = new();
     public bool HasFileNames { get; set; }
   }
@@ -152,7 +154,7 @@ public sealed partial class GamepackUpdateOrchestrator {
     }
 
     p.FileText = request.FileText;
-    var outcome = await _gamepacks.InstallAsync(request.FileText, dryRun: true, request.SignatureText, ct).ConfigureAwait(false);
+    var outcome = await _gamepacks.InstallAsync(request.FileText, new GamepackInstallOptions(DryRun: true, request.TakeOver, request.SignatureText), ct).ConfigureAwait(false);
     p.Name = outcome.Name;
     p.Version = outcome.Version;
     p.Signature = outcome.Signature;
@@ -162,6 +164,8 @@ public sealed partial class GamepackUpdateOrchestrator {
         p.Created = outcome.Created;
         p.Updated = outcome.Updated;
         p.Removed = outcome.Removed;
+        p.TakenOver = outcome.TakenOver;
+        p.TakeOvers = outcome.TakeOvers ?? Array.Empty<TakeOverEntry>();
         break;
       case GamepackInstallStatus.InvalidJson:
         p.Reason = ManagedUpdateReasons.InvalidFile;
@@ -272,6 +276,8 @@ public sealed partial class GamepackUpdateOrchestrator {
       Created = p.Created,
       Updated = p.Updated,
       Removed = p.Removed,
+      TakenOver = p.TakenOver,
+      TakeOvers = p.TakeOvers,
       NewEntries = newEntries,
       RemovedSequenceEntries = removedEntries,
       NotAffectedTemplates = p.Scope.NotAffectedTemplates,
@@ -311,6 +317,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     public int Created { get; set; }
     public int Updated { get; set; }
     public int Removed { get; set; }
+    public int TakenOver { get; set; }
+    public string? TakeOverBackupId { get; set; }
     public List<EntryRef> NewEntries { get; } = new();
     public List<EntryRef> RemovedEntries { get; } = new();
   }
@@ -428,7 +436,7 @@ public sealed partial class GamepackUpdateOrchestrator {
       return;
     }
 
-    var installed = await _gamepacks.InstallAsync(p.FileText!, dryRun: false, p.SignatureText, ct).ConfigureAwait(false);
+    var installed = await _gamepacks.InstallAsync(p.FileText!, new GamepackInstallOptions(DryRun: false, request.TakeOver, p.SignatureText), ct).ConfigureAwait(false);
     if (installed.Status != GamepackInstallStatus.Ok) {
       state.InstallPartial = installed.Status == GamepackInstallStatus.PartialRestore;
       throw new StepException(ManagedUpdateReasons.InstallFailed, "The install failed. " + installed.ErrorMessage);
@@ -438,6 +446,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     state.Created = installed.Created;
     state.Updated = installed.Updated;
     state.Removed = installed.Removed;
+    state.TakenOver = installed.TakenOver;
+    state.TakeOverBackupId = installed.TakeOverBackupId;
   }
 
   private async Task BookStepAsync(Prepared p, RunState state, CancellationToken ct) {
@@ -497,6 +507,8 @@ public sealed partial class GamepackUpdateOrchestrator {
       Created = state.Created,
       Updated = state.Updated,
       Removed = state.Removed,
+      TakenOver = state.TakenOver,
+      TakeOverBackupId = state.TakeOverBackupId,
       NewEntries = state.NewEntries,
       RemovedSequenceEntries = state.RemovedEntries,
       NotAffectedTemplates = p.Scope.NotAffectedTemplates,
@@ -583,6 +595,9 @@ public sealed partial class GamepackUpdateOrchestrator {
       return;
     }
 
+    // The user objects come back first (feature 149). The gamepack rollback or removal must not delete them.
+    await RestoreTakeOverAsync(state, steps, failedObjects, ct).ConfigureAwait(false);
+
     if (p.Installed is null) {
       // A failed first install: return to "no gamepack installed". The applier restore does most of the work. The flow removes what is left.
       var left = await _gamepacks.GetInstalledSnapshotAsync(name, includeLiveContent: false, ct).ConfigureAwait(false);
@@ -591,7 +606,9 @@ public sealed partial class GamepackUpdateOrchestrator {
         return;
       }
 
-      var failed = await _gamepacks.RemoveInstalledAsync(name, p.FileText, ct).ConfigureAwait(false);
+      // The removal by file name would delete the restored user objects. After a take-over, only the registry owners go.
+      var hint = state.TakenOver > 0 ? null : p.FileText;
+      var failed = await _gamepacks.RemoveInstalledAsync(name, hint, ct).ConfigureAwait(false);
       steps.Add(new RestoreStep("gamepack_remove", failed.Count == 0 ? "ok" : "failed", failed.Count == 0 ? null : "Objects stay: " + string.Join(", ", failed)));
       failedObjects.AddRange(failed);
       return;
@@ -609,6 +626,22 @@ public sealed partial class GamepackUpdateOrchestrator {
     else if (state.InstallPartial) {
       AddStep(steps, failedObjects, "gamepack_partial_restore", "The install restore was partial.", "gamepack:" + name);
     }
+  }
+
+  // The forced restore runs inside the exclusive scope of the gamepack service. It skips the owner check only.
+  private async Task RestoreTakeOverAsync(RunState state, List<RestoreStep> steps, List<string> failedObjects, CancellationToken ct) {
+    if (!state.InstallApplied || state.TakeOverBackupId is null) {
+      return;
+    }
+
+    var backupId = state.TakeOverBackupId;
+    var error = await TryAsync(async () => {
+      var outcome = await _gamepacks.RunExclusiveAsync(() => _gamepacks.RestoreTakeOverForcedInGateAsync(backupId, ct), ct).ConfigureAwait(false);
+      return outcome.Status == TakeOverRestoreStatus.Restored
+        ? null
+        : "The take-over restore gave the status " + outcome.Status + (outcome.Reasons.Count > 0 ? ": " + string.Join(", ", outcome.Reasons.Select(r => r.Code + " " + r.Type + ":" + r.Name)) : ".");
+    }).ConfigureAwait(false);
+    AddStep(steps, failedObjects, "takeover_restore", error, "takeover:" + backupId);
   }
 
   private async Task RestoreTemplatesAsync(RunState state, List<RestoreStep> steps, List<string> failedObjects, CancellationToken ct) {

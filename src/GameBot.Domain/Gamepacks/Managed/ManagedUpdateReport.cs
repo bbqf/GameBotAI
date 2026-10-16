@@ -158,6 +158,18 @@ public sealed class ManagedUpdateReport {
   /// <summary>The number of removed objects (planned for a dry run).</summary>
   public int Removed { get; init; }
 
+  /// <summary>The number of user objects taken over (planned for a dry run). 0 when the option is off (feature 149).</summary>
+  public int TakenOver { get; init; }
+
+  /// <summary>
+  /// The id of the take-over backup (feature 149). Not set for a dry run, for a call that replaced nothing, and for a failed call.
+  /// <see cref="BackupId"/> keeps its meaning: the queue template backup.
+  /// </summary>
+  public string? TakeOverBackupId { get; init; }
+
+  /// <summary>The list of objects to take over. Set for a dry run with the option on and no problem. Empty otherwise.</summary>
+  public IReadOnlyList<TakeOverEntry> TakeOvers { get; init; } = Array.Empty<TakeOverEntry>();
+
   /// <summary>The new disabled entries (planned for a dry run).</summary>
   public IReadOnlyList<EntryRef> NewEntries { get; init; } = Array.Empty<EntryRef>();
 

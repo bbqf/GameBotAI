@@ -103,6 +103,19 @@ internal sealed record ManagedUpdateReportDto {
   /// <summary>The number of removed objects.</summary>
   public int Removed { get; init; }
 
+  /// <summary>The number of user objects taken over (planned for a dry run). 0 when the option is off (feature 149).</summary>
+  public int TakenOver { get; init; }
+
+  /// <summary>
+  /// The id of the take-over backup (feature 149). Not set for a dry run, for a call that replaced nothing, and for a failed call.
+  /// <c>backupId</c> keeps its meaning: the queue template backup.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public string? TakeOverBackupId { get; init; }
+
+  /// <summary>The objects to take over. Set for a dry run with the option on and no problem. Empty otherwise.</summary>
+  public IReadOnlyList<GamepackTakeOverEntryDto> TakeOvers { get; init; } = Array.Empty<GamepackTakeOverEntryDto>();
+
   /// <summary>The new disabled entries.</summary>
   public IReadOnlyList<ManagedEntryRefDto> NewEntries { get; init; } = Array.Empty<ManagedEntryRefDto>();
 
@@ -137,6 +150,9 @@ internal sealed record ManagedUpdateReportDto {
       Created = report.Created,
       Updated = report.Updated,
       Removed = report.Removed,
+      TakenOver = report.TakenOver,
+      TakeOverBackupId = report.TakeOverBackupId,
+      TakeOvers = report.TakeOvers.Select(GamepackTakeOverEntryDto.From).ToList(),
       NewEntries = report.NewEntries.Select(ManagedEntryRefDto.From).ToList(),
       RemovedSequenceEntries = report.RemovedSequenceEntries.Select(ManagedEntryRefDto.From).ToList(),
       NotAffectedTemplates = report.NotAffectedTemplates,
