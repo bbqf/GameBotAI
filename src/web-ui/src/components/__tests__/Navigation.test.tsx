@@ -14,6 +14,6 @@ describe('Navigation', () => {
     );
 
     const tabs = screen.getAllByRole('tab').map((item) => item.textContent?.trim());
-    expect(tabs).toEqual(['Queues', 'Monitoring', 'Authoring', 'Execution', 'Execution Logs', 'Configuration', 'Update', 'Notifications']);
+    expect(tabs).toEqual(['Queues', 'Monitoring', 'Authoring', 'Execution', 'Execution Logs', 'Configuration', 'Update', 'Gamepacks', 'Notifications']);
   });
 });

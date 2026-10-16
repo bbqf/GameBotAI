@@ -144,6 +144,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyQuizExamples(operation, path, method, context);
     ApplyGamepackExamples(operation, path, method, context);
     ApplyGamepackSignatureExamples(operation, path, method, context);
+    ApplyGamepackCatalogExamples(operation, path, method, context);
     ApplyQueueSettingsExamples(operation, path, method, context);
     ApplyVersionExamples(operation, path, method, context);
     ApplyUpdateExamples(operation, path, method, context);
@@ -1197,6 +1198,71 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["publicKey"] = new OpenApiString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...")
       }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackSignatureKeyRequest));
       SetResponseExample(operation, "201", key, context, typeof(GameBot.Service.Endpoints.Dto.GamepackSignatureKeyDto));
+    }
+  }
+
+  // ── Feature 147: gamepack remote catalog ────────────────────────────────────────────────────
+
+  private static void ApplyGamepackCatalogExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    var settingsPath = ApiRoutes.GamepackCatalog + "/settings";
+    var settings = new OpenApiObject {
+      ["location"] = new OpenApiString("https://example.com/catalog/"),
+      ["allowInsecure"] = new OpenApiBoolean(false),
+      ["tokenSet"] = new OpenApiBoolean(true)
+    };
+    if (IsMethod(method, HttpMethods.Get) && IsPath(path, settingsPath)) {
+      SetResponseExample(operation, "200", settings, context, typeof(GameBot.Service.Endpoints.Dto.GamepackCatalogSettingsDto));
+    }
+    else if (IsMethod(method, HttpMethods.Put) && IsPath(path, settingsPath)) {
+      SetRequestExample(operation, new OpenApiObject {
+        ["location"] = new OpenApiString("https://example.com/catalog/"),
+        ["allowInsecure"] = new OpenApiBoolean(false),
+        ["token"] = new OpenApiNull()
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackCatalogSettingsRequest));
+      SetResponseExample(operation, "200", settings, context, typeof(GameBot.Service.Endpoints.Dto.GamepackCatalogSettingsDto));
+    }
+    else if (IsMethod(method, HttpMethods.Get) && IsPath(path, ApiRoutes.GamepackCatalog)) {
+      SetResponseExample(operation, "200", new OpenApiObject {
+        ["gamepacks"] = new OpenApiArray {
+          new OpenApiObject {
+            ["name"] = new OpenApiString("demo-pack"),
+            ["installedVersion"] = new OpenApiString("1.0.0"),
+            ["versions"] = new OpenApiArray {
+              new OpenApiObject {
+                ["version"] = new OpenApiString("1.2.0"),
+                ["changelog"] = new OpenApiString("Fix the bank step."),
+                ["installed"] = new OpenApiBoolean(false),
+                ["updateAvailable"] = new OpenApiBoolean(true)
+              }
+            }
+          }
+        }
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackCatalogListResponse));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.GamepackCatalog + "/install")) {
+      SetRequestExample(operation, new OpenApiObject {
+        ["name"] = new OpenApiString("demo-pack"),
+        ["version"] = new OpenApiString("1.2.0"),
+        ["dryRun"] = new OpenApiBoolean(false)
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackCatalogInstallRequest));
+      var installed = new OpenApiObject {
+        ["dryRun"] = new OpenApiBoolean(false),
+        ["valid"] = new OpenApiBoolean(true),
+        ["problems"] = new OpenApiArray(),
+        ["gamepack"] = new OpenApiObject { ["name"] = new OpenApiString("demo-pack"), ["version"] = new OpenApiString("1.2.0") },
+        ["created"] = new OpenApiInteger(1),
+        ["updated"] = new OpenApiInteger(2),
+        ["removed"] = new OpenApiInteger(0)
+      };
+      SetResponseExample(operation, "200", installed, context, typeof(GameBot.Service.Endpoints.Dto.GamepackInstallResponse));
+      SetResponseExample(operation, "422", new OpenApiObject {
+        ["dryRun"] = new OpenApiBoolean(false),
+        ["valid"] = new OpenApiBoolean(false),
+        ["problems"] = new OpenApiArray { GamepackProblemExample() },
+        ["created"] = new OpenApiInteger(0),
+        ["updated"] = new OpenApiInteger(0),
+        ["removed"] = new OpenApiInteger(0)
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackInstallResponse));
     }
   }
 

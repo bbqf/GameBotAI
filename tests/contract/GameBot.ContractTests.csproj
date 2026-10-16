@@ -23,6 +23,8 @@
   <ItemGroup>
     <!-- Feature 143: the gamepack builders and the test gate are shared with the unit tests. -->
     <Compile Include="..\unit\Gamepacks\GamepackTestKit.cs" Link="Gamepacks\GamepackTestKit.cs" />
+    <!-- Feature 147: the catalog test server and fixture are shared with the unit tests. -->
+    <Compile Include="..\unit\Gamepacks\CatalogTestKit.cs" Link="Gamepacks\CatalogTestKit.cs" />
     <!-- Feature 146: the test signer is shared with the unit tests. -->
     <Compile Include="..\unit\Gamepacks\Signing\SigningTestKit.cs" Link="Gamepacks\Signing\SigningTestKit.cs" />
     <!-- Feature 145: the queue settings test doubles are shared with the unit tests. -->

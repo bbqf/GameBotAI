@@ -41,6 +41,7 @@ describe('PhoneTabBar', () => {
     const sheet = screen.getByRole('dialog', { name: 'More areas' });
     expect(within(sheet).getByRole('button', { name: 'Configuration' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Update' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Gamepacks' })).not.toHaveTextContent('Desktop only');
     expect(within(sheet).getByRole('button', { name: /Authoring/ })).toHaveTextContent('Desktop only');
     expect(within(sheet).getByRole('button', { name: /Execution Logs/ })).toHaveTextContent('Desktop only');
     expect(within(sheet).queryByRole('button', { name: /^Execution$/ })).toBeNull();

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `147-gamepack-remote-catalog`  
 **Created**: 2026-10-16  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Browse and install gamepacks from a configurable remote catalog. GitHub issue #308 (FR-025). Closes #308."
 
 ## Clarifications

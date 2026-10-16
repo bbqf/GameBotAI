@@ -179,6 +179,7 @@ Status vocabulary:
 | 143 | Gamepack Install | Implemented |
 | 145 | Export and Import Queue Settings by Name | Implemented |
 | 146 | Gamepack Signature Verify | Implemented |
+| 147 | Gamepack Remote Catalog | Implemented (quickstart walk pending) |
 
 ## Numbering notes
 

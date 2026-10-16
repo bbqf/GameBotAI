@@ -26,6 +26,7 @@ import { EXECUTION_AREA_PATH, EXECUTION_LOGS_AREA_PATH, ExecutionPage } from './
 import { ExecutionLogsPage } from './pages/ExecutionLogs';
 import { NOTIFICATIONS_AREA_PATH, NotificationsPage } from './pages/NotificationsPage';
 import { UPDATE_AREA_PATH, UpdatePage } from './pages/UpdatePage';
+import { GAMEPACKS_AREA_PATH, GamepacksPage } from './pages/GamepacksPage';
 import { MONITORING_AREA_PATH, MonitoringPage } from './pages/MonitoringPage';
 
 const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolean; id?: string } | undefined => {
@@ -48,12 +49,13 @@ const legacyPathToTab = (pathname: string): { tab: AuthoringTab; create?: boolea
 const getInitialArea = (phone: boolean): NavigationAreaId => {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get('area');
-  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring' || requested === 'queues' || requested === 'notifications' || requested === 'update' || requested === 'monitoring') return requested;
+  if (requested === 'configuration' || requested === 'execution' || requested === 'execution-logs' || requested === 'authoring' || requested === 'queues' || requested === 'notifications' || requested === 'update' || requested === 'gamepacks' || requested === 'monitoring') return requested;
   const path = window.location.pathname.toLowerCase();
   if (path.startsWith(CONFIGURATION_AREA_PATH)) return 'configuration';
   if (path.startsWith(EXECUTION_LOGS_AREA_PATH)) return 'execution-logs';
   if (path.startsWith(NOTIFICATIONS_AREA_PATH)) return 'notifications';
   if (path.startsWith(UPDATE_AREA_PATH)) return 'update';
+  if (path.startsWith(GAMEPACKS_AREA_PATH)) return 'gamepacks';
   if (path.startsWith(MONITORING_AREA_PATH)) return 'monitoring';
   if (path.startsWith(EXECUTION_AREA_PATH)) return 'execution';
   if (path.startsWith('/queues')) return 'queues';
@@ -263,6 +265,15 @@ export const App: React.FC = () => {
     </section>
   );
 
+  const renderGamepacks = () => (
+    <section id="gamepacks-panel" className="gamepacks">
+      {!phone && <h1>Gamepacks</h1>}
+      <ErrorBoundary>
+        <GamepacksPage />
+      </ErrorBoundary>
+    </section>
+  );
+
   const renderMonitoring = () => (
     <section id="monitoring-panel" className="monitoring">
       {!phone && <h1>Monitoring</h1>}
@@ -293,6 +304,7 @@ export const App: React.FC = () => {
     if (activeArea === 'configuration') return renderConfiguration();
     if (activeArea === 'notifications') return renderNotifications();
     if (activeArea === 'update') return renderUpdate();
+    if (activeArea === 'gamepacks') return renderGamepacks();
     if (activeArea === 'execution-logs') return renderExecutionLogs();
     return renderExecution();
   };

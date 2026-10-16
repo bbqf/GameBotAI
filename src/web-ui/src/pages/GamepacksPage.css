@@ -1,0 +1,79 @@
+/* Gamepacks page. Phone rules are in components/phone/phone.css (docs/mobile-ui-principles.md). */
+.gamepacks-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.gamepacks-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gamepacks-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 40rem;
+}
+
+.gamepacks-settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.gamepacks-settings label.gamepacks-check,
+.gamepacks-actions label.gamepacks-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gamepacks-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gamepacks-hint {
+  margin: 0;
+  opacity: 0.8;
+  font-size: 0.9em;
+}
+
+.gamepacks-pack {
+  border: 1px solid var(--gb-color-border, #ccc);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.gamepacks-versions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gamepacks-version-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gamepacks-badge {
+  font-size: 0.8em;
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+}
+
+.gamepacks-changelog {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0.25rem 0;
+}

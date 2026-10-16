@@ -43,6 +43,7 @@ internal static class GamepacksEndpoints {
       .WithDescription("Gives the name, version, and change text of each installed gamepack.");
 
     app.MapGamepackSignatureEndpoints();
+    app.MapGamepackCatalogEndpoints();
 
     group.MapPost("{name}/rollback", RollbackAsync)
       .Produces<GamepackRollbackResponse>(StatusCodes.Status200OK)
@@ -85,7 +86,12 @@ internal static class GamepacksEndpoints {
     }
 
     var outcome = await service.InstallAsync(parts.Gamepack, isDryRun, parts.Signature, ct).ConfigureAwait(false);
-    return outcome.Status switch {
+    return ToInstallResult(outcome, isDryRun);
+  }
+
+  /// <summary>Maps an install outcome to the response of the install routes (the manual route and the catalog route).</summary>
+  internal static IResult ToInstallResult(GamepackInstallOutcome outcome, bool isDryRun) =>
+    outcome.Status switch {
       GamepackInstallStatus.Ok => Results.Ok(ToInstallResponse(outcome, valid: true)),
       GamepackInstallStatus.InvalidJson => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status400BadRequest),
       GamepackInstallStatus.SignatureRejected when isDryRun => Results.Ok(ToInstallResponse(outcome, valid: false)),
@@ -95,7 +101,6 @@ internal static class GamepacksEndpoints {
       GamepackInstallStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage),
       _ => WriteFailed("failed", outcome.ErrorMessage)
     };
-  }
 
   private static IResult List(GamepackService service) =>
     Results.Ok(service.List().Select(g => new GamepackListItemDto {

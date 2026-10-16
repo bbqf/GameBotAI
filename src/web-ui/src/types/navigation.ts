@@ -1,4 +1,4 @@
-export type NavigationAreaId = 'authoring' | 'queues' | 'monitoring' | 'configuration' | 'execution' | 'execution-logs' | 'notifications' | 'update';
+export type NavigationAreaId = 'authoring' | 'queues' | 'monitoring' | 'configuration' | 'execution' | 'execution-logs' | 'notifications' | 'update' | 'gamepacks';
 
 /**
  * How much of an area works on a phone.
@@ -31,7 +31,8 @@ export const navigationAreas: NavigationArea[] = [
   { id: 'execution-logs', label: 'Execution Logs', path: '/execution-logs', order: 4, phone: 'desktop-only' },
   { id: 'configuration', label: 'Configuration', path: '/configuration', order: 5, phone: 'full' },
   { id: 'update', label: 'Update', path: '/update', order: 6, phone: 'full' },
-  { id: 'notifications', label: 'Notifications', path: '/notifications', order: 7, phone: 'full' }
+  { id: 'gamepacks', label: 'Gamepacks', path: '/gamepacks', order: 7, phone: 'full' },
+  { id: 'notifications', label: 'Notifications', path: '/notifications', order: 8, phone: 'full' }
 ];
 /** True when the phone UI lists the area. */
 export const isPhoneVisible = (area: Pick<NavigationArea, 'phone'>): boolean => area.phone !== 'hidden';
