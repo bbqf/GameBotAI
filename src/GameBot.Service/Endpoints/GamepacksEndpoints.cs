@@ -1,8 +1,10 @@
 using System.Text;
 using GameBot.Domain.Gamepacks;
+using GameBot.Domain.Gamepacks.Managed;
 using GameBot.Domain.Gamepacks.Signing;
 using GameBot.Service.Endpoints.Dto;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Net.Http.Headers;
 
@@ -34,7 +36,31 @@ internal static class GamepacksEndpoints {
         + "The request can have at most 100 MB. The request is the gamepack file as application/json (no signature), or multipart/form-data "
         + "with the part gamepack and the optional part signature. The response has a signature block with status, policy, and wouldReject. "
         + "If the policy is required and the status is not valid, an install gives 422 with result signature_rejected and changes nothing. "
-        + "A dry run gives 200 and shows wouldReject. If the policy is off, the signature part is not read and the status is not_checked.");
+        + "A dry run gives 200 and shows wouldReject. If the policy is off, the signature part is not read and the status is not_checked. "
+        + "SIGNATURE FILE: The signature part is a UTF-8 JSON text, not raw signature bytes: "
+        + "{\"format\":\"gamepack-signature-1\",\"algorithm\":\"ecdsa-p256-sha256\",\"publicKey\":\"<base64 SubjectPublicKeyInfo of a P-256 key>\","
+        + "\"manifestSha256\":\"<64 lower case hex>\",\"files\":[{\"type\":\"sequence|command|image\",\"name\":\"<name, or id for an image>\","
+        + "\"sha256\":\"<64 lower case hex>\"}],\"signature\":\"<base64 of 64 bytes>\"}. "
+        + "SIGNED BYTES: The platform does not sign or check the raw gamepack file bytes. The signer signs the UTF-8 bytes of the canonical JSON of "
+        + "{\"files\":[...],\"format\":\"gamepack-signature-1\",\"manifestSha256\":\"...\"}. Each item of files has the keys name, sha256, and type. "
+        + "Sort files by type, then by lower case name (ordinal). The platform builds these bytes again from the signature file, "
+        + "so the signed files list must be the sorted list. "
+        + "HASHES: manifestSha256 is the SHA-256 (lower case hex) of the canonical JSON of the manifest object (of the text null if the file has no manifest). "
+        + "For each item of sequences, commands (name field), and images (id field), sha256 is the SHA-256 of the canonical JSON of that item. "
+        + "An unknown field is part of the hash. A name or id that is not a string gives an empty name. "
+        + "CANONICAL JSON: no white space. Object keys in ordinal order at each level. Array order stays. Strings are UTF-8. "
+        + "Only these are escaped: quote, backslash, \\b, \\f, \\n, \\r, \\t, and \\u00xx (lower case hex) for other characters below U+0020. "
+        + "All other characters, also non-ASCII and slash, are raw. An integer is plain digits, with no fraction and no exponent. "
+        + "Other numbers use the .NET round-trip text of a double with the invariant culture (the exponent is written as e, with no plus sign). "
+        + "true, false, and null are lower case. "
+        + "ALGORITHM: ECDSA, curve P-256, SHA-256. The signature is the IEEE P1363 form (r then s, 64 bytes), not DER, written as base64. "
+        + "In .NET use ECDsa.SignData(bytes, HashAlgorithmName.SHA256). "
+        + "STATUS: invalid = the text is empty, is not JSON, has an unknown format or algorithm, a bad key, a bad base64 text, a signature that is not 64 bytes, "
+        + "or the signature does not pass for the signed bytes and the key in the file. A signature over the raw file bytes gives invalid. "
+        + "content_mismatch = the signature is correct, but the hashes differ from the gamepack (changed, extra, or missing item). "
+        + "untrusted = the signature and the content are correct, but the SHA-256 fingerprint of the key (lower case hex of the SPKI bytes) is not on the trusted list. "
+        + "valid = all checks pass. missing = no signature part. "
+        + "The catalog index (index.json) is described on GET /api/gamepacks/catalog.");
 
     group.MapGet("", List)
       .Produces<IReadOnlyList<GamepackListItemDto>>(StatusCodes.Status200OK)
@@ -44,6 +70,7 @@ internal static class GamepacksEndpoints {
 
     app.MapGamepackSignatureEndpoints();
     app.MapGamepackCatalogEndpoints();
+    app.MapGamepackManagedEndpoints();
 
     group.MapPost("{name}/rollback", RollbackAsync)
       .Produces<GamepackRollbackResponse>(StatusCodes.Status200OK)
@@ -55,7 +82,10 @@ internal static class GamepacksEndpoints {
       .WithSummary("Roll a gamepack back to its previous version")
       .WithDescription(
         "Runs the same conflict and reference check as an install on the kept previous content. "
-        + "If the check finds a problem, the rollback is refused and nothing changes.");
+        + "If the check finds a problem, the rollback is refused and nothing changes. "
+        + "Query managed=true runs the managed flow of feature 148: it stops the affected queues, stores a backup, rolls back, "
+        + "books disabled entries for sequences that the previous version adds, and restarts the queues that it stopped. "
+        + "The response is then a managed update report. The queries dryRun and templates apply only with managed=true.");
 
     return app;
   }
@@ -112,7 +142,17 @@ internal static class GamepacksEndpoints {
       InstalledAtUtc = g.InstalledAtUtc
     }).ToList());
 
-  private static async Task<IResult> RollbackAsync(string name, GamepackService service, CancellationToken ct) {
+  private static async Task<IResult> RollbackAsync(
+      string name, GamepackService service, IServiceProvider services, bool? managed, bool? dryRun, [FromQuery] string[]? templates, CancellationToken ct) {
+    if (managed == true) {
+      // Feature 148: the managed rollback uses the same flow as the update. Without managed=true, nothing changes.
+      // The orchestrator is resolved only here, so a plain rollback does not build the queue engine graph.
+      var orchestrator = services.GetRequiredService<GamepackUpdateOrchestrator>();
+      var query = ManagedUpdateQuery.From(dryRun, templates, managed);
+      var report = await orchestrator.RunAsync(query.ToRollbackRequest(name), ct).ConfigureAwait(false);
+      return ManagedUpdateHttp.ToResult(report);
+    }
+
     var outcome = await service.RollbackAsync(name, ct).ConfigureAwait(false);
     return outcome.Status switch {
       GamepackRollbackStatus.RolledBack => Results.Ok(new GamepackRollbackResponse {
@@ -146,11 +186,11 @@ internal static class GamepacksEndpoints {
     Signature = outcome.Signature is null ? null : GamepackSignatureStatusDto.From(outcome.Signature)
   };
 
-  private sealed record InstallRequestParts(string? Gamepack, string? Signature, bool TooLarge);
+  internal sealed record InstallRequestParts(string? Gamepack, string? Signature, bool TooLarge);
 
   // Reads the gamepack and, when the policy is not off, the signature part. Under the policy off, the signature part is
-  // skipped with no read (feature 146, FR-009).
-  private static async Task<InstallRequestParts> ReadRequestAsync(HttpRequest http, bool readSignature, CancellationToken ct) {
+  // skipped with no read (feature 146, FR-009). The managed update route (feature 148) uses it too.
+  internal static async Task<InstallRequestParts> ReadRequestAsync(HttpRequest http, bool readSignature, CancellationToken ct) {
     if (http.ContentLength > MaxRequestBytes) {
       return new InstallRequestParts(null, null, TooLarge: true);
     }

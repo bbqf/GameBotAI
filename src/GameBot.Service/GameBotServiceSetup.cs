@@ -108,6 +108,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<QueueDeviceRecoverySchemaFilter>();
       options.SchemaFilter<QueueSequenceStatsSchemaFilter>();
       options.SchemaFilter<GamepackSchemaFilter>();
+      options.SchemaFilter<ManagedUpdateSchemaFilter>();
  options.SchemaFilter<QueueSettingsSchemaFilter>();
       options.SchemaFilter<ApiVersionSchemaFilter>();
       options.SchemaFilter<ImageAlternatesSchemaFilter>();

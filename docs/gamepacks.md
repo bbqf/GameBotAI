@@ -305,6 +305,36 @@ Limits: index 5 MB, gamepack file 100 MB, signature file 1 MB, 30 seconds for ea
 
 The "Gamepacks" area (`/gamepacks`) has full phone support. It has the settings form, the list, an Update button (label "Install" when none is installed) for each newer version, a "Dry run" check box, and a "Refresh" button. The list loads on open and on Refresh only.
 
+## Managed update
+
+A managed update does all steps of an update in one call. It runs in this order: check the request, find the affected queues, stop them, store a backup, install, book disabled entries for new sequences, and restart the queues that the call stopped.
+
+### Routes
+
+- `POST /api/gamepacks/update` takes a gamepack file (JSON, or multipart with the parts `gamepack` and `signature`, 100 MB at most).
+- `POST /api/gamepacks/catalog/update` takes `{ "name", "version", "dryRun", "templates" }` and gets the file from the catalog.
+- `POST /api/gamepacks/{name}/rollback?managed=true` uses the same flow. The install step is the rollback. Without `managed=true`, the rollback works as before.
+- Query values: `dryRun=true` returns the plan and all problems and changes nothing. `templates` (repeat it for each name) limits the call to the named queue templates. Names match without case.
+
+### What the call does
+
+- A template is affected when one of its entries refers to a sequence of the installed version. A queue is affected when it links to an affected template.
+- The call stops only the affected queues that run. Each queue has 60 seconds to stop. The call restarts only the queues that it stopped. A queue that you stopped stays stopped.
+- The backup holds the affected templates and the queues that link to them. Its id is a time stamp and the gamepack name. The files are in `<data root>/gamepacks/backups`. The platform keeps the newest 20. If no template is affected, there is no backup and no `backupId`.
+- For each new sequence, each affected template gets one entry. The entry is disabled and has no schedule and no parameter values. The platform never enables an entry. It keeps all entries that exist. An entry whose sequence the new version removed stays and is listed in `removedSequenceEntries`.
+- If the new version text is exactly the installed version text, the call does nothing and returns `done` with no stopped queue.
+- Only one managed call runs at a time on the instance. A second call gets 409 `update_in_progress`.
+
+### The report
+
+The report has `result` (`done`, `planned`, `failed`, or `rejected`), `reason`, `stoppedQueues`, `restartedQueues`, `notRestartedQueues`, `backupId`, `created`, `updated`, `removed`, `newEntries`, `removedSequenceEntries`, `notAffectedTemplates`, `problems`, `signature`, and `restore`. A queue in `notRestartedQueues` does not change `result`.
+
+If a step fails after the first stop, the call restores the previous version, imports the backup, and starts the stopped queues. The report has `result` `failed` (status 500) and `restore` with `happened`, `restored`, the `steps`, and `failedObjects`. A failed first install returns to "no gamepack installed". A failed managed rollback does not call the rollback a second time. It puts back the recorded state.
+
+A dry run gives 200 for file, signature, and validation problems and lists all problems together. A missing template name gives 400 `template_not_found` for a dry run and for a normal call.
+
+Reasons: `invalid_request`, `invalid_file`, `signature_rejected`, `validation_failed`, `template_not_found`, `gamepack_not_found`, `no_previous_version`, `entry_not_listed`, `not_configured`, `catalog_error`, `too_large`, `update_in_progress`, `stop_timeout`, `backup_failed`, `install_failed`, `booking_failed`, `rollback_refused`, `unexpected`.
+
 ## Where the data is
 
 `<data root>/gamepack-signature.json` holds the signature policy and the trusted keys.

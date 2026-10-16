@@ -2,7 +2,7 @@
 
 **Feature Branch**: `148-managed-gamepack-update`  
 **Created**: 2026-10-16  
-**Status**: Draft  
+**Status**: Implemented (quickstart walk pending)  
 **Input**: User description: "FR-026: managed gamepack update. GitHub issue #314. Closes #314."
 
 ## Clarifications

@@ -1,6 +1,7 @@
 using GameBot.Domain.Commands;
 using GameBot.Domain.Gamepacks;
 using GameBot.Domain.Gamepacks.Catalog;
+using GameBot.Domain.Gamepacks.Managed;
 using GameBot.Domain.Gamepacks.Signing;
 using GameBot.Domain.Images;
 
@@ -47,7 +48,33 @@ internal static class GamepackServiceCollectionExtensions {
       sp.GetRequiredService<GamepackApplier>(),
       sp.GetService<ILogger<GamepackService>>(),
       sp.GetRequiredService<GamepackSignatureChecker>()));
-    return services.AddGamepackCatalog(dataRoot);
+    services.AddGamepackCatalog(dataRoot);
+    return services.AddManagedGamepackUpdate(dataRoot);
+  }
+
+  /// <summary>
+  /// Adds the managed gamepack update (feature 148). The orchestrator is a singleton, so its lock is one lock for the whole
+  /// instance. The orchestrator is resolved on the first managed call. The queue settings services must be registered too.
+  /// </summary>
+  /// <param name="services">The service collection.</param>
+  /// <param name="dataRoot">The data root.</param>
+  internal static IServiceCollection AddManagedGamepackUpdate(this IServiceCollection services, string dataRoot) {
+    ArgumentNullException.ThrowIfNull(services);
+    services.AddSingleton(new ManagedUpdateOptions());
+    services.AddSingleton<IManagedBackupStore>(sp => new ManagedBackupStore(dataRoot, sp.GetService<TimeProvider>()));
+    services.AddSingleton<IManagedQueueControl>(sp => new GameBot.Service.Services.QueueExecution.ManagedQueueControl(
+      sp.GetRequiredService<GameBot.Domain.Queues.IQueueRepository>(),
+      sp.GetRequiredService<GameBot.Service.Services.QueueExecution.IQueueExecutionService>()));
+    services.AddSingleton(sp => new GamepackUpdateOrchestrator(
+      sp.GetRequiredService<GamepackService>(),
+      sp.GetRequiredService<IManagedQueueControl>(),
+      sp.GetRequiredService<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>(),
+      sp.GetRequiredService<GameBot.Domain.QueueSettings.QueueSettingsExporter>(),
+      sp.GetRequiredService<GameBot.Domain.QueueSettings.QueueSettingsImporter>(),
+      sp.GetRequiredService<IManagedBackupStore>(),
+      sp.GetRequiredService<ManagedUpdateOptions>(),
+      sp.GetService<ILogger<GamepackUpdateOrchestrator>>()));
+    return services;
   }
 
   /// <summary>
