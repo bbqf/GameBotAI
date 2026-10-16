@@ -164,8 +164,101 @@ How the import works:
 If an import fails with status 500, send the same document again. The import is safe to repeat and it finishes the items that it
 did not apply. The 500 body has a `report` with `items` (applied), `failed` (the item that failed), and `notApplied`.
 
+## Signed gamepacks
+
+A gamepack can have one detached signature file. The service can check the signature before an install. The check tells you
+if the content is the content that a builder you trust has signed.
+
+### The policy
+
+The instance has one policy. The default is `off`.
+
+| Policy | What the install does |
+|--------|-----------------------|
+| `required` | A gamepack with a status other than `valid` gets 422. Nothing changes. |
+| `optional` | Every gamepack installs. The result shows the status. |
+| `off` | No check. The route does not read the signature. The status is `not_checked`. |
+
+Read the policy with `GET /api/gamepacks/signature/policy`. Set it with `PUT /api/gamepacks/signature/policy` and the body
+`{ "policy": "required" }`. A value that is not known gives 400. The next install uses the new value. A restart is not needed.
+
+### The trusted keys
+
+A gamepack is `valid` only if the key that signed it is on the trusted list. The label of a key does not change trust.
+
+- `GET /api/gamepacks/signature/keys` lists the label and the fingerprint of each key. It does not show the key text.
+- `POST /api/gamepacks/signature/keys` adds a key. The body is `{ "label": "Builder A", "publicKey": "<base64>" }`. The key is an
+  ECDSA P-256 public key in the base64 SubjectPublicKeyInfo form. The response is 201. A bad key or label gives 400, and
+  nothing is saved. A key that is on the list already gives 409.
+- `DELETE /api/gamepacks/signature/keys/{fingerprint}` removes a key. The response is 204, or 404 if no key has this fingerprint.
+
+The fingerprint is the SHA-256 of the SubjectPublicKeyInfo bytes, in lower case hex. The policy and the keys are in the file
+`<data root>/gamepack-signature.json`. If the file is damaged, the service uses the policy `required` and no keys, so a bad
+file never opens the gate. Set the policy again to repair the file.
+
+### Send a signature with an install
+
+Send `POST /api/gamepacks/install` as `multipart/form-data` with the part `gamepack` (the gamepack file) and the part `signature`
+(the signature file). A request with the gamepack file as `application/json` still works. It has no signature, so its status is
+`missing` (or `not_checked` when the policy is `off`).
+
+The response has a `signature` block: `{ "status": "valid", "policy": "required", "wouldReject": false }`.
+
+| Status | Meaning |
+|--------|---------|
+| `valid` | The signature is correct, the content matches, and the key is trusted. |
+| `missing` | No signature was sent. |
+| `invalid` | The signature is empty, has a wrong format, or does not pass the crypto test. |
+| `content_mismatch` | The gamepack is not the content that was signed (a changed, extra, or missing file). |
+| `untrusted` | The signature is correct, but the key is not on the trusted list. |
+| `not_checked` | The policy is `off`. |
+
+If more than one fault applies, the status is the first one in this order: `missing`, `invalid`, `content_mismatch`, `untrusted`.
+A rejected install gives 422 with `result: "signature_rejected"` and a problem with the category `signature` and the code
+`signature_<status>`. The text names the status only. A dry run (`dryRun=true`) gives 200 and shows `wouldReject`. It is `true`
+only when the policy is `required` and the status is not `valid`. Rollback and list do not check a signature.
+
+### The signature file
+
+The signature file is UTF-8 JSON:
+
+```json
+{
+  "format": "gamepack-signature-1",
+  "algorithm": "ecdsa-p256-sha256",
+  "publicKey": "<base64 SubjectPublicKeyInfo of a P-256 key>",
+  "manifestSha256": "<64 lower case hex characters>",
+  "files": [
+    { "type": "command", "name": "Help All", "sha256": "<64 hex>" },
+    { "type": "image", "name": "pit-title", "sha256": "<64 hex>" },
+    { "type": "sequence", "name": "Pit Mining", "sha256": "<64 hex>" }
+  ],
+  "signature": "<base64 of 64 bytes: r then s>"
+}
+```
+
+How to sign a gamepack:
+
+1. Read the gamepack file as raw JSON. Make the canonical JSON of each value: object keys sorted by ordinal compare, no white
+   space, string escapes `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, `\t`, and `\u00xx` (lower case hex) for other control characters
+   below U+0020. Other characters stay as UTF-8. An integer has no fraction and no exponent. A field that the platform does not
+   know is part of the hash.
+2. `manifestSha256` is the SHA-256 (lower case hex) of the canonical `manifest` object.
+3. For each entry of `sequences`, `commands`, and `images`, add one item to `files`. `type` is `sequence`, `command`, or `image`.
+   `name` is the `name` of a sequence or command, or the `id` of an image. `sha256` is the hash of the canonical entry.
+4. Make the bytes to sign: the canonical JSON of `{ "files": [...], "format": "gamepack-signature-1", "manifestSha256": "..." }`.
+   Sort `files` by `type`, then by lower case `name` (ordinal). Each item has the keys `name`, `sha256`, and `type`.
+5. Sign the bytes with ECDSA P-256 and SHA-256 in the IEEE P1363 form (r then s, 64 bytes). In .NET, use
+   `ECDsa.SignData(bytes, HashAlgorithmName.SHA256)`. Write the result as base64.
+6. Write the signature file with your public key (base64 SubjectPublicKeyInfo). Give the public key to the people who install
+   your gamepack, so they can add it to the trusted list.
+
+The key in the signature file is only used for the crypto test. Trust comes only from the trusted list of the instance. Each
+check writes one log message with the status and the policy. The message has no key text.
+
 ## Where the data is
 
+`<data root>/gamepack-signature.json` holds the signature policy and the trusted keys.
 `<data root>/gamepacks/registry.json` holds the installed gamepacks and the owner records. `<data root>/gamepacks/previous/<name>.json`
 holds the kept previous version of each gamepack (the name is in lower case). The service writes each file to a temporary
 file first and then replaces the old file.

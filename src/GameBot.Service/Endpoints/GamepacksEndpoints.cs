@@ -1,7 +1,10 @@
 using System.Text;
 using GameBot.Domain.Gamepacks;
+using GameBot.Domain.Gamepacks.Signing;
 using GameBot.Service.Endpoints.Dto;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Net.Http.Headers;
 
 namespace GameBot.Service.Endpoints;
 
@@ -17,7 +20,7 @@ internal static class GamepacksEndpoints {
     var group = app.MapGroup(ApiRoutes.Gamepacks).WithTags("Gamepacks");
 
     group.MapPost("install", InstallAsync)
-      .Accepts<GamepackInstallRequestBody>("application/json")
+      .Accepts<GamepackInstallRequestBody>("application/json", "multipart/form-data")
       .Produces<GamepackInstallResponse>(StatusCodes.Status200OK)
       .Produces<GamepackInstallResponse>(StatusCodes.Status422UnprocessableEntity)
       .Produces<GamepackInstallResponse>(StatusCodes.Status400BadRequest)
@@ -28,13 +31,18 @@ internal static class GamepacksEndpoints {
       .WithDescription(
         "Installs all objects of a gamepack file as one unit, or none. Query dryRun=true checks the file and changes no data. "
         + "An object with the same type and name as an object of the user or of another gamepack is a conflict. "
-        + "The request can have at most 100 MB.");
+        + "The request can have at most 100 MB. The request is the gamepack file as application/json (no signature), or multipart/form-data "
+        + "with the part gamepack and the optional part signature. The response has a signature block with status, policy, and wouldReject. "
+        + "If the policy is required and the status is not valid, an install gives 422 with result signature_rejected and changes nothing. "
+        + "A dry run gives 200 and shows wouldReject. If the policy is off, the signature part is not read and the status is not_checked.");
 
     group.MapGet("", List)
       .Produces<IReadOnlyList<GamepackListItemDto>>(StatusCodes.Status200OK)
       .WithName("ListGamepacks")
       .WithSummary("List the installed gamepacks")
       .WithDescription("Gives the name, version, and change text of each installed gamepack.");
+
+    app.MapGamepackSignatureEndpoints();
 
     group.MapPost("{name}/rollback", RollbackAsync)
       .Produces<GamepackRollbackResponse>(StatusCodes.Status200OK)
@@ -54,25 +62,34 @@ internal static class GamepacksEndpoints {
   /// <summary>The request body of the install route: a gamepack file. Used for the OpenAPI document only.</summary>
   internal sealed class GamepackInstallRequestBody { }
 
-  private static async Task<IResult> InstallAsync(HttpRequest http, GamepackService service, bool? dryRun, CancellationToken ct) {
+  private static async Task<IResult> InstallAsync(
+      HttpRequest http, GamepackService service, GamepackSignatureChecker checker, bool? dryRun, CancellationToken ct) {
     var isDryRun = dryRun ?? false;
-    string json;
+    InstallRequestParts parts;
     try {
-      var body = await ReadBodyAsync(http, ct).ConfigureAwait(false);
-      if (body is null) {
-        return TooLarge();
-      }
-
-      json = body;
+      parts = await ReadRequestAsync(http, checker.CurrentPolicy() != SignaturePolicy.Off, ct).ConfigureAwait(false);
     }
     catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge) {
       return TooLarge();
     }
+    catch (InvalidDataException) {
+      return ProblemResult(StatusCodes.Status400BadRequest, "bad_request", "The multipart request is not valid.");
+    }
 
-    var outcome = await service.InstallAsync(json, isDryRun, ct).ConfigureAwait(false);
+    if (parts.TooLarge) {
+      return TooLarge();
+    }
+
+    if (parts.Gamepack is null) {
+      return ProblemResult(StatusCodes.Status400BadRequest, "missing_gamepack_part", "The multipart request has no gamepack part.");
+    }
+
+    var outcome = await service.InstallAsync(parts.Gamepack, isDryRun, parts.Signature, ct).ConfigureAwait(false);
     return outcome.Status switch {
       GamepackInstallStatus.Ok => Results.Ok(ToInstallResponse(outcome, valid: true)),
       GamepackInstallStatus.InvalidJson => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status400BadRequest),
+      GamepackInstallStatus.SignatureRejected when isDryRun => Results.Ok(ToInstallResponse(outcome, valid: false)),
+      GamepackInstallStatus.SignatureRejected => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status422UnprocessableEntity),
       GamepackInstallStatus.Invalid when isDryRun => Results.Ok(ToInstallResponse(outcome, valid: false)),
       GamepackInstallStatus.Invalid => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status422UnprocessableEntity),
       GamepackInstallStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage),
@@ -119,13 +136,18 @@ internal static class GamepacksEndpoints {
     Gamepack = outcome.Name is null ? null : new GamepackRefDto(outcome.Name, outcome.Version),
     Created = outcome.Created,
     Updated = outcome.Updated,
-    Removed = outcome.Removed
+    Removed = outcome.Removed,
+    Result = outcome.Status == GamepackInstallStatus.SignatureRejected ? "signature_rejected" : null,
+    Signature = outcome.Signature is null ? null : GamepackSignatureStatusDto.From(outcome.Signature)
   };
 
-  // Reads the body with a size cap. Returns null when the body is larger than the limit.
-  private static async Task<string?> ReadBodyAsync(HttpRequest http, CancellationToken ct) {
+  private sealed record InstallRequestParts(string? Gamepack, string? Signature, bool TooLarge);
+
+  // Reads the gamepack and, when the policy is not off, the signature part. Under the policy off, the signature part is
+  // skipped with no read (feature 146, FR-009).
+  private static async Task<InstallRequestParts> ReadRequestAsync(HttpRequest http, bool readSignature, CancellationToken ct) {
     if (http.ContentLength > MaxRequestBytes) {
-      return null;
+      return new InstallRequestParts(null, null, TooLarge: true);
     }
 
     var limit = http.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
@@ -133,10 +155,62 @@ internal static class GamepacksEndpoints {
       limit.MaxRequestBodySize = MaxRequestBytes;
     }
 
+    if (!IsMultipart(http, out var boundary)) {
+      var body = await ReadCappedAsync(http.Body, ct).ConfigureAwait(false);
+      return body is null ? new InstallRequestParts(null, null, TooLarge: true) : new InstallRequestParts(body, null, TooLarge: false);
+    }
+
+    var reader = new MultipartReader(boundary, http.Body) { BodyLengthLimit = MaxRequestBytes };
+    string? gamepack = null;
+    string? signature = null;
+    MultipartSection? section;
+    while ((section = await reader.ReadNextSectionAsync(ct).ConfigureAwait(false)) is not null) {
+      var name = SectionName(section);
+      if (string.Equals(name, "gamepack", StringComparison.OrdinalIgnoreCase) && gamepack is null) {
+        gamepack = await ReadCappedAsync(section.Body, ct).ConfigureAwait(false);
+        if (gamepack is null) {
+          return new InstallRequestParts(null, null, TooLarge: true);
+        }
+      }
+      else if (readSignature && string.Equals(name, "signature", StringComparison.OrdinalIgnoreCase) && signature is null) {
+        signature = await ReadCappedAsync(section.Body, ct).ConfigureAwait(false);
+        if (signature is null) {
+          return new InstallRequestParts(null, null, TooLarge: true);
+        }
+      }
+    }
+
+    return new InstallRequestParts(gamepack, signature, TooLarge: false);
+  }
+
+  private static string? SectionName(MultipartSection section) =>
+    ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out var disposition)
+      ? HeaderUtilities.RemoveQuotes(disposition.Name).Value
+      : null;
+
+  private static bool IsMultipart(HttpRequest http, out string boundary) {
+    boundary = string.Empty;
+    if (!MediaTypeHeaderValue.TryParse(http.ContentType, out var media)
+        || media.MediaType.Value is not { } type
+        || !type.StartsWith("multipart/", StringComparison.OrdinalIgnoreCase)) {
+      return false;
+    }
+
+    var value = HeaderUtilities.RemoveQuotes(media.Boundary).Value;
+    if (string.IsNullOrEmpty(value)) {
+      throw new InvalidDataException("The multipart boundary is missing.");
+    }
+
+    boundary = value;
+    return true;
+  }
+
+  // Reads a stream with a size cap. Returns null when the stream is larger than the limit.
+  private static async Task<string?> ReadCappedAsync(Stream body, CancellationToken ct) {
     using var buffer = new MemoryStream();
     var chunk = new byte[81920];
     int read;
-    while ((read = await http.Body.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0) {
+    while ((read = await body.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0) {
       if (buffer.Length + read > MaxRequestBytes) {
         return null;
       }

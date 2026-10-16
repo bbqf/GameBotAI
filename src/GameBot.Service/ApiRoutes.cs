@@ -27,6 +27,7 @@ internal static class ApiRoutes {
   internal const string Adb = Base + "/adb";
   internal const string Ocr = Base + "/ocr";
   internal const string Gamepacks = Base + "/gamepacks";
+  internal const string GamepackSignature = Gamepacks + "/signature";
   internal const string QueueSettings = Base + "/queue-settings";
   internal const string Version = Base + "/version";
   internal const string QuizRecords = Base + "/quiz/records";

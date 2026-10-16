@@ -46,6 +46,10 @@ internal sealed record GamepackProblemDto {
   /// <summary>The message.</summary>
   public required string Message { get; init; }
 
+  /// <summary>For a signature problem: <c>signature_&lt;status&gt;</c>. Else not set.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Code { get; init; }
+
   internal static GamepackProblemDto From(GamepackProblem problem) {
     ArgumentNullException.ThrowIfNull(problem);
     return new GamepackProblemDto {
@@ -53,7 +57,8 @@ internal sealed record GamepackProblemDto {
       ObjectType = problem.ObjectType,
       Name = problem.Name,
       Owner = problem.Owner,
-      Message = problem.Message
+      Message = problem.Message,
+      Code = problem.Code
     };
   }
 }
@@ -84,6 +89,14 @@ internal sealed record GamepackInstallResponse {
 
   /// <summary>The number of removed objects (planned for a dry run).</summary>
   public int Removed { get; init; }
+
+  /// <summary>Always <c>signature_rejected</c> for a gamepack that the signature policy rejected. Else not set.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Result { get; init; }
+
+  /// <summary>The signature check result (feature 146).</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public GamepackSignatureStatusDto? Signature { get; init; }
 }
 
 /// <summary>The response of a rollback that worked.</summary>

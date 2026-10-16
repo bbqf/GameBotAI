@@ -63,6 +63,45 @@ internal sealed class GamepackContractHost : IDisposable {
     Client.PostAsync(new Uri("/api/gamepacks/install" + (dryRun ? "?dryRun=true" : string.Empty), UriKind.Relative),
       new StringContent(json, Encoding.UTF8, "application/json"));
 
+  /// <summary>Sends a multipart install request with the gamepack part and an optional signature part (feature 146).</summary>
+  public Task<HttpResponseMessage> InstallSignedAsync(string json, string? signature, bool dryRun = false, HttpContent? signaturePart = null) {
+    var content = new MultipartFormDataContent();
+    content.Add(new StringContent(json, Encoding.UTF8, "application/json"), "gamepack", "gamepack.json");
+    if (signaturePart is not null) {
+      content.Add(signaturePart, "signature", "signature.json");
+    }
+    else if (signature is not null) {
+      content.Add(new StringContent(signature, Encoding.UTF8, "application/json"), "signature", "signature.json");
+    }
+
+    return Client.PostAsync(new Uri("/api/gamepacks/install" + (dryRun ? "?dryRun=true" : string.Empty), UriKind.Relative), content);
+  }
+
+  public async Task SetPolicyAsync(string policy) {
+    var response = await Client.PutAsJsonAsync(new Uri("/api/gamepacks/signature/policy", UriKind.Relative), new { policy });
+    response.EnsureSuccessStatusCode();
+  }
+
+  public async Task AddKeyAsync(string label, string publicKey) {
+    var response = await Client.PostAsJsonAsync(new Uri("/api/gamepacks/signature/keys", UriKind.Relative), new { label, publicKey });
+    response.EnsureSuccessStatusCode();
+  }
+
+  /// <summary>Gives a client with no token.</summary>
+  public HttpClient CreateAnonymousClient() => _factory.CreateClient();
+
+  /// <summary>A text snapshot of the instance state: the lists of gamepacks, sequences, and commands and the settings file.</summary>
+  public async Task<string> StateSnapshotAsync() {
+    var parts = new List<string>();
+    foreach (var path in new[] { "/api/gamepacks", "/api/sequences", "/api/commands" }) {
+      parts.Add((await GetJsonAsync(path)).GetRawText());
+    }
+
+    var settings = Path.Combine(Root, "gamepack-signature.json");
+    parts.Add(File.Exists(settings) ? await File.ReadAllTextAsync(settings) : "no-settings-file");
+    return string.Join("|", parts);
+  }
+
   public Task<HttpResponseMessage> RollbackAsync(string name) =>
     Client.PostAsync(new Uri($"/api/gamepacks/{name}/rollback", UriKind.Relative), content: null);
 

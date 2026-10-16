@@ -25,6 +25,9 @@ public static class GamepackProblemCategories {
 
   /// <summary>An object of the file clashes with an object that the gamepack does not own.</summary>
   public const string Conflict = "conflict";
+
+  /// <summary>The signature check rejected the gamepack (feature 146).</summary>
+  public const string Signature = "signature";
 }
 
 /// <summary>One problem that the check found.</summary>
@@ -33,4 +36,5 @@ public static class GamepackProblemCategories {
 /// <param name="Name">The object name, or null.</param>
 /// <param name="Message">The STE message.</param>
 /// <param name="Owner">For a conflict only: <c>user</c> or <c>&lt;name&gt; &lt;version&gt;</c>.</param>
-public sealed record GamepackProblem(string Category, string ObjectType, string? Name, string Message, string? Owner = null);
+/// <param name="Code">For a signature problem only: <c>signature_&lt;status&gt;</c>.</param>
+public sealed record GamepackProblem(string Category, string ObjectType, string? Name, string Message, string? Owner = null, string? Code = null);

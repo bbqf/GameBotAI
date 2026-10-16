@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-15 (feature 145: queue settings export and import by name, `/api/queue-settings`;
+_Last reviewed: 2026-10-16 (feature 146: gamepack signature check, `/api/gamepacks/signature`, the file `gamepack-signature.json` in the data root;
+feature 145: queue settings export and import by name, `/api/queue-settings`;
 feature 143: gamepack install, `/api/gamepacks`, the read-only `owner` field, the folder `gamepacks` in the data root;
 feature 142: the quiz answer service, the step types `quiz-lookup` and `quiz-learn`, `/api/quiz/records`, the folder `quiz` in the data root;
 feature 141: the Monitoring area, the session list with a state, the emulator restart, the `Service:Monitoring` options;
@@ -1332,6 +1333,18 @@ user guide is `docs/gamepacks.md`. The code is in `src/GameBot.Domain/Gamepacks/
   runs inside `GamepackService.RunExclusiveAsync`, the gate of install and rollback. A store failure gives 500 with a partial
   report (applied, failed, not applied). `Swagger/QueueSettingsSchemaFilter` describes the types. The user guide is the section
   "Back up and restore settings" of `docs/gamepacks.md`.
+- **Gamepack signature check (feature 146)**: the code is in `src/GameBot.Domain/Gamepacks/Signing/`. The install route
+  accepts `application/json` (no signature) or `multipart/form-data` with the parts `gamepack` and `signature`.
+  `GamepackService.InstallAsync` runs `GamepackSignatureChecker` after the parse and before the gate, the validator, and any
+  write. The checker reads the settings on each call (`GamepackSignatureSettingsStore`, file `<data root>/gamepack-signature.json`,
+  atomic write, no restart) and runs `IGamepackSignatureVerifier` only when the policy is not `off`. The verifier uses ECDSA P-256
+  with SHA-256 over the canonical JSON (`CanonicalJson`, `GamepackContentHasher`, `SignatureFile`). The status order is
+  `missing`, `invalid`, `content_mismatch`, `untrusted`. Trust is only "the fingerprint is on the trusted list". Under `required`,
+  a status other than `valid` gives 422 (`signature_rejected`); a dry run gives 200 with `wouldReject`. The routes
+  `GET` and `PUT /api/gamepacks/signature/policy`, `GET` and `POST /api/gamepacks/signature/keys`, and
+  `DELETE /api/gamepacks/signature/keys/{fingerprint}` are in `Endpoints/GamepackSignatureEndpoints.cs` and use the API token
+  rule. Rollback and list run no check. Each check writes one log message (event 1461) with the status and the policy. The user
+  guide is the section "Signed gamepacks" of `docs/gamepacks.md`.
 
 ## REST API surface
 

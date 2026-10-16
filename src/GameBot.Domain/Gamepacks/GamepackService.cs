@@ -1,4 +1,5 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Gamepacks.Signing;
 using GameBot.Domain.Images;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,6 +16,9 @@ public enum GamepackInstallStatus {
 
   /// <summary>The body is not valid JSON.</summary>
   InvalidJson,
+
+  /// <summary>The signature policy rejected the gamepack. Nothing changed (feature 146).</summary>
+  SignatureRejected,
 
   /// <summary>A write failed and the state is as before.</summary>
   Failed,
@@ -51,6 +55,9 @@ public sealed class GamepackInstallOutcome {
 
   /// <summary>The error text for a failed write, or null.</summary>
   public string? ErrorMessage { get; init; }
+
+  /// <summary>The signature check result, or null when the service has no checker (feature 146).</summary>
+  public SignatureCheckResult? Signature { get; init; }
 }
 
 /// <summary>The status of a rollback request.</summary>
@@ -129,6 +136,7 @@ public sealed partial class GamepackService : IDisposable {
   private readonly GamepackValidator _validator;
   private readonly GamepackApplier _applier;
   private readonly ILogger _logger;
+  private readonly GamepackSignatureChecker? _signatureChecker;
 
   /// <summary>Creates the service.</summary>
   /// <param name="sequences">The sequence store.</param>
@@ -138,6 +146,7 @@ public sealed partial class GamepackService : IDisposable {
   /// <param name="validator">The shared check.</param>
   /// <param name="applier">The apply path.</param>
   /// <param name="logger">The logger, or null.</param>
+  /// <param name="signatureChecker">The signature checker, or null for no signature check (feature 146).</param>
   public GamepackService(
       ISequenceRepository sequences,
       ICommandRepository commands,
@@ -145,7 +154,8 @@ public sealed partial class GamepackService : IDisposable {
       IGamepackRegistryStore store,
       GamepackValidator validator,
       GamepackApplier applier,
-      ILogger<GamepackService>? logger = null) {
+      ILogger<GamepackService>? logger = null,
+      GamepackSignatureChecker? signatureChecker = null) {
     _sequences = sequences ?? throw new ArgumentNullException(nameof(sequences));
     _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     _images = images ?? throw new ArgumentNullException(nameof(images));
@@ -153,6 +163,7 @@ public sealed partial class GamepackService : IDisposable {
     _validator = validator ?? throw new ArgumentNullException(nameof(validator));
     _applier = applier ?? throw new ArgumentNullException(nameof(applier));
     _logger = (ILogger?)logger ?? NullLogger.Instance;
+    _signatureChecker = signatureChecker;
   }
 
   /// <inheritdoc />
@@ -162,11 +173,44 @@ public sealed partial class GamepackService : IDisposable {
   /// <param name="json">The file text.</param>
   /// <param name="dryRun">True to check only. No data changes.</param>
   /// <param name="ct">The cancellation token.</param>
-  public async Task<GamepackInstallOutcome> InstallAsync(string json, bool dryRun, CancellationToken ct = default) {
+  public Task<GamepackInstallOutcome> InstallAsync(string json, bool dryRun, CancellationToken ct = default) =>
+    InstallAsync(json, dryRun, signatureText: null, ct);
+
+  /// <summary>
+  /// Installs a gamepack file with a detached signature, or checks it when <paramref name="dryRun"/> is true (feature 146).
+  /// The signature check ends before the validator and before any write.
+  /// </summary>
+  /// <param name="json">The file text.</param>
+  /// <param name="dryRun">True to check only. No data changes.</param>
+  /// <param name="signatureText">The detached signature file text, or null when none was sent.</param>
+  /// <param name="ct">The cancellation token.</param>
+  public async Task<GamepackInstallOutcome> InstallAsync(string json, bool dryRun, string? signatureText, CancellationToken ct) {
     ArgumentNullException.ThrowIfNull(json);
     var parsed = GamepackFileSerializer.Parse(json);
     if (parsed.InvalidJson || parsed.File is null) {
       return new GamepackInstallOutcome { Status = GamepackInstallStatus.InvalidJson, DryRun = dryRun, Problems = parsed.Problems };
+    }
+
+    // The signature check ends before the gate, the validator, and any write (FR-002).
+    var signature = _signatureChecker?.Check(json, signatureText);
+    if (signature is { WouldReject: true }) {
+      var manifestInfo = parsed.File.Manifest;
+      var status = signature.Status.ToWire();
+      return new GamepackInstallOutcome {
+        Status = GamepackInstallStatus.SignatureRejected,
+        DryRun = dryRun,
+        Name = manifestInfo?.Name,
+        Version = manifestInfo?.Version,
+        Signature = signature,
+        Problems = new[] {
+          new GamepackProblem(
+            GamepackProblemCategories.Signature,
+            GamepackObjectTypes.Manifest,
+            manifestInfo?.Name,
+            $"The signature check gave the status {status}. The policy is required. Nothing changed.",
+            Code: "signature_" + status)
+        }
+      };
     }
 
     await _gate.WaitAsync(ct).ConfigureAwait(false);
@@ -175,6 +219,7 @@ public sealed partial class GamepackService : IDisposable {
       var manifest = parsed.File.Manifest;
       if (!check.IsValid || check.Plan is null) {
         return new GamepackInstallOutcome {
+          Signature = signature,
           Status = GamepackInstallStatus.Invalid,
           DryRun = dryRun,
           Problems = check.Problems,
@@ -186,6 +231,7 @@ public sealed partial class GamepackService : IDisposable {
       var plan = check.Plan;
       if (dryRun) {
         return new GamepackInstallOutcome {
+          Signature = signature,
           Status = GamepackInstallStatus.Ok,
           DryRun = true,
           Name = plan.Manifest.Name,
@@ -204,6 +250,7 @@ public sealed partial class GamepackService : IDisposable {
       var applied = await _applier.ApplyAsync(plan, previous, ct).ConfigureAwait(false);
       if (applied.Status != GamepackApplyStatus.Applied) {
         return new GamepackInstallOutcome {
+          Signature = signature,
           Status = applied.Status == GamepackApplyStatus.PartialRestore ? GamepackInstallStatus.PartialRestore : GamepackInstallStatus.Failed,
           Name = plan.Manifest.Name,
           Version = plan.Manifest.Version,
@@ -212,6 +259,7 @@ public sealed partial class GamepackService : IDisposable {
       }
 
       return new GamepackInstallOutcome {
+        Signature = signature,
         Status = GamepackInstallStatus.Ok,
         Name = plan.Manifest.Name,
         Version = plan.Manifest.Version,

@@ -26,11 +26,12 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
     + "(read it with GET /api/version). The field is optional.";
 
   private static readonly Dictionary<string, string> ProblemFields = new() {
-    ["category"] = "structure, reference, or conflict.",
+    ["category"] = "structure, reference, conflict, or signature.",
     ["objectType"] = "manifest, sequence, command, or image.",
     ["name"] = "The name of the object, or null.",
     ["owner"] = "For a conflict: user, or the gamepack name and version as text (for example PackName 1.2.0). Else null.",
-    ["message"] = "What is wrong, in plain words."
+    ["message"] = "What is wrong, in plain words.",
+    ["code"] = "For a signature problem: signature_ and the status. Else not set."
   };
 
   public void Apply(OpenApiSchema schema, SchemaFilterContext context) {
@@ -79,9 +80,52 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       return;
     }
 
+    if (ApplySignatureSchemas(schema, context)) {
+      return;
+    }
+
     if ((context.Type == typeof(CommandResponse) || context.Type == typeof(SequenceListItemResponse))
         && schema.Properties.TryGetValue("owner", out var owner)) {
       owner.Description = OwnerDescription;
+    }
+  }
+
+  // Feature 146: the gamepack signature types. The status names are snake_case.
+  private static bool ApplySignatureSchemas(OpenApiSchema schema, SchemaFilterContext context) {
+    if (context.Type == typeof(GamepackSignatureStatusDto)) {
+      schema.Description = "The result of the signature check on an install or a dry run.";
+      Describe(schema, "status", "valid, missing, invalid, content_mismatch, untrusted, or not_checked (the policy is off).");
+      Describe(schema, "policy", "The policy at check time: required, optional, or off.");
+      Describe(schema, "wouldReject", "True only when the policy is required and the status is not valid.");
+      return true;
+    }
+
+    if (context.Type == typeof(GamepackSignaturePolicyDto)) {
+      schema.Description = "The signature policy: required, optional, or off. The default is off.";
+      Describe(schema, "policy", "required, optional, or off.");
+      return true;
+    }
+
+    if (context.Type == typeof(GamepackSignatureKeyDto)) {
+      schema.Description = "A trusted signing key. The public key text is not shown.";
+      Describe(schema, "label", "The display label. It has no effect on trust.");
+      Describe(schema, "fingerprint", "The SHA-256 of the key bytes, in lower case hex.");
+      return true;
+    }
+
+    if (context.Type == typeof(GamepackSignatureKeyRequest)) {
+      schema.Description = "A request to trust a signing key.";
+      Describe(schema, "label", "The display label, 1 to 100 characters.");
+      Describe(schema, "publicKey", "The ECDSA P-256 public key as base64 SubjectPublicKeyInfo.");
+      return true;
+    }
+
+    return false;
+  }
+
+  private static void Describe(OpenApiSchema schema, string name, string description) {
+    if (schema.Properties.TryGetValue(name, out var property)) {
+      property.Description = description;
     }
   }
 }
