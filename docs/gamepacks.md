@@ -256,9 +256,59 @@ How to sign a gamepack:
 The key in the signature file is only used for the crypto test. Trust comes only from the trusted list of the instance. Each
 check writes one log message with the status and the policy. The message has no key text.
 
+## Remote catalog
+
+An operator can set one catalog. A catalog is a web address or a local folder. It has one file, `index.json`, and the gamepack files. The operator lists the versions, reads the change text, and installs one version by hand. The platform never installs from the catalog by itself. It has no timer and no cache. Each list request reads the index again.
+
+### Settings
+
+`GET /api/gamepacks/catalog/settings` gives `location`, `allowInsecure`, and `tokenSet`. It never gives the token. `PUT /api/gamepacks/catalog/settings` sets them. In the body, `token` null keeps the saved token, an empty text clears it, and other text sets it. A change applies to the next request. A restart is not needed. The settings are in `<data root>/gamepack-catalog.json`.
+
+The token and the "allow insecure" flag apply to web addresses only. A folder catalog ignores both. Scheme rules: `https` always works. `http` works for a loopback host, or when `allowInsecure` is true. The token goes only to the catalog host.
+
+### The index
+
+The index is at `<location>/index.json`. A file location in the index is relative to the catalog location. The index has at most 5 MB.
+
+```json
+{
+  "formatVersion": 1,
+  "gamepacks": [
+    {
+      "name": "pns-daily",
+      "versions": [
+        {
+          "version": "1.2.0",
+          "changelog": "Fix the bank step.",
+          "file": "pns-daily/1.2.0/pns-daily.gamepack.json",
+          "signature": "pns-daily/1.2.0/pns-daily.sig.json",
+          "sha256": "<64 hex chars>"
+        }
+      ]
+    }
+  ]
+}
+```
+
+`formatVersion` must be 1. `changelog`, `signature`, and `sha256` are optional. The platform skips a version entry that has an invalid version, an invalid hash, or a file location that is absolute, has "..", has a backslash, or leaves the catalog. For a duplicate name and version, the first entry wins.
+
+### Routes
+
+- `GET /api/gamepacks/catalog` lists the gamepacks with the versions (new to old), the change text, `installed`, and `updateAvailable`. It gives 409 `not_configured` when no catalog is set.
+- `POST /api/gamepacks/catalog/install` with `{ "name", "version", "dryRun" }` installs one listed version, or checks it with a dry run. An unlisted name or version gives 404 `entry_not_listed` before any download. The install uses the same flow and the same signature policy as `POST /api/gamepacks/install`. It downloads the optional signature file of the entry with the same rules as the gamepack file. When the entry has a `sha256`, the platform compares it with the file.
+
+### Limits and errors
+
+Limits: index 5 MB, gamepack file 100 MB, signature file 1 MB, 30 seconds for each request, and at most 3 redirects to the same host and scheme. A failure leaves the instance as it was. Reason codes: `not_configured`, `invalid_location`, `unreachable`, `unauthorized`, `forbidden`, `not_found`, `index_invalid` (also for a missing `index.json`), `index_too_large`, `file_missing`, `file_too_large`, `hash_mismatch`, `redirect_refused`, `timeout`, `entry_not_listed`.
+
+### Web interface
+
+The "Gamepacks" area (`/gamepacks`) has full phone support. It has the settings form, the list, an Update button (label "Install" when none is installed) for each newer version, a "Dry run" check box, and a "Refresh" button. The list loads on open and on Refresh only.
+
 ## Where the data is
 
 `<data root>/gamepack-signature.json` holds the signature policy and the trusted keys.
+`<data root>/gamepack-catalog.json` holds the catalog location, the allow insecure flag, and the token.
 `<data root>/gamepacks/registry.json` holds the installed gamepacks and the owner records. `<data root>/gamepacks/previous/<name>.json`
 holds the kept previous version of each gamepack (the name is in lower case). The service writes each file to a temporary
 file first and then replaces the old file.

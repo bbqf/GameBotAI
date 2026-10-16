@@ -1,5 +1,6 @@
 using GameBot.Domain.Commands;
 using GameBot.Domain.Gamepacks;
+using GameBot.Domain.Gamepacks.Catalog;
 using GameBot.Domain.Gamepacks.Signing;
 using GameBot.Domain.Images;
 
@@ -46,6 +47,33 @@ internal static class GamepackServiceCollectionExtensions {
       sp.GetRequiredService<GamepackApplier>(),
       sp.GetService<ILogger<GamepackService>>(),
       sp.GetRequiredService<GamepackSignatureChecker>()));
+    return services.AddGamepackCatalog(dataRoot);
+  }
+
+  /// <summary>
+  /// Adds the catalog services (feature 147). No hosted service, no timer, and no cache use these types (FR-015).
+  /// The catalog HTTP client does not follow redirects. The source follows them by hand and has its own time limit.
+  /// </summary>
+  /// <param name="services">The service collection.</param>
+  /// <param name="dataRoot">The data root.</param>
+  internal static IServiceCollection AddGamepackCatalog(this IServiceCollection services, string dataRoot) {
+    ArgumentNullException.ThrowIfNull(services);
+    services.AddHttpClient(CatalogHttpClientName, client => client.Timeout = System.Threading.Timeout.InfiniteTimeSpan)
+      .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+    services.AddSingleton(new CatalogOptions());
+    services.AddSingleton<IGamepackCatalogSettingsStore>(_ => new GamepackCatalogSettingsStore(dataRoot));
+    services.AddSingleton(sp => new GamepackCatalogSourceFactory(
+      sp.GetRequiredService<IGamepackCatalogSettingsStore>(),
+      () => sp.GetRequiredService<IHttpClientFactory>().CreateClient(CatalogHttpClientName),
+      sp.GetRequiredService<CatalogOptions>()));
+    services.AddSingleton(sp => new GamepackCatalogService(
+      sp.GetRequiredService<GamepackCatalogSourceFactory>(),
+      sp.GetRequiredService<GamepackService>(),
+      sp.GetRequiredService<CatalogOptions>(),
+      sp.GetService<ILogger<GamepackCatalogService>>()));
     return services;
   }
+
+  /// <summary>The name of the HTTP client of the catalog.</summary>
+  internal const string CatalogHttpClientName = "gamepack-catalog";
 }

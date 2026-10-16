@@ -25,12 +25,12 @@ describe('navigationAreas phone support level', () => {
     expect(monitoring).toMatchObject({ label: 'Monitoring', path: '/monitoring', order: 1 });
   });
 
-  it('has 8 areas with unique orders from 0 to 7, in the agreed sequence', () => {
-    expect(navigationAreas).toHaveLength(8);
+  it('has 9 areas with unique orders from 0 to 8, in the agreed sequence', () => {
+    expect(navigationAreas).toHaveLength(9);
     const sorted = [...navigationAreas].sort((a, b) => a.order - b.order);
-    expect(sorted.map((a) => a.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(sorted.map((a) => a.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
     expect(sorted.map((a) => a.id)).toEqual([
-      'queues', 'monitoring', 'authoring', 'execution', 'execution-logs', 'configuration', 'update', 'notifications'
+      'queues', 'monitoring', 'authoring', 'execution', 'execution-logs', 'configuration', 'update', 'gamepacks', 'notifications'
     ]);
   });
 
@@ -39,6 +39,7 @@ describe('navigationAreas phone support level', () => {
     expect(level('notifications')).toBe('full');
     expect(level('configuration')).toBe('full');
     expect(level('update')).toBe('full');
+    expect(level('gamepacks')).toBe('full');
   });
 
   it('isPhoneVisible is false only for hidden areas', () => {

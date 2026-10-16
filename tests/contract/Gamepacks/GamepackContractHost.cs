@@ -102,6 +102,24 @@ internal sealed class GamepackContractHost : IDisposable {
     return string.Join("|", parts);
   }
 
+  // ---- feature 147: the catalog routes ----
+
+  public Task<HttpResponseMessage> PutCatalogSettingsAsync(string? location, bool allowInsecure = false, string? token = null) =>
+    Client.PutAsJsonAsync(new Uri("/api/gamepacks/catalog/settings", UriKind.Relative), new { location, allowInsecure, token });
+
+  public async Task SetCatalogAsync(string? location, bool allowInsecure = false, string? token = null) {
+    var response = await PutCatalogSettingsAsync(location, allowInsecure, token);
+    response.EnsureSuccessStatusCode();
+  }
+
+  public Task<HttpResponseMessage> CatalogListAsync() => Client.GetAsync(new Uri("/api/gamepacks/catalog", UriKind.Relative));
+
+  public Task<HttpResponseMessage> CatalogInstallAsync(string? name, string? version, bool dryRun = false) =>
+    Client.PostAsJsonAsync(new Uri("/api/gamepacks/catalog/install", UriKind.Relative), new { name, version, dryRun });
+
+  public static async Task<string> CodeOfAsync(HttpResponseMessage response) =>
+    (await ReadAsync(response)).GetProperty("code").GetString()!;
+
   public Task<HttpResponseMessage> RollbackAsync(string name) =>
     Client.PostAsync(new Uri($"/api/gamepacks/{name}/rollback", UriKind.Relative), content: null);
 

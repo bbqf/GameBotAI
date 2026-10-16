@@ -12,6 +12,12 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Added
+- Gamepack remote catalog (147-gamepack-remote-catalog)
+  - **Settings**: `GET` and `PUT /api/gamepacks/catalog/settings` set one catalog (a web address or a folder), the allow insecure flag, and a token. The token is never in a response or a log.
+  - **Browse and install**: `GET /api/gamepacks/catalog` lists the versions with the change text and the installed marker. `POST /api/gamepacks/catalog/install` installs one listed version, or checks it with `dryRun`. It uses the same flow and signature policy as the manual install. Nothing installs by itself.
+  - **Web interface**: the new "Gamepacks" area (`/gamepacks`) has the list, an Update button, a "Dry run" check box, and a "Refresh" button.
+  - See `docs/gamepacks.md` and `docs/architecture.md`.
+  - The patch version is now 9, so the next build is `1.10.9.<run number>`.
 - Gamepack signature check (146-gamepack-signature-verify)
   - **Policy**: the instance has the policy `required`, `optional`, or `off`. The default is `off`. Read and set it with `GET` and `PUT /api/gamepacks/signature/policy`. A change applies to the next install with no restart.
   - **Keys**: `GET` and `POST /api/gamepacks/signature/keys` and `DELETE /api/gamepacks/signature/keys/{fingerprint}` manage the trusted ECDSA P-256 keys. The list does not show key text.

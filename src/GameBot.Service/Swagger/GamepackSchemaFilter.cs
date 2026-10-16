@@ -80,7 +80,7 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       return;
     }
 
-    if (ApplySignatureSchemas(schema, context)) {
+    if (ApplySignatureSchemas(schema, context) || ApplyCatalogSchemas(schema, context)) {
       return;
     }
 
@@ -117,6 +117,54 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       schema.Description = "A request to trust a signing key.";
       Describe(schema, "label", "The display label, 1 to 100 characters.");
       Describe(schema, "publicKey", "The ECDSA P-256 public key as base64 SubjectPublicKeyInfo.");
+      return true;
+    }
+
+    return false;
+  }
+
+  // Feature 147: the remote catalog types.
+  private static bool ApplyCatalogSchemas(OpenApiSchema schema, SchemaFilterContext context) {
+    if (context.Type == typeof(GamepackCatalogSettingsDto)) {
+      schema.Description = "The catalog settings. The token is never shown. The token and allowInsecure apply to web addresses only. A folder catalog ignores both.";
+      Describe(schema, "location", "A web address or a full folder path. Null when no catalog is set.");
+      Describe(schema, "allowInsecure", "True when http is allowed for a host that is not a loopback host. Web addresses only.");
+      Describe(schema, "tokenSet", "True when a token is saved.");
+      return true;
+    }
+
+    if (context.Type == typeof(GamepackCatalogSettingsRequest)) {
+      schema.Description = "A request to change the catalog settings. The token and allowInsecure apply to web addresses only. A folder catalog ignores both.";
+      Describe(schema, "location", "A web address (https, or http for a loopback host or with allowInsecure) or a full folder path. Null or empty clears it.");
+      Describe(schema, "allowInsecure", "True to allow http for a host that is not a loopback host. Web addresses only.");
+      Describe(schema, "token", "The bearer token. Null keeps the saved token. An empty text clears it. Other text sets it. Web addresses only.");
+      return true;
+    }
+
+    if (context.Type == typeof(GamepackCatalogListResponse)) {
+      schema.Description = "The gamepacks of the catalog, read from the index on each request.";
+      return true;
+    }
+
+    if (context.Type == typeof(GamepackCatalogItemDto)) {
+      schema.Description = "One gamepack of the catalog with its versions from new to old.";
+      Describe(schema, "installedVersion", "The installed version, or null.");
+      return true;
+    }
+
+    if (context.Type == typeof(GamepackCatalogVersionDto)) {
+      schema.Description = "One version of a catalog gamepack.";
+      Describe(schema, "changelog", "The change text. Empty when the index has none.");
+      Describe(schema, "installed", "True for the installed version.");
+      Describe(schema, "updateAvailable", "True when no version is installed, or this version is newer than the installed one.");
+      return true;
+    }
+
+    if (context.Type == typeof(GamepackCatalogInstallRequest)) {
+      schema.Description = "A request to install one listed version from the catalog.";
+      Describe(schema, "name", "The gamepack name.");
+      Describe(schema, "version", "The version.");
+      Describe(schema, "dryRun", "True to check only. No data changes.");
       return true;
     }
 

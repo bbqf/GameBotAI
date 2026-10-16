@@ -408,6 +408,37 @@
     gap: var(--gb-space-2);
   }
 
+  /* Gamepacks: one column, touch-size controls (feature 147, FR-017). */
+  .app--phone .gamepacks-page input[type='text'],
+  .app--phone .gamepacks-page input[type='password'] {
+    width: 100%;
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+
+  .app--phone .gamepacks-page button {
+    min-height: 44px;
+  }
+
+  .app--phone .gamepacks-page .gamepacks-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app--phone .gamepacks-page .gamepacks-actions label.gamepacks-check,
+  .app--phone .gamepacks-page .gamepacks-settings label.gamepacks-check {
+    min-height: 44px;
+  }
+
+  .app--phone .gamepacks-page .gamepacks-check input[type='checkbox'] {
+    width: 24px;
+    height: 24px;
+  }
+
+  .app--phone .gamepacks-page .gamepacks-version > button {
+    width: 100%;
+  }
+
   /* Notifications: rows as cards (US2). */
   .app--phone .phone-row-card {
     display: flex;

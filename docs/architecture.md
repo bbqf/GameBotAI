@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-16 (feature 146: gamepack signature check, `/api/gamepacks/signature`, the file `gamepack-signature.json` in the data root;
+_Last reviewed: 2026-10-16 (feature 147: gamepack remote catalog, `/api/gamepacks/catalog`, the file `gamepack-catalog.json` in the data root, the Gamepacks area;
+feature 146: gamepack signature check, `/api/gamepacks/signature`, the file `gamepack-signature.json` in the data root;
 feature 145: queue settings export and import by name, `/api/queue-settings`;
 feature 143: gamepack install, `/api/gamepacks`, the read-only `owner` field, the folder `gamepacks` in the data root;
 feature 142: the quiz answer service, the step types `quiz-lookup` and `quiz-learn`, `/api/quiz/records`, the folder `quiz` in the data root;
@@ -1323,6 +1324,7 @@ user guide is `docs/gamepacks.md`. The code is in `src/GameBot.Domain/Gamepacks/
   `GET /api/version` (tag `Version`) shows it. The validator refuses a `requiredApiMajor` that differs from the running
   major version. The rollback skips this check. The rule is in the section "API version and compatibility" of
   `docs/gamepacks.md`.
+- **Remote catalog (feature 147)**: `GET` and `PUT /api/gamepacks/catalog/settings`, `GET /api/gamepacks/catalog`, and `POST /api/gamepacks/catalog/install` (tag `Gamepacks`, `Endpoints/GamepackCatalogEndpoints.cs`). The code is in `src/GameBot.Domain/Gamepacks/Catalog/`. `HttpCatalogSource` and `FolderCatalogSource` sit behind `IGamepackCatalogSource`. `GamepackCatalogSourceFactory` picks the source from the current settings on each request. `GamepackCatalogService` lists and installs. The install calls `GamepackService.InstallAsync` with the signature text. The index is read on each list request (no cache). No hosted service, no timer, and no poll use the catalog types. The token is never in a response or a log. The web page is `src/web-ui/src/pages/GamepacksPage.tsx` (area `gamepacks`, phone support `full`).
 - **Queue settings export and import (feature 145)**: `GET /api/queue-settings/export` and `POST /api/queue-settings/import`
   (tag `QueueSettings`, `Endpoints/QueueSettingsEndpoints.cs`; import gives 200, 400, 413, 500). The code is in
   `src/GameBot.Domain/QueueSettings/`. The export writes one document with the queues, the queue templates, and the sequences
