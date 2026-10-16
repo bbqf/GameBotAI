@@ -29,6 +29,9 @@
     <Compile Include="..\unit\Gamepacks\Signing\SigningTestKit.cs" Link="Gamepacks\Signing\SigningTestKit.cs" />
     <!-- Feature 145: the queue settings test doubles are shared with the unit tests. -->
     <Compile Include="..\unit\QueueSettings\TestDoubles\*.cs" Link="QueueSettings\TestDoubles\%(Filename)%(Extension)" />
+    <!-- Feature 148: the managed update fakes are shared with the unit tests. -->
+    <Compile Include="..\unit\Gamepacks\Managed\FakeManagedQueueControl.cs" Link="Gamepacks\Managed\FakeManagedQueueControl.cs" />
+    <Compile Include="..\unit\Gamepacks\Managed\ManagedTestRig.cs" Link="Gamepacks\Managed\ManagedTestRig.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameBot.Service\GameBot.Service.csproj" />

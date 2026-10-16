@@ -145,6 +145,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ApplyGamepackExamples(operation, path, method, context);
     ApplyGamepackSignatureExamples(operation, path, method, context);
     ApplyGamepackCatalogExamples(operation, path, method, context);
+    ApplyManagedUpdateExamples(operation, path, method, context);
     ApplyQueueSettingsExamples(operation, path, method, context);
     ApplyVersionExamples(operation, path, method, context);
     ApplyUpdateExamples(operation, path, method, context);
@@ -1263,6 +1264,91 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["updated"] = new OpenApiInteger(0),
         ["removed"] = new OpenApiInteger(0)
       }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackInstallResponse));
+    }
+  }
+
+  // ── Feature 148: managed gamepack update ────────────────────────────────────────────────────
+
+  private static OpenApiObject ManagedReportExample(string result, string? reason) {
+    var queue = new OpenApiObject {
+      ["id"] = new OpenApiString("q1"),
+      ["name"] = new OpenApiString("PNS Daily"),
+      ["templateName"] = new OpenApiString("pns-daily"),
+      ["error"] = new OpenApiNull()
+    };
+    return new OpenApiObject {
+      ["result"] = new OpenApiString(result),
+      ["reason"] = reason is null ? new OpenApiNull() : new OpenApiString(reason),
+      ["detail"] = new OpenApiNull(),
+      ["dryRun"] = new OpenApiBoolean(result == "planned"),
+      ["gamepack"] = new OpenApiObject { ["name"] = new OpenApiString("demo-pack"), ["version"] = new OpenApiString("2.0.0") },
+      ["previousVersion"] = new OpenApiString("1.0.0"),
+      ["stoppedQueues"] = new OpenApiArray { queue },
+      ["restartedQueues"] = new OpenApiArray { queue },
+      ["notRestartedQueues"] = new OpenApiArray(),
+      ["backupId"] = new OpenApiString("20261016T101500123-demo-pack"),
+      ["created"] = new OpenApiInteger(1),
+      ["updated"] = new OpenApiInteger(3),
+      ["removed"] = new OpenApiInteger(0),
+      ["newEntries"] = new OpenApiArray {
+        new OpenApiObject { ["templateName"] = new OpenApiString("pns-daily"), ["sequenceName"] = new OpenApiString("new-task"), ["position"] = new OpenApiInteger(7) }
+      },
+      ["removedSequenceEntries"] = new OpenApiArray(),
+      ["notAffectedTemplates"] = new OpenApiArray(),
+      ["problems"] = new OpenApiArray(),
+      ["signature"] = new OpenApiObject {
+        ["status"] = new OpenApiString("not_checked"),
+        ["policy"] = new OpenApiString("off"),
+        ["wouldReject"] = new OpenApiBoolean(false)
+      },
+      ["restore"] = new OpenApiObject {
+        ["happened"] = new OpenApiBoolean(false),
+        ["restored"] = new OpenApiBoolean(false),
+        ["steps"] = new OpenApiArray(),
+        ["failedObjects"] = new OpenApiArray()
+      }
+    };
+  }
+
+  private static void ApplyManagedUpdateExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
+    if (!IsMethod(method, HttpMethods.Post)) return;
+    var isFile = IsPath(path, ApiRoutes.Gamepacks + "/update");
+    var isCatalog = IsPath(path, ApiRoutes.GamepackCatalog + "/update");
+    if (!isFile && !isCatalog) return;
+
+    if (isFile) {
+      SetRequestExample(operation, new OpenApiObject {
+        ["manifest"] = new OpenApiObject {
+          ["name"] = new OpenApiString("demo-pack"),
+          ["version"] = new OpenApiString("2.0.0"),
+          ["changelog"] = new OpenApiString("Add a task.")
+        },
+        ["sequences"] = new OpenApiArray(),
+        ["commands"] = new OpenApiArray(),
+        ["images"] = new OpenApiArray()
+      }, context, typeof(GameBot.Service.Endpoints.GamepacksEndpoints.GamepackInstallRequestBody));
+    }
+    else {
+      SetRequestExample(operation, new OpenApiObject {
+        ["name"] = new OpenApiString("demo-pack"),
+        ["version"] = new OpenApiString("2.0.0"),
+        ["dryRun"] = new OpenApiBoolean(false),
+        ["templates"] = new OpenApiArray { new OpenApiString("pns-daily") }
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackCatalogUpdateRequest));
+    }
+
+    var report = typeof(GameBot.Service.Endpoints.Dto.ManagedUpdateReportDto);
+    SetResponseExample(operation, "200", ManagedReportExample("done", null), context, report);
+    SetResponseExample(operation, "400", ManagedReportExample("rejected", "template_not_found"), context, report);
+    SetResponseExample(operation, "422", ManagedReportExample("rejected", "validation_failed"), context, report);
+    SetResponseExample(operation, "500", ManagedReportExample("failed", "install_failed"), context, report);
+    var error = new OpenApiObject { ["reason"] = new OpenApiString("update_in_progress"), ["message"] = new OpenApiString("A managed call runs on this instance.") };
+    var errorType = typeof(GameBot.Service.Endpoints.Dto.ManagedErrorDto);
+    SetResponseExample(operation, "409", error, context, errorType);
+    if (isCatalog) {
+      SetResponseExample(operation, "404", new OpenApiObject { ["reason"] = new OpenApiString("entry_not_listed"), ["message"] = new OpenApiString("The catalog does not list this gamepack version.") }, context, errorType);
+      SetResponseExample(operation, "502", new OpenApiObject { ["reason"] = new OpenApiString("catalog_error"), ["message"] = new OpenApiString("The catalog cannot be reached.") }, context, errorType);
+      SetResponseExample(operation, "504", new OpenApiObject { ["reason"] = new OpenApiString("catalog_error"), ["message"] = new OpenApiString("The catalog did not answer in time.") }, context, errorType);
     }
   }
 

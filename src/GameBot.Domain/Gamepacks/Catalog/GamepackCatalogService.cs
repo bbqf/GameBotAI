@@ -18,6 +18,13 @@ public sealed record CatalogVersionItem(string Version, string Changelog, bool I
 /// <param name="Versions">The versions from new to old.</param>
 public sealed record CatalogListItem(string Name, string? InstalledVersion, IReadOnlyList<CatalogVersionItem> Versions);
 
+/// <summary>The file text and the optional signature text of one catalog version (feature 148).</summary>
+/// <param name="Name">The gamepack name of the entry.</param>
+/// <param name="Version">The version of the entry.</param>
+/// <param name="FileText">The gamepack file text.</param>
+/// <param name="SignatureText">The detached signature text, or null.</param>
+public sealed record CatalogFetchResult(string Name, string Version, string FileText, string? SignatureText);
+
 /// <summary>
 /// The catalog service (feature 147): list and install. Nothing here runs without a request. The service has no cache, no timer,
 /// and no background work (FR-015). A failure throws <see cref="CatalogException"/> and leaves the instance as it was.
@@ -74,27 +81,51 @@ public sealed partial class GamepackCatalogService {
   /// <param name="ct">The cancellation token.</param>
   public async Task<GamepackInstallOutcome> InstallAsync(string name, string version, bool dryRun, CancellationToken ct = default) {
     try {
-      var source = _factory.Create();
-      var entries = await ReadEntriesAsync(source, ct).ConfigureAwait(false);
-      var entry = FindEntry(entries, name, version)
-        ?? throw new CatalogException(CatalogFailure.EntryNotListed, "The catalog does not list this gamepack version.");
-
-      var file = await source.ReadFileAsync(entry.File, _options.FileLimitBytes, ct).ConfigureAwait(false);
-      CheckHash(entry, file);
-      string? signatureText = null;
-      if (entry.Signature is not null) {
-        var signature = await source.ReadFileAsync(entry.Signature, _options.SignatureLimitBytes, ct).ConfigureAwait(false);
-        signatureText = ToText(signature);
-      }
-
-      var outcome = await _gamepacks.InstallAsync(ToText(file), dryRun, signatureText, ct).ConfigureAwait(false);
-      LogInstall(_logger, entry.Name, entry.Version, dryRun, outcome.Status.ToString());
+      var fetched = await FetchCoreAsync(name, version, ct).ConfigureAwait(false);
+      var outcome = await _gamepacks.InstallAsync(fetched.FileText, dryRun, fetched.SignatureText, ct).ConfigureAwait(false);
+      LogInstall(_logger, fetched.Name, fetched.Version, dryRun, outcome.Status.ToString());
       return outcome;
     }
     catch (CatalogException ex) {
       LogInstall(_logger, name, version, dryRun, ex.Code);
       throw;
     }
+  }
+
+  /// <summary>
+  /// Gets the file text and the optional signature text of one listed version. It runs the same checks as
+  /// <see cref="InstallAsync"/> (entry listed, size limits, SHA-256) and does not install (feature 148).
+  /// </summary>
+  /// <param name="name">The gamepack name.</param>
+  /// <param name="version">The version.</param>
+  /// <param name="ct">The cancellation token.</param>
+  public async Task<CatalogFetchResult> FetchAsync(string name, string version, CancellationToken ct = default) {
+    try {
+      var fetched = await FetchCoreAsync(name, version, ct).ConfigureAwait(false);
+      LogInstall(_logger, fetched.Name, fetched.Version, false, "fetched");
+      return fetched;
+    }
+    catch (CatalogException ex) {
+      LogInstall(_logger, name, version, false, ex.Code);
+      throw;
+    }
+  }
+
+  private async Task<CatalogFetchResult> FetchCoreAsync(string name, string version, CancellationToken ct) {
+    var source = _factory.Create();
+    var entries = await ReadEntriesAsync(source, ct).ConfigureAwait(false);
+    var entry = FindEntry(entries, name, version)
+      ?? throw new CatalogException(CatalogFailure.EntryNotListed, "The catalog does not list this gamepack version.");
+
+    var file = await source.ReadFileAsync(entry.File, _options.FileLimitBytes, ct).ConfigureAwait(false);
+    CheckHash(entry, file);
+    string? signatureText = null;
+    if (entry.Signature is not null) {
+      var signature = await source.ReadFileAsync(entry.Signature, _options.SignatureLimitBytes, ct).ConfigureAwait(false);
+      signatureText = ToText(signature);
+    }
+
+    return new CatalogFetchResult(entry.Name, entry.Version, ToText(file), signatureText);
   }
 
   private static async Task<IReadOnlyList<CatalogEntry>> ReadEntriesAsync(IGamepackCatalogSource source, CancellationToken ct) {

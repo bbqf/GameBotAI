@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Added
+- Managed gamepack update (148-managed-gamepack-update)
+  - **One call**: `POST /api/gamepacks/update` (file) and `POST /api/gamepacks/catalog/update` (catalog) stop the affected queues, store a backup, install, book disabled entries for new sequences, and restart only the queues that the call stopped. `POST /api/gamepacks/{name}/rollback?managed=true` does the same for a rollback.
+  - **Safe**: new entries are always disabled. A failed step restores the previous version and the templates from the backup and restarts the stopped queues. `dryRun=true` returns the plan and all problems and changes nothing. Only one managed call runs at a time.
+  - See `docs/gamepacks.md` ("Managed update") and `docs/architecture.md`.
+  - The patch version is now 1, so the next build is `1.11.1.<run number>`.
 - Gamepack remote catalog (147-gamepack-remote-catalog)
   - **Settings**: `GET` and `PUT /api/gamepacks/catalog/settings` set one catalog (a web address or a folder), the allow insecure flag, and a token. The token is never in a response or a log.
   - **Browse and install**: `GET /api/gamepacks/catalog` lists the versions with the change text and the installed marker. `POST /api/gamepacks/catalog/install` installs one listed version, or checks it with `dryRun`. It uses the same flow and signature policy as the manual install. Nothing installs by itself.

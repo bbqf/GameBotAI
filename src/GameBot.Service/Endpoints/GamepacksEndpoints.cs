@@ -1,8 +1,10 @@
 using System.Text;
 using GameBot.Domain.Gamepacks;
+using GameBot.Domain.Gamepacks.Managed;
 using GameBot.Domain.Gamepacks.Signing;
 using GameBot.Service.Endpoints.Dto;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Net.Http.Headers;
 
@@ -68,6 +70,7 @@ internal static class GamepacksEndpoints {
 
     app.MapGamepackSignatureEndpoints();
     app.MapGamepackCatalogEndpoints();
+    app.MapGamepackManagedEndpoints();
 
     group.MapPost("{name}/rollback", RollbackAsync)
       .Produces<GamepackRollbackResponse>(StatusCodes.Status200OK)
@@ -79,7 +82,10 @@ internal static class GamepacksEndpoints {
       .WithSummary("Roll a gamepack back to its previous version")
       .WithDescription(
         "Runs the same conflict and reference check as an install on the kept previous content. "
-        + "If the check finds a problem, the rollback is refused and nothing changes.");
+        + "If the check finds a problem, the rollback is refused and nothing changes. "
+        + "Query managed=true runs the managed flow of feature 148: it stops the affected queues, stores a backup, rolls back, "
+        + "books disabled entries for sequences that the previous version adds, and restarts the queues that it stopped. "
+        + "The response is then a managed update report. The queries dryRun and templates apply only with managed=true.");
 
     return app;
   }
@@ -136,7 +142,17 @@ internal static class GamepacksEndpoints {
       InstalledAtUtc = g.InstalledAtUtc
     }).ToList());
 
-  private static async Task<IResult> RollbackAsync(string name, GamepackService service, CancellationToken ct) {
+  private static async Task<IResult> RollbackAsync(
+      string name, GamepackService service, IServiceProvider services, bool? managed, bool? dryRun, [FromQuery] string[]? templates, CancellationToken ct) {
+    if (managed == true) {
+      // Feature 148: the managed rollback uses the same flow as the update. Without managed=true, nothing changes.
+      // The orchestrator is resolved only here, so a plain rollback does not build the queue engine graph.
+      var orchestrator = services.GetRequiredService<GamepackUpdateOrchestrator>();
+      var query = ManagedUpdateQuery.From(dryRun, templates, managed);
+      var report = await orchestrator.RunAsync(query.ToRollbackRequest(name), ct).ConfigureAwait(false);
+      return ManagedUpdateHttp.ToResult(report);
+    }
+
     var outcome = await service.RollbackAsync(name, ct).ConfigureAwait(false);
     return outcome.Status switch {
       GamepackRollbackStatus.RolledBack => Results.Ok(new GamepackRollbackResponse {
@@ -170,11 +186,11 @@ internal static class GamepacksEndpoints {
     Signature = outcome.Signature is null ? null : GamepackSignatureStatusDto.From(outcome.Signature)
   };
 
-  private sealed record InstallRequestParts(string? Gamepack, string? Signature, bool TooLarge);
+  internal sealed record InstallRequestParts(string? Gamepack, string? Signature, bool TooLarge);
 
   // Reads the gamepack and, when the policy is not off, the signature part. Under the policy off, the signature part is
-  // skipped with no read (feature 146, FR-009).
-  private static async Task<InstallRequestParts> ReadRequestAsync(HttpRequest http, bool readSignature, CancellationToken ct) {
+  // skipped with no read (feature 146, FR-009). The managed update route (feature 148) uses it too.
+  internal static async Task<InstallRequestParts> ReadRequestAsync(HttpRequest http, bool readSignature, CancellationToken ct) {
     if (http.ContentLength > MaxRequestBytes) {
       return new InstallRequestParts(null, null, TooLarge: true);
     }

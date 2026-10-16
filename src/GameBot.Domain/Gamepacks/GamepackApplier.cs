@@ -271,6 +271,17 @@ public sealed partial class GamepackApplier {
 
   // ---- capture of live content ----
 
+  /// <summary>Reads the live content of an installed gamepack as a gamepack file text (feature 148). It changes nothing.</summary>
+  /// <param name="current">The registry record of the installed gamepack.</param>
+  /// <param name="registry">The registry that holds the owner entries.</param>
+  /// <param name="ct">The cancellation token.</param>
+  public async Task<string> CaptureLiveTextAsync(InstalledGamepack current, GamepackRegistry registry, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(current);
+    ArgumentNullException.ThrowIfNull(registry);
+    var (text, _) = await CaptureLiveAsync(current, registry, ct).ConfigureAwait(false);
+    return text;
+  }
+
   private async Task<(string Text, PreviousVersion Record)> CaptureLiveAsync(InstalledGamepack current, GamepackRegistry registry, CancellationToken ct) {
     var sequences = new List<CommandSequence>();
     var commands = new List<Command>();
