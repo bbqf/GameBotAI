@@ -79,9 +79,13 @@ public sealed partial class GamepackUpdateOrchestrator {
     }
 
     try {
-      LogStart(_logger, SafeName(request.GamepackName), request.Mode.ToString());
+      var startName = SafeName(request.GamepackName);
+      var modeText = request.Mode.ToString();
+      LogStart(_logger, startName, modeText);
       var report = await ExecuteAsync(request, ct).ConfigureAwait(false);
-      LogEnd(_logger, SafeName(report.GamepackName), request.Mode.ToString(), report.Result, report.Reason ?? "none", report.Restore.Restored);
+      var endName = SafeName(report.GamepackName);
+      var reasonText = report.Reason ?? "none";
+      LogEnd(_logger, endName, modeText, report.Result, reasonText, report.Restore.Restored);
       return report;
     }
     finally {
