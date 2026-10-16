@@ -42,12 +42,16 @@ public sealed partial class GamepackSignatureChecker {
     var settings = _settings.Load();
     var policy = settings.Policy;
     if (policy == SignaturePolicy.Off) {
-      LogChecked(_logger, SignatureStatus.NotChecked.ToWire(), policy.ToWire());
+      if (_logger.IsEnabled(LogLevel.Information)) {
+        LogChecked(_logger, SignatureStatus.NotChecked.ToWire(), policy.ToWire());
+      }
       return new SignatureCheckResult(SignatureStatus.NotChecked, policy, WouldReject: false);
     }
 
     var status = _verifier.Verify(gamepackJson, signatureText, settings.Keys);
-    LogChecked(_logger, status.ToWire(), policy.ToWire());
+    if (_logger.IsEnabled(LogLevel.Information)) {
+      LogChecked(_logger, status.ToWire(), policy.ToWire());
+    }
     return new SignatureCheckResult(status, policy, policy == SignaturePolicy.Required && status != SignatureStatus.Valid);
   }
 
