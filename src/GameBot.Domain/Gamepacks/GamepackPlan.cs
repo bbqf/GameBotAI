@@ -16,8 +16,14 @@ public sealed class PlannedObject {
   /// <summary>The id of the stored object that the apply updates, or null when the apply creates the object.</summary>
   public string? ExistingId { get; init; }
 
-  /// <summary>True when the apply updates an existing object of the same gamepack.</summary>
+  /// <summary>True when the apply writes over an existing stored object (an update of the same gamepack, or a take-over).</summary>
   public bool IsUpdate => ExistingId is not null;
+
+  /// <summary>
+  /// True when the write replaces an object of the user (feature 149). <see cref="ExistingId"/> is the id of that object.
+  /// It is true only when <see cref="ExistingId"/> is set.
+  /// </summary>
+  public bool IsTakeOver { get; init; }
 
   /// <summary>The sequence, for a sequence object. References are already rewritten.</summary>
   public CommandSequence? Sequence { get; init; }
@@ -31,6 +37,18 @@ public sealed class PlannedObject {
   /// <summary>The decoded image bytes, for an image object.</summary>
   [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1819:Properties should not return arrays", Justification = "The decoded image bytes go to a stream. A copy would waste memory.")]
   public byte[]? ImageBytes { get; init; }
+
+  /// <summary>The stored sequence that a take-over replaces, as the validator read it (feature 149). Null for other writes.</summary>
+  public CommandSequence? LiveSequence { get; init; }
+
+  /// <summary>The stored command that a take-over replaces, as the validator read it (feature 149). Null for other writes.</summary>
+  public Command? LiveCommand { get; init; }
+
+  /// <summary>
+  /// The content hash of the object that the apply writes (feature 149). The validator sets it for a take-over write, so the
+  /// applier does not compute it a second time. Null for other writes.
+  /// </summary>
+  public string? PostHash { get; set; }
 
   /// <summary>The key used in the write gate and in logs.</summary>
   public string Key => GamepackRegistry.ObjectKey(Type, Name);
@@ -59,8 +77,14 @@ public sealed class GamepackPlan {
   /// <summary>The number of objects that the apply creates.</summary>
   public int Created => Writes.Count(w => !w.IsUpdate);
 
-  /// <summary>The number of objects that the apply updates.</summary>
-  public int Updated => Writes.Count(w => w.IsUpdate);
+  /// <summary>The number of objects of the same gamepack that the apply updates. A take-over is not an update.</summary>
+  public int Updated => Writes.Count(w => w.IsUpdate && !w.IsTakeOver);
+
+  /// <summary>The number of user objects that the apply takes over (feature 149).</summary>
+  public int TakenOver => Writes.Count(w => w.IsTakeOver);
+
+  /// <summary>One entry for each take-over write, with the mark identical or different. The validator sets it.</summary>
+  public IReadOnlyList<TakeOverEntry> TakeOvers { get; init; } = Array.Empty<TakeOverEntry>();
 
   /// <summary>The number of objects that the apply removes.</summary>
   public int Removed => Removals.Count;

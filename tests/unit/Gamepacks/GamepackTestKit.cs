@@ -66,7 +66,8 @@ internal sealed class GamepackTestKit : IDisposable {
     Store = new GamepackRegistryStore(Root);
     Gate = new ThrowingWriteGate();
     Validator = new GamepackValidator(Sequences, Commands, Images, Store);
-    Applier = new GamepackApplier(Sequences, Commands, Images, Store, Gate);
+    TakeOverBackups = new TakeOverBackupStore(Root);
+    Applier = new GamepackApplier(Sequences, Commands, Images, Store, Gate, takeOverBackups: TakeOverBackups);
     Service = new GamepackService(Sequences, Commands, Images, Store, Validator, Applier);
   }
 
@@ -75,6 +76,7 @@ internal sealed class GamepackTestKit : IDisposable {
   public FileCommandRepository Commands { get; }
   public FileImageRepository Images { get; }
   public GamepackRegistryStore Store { get; }
+  public TakeOverBackupStore TakeOverBackups { get; }
   public ThrowingWriteGate Gate { get; }
   public GamepackValidator Validator { get; }
   public GamepackApplier Applier { get; }
@@ -139,6 +141,27 @@ internal sealed class GamepackTestKit : IDisposable {
 
     return await Validator.ValidateAsync(parsed.File, parsed.Problems);
   }
+
+  /// <summary>Stores the objects of a pack text directly, with no owner. They are objects of the user (feature 149).</summary>
+  public async Task AddUserObjectsAsync(string packJson) {
+    var file = GamepackFileSerializer.Parse(packJson).File!;
+    foreach (var image in file.Images) {
+      using var stream = new MemoryStream(Convert.FromBase64String(image.DataBase64!));
+      await Images.SaveAsync(image.Id!, stream, image.ContentType!, image.Filename, overwrite: true);
+    }
+
+    foreach (var command in file.Commands) {
+      await Commands.AddAsync(command);
+    }
+
+    foreach (var sequence in file.Sequences) {
+      await Sequences.CreateAsync(sequence);
+    }
+  }
+
+  /// <summary>Installs a pack text with the take-over option and expects a result.</summary>
+  public Task<GamepackInstallOutcome> InstallTakeOverAsync(string json, bool dryRun = false) =>
+    Service.InstallAsync(json, new GamepackInstallOptions(dryRun, TakeOver: true));
 
   // ---- reads ----
 

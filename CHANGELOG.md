@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Added
+- Gamepack take-over of user objects (149-gamepack-takeover-user-objects)
+  - **Take over**: a gamepack install can take over a user object with the same name as a pack object. The install shows the plan and the differences first. It changes nothing in a dry run.
+  - **Managed update**: the managed update and the catalog update use the same take-over option.
+  - See `docs/gamepacks.md` and `docs/architecture.md`.
+  - The patch version is now 3, so the next build is `1.11.3.<run number>`.
 - Managed gamepack update (148-managed-gamepack-update)
   - **One call**: `POST /api/gamepacks/update` (file) and `POST /api/gamepacks/catalog/update` (catalog) stop the affected queues, store a backup, install, book disabled entries for new sequences, and restart only the queues that the call stopped. `POST /api/gamepacks/{name}/rollback?managed=true` does the same for a rollback.
   - **Safe**: new entries are always disabled. A failed step restores the previous version and the templates from the backup and restarts the stopped queues. `dryRun=true` returns the plan and all problems and changes nothing. Only one managed call runs at a time.

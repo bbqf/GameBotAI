@@ -1,3 +1,4 @@
+using GameBot.Domain.Gamepacks;
 using GameBot.Domain.Gamepacks.Catalog;
 using GameBot.Service.Endpoints.Dto;
 
@@ -62,7 +63,9 @@ internal static class GamepackCatalogEndpoints {
       .WithDescription(
         "Downloads the listed file (and the optional signature file), checks the SHA-256 when the entry has one, and uses the same "
         + "install flow and the same signature policy as the manual install route. A name or version that the index does not list "
-        + "gives 404 entry_not_listed before any download. A failure leaves the instance as it was.");
+        + "gives 404 entry_not_listed before any download. A failure leaves the instance as it was. "
+        + "The body field takeOver (default false) takes over user objects of the same type and name, as the query takeOver does on the manual install route. "
+        + "The response then has takenOver and takeOverBackupId, and the route POST /api/gamepacks/takeover-backups/{backupId}/restore can put the objects back.");
 
     return app;
   }
@@ -105,7 +108,7 @@ internal static class GamepackCatalogEndpoints {
     }
 
     try {
-      var outcome = await service.InstallAsync(request.Name, request.Version, request.DryRun, ct).ConfigureAwait(false);
+      var outcome = await service.InstallAsync(request.Name, request.Version, new GamepackInstallOptions(request.DryRun, request.TakeOver), ct).ConfigureAwait(false);
       return GamepacksEndpoints.ToInstallResult(outcome, request.DryRun);
     }
     catch (CatalogException ex) {

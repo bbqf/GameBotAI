@@ -34,7 +34,8 @@ version as the owner of each object. This page tells how to use the three routes
 
 ### POST /api/gamepacks/install
 
-Query `dryRun=true` checks the file and changes no data. Without `dryRun`, the route installs the gamepack.
+Query `dryRun=true` checks the file and changes no data. Without `dryRun`, the route installs the gamepack. Query `takeOver=true`
+takes over objects of the user with the same type and name (see the section "Take-over").
 
 | Status | Meaning |
 |--------|---------|
@@ -335,10 +336,63 @@ A dry run gives 200 for file, signature, and validation problems and lists all p
 
 Reasons: `invalid_request`, `invalid_file`, `signature_rejected`, `validation_failed`, `template_not_found`, `gamepack_not_found`, `no_previous_version`, `entry_not_listed`, `not_configured`, `catalog_error`, `too_large`, `update_in_progress`, `stop_timeout`, `backup_failed`, `install_failed`, `booking_failed`, `rollback_refused`, `unexpected`.
 
+## Take-over
+
+A conflict with an object of the user stops an install. With the option `takeOver`, the gamepack takes the object over instead.
+The gamepack then owns the object, and the stored id does not change. So every link to the object by id or by name stays valid.
+A take-over fits a user who made objects by hand and now installs a gamepack that has the same objects.
+
+### The option
+
+- `POST /api/gamepacks/install?takeOver=true` and `POST /api/gamepacks/update?takeOver=true` (query).
+- `POST /api/gamepacks/catalog/install` and `POST /api/gamepacks/catalog/update` (body field `takeOver`).
+- A missing value means false. The managed rollback has no such option. A rollback never takes an object over.
+
+### Rules
+
+- Only an object of the user can be taken over. The object must have the same type and name as an object in the gamepack. Names match without case.
+- A conflict with an object of another gamepack stays a conflict, with the option on or off. An install gives 422. A dry run gives 200 with `valid: false`. The install route never gives 409 for a conflict.
+- An object that the gamepack already owns is an update, not a take-over. It is not in the count `takenOver`.
+- If two objects of the user have the same name, the platform takes over the first one. The other one is a conflict.
+- An object of the user that is not in the gamepack does not change.
+- The option does not change which queues a managed call stops or starts.
+
+### The count, the list, and the backup
+
+- `takenOver` is always in the install response. It is 0 when the option is off or when nothing was taken over.
+- A dry run with `takeOver=true` and no problem also has the list `takeOvers`. Each entry has `type`, `name`, and `identical`. `identical` is true when the content of the user object equals the content of the gamepack object (the file name of an image does not count). A dry run changes nothing and writes no backup.
+- A real install that replaces at least one object writes one backup before it changes the first object. The response has `takeOverBackupId`. The managed report has the fields `takenOver`, `takeOverBackupId`, and `takeOvers` too. `backupId` of the managed report stays the backup of the queue templates.
+- The backup is the file `<data root>/gamepacks/takeover-backups/<id>.json`. The id has the form `to-yyyyMMddTHHmmssfff-<8 hex>`. The platform never deletes a backup on its own.
+- An install with a take-over is atomic. If a write fails, all objects stay as before, and the backup file is deleted.
+
+### Restore a backup
+
+`POST /api/gamepacks/takeover-backups/{backupId}/restore` gives the objects of the backup back to the user, with their old content. The route takes the same gate as install and rollback. It does not stop or start a queue.
+
+| Status | Meaning |
+|--------|---------|
+| 200 | All objects are back. The body is `{ "backupId", "result": "restored", "restored": <count> }`. |
+| 404 | The id is unknown or has a wrong form. |
+| 409 | A check failed. Nothing changed. The body has `reasons`. |
+| 500 | A write failed. The state is as before. |
+
+Each reason has `code`, `type`, `name`, and `message`. There are three codes:
+
+- `object_missing`: the object no longer exists.
+- `object_changed`: the object differs from the content that the install wrote (a user edited it after the install).
+- `owner_changed`: the gamepack no longer owns the object, or the gamepack is not installed.
+
+The backup file stays after a restore. A second restore of the same backup gives 409 with `owner_changed` and changes nothing. If a later rollback of the gamepack deleted a taken-over object, a restore gives `object_missing`.
+
+### Failure in a managed update
+
+If a managed call fails after the install worked, the flow gives the user objects back before it rolls the gamepack back. The restore report has the step `takeover_restore`. The failed report has no `takeOverBackupId`.
+
 ## Where the data is
 
 `<data root>/gamepack-signature.json` holds the signature policy and the trusted keys.
 `<data root>/gamepack-catalog.json` holds the catalog location, the allow insecure flag, and the token.
 `<data root>/gamepacks/registry.json` holds the installed gamepacks and the owner records. `<data root>/gamepacks/previous/<name>.json`
-holds the kept previous version of each gamepack (the name is in lower case). The service writes each file to a temporary
+holds the kept previous version of each gamepack (the name is in lower case). `<data root>/gamepacks/takeover-backups/<id>.json`
+holds the old content of the user objects that one install replaced (the section "Take-over"). The service writes each file to a temporary
 file first and then replaces the old file.

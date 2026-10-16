@@ -25,7 +25,8 @@ internal sealed class ManagedUpdateSchemaFilter : ISchemaFilter {
 
   internal const string CatalogRequestDescription =
     "The body of the catalog update route. name and version are required. dryRun is false by default. templates limits the call "
-    + "to the named templates (case is ignored). Null or empty means all templates.";
+    + "to the named templates (case is ignored). Null or empty means all templates. takeOver is false by default. With takeOver true, "
+    + "the call takes over user objects of the same type and name, and the report has takenOver, takeOverBackupId, and takeOvers.";
 
   private static readonly Dictionary<string, string> ReportFields = new() {
     ["result"] = "done, planned (a dry run with no problem), failed (a step failed after the start), or rejected (a check ended the call before any change).",
@@ -37,6 +38,9 @@ internal sealed class ManagedUpdateSchemaFilter : ISchemaFilter {
     ["restartedQueues"] = "The queues that run again. The platform restarts only the queues that it stopped.",
     ["notRestartedQueues"] = "The queues that did not start, each with an error text.",
     ["backupId"] = "The id of the stored backup. Null for a dry run, for the same version, and when the update affects no queue template.",
+    ["takenOver"] = "The number of user objects that the call took over (planned for a dry run). 0 when takeOver is off.",
+    ["takeOverBackupId"] = "The id of the take-over backup. Not set for a dry run, for a call that replaced nothing, and for a failed call (the flow has put the user objects back). Use it with POST /api/gamepacks/takeover-backups/{backupId}/restore. backupId is a different backup: the queue template backup.",
+    ["takeOvers"] = "For a dry run with takeOver true and no problem: one entry for each object to take over, with identical. Empty otherwise.",
     ["newEntries"] = "The new disabled entries (planned for a dry run).",
     ["removedSequenceEntries"] = "The template entries whose sequence the new version removed. The entries stay.",
     ["notAffectedTemplates"] = "The templates in the request list that the gamepack does not affect.",
@@ -67,6 +71,7 @@ internal sealed class ManagedUpdateSchemaFilter : ISchemaFilter {
 
     if (context.Type == typeof(GamepackCatalogUpdateRequest)) {
       schema.Description = CatalogRequestDescription;
+      Describe(schema, "takeOver", "True to take over user objects of the same type and name (default false).");
       return;
     }
 

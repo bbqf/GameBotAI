@@ -16,16 +16,21 @@ internal sealed record ManagedUpdateQuery {
   /// <summary>True for a managed rollback. The default is false.</summary>
   public bool Managed { get; init; }
 
+  /// <summary>True to take over user objects of the same type and name (feature 149). The default is false. A rollback ignores it.</summary>
+  public bool TakeOver { get; init; }
+
   /// <summary>Builds the values from the bound route parameters.</summary>
   /// <param name="dryRun">The <c>dryRun</c> value, or null.</param>
   /// <param name="templates">The repeated <c>templates</c> values, or null.</param>
   /// <param name="managed">The <c>managed</c> value, or null.</param>
-  internal static ManagedUpdateQuery From(bool? dryRun, IEnumerable<string>? templates, bool? managed = null) {
+  /// <param name="takeOver">The <c>takeOver</c> value, or null.</param>
+  internal static ManagedUpdateQuery From(bool? dryRun, IEnumerable<string>? templates, bool? managed = null, bool? takeOver = null) {
     var names = templates?.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
     return new ManagedUpdateQuery {
       DryRun = dryRun ?? false,
       Templates = names is { Count: > 0 } ? names : null,
-      Managed = managed ?? false
+      Managed = managed ?? false,
+      TakeOver = takeOver ?? false
     };
   }
 
@@ -37,6 +42,7 @@ internal sealed record ManagedUpdateQuery {
     FileText = fileText,
     SignatureText = signatureText,
     DryRun = DryRun,
+    TakeOver = TakeOver,
     Templates = Templates
   };
 
@@ -60,6 +66,9 @@ internal sealed record GamepackCatalogUpdateRequest {
 
   /// <summary>True to check only. No data changes.</summary>
   public bool DryRun { get; init; }
+
+  /// <summary>True to take over user objects of the same type and name (feature 149). A missing value means false.</summary>
+  public bool TakeOver { get; init; }
 
   /// <summary>The template names that limit the call. Null or empty means all templates.</summary>
   public IReadOnlyList<string>? Templates { get; init; }

@@ -79,10 +79,23 @@ public sealed partial class GamepackCatalogService {
   /// <param name="version">The version.</param>
   /// <param name="dryRun">True to check only. No data changes.</param>
   /// <param name="ct">The cancellation token.</param>
-  public async Task<GamepackInstallOutcome> InstallAsync(string name, string version, bool dryRun, CancellationToken ct = default) {
+  public Task<GamepackInstallOutcome> InstallAsync(string name, string version, bool dryRun, CancellationToken ct = default) =>
+    InstallAsync(name, version, new GamepackInstallOptions(dryRun), ct);
+
+  /// <summary>
+  /// Installs one listed version with options (feature 149), or checks it when the option <c>DryRun</c> is true. The signature text
+  /// of the options is ignored. The signature comes from the catalog entry.
+  /// </summary>
+  /// <param name="name">The gamepack name.</param>
+  /// <param name="version">The version.</param>
+  /// <param name="options">The options. <see cref="GamepackInstallOptions.TakeOver"/> takes over user objects of the same type and name.</param>
+  /// <param name="ct">The cancellation token.</param>
+  public async Task<GamepackInstallOutcome> InstallAsync(string name, string version, GamepackInstallOptions options, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(options);
+    var dryRun = options.DryRun;
     try {
       var fetched = await FetchCoreAsync(name, version, ct).ConfigureAwait(false);
-      var outcome = await _gamepacks.InstallAsync(fetched.FileText, dryRun, fetched.SignatureText, ct).ConfigureAwait(false);
+      var outcome = await _gamepacks.InstallAsync(fetched.FileText, options with { SignatureText = fetched.SignatureText }, ct).ConfigureAwait(false);
       LogInstall(_logger, fetched.Name, fetched.Version, dryRun, outcome.Status.ToString());
       return outcome;
     }

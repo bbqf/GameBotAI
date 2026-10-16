@@ -18,6 +18,25 @@ public static class CanonicalJson {
     return writer.WrittenSpan.ToArray();
   }
 
+  /// <summary>
+  /// Gives the canonical UTF-8 bytes of a JSON object without some members of its first level (feature 149). The names are
+  /// compared without case. A value that is not an object gives the same bytes as <see cref="ToBytes(JsonElement)"/>.
+  /// </summary>
+  /// <param name="element">The value.</param>
+  /// <param name="skipRootMembers">The names of the first-level members to leave out.</param>
+  public static byte[] ToBytes(JsonElement element, IReadOnlySet<string> skipRootMembers) {
+    ArgumentNullException.ThrowIfNull(skipRootMembers);
+    var writer = new ArrayBufferWriter<byte>();
+    if (element.ValueKind == JsonValueKind.Object) {
+      WriteObject(element, writer, skipRootMembers);
+    }
+    else {
+      Write(element, writer);
+    }
+
+    return writer.WrittenSpan.ToArray();
+  }
+
   /// <summary>Gives the canonical text of a JSON value.</summary>
   /// <param name="element">The value.</param>
   public static string ToText(JsonElement element) => Encoding.UTF8.GetString(ToBytes(element));
@@ -52,10 +71,10 @@ public static class CanonicalJson {
     }
   }
 
-  private static void WriteObject(JsonElement element, IBufferWriter<byte> output) {
+  private static void WriteObject(JsonElement element, IBufferWriter<byte> output, IReadOnlySet<string>? skip = null) {
     WriteAscii(output, "{");
     var first = true;
-    foreach (var property in element.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal)) {
+    foreach (var property in element.EnumerateObject().Where(p => skip is null || !skip.Contains(p.Name)).OrderBy(p => p.Name, StringComparer.Ordinal)) {
       if (!first) {
         WriteAscii(output, ",");
       }

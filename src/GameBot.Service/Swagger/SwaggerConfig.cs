@@ -1126,6 +1126,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["created"] = new OpenApiInteger(3),
         ["updated"] = new OpenApiInteger(0),
         ["removed"] = new OpenApiInteger(0),
+        ["takenOver"] = new OpenApiInteger(0),
         ["signature"] = new OpenApiObject {
           ["status"] = new OpenApiString("valid"),
           ["policy"] = new OpenApiString("required"),
@@ -1155,6 +1156,25 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
           ["installedAtUtc"] = new OpenApiString("2026-10-15T10:00:00Z")
         }
       }, context, typeof(List<GameBot.Service.Endpoints.Dto.GamepackListItemDto>));
+    }
+    else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Gamepacks + "/takeover-backups/{backupId}/restore")) {
+      SetResponseExample(operation, "200", new OpenApiObject {
+        ["backupId"] = new OpenApiString("to-20261016T101500123-1a2b3c4d"),
+        ["result"] = new OpenApiString("restored"),
+        ["restored"] = new OpenApiInteger(3)
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackTakeOverRestoreResponse));
+      SetResponseExample(operation, "409", new OpenApiObject {
+        ["backupId"] = new OpenApiString("to-20261016T101500123-1a2b3c4d"),
+        ["result"] = new OpenApiString("refused"),
+        ["reasons"] = new OpenApiArray {
+          new OpenApiObject {
+            ["code"] = new OpenApiString("object_changed"),
+            ["type"] = new OpenApiString("sequence"),
+            ["name"] = new OpenApiString("Daily"),
+            ["message"] = new OpenApiString("The sequence 'Daily' changed after the install.")
+          }
+        }
+      }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackTakeOverRestoreRefusedResponse));
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.Gamepacks + "/{name}/rollback")) {
       SetResponseExample(operation, "200", new OpenApiObject {

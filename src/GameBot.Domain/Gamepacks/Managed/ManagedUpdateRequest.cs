@@ -32,6 +32,12 @@ public sealed class ManagedUpdateRequest {
   /// <summary>True: no stop, no backup, no install, and no template change.</summary>
   public bool DryRun { get; init; }
 
+  /// <summary>
+  /// True to take over user objects of the same type and name (feature 149). It applies to an update only. A rollback never
+  /// takes an object over, so the orchestrator ignores this flag for a rollback. The flag does not change which queues stop.
+  /// </summary>
+  public bool TakeOver { get; init; }
+
   /// <summary>The template names that limit the call. Null or empty means all templates. Names match without case.</summary>
   public IReadOnlyList<string>? Templates { get; init; }
 }

@@ -19,6 +19,12 @@ public static class GamepackWriteOperations {
 
   /// <summary>One step of the restore after a failure.</summary>
   public const string Restore = "restore";
+
+  /// <summary>The take-over backup file is written (feature 149).</summary>
+  public const string TakeOverBackup = "takeover-backup";
+
+  /// <summary>One write of a restore of a take-over backup (feature 149).</summary>
+  public const string TakeOverRestore = "takeover-restore";
 }
 
 /// <summary>
