@@ -80,6 +80,7 @@ public sealed partial class GamepackApplier {
   private readonly TimeProvider _time;
   private readonly ITakeOverBackupStore? _takeOverBackups;
   private readonly IQueueTemplateRepository? _templates;
+  private readonly IImageAlternatesRepository? _alternates;
 
   /// <summary>Creates the applier.</summary>
   /// <param name="sequences">The sequence store.</param>
@@ -97,6 +98,9 @@ public sealed partial class GamepackApplier {
   /// The queue template store, or null (feature 150). Without a store, an apply with a seed template in the plan returns
   /// <see cref="GamepackApplyStatus.Failed"/> and changes nothing.
   /// </param>
+  /// <param name="alternates">
+  /// The image alternates store, or null (feature 153). Without a store, the apply does not read or write alternates lists.
+  /// </param>
   public GamepackApplier(
       ISequenceRepository sequences,
       ICommandRepository commands,
@@ -106,7 +110,9 @@ public sealed partial class GamepackApplier {
       ILogger<GamepackApplier>? logger = null,
       TimeProvider? timeProvider = null,
       ITakeOverBackupStore? takeOverBackups = null,
-      IQueueTemplateRepository? templates = null) {
+      IQueueTemplateRepository? templates = null,
+      IImageAlternatesRepository? alternates = null) {
+    _alternates = alternates;
     _takeOverBackups = takeOverBackups;
     _templates = templates;
     _sequences = sequences ?? throw new ArgumentNullException(nameof(sequences));
@@ -298,6 +304,11 @@ public sealed partial class GamepackApplier {
       case GamepackObjectTypes.Image: {
         using var stream = new MemoryStream(write.ImageBytes!, writable: false);
         await _images.SaveAsync(write.FinalId, stream, write.Image!.ContentType!, write.Image.Filename, overwrite: true, ct).ConfigureAwait(false);
+        // An absent member keeps the stored list. A present empty list clears it (feature 153).
+        if (_alternates is not null && write.Image.Alternates is not null) {
+          _alternates.SetAlternates(write.FinalId, write.Image.Alternates.ToList());
+        }
+
         break;
       }
     }
@@ -313,6 +324,7 @@ public sealed partial class GamepackApplier {
         break;
       case GamepackObjectTypes.Image:
         await _images.DeleteAsync(id).ConfigureAwait(false);
+        _alternates?.DeleteAlternates(id);
         break;
     }
   }
@@ -423,6 +435,12 @@ public sealed partial class GamepackApplier {
     return (GamepackFileSerializer.Serialize(file), record);
   }
 
+  // The stored list for the capture: null when the list is empty, so a file without lists stays the same (feature 153).
+  private List<string>? StoredAlternates(string id) {
+    var list = _alternates?.GetAlternates(id);
+    return list is { Count: > 0 } ? list.ToList() : null;
+  }
+
   private async Task<GamepackImage?> ReadImageAsync(string id, CancellationToken ct) {
     var asset = await _images.GetAsync(id, ct).ConfigureAwait(false);
     if (asset is null) {
@@ -441,7 +459,8 @@ public sealed partial class GamepackApplier {
         Id = id,
         ContentType = asset.ContentType,
         Filename = asset.Filename,
-        DataBase64 = Convert.ToBase64String(buffer.ToArray())
+        DataBase64 = Convert.ToBase64String(buffer.ToArray()),
+        Alternates = StoredAlternates(id)
       };
     }
   }
@@ -458,6 +477,7 @@ public sealed partial class GamepackApplier {
     public byte[]? ImageBytes { get; set; }
     public string? ImageContentType { get; set; }
     public string? ImageFilename { get; set; }
+    public List<string>? ImageAlternates { get; set; }
 
     public bool Matches(string type, string id) =>
       string.Equals(Type, type, StringComparison.Ordinal) && string.Equals(Id, id, StringComparison.OrdinalIgnoreCase);
@@ -481,6 +501,7 @@ public sealed partial class GamepackApplier {
           snapshot.ImageBytes = Convert.FromBase64String(image.DataBase64!);
           snapshot.ImageContentType = image.ContentType;
           snapshot.ImageFilename = image.Filename;
+          snapshot.ImageAlternates = image.Alternates?.ToList();
         }
 
         break;
@@ -577,6 +598,8 @@ public sealed partial class GamepackApplier {
       case GamepackObjectTypes.Image: {
         using var stream = new MemoryStream(snapshot.ImageBytes!, writable: false);
         await _images.SaveAsync(snapshot.Id, stream, snapshot.ImageContentType ?? "image/png", snapshot.ImageFilename, overwrite: true).ConfigureAwait(false);
+        // An empty list removes the sidecar file (feature 153).
+        _alternates?.SetAlternates(snapshot.Id, snapshot.ImageAlternates ?? new List<string>());
         break;
       }
     }

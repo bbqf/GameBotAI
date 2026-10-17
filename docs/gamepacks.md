@@ -41,6 +41,14 @@ version as the owner of each object. This page tells how to use the three routes
   version and compatibility".
 - An image has `id` (its name), `contentType` (`image/png` or `image/jpeg`), an optional `filename`, and `dataBase64`. The
   decoded image has at most 10,000,000 bytes. The image `id` follows the rule of the existing image ids.
+- An image can have `alternates`: a list of image ids (feature 153; it extends the install in
+  `specs\143-gamepack-install\spec.md`). The rules are the rules of `PUT /api/images/{id}/alternates`: at most 8 ids, no
+  duplicate, no own id. Each id names an image of the file, or a stored image that the install keeps. If the member is
+  absent, the install does not change the stored list, and a new image has an empty list. If the member is an empty list,
+  the install clears the stored list. A rollback or an update capture writes `alternates` only when the stored list is
+  not empty. A take-over backup of an image holds `alternates` only when the old list is not empty. A restore of the
+  backup puts the old list back.
+- An unknown member in an image entry is an error. The dry run names the image and the member, and the install is refused.
 - `seedTemplates` is optional. A file without it installs as before. See the section "Seed templates".
 - A request has at most 100 MB. A larger request gets a 413 problem response, and nothing changes.
 

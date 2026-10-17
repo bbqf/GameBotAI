@@ -70,7 +70,8 @@ internal sealed class GamepackTestKit : IDisposable {
     Templates = new FileQueueTemplateRepository(Root);
     Validator = new GamepackValidator(Sequences, Commands, Images, Store, Templates);
     TakeOverBackups = new TakeOverBackupStore(Root);
-    Applier = new GamepackApplier(Sequences, Commands, Images, Store, Gate, takeOverBackups: TakeOverBackups, templates: Templates);
+    Alternates = new FileImageAlternatesRepository(Path.Combine(Root, "images"));
+    Applier = new GamepackApplier(Sequences, Commands, Images, Store, Gate, takeOverBackups: TakeOverBackups, templates: Templates, alternates: Alternates);
     Service = new GamepackService(Sequences, Commands, Images, Store, Validator, Applier);
   }
 
@@ -78,6 +79,7 @@ internal sealed class GamepackTestKit : IDisposable {
   public FileSequenceRepository Sequences { get; }
   public FileCommandRepository Commands { get; }
   public FileImageRepository Images { get; }
+  public FileImageAlternatesRepository Alternates { get; }
   public GamepackRegistryStore Store { get; }
   public TakeOverBackupStore TakeOverBackups { get; }
   public FileQueueTemplateRepository Templates { get; }
@@ -127,6 +129,14 @@ internal sealed class GamepackTestKit : IDisposable {
   }
 
   public static object Img(string id, string? data = null, string contentType = "image/png") => new { id, contentType, filename = id + ".png", dataBase64 = data ?? PngBase64 };
+
+  /// <summary>An image entry with an alternates list (feature 153). A null list leaves the member out.</summary>
+  public static object ImgAlt(string id, string[]? alternates, string? data = null) => alternates is null
+    ? Img(id, data)
+    : new { id, contentType = "image/png", filename = id + ".png", dataBase64 = data ?? PngBase64, alternates };
+
+  /// <summary>Reads the stored alternates list of an image (feature 153).</summary>
+  public IReadOnlyList<string> StoredAlternates(string id) => Alternates.GetAlternates(id);
 
   public static string Pack(string name, string version, object[]? sequences = null, object[]? commands = null, object[]? images = null, string changelog = "", object[]? seedTemplates = null)
     => JsonSerializer.Serialize(new Dictionary<string, object?> {

@@ -12,6 +12,12 @@ public sealed class TakeOverBackupImage {
 
   /// <summary>The image bytes as base64 text.</summary>
   public string DataBase64 { get; set; } = string.Empty;
+
+  /// <summary>The stored alternates list of the live image before the take-over (feature 153). Null means no list.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Backup data model read by System.Text.Json.")]
+  [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Backup data model read by System.Text.Json.")]
+  public List<string>? Alternates { get; set; }
 }
 
 /// <summary>One replaced object in a take-over backup (feature 149).</summary>

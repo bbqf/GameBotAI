@@ -42,7 +42,8 @@ internal static class GamepackServiceCollectionExtensions {
       sp.GetService<ILogger<GamepackApplier>>(),
       sp.GetService<TimeProvider>(),
       sp.GetRequiredService<ITakeOverBackupStore>(),
-      sp.GetRequiredService<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>()));
+      sp.GetRequiredService<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>(),
+      sp.GetService<GameBot.Domain.Images.IImageAlternatesRepository>()));
     services.AddSingleton(sp => new GamepackService(
       sp.GetRequiredService<ISequenceRepository>(),
       sp.GetRequiredService<ICommandRepository>(),

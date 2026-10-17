@@ -76,6 +76,7 @@ public sealed class GamepackValidator {
       sequenceDecisions, commandDecisions, imageDecisions);
 
     CheckReferences(file, existingCommands, existingImageIds, removals, problems);
+    CheckAlternates(file, existingImageIds, removals, problems);
 
     // Only a first install uses the seeds. A later install, an update, and a rollback ignore them (feature 150, FR-015).
     var firstInstall = seeds && file.SeedTemplates.Count > 0 && packName is not null
@@ -100,6 +101,40 @@ public sealed class GamepackValidator {
     }
 
     return new GamepackValidationResult { Problems = problems, Plan = plan };
+  }
+
+  // ---- image alternates (feature 153) ----
+
+  // The rules are the rules of the image alternates API. An id is known when the file has the image, or when a stored image
+  // stays after the install.
+  private static void CheckAlternates(GamepackFile file, IReadOnlyCollection<string> existingImageIds, List<PlannedRemoval> removals, List<GamepackProblem> problems) {
+    var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var removed = removals.Where(r => r.Type == GamepackObjectTypes.Image).Select(r => r.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    foreach (var id in existingImageIds) {
+      if (!removed.Contains(id)) {
+        known.Add(id);
+      }
+    }
+
+    foreach (var image in file.Images) {
+      if (image.Id is not null) {
+        known.Add(image.Id);
+      }
+    }
+
+    foreach (var image in file.Images) {
+      if (image.Alternates is null || image.Id is null) {
+        continue;
+      }
+
+      var result = ImageAlternatesValidator.Validate(image.Id, image.Alternates, known.Contains);
+      if (result.IsValid) {
+        continue;
+      }
+
+      var ids = result.Ids.Count > 0 ? $" Ids: {string.Join(", ", result.Ids)}." : string.Empty;
+      problems.Add(Structure(GamepackObjectTypes.Image, image.Id, $"Image '{image.Id}': {result.Message}{ids} {result.Hint}"));
+    }
   }
 
   // ---- seed templates (feature 150) ----

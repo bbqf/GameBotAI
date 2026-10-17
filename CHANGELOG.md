@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- A gamepack image can carry its alternates list (153-gamepack-image-alternates). An unknown image member is now an error at the dry run and at the install.
 - The version rule is exact now. Before a PR, the patch number is the patch on `master` plus 1. It is 0 when the minor or major number changed. The rule is in the constitution (1.5.1), `CLAUDE.md`, and the `speckit-pipeline` skill. The patch version is now 3, so the next build is `1.10.3.<run number>`.
 - The navigation order changed (141-emulator-monitoring)
   - **Desktop**: Queues, Monitoring, Authoring, Execution, Execution Logs, Configuration, Update, Notifications.
