@@ -78,7 +78,7 @@ All type errors become `GamepackParseResult.InvalidType`. `GamepackService.Insta
 | Type unknown | `"type":"nope"` | 400 | 400 | `InvalidJson` | JSON path, reason "the type value is unknown" |
 | Type not a string | `"type":5` or `null` | 400 | 400 | `InvalidJson` | JSON path, reason "the type value must be a string" |
 | Type duplicate | two `type` members | 400 | 400 | `InvalidJson` | JSON path, reason "the type member is duplicated" |
-| Any of the above, nested | bad `type` in a condition inside `all` | 400 | 400 | `InvalidJson` | nested JSON path (for example `$.sequences[0].steps[0].breakCondition.conditions[1]`) |
+| Any of the above, nested | bad `type` in a condition inside `all` | 400 | 400 | `InvalidJson` | nested JSON path (for example `$.sequences[0].steps[0].breakCondition.children[1]`) |
 | Type valid, any member order | `type` first, middle, or last | 200 `valid:true` | 200 | none | none |
 | Other wrong shape (not a type error) | wrong member kind, bad enum | 200 `valid:false` (unchanged) | 422 (unchanged) | existing | existing |
 | Text is not valid JSON, or root is not an object | broken text | 400 (unchanged) | 400 (unchanged) | `InvalidJson` | existing |

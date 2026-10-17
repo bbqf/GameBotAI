@@ -217,7 +217,7 @@ public sealed partial class GamepackService : IDisposable {
     var dryRun = options.DryRun;
     var signatureText = options.SignatureText;
     var parsed = GamepackFileSerializer.Parse(json);
-    if (parsed.InvalidJson || parsed.File is null) {
+    if (parsed.InvalidJson || parsed.InvalidType || parsed.File is null) {
       return new GamepackInstallOutcome { Status = GamepackInstallStatus.InvalidJson, DryRun = dryRun, Problems = parsed.Problems };
     }
 

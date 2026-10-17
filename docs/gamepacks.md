@@ -62,7 +62,7 @@ takes over objects of the user with the same type and name (see the section "Tak
 | Status | Meaning |
 |--------|---------|
 | 200 | The file is valid and the install worked. For a dry run: the response shows `valid` and the planned counts. A dry run with problems also gives 200 with `valid: false`. |
-| 400 | The body is not valid JSON. |
+| 400 | The body is not valid JSON, or a condition or loop config has a missing, unknown, duplicate, or not-string type member. The message gives the JSON path. The type member can be at any position. |
 | 413 | The request is larger than 100 MB. |
 | 422 | The check found problems. Nothing changed. The body has the list `problems`. |
 | 500 | A write failed. All objects stay as before. If the restore also failed, the body has `"result": "partial_restore"`. |
