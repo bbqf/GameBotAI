@@ -109,6 +109,47 @@ public sealed class GamepackInstallIntegrationTests : IDisposable {
     _kit.Service.List().Should().HaveCount(2);
   }
 
+  // Feature 155: a step with a command reference that no command resolves.
+  private static object SeqWithReference(string commandId, string? commandName) => new {
+    id = "sq",
+    name = "Seq",
+    version = 1,
+    steps = new[] {
+      new { order = 0, stepId = "s0", stepType = "Action", commandReference = new { commandId, commandName } }
+    }
+  };
+
+  [Theory]
+  [InlineData("ghost", null)]
+  [InlineData("", "Ghost Name")]
+  public async Task AnUnresolvedCommandReferenceGivesTheSameProblemInDryRunAndInstallAndWritesNothing(string id, string? name) {
+    var json = GamepackTestKit.Pack("p", "1", sequences: new[] { SeqWithReference(id, name) });
+    var before = _kit.Snapshot();
+
+    var dry = await _kit.Service.InstallAsync(json, dryRun: true);
+    var real = await _kit.Service.InstallAsync(json, dryRun: false);
+
+    dry.Status.Should().Be(GamepackInstallStatus.Invalid);
+    real.Status.Should().Be(GamepackInstallStatus.Invalid);
+    var expected = $"Command '{(!string.IsNullOrEmpty(id) ? id : name)}' is not in the gamepack or in the installation.";
+    dry.Problems.Should().ContainSingle(p => p.Category == "reference" && p.Message == expected);
+    real.Problems.Should().BeEquivalentTo(dry.Problems);
+    _kit.Snapshot().Should().BeEquivalentTo(before);
+    (await _kit.Sequences.ListAsync()).Should().BeEmpty();
+  }
+
+  [Fact]
+  public async Task ResolvedCommandReferencesStillInstall() {
+    var json = GamepackTestKit.Pack("p", "1",
+      sequences: new[] {
+        SeqWithReference("c1", null),
+        new { id = "sq2", name = "Seq2", version = 1, steps = new[] { new { order = 0, stepId = "s0", stepType = "Action", commandReference = new { commandId = "", commandName = (string?)"Tap" } } } }
+      },
+      commands: new[] { GamepackTestKit.Cmd("c1", "Tap") });
+    await InstallAsync(json);
+    (await _kit.Sequences.ListAsync()).Should().HaveCount(2);
+  }
+
   [Fact]
   public async Task AHandMadeObjectIsNeverTouched() {
     await _kit.Sequences.CreateAsync(new CommandSequence { Id = "mine", Name = "Mine" });

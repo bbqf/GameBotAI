@@ -129,6 +129,41 @@ public static class GamepackReferences {
     if (!string.IsNullOrWhiteSpace(step.CommandId)) {
       yield return step.CommandId;
     }
+
+    if (!string.IsNullOrWhiteSpace(step.CommandReference?.CommandId)) {
+      yield return step.CommandReference!.CommandId;
+    }
+
+    var payloadId = PayloadCommandId(step);
+    if (!string.IsNullOrWhiteSpace(payloadId)) {
+      yield return payloadId;
+    }
+  }
+
+  private static string? PayloadCommandId(SequenceStep step) {
+    if (step.Action is not null
+        && string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+        && step.Action.Parameters.TryGetValue("commandId", out var payloadId)) {
+      return payloadId switch {
+        string text => text,
+        System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.String } element => element.GetString(),
+        _ => null
+      };
+    }
+
+    return null;
+  }
+
+  /// <summary>
+  /// Gets the command names that a sequence names without any command id. A step that has an id in one of the
+  /// three id forms is checked by id, so its name is not returned.
+  /// </summary>
+  /// <param name="sequence">The sequence.</param>
+  public static IEnumerable<string> CommandNames(CommandSequence sequence) {
+    ArgumentNullException.ThrowIfNull(sequence);
+    return Flatten(sequence.Steps)
+      .Where(s => !StepCommandIds(s).Any() && !string.IsNullOrWhiteSpace(s.CommandReference?.CommandName))
+      .Select(s => s.CommandReference!.CommandName!.Trim());
   }
 
   private static IEnumerable<string> StepImageIds(SequenceStep step) {

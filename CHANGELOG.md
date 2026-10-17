@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Fixed
+- Gamepack command references (155-gamepack-command-reference-check)
+  - **Report unresolved references**: the gamepack dry run now reports a command reference that does not resolve. Before, the dry run did not find this error.
+  - See `docs/gamepacks.md`.
+  - The patch version is now 9, so the next build is `1.11.9.<run number>`.
 - Gamepack member order (154-gamepack-any-member-order)
   - **Any order**: a gamepack file now loads when the `type` member of a polymorphic object is not the first member. Before, such a file failed to load.
   - **Clear error**: a missing, unknown, or duplicate `type` gives a 400 error with the JSON path.

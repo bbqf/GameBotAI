@@ -555,6 +555,20 @@ public sealed class GamepackValidator {
       }
     }
 
+    // A step that names a command only by name is checked against the command names of the file and the instance.
+    var commandNameTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var command in file.Commands) {
+      if (!string.IsNullOrWhiteSpace(command.Name)) {
+        commandNameTargets.Add(command.Name.Trim());
+      }
+    }
+
+    foreach (var existing in existingCommands) {
+      if (!removedCommands.Contains(existing.Id) && !string.IsNullOrWhiteSpace(existing.Name)) {
+        commandNameTargets.Add(existing.Name.Trim());
+      }
+    }
+
     var imageTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     foreach (var image in file.Images) {
       if (!string.IsNullOrWhiteSpace(image.Id)) {
@@ -571,6 +585,7 @@ public sealed class GamepackValidator {
 
     foreach (var sequence in file.Sequences) {
       ReportMissing(problems, GamepackObjectTypes.Sequence, sequence.Name, "Command", GamepackReferences.CommandIds(sequence), commandTargets);
+      ReportMissing(problems, GamepackObjectTypes.Sequence, sequence.Name, "Command", GamepackReferences.CommandNames(sequence), commandNameTargets);
       // An image id that is one whole placeholder of a parameter of this sequence is not an id yet.
       // The run time fills it, so the dry run does not check it. The set is built for each sequence.
       var declared = new HashSet<string>(
