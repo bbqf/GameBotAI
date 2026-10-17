@@ -11,7 +11,7 @@ using Microsoft.Net.Http.Headers;
 namespace GameBot.Service.Endpoints;
 
 /// <summary>
-/// The gamepack API (feature 143): install (with dry run), list, and rollback. No route uninstalls a gamepack. The
+/// The gamepack API (feature 143): install (with dry run), list, rollback, and remove of the record. The remove route keeps the objects. The
 /// handlers are named methods, because the taint analyzers cost more on large lambdas.
 /// </summary>
 internal static class GamepacksEndpoints {
@@ -120,6 +120,19 @@ internal static class GamepacksEndpoints {
         + "books disabled entries for sequences that the previous version adds, and restarts the queues that it stopped. "
         + "The response is then a managed update report. The queries dryRun and templates apply only with managed=true.");
 
+    group.MapDelete("{name}", RemoveAsync)
+      .Produces(StatusCodes.Status204NoContent)
+      .ProducesProblem(StatusCodes.Status404NotFound)
+      .ProducesProblem(StatusCodes.Status500InternalServerError)
+      .WithName("RemoveGamepack")
+      .WithSummary("Remove the record of an installed gamepack")
+      .WithDescription(
+        "Removes the registry record of the gamepack and all its owner entries. The sequences, commands, and images of the gamepack stay and "
+        + "belong to the user. The kept previous version is deleted. Take-over backup files stay. The route takes the same gate as install and rollback. "
+        + "It gives 204 with no body when the record is removed. A name that is unknown or not valid gives 404 with result not_found and changes nothing. "
+        + "A failed registry write gives 500 with result failed, and the registry stays as before. "
+        + "A later install of the same name is a first install.");
+
     return app;
   }
 
@@ -220,6 +233,15 @@ internal static class GamepacksEndpoints {
       GamepackRollbackStatus.NotFound => ProblemResult(
         StatusCodes.Status404NotFound, "not_found", "No gamepack has this name."),
       GamepackRollbackStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage),
+      _ => WriteFailed("failed", outcome.ErrorMessage)
+    };
+  }
+
+  private static async Task<IResult> RemoveAsync(string name, GamepackService service, CancellationToken ct) {
+    var outcome = await service.RemoveAsync(name, ct).ConfigureAwait(false);
+    return outcome.Status switch {
+      GamepackRemoveStatus.Removed => Results.NoContent(),
+      GamepackRemoveStatus.NotFound => ProblemResult(StatusCodes.Status404NotFound, "not_found", "No gamepack has this name."),
       _ => WriteFailed("failed", outcome.ErrorMessage)
     };
   }
