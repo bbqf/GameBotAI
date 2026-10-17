@@ -1191,6 +1191,26 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
         ["problems"] = new OpenApiArray { GamepackProblemExample() }
       }, context, typeof(GameBot.Service.Endpoints.Dto.GamepackRollbackRefusedResponse));
     }
+    else if (IsMethod(method, HttpMethods.Delete) && IsPath(path, ApiRoutes.Gamepacks + "/{name}")) {
+      SetProblemExample(operation, "404", 404, "No gamepack has this name.", "not_found");
+      SetProblemExample(operation, "500", 500, "A write failed. All objects stay as before.", "failed");
+    }
+  }
+
+  // Adds an example to the problem response of an operation. The media type is the one that the route already declares.
+  private static void SetProblemExample(OpenApiOperation operation, string statusCode, int status, string title, string result) {
+    if (!operation.Responses.TryGetValue(statusCode, out var response) || response.Content is null) {
+      return;
+    }
+
+    var example = new OpenApiObject {
+      ["status"] = new OpenApiInteger(status),
+      ["title"] = new OpenApiString(title),
+      ["result"] = new OpenApiString(result)
+    };
+    foreach (var media in response.Content.Values) {
+      media.Example = example;
+    }
   }
 
   // ── Feature 146: gamepack signature policy and trusted keys ─────────────────────────────────

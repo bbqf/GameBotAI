@@ -86,6 +86,21 @@ public sealed class GamepackRestoreTakeOverTests {
     }
   }
 
+  [Fact]
+  public async Task ARestoreAfterTheGamepackWasRemovedRefusesWithOwnerChanged() {
+    var (kit, backupId, _, _, _) = await ArrangeAsync();
+    using (kit) {
+      (await kit.Service.RemoveAsync("pns")).Status.Should().Be(GamepackRemoveStatus.Removed);
+      var before = kit.Snapshot();
+
+      var outcome = await kit.Service.RestoreTakeOverAsync(backupId);
+
+      outcome.Status.Should().Be(TakeOverRestoreStatus.Refused);
+      outcome.Reasons.Select(r => r.Code).Should().Contain("owner_changed");
+      kit.Snapshot().Should().BeEquivalentTo(before);
+    }
+  }
+
   [Theory]
   [InlineData("to-20200101T000000000-00000000")]
   [InlineData("not-an-id")]

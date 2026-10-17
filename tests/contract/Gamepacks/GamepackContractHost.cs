@@ -139,6 +139,9 @@ internal sealed class GamepackContractHost : IDisposable {
   public Task<HttpResponseMessage> RollbackAsync(string name) =>
     Client.PostAsync(new Uri($"/api/gamepacks/{name}/rollback", UriKind.Relative), content: null);
 
+  public Task<HttpResponseMessage> RemoveAsync(string name) =>
+    Client.DeleteAsync(new Uri($"/api/gamepacks/{name}", UriKind.Relative));
+
   public static async Task<JsonElement> ReadAsync(HttpResponseMessage response) =>
     await response.Content.ReadFromJsonAsync<JsonElement>();
 

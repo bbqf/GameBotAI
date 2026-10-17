@@ -1299,8 +1299,8 @@ unit, records the owner of each object, lists the installed gamepacks, rolls one
 user guide is `docs/gamepacks.md`. The code is in `src/GameBot.Domain/Gamepacks/`.
 
 - **API** (tag `Gamepacks`, `Endpoints/GamepacksEndpoints.cs`): `POST /api/gamepacks/install` (query `dryRun`; 200, 400, 413,
-  422, 500), `GET /api/gamepacks`, and `POST /api/gamepacks/{name}/rollback` (200, 404, 409, 422, 500). No route uninstalls a
-  gamepack. A request has at most 100 MB (the handler reads the body with a size cap and gives a 413 problem response).
+  422, 500), `GET /api/gamepacks`, and `POST /api/gamepacks/{name}/rollback` (200, 404, 409, 422, 500), and `DELETE /api/gamepacks/{name}` (204, 404, 500), which removes the record and the owner
+  entries and keeps the objects. A request has at most 100 MB (the handler reads the body with a size cap and gives a 413 problem response).
 - **Owner**: reads of a sequence, a command, and an image (metadata) add a read-only `owner`: `{ "kind": "user" }` or
   `{ "kind": "gamepack", "name", "version" }`. A conflict report uses text (`user`, or `<name> <version>`). An object with no
   owner entry belongs to the user. The owner is found by object type and stored id (`GamepackOwnerResolver`), so a hand

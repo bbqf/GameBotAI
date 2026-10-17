@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Remove a gamepack record (156-remove-gamepack-record)
+  - **New route**: `DELETE /api/gamepacks/{name}` removes the record and the owner entries of an installed gamepack. The sequences, commands, and images stay and belong to the user.
+  - See `docs/gamepacks.md`.
+  - The patch version is now 10, so the next build is `1.11.10.<run number>`.
+
 ### Changed
 - A gamepack image can carry its alternates list (153-gamepack-image-alternates). An unknown image member is now an error at the dry run and at the install.
 - The version rule is exact now. Before a PR, the patch number is the patch on `master` plus 1. It is 0 when the minor or major number changed. The rule is in the constitution (1.5.1), `CLAUDE.md`, and the `speckit-pipeline` skill. The patch version is now 3, so the next build is `1.10.3.<run number>`.

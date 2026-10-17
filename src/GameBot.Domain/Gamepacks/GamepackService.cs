@@ -124,6 +124,39 @@ public sealed class GamepackRollbackOutcome {
   public string? ErrorMessage { get; init; }
 }
 
+/// <summary>The status of a remove request.</summary>
+public enum GamepackRemoveStatus {
+  /// <summary>The record and the owner entries are removed.</summary>
+  Removed,
+
+  /// <summary>No gamepack has this name. Nothing changed.</summary>
+  NotFound,
+
+  /// <summary>The registry write failed. The registry is as before.</summary>
+  Failed
+}
+
+/// <summary>The result of a remove request.</summary>
+public sealed class GamepackRemoveOutcome {
+  /// <summary>The status.</summary>
+  public GamepackRemoveStatus Status { get; init; }
+
+  /// <summary>The gamepack name.</summary>
+  public string? Name { get; init; }
+
+  /// <summary>The version of the removed record.</summary>
+  public string? Version { get; init; }
+
+  /// <summary>The number of owner entries that were removed.</summary>
+  public int OwnersRemoved { get; init; }
+
+  /// <summary>True when the removed record had a kept previous version.</summary>
+  public bool HadPreviousVersion { get; init; }
+
+  /// <summary>The error text for a failed write, or null.</summary>
+  public string? ErrorMessage { get; init; }
+}
+
 /// <summary>One row of the installed gamepack list.</summary>
 /// <param name="Name">The gamepack name.</param>
 /// <param name="Version">The version.</param>
@@ -401,6 +434,65 @@ public sealed partial class GamepackService : IDisposable {
   }
 
   /// <summary>
+  /// Removes the registry record of a gamepack and all its owner entries. The objects stay and belong to the user.
+  /// This method does not read or change the sequence, command, or image stores.
+  /// </summary>
+  /// <param name="name">The gamepack name. Case is ignored.</param>
+  /// <param name="ct">The cancellation token.</param>
+  public async Task<GamepackRemoveOutcome> RemoveAsync(string name, CancellationToken ct = default) {
+    ArgumentNullException.ThrowIfNull(name);
+    if (!GamepackNameRules.IsValid(name)) {
+      return new GamepackRemoveOutcome { Status = GamepackRemoveStatus.NotFound, Name = name };
+    }
+
+    await _gate.WaitAsync(ct).ConfigureAwait(false);
+    try {
+      var record = _store.Load().Gamepacks.GetValueOrDefault(GamepackNameRules.Key(name));
+      if (record is null) {
+        return new GamepackRemoveOutcome { Status = GamepackRemoveStatus.NotFound, Name = name };
+      }
+
+      var ownersRemoved = 0;
+      try {
+        // One write removes the record and the owner entries. If it throws, the registry stays as before.
+        _store.Update(r => {
+          var keys = r.Owners.Where(p => GamepackNameRules.Comparer.Equals(p.Value.Gamepack, record.Name)).Select(p => p.Key).ToList();
+          foreach (var key in keys) {
+            r.Owners.Remove(key);
+          }
+
+          r.Gamepacks.Remove(GamepackNameRules.Key(name));
+          ownersRemoved = keys.Count;
+        });
+      }
+      catch (Exception ex) when (ex is not OperationCanceledException) {
+        return new GamepackRemoveOutcome { Status = GamepackRemoveStatus.Failed, Name = record.Name, Version = record.Version, ErrorMessage = ex.Message };
+      }
+
+      var hadPrevious = record.Previous is not null;
+      if (hadPrevious) {
+        try {
+          _store.DeletePrevious(record.Name);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException) {
+          LogRemovePreviousFailed(_logger, record.Name, ex);
+        }
+      }
+
+      return new GamepackRemoveOutcome {
+        Status = GamepackRemoveStatus.Removed,
+        Name = record.Name,
+        Version = record.Version,
+        OwnersRemoved = ownersRemoved,
+        HadPreviousVersion = hadPrevious
+      };
+    }
+    finally {
+      _gate.Release();
+    }
+  }
+
+  /// <summary>
   /// Runs an action while it holds the gate of this service (feature 145, FR-017). An install, a rollback, and this
   /// action run one at a time. The behavior of install, rollback, and list does not change.
   /// </summary>
@@ -486,6 +578,9 @@ public sealed partial class GamepackService : IDisposable {
   private static bool IsEntryOf(KeyValuePair<string, OwnerEntry> pair, string type, string id) =>
     string.Equals(GamepackRegistry.TypeOfKey(pair.Key), type, StringComparison.OrdinalIgnoreCase)
     && string.Equals(pair.Value.Id, id, StringComparison.OrdinalIgnoreCase);
+
+  [LoggerMessage(EventId = 1491, Level = LogLevel.Warning, Message = "The kept previous file of the removed gamepack {GamepackName} could not be deleted. The record is removed.")]
+  private static partial void LogRemovePreviousFailed(ILogger logger, string gamepackName, Exception exception);
 
   [LoggerMessage(EventId = 1431, Level = LogLevel.Warning, Message = "The owner entry of a deleted {ObjectType} could not be removed. The owner read hides it.")]
   private static partial void LogRemoveOwnerFailed(ILogger logger, string objectType, Exception exception);
