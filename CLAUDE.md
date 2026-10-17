@@ -11,5 +11,5 @@ Before you push a branch for a new PR, bump the version in `installer/versioning
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/151-fix-gamepack-action-command/plan.md
+at specs/152-gamepack-dry-run-placeholder-image/plan.md
 <!-- SPECKIT END -->
