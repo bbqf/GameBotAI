@@ -60,7 +60,8 @@ public sealed partial class GamepackApplier {
         entry.Image = new TakeOverBackupImage {
           ContentType = snapshot.ImageContentType ?? "image/png",
           Filename = snapshot.ImageFilename,
-          DataBase64 = Convert.ToBase64String(snapshot.ImageBytes!)
+          DataBase64 = Convert.ToBase64String(snapshot.ImageBytes!),
+          Alternates = snapshot.ImageAlternates is { Count: > 0 } ? snapshot.ImageAlternates.ToList() : null
         };
         entry.PostHash = GamepackContentComparer.HashImage(write.Image!.ContentType, write.ImageBytes!);
         break;
@@ -200,6 +201,7 @@ public sealed partial class GamepackApplier {
         snapshot.ImageBytes = Convert.FromBase64String(entry.Image!.DataBase64);
         snapshot.ImageContentType = entry.Image.ContentType;
         snapshot.ImageFilename = entry.Image.Filename;
+        snapshot.ImageAlternates = entry.Image.Alternates?.ToList();
         break;
     }
 

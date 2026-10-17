@@ -54,4 +54,11 @@ public sealed class GamepackImage {
 
   /// <summary>The image bytes as base64 text.</summary>
   public string? DataBase64 { get; init; }
+
+  /// <summary>
+  /// The ids of the alternate images (feature 153). Null means the member is absent: an install keeps the stored list.
+  /// An empty list clears the stored list.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<string>? Alternates { get; init; }
 }

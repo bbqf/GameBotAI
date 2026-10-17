@@ -57,6 +57,7 @@ public static class GamepackFileSerializer {
       var manifest = ReadManifest(root, problems);
       var sequences = ReadList<CommandSequence>(root, "sequences", GamepackObjectTypes.Sequence, SequenceOptions, problems, ConvertSequenceSteps);
       var commands = ReadList<Command>(root, "commands", GamepackObjectTypes.Command, CommandOptions, problems);
+      CheckImageMembers(root, problems);
       var images = ReadList<GamepackImage>(root, "images", GamepackObjectTypes.Image, ManifestOptions, problems);
       var seeds = ReadList<QueueTemplateDoc>(root, "seedTemplates", GamepackObjectTypes.SeedTemplate, SettingsDocumentJson.Options, problems);
       return new GamepackParseResult {
@@ -137,6 +138,31 @@ public static class GamepackFileSerializer {
     }
 
     return list;
+  }
+
+  private static readonly string[] KnownImageMembers = { "id", "contentType", "filename", "dataBase64", "alternates" };
+
+  // Feature 153: a member that the image type does not know is an error, so a typo is not lost without a message.
+  // The check reads the raw JSON, because the typed read drops an unknown member.
+  private static void CheckImageMembers(JsonElement root, List<GamepackProblem> problems) {
+    if (!TryGetMember(root, "images", out var element) || element.ValueKind != JsonValueKind.Array) {
+      return;
+    }
+
+    var index = 0;
+    foreach (var item in element.EnumerateArray()) {
+      if (item.ValueKind == JsonValueKind.Object) {
+        var name = NameOf(item) ?? $"images[{index}]";
+        foreach (var property in item.EnumerateObject()) {
+          if (!KnownImageMembers.Any(k => string.Equals(k, property.Name, StringComparison.OrdinalIgnoreCase))) {
+            problems.Add(Structure(GamepackObjectTypes.Image, name,
+              $"Image '{name}' has an unknown member '{property.Name}'. Known members: {string.Join(", ", KnownImageMembers)}."));
+          }
+        }
+      }
+
+      index++;
+    }
   }
 
   // Feature 151: converts the API form of the steps of a sequence to the stored form before the read.
