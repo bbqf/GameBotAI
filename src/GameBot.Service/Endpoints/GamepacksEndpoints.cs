@@ -66,6 +66,15 @@ internal static class GamepacksEndpoints {
         + "content_mismatch = the signature is correct, but the hashes differ from the gamepack (changed, extra, or missing item). "
         + "untrusted = the signature and the content are correct, but the SHA-256 fingerprint of the key (lower case hex of the SPKI bytes) is not on the trusted list. "
         + "valid = all checks pass. missing = no signature part. "
+        + "ACTION STEP: An Action step of a sequence can run a command. Write the step as in POST /api/sequences: primitiveAction with payload, "
+        + "commandReference, or the step member commandId. Each form keeps the command action. The stored form (action with parameters, as in an export) also works. "
+        + "The same rules apply to a step in a Loop body, and in the body or elseBody of a conditional step. "
+        + "Only an Action step takes these three members. A step member that the install cannot keep, and two members that name different commands, "
+        + "give a structure problem with the sequence name, the step ID, and the field name. A command that is not in the file and not on the system gives a reference problem. "
+        + "Sample: {\"manifest\":{\"name\":\"demo-pack\",\"version\":\"1.0.0\"},\"sequences\":[{\"name\":\"Run the demo command\",\"steps\":["
+        + "{\"stepId\":\"s1\",\"stepType\":\"Action\",\"primitiveAction\":{\"type\":\"command\",\"payload\":{\"commandId\":\"cmd-1\"}},"
+        + "\"commandReference\":{\"commandId\":\"cmd-1\",\"commandName\":\"Demo command\"}}]}],"
+        + "\"commands\":[{\"id\":\"cmd-1\",\"name\":\"Demo command\",\"steps\":[{\"type\":\"KeyInput\",\"order\":0,\"keyInput\":{\"key\":\"BACK\"}}]}]}. "
         + "The catalog index (index.json) is described on GET /api/gamepacks/catalog.");
 
     group.MapPost("takeover-backups/{backupId}/restore", RestoreTakeOverAsync)

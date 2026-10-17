@@ -1,3 +1,4 @@
+using GameBot.Domain.Actions;
 using GameBot.Domain.Commands;
 
 namespace GameBot.Domain.Gamepacks;
@@ -58,6 +59,20 @@ public static class GamepackReferences {
 
       if (step.CommandReference is not null && !string.IsNullOrWhiteSpace(step.CommandReference.CommandId)) {
         step.CommandReference.CommandId = map(step.CommandReference.CommandId) ?? step.CommandReference.CommandId;
+      }
+
+      // Feature 151: a command action also holds the command id in its payload. It must change with the other two.
+      if (step.Action is not null
+          && string.Equals(step.Action.Type, ActionTypes.Command, StringComparison.OrdinalIgnoreCase)
+          && step.Action.Parameters.TryGetValue("commandId", out var payloadId)) {
+        var current = payloadId switch {
+          string text => text,
+          System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.String } element => element.GetString(),
+          _ => null
+        };
+        if (!string.IsNullOrWhiteSpace(current)) {
+          step.Action.Parameters["commandId"] = map(current) ?? current;
+        }
       }
     }
   }
