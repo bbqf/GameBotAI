@@ -30,7 +30,8 @@ internal static class GamepackServiceCollectionExtensions {
       sp.GetRequiredService<ISequenceRepository>(),
       sp.GetRequiredService<ICommandRepository>(),
       sp.GetRequiredService<IImageRepository>(),
-      sp.GetRequiredService<IGamepackRegistryStore>()));
+      sp.GetRequiredService<IGamepackRegistryStore>(),
+      sp.GetRequiredService<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>()));
     services.AddSingleton<ITakeOverBackupStore>(sp => new TakeOverBackupStore(dataRoot, sp.GetService<TimeProvider>()));
     services.AddSingleton(sp => new GamepackApplier(
       sp.GetRequiredService<ISequenceRepository>(),
@@ -40,7 +41,8 @@ internal static class GamepackServiceCollectionExtensions {
       sp.GetRequiredService<IGamepackWriteGate>(),
       sp.GetService<ILogger<GamepackApplier>>(),
       sp.GetService<TimeProvider>(),
-      sp.GetRequiredService<ITakeOverBackupStore>()));
+      sp.GetRequiredService<ITakeOverBackupStore>(),
+      sp.GetRequiredService<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>()));
     services.AddSingleton(sp => new GamepackService(
       sp.GetRequiredService<ISequenceRepository>(),
       sp.GetRequiredService<ICommandRepository>(),

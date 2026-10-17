@@ -13,6 +13,9 @@ public static class GamepackObjectTypes {
 
   /// <summary>An image.</summary>
   public const string Image = "image";
+
+  /// <summary>A seed queue template (feature 150). It is a problem type and a signature file type. It is not an owner type.</summary>
+  public const string SeedTemplate = "seedTemplate";
 }
 
 /// <summary>The problem categories.</summary>

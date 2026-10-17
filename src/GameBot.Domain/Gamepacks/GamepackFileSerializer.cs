@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using GameBot.Domain.Commands;
+using GameBot.Domain.QueueSettings;
 
 namespace GameBot.Domain.Gamepacks;
 
@@ -57,8 +58,9 @@ public static class GamepackFileSerializer {
       var sequences = ReadList<CommandSequence>(root, "sequences", GamepackObjectTypes.Sequence, SequenceOptions, problems);
       var commands = ReadList<Command>(root, "commands", GamepackObjectTypes.Command, CommandOptions, problems);
       var images = ReadList<GamepackImage>(root, "images", GamepackObjectTypes.Image, ManifestOptions, problems);
+      var seeds = ReadList<QueueTemplateDoc>(root, "seedTemplates", GamepackObjectTypes.SeedTemplate, SettingsDocumentJson.Options, problems);
       return new GamepackParseResult {
-        File = new GamepackFile { Manifest = manifest, Sequences = sequences, Commands = commands, Images = images },
+        File = new GamepackFile { Manifest = manifest, Sequences = sequences, Commands = commands, Images = images, SeedTemplates = seeds },
         Problems = problems
       };
     }
@@ -74,6 +76,11 @@ public static class GamepackFileSerializer {
       ["commands"] = new JsonArray(file.Commands.Select(c => JsonSerializer.SerializeToNode(c, CommandOptions)).ToArray()),
       ["images"] = new JsonArray(file.Images.Select(i => JsonSerializer.SerializeToNode(i, ManifestOptions)).ToArray())
     };
+    // The member is written only when it has items, so a file without seeds stays the same byte for byte (feature 150).
+    if (file.SeedTemplates.Count > 0) {
+      root["seedTemplates"] = new JsonArray(file.SeedTemplates.Select(t => JsonSerializer.SerializeToNode(t, SettingsDocumentJson.Options)).ToArray());
+    }
+
     return root.ToJsonString(WriteOptions);
   }
 
@@ -95,7 +102,7 @@ public static class GamepackFileSerializer {
   private static List<T> ReadList<T>(JsonElement root, string member, string type, JsonSerializerOptions options, List<GamepackProblem> problems)
     where T : class {
     var list = new List<T>();
-    if (!root.TryGetProperty(member, out var element) || element.ValueKind == JsonValueKind.Null) {
+    if (!TryGetMember(root, member, out var element) || element.ValueKind == JsonValueKind.Null) {
       return list;
     }
 
@@ -129,6 +136,23 @@ public static class GamepackFileSerializer {
     }
 
     return list;
+  }
+
+  // Member names match without case (feature 150 uses it for seedTemplates).
+  private static bool TryGetMember(JsonElement root, string member, out JsonElement element) {
+    if (root.TryGetProperty(member, out element)) {
+      return true;
+    }
+
+    foreach (var property in root.EnumerateObject()) {
+      if (string.Equals(property.Name, member, StringComparison.OrdinalIgnoreCase)) {
+        element = property.Value;
+        return true;
+      }
+    }
+
+    element = default;
+    return false;
   }
 
   private static string? NameOf(JsonElement item) {

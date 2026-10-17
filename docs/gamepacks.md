@@ -12,7 +12,8 @@ version as the owner of each object. This page tells how to use the three routes
   "manifest": { "name": "pns-daily", "version": "1.2.0", "changelog": "Fix help sequence.", "requiredApiMajor": 1 },
   "sequences": [ { "id": "a1", "name": "Help All", "steps": [ { "order": 0, "stepId": "s0", "commandId": "c1", "stepType": "Command" } ] } ],
   "commands": [ { "id": "c1", "name": "Tap help", "steps": [ { "type": "KeyInput", "order": 0, "keyInput": { "key": "BACK" } } ] } ],
-  "images": [ { "id": "help-icon", "contentType": "image/png", "filename": "help-icon.png", "dataBase64": "iVBOR..." } ]
+  "images": [ { "id": "help-icon", "contentType": "image/png", "filename": "help-icon.png", "dataBase64": "iVBOR..." } ],
+  "seedTemplates": [ { "name": "Daily Help", "entries": [ { "sequence": "Help All", "scheduleType": "Timer", "timerTimeOfDay": "03:30:00" } ] } ]
 }
 ```
 
@@ -28,6 +29,7 @@ version as the owner of each object. This page tells how to use the three routes
   version and compatibility".
 - An image has `id` (its name), `contentType` (`image/png` or `image/jpeg`), an optional `filename`, and `dataBase64`. The
   decoded image has at most 10,000,000 bytes. The image `id` follows the rule of the existing image ids.
+- `seedTemplates` is optional. A file without it installs as before. See the section "Seed templates".
 - A request has at most 100 MB. A larger request gets a 413 problem response, and nothing changes.
 
 ## Routes
@@ -245,8 +247,9 @@ How to sign a gamepack:
    below U+0020. Other characters stay as UTF-8. An integer has no fraction and no exponent. A field that the platform does not
    know is part of the hash.
 2. `manifestSha256` is the SHA-256 (lower case hex) of the canonical `manifest` object.
-3. For each entry of `sequences`, `commands`, and `images`, add one item to `files`. `type` is `sequence`, `command`, or `image`.
-   `name` is the `name` of a sequence or command, or the `id` of an image. `sha256` is the hash of the canonical entry.
+3. For each entry of `sequences`, `commands`, `images`, and `seedTemplates`, add one item to `files`. `type` is `sequence`,
+   `command`, `image`, or `seedTemplate`. `name` is the `name` of a sequence, command, or seed template, or the `id` of an image.
+   `sha256` is the hash of the canonical entry. A file without `seedTemplates` has no `seedTemplate` item.
 4. Make the bytes to sign: the canonical JSON of `{ "files": [...], "format": "gamepack-signature-1", "manifestSha256": "..." }`.
    Sort `files` by `type`, then by lower case `name` (ordinal). Each item has the keys `name`, `sha256`, and `type`.
 5. Sign the bytes with ECDSA P-256 and SHA-256 in the IEEE P1363 form (r then s, 64 bytes). In .NET, use
@@ -387,6 +390,43 @@ The backup file stays after a restore. A second restore of the same backup gives
 ### Failure in a managed update
 
 If a managed call fails after the install worked, the flow gives the user objects back before it rolls the gamepack back. The restore report has the step `takeover_restore`. The failed report has no `takeOverBackupId`.
+
+## Seed templates
+
+A seed template is a starting queue template that a gamepack gives to a new user. The file member `seedTemplates` is a list of
+queue templates in the shape of the queue settings document (see "Back up and restore settings"): each has `name` and `entries`.
+Each entry has `sequence` (a sequence name), `enabled`, `scheduleType`, `timerTimeOfDay` or `timerRelativeOffset`, and
+`parameterValues`.
+
+Rules:
+
+- Only a **first install** of the gamepack creates seeds. A first install is an install of a gamepack name that has no record in the
+  registry. A later install, a managed update, and a rollback ignore the seeds. They do not create, change, or delete a seed
+  template, also when the user deleted the template.
+- A seed is created only when no queue template has the same name (case is ignored). If a template has the name, the platform does
+  not change it and reports the seed as skipped.
+- A seed is an ordinary queue template. It has no link to the gamepack and no owner entry. The settings export lists it like a
+  template that the user made. The user can change or delete it.
+- Each entry `sequence` must name a sequence in the same file, or a sequence on the instance (case is ignored). If not, the check
+  gives a `reference` problem (object type `seedTemplate`). The install gives 422 and changes nothing. A dry run gives
+  `valid: false`. The reference check runs only on a first install.
+- The structure of each seed is checked on every install and dry run: template name rules, unique seed names, non-empty entry
+  sequence, schedule type and timer fields, and parameter names. A fault gives a `structure` problem (object type `seedTemplate`).
+- The install is atomic. If a write fails, the platform deletes the seed templates that it created in this install. This undo is best
+  effort: it logs a failed delete and goes on with the others.
+
+The result of an install, a dry run, a catalog install, and a managed update has two lists. Both are always present, also when
+empty. For a dry run they show what the install would do.
+
+- `seedTemplatesCreated`: the names of the created templates.
+- `seedTemplatesSkipped`: items with `name` and `reason`. The only reason is `skipped_exists`.
+
+A managed update of an installed gamepack gives two empty lists.
+
+The signature covers the seeds. The signature file lists each seed as an item with `type` `seedTemplate` and the `name` of the
+template. `sha256` is the hash of the canonical entry. A file without seeds has the same file list as before, so an old
+signature stays valid. A file with seeds needs a signer that hashes them. A signer that does not know `seedTemplates` makes a
+signature that fails for such a file.
 
 ## Where the data is
 

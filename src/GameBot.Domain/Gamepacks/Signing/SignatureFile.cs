@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace GameBot.Domain.Gamepacks.Signing;
 
 /// <summary>One signed file entry: the type, the name, and the SHA-256 hash.</summary>
-/// <param name="Type">One of sequence, command, or image.</param>
+/// <param name="Type">One of sequence, command, image, or seedTemplate.</param>
 /// <param name="Name">The name of a sequence or command, or the id of an image.</param>
 /// <param name="Sha256">The lower case hex hash of the canonical JSON of the entry.</param>
 public sealed record SignedFileEntry(string Type, string Name, string Sha256);
@@ -115,7 +115,7 @@ public sealed partial class SignatureFile {
       var type = ReadString(item, "type");
       var name = ReadString(item, "name");
       var hash = ReadString(item, "sha256");
-      if (type is not (GamepackObjectTypes.Sequence or GamepackObjectTypes.Command or GamepackObjectTypes.Image)
+      if (type is not (GamepackObjectTypes.Sequence or GamepackObjectTypes.Command or GamepackObjectTypes.Image or GamepackObjectTypes.SeedTemplate)
           || string.IsNullOrEmpty(name) || hash is null || !HexPattern().IsMatch(hash)
           || !seen.Add(type + "\n" + name.ToUpperInvariant())) {
         return null;

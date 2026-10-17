@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Added
+- Gamepack seed templates (150-gamepack-seed-templates)
+  - **Seed**: a gamepack can include queue templates. The first install of the pack creates them. A later install does not change a template that the user already has.
+  - **Safe**: a dry run shows the seed plan and changes nothing. Undo removes only the templates that the install created.
+  - See `docs/gamepacks.md` and `docs/architecture.md`.
+  - The patch version is now 4, so the next build is `1.11.4.<run number>`.
 - Gamepack take-over of user objects (149-gamepack-takeover-user-objects)
   - **Take over**: a gamepack install can take over a user object with the same name as a pack object. The install shows the plan and the differences first. It changes nothing in a dry run.
   - **Managed update**: the managed update and the catalog update use the same take-over option.

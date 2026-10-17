@@ -23,7 +23,10 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
     + "and dataBase64 (at most 10,000,000 bytes decoded). The request can have at most 100 MB. The manifest has name (1 to 64 "
     + "characters from letters, digits, underscore, hyphen, and dot; no leading dot; no reserved device name), version, "
     + "changelog, and the optional requiredApiMajor. The install refuses a gamepack when requiredApiMajor differs from the running API major version "
-    + "(read it with GET /api/version). The field is optional.";
+    + "(read it with GET /api/version). The field is optional. "
+    + "The optional list seedTemplates (feature 150) holds queue templates in the shape of the queue settings document: name and entries, "
+    + "and each entry has sequence (a sequence name), enabled, scheduleType, timerTimeOfDay or timerRelativeOffset, and parameterValues. "
+    + "Only a first install of the gamepack creates a seed, and only when no template has the same name. Later installs, updates, and rollbacks ignore the seeds.";
 
   private static readonly Dictionary<string, string> ProblemFields = new() {
     ["category"] = "structure, reference, conflict, or signature.",
@@ -66,6 +69,15 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       Describe(schema, "takenOver", "The number of user objects of the same type and name that the install took over (planned for a dry run). 0 when takeOver is off or nothing was taken over. It does not count an update of an object that the gamepack already owned.");
       Describe(schema, "takeOverBackupId", "The id of the take-over backup. Present only for a real install that replaced at least one object. Use it with POST /api/gamepacks/takeover-backups/{backupId}/restore.");
       Describe(schema, "takeOvers", "Present only for a dry run with takeOver=true and no problem. One entry for each object to take over, with identical true when the content of the user object equals the content of the gamepack object.");
+      Describe(schema, "seedTemplatesCreated", "The names of the seed templates that the install created (planned for a dry run). Always present, also when empty (feature 150). A seed is an ordinary queue template with no link to the gamepack.");
+      Describe(schema, "seedTemplatesSkipped", "The seed templates that the install did not create (planned for a dry run). Always present, also when empty. Each item has the name and the reason skipped_exists (a template with this name exists).");
+      return;
+    }
+
+    if (context.Type == typeof(GamepackSeedSkipDto)) {
+      schema.Description = "One seed template that an install did not create.";
+      Describe(schema, "name", "The template name from the gamepack file.");
+      Describe(schema, "reason", "skipped_exists: a queue template with this name exists. This is the only reason now.");
       return;
     }
 

@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Gamepacks;
 using GameBot.Domain.Images;
+using GameBot.Domain.QueueTemplates;
+using GameBot.Domain.Parameters;
 
 #pragma warning disable CA2007, CA1861, CA1859, CA1707, CA1002, CA1819, CA2227, CA1416, CA1305, CA1307, CA1310
 
@@ -65,9 +67,10 @@ internal sealed class GamepackTestKit : IDisposable {
     Images = new FileImageRepository(Path.Combine(Root, "images"));
     Store = new GamepackRegistryStore(Root);
     Gate = new ThrowingWriteGate();
-    Validator = new GamepackValidator(Sequences, Commands, Images, Store);
+    Templates = new FileQueueTemplateRepository(Root);
+    Validator = new GamepackValidator(Sequences, Commands, Images, Store, Templates);
     TakeOverBackups = new TakeOverBackupStore(Root);
-    Applier = new GamepackApplier(Sequences, Commands, Images, Store, Gate, takeOverBackups: TakeOverBackups);
+    Applier = new GamepackApplier(Sequences, Commands, Images, Store, Gate, takeOverBackups: TakeOverBackups, templates: Templates);
     Service = new GamepackService(Sequences, Commands, Images, Store, Validator, Applier);
   }
 
@@ -77,6 +80,7 @@ internal sealed class GamepackTestKit : IDisposable {
   public FileImageRepository Images { get; }
   public GamepackRegistryStore Store { get; }
   public TakeOverBackupStore TakeOverBackups { get; }
+  public FileQueueTemplateRepository Templates { get; }
   public ThrowingWriteGate Gate { get; }
   public GamepackValidator Validator { get; }
   public GamepackApplier Applier { get; }
@@ -124,13 +128,26 @@ internal sealed class GamepackTestKit : IDisposable {
 
   public static object Img(string id, string? data = null, string contentType = "image/png") => new { id, contentType, filename = id + ".png", dataBase64 = data ?? PngBase64 };
 
-  public static string Pack(string name, string version, object[]? sequences = null, object[]? commands = null, object[]? images = null, string changelog = "")
-    => JsonSerializer.Serialize(new {
-      manifest = new { name, version, changelog },
-      sequences = sequences ?? Array.Empty<object>(),
-      commands = commands ?? Array.Empty<object>(),
-      images = images ?? Array.Empty<object>()
-    });
+  public static string Pack(string name, string version, object[]? sequences = null, object[]? commands = null, object[]? images = null, string changelog = "", object[]? seedTemplates = null)
+    => JsonSerializer.Serialize(new Dictionary<string, object?> {
+      ["manifest"] = new { name, version, changelog },
+      ["sequences"] = sequences ?? Array.Empty<object>(),
+      ["commands"] = commands ?? Array.Empty<object>(),
+      ["images"] = images ?? Array.Empty<object>(),
+      ["seedTemplates"] = seedTemplates
+    }.Where(p => p.Key != "seedTemplates" || p.Value is not null).ToDictionary(p => p.Key, p => p.Value));
+
+  /// <summary>A seed template with entries. Each entry names a sequence (feature 150).</summary>
+  public static object Seed(string name, params object[] entries) => new { name, entries };
+
+  /// <summary>A seed entry for the settings document shape (feature 150).</summary>
+  public static object SeedEntry(string sequence, string scheduleType = "OncePerRun", bool enabled = true, string? timerTimeOfDay = null) =>
+    timerTimeOfDay is null
+      ? new { sequence, enabled, scheduleType }
+      : (object)new { sequence, enabled, scheduleType, timerTimeOfDay };
+
+  /// <summary>Adds a queue template by hand with the given name (feature 150).</summary>
+  public async Task<QueueTemplate> AddTemplateAsync(string name) => await Templates.CreateAsync(new QueueTemplate { Name = name });
 
   /// <summary>Parses and checks a file text, as the service does.</summary>
   public async Task<GamepackValidationResult> CheckAsync(string json) {

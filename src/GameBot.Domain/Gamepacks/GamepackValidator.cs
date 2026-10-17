@@ -1,6 +1,9 @@
 using System.Globalization;
 using GameBot.Domain.Commands;
+using GameBot.Domain.Gamepacks.Seeds;
 using GameBot.Domain.Images;
+using GameBot.Domain.QueueSettings;
+using GameBot.Domain.QueueTemplates;
 using GameBot.Domain.Triggers.Evaluators;
 
 namespace GameBot.Domain.Gamepacks;
@@ -21,13 +24,16 @@ public sealed class GamepackValidator {
   private readonly ICommandRepository _commands;
   private readonly IImageRepository _images;
   private readonly IGamepackRegistryStore _registryStore;
+  private readonly IQueueTemplateRepository? _templates;
 
   /// <summary>Creates the validator.</summary>
   /// <param name="sequences">The sequence store.</param>
   /// <param name="commands">The command store.</param>
   /// <param name="images">The image store.</param>
   /// <param name="registryStore">The registry store.</param>
-  public GamepackValidator(ISequenceRepository sequences, ICommandRepository commands, IImageRepository images, IGamepackRegistryStore registryStore) {
+  /// <param name="templates">The queue template store, or null (feature 150). Without a store, a seed always plans as <c>create</c>.</param>
+  public GamepackValidator(ISequenceRepository sequences, ICommandRepository commands, IImageRepository images, IGamepackRegistryStore registryStore, IQueueTemplateRepository? templates = null) {
+    _templates = templates;
     _sequences = sequences ?? throw new ArgumentNullException(nameof(sequences));
     _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     _images = images ?? throw new ArgumentNullException(nameof(images));
@@ -40,8 +46,9 @@ public sealed class GamepackValidator {
   /// <param name="ct">The cancellation token.</param>
   /// <param name="checkApiVersion">True to compare <c>requiredApiMajor</c> with the running API major version. A rollback passes false.</param>
   /// <param name="takeOver">True to take over user objects of the same type and name (feature 149). A rollback passes false.</param>
+  /// <param name="seeds">True to check the seed templates and to plan them on a first install (feature 150). A rollback passes false.</param>
   [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "The new optional flag goes last, so that existing callers keep their call shape.")]
-  public async Task<GamepackValidationResult> ValidateAsync(GamepackFile file, IReadOnlyList<GamepackProblem>? parseProblems = null, CancellationToken ct = default, bool checkApiVersion = true, bool takeOver = false) {
+  public async Task<GamepackValidationResult> ValidateAsync(GamepackFile file, IReadOnlyList<GamepackProblem>? parseProblems = null, CancellationToken ct = default, bool checkApiVersion = true, bool takeOver = false, bool seeds = false) {
     ArgumentNullException.ThrowIfNull(file);
     var problems = new List<GamepackProblem>();
     if (parseProblems is not null) {
@@ -49,6 +56,9 @@ public sealed class GamepackValidator {
     }
 
     var decoded = CheckStructure(file, problems, checkApiVersion);
+    if (seeds) {
+      CheckSeedStructure(file, problems);
+    }
 
     var existingSequences = await _sequences.ListAsync().ConfigureAwait(false);
     var existingCommands = await _commands.ListAsync(ct).ConfigureAwait(false);
@@ -66,6 +76,13 @@ public sealed class GamepackValidator {
 
     CheckReferences(file, existingCommands, existingImageIds, removals, problems);
 
+    // Only a first install uses the seeds. A later install, an update, and a rollback ignore them (feature 150, FR-015).
+    var firstInstall = seeds && file.SeedTemplates.Count > 0 && packName is not null
+      && !registry.Gamepacks.ContainsKey(GamepackNameRules.Key(packName));
+    if (firstInstall) {
+      CheckSeedReferences(file, existingSequences, problems);
+    }
+
     if (problems.Count > 0 || file.Manifest is null) {
       return new GamepackValidationResult { Problems = problems };
     }
@@ -76,7 +93,102 @@ public sealed class GamepackValidator {
       plan = new GamepackPlan { Manifest = plan.Manifest, Writes = plan.Writes, Removals = plan.Removals, TakeOvers = entries };
     }
 
+    if (firstInstall) {
+      var seedPlan = await BuildSeedPlanAsync(file, plan, existingSequences).ConfigureAwait(false);
+      plan = new GamepackPlan { Manifest = plan.Manifest, Writes = plan.Writes, Removals = plan.Removals, TakeOvers = plan.TakeOvers, Seeds = seedPlan };
+    }
+
     return new GamepackValidationResult { Problems = problems, Plan = plan };
+  }
+
+  // ---- seed templates (feature 150) ----
+
+  private static void CheckSeedStructure(GamepackFile file, List<GamepackProblem> problems) {
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var seed in file.SeedTemplates) {
+      foreach (var error in QueueTemplateRules.ValidateDoc(seed)) {
+        problems.Add(Structure(GamepackObjectTypes.SeedTemplate, seed.Name, error));
+      }
+
+      var key = seed.Name?.Trim();
+      if (!string.IsNullOrEmpty(key) && !seen.Add(key)) {
+        problems.Add(Structure(GamepackObjectTypes.SeedTemplate, seed.Name, $"The file has two seed templates with the name '{seed.Name}'. Names are not case-sensitive."));
+      }
+    }
+  }
+
+  private static void CheckSeedReferences(GamepackFile file, IReadOnlyList<CommandSequence> existingSequences, List<GamepackProblem> problems) {
+    var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var sequence in file.Sequences) {
+      if (!string.IsNullOrWhiteSpace(sequence.Name)) {
+        names.Add(sequence.Name);
+      }
+    }
+
+    foreach (var existing in existingSequences) {
+      names.Add(existing.Name);
+    }
+
+    foreach (var seed in file.SeedTemplates) {
+      for (var i = 0; i < seed.Entries.Count; i++) {
+        var sequence = seed.Entries[i]?.Sequence;
+        if (!string.IsNullOrWhiteSpace(sequence) && !names.Contains(sequence)) {
+          problems.Add(new GamepackProblem(
+            GamepackProblemCategories.Reference,
+            GamepackObjectTypes.SeedTemplate,
+            seed.Name,
+            $"Entry {i} of the seed template names the sequence '{sequence}'. The sequence is not in the gamepack or in the installation."));
+        }
+      }
+    }
+  }
+
+  // The seed plan needs the final sequence ids, so it runs after BuildPlan (research R6). The store is read one time.
+  private async Task<SeedPlan> BuildSeedPlanAsync(GamepackFile file, GamepackPlan plan, IReadOnlyList<CommandSequence> existingSequences) {
+    var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    if (_templates is not null) {
+      foreach (var template in await _templates.ListAsync().ConfigureAwait(false)) {
+        usedNames.Add(template.Name);
+      }
+    }
+
+    var ids = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var existing in existingSequences) {
+      ids[existing.Name] = existing.Id;
+    }
+
+    foreach (var write in plan.Writes.Where(w => w.Type == GamepackObjectTypes.Sequence)) {
+      ids[write.Name] = write.FinalId;
+    }
+
+    var items = new List<SeedPlanItem>();
+    foreach (var seed in file.SeedTemplates) {
+      var name = seed.Name.Trim();
+      if (usedNames.Contains(name)) {
+        items.Add(new SeedPlanItem { Name = name, Outcome = SeedOutcomes.SkipExists });
+        continue;
+      }
+
+      var entries = new List<QueueTemplateEntry>();
+      foreach (var doc in seed.Entries) {
+        var entry = new QueueTemplateEntry {
+          SequenceId = ids[doc.Sequence],
+          Enabled = doc.Enabled,
+          ScheduleType = doc.ScheduleType,
+          TimerTimeOfDay = doc.TimerTimeOfDay,
+          TimerRelativeOffset = doc.TimerRelativeOffset
+        };
+        foreach (var binding in doc.ParameterValues) {
+          entry.ParameterValues.Add(binding);
+        }
+
+        entries.Add(entry);
+      }
+
+      items.Add(new SeedPlanItem { Name = name, Outcome = SeedOutcomes.Create, TemplateId = Guid.NewGuid().ToString("N"), Entries = entries });
+    }
+
+    return new SeedPlan { Items = items };
   }
 
   // The compare runs after the plan, on the objects that the plan carries. The plan has already rewritten the references to the final ids (feature 149, research R3).

@@ -1,4 +1,5 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.QueueSettings;
 
 namespace GameBot.Domain.Gamepacks;
 
@@ -17,6 +18,12 @@ public sealed class GamepackFile {
 
   /// <summary>The images of the gamepack. Ids are unique without case.</summary>
   public IReadOnlyList<GamepackImage> Images { get; init; } = Array.Empty<GamepackImage>();
+
+  /// <summary>
+  /// The seed queue templates (feature 150). The install creates a seed only on a first install, and only when no template
+  /// has the same name. A file without this member is valid.
+  /// </summary>
+  public IReadOnlyList<QueueTemplateDoc> SeedTemplates { get; init; } = Array.Empty<QueueTemplateDoc>();
 }
 
 /// <summary>The manifest of a gamepack file.</summary>

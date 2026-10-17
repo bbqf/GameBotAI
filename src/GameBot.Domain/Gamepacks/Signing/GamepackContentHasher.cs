@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace GameBot.Domain.Gamepacks.Signing;
 
-/// <summary>The hashes of a gamepack: the manifest and each sequence, command, and image.</summary>
+/// <summary>The hashes of a gamepack: the manifest and each sequence, command, image, and seed template.</summary>
 /// <param name="ManifestSha256">The manifest hash.</param>
 /// <param name="Files">The file entries, sorted by type and lower case name.</param>
 public sealed record GamepackHashes(string ManifestSha256, IReadOnlyList<SignedFileEntry> Files);
@@ -37,6 +37,9 @@ public static class GamepackContentHasher {
       AddList(files, root, "sequences", GamepackObjectTypes.Sequence, "name");
       AddList(files, root, "commands", GamepackObjectTypes.Command, "name");
       AddList(files, root, "images", GamepackObjectTypes.Image, "id");
+
+      // A file without seeds adds no entry here, so its hash does not change (feature 150, FR-017).
+      AddList(files, root, "seedTemplates", GamepackObjectTypes.SeedTemplate, "name");
       return new GamepackHashes(manifestHash, SignatureFile.Sort(files));
     }
   }

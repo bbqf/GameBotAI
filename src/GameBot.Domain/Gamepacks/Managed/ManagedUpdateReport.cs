@@ -170,6 +170,12 @@ public sealed class ManagedUpdateReport {
   /// <summary>The list of objects to take over. Set for a dry run with the option on and no problem. Empty otherwise.</summary>
   public IReadOnlyList<TakeOverEntry> TakeOvers { get; init; } = Array.Empty<TakeOverEntry>();
 
+  /// <summary>The names of the seed templates created (planned for a dry run). Always set (feature 150).</summary>
+  public IReadOnlyList<string> SeedTemplatesCreated { get; init; } = Array.Empty<string>();
+
+  /// <summary>The seed templates not created (planned for a dry run). Always set (feature 150).</summary>
+  public IReadOnlyList<GameBot.Domain.Gamepacks.Seeds.SeedSkip> SeedTemplatesSkipped { get; init; } = Array.Empty<GameBot.Domain.Gamepacks.Seeds.SeedSkip>();
+
   /// <summary>The new disabled entries (planned for a dry run).</summary>
   public IReadOnlyList<EntryRef> NewEntries { get; init; } = Array.Empty<EntryRef>();
 
