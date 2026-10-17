@@ -45,6 +45,21 @@ public static class TemplateSubstitutor {
       !string.IsNullOrEmpty(template) && PlaceholderPattern.IsMatch(template);
 
   /// <summary>
+  /// True when <paramref name="value"/> is exactly one placeholder, for example <c>{{name}}</c>.
+  /// Outer white space is allowed. Text around the placeholder is not allowed.
+  /// </summary>
+  /// <param name="value">String to test; null and empty are false.</param>
+  /// <param name="key">The placeholder key when the result is true; otherwise an empty string.</param>
+  public static bool IsWholePlaceholder(string? value, out string key) {
+    key = string.Empty;
+    var keys = ExtractKeys(value);
+    if (keys.Count != 1) return false;
+    if (!string.Equals(value!.Trim(), $"{{{{{keys[0]}}}}}", StringComparison.Ordinal)) return false;
+    key = keys[0];
+    return true;
+  }
+
+  /// <summary>
   /// Strict counterpart to <see cref="Substitute"/>: replaces every <c>{{key}}</c> that
   /// <paramref name="context"/> can supply and reports the rest instead of leaving them in place.
   /// </summary>

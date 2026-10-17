@@ -8,6 +8,29 @@ using Xunit;
 namespace GameBot.UnitTests.Sequences;
 
 public sealed class TemplateSubstitutorTests {
+  // Feature 152: IsWholePlaceholder.
+
+  [Theory]
+  [InlineData("{{name}}", "name")]
+  [InlineData(" {{name}} ", "name")]
+  [InlineData("{{a.b}}", "a.b")]
+  public void IsWholePlaceholderAcceptsOnePlaceholder(string value, string expectedKey) {
+    TemplateSubstitutor.IsWholePlaceholder(value, out var key).Should().BeTrue();
+    key.Should().Be(expectedKey);
+  }
+
+  [Theory]
+  [InlineData("pre-{{name}}")]
+  [InlineData("{{name}}-x")]
+  [InlineData("{{a}}{{b}}")]
+  [InlineData("{{ name }}")]
+  [InlineData("")]
+  [InlineData(null)]
+  public void IsWholePlaceholderRejectsOtherText(string? value) {
+    TemplateSubstitutor.IsWholePlaceholder(value, out var key).Should().BeFalse();
+    key.Should().BeEmpty();
+  }
+
   // ──────────────────────────────────────────────────────────────────────── //
   // Substitute(string, ...)
   // ──────────────────────────────────────────────────────────────────────── //
