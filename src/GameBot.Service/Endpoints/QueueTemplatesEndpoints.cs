@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Images;
 using GameBot.Domain.Parameters;
+using GameBot.Domain.QueueSettings;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Domain.Services;
 using GameBot.Service.Contracts.QueueTemplates;
@@ -55,9 +56,9 @@ internal static class QueueTemplatesEndpoints {
         if (scheduleType == ScheduleType.Timer) {
           var hasTimeOfDay = !string.IsNullOrWhiteSpace(entry.TimerTimeOfDay);
           var hasRelative = !string.IsNullOrWhiteSpace(entry.TimerRelativeOffset);
-          if (hasTimeOfDay == hasRelative)
-            return Error(400, "invalid_request",
-              $"entries[{i}] must set exactly one of timerTimeOfDay or timerRelativeOffset when scheduleType is Timer");
+          var timerError = QueueTemplateRules.ValidateTimerFields(scheduleType, hasTimeOfDay, hasRelative);
+          if (timerError is not null)
+            return Error(400, "invalid_request", $"entries[{i}] {timerError}");
           if (hasTimeOfDay && !TimerTimeOfDayFormat.TryParse(entry.TimerTimeOfDay, out _))
             return Error(400, "invalid_request",
               $"entries[{i}].timerTimeOfDay '{entry.TimerTimeOfDay}' is not a valid time of day; accepted format: "
@@ -113,15 +114,13 @@ internal static class QueueTemplatesEndpoints {
       // Feature 078: only a malformed or reserved value name blocks the save (FR-012b's unused-value
       // feedback and FR-021's unsatisfied-required feedback are warnings, surfaced in the response).
       var nameErrors = target.Entries
-        .SelectMany((e, index) => e.ParameterValues
-          .Select(b => (Index: index, Name: b.Name, Error: ParameterNameRules.ValidateName(b.Name)))
-          .Where(x => x.Error is not null))
-        .Select(x => new ParameterValidationIssue(
-          ParameterValidationCodes.InvalidValueName,
-          $"Entry {x.Index}: {x.Error}.",
-          null,
-          x.Name,
-          x.Index))
+        .SelectMany((e, index) => QueueTemplateRules.ValidateParameterNames(e.ParameterValues)
+          .Select(x => new ParameterValidationIssue(
+            ParameterValidationCodes.InvalidValueName,
+            $"Entry {index}: {x.Error}.",
+            null,
+            x.Name,
+            index)))
         .ToList();
       if (nameErrors.Count > 0) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(nameErrors));
@@ -192,17 +191,7 @@ internal static class QueueTemplatesEndpoints {
     return issues;
   }
 
-  private static readonly System.Text.RegularExpressions.Regex NamePattern =
-    new("^[A-Za-z0-9 _-]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
-
-  private static string? ValidateName(string? trimmedName) {
-    if (string.IsNullOrWhiteSpace(trimmedName)) return "name is required";
-    if (trimmedName.Length > 100) return "name must be 100 characters or fewer";
-    if (!NamePattern.IsMatch(trimmedName)) {
-      return "name may contain only letters, digits, spaces, hyphens, and underscores";
-    }
-    return null;
-  }
+  private static string? ValidateName(string? trimmedName) => QueueTemplateRules.ValidateName(trimmedName);
 
   private static bool TryParseScheduleType(string? raw, out ScheduleType result) {
     if (string.IsNullOrWhiteSpace(raw)) {

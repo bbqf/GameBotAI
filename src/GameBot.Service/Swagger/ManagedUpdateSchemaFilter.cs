@@ -41,6 +41,8 @@ internal sealed class ManagedUpdateSchemaFilter : ISchemaFilter {
     ["takenOver"] = "The number of user objects that the call took over (planned for a dry run). 0 when takeOver is off.",
     ["takeOverBackupId"] = "The id of the take-over backup. Not set for a dry run, for a call that replaced nothing, and for a failed call (the flow has put the user objects back). Use it with POST /api/gamepacks/takeover-backups/{backupId}/restore. backupId is a different backup: the queue template backup.",
     ["takeOvers"] = "For a dry run with takeOver true and no problem: one entry for each object to take over, with identical. Empty otherwise.",
+    ["seedTemplatesCreated"] = "The names of the seed templates created (planned for a dry run). Always present. A managed update of an installed gamepack gives an empty list, because only a first install creates seeds (feature 150).",
+    ["seedTemplatesSkipped"] = "The seed templates not created (planned for a dry run). Always present. Each item has the name and the reason skipped_exists.",
     ["newEntries"] = "The new disabled entries (planned for a dry run).",
     ["removedSequenceEntries"] = "The template entries whose sequence the new version removed. The entries stay.",
     ["notAffectedTemplates"] = "The templates in the request list that the gamepack does not affect.",

@@ -116,6 +116,12 @@ internal sealed record ManagedUpdateReportDto {
   /// <summary>The objects to take over. Set for a dry run with the option on and no problem. Empty otherwise.</summary>
   public IReadOnlyList<GamepackTakeOverEntryDto> TakeOvers { get; init; } = Array.Empty<GamepackTakeOverEntryDto>();
 
+  /// <summary>The names of the seed templates created (planned for a dry run). Always present (feature 150).</summary>
+  public IReadOnlyList<string> SeedTemplatesCreated { get; init; } = Array.Empty<string>();
+
+  /// <summary>The seed templates not created (planned for a dry run). Always present (feature 150).</summary>
+  public IReadOnlyList<GamepackSeedSkipDto> SeedTemplatesSkipped { get; init; } = Array.Empty<GamepackSeedSkipDto>();
+
   /// <summary>The new disabled entries.</summary>
   public IReadOnlyList<ManagedEntryRefDto> NewEntries { get; init; } = Array.Empty<ManagedEntryRefDto>();
 
@@ -153,6 +159,8 @@ internal sealed record ManagedUpdateReportDto {
       TakenOver = report.TakenOver,
       TakeOverBackupId = report.TakeOverBackupId,
       TakeOvers = report.TakeOvers.Select(GamepackTakeOverEntryDto.From).ToList(),
+      SeedTemplatesCreated = report.SeedTemplatesCreated,
+      SeedTemplatesSkipped = report.SeedTemplatesSkipped.Select(GamepackSeedSkipDto.From).ToList(),
       NewEntries = report.NewEntries.Select(ManagedEntryRefDto.From).ToList(),
       RemovedSequenceEntries = report.RemovedSequenceEntries.Select(ManagedEntryRefDto.From).ToList(),
       NotAffectedTemplates = report.NotAffectedTemplates,

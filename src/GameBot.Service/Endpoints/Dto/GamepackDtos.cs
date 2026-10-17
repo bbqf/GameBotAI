@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using GameBot.Domain.Gamepacks;
+using GameBot.Domain.Gamepacks.Seeds;
 
 namespace GameBot.Service.Endpoints.Dto;
 
@@ -63,6 +64,20 @@ internal sealed record GamepackProblemDto {
   }
 }
 
+/// <summary>One seed template that an install did not create (feature 150).</summary>
+internal sealed record GamepackSeedSkipDto {
+  /// <summary>The template name from the gamepack file.</summary>
+  public required string Name { get; init; }
+
+  /// <summary>The reason. Now only <c>skipped_exists</c>.</summary>
+  public required string Reason { get; init; }
+
+  internal static GamepackSeedSkipDto From(SeedSkip skip) {
+    ArgumentNullException.ThrowIfNull(skip);
+    return new GamepackSeedSkipDto { Name = skip.Name, Reason = skip.Reason };
+  }
+}
+
 /// <summary>The name and version of a gamepack in a response.</summary>
 internal sealed record GamepackRefDto(string? Name, string? Version);
 
@@ -103,6 +118,16 @@ internal sealed record GamepackInstallResponse {
   /// <summary>The objects to take over, each with the mark identical. Set only for a dry run with takeOver on and no problem.</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public IReadOnlyList<GamepackTakeOverEntryDto>? TakeOvers { get; init; }
+
+  /// <summary>
+  /// The names of the seed templates that the install created (planned for a dry run). It is always present, also when empty (feature 150).
+  /// </summary>
+  public IReadOnlyList<string> SeedTemplatesCreated { get; init; } = Array.Empty<string>();
+
+  /// <summary>
+  /// The seed templates that the install did not create (planned for a dry run). It is always present, also when empty (feature 150).
+  /// </summary>
+  public IReadOnlyList<GamepackSeedSkipDto> SeedTemplatesSkipped { get; init; } = Array.Empty<GamepackSeedSkipDto>();
 
   /// <summary>Always <c>signature_rejected</c> for a gamepack that the signature policy rejected. Else not set.</summary>
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

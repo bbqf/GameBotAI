@@ -37,6 +37,8 @@ internal static class GamepacksEndpoints {
         + "take-over backup (takeOverBackupId) that the route POST /api/gamepacks/takeover-backups/{backupId}/restore can put back. "
         + "A conflict with an object of another gamepack stays a conflict. With takeOver=true and dryRun=true, the response has the list takeOvers "
         + "(type, name, identical). The count takenOver is always in the response. "
+        + "On a first install the file member seedTemplates creates queue templates whose name is free. The response always has the lists "
+        + "seedTemplatesCreated and seedTemplatesSkipped (for a dry run they show what the install would do). "
         + "The request can have at most 100 MB. The request is the gamepack file as application/json (no signature), or multipart/form-data "
         + "with the part gamepack and the optional part signature. The response has a signature block with status, policy, and wouldReject. "
         + "If the policy is required and the status is not valid, an install gives 422 with result signature_rejected and changes nothing. "
@@ -222,6 +224,8 @@ internal static class GamepacksEndpoints {
     TakenOver = outcome.TakenOver,
     TakeOverBackupId = outcome.TakeOverBackupId,
     TakeOvers = outcome.TakeOvers?.Select(GamepackTakeOverEntryDto.From).ToList(),
+    SeedTemplatesCreated = outcome.SeedTemplatesCreated,
+    SeedTemplatesSkipped = outcome.SeedTemplatesSkipped.Select(GamepackSeedSkipDto.From).ToList(),
     Result = outcome.Status == GamepackInstallStatus.SignatureRejected ? "signature_rejected" : null,
     Signature = outcome.Signature is null ? null : GamepackSignatureStatusDto.From(outcome.Signature)
   };

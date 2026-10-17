@@ -1,4 +1,5 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Gamepacks.Seeds;
 
 namespace GameBot.Domain.Gamepacks;
 
@@ -88,6 +89,15 @@ public sealed class GamepackPlan {
 
   /// <summary>The number of objects that the apply removes.</summary>
   public int Removed => Removals.Count;
+
+  /// <summary>The seed templates (feature 150). Empty when the install is not a first install, or for a rollback.</summary>
+  public SeedPlan Seeds { get; init; } = SeedPlan.Empty;
+
+  /// <summary>The number of seed templates that the apply creates.</summary>
+  public int SeedsToCreate => Seeds.Items.Count(i => i.Outcome == SeedOutcomes.Create);
+
+  /// <summary>The number of seed templates that the plan skips.</summary>
+  public int SeedsSkipped => Seeds.Items.Count(i => i.Outcome == SeedOutcomes.SkipExists);
 }
 
 /// <summary>The result of the shared check (dry run, install, and rollback).</summary>

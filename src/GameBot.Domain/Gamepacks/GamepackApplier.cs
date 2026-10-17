@@ -1,5 +1,7 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Gamepacks.Seeds;
 using GameBot.Domain.Images;
+using GameBot.Domain.QueueTemplates;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -54,6 +56,12 @@ public sealed class GamepackApplyOutcome {
 
   /// <summary>The id of the take-over backup. Set only when the apply worked and replaced at least one object.</summary>
   public string? TakeOverBackupId { get; init; }
+
+  /// <summary>The names of the seed templates that the apply created (feature 150).</summary>
+  public IReadOnlyList<string> SeedTemplatesCreated { get; init; } = Array.Empty<string>();
+
+  /// <summary>The seed templates that the apply did not create, for example when the name was used at write time (feature 150).</summary>
+  public IReadOnlyList<SeedSkip> SeedTemplatesSkipped { get; init; } = Array.Empty<SeedSkip>();
 }
 
 /// <summary>
@@ -71,6 +79,7 @@ public sealed partial class GamepackApplier {
   private readonly ILogger _logger;
   private readonly TimeProvider _time;
   private readonly ITakeOverBackupStore? _takeOverBackups;
+  private readonly IQueueTemplateRepository? _templates;
 
   /// <summary>Creates the applier.</summary>
   /// <param name="sequences">The sequence store.</param>
@@ -84,6 +93,10 @@ public sealed partial class GamepackApplier {
   /// The take-over backup store, or null (feature 149). Without a store, an apply with a take-over in the plan returns
   /// <see cref="GamepackApplyStatus.Failed"/> and changes nothing.
   /// </param>
+  /// <param name="templates">
+  /// The queue template store, or null (feature 150). Without a store, an apply with a seed template in the plan returns
+  /// <see cref="GamepackApplyStatus.Failed"/> and changes nothing.
+  /// </param>
   public GamepackApplier(
       ISequenceRepository sequences,
       ICommandRepository commands,
@@ -92,8 +105,10 @@ public sealed partial class GamepackApplier {
       IGamepackWriteGate gate,
       ILogger<GamepackApplier>? logger = null,
       TimeProvider? timeProvider = null,
-      ITakeOverBackupStore? takeOverBackups = null) {
+      ITakeOverBackupStore? takeOverBackups = null,
+      IQueueTemplateRepository? templates = null) {
     _takeOverBackups = takeOverBackups;
+    _templates = templates;
     _sequences = sequences ?? throw new ArgumentNullException(nameof(sequences));
     _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     _images = images ?? throw new ArgumentNullException(nameof(images));
@@ -121,6 +136,10 @@ public sealed partial class GamepackApplier {
     string? backupId = null;
 
     try {
+      if (plan.SeedsToCreate > 0 && _templates is null) {
+        throw new InvalidOperationException("The seed templates cannot be created because the queue template store is not available.");
+      }
+
       registryExistedBefore = _store.RegistryExists;
       registryBefore = _store.Load();
       registryBefore.Gamepacks.TryGetValue(packKey, out oldRecord);
@@ -151,6 +170,9 @@ public sealed partial class GamepackApplier {
     var touched = new List<Snapshot>();
     var registryTouched = false;
     var previousTouched = false;
+    var createdSeedIds = new List<string>();
+    var createdSeedNames = new List<string>();
+    var skippedSeeds = new List<SeedSkip>();
     try {
       foreach (var write in plan.Writes) {
         ct.ThrowIfCancellationRequested();
@@ -167,6 +189,8 @@ public sealed partial class GamepackApplier {
         await DeleteObjectAsync(removal.Type, removal.Id).ConfigureAwait(false);
       }
 
+      await CreateSeedsAsync(plan, createdSeedIds, createdSeedNames, skippedSeeds).ConfigureAwait(false);
+
       previousTouched = true;
       WritePreviousFile(packName, previous, capturedText);
       registryTouched = true;
@@ -174,7 +198,7 @@ public sealed partial class GamepackApplier {
       _store.Update(registry => ApplyToRegistry(registry, plan, previous, oldRecord, capturedRecord));
     }
     catch (Exception ex) {
-      var failed = await RestoreAsync(registryTouched, registryBefore, registryExistedBefore, previousTouched, packName, previousFileBefore, touched).ConfigureAwait(false);
+      var failed = await RestoreAsync(registryTouched, registryBefore, registryExistedBefore, previousTouched, packName, previousFileBefore, touched, createdSeedIds).ConfigureAwait(false);
       DropTakeOverBackup(backupId, failed.Count == 0);
       return new GamepackApplyOutcome {
         Status = failed.Count == 0 ? GamepackApplyStatus.Failed : GamepackApplyStatus.PartialRestore,
@@ -193,8 +217,34 @@ public sealed partial class GamepackApplier {
       Updated = plan.Updated,
       Removed = plan.Removed,
       TakenOver = plan.TakenOver,
-      TakeOverBackupId = backupId
+      TakeOverBackupId = backupId,
+      SeedTemplatesCreated = createdSeedNames,
+      SeedTemplatesSkipped = skippedSeeds
     };
+  }
+
+  // ---- seed templates (feature 150) ----
+
+  // A seed is an ordinary template: no owner entry and no link to the gamepack. The name is checked again just before the
+  // write, so a name that was free at plan time and is now used never gives an overwrite or a duplicate (FR-016).
+  private async Task CreateSeedsAsync(GamepackPlan plan, List<string> createdIds, List<string> createdNames, List<SeedSkip> skipped) {
+    foreach (var item in plan.Seeds.Items.Where(i => i.Outcome == SeedOutcomes.Create)) {
+      var used = (await _templates!.ListAsync().ConfigureAwait(false)).Any(t => string.Equals(t.Name, item.Name, StringComparison.OrdinalIgnoreCase));
+      if (used) {
+        skipped.Add(new SeedSkip(item.Name, SeedSkipReasons.Exists));
+        continue;
+      }
+
+      _gate.BeforeWrite(GamepackWriteOperations.Create, "queueTemplate:" + item.Name);
+      var template = new QueueTemplate { Id = item.TemplateId ?? Guid.NewGuid().ToString("N"), Name = item.Name };
+      foreach (var entry in item.Entries) {
+        template.Entries.Add(entry);
+      }
+
+      var created = await _templates.CreateAsync(template).ConfigureAwait(false);
+      createdIds.Add(created.Id);
+      createdNames.Add(item.Name);
+    }
   }
 
   // ---- writes ----
@@ -447,7 +497,8 @@ public sealed partial class GamepackApplier {
       bool previousTouched,
       string packName,
       string? previousFileBefore,
-      List<Snapshot> touched) {
+      List<Snapshot> touched,
+      List<string>? createdSeedIds = null) {
     var failed = new List<string>();
 
     if (registryTouched) {
@@ -479,6 +530,19 @@ public sealed partial class GamepackApplier {
       catch (Exception ex) {
         failed.Add("previous-file");
         LogRestoreFailed(_logger, "previous-file", ex);
+      }
+    }
+
+    // Best effort (FR-014): delete the seed templates that this install created, by id. A failure is logged and the next id still runs.
+    for (var i = (createdSeedIds?.Count ?? 0) - 1; i >= 0; i--) {
+      var key = "queueTemplate:" + createdSeedIds![i];
+      try {
+        _gate.BeforeWrite(GamepackWriteOperations.Restore, key);
+        await _templates!.DeleteAsync(createdSeedIds![i]).ConfigureAwait(false);
+      }
+      catch (Exception ex) {
+        failed.Add(key);
+        LogRestoreFailed(_logger, key, ex);
       }
     }
 

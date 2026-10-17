@@ -182,6 +182,7 @@ Status vocabulary:
 | 147 | Gamepack Remote Catalog | Implemented (quickstart walk pending) |
 | 148 | Managed Gamepack Update | Implemented (quickstart walk pending) |
 | 149 | Gamepack Take-over of User Objects | Implemented (quickstart walk pending) |
+| 150 | Gamepack Seed Queue Templates | Implemented (quickstart walk pending) |
 
 ## Numbering notes
 

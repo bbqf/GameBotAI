@@ -1,4 +1,5 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Gamepacks.Seeds;
 using GameBot.Domain.Gamepacks.Signing;
 using GameBot.Domain.Images;
 using Microsoft.Extensions.Logging;
@@ -67,6 +68,12 @@ public sealed class GamepackInstallOutcome {
 
   /// <summary>The signature check result, or null when the service has no checker (feature 146).</summary>
   public SignatureCheckResult? Signature { get; init; }
+
+  /// <summary>The names of the seed templates created (planned for a dry run). Always set (feature 150).</summary>
+  public IReadOnlyList<string> SeedTemplatesCreated { get; init; } = Array.Empty<string>();
+
+  /// <summary>The seed templates not created (planned for a dry run). Always set (feature 150).</summary>
+  public IReadOnlyList<SeedSkip> SeedTemplatesSkipped { get; init; } = Array.Empty<SeedSkip>();
 }
 
 /// <summary>The status of a rollback request.</summary>
@@ -238,7 +245,7 @@ public sealed partial class GamepackService : IDisposable {
 
     await _gate.WaitAsync(ct).ConfigureAwait(false);
     try {
-      var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct, takeOver: options.TakeOver).ConfigureAwait(false);
+      var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct, takeOver: options.TakeOver, seeds: true).ConfigureAwait(false);
       var manifest = parsed.File.Manifest;
       if (!check.IsValid || check.Plan is null) {
         return new GamepackInstallOutcome {
@@ -263,7 +270,9 @@ public sealed partial class GamepackService : IDisposable {
           Updated = plan.Updated,
           Removed = plan.Removed,
           TakenOver = plan.TakenOver,
-          TakeOvers = options.TakeOver ? plan.TakeOvers : null
+          TakeOvers = options.TakeOver ? plan.TakeOvers : null,
+          SeedTemplatesCreated = plan.Seeds.Items.Where(i => i.Outcome == SeedOutcomes.Create).Select(i => i.Name).ToList(),
+          SeedTemplatesSkipped = plan.Seeds.Items.Where(i => i.Outcome == SeedOutcomes.SkipExists).Select(i => new SeedSkip(i.Name, SeedSkipReasons.Exists)).ToList()
         };
       }
 
@@ -292,7 +301,13 @@ public sealed partial class GamepackService : IDisposable {
         Updated = applied.Updated,
         Removed = applied.Removed,
         TakenOver = applied.TakenOver,
-        TakeOverBackupId = applied.TakeOverBackupId
+        TakeOverBackupId = applied.TakeOverBackupId,
+        SeedTemplatesCreated = applied.SeedTemplatesCreated,
+        SeedTemplatesSkipped = plan.Seeds.Items
+          .Where(i => i.Outcome == SeedOutcomes.SkipExists)
+          .Select(i => new SeedSkip(i.Name, SeedSkipReasons.Exists))
+          .Concat(applied.SeedTemplatesSkipped)
+          .ToList()
       };
     }
     finally {

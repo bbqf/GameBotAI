@@ -109,6 +109,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     public int Updated { get; set; }
     public int Removed { get; set; }
     public int TakenOver { get; set; }
+    public IReadOnlyList<string> SeedsCreated { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<GameBot.Domain.Gamepacks.Seeds.SeedSkip> SeedsSkipped { get; set; } = Array.Empty<GameBot.Domain.Gamepacks.Seeds.SeedSkip>();
     public IReadOnlyList<TakeOverEntry> TakeOvers { get; set; } = Array.Empty<TakeOverEntry>();
     public List<string> NewFileSequenceNames { get; } = new();
     public bool HasFileNames { get; set; }
@@ -165,6 +167,8 @@ public sealed partial class GamepackUpdateOrchestrator {
         p.Updated = outcome.Updated;
         p.Removed = outcome.Removed;
         p.TakenOver = outcome.TakenOver;
+        p.SeedsCreated = outcome.SeedTemplatesCreated;
+        p.SeedsSkipped = outcome.SeedTemplatesSkipped;
         p.TakeOvers = outcome.TakeOvers ?? Array.Empty<TakeOverEntry>();
         break;
       case GamepackInstallStatus.InvalidJson:
@@ -278,6 +282,8 @@ public sealed partial class GamepackUpdateOrchestrator {
       Removed = p.Removed,
       TakenOver = p.TakenOver,
       TakeOvers = p.TakeOvers,
+      SeedTemplatesCreated = p.SeedsCreated,
+      SeedTemplatesSkipped = p.SeedsSkipped,
       NewEntries = newEntries,
       RemovedSequenceEntries = removedEntries,
       NotAffectedTemplates = p.Scope.NotAffectedTemplates,
@@ -319,6 +325,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     public int Removed { get; set; }
     public int TakenOver { get; set; }
     public string? TakeOverBackupId { get; set; }
+    public IReadOnlyList<string> SeedsCreated { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<GameBot.Domain.Gamepacks.Seeds.SeedSkip> SeedsSkipped { get; set; } = Array.Empty<GameBot.Domain.Gamepacks.Seeds.SeedSkip>();
     public List<EntryRef> NewEntries { get; } = new();
     public List<EntryRef> RemovedEntries { get; } = new();
   }
@@ -448,6 +456,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     state.Removed = installed.Removed;
     state.TakenOver = installed.TakenOver;
     state.TakeOverBackupId = installed.TakeOverBackupId;
+    state.SeedsCreated = installed.SeedTemplatesCreated;
+    state.SeedsSkipped = installed.SeedTemplatesSkipped;
   }
 
   private async Task BookStepAsync(Prepared p, RunState state, CancellationToken ct) {
@@ -509,6 +519,8 @@ public sealed partial class GamepackUpdateOrchestrator {
       Removed = state.Removed,
       TakenOver = state.TakenOver,
       TakeOverBackupId = state.TakeOverBackupId,
+      SeedTemplatesCreated = state.SeedsCreated,
+      SeedTemplatesSkipped = state.SeedsSkipped,
       NewEntries = state.NewEntries,
       RemovedSequenceEntries = state.RemovedEntries,
       NotAffectedTemplates = p.Scope.NotAffectedTemplates,
