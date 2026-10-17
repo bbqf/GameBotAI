@@ -42,6 +42,7 @@
     <Compile Include="..\unit\Gamepacks\GamepackTestKit.cs" Link="Gamepacks\GamepackTestKit.cs" />
     <!-- Feature 151: the step fixtures are shared with the unit tests. -->
     <Compile Include="..\unit\Gamepacks\GamepackStepFixtures.cs" Link="Gamepacks\GamepackStepFixtures.cs" />
+    <Compile Include="..\unit\Gamepacks\GamepackPlaceholderImageFixtures.cs" Link="Gamepacks\GamepackPlaceholderImageFixtures.cs" />
     <!-- Feature 147: the catalog test server and fixture are shared with the unit tests. -->
     <Compile Include="..\unit\Gamepacks\CatalogTestKit.cs" Link="Gamepacks\CatalogTestKit.cs" />
     <!-- Feature 146: the test signer is shared with the unit tests. -->

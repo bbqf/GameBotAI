@@ -5,6 +5,7 @@ using GameBot.Domain.Images;
 using GameBot.Domain.QueueSettings;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Domain.Triggers.Evaluators;
+using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Gamepacks;
 
@@ -535,7 +536,14 @@ public sealed class GamepackValidator {
 
     foreach (var sequence in file.Sequences) {
       ReportMissing(problems, GamepackObjectTypes.Sequence, sequence.Name, "Command", GamepackReferences.CommandIds(sequence), commandTargets);
-      ReportMissing(problems, GamepackObjectTypes.Sequence, sequence.Name, "Image", GamepackReferences.ImageIds(sequence), imageTargets);
+      // An image id that is one whole placeholder of a parameter of this sequence is not an id yet.
+      // The run time fills it, so the dry run does not check it. The set is built for each sequence.
+      var declared = new HashSet<string>(
+          (sequence.Parameters?.Select(p => p.Name) ?? Enumerable.Empty<string>()).Where(n => !string.IsNullOrEmpty(n)),
+          StringComparer.Ordinal);
+      var imageIds = GamepackReferences.ImageIds(sequence)
+          .Where(id => !(TemplateSubstitutor.IsWholePlaceholder(id, out var key) && declared.Contains(key)));
+      ReportMissing(problems, GamepackObjectTypes.Sequence, sequence.Name, "Image", imageIds, imageTargets);
     }
 
     foreach (var command in file.Commands) {

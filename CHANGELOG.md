@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Fixed
+- Gamepack dry run placeholder image ids (152-gamepack-dry-run-placeholder-image)
+  - **Skip placeholders**: the gamepack dry run now skips an image id that is a whole placeholder, for example `{{image}}`. Before, the dry run reported a false error for the placeholder.
+  - The patch version is now 6, so the next build is `1.11.6.<run number>`.
 - Gamepack Action step command (151-fix-gamepack-action-command)
   - **Keep the command**: a gamepack install now keeps the command of an Action step. Before, the install lost the command action and the step did nothing.
   - See `docs/gamepacks.md`.

@@ -541,10 +541,8 @@ public static class ParameterValidationService {
   }
 
   /// <summary>True when <paramref name="value"/> is exactly one placeholder, for example <c>{{name}}</c>.</summary>
-  private static bool IsWholePlaceholder(string? value) {
-    var keys = TemplateSubstitutor.ExtractKeys(value);
-    return keys.Count == 1 && string.Equals(value!.Trim(), $"{{{{{keys[0]}}}}}", StringComparison.Ordinal);
-  }
+  private static bool IsWholePlaceholder(string? value) =>
+      TemplateSubstitutor.IsWholePlaceholder(value, out _);
 
   private static void AddReferenceIssues(
       ParameterReference reference,
