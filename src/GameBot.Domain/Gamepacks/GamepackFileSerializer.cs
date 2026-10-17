@@ -16,6 +16,9 @@ public sealed class GamepackParseResult {
 
   /// <summary>True when the text is not valid JSON (HTTP 400).</summary>
   public bool InvalidJson { get; init; }
+
+  /// <summary>True when the type member of a polymorphic object is missing or wrong (HTTP 400, feature 154).</summary>
+  public bool InvalidType { get; init; }
 }
 
 /// <summary>
@@ -54,15 +57,17 @@ public static class GamepackFileSerializer {
       }
 
       var problems = new List<GamepackProblem>();
+      var state = new ParseState();
       var manifest = ReadManifest(root, problems);
-      var sequences = ReadList<CommandSequence>(root, "sequences", GamepackObjectTypes.Sequence, SequenceOptions, problems, ConvertSequenceSteps);
-      var commands = ReadList<Command>(root, "commands", GamepackObjectTypes.Command, CommandOptions, problems);
+      var sequences = ReadList<CommandSequence>(root, "sequences", GamepackObjectTypes.Sequence, SequenceOptions, problems, state, ConvertSequenceSteps);
+      var commands = ReadList<Command>(root, "commands", GamepackObjectTypes.Command, CommandOptions, problems, state);
       CheckImageMembers(root, problems);
-      var images = ReadList<GamepackImage>(root, "images", GamepackObjectTypes.Image, ManifestOptions, problems);
-      var seeds = ReadList<QueueTemplateDoc>(root, "seedTemplates", GamepackObjectTypes.SeedTemplate, SettingsDocumentJson.Options, problems);
+      var images = ReadList<GamepackImage>(root, "images", GamepackObjectTypes.Image, ManifestOptions, problems, state);
+      var seeds = ReadList<QueueTemplateDoc>(root, "seedTemplates", GamepackObjectTypes.SeedTemplate, SettingsDocumentJson.Options, problems, state);
       return new GamepackParseResult {
         File = new GamepackFile { Manifest = manifest, Sequences = sequences, Commands = commands, Images = images, SeedTemplates = seeds },
-        Problems = problems
+        Problems = problems,
+        InvalidType = state.InvalidType
       };
     }
   }
@@ -100,7 +105,7 @@ public static class GamepackFileSerializer {
     }
   }
 
-  private static List<T> ReadList<T>(JsonElement root, string member, string type, JsonSerializerOptions options, List<GamepackProblem> problems,
+  private static List<T> ReadList<T>(JsonElement root, string member, string type, JsonSerializerOptions options, List<GamepackProblem> problems, ParseState state,
     Func<JsonElement, List<GamepackProblem>, JsonNode?>? prepare = null)
     where T : class {
     var list = new List<T>();
@@ -115,14 +120,30 @@ public static class GamepackFileSerializer {
 
     var index = 0;
     foreach (var item in element.EnumerateArray()) {
+      var entryPath = $"$.{member}[{index}]";
       try {
-        var value = prepare is null ? item.Deserialize<T>(options) : prepare(item, problems).Deserialize<T>(options);
+        var node = prepare is null ? null : prepare(item, problems);
+        var source = node is null ? item : JsonSerializer.SerializeToElement(node);
+        var typeProblem = GamepackTypeDiscriminatorCheck.Find(source, typeof(T), options, entryPath);
+        if (typeProblem is not null) {
+          state.InvalidType = true;
+          problems.Add(Structure(type, NameOf(item), $"Entry {index} of '{member}' has a wrong type member at {typeProblem.Path}: {typeProblem.ReasonText}."));
+          index++;
+          continue;
+        }
+
+        var value = prepare is null ? item.Deserialize<T>(options) : node.Deserialize<T>(options);
         if (value is null) {
           problems.Add(Structure(type, null, $"Entry {index} of '{member}' is empty."));
         }
         else {
           list.Add(value);
         }
+      }
+      catch (NotSupportedException ex) {
+        // Safety net: the check above must catch each type member problem. This path reports the entry and the exception type only.
+        state.InvalidType = true;
+        problems.Add(Structure(type, NameOf(item), $"Entry {index} of '{member}' has a wrong type member at {entryPath}: {ex.GetType().Name}."));
       }
       catch (JsonException ex) {
         problems.Add(Structure(type, NameOf(item), $"Entry {index} of '{member}' has a wrong shape: {ex.Message}"));
@@ -138,6 +159,10 @@ public static class GamepackFileSerializer {
     }
 
     return list;
+  }
+
+  private sealed class ParseState {
+    public bool InvalidType { get; set; }
   }
 
   private static readonly string[] KnownImageMembers = { "id", "contentType", "filename", "dataBase64", "alternates" };
@@ -208,13 +233,14 @@ public static class GamepackFileSerializer {
     new(GamepackProblemCategories.Structure, type, name, message);
 
   private static JsonSerializerOptions BuildSequenceOptions() {
-    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+    // Feature 154: the type member can be at any position in an object.
+    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, AllowOutOfOrderMetadataProperties = true };
     options.Converters.Add(new JsonStringEnumConverter());
     return options;
   }
 
   private static JsonSerializerOptions BuildCommandOptions() {
-    var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { AllowOutOfOrderMetadataProperties = true };
     options.Converters.Add(new JsonStringEnumConverter());
     return options;
   }

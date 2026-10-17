@@ -168,7 +168,7 @@ public static class SettingsDocumentJson {
   }
 
   private static JsonSerializerOptions BuildOptions(bool indented) {
-    var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = indented };
+    var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = indented, AllowOutOfOrderMetadataProperties = !indented };
     options.Converters.Add(new JsonStringEnumConverter());
     return options;
   }

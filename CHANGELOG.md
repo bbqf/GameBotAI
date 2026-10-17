@@ -13,6 +13,11 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Fixed
+- Gamepack member order (154-gamepack-any-member-order)
+  - **Any order**: a gamepack file now loads when the `type` member of a polymorphic object is not the first member. Before, such a file failed to load.
+  - **Clear error**: a missing, unknown, or duplicate `type` gives a 400 error with the JSON path.
+  - See `docs/gamepacks.md`.
+  - The patch version is now 8, so the next build is `1.11.8.<run number>`.
 - Gamepack dry run placeholder image ids (152-gamepack-dry-run-placeholder-image)
   - **Skip placeholders**: the gamepack dry run now skips an image id that is a whole placeholder, for example `{{image}}`. Before, the dry run reported a false error for the placeholder.
   - The patch version is now 6, so the next build is `1.11.6.<run number>`.
