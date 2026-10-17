@@ -73,7 +73,9 @@ The check finds all problems. It does not stop at the first. A problem has `cate
 - **Structure**: a missing manifest field, a bad name, two objects with the same name in the file, a bad image type, bad
   base64, an image larger than the limit, or a `requiredApiMajor` that differs from the running API major version.
 - **Reference**: a step names a command or an image that is not in the file and not in the installation. A target that the
-  install removes does not count.
+  install removes does not count. The check covers each command id of a step (`commandId`, `commandReference.commandId`,
+  and the `commandId` of a `command` action). A step that has only `commandReference.commandName` is checked by name
+  (names match without case).
 - **Conflict**: an object in the file has the same type and name as an object that the user made or that another gamepack
   owns. Names match without case. The `owner` is `user`, or `<name> <version>` for a gamepack. An object of the same gamepack
   is an update, not a conflict.
