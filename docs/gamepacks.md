@@ -20,6 +20,18 @@ version as the owner of each object. This page tells how to use the three routes
 - A file with three empty lists is valid. It installs a gamepack with no objects.
 - A sequence entry and a command entry use the JSON of the stored object, as the service writes it to the data folder.
   Names of members are not case-sensitive. An enum can be a number or a name.
+- An Action step that runs a command has these forms. Each form keeps the command action after the install:
+  - `primitiveAction` with `payload`, for example `"primitiveAction": { "type": "command", "payload": { "commandId": "c1" } }`.
+  - `commandReference` with `commandId` and `commandName`. The member `isResolved` is accepted. The install does not store it.
+  - The step member `commandId`.
+  - The stored form: `action` with `parameters`. An export writes this form. If a step has `action` and `primitiveAction`,
+    `action` wins.
+  - A step in a Loop `body`, and in the `body` or `elseBody` of a conditional step, follows the same rules.
+- Only an Action step takes `primitiveAction`, `commandReference`, and `commandId` as these forms. On another step type,
+  these members give a `structure` problem. A Command step keeps its stored member `commandId`.
+- The dry run gives a `structure` problem (with the sequence name, the step ID, and the field name) for a step member that
+  the install cannot keep, and for members that name different commands. A step that names a command that is not in the
+  file and not on the system gives a `reference` problem. If there is a problem, the install does not create the sequence.
 - `manifest.name`: 1 to 64 characters from letters, digits, `_`, `-`, and `.`. The name does not start with `.`. The name
   is not a reserved Windows device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, with or without
   an extension). Two names that differ only in case are the same gamepack.

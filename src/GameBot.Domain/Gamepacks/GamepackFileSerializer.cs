@@ -55,7 +55,7 @@ public static class GamepackFileSerializer {
 
       var problems = new List<GamepackProblem>();
       var manifest = ReadManifest(root, problems);
-      var sequences = ReadList<CommandSequence>(root, "sequences", GamepackObjectTypes.Sequence, SequenceOptions, problems);
+      var sequences = ReadList<CommandSequence>(root, "sequences", GamepackObjectTypes.Sequence, SequenceOptions, problems, ConvertSequenceSteps);
       var commands = ReadList<Command>(root, "commands", GamepackObjectTypes.Command, CommandOptions, problems);
       var images = ReadList<GamepackImage>(root, "images", GamepackObjectTypes.Image, ManifestOptions, problems);
       var seeds = ReadList<QueueTemplateDoc>(root, "seedTemplates", GamepackObjectTypes.SeedTemplate, SettingsDocumentJson.Options, problems);
@@ -99,7 +99,8 @@ public static class GamepackFileSerializer {
     }
   }
 
-  private static List<T> ReadList<T>(JsonElement root, string member, string type, JsonSerializerOptions options, List<GamepackProblem> problems)
+  private static List<T> ReadList<T>(JsonElement root, string member, string type, JsonSerializerOptions options, List<GamepackProblem> problems,
+    Func<JsonElement, List<GamepackProblem>, JsonNode?>? prepare = null)
     where T : class {
     var list = new List<T>();
     if (!TryGetMember(root, member, out var element) || element.ValueKind == JsonValueKind.Null) {
@@ -114,7 +115,7 @@ public static class GamepackFileSerializer {
     var index = 0;
     foreach (var item in element.EnumerateArray()) {
       try {
-        var value = item.Deserialize<T>(options);
+        var value = prepare is null ? item.Deserialize<T>(options) : prepare(item, problems).Deserialize<T>(options);
         if (value is null) {
           problems.Add(Structure(type, null, $"Entry {index} of '{member}' is empty."));
         }
@@ -136,6 +137,12 @@ public static class GamepackFileSerializer {
     }
 
     return list;
+  }
+
+  // Feature 151: converts the API form of the steps of a sequence to the stored form before the read.
+  private static JsonNode? ConvertSequenceSteps(JsonElement item, List<GamepackProblem> problems) {
+    var node = JsonNode.Parse(item.GetRawText());
+    return node is JsonObject obj ? GamepackStepReader.Convert(obj, NameOf(item), problems) : node;
   }
 
   // Member names match without case (feature 150 uses it for seedTemplates).

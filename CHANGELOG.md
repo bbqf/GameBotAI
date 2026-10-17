@@ -11,6 +11,12 @@ All notable changes to this project will be documented in this file.
   - **Phone**: the bottom bar shows Queues, Monitoring, and More. Notifications is now in the More sheet.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
+### Fixed
+- Gamepack Action step command (151-fix-gamepack-action-command)
+  - **Keep the command**: a gamepack install now keeps the command of an Action step. Before, the install lost the command action and the step did nothing.
+  - See `docs/gamepacks.md`.
+  - The patch version is now 5, so the next build is `1.11.5.<run number>`.
+
 ### Added
 - Gamepack seed templates (150-gamepack-seed-templates)
   - **Seed**: a gamepack can include queue templates. The first install of the pack creates them. A later install does not change a template that the user already has.
