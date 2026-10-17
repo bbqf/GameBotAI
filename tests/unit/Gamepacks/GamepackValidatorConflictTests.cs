@@ -31,6 +31,18 @@ public sealed class GamepackValidatorConflictTests : IDisposable {
   }
 
   [Fact]
+  public async Task AnObjectOfARemovedGamepackFollowsTheUserObjectRule() {
+    await InstallAsync(GamepackTestKit.Pack("alpha", "1", commands: new[] { GamepackTestKit.Cmd("c", "Shared") }));
+    (await _kit.Service.RemoveAsync("alpha")).Status.Should().Be(GamepackRemoveStatus.Removed);
+
+    var result = await _kit.CheckAsync(GamepackTestKit.Pack("alpha", "1", commands: new[] { GamepackTestKit.Cmd("c9", "Shared") }));
+
+    var problem = result.Problems.Should().ContainSingle().Subject;
+    problem.Category.Should().Be("conflict");
+    problem.Owner.Should().Be("user");
+  }
+
+  [Fact]
   public async Task AnObjectOfAnotherGamepackIsAConflictWithOwnerText() {
     await InstallAsync(GamepackTestKit.Pack("alpha", "1.2.0", commands: new[] { GamepackTestKit.Cmd("c", "Shared") }));
     var result = await _kit.CheckAsync(GamepackTestKit.Pack("beta", "1", commands: new[] { GamepackTestKit.Cmd("c9", "Shared") }));

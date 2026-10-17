@@ -103,7 +103,18 @@ The route returns a gamepack to its kept previous version. The name matches with
   install.
 - Hand edits that you make after the install of the newer version are lost by a rollback.
 
-No route uninstalls a gamepack.
+### DELETE /api/gamepacks/{name}
+
+The route removes the record of an installed gamepack. The name matches without case.
+
+- The route removes the registry record and all owner entries of the gamepack. The sequences, commands, and images stay.
+  They belong to you after the removal.
+- The route deletes the kept previous version. Take-over backup files stay.
+- A later install of the same name is a first install. If an object of the removed gamepack still exists, the install
+  treats it as your object (conflict, or take-over with `takeOver=true`).
+- 204 with no body, 404 `not_found` (unknown or not valid name, or a repeat request), and 500 `failed` (the registry stays as
+  before).
+- The route takes the same gate as install and rollback.
 
 ## API version and compatibility
 

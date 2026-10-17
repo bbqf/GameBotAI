@@ -35,6 +35,21 @@ public sealed class GamepackOpenApiTests {
   }
 
   [Fact]
+  public async Task TheRemoveRouteIsDescribed() {
+    var document = await ReadDocumentAsync();
+
+    var remove = document.GetProperty("paths").GetProperty("/api/gamepacks/{name}").GetProperty("delete");
+
+    remove.GetProperty("operationId").GetString().Should().Be("RemoveGamepack");
+    remove.GetProperty("summary").GetString().Should().NotBeNullOrWhiteSpace();
+    remove.GetProperty("description").GetString().Should().NotBeNullOrWhiteSpace();
+    var responses = remove.GetProperty("responses");
+    foreach (var status in new[] { "204", "404", "500" }) {
+      responses.TryGetProperty(status, out _).Should().BeTrue("the remove route lists status " + status);
+    }
+  }
+
+  [Fact]
   public async Task TheOwnerSchemaAndTheOwnerMembersAreDescribed() {
     var document = await ReadDocumentAsync();
     var schemas = document.GetProperty("components").GetProperty("schemas");
