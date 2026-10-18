@@ -34,6 +34,9 @@ public sealed class FileCommandRepository : ICommandRepository {
     return true;
   }
 
+  /// <inheritdoc />
+  public string? GetFilePath(string id) => TryGetSafePath(id, out var path) ? path : null;
+
   public async Task<Command> AddAsync(Command command, CancellationToken ct = default) {
     ArgumentNullException.ThrowIfNull(command);
     var id = string.IsNullOrWhiteSpace(command.Id) ? Guid.NewGuid().ToString("N") : command.Id;

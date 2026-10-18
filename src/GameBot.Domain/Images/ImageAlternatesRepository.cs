@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using GameBot.Domain.Triggers.Evaluators;
+using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Images {
   /// <summary>
@@ -20,6 +21,9 @@ namespace GameBot.Domain.Images {
 
     /// <summary>Removes the list. Returns false when there was none.</summary>
     bool DeleteAlternates(string primaryId);
+
+    /// <summary>Gives the full path of the alternates file for <paramref name="primaryId"/>, or null when the store has no file or the id is not valid. It has no side effect.</summary>
+    string? GetFilePath(string primaryId) => null;
   }
 
   /// <summary>
@@ -72,14 +76,12 @@ namespace GameBot.Domain.Images {
       var tmp = Path.Combine(tmpDir, $"{primaryId}.alternates.{Guid.NewGuid():N}.tmp");
       File.WriteAllText(tmp, JsonSerializer.Serialize(new Document { Alternates = alternates.ToList() }, JsonOpts));
 
-      var target = PathFor(primaryId);
-      if (File.Exists(target)) {
-        File.Replace(tmp, target, null);
-      }
-      else {
-        File.Move(tmp, target, overwrite: true);
-      }
+      AtomicFile.ReplaceFile(tmp, PathFor(primaryId), "image", primaryId);
     }
+
+    /// <inheritdoc />
+    public string? GetFilePath(string primaryId) =>
+      ReferenceImageIdValidator.IsValid(primaryId) ? Path.GetFullPath(PathFor(primaryId)) : null;
 
     public bool DeleteAlternates(string primaryId) {
       if (!ReferenceImageIdValidator.IsValid(primaryId)) return false;

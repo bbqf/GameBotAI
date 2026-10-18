@@ -143,7 +143,8 @@ public sealed partial class GamepackApplier {
       return new TakeOverRestoreOutcome {
         Status = failed.Count == 0 ? TakeOverRestoreStatus.Failed : TakeOverRestoreStatus.PartialRestore,
         BackupId = backupId,
-        ErrorMessage = ex.Message
+        ErrorMessage = ex.Message,
+        FailedRestoreKeys = failed
       };
     }
 

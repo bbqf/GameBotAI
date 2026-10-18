@@ -23,6 +23,7 @@
   <ItemGroup>
     <!-- Feature 143: the gamepack builders and the test gate are shared with the unit tests. -->
     <Compile Include="..\unit\Gamepacks\GamepackTestKit.cs" Link="Gamepacks\GamepackTestKit.cs" />
+    <Compile Include="..\unit\Gamepacks\FailOnceStores.cs" Link="Gamepacks\FailOnceStores.cs" />
     <!-- Feature 151: the step fixtures are shared with the unit tests. -->
     <Compile Include="..\unit\Gamepacks\GamepackStepFixtures.cs" Link="Gamepacks\GamepackStepFixtures.cs" />
     <Compile Include="..\unit\Gamepacks\GamepackMemberOrderFixtures.cs" Link="Gamepacks\GamepackMemberOrderFixtures.cs" />

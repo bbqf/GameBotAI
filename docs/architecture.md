@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-17 (feature 150: seed queue templates in a gamepack, the file member `seedTemplates`, the result lists `seedTemplatesCreated` and `seedTemplatesSkipped`;
+_Last reviewed: 2026-10-18 (feature 157: image, alternates, and registry file writes use `AtomicFile.ReplaceFile` (move with overwrite and a bounded retry), a failed write names the file, and the `partial_restore` response has `failedRestoreKeys`;
+feature 150: seed queue templates in a gamepack, the file member `seedTemplates`, the result lists `seedTemplatesCreated` and `seedTemplatesSkipped`;
 feature 149: take-over of same-named user objects on gamepack install, the option `takeOver`, `/api/gamepacks/takeover-backups/{backupId}/restore`, the folder `gamepacks/takeover-backups` in the data root;
 feature 148: managed gamepack update, `/api/gamepacks/update`, the folder `gamepacks/backups` in the data root;
 feature 147: gamepack remote catalog, `/api/gamepacks/catalog`, the file `gamepack-catalog.json` in the data root, the Gamepacks area;
@@ -64,6 +65,12 @@ Persistence is **file-based** under the `data/` directory (JSON documents + stor
 an image's alternates list lives beside the images as `.alternates\{id}.json`, feature 097);
 there is no database. Queue *runtime* state (loaded entries, running status) is in-memory and does
 not survive a service restart; queue *configuration* and templates are persisted.
+
+The gamepack install path writes an image file, an alternates file, `registry.json`, and `previous\{name}.json`
+with a temporary file and `AtomicFile.ReplaceFile` (feature 157). The helper moves the temporary file over the
+target. It retries up to 5 times (50 ms to 800 ms) only when another handle holds the target. A failed write
+throws `Cannot replace file '<full path>' for <kind> '<id>': <reason>`. If the restore fails too, the install
+route answers `partial_restore` with `failedRestoreKeys` (`<kind>:<id> (<full file path>)`).
 
 The auto-update (feature 131) keeps its files in `<data root>\updates\`. The folder has these items:
 

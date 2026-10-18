@@ -55,7 +55,7 @@ public sealed class GamepackApplierSeedUndoTests {
     templates.DeleteAttempts.Should().HaveCount(2, "the undo continues after the first failure");
     (await kit.Templates.ListAsync()).Select(t => t.Name).Should().Equal("Weekly");
     (await kit.Sequences.ListAsync()).Should().BeEmpty("the object restore still ran");
-    outcome.FailedRestoreKeys.Should().ContainSingle().Which.Should().StartWith("queueTemplate:");
+    outcome.FailedRestoreKeys.Should().ContainSingle().Which.Should().StartWith("template:").And.EndWith(".json)");
   }
 
   [Fact]

@@ -77,7 +77,11 @@ internal static class GamepacksEndpoints {
         + "{\"stepId\":\"s1\",\"stepType\":\"Action\",\"primitiveAction\":{\"type\":\"command\",\"payload\":{\"commandId\":\"cmd-1\"}},"
         + "\"commandReference\":{\"commandId\":\"cmd-1\",\"commandName\":\"Demo command\"}}]}],"
         + "\"commands\":[{\"id\":\"cmd-1\",\"name\":\"Demo command\",\"steps\":[{\"type\":\"KeyInput\",\"order\":0,\"keyInput\":{\"key\":\"BACK\"}}]}]}. "
-        + "The catalog index (index.json) is described on GET /api/gamepacks/catalog.");
+        + "The catalog index (index.json) is described on GET /api/gamepacks/catalog. "
+        + "WRITE ERRORS: A failed write gives 500 with result failed. The detail member has this text: "
+        + "Cannot replace file '<full path>' for <kind> '<id>': <reason>. The kind is sequence, command, image, template, registry, or previous. "
+        + "If the restore fails too, the result is partial_restore and the problem document has the extension member failedRestoreKeys: "
+        + "a list of strings, one for each file in an unknown state, in the format <kind>:<id> (<full file path>).");
 
     group.MapPost("takeover-backups/{backupId}/restore", RestoreTakeOverAsync)
       .Produces<GamepackTakeOverRestoreResponse>(StatusCodes.Status200OK)
@@ -93,7 +97,9 @@ internal static class GamepacksEndpoints {
         + "content that the install wrote), and owner_changed (the gamepack no longer owns the object, or the gamepack is not installed). "
         + "If a check fails, the route gives 409 with the list of reasons and changes nothing. A restore works as one unit: all objects or none. "
         + "A second restore of the same backup gives 409 with owner_changed and changes nothing, because the backup file stays. "
-        + "An id that is unknown or has a wrong form gives 404. A failed write gives 500.");
+        + "An id that is unknown or has a wrong form gives 404. A failed write gives 500. "
+        + "If the undo fails too, the result is partial_restore and the problem document has failedRestoreKeys "
+        + "(the format is <kind>:<id> (<full file path>)).");
 
     group.MapGet("", List)
       .Produces<IReadOnlyList<GamepackListItemDto>>(StatusCodes.Status200OK)
@@ -118,7 +124,9 @@ internal static class GamepacksEndpoints {
         + "If the check finds a problem, the rollback is refused and nothing changes. "
         + "Query managed=true runs the managed flow of feature 148: it stops the affected queues, stores a backup, rolls back, "
         + "books disabled entries for sequences that the previous version adds, and restarts the queues that it stopped. "
-        + "The response is then a managed update report. The queries dryRun and templates apply only with managed=true.");
+        + "The response is then a managed update report. The queries dryRun and templates apply only with managed=true. "
+        + "A failed write gives 500. If the restore fails too, the result is partial_restore and the problem document has failedRestoreKeys "
+        + "(the format is <kind>:<id> (<full file path>)).");
 
     group.MapDelete("{name}", RemoveAsync)
       .Produces(StatusCodes.Status204NoContent)
@@ -177,7 +185,7 @@ internal static class GamepacksEndpoints {
           Reasons = outcome.Reasons.Select(r => new GamepackTakeOverRestoreReasonDto { Code = r.Code, Type = r.Type, Name = r.Name, Message = r.Message }).ToList()
         },
         statusCode: StatusCodes.Status409Conflict),
-      TakeOverRestoreStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage),
+      TakeOverRestoreStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage, outcome.FailedRestoreKeys),
       _ => WriteFailed("failed", outcome.ErrorMessage)
     };
   }
@@ -191,7 +199,7 @@ internal static class GamepacksEndpoints {
       GamepackInstallStatus.SignatureRejected => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status422UnprocessableEntity),
       GamepackInstallStatus.Invalid when isDryRun => Results.Ok(ToInstallResponse(outcome, valid: false)),
       GamepackInstallStatus.Invalid => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status422UnprocessableEntity),
-      GamepackInstallStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage),
+      GamepackInstallStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage, outcome.FailedRestoreKeys),
       _ => WriteFailed("failed", outcome.ErrorMessage)
     };
 
@@ -232,7 +240,7 @@ internal static class GamepacksEndpoints {
         StatusCodes.Status409Conflict, "no_previous_version", "The gamepack has no kept previous version."),
       GamepackRollbackStatus.NotFound => ProblemResult(
         StatusCodes.Status404NotFound, "not_found", "No gamepack has this name."),
-      GamepackRollbackStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage),
+      GamepackRollbackStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage, outcome.FailedRestoreKeys),
       _ => WriteFailed("failed", outcome.ErrorMessage)
     };
   }
@@ -346,19 +354,22 @@ internal static class GamepacksEndpoints {
   private static IResult TooLarge() =>
     ProblemResult(StatusCodes.Status413PayloadTooLarge, "too_large", "The request is larger than 100 MB. Nothing changed.");
 
-  private static IResult WriteFailed(string result, string? detail) =>
+  private static IResult WriteFailed(string result, string? detail, IReadOnlyList<string>? failedRestoreKeys = null) =>
     ProblemResult(
       StatusCodes.Status500InternalServerError,
       result,
       result == "partial_restore"
         ? "A write failed and the restore failed too. The state can be partly restored. See the service log."
         : "A write failed. All objects stay as before.",
-      detail);
+      detail,
+      result == "partial_restore" ? failedRestoreKeys ?? Array.Empty<string>() : null);
 
-  private static IResult ProblemResult(int status, string result, string title, string? detail = null) =>
-    Results.Problem(
-      statusCode: status,
-      title: title,
-      detail: detail,
-      extensions: new Dictionary<string, object?> { ["result"] = result });
+  private static IResult ProblemResult(int status, string result, string title, string? detail = null, IReadOnlyList<string>? failedRestoreKeys = null) {
+    var extensions = new Dictionary<string, object?> { ["result"] = result };
+    if (failedRestoreKeys is not null) {
+      extensions["failedRestoreKeys"] = failedRestoreKeys;
+    }
+
+    return Results.Problem(statusCode: status, title: title, detail: detail, extensions: extensions);
+  }
 }

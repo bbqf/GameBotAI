@@ -57,6 +57,9 @@ public sealed class GamepackInstallOutcome {
   /// <summary>The error text for a failed write, or null.</summary>
   public string? ErrorMessage { get; init; }
 
+  /// <summary>The files in an unknown state after a failed restore, as <c>kind:id (full path)</c>. Empty otherwise.</summary>
+  public IReadOnlyList<string> FailedRestoreKeys { get; init; } = Array.Empty<string>();
+
   /// <summary>The number of user objects taken over (planned for a dry run). 0 when the option is off (feature 149).</summary>
   public int TakenOver { get; init; }
 
@@ -122,6 +125,9 @@ public sealed class GamepackRollbackOutcome {
 
   /// <summary>The error text for a failed write, or null.</summary>
   public string? ErrorMessage { get; init; }
+
+  /// <summary>The files in an unknown state after a failed restore, as <c>kind:id (full path)</c>. Empty otherwise.</summary>
+  public IReadOnlyList<string> FailedRestoreKeys { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>The status of a remove request.</summary>
@@ -321,7 +327,8 @@ public sealed partial class GamepackService : IDisposable {
           Status = applied.Status == GamepackApplyStatus.PartialRestore ? GamepackInstallStatus.PartialRestore : GamepackInstallStatus.Failed,
           Name = plan.Manifest.Name,
           Version = plan.Manifest.Version,
-          ErrorMessage = applied.Error?.Message
+          ErrorMessage = applied.Error?.Message,
+          FailedRestoreKeys = applied.FailedRestoreKeys
         };
       }
 
@@ -415,7 +422,8 @@ public sealed partial class GamepackService : IDisposable {
           Status = applied.Status == GamepackApplyStatus.PartialRestore ? GamepackRollbackStatus.PartialRestore : GamepackRollbackStatus.Failed,
           Name = record.Name,
           Version = record.Version,
-          ErrorMessage = applied.Error?.Message
+          ErrorMessage = applied.Error?.Message,
+          FailedRestoreKeys = applied.FailedRestoreKeys
         };
       }
 

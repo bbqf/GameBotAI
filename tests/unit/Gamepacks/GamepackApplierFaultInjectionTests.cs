@@ -98,7 +98,7 @@ public sealed class GamepackApplierFaultInjectionTests {
     var outcome = await kit.Applier.ApplyAsync(check.Plan, GamepackPreviousHandling.Keep);
 
     outcome.Status.Should().Be(GamepackApplyStatus.PartialRestore);
-    outcome.FailedRestoreKeys.Should().Contain("registry");
+    outcome.FailedRestoreKeys.Should().Contain("registry:p (" + kit.Store.RegistryPath + ")");
     outcome.FailedRestoreKeys.Count.Should().BeGreaterThan(2);
   }
 

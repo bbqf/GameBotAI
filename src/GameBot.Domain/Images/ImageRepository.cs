@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Triggers.Evaluators;
+using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Images {
   public interface IImageRepository {
@@ -14,6 +15,9 @@ namespace GameBot.Domain.Images {
     Task<ImageAsset> SaveAsync(string id, Stream content, string contentType, string? filename, bool overwrite, CancellationToken ct = default);
     Task<bool> DeleteAsync(string id, CancellationToken ct = default);
     Task<bool> ExistsAsync(string id, CancellationToken ct = default);
+
+    /// <summary>Gives the full path of the image file for <paramref name="id"/>, or null when the store has no file or the id is not valid. It has no side effect.</summary>
+    string? GetFilePath(string id) => null;
   }
 
   public sealed record ImageAsset(
@@ -126,12 +130,8 @@ namespace GameBot.Domain.Images {
         File.Delete(existingPath);
       }
 
-      if (File.Exists(targetPath)) {
-        File.Replace(tmpFile, targetPath, null);
-      }
-      else {
-        File.Move(tmpFile, targetPath);
-      }
+      // A move with overwrite and a short retry. File.Replace fails when another handle holds the old file (issue #333).
+      AtomicFile.ReplaceFile(tmpFile, targetPath, "image", id);
 
       var info = new FileInfo(targetPath);
       return new ImageAsset(
@@ -151,6 +151,13 @@ namespace GameBot.Domain.Images {
       if (path is null || !File.Exists(path)) return Task.FromResult(false);
       File.Delete(path);
       return Task.FromResult(true);
+    }
+
+    /// <inheritdoc />
+    public string? GetFilePath(string id) {
+      ArgumentNullException.ThrowIfNull(id);
+      if (!ReferenceImageIdValidator.IsValid(id)) return null;
+      return Path.GetFullPath(ResolveExistingPath(id) ?? ResolveTargetPath(id, "image/png"));
     }
 
     private string? ResolveExistingPath(string id) {

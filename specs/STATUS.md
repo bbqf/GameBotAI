@@ -184,6 +184,7 @@ Status vocabulary:
 | 149 | Gamepack Take-over of User Objects | Implemented (quickstart walk pending) |
 | 150 | Gamepack Seed Queue Templates | Implemented (quickstart walk pending) |
 | 151 | Fix Gamepack Action Step Command | Implemented |
+| 157 | Fix Gamepack Install File Replace Failure | Implemented (quickstart walk pending) |
 
 ## Numbering notes
 

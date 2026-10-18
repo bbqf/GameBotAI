@@ -62,4 +62,7 @@ public sealed class TakeOverRestoreOutcome {
 
   /// <summary>The error text of a failed write, or null.</summary>
   public string? ErrorMessage { get; init; }
+
+  /// <summary>The files in an unknown state after a failed undo, as <c>kind:id (full path)</c>. Empty otherwise.</summary>
+  public IReadOnlyList<string> FailedRestoreKeys { get; init; } = Array.Empty<string>();
 }

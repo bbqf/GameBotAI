@@ -12,5 +12,8 @@ namespace GameBot.Domain.Commands {
     Task<CommandSequence> CreateAsync(CommandSequence sequence);
     Task<CommandSequence> UpdateAsync(CommandSequence sequence);
     Task<bool> DeleteAsync(string id);
+
+    /// <summary>Gives the full path of the file for <paramref name="id"/>, or null when the store has no file or the id is not valid. It has no side effect.</summary>
+    string? GetFilePath(string id) => null;
   }
 }

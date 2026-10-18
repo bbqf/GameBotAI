@@ -19,6 +19,9 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Fixed
+- Gamepack install and take-over (157-fix-gamepack-install-replace-file)
+  - **Replace file**: the install no longer fails when it replaces a data file. A write error now gives a clear error, and a partial restore is reported.
+  - The patch version is now 11, so the next build is `1.11.11.<run number>`.
 - Gamepack command references (155-gamepack-command-reference-check)
   - **Report unresolved references**: the gamepack dry run now reports a command reference that does not resolve. Before, the dry run did not find this error.
   - See `docs/gamepacks.md`.
