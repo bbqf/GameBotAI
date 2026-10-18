@@ -43,6 +43,9 @@ namespace GameBot.Domain.QueueTemplates {
       return true;
     }
 
+    /// <inheritdoc />
+    public string? GetFilePath(string id) => TryGetSafePath(id, out var path) ? path : null;
+
     public async Task<QueueTemplate?> GetAsync(string id) {
       if (!TryGetSafePath(id, out var path)) return null;
       if (!File.Exists(path)) return null;

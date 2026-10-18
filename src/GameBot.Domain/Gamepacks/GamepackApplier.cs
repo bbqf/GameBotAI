@@ -2,6 +2,7 @@ using GameBot.Domain.Commands;
 using GameBot.Domain.Gamepacks.Seeds;
 using GameBot.Domain.Images;
 using GameBot.Domain.QueueTemplates;
+using GameBot.Domain.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -247,7 +248,14 @@ public sealed partial class GamepackApplier {
         template.Entries.Add(entry);
       }
 
-      var created = await _templates.CreateAsync(template).ConfigureAwait(false);
+      QueueTemplate created;
+      try {
+        created = await _templates.CreateAsync(template).ConfigureAwait(false);
+      }
+      catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+        throw FileError(TemplateKind, template.Id, ex);
+      }
+
       createdIds.Add(created.Id);
       createdNames.Add(item.Name);
     }
@@ -270,6 +278,42 @@ public sealed partial class GamepackApplier {
 
   private async Task WriteObjectAsync(PlannedObject write, Snapshot snapshot, CancellationToken ct) {
     _gate.BeforeWrite(write.IsUpdate ? GamepackWriteOperations.Update : GamepackWriteOperations.Create, write.Key);
+    try {
+      await WriteObjectCoreAsync(write, snapshot, ct).ConfigureAwait(false);
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+      throw FileError(write.Type, write.FinalId, ex);
+    }
+  }
+
+  // Gives the fixed file error text (FR-008). An error from AtomicFile has the text already and gets no second prefix.
+  private IOException FileError(string kind, string id, Exception ex) {
+    if (ex is IOException io && io.Message.StartsWith("Cannot replace file '", StringComparison.Ordinal)) {
+      return io;
+    }
+
+    var path = FilePathOf(kind, id) ?? "(unknown path)";
+    return new IOException(AtomicFile.FormatError(path, kind, id, ex.Message), ex);
+  }
+
+  // The full path of the file of an object, from the store that writes it. Null when the store gives none.
+  private string? FilePathOf(string kind, string id) => kind switch {
+    GamepackObjectTypes.Sequence => _sequences.GetFilePath(id),
+    GamepackObjectTypes.Command => _commands.GetFilePath(id),
+    GamepackObjectTypes.Image => _images.GetFilePath(id),
+    TemplateKind => _templates?.GetFilePath(id),
+    _ => null
+  };
+
+  private const string TemplateKind = "template";
+
+  // The entry of a file in an unknown state (FR-009): "<kind>:<id> (<full file path>)".
+  private static string RestoreKey(string kind, string id, string? path) =>
+    path is null ? kind + ":" + id : kind + ":" + id + " (" + path + ")";
+
+  private string ObjectRestoreKey(string kind, string id) => RestoreKey(kind, id, FilePathOf(kind, id));
+
+  private async Task WriteObjectCoreAsync(PlannedObject write, Snapshot snapshot, CancellationToken ct) {
     var now = _time.GetUtcNow();
     switch (write.Type) {
       case GamepackObjectTypes.Sequence: {
@@ -533,7 +577,7 @@ public sealed partial class GamepackApplier {
         }
       }
       catch (Exception ex) {
-        failed.Add("registry");
+        failed.Add(RestoreKey("registry", packName, _store.RegistryFilePath));
         LogRestoreFailed(_logger, "registry", ex);
       }
     }
@@ -549,7 +593,7 @@ public sealed partial class GamepackApplier {
         }
       }
       catch (Exception ex) {
-        failed.Add("previous-file");
+        failed.Add(RestoreKey("previous", packName, _store.PreviousFilePath(packName)));
         LogRestoreFailed(_logger, "previous-file", ex);
       }
     }
@@ -562,7 +606,7 @@ public sealed partial class GamepackApplier {
         await _templates!.DeleteAsync(createdSeedIds![i]).ConfigureAwait(false);
       }
       catch (Exception ex) {
-        failed.Add(key);
+        failed.Add(ObjectRestoreKey(TemplateKind, createdSeedIds![i]));
         LogRestoreFailed(_logger, key, ex);
       }
     }
@@ -574,7 +618,7 @@ public sealed partial class GamepackApplier {
         await RestoreObjectAsync(snapshot).ConfigureAwait(false);
       }
       catch (Exception ex) {
-        failed.Add(snapshot.Key);
+        failed.Add(ObjectRestoreKey(snapshot.Type, snapshot.Id));
         LogRestoreFailed(_logger, snapshot.Key, ex);
       }
     }

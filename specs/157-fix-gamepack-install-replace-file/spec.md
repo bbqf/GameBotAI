@@ -2,7 +2,7 @@
 
 **Feature Branch**: `157-fix-gamepack-install-replace-file`  
 **Created**: 2026-10-18  
-**Status**: Draft  
+**Status**: Implemented (quickstart walk pending)  
 **Input**: GitHub issue #333 - a real gamepack install answers 500 "Unable to remove the file to be replaced". Closes #333.
 
 ## Clarifications

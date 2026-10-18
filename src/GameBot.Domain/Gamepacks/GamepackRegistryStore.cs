@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Gamepacks;
 
@@ -16,6 +17,10 @@ public sealed class GamepackRegistryStore : IGamepackRegistryStore {
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true
   };
+
+  // The error text for the registry file names the kind "registry". The registry file holds all packs, so it has no pack id.
+  private const string RegistryKind = "registry";
+  private const string RegistryId = "registry.json";
 
   private readonly string _folder;
   private readonly string _previousFolder;
@@ -57,7 +62,7 @@ public sealed class GamepackRegistryStore : IGamepackRegistryStore {
   public void Save(GamepackRegistry registry) {
     ArgumentNullException.ThrowIfNull(registry);
     lock (_lock) {
-      WriteAtomic(_registryPath, JsonSerializer.Serialize(registry, JsonOptions));
+      WriteAtomic(_registryPath, JsonSerializer.Serialize(registry, JsonOptions), RegistryKind, RegistryId);
     }
   }
 
@@ -67,7 +72,7 @@ public sealed class GamepackRegistryStore : IGamepackRegistryStore {
     lock (_lock) {
       var registry = LoadUnlocked();
       change(registry);
-      WriteAtomic(_registryPath, JsonSerializer.Serialize(registry, JsonOptions));
+      WriteAtomic(_registryPath, JsonSerializer.Serialize(registry, JsonOptions), RegistryKind, RegistryId);
     }
   }
 
@@ -84,9 +89,15 @@ public sealed class GamepackRegistryStore : IGamepackRegistryStore {
     ArgumentNullException.ThrowIfNull(text);
     var path = PreviousPath(name);
     lock (_lock) {
-      WriteAtomic(path, text);
+      WriteAtomic(path, text, "previous", name);
     }
   }
+
+  /// <inheritdoc />
+  public string? RegistryFilePath => Path.GetFullPath(_registryPath);
+
+  /// <inheritdoc />
+  public string? PreviousFilePath(string name) => GamepackNameRules.IsValid(name) ? Path.GetFullPath(PreviousPath(name)) : null;
 
   /// <inheritdoc />
   public void DeletePrevious(string name) {
@@ -119,16 +130,11 @@ public sealed class GamepackRegistryStore : IGamepackRegistryStore {
     return JsonSerializer.Deserialize<GamepackRegistry>(text, JsonOptions) ?? new GamepackRegistry();
   }
 
-  private static void WriteAtomic(string path, string text) {
+  private static void WriteAtomic(string path, string text, string kind, string id) {
     var dir = Path.GetDirectoryName(path)!;
     Directory.CreateDirectory(dir);
     var temp = Path.Combine(dir, Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
     File.WriteAllText(temp, text, new UTF8Encoding(false));
-    if (File.Exists(path)) {
-      File.Replace(temp, path, null);
-    }
-    else {
-      File.Move(temp, path);
-    }
+    AtomicFile.ReplaceFile(temp, path, kind, id);
   }
 }

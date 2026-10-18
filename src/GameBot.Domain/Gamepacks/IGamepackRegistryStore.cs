@@ -31,4 +31,11 @@ public interface IGamepackRegistryStore {
   /// <summary>Deletes the previous-version file. A missing file is not an error.</summary>
   /// <param name="name">The gamepack name.</param>
   void DeletePrevious(string name);
+
+  /// <summary>Gives the full path of the registry file, or null when the store has no file. It has no side effect.</summary>
+  string? RegistryFilePath => null;
+
+  /// <summary>Gives the full path of the previous-version file for <paramref name="name"/>, or null when the store has no file or the name is not valid. It has no side effect.</summary>
+  /// <param name="name">The gamepack name.</param>
+  string? PreviousFilePath(string name) => null;
 }

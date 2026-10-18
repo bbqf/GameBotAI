@@ -23,6 +23,7 @@ internal sealed class RecordingTemplateRepository : IQueueTemplateRepository {
   public HashSet<string> FailDeleteOfName { get; } = new(StringComparer.OrdinalIgnoreCase);
   public List<string> DeleteAttempts { get; } = new();
 
+  public string? GetFilePath(string id) => _inner.GetFilePath(id);
   public Task<QueueTemplate?> GetAsync(string id) => _inner.GetAsync(id);
   public Task<IReadOnlyList<QueueTemplate>> ListAsync() => _inner.ListAsync();
   public Task<QueueTemplate?> FindByNameAsync(string name) => _inner.FindByNameAsync(name);
