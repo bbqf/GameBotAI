@@ -6,6 +6,7 @@ using GameBot.Domain.Services;
 using GameBot.Domain.Vision;
 using GameBot.Service.Contracts.Sequences;
 using GameBot.Service.Models;
+using GameBot.Service.Services.Ocr;
 
 namespace GameBot.Service.Endpoints;
 
@@ -663,6 +664,14 @@ internal static class SequencesEndpoints {
         negate = commandOutcome.Negate
       },
       LastRunStepCondition lastRun => MapLastRunConditionToDto(lastRun),
+      OcrTextStepCondition ocrText => new {
+        type = "ocrText",
+        region = PixelRegionDto.FromDomain(ocrText.Region),
+        expected = ocrText.Expected,
+        pattern = ocrText.Pattern,
+        parser = ocrText.Parser,
+        negate = ocrText.Negate
+      },
       // Feature 088: the rule is the discriminator, and children are emitted in evaluation order.
       CompositeStepCondition composite => new {
         type = composite.Type,
@@ -1548,6 +1557,13 @@ internal static class SequencesEndpoints {
       case ImageVisibleConditionContract imageVisible:
         errors.AddRange(PixelRegionDto.Validate(imageVisible.Region, $"{path} region"));
         break;
+      case OcrTextConditionContract ocrText:
+        errors.AddRange(PixelRegionDto.Validate(ocrText.Region, $"{path} ocrText region"));
+        // Issue #338 (FR-018): this is the only save-time check of the parser name.
+        if (!string.IsNullOrWhiteSpace(ocrText.Parser) && !OcrTextParsers.TryGetName(ocrText.Parser, out _)) {
+          errors.Add($"{path} ocrText parser '{ocrText.Parser}' is not known. Supported parsers: {string.Join(", ", OcrTextParsers.Names)}.");
+        }
+        break;
       case CompositeConditionContract composite when composite.Children is not null:
         for (var index = 0; index < composite.Children.Count; index++) {
           CollectConditionRegionErrors(composite.Children[index], $"{path}.children[{index}]", errors);
@@ -1596,6 +1612,17 @@ internal static class SequencesEndpoints {
         Since = lastRun.Since,
         Within = lastRun.Within,
         Negate = lastRun.Negate
+      },
+      OcrTextConditionContract ocrText => new OcrTextStepCondition {
+        // A missing or partial region gives null here, and the domain validation then says "requires region".
+        Region = PixelRegionDto.ToDomain(ocrText.Region),
+        Expected = ocrText.Expected,
+        Pattern = ocrText.Pattern,
+        // The endpoint stores the canonical parser name (HH:MM:SS is stored as hh:mm:ss).
+        Parser = string.IsNullOrWhiteSpace(ocrText.Parser)
+          ? null
+          : OcrTextParsers.TryGetName(ocrText.Parser, out var canonicalParser) ? canonicalParser : ocrText.Parser.Trim(),
+        Negate = ocrText.Negate
       },
       // Feature 088: a composite maps to the domain type matching its rule, recursing through
       // children. Child order is preserved because it is the evaluation order the author chose.

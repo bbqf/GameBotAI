@@ -38,6 +38,9 @@ public sealed class SequenceStepper {
   /// <summary>The note for a condition that reads the queue run history. A step-through has no queue run.</summary>
   public const string LastRunNote = "lastRun is not evaluated";
 
+  /// <summary>The note for a condition that reads the screen with OCR. A step-through does not read the screen.</summary>
+  public const string OcrTextNote = "ocrText is not evaluated";
+
   /// <summary>The note for a step that a real run would end the sequence at.</summary>
   public const string SequenceEndNote = "sequence would end here";
 
@@ -234,8 +237,21 @@ public sealed class SequenceStepper {
     };
   }
 
-  private static string[] ConditionNotes(params SequenceStepCondition?[] conditions)
-    => conditions.Any(HasLastRun) ? new[] { LastRunNote } : Array.Empty<string>();
+  private static bool HasOcrText(SequenceStepCondition? condition) {
+    return condition switch {
+      null => false,
+      OcrTextStepCondition => true,
+      CompositeStepCondition composite => composite.Children.Any(HasOcrText),
+      _ => false
+    };
+  }
+
+  private static string[] ConditionNotes(params SequenceStepCondition?[] conditions) {
+    var notes = new List<string>(2);
+    if (conditions.Any(HasLastRun)) notes.Add(LastRunNote);
+    if (conditions.Any(HasOcrText)) notes.Add(OcrTextNote);
+    return notes.ToArray();
+  }
 
   // ── Moving the cursor ─────────────────────────────────────────────────────────────────────────
 

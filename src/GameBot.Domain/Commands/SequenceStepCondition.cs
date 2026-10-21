@@ -11,6 +11,7 @@ namespace GameBot.Domain.Commands;
 [JsonDerivedType(typeof(AnyStepCondition), typeDiscriminator: "any")]
 [JsonDerivedType(typeof(NoneStepCondition), typeDiscriminator: "none")]
 [JsonDerivedType(typeof(LastRunStepCondition), typeDiscriminator: "lastRun")]
+[JsonDerivedType(typeof(OcrTextStepCondition), typeDiscriminator: "ocrText")]
 public abstract class SequenceStepCondition {
   public abstract string Type { get; }
   public bool Negate { get; set; }
@@ -68,6 +69,32 @@ public sealed class LastRunStepCondition : SequenceStepCondition {
 
   /// <summary>A duration in <c>hh:mm:ss</c> or <c>d.hh:mm:ss</c> format. Set exactly one of this field and <see cref="Since"/>.</summary>
   public string? Within { get; set; }
+}
+
+/// <summary>
+/// True when the text that OCR reads from a screen region matches <see cref="Expected"/> or
+/// <see cref="Pattern"/> (issue #338). Set exactly one of the two. The condition only reads the screen
+/// and sends no input. <see cref="OcrTextConditionRules"/> holds the field rules and the match rules.
+/// </summary>
+public sealed class OcrTextStepCondition : SequenceStepCondition {
+  [JsonIgnore]
+  public override string Type => "ocrText";
+
+  /// <summary>The screen region to read, in capture pixels.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public PixelRegion? Region { get; set; }
+
+  /// <summary>Exact, case-sensitive match after trim. Set exactly one of this field and <see cref="Pattern"/>.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Expected { get; set; }
+
+  /// <summary>A regular expression that matches anywhere in the text. Set exactly one of this field and <see cref="Expected"/>.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Pattern { get; set; }
+
+  /// <summary>The optional parser name. Today only <c>hh:mm:ss</c>. The compare then uses the parsed text.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Parser { get; set; }
 }
 
 /// <summary>

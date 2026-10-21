@@ -836,6 +836,33 @@ for a queue run (`OriginatingQueueId` set, not a dry-run); its delegate calls
 is a 400 with a `Step '<id>' condition at <path>:` message) and evaluation. The web UI does not know
 this type: authors write `lastRun` conditions through the API.
 
+### The `ocrText` step condition (feature 158, #338)
+
+`OcrTextStepCondition` (discriminator `ocrText`; fields `region` (x, y, width, height in capture pixels),
+exactly one of `expected` and `pattern`, optional `parser` (`hh:mm:ss`), and `negate`) is true when the
+text that OCR reads from the region matches. `expected` is an exact, case-sensitive compare of the trimmed
+text. `pattern` is a regular expression that matches anywhere in the trimmed text, with a time limit of
+1 second. A time-out is a plain mismatch. With a `parser`, the compare uses the parsed text. It is permitted
+in every condition slot and as a child of `all`/`any`/`none`. The condition only reads the screen and sends no
+input.
+
+The screen reader reaches the evaluator through the ambient `OcrTextEvaluationScope` (`AsyncLocal`, the same
+pattern as `SequenceRunContext`). `SequenceExecutionService.PushOcrScope` pushes it for each run that has an
+emulator session (not a dry-run). Its delegate calls `OcrTextConditionReader`, which uses
+`ISessionFrameSource.Capture`, `OcrRegionReader.Read` and `OcrTextParsers`, the same code as
+`POST /api/ocr/read`. `SequenceRunner.ExecuteAsync` pushes a scope with no reader when none is present, so a
+run with no session gives false with the reason `no-session` and still has a run log line. A step-through
+reads no screen: the entry says `ocrText is not evaluated`.
+
+A failure to read never fails the step. The leaf is false (before `negate`) with one reason code from a closed
+list: `no-session`, `capture-failed`, `ocr-unavailable`, `region-outside-frame`, `region-invalid`,
+`ocr-error`, `parse-failed`. A plain mismatch and a `pattern` time-out have no code. Each evaluation adds one
+`OcrTextEvaluationRecord`. The runner drains the records after the condition and puts one line for each in
+the step message, for example `ocrText: read='0' expected='0' result=true`, with `reason=<code>` for a failure.
+`OcrTextConditionRules` holds the field rules (save-time: `CompositeConditionValidator` walks the leaf) and the
+match rules. Only the sequence endpoint checks the `parser` name and stores the canonical name. The web UI does
+not know this type: authors write `ocrText` conditions through the API.
+
 ### Queue sequence notifications (feature 120)
 
 A queue can tell the operator when one of its entries ends. This is separate from the failure policy

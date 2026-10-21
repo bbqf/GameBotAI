@@ -65,6 +65,9 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   private readonly GameBot.Service.Services.Quiz.QuizLookupHandler? _quizLookup;
   private readonly GameBot.Service.Services.Quiz.QuizLearnHandler? _quizLearn;
   private readonly GameBot.Service.Services.Quiz.QuizLookupResultKeeper? _quizKeeper;
+  // Issue #338: reads the region of an ocrText condition. Optional, so the hand-built test instances keep
+  // compiling; without it an ocrText condition is false with the reason no-session.
+  private readonly GameBot.Service.Services.Ocr.IOcrTextConditionReader? _ocrTextReader;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -91,7 +94,9 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     TimeProvider? timeProvider = null,
     GameBot.Service.Services.Quiz.QuizLookupHandler? quizLookup = null,
     GameBot.Service.Services.Quiz.QuizLearnHandler? quizLearn = null,
-    GameBot.Service.Services.Quiz.QuizLookupResultKeeper? quizKeeper = null) {
+    GameBot.Service.Services.Quiz.QuizLookupResultKeeper? quizKeeper = null,
+    GameBot.Service.Services.Ocr.IOcrTextConditionReader? ocrTextReader = null) {
+    _ocrTextReader = ocrTextReader;
     _quizLookup = quizLookup;
     _quizLearn = quizLearn;
     _quizKeeper = quizKeeper;
@@ -239,6 +244,19 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       queueId, sequenceId, (condition, ct) => evaluator.EvaluateAsync(queueId, sequenceId, condition, ct)));
   }
 
+  /// <summary>
+  /// Issue #338: makes the screen reader of this run ambient, so an <c>ocrText</c> condition can read the
+  /// screen of the session. A run with no session (a dry-run, or no capture) gets no scope, and the
+  /// condition is then false with the reason <c>no-session</c>. A nested sequence pushes its own scope.
+  /// </summary>
+  internal static IDisposable? PushOcrScope(
+      GameBot.Service.Services.Ocr.IOcrTextConditionReader? reader, string? sessionId, bool dryRun) {
+    if (dryRun || reader is null || string.IsNullOrWhiteSpace(sessionId)) return null;
+    var session = sessionId;
+    return OcrTextEvaluationScope.Push(new OcrTextEvaluationScope(
+      (condition, token) => reader.ReadAsync(condition, session, token)));
+  }
+
   private async Task<SequenceExecutionResult> ExecuteCoreAsync(
       string sequenceId,
       string? sessionId,
@@ -255,6 +273,12 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       : _deviceContext.Push(GameBot.Domain.Sessions.DeviceContext.For(
           sessionId!, _sessionManager.GetSession(sessionId!)?.DeviceSerial));
     using var runContext = PushRunContext(_lastRunEvaluator, sequenceId, parentContext?.OriginatingQueueId, dryRun);
+    // An ad-hoc run with no session id uses the only running session, the same rule as the action steps.
+    string? ocrSessionId = null;
+    if (!dryRun && _ocrTextReader is not null) {
+      _ = TryResolveSessionId(sessionId, "ocrText", out ocrSessionId, out _);
+    }
+    using var ocrScope = PushOcrScope(_ocrTextReader, ocrSessionId, dryRun);
 
     // Create the in-progress root entry up front so invoked commands can be linked to it
     // (and the sequence shows as a single top-level entry while it runs). When a parent

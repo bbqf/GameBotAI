@@ -110,6 +110,10 @@ namespace GameBot.Domain.Services {
         return SequenceExecutionResult.NotFound(sequenceId);
       }
 
+      // Issue #338: a run with no screen reader still keeps the records of its ocrText conditions, so
+      // the run log shows the reason no-session.
+      using var ocrScope = OcrTextEvaluationScope.EnsureScope();
+
       // The sequence's own declarations join the scope so their defaults apply to any name no caller
       // supplied. Bindings still outrank defaults regardless of layer depth (see ParameterScope).
       var runScope = (scope ?? ParameterScope.Empty)
@@ -1174,21 +1178,26 @@ namespace GameBot.Domain.Services {
         return FailGuard($"Step '{stepKey}' condition evaluation failed: {ex.Message}");
       }
 
+      // Issue #338: the text that an ocrText condition read. A guard that passes has no log entry of its
+      // own, so its lines are dropped here and do not leak into a later step.
+      var guardOcrLog = OcrTextEvaluationScope.DrainLog();
       if (conditionOutcome.Value) {
         return StepGuardDecision.Run;
       }
 
-      record(
-          "Skipped",
-          conditionType,
-          "false",
-          conditionOutcome.DecidingPath is null
-            ? null
-            : $"condition {conditionOutcome.DecidingPath} ({conditionOutcome.DecidingDescription}) settled the guard");
+      var guardDetail = conditionOutcome.DecidingPath is null
+        ? null
+        : $"condition {conditionOutcome.DecidingPath} ({conditionOutcome.DecidingDescription}) settled the guard";
+      if (guardOcrLog.Length > 0) {
+        guardDetail = guardDetail is null ? guardOcrLog : $"{guardDetail} [{guardOcrLog}]";
+      }
+
+      record("Skipped", conditionType, "false", guardDetail);
       if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "skipped";
       return StepGuardDecision.Skip;
 
       StepGuardDecision FailGuard(string failureMessage) {
+        _ = OcrTextEvaluationScope.DrainLog();
         record("Failed", conditionType, "error", failureMessage);
         result.Fail(failureMessage);
         if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
@@ -1416,10 +1425,13 @@ namespace GameBot.Domain.Services {
           return true;
         }
 
+        // Issue #338: the text that an ocrText condition read goes in the loop step, so the log shows it.
+        var whileOcrLog = OcrTextEvaluationScope.DrainLog();
         if (!condResult) {
           // condition false on entry (or after last iteration)
           var status = iterations == 0 ? "Skipped" : "false";
           result.AddLoopStep(stepKey, status, iterResults,
+              message: whileOcrLog.Length == 0 ? null : whileOcrLog,
               exitReason: new LoopExitReason { BrokeVia = null, ExhaustedMaxIterations = false });
           stepOutcomes[stepKey] = iterations == 0 ? "skipped" : "success";
           return false;
@@ -1491,9 +1503,11 @@ namespace GameBot.Domain.Services {
       var iterations = 0;
       var priorIterationExecutedSteps = false;
       string? brokeVia = null;
+      var untilOcrLog = string.Empty;
 
       while (true) {
         ct.ThrowIfCancellationRequested();
+        untilOcrLog = string.Empty;
 
         if (priorIterationExecutedSteps) {
           var interStepDelay = SampleInterStepDelay(interStepDelayRange);
@@ -1548,10 +1562,13 @@ namespace GameBot.Domain.Services {
           return true;
         }
 
+        // Issue #338: keep the text that an ocrText exit condition read, so the log shows it.
+        untilOcrLog = OcrTextEvaluationScope.DrainLog();
         if (exitCond) break;
       }
 
       result.AddLoopStep(stepKey, "true", iterResults,
+          message: untilOcrLog.Length == 0 ? null : untilOcrLog,
           exitReason: new LoopExitReason { BrokeVia = brokeVia, ExhaustedMaxIterations = false });
       stepOutcomes[stepKey] = "success";
       return false;
@@ -1605,7 +1622,7 @@ namespace GameBot.Domain.Services {
             conditionType: condDesc.Type,
             conditionResult: "error",
             actionOutcome: "failed",
-            message: $"If '{stepKey}' condition evaluation failed: {ex.Message}");
+            message: $"If '{stepKey}' condition evaluation failed: {ex.Message}{WithOcrLog(OcrTextEvaluationScope.DrainLog())}");
         result.Fail($"If '{stepKey}' condition evaluation failed: {ex.Message}");
         stepOutcomes[stepKey] = "failed";
         return (true, false, null);
@@ -1614,6 +1631,8 @@ namespace GameBot.Domain.Services {
       var branch = condResult ? step.Body : step.ElseBody ?? Array.Empty<SequenceStep>();
       var branchName = condResult ? "then" : "else";
       var hasBranchSteps = branch.Count > 0;
+      // Issue #338: the text that an ocrText condition read goes in the step message.
+      var ifOcrLog = WithOcrLog(OcrTextEvaluationScope.DrainLog());
 
       // Record the branch decision before the branch steps so the log reads causally.
       result.AddStep(stepKey, 0, "Succeeded",
@@ -1621,8 +1640,8 @@ namespace GameBot.Domain.Services {
           conditionResult: condResult ? "true" : "false",
           actionOutcome: hasBranchSteps ? branchName : "none",
           message: hasBranchSteps
-            ? $"If '{stepKey}': {condDesc.Detail} evaluated to {(condResult ? "true" : "false")} → {branchName} branch"
-            : $"If '{stepKey}': {condDesc.Detail} evaluated to {(condResult ? "true" : "false")} → no {branchName} branch (no-op)");
+            ? $"If '{stepKey}': {condDesc.Detail} evaluated to {(condResult ? "true" : "false")} → {branchName} branch{ifOcrLog}"
+            : $"If '{stepKey}': {condDesc.Detail} evaluated to {(condResult ? "true" : "false")} → no {branchName} branch (no-op){ifOcrLog}");
 
       if (!hasBranchSteps) {
         stepOutcomes[stepKey] = "skipped";
@@ -1707,9 +1726,12 @@ namespace GameBot.Domain.Services {
                 conditionType: condDesc.Type,
                 conditionResult: "error",
                 actionOutcome: BreakOutcomes.NoBreak,
-                message: $"No break: {condDesc.Detail} could not be evaluated ({ex.Message})");
+                message: $"No break: {condDesc.Detail} could not be evaluated ({ex.Message}){WithOcrLog(OcrTextEvaluationScope.DrainLog())}");
             stepOutcomes[brkKey] = BreakOutcomes.NoBreak;
           }
+
+          // Issue #338: the text that an ocrText condition read goes in the step message.
+          var brkOcrLog = WithOcrLog(OcrTextEvaluationScope.DrainLog());
 
           if (breakCond) {
             // Conditional break — fired.
@@ -1717,7 +1739,7 @@ namespace GameBot.Domain.Services {
                 conditionType: condDesc.Type,
                 conditionResult: "true",
                 actionOutcome: BreakOutcomes.Break,
-                message: $"Break triggered: {condDesc.Detail} evaluated to true");
+                message: $"Break triggered: {condDesc.Detail} evaluated to true{brkOcrLog}");
             stepOutcomes[brkKey] = BreakOutcomes.Break;
             return (false, true, stepsExecuted, brkKey);
           }
@@ -1729,7 +1751,7 @@ namespace GameBot.Domain.Services {
                 conditionType: condDesc.Type,
                 conditionResult: "false",
                 actionOutcome: BreakOutcomes.NoBreak,
-                message: $"No break: {condDesc.Detail} evaluated to false");
+                message: $"No break: {condDesc.Detail} evaluated to false{brkOcrLog}");
             stepOutcomes[brkKey] = BreakOutcomes.NoBreak;
           }
 
@@ -1848,6 +1870,9 @@ namespace GameBot.Domain.Services {
       return evaluation.Value;
     }
 
+    /// <summary>Formats the drained <c>ocrText</c> log lines as a message tail. Empty when there is no line.</summary>
+    private static string WithOcrLog(string log) => log.Length == 0 ? string.Empty : $" [{log}]";
+
     internal static (string Type, string Detail) DescribeBreakCondition(SequenceStepCondition condition) {
       var negatePrefix = condition.Negate ? "NOT " : "";
       if (condition is ImageVisibleStepCondition img)
@@ -1861,6 +1886,8 @@ namespace GameBot.Domain.Services {
         return (composite.Type, SequenceStepConditionEvaluator.Describe(composite));
       if (condition is LastRunStepCondition lastRun)
         return (lastRun.Type, SequenceStepConditionEvaluator.Describe(lastRun));
+      if (condition is OcrTextStepCondition ocrText)
+        return (ocrText.Type, SequenceStepConditionEvaluator.Describe(ocrText));
       return (condition.GetType().Name, $"{negatePrefix}{condition.GetType().Name}");
     }
 
