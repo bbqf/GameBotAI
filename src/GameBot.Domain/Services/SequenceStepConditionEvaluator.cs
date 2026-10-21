@@ -165,6 +165,9 @@ public static class SequenceStepConditionEvaluator {
         return evaluators.LastRun is not null
           && await evaluators.LastRun(lastRun, ct).ConfigureAwait(false);
 
+      case OcrTextStepCondition ocrText:
+        return await EvaluateOcrTextAsync(ocrText, ct).ConfigureAwait(false);
+
       case ImageVisibleStepCondition image:
         if (imageEvaluator is null) {
           throw new ConditionEvaluationException(
@@ -197,6 +200,41 @@ public static class SequenceStepConditionEvaluator {
           ConditionEvaluationFailureKind.UnsupportedCondition,
           condition.Type,
           $"Unsupported condition type '{condition.Type}'.");
+    }
+  }
+
+  /// <summary>
+  /// Issue #338: reads the region through the ambient <see cref="OcrTextEvaluationScope"/> and compares
+  /// the text. A failure to read is false with one reason code, never an exception. Each evaluation adds
+  /// one record to the scope. <c>negate</c> is applied by the caller.
+  /// </summary>
+  private static async Task<bool> EvaluateOcrTextAsync(OcrTextStepCondition condition, CancellationToken ct) {
+    var scope = OcrTextEvaluationScope.Current;
+    if (scope?.Reader is null) {
+      return Fail(null, null, OcrTextFailureReasons.NoSession);
+    }
+
+    var read = await scope.Reader(condition, ct).ConfigureAwait(false);
+    if (read.FailureReason is not null) {
+      return Fail(read.Text, null, read.FailureReason);
+    }
+
+    var hasParser = !string.IsNullOrWhiteSpace(condition.Parser);
+    if (hasParser && read.Parsed is null) {
+      return Fail(read.Text, null, OcrTextFailureReasons.ParseFailed);
+    }
+
+    var compared = hasParser ? read.Parsed : read.Text;
+    var result = OcrTextConditionRules.Matches(condition, compared, out var timedOut);
+    scope.Add(new OcrTextEvaluationRecord(
+      read.Text, compared, condition.Expected, condition.Pattern, condition.Parser, result, null,
+      timedOut ? OcrTextEvaluationRecord.PatternTimedOutNote : null));
+    return result;
+
+    bool Fail(string? text, string? compared, string reason) {
+      scope?.Add(new OcrTextEvaluationRecord(
+        text, compared, condition.Expected, condition.Pattern, condition.Parser, false, reason, null));
+      return false;
     }
   }
 
@@ -275,6 +313,12 @@ public static class SequenceStepConditionEvaluator {
       case LastRunStepCondition lastRun:
         var window = lastRun.Since is not null ? $"since={lastRun.Since}" : $"within={lastRun.Within}";
         return $"{negatePrefix}lastRun(sequence={lastRun.Sequence}, status={lastRun.Status}, {window})";
+
+      case OcrTextStepCondition ocrText:
+        var match = ocrText.Pattern is not null ? $"pattern={ocrText.Pattern}" : $"expected={ocrText.Expected}";
+        var parserText = string.IsNullOrWhiteSpace(ocrText.Parser) ? string.Empty : $", parser={ocrText.Parser}";
+        var regionDescription = ocrText.Region is null ? "none" : ocrText.Region.Describe();
+        return $"{negatePrefix}ocrText(region={regionDescription}, {match}{parserText})";
 
       case CompositeStepCondition composite:
         var rendered = new List<string>(composite.Children?.Count ?? 0);

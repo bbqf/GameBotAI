@@ -129,6 +129,7 @@ internal sealed record WaitForImagePayloadContract {
 [JsonDerivedType(typeof(AnyConditionContract), typeDiscriminator: "any")]
 [JsonDerivedType(typeof(NoneConditionContract), typeDiscriminator: "none")]
 [JsonDerivedType(typeof(LastRunConditionContract), typeDiscriminator: "lastRun")]
+[JsonDerivedType(typeof(OcrTextConditionContract), typeDiscriminator: "ocrText")]
 internal abstract record SequenceStepConditionContract {
   public bool Negate { get; init; }
 }
@@ -156,6 +157,17 @@ internal sealed record LastRunConditionContract : SequenceStepConditionContract 
   public string? Status { get; init; }
   public string? Since { get; init; }
   public string? Within { get; init; }
+}
+
+/// <summary>
+/// A condition on the text that OCR reads from a screen region (issue #338). All fields are optional in
+/// JSON, so an absent field gives a 400 from validation and not a JSON read error.
+/// </summary>
+internal sealed record OcrTextConditionContract : SequenceStepConditionContract {
+  public PixelRegionDto? Region { get; init; }
+  public string? Expected { get; init; }
+  public string? Pattern { get; init; }
+  public string? Parser { get; init; }
 }
 
 /// <summary>

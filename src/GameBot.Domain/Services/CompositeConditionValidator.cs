@@ -71,7 +71,7 @@ public static class CompositeConditionValidator {
 
     // Feature 105: a lastRun leaf at the root is walked too. No slot checks it by itself, so this one
     // gate covers all six slots and no message is written two times.
-    if (condition is not CompositeStepCondition and not LastRunStepCondition && !validateLeafAtRoot) {
+    if (condition is not CompositeStepCondition and not LastRunStepCondition and not OcrTextStepCondition && !validateLeafAtRoot) {
       return;
     }
 
@@ -131,6 +131,13 @@ public static class CompositeConditionValidator {
 
       case LastRunStepCondition lastRun:
         ValidateLastRun(lastRun, stepLabel, path, errors);
+        break;
+
+      case OcrTextStepCondition ocrText:
+        foreach (var problem in OcrTextConditionRules.Validate(ocrText)) {
+          errors.Add($"Step '{stepLabel}' condition at {path}: {problem}");
+        }
+
         break;
 
       default:

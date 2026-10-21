@@ -370,6 +370,15 @@ namespace GameBot.Domain.Commands {
 
           return;
 
+        case OcrTextStepCondition ocrTextCondition:
+          // Issue #338: the last guard only. The save path gives a 400 before this point.
+          var ocrTextErrors = OcrTextConditionRules.Validate(ocrTextCondition);
+          if (ocrTextErrors.Count > 0) {
+            throw new InvalidOperationException($"Step '{stepId}' {ocrTextErrors[0]}");
+          }
+
+          return;
+
         default:
           return;
       }

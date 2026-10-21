@@ -185,6 +185,7 @@ Status vocabulary:
 | 150 | Gamepack Seed Queue Templates | Implemented (quickstart walk pending) |
 | 151 | Fix Gamepack Action Step Command | Implemented |
 | 157 | Fix Gamepack Install File Replace Failure | Implemented (quickstart walk pending) |
+| 158 | OCR Text Condition for Sequences | Implemented (quickstart walk pending) |
 
 ## Numbering notes
 

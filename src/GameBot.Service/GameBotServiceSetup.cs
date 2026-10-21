@@ -120,6 +120,7 @@ internal static class GameBotServiceSetup {
       options.SchemaFilter<PrimitiveTapHoldSchemaFilter>();
       options.SchemaFilter<ParametrizedReferenceImageSchemaFilter>();
       options.SchemaFilter<LastRunConditionSchemaFilter>();
+      options.SchemaFilter<OcrTextConditionSchemaFilter>();
       options.SchemaFilter<TemplateTimerTimeOfDaySchemaFilter>();
       options.SchemaFilter<StepThroughSchemaFilter>();
       options.SchemaFilter<OcrReadSchemaFilter>();
@@ -442,6 +443,9 @@ internal static class GameBotServiceSetup {
       builder.Services.AddSingleton<ITriggerEvaluator, GameBot.Domain.Triggers.Evaluators.TextMatchEvaluator>();
       // POST /api/ocr/read (feature 128): optional parts (frame source, OCR engine) resolve to null when absent.
       builder.Services.AddSingleton<GameBot.Service.Services.Ocr.OcrReadService>();
+      // Issue #338: reads the region of an ocrText condition. The frame source is optional, as above.
+      builder.Services.AddSingleton<GameBot.Service.Services.Ocr.IOcrTextConditionReader,
+        GameBot.Service.Services.Ocr.OcrTextConditionReader>();
     }
     // feature 068: OCR-offset resolver for reschedule-self. The real resolver needs the background
     // capture service (ADB) + OCR; when either is unavailable (non-Windows or ADB-disabled test

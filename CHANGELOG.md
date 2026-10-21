@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- The `ocrText` sequence condition (158-ocr-text-condition, #338)
+  - **New condition**: a step condition that reads text from a screen region with OCR and compares it with `expected` or `pattern`, with an optional `hh:mm:ss` parser. It works in `If`, `Loop`, `breakCondition`, the step guard, and `all`, `any`, `none`.
+  - A failure to read gives false with a reason code in the run log. The run log shows the text that was read. The condition sends no input to the emulator.
+  - See `docs/architecture.md`.
+  - The patch version is now 12, so the next build is `1.11.12.<run number>`.
 - Remove a gamepack record (156-remove-gamepack-record)
   - **New route**: `DELETE /api/gamepacks/{name}` removes the record and the owner entries of an installed gamepack. The sequences, commands, and images stay and belong to the user.
   - See `docs/gamepacks.md`.
