@@ -83,8 +83,10 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
         + "removed a booking, or noop (removed false) when nothing was pending, there was no queue, or the queue run was not "
         + "active. The removed field is in the execution log of the step.",
       [ActionTypes.Notify] =
-        "message, string, required, at most 1000 characters; url, optional absolute http or https URL that overrides "
-        + "the service's default destination. Raises an outbound alert and always succeeds. "
+        "message, string, required, at most 1000 characters; url, optional absolute http or https URL. Without url, "
+        + "the message goes to the enabled notification targets (see GET /api/notifications/targets). With url, the "
+        + "message goes only to that URL. The default URL (Service:Notifications:DefaultUrl) is used only when no "
+        + "notification target is enabled. Raises an outbound alert and always succeeds. "
         + "dedupeKey, string, optional, at most 100 characters, needs since or within: the service sends the alert at most "
         + "once for each queue and key in the window. since, string HH:mm, optional: the window starts at the latest "
         + "local time of day (as in the lastRun condition). within, string HH:mm:ss, optional, from 00:00:01 to 24:00:00: "

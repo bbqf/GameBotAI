@@ -38,6 +38,9 @@ internal sealed class JobRecordingDispatcher : INotificationDispatcher {
   public IReadOnlyList<QueueAlert> Alerts { get { lock (_alerts) return _alerts.ToList(); } }
 
   public void SendAlert(QueueAlert alert) { lock (_alerts) _alerts.Add(alert); }
+
+  public Task<TextSendOutcome> SendText(string text, string scopeKey, string sequenceId, CancellationToken ct)
+    => Task.FromResult(TextSendOutcome.NoTarget());
 }
 
 /// <summary>Helpers that build a host and seed queues for the notification tests.</summary>

@@ -74,15 +74,49 @@ internal sealed record QueueAlert(
   int Attempts = 0,
   Action<DateTimeOffset, bool, string?>? OnCompleted = null);
 
+/// <summary>The state of a <see cref="TextSendOutcome"/> (issue #335).</summary>
+internal enum TextSendState {
+  /// <summary>No enabled target exists, or the target list cannot be read.</summary>
+  NoTarget,
+
+  /// <summary>At least one target accepted the message.</summary>
+  Delivered,
+
+  /// <summary>Targets exist and none accepted the message, or the send could not start.</summary>
+  Failed
+}
+
 /// <summary>
-/// An item in the one channel of the dispatcher. It is a run job, an alert, or a reset control
-/// message. A reset message and an alert are never dropped.
+/// The result of a <see cref="TextSend"/>. <see cref="Reason"/> is safe text and never has a secret.
+/// </summary>
+internal sealed record TextSendOutcome(TextSendState State, string? Reason) {
+  public static TextSendOutcome NoTarget() => new(TextSendState.NoTarget, null);
+
+  public static TextSendOutcome Delivered() => new(TextSendState.Delivered, null);
+
+  public static TextSendOutcome Failed(string reason) => new(TextSendState.Failed, reason);
+}
+
+/// <summary>
+/// A request to send one plain text to all enabled targets (issue #335). The worker sets
+/// <see cref="Completion"/> one time, also on a fault.
+/// </summary>
+internal sealed record TextSend(
+  string Text,
+  string ScopeKey,
+  string SequenceId,
+  TaskCompletionSource<TextSendOutcome> Completion);
+
+/// <summary>
+/// An item in the one channel of the dispatcher. It is a run job, an alert, a text send, or a reset
+/// control message. A reset message, an alert, and a text send are never dropped.
 /// </summary>
 internal sealed class NotificationWork {
-  private NotificationWork(QueueNotificationJob? job, string? resetQueueId, QueueAlert? alert) {
+  private NotificationWork(QueueNotificationJob? job, string? resetQueueId, QueueAlert? alert, TextSend? text) {
     Job = job;
     ResetQueueId = resetQueueId;
     Alert = alert;
+    Text = text;
   }
 
   public QueueNotificationJob? Job { get; }
@@ -91,11 +125,15 @@ internal sealed class NotificationWork {
 
   public QueueAlert? Alert { get; }
 
-  public static NotificationWork ForJob(QueueNotificationJob job) => new(job, null, null);
+  public TextSend? Text { get; }
 
-  public static NotificationWork ForReset(string queueId) => new(null, queueId, null);
+  public static NotificationWork ForJob(QueueNotificationJob job) => new(job, null, null, null);
 
-  public static NotificationWork ForAlert(QueueAlert alert) => new(null, null, alert);
+  public static NotificationWork ForReset(string queueId) => new(null, queueId, null, null);
+
+  public static NotificationWork ForAlert(QueueAlert alert) => new(null, null, alert, null);
+
+  public static NotificationWork ForText(TextSend text) => new(null, null, null, text);
 }
 
 /// <summary>
@@ -134,6 +172,12 @@ internal interface INotificationDispatcher {
   /// <c>MaxQueuedJobs</c>, never blocks, and never throws.
   /// </summary>
   void SendAlert(QueueAlert alert);
+
+  /// <summary>
+  /// Sends one plain text to all enabled targets (issue #335). Returns a task at once, never throws,
+  /// and never blocks the caller thread. The task ends when the sends end.
+  /// </summary>
+  Task<TextSendOutcome> SendText(string text, string scopeKey, string sequenceId, CancellationToken ct);
 }
 
 /// <summary>Limits of the dispatcher and the send. The defaults are the values of the design.</summary>

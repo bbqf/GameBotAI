@@ -24,6 +24,12 @@ All notable changes to this project will be documented in this file.
   - The patch version is now 2, so the next build is `1.10.2.<run number>`.
 
 ### Fixed
+- The `notify` step sends to the notification targets (159-notify-step-delivers-targets, #335)
+  - **Default destination**: a `notify` step with no `url` now sends its message to each enabled notification target. Before, the message went only to `Service:Notifications:DefaultUrl`, and the log said "no destination configured" when no default URL existed.
+  - **`url` override**: a step with `url` still sends only to that URL. If no target is enabled, the old default URL path is used. The step outcome stays `success` also when the delivery fails. A send that does not end stops at a guard time limit of 35 s.
+  - The OpenAPI text of `notify` names the enabled notification targets as the default destination.
+  - See `docs/architecture.md`.
+  - The patch version is now 13, so the next build is `1.11.13.<run number>`.
 - Gamepack install and take-over (157-fix-gamepack-install-replace-file)
   - **Replace file**: the install no longer fails when it replaces a data file. A write error now gives a clear error, and a partial restore is reported.
   - The patch version is now 11, so the next build is `1.11.11.<run number>`.

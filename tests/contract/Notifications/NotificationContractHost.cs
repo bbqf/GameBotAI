@@ -87,6 +87,9 @@ internal sealed class RecordingDispatcher : INotificationDispatcher {
   public IReadOnlyList<QueueAlert> Alerts => _alerts.ToList();
 
   public void SendAlert(QueueAlert alert) => _alerts.Enqueue(alert);
+
+  public System.Threading.Tasks.Task<TextSendOutcome> SendText(string text, string scopeKey, string sequenceId, System.Threading.CancellationToken ct)
+    => System.Threading.Tasks.Task.FromResult(TextSendOutcome.NoTarget());
 }
 
 /// <summary>

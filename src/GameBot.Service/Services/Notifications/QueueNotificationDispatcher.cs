@@ -64,6 +64,28 @@ internal sealed partial class QueueNotificationDispatcher : INotificationDispatc
     }
   }
 
+  /// <summary>
+  /// The margin added to <see cref="NotificationDispatchLimits.SendTimeout"/> for the guard time limit
+  /// of a caller that waits for a text send (FR-016).
+  /// </summary>
+  public static readonly TimeSpan TextSendGuardMargin = TimeSpan.FromSeconds(5);
+
+  public Task<TextSendOutcome> SendText(string text, string scopeKey, string sequenceId, CancellationToken ct) {
+    try {
+      var completion = new TaskCompletionSource<TextSendOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+      var work = NotificationWork.ForText(new TextSend(text, scopeKey, sequenceId, completion));
+      if (!_channel.Writer.TryWrite(work)) {
+        return Task.FromResult(TextSendOutcome.Failed("notification service stopped"));
+      }
+
+      return completion.Task;
+    }
+    catch (Exception ex) {
+      Log.EnqueueFaulted(_logger, ex.GetType().Name);
+      return Task.FromResult(TextSendOutcome.Failed("could not queue the message"));
+    }
+  }
+
   /// <summary>The worker calls this when it has handled one run job.</summary>
   internal void MarkJobHandled() => Interlocked.Decrement(ref _queuedRunJobs);
 

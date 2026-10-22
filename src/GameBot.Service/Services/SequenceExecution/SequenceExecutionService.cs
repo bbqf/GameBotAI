@@ -68,6 +68,10 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   // Issue #338: reads the region of an ocrText condition. Optional, so the hand-built test instances keep
   // compiling; without it an ocrText condition is false with the reason no-session.
   private readonly GameBot.Service.Services.Ocr.IOcrTextConditionReader? _ocrTextReader;
+  // Issue #335: a notify step without url sends to the enabled notification targets through this. Optional,
+  // so the hand-built test instances keep compiling. _textSendGuard is the guard time limit of the wait.
+  private readonly GameBot.Service.Services.Notifications.INotificationDispatcher? _notificationDispatcher;
+  private readonly TimeSpan _textSendGuard;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -95,7 +99,13 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     GameBot.Service.Services.Quiz.QuizLookupHandler? quizLookup = null,
     GameBot.Service.Services.Quiz.QuizLearnHandler? quizLearn = null,
     GameBot.Service.Services.Quiz.QuizLookupResultKeeper? quizKeeper = null,
-    GameBot.Service.Services.Ocr.IOcrTextConditionReader? ocrTextReader = null) {
+    GameBot.Service.Services.Ocr.IOcrTextConditionReader? ocrTextReader = null,
+    GameBot.Service.Services.Notifications.INotificationDispatcher? notificationDispatcher = null,
+    TimeSpan? textSendGuard = null) {
+    _notificationDispatcher = notificationDispatcher;
+    _textSendGuard = textSendGuard
+      ?? new GameBot.Service.Services.Notifications.NotificationDispatchLimits().SendTimeout
+        + GameBot.Service.Services.Notifications.QueueNotificationDispatcher.TextSendGuardMargin;
     _ocrTextReader = ocrTextReader;
     _quizLookup = quizLookup;
     _quizLearn = quizLearn;
@@ -677,7 +687,7 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       return new ActionDispatchResult("noop", $"notify not sent: {parseError}");
     }
 
-    if (_notifier is null) {
+    if (_notifier is null && _notificationDispatcher is null) {
       return new ActionDispatchResult("noop", "notify not sent: no notifier configured");
     }
 
@@ -700,16 +710,32 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
 
     GameBot.Service.Services.Notifications.FailureNotificationResult result;
     try {
-      var evt = new GameBot.Service.Services.Notifications.FailureNotificationEvent {
-        EventType = GameBot.Service.Services.Notifications.FailureNotificationEvent.SequenceNotifyEvent,
-        RaisedAt = DateTimeOffset.Now,
-        FailedSequenceId = sequenceId,
-        FailedSequenceName = await ResolveSequenceNameAsync(sequenceId).ConfigureAwait(false),
-        Message = payload.Message
-      };
-      await PopulateQueueContextAsync(evt, originatingQueueId).ConfigureAwait(false);
+      // Issue #335: without a url the message goes to the enabled notification targets. A url keeps
+      // the old path. When no target is enabled, the old path (default url) is used.
+      GameBot.Service.Services.Notifications.FailureNotificationResult? targetResult = null;
+      if (string.IsNullOrWhiteSpace(payload.Url) && _notificationDispatcher is not null) {
+        targetResult = await SendToTargetsAsync(payload.Message, originatingQueueId, sequenceId, ct).ConfigureAwait(false);
+      }
 
-      result = await _notifier.NotifyAsync(evt, payload.Url, ct).ConfigureAwait(false);
+      if (targetResult is not null) {
+        result = targetResult.Value;
+      }
+      else if (_notifier is null) {
+        if (reservation is not null) await _sentAlertStore!.ReleaseAsync(reservation, CancellationToken.None).ConfigureAwait(false);
+        return new ActionDispatchResult("noop", "notify not sent: no notifier configured");
+      }
+      else {
+        var evt = new GameBot.Service.Services.Notifications.FailureNotificationEvent {
+          EventType = GameBot.Service.Services.Notifications.FailureNotificationEvent.SequenceNotifyEvent,
+          RaisedAt = DateTimeOffset.Now,
+          FailedSequenceId = sequenceId,
+          FailedSequenceName = await ResolveSequenceNameAsync(sequenceId).ConfigureAwait(false),
+          Message = payload.Message
+        };
+        await PopulateQueueContextAsync(evt, originatingQueueId).ConfigureAwait(false);
+
+        result = await _notifier.NotifyAsync(evt, payload.Url, ct).ConfigureAwait(false);
+      }
     }
     catch {
       // A failed send must free the slot, so a later run can try again.
@@ -734,6 +760,41 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
 
     if (!result.Succeeded) return new ActionDispatchResult("success", $"notification not delivered: {result.Error}");
     return new ActionDispatchResult(reservation is null ? "success" : "sent", "notification delivered");
+  }
+
+  /// <summary>
+  /// Sends the message of a <c>notify</c> step to the enabled notification targets (issue #335). Returns
+  /// null when no target is enabled, so the caller uses the old path. The wait has a guard time limit
+  /// (FR-016), so a send that never ends cannot hold the step. It never throws, except for a cancel.
+  /// </summary>
+  private async Task<GameBot.Service.Services.Notifications.FailureNotificationResult?> SendToTargetsAsync(
+      string message,
+      string? originatingQueueId,
+      string sequenceId,
+      CancellationToken ct) {
+    var scopeKey = string.IsNullOrWhiteSpace(originatingQueueId) ? NotifyPayload.AdhocScope : originatingQueueId!;
+    GameBot.Service.Services.Notifications.TextSendOutcome outcome;
+    try {
+      outcome = await _notificationDispatcher!.SendText(message, scopeKey, sequenceId, ct)
+        .WaitAsync(_textSendGuard, ct).ConfigureAwait(false);
+    }
+    catch (TimeoutException) {
+      outcome = GameBot.Service.Services.Notifications.TextSendOutcome.Failed("time limit");
+    }
+    catch (OperationCanceledException) {
+      throw;
+    }
+    catch (Exception ex) {
+      outcome = GameBot.Service.Services.Notifications.TextSendOutcome.Failed(ex.GetType().Name);
+    }
+
+    var now = DateTimeOffset.Now;
+    return outcome.State switch {
+      GameBot.Service.Services.Notifications.TextSendState.NoTarget => null,
+      GameBot.Service.Services.Notifications.TextSendState.Delivered =>
+        new GameBot.Service.Services.Notifications.FailureNotificationResult(true, now, null),
+      _ => new GameBot.Service.Services.Notifications.FailureNotificationResult(false, now, outcome.Reason ?? "unknown")
+    };
   }
 
   /// <summary>
