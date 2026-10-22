@@ -342,6 +342,13 @@ Limits: index 5 MB, gamepack file 100 MB, signature file 1 MB, 30 seconds for ea
 
 The "Gamepacks" area (`/gamepacks`) has full phone support. It has the settings form, the list, an Update button (label "Install" when none is installed) for each newer version, a "Dry run" check box, and a "Refresh" button. The list loads on open and on Refresh only.
 
+The area also has the check box "Take over objects of the user with the same name". It is off at load and the page does not keep it. It applies to the Install and Update buttons of the list. The page sends it as `takeOver` in `POST /api/gamepacks/catalog/install`.
+
+- With the box on and "Dry run" off, an Install or Update button works only after a valid dry run of the same version with take-over on. Before that, the button is disabled and the row shows "Run the dry run with take-over first."
+- A dry run with the box on shows "Take over N." in the result, also when the dry run is not valid. With the box off, the result has no count, and it lists the conflicts.
+- A change of the take-over box clears the result and the saved dry run. A change of the "Dry run" box keeps them. The page never starts a dry run by itself.
+- The page has no file install. So the file part of the issue criterion 6 does not apply to this page.
+
 ## Managed update
 
 A managed update does all steps of an update in one call. It runs in this order: check the request, find the affected queues, stop them, store a backup, install, book disabled entries for new sequences, and restart the queues that the call stopped.

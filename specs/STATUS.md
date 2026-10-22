@@ -187,6 +187,7 @@ Status vocabulary:
 | 157 | Fix Gamepack Install File Replace Failure | Implemented (quickstart walk pending) |
 | 158 | OCR Text Condition for Sequences | Implemented (quickstart walk pending) |
 | 159 | Notify Step Delivers to the Notification Targets | Implemented |
+| 160 | Gamepacks Page Take-Over Option | Implemented (phone check pending) |
 
 ## Numbering notes
 

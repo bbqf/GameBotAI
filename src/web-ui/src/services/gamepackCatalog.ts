@@ -38,6 +38,7 @@ export interface CatalogInstallResult {
   created: number;
   updated: number;
   removed: number;
+  takenOver?: number;
   result?: string | null;
 }
 
@@ -89,9 +90,12 @@ export async function listCatalog(): Promise<CatalogList> {
   return (await res.json()) as CatalogList;
 }
 
-/** Installs one listed version. With dryRun true, the server checks the install and changes nothing. */
-export async function installFromCatalog(name: string, version: string, dryRun: boolean): Promise<CatalogInstallResult> {
-  const res = await apiPost('/api/gamepacks/catalog/install', { name, version, dryRun });
+/**
+ * Installs one listed version. With dryRun true, the server checks the install and changes nothing.
+ * With takeOver true, the gamepack takes over user objects that have the same name.
+ */
+export async function installFromCatalog(name: string, version: string, dryRun: boolean, takeOver: boolean): Promise<CatalogInstallResult> {
+  const res = await apiPost('/api/gamepacks/catalog/install', { name, version, dryRun, takeOver });
   // A 422 carries the install result body (for example a signature rejection).
   if (res.ok || res.status === 422) {
     const body = (await readJson(res)) as CatalogInstallResult;

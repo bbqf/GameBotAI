@@ -42,6 +42,11 @@ const errorText = (err: unknown, fallback: string): string => {
 
 type Notice = { kind: 'ok' | 'error'; text: string };
 
+// The last dry run. A take-over install is allowed only after a valid dry run with the same version and take-over choice.
+type LastDryRun = { key: string; takeOver: boolean; valid: boolean; takenOver: number };
+
+const TAKE_OVER_FIRST_HINT = 'Run the dry run with take-over first.';
+
 export const GamepacksPage: React.FC = () => {
   const [settings, setSettings] = useState<CatalogSettings | null>(null);
   const [location, setLocation] = useState('');
@@ -52,6 +57,8 @@ export const GamepacksPage: React.FC = () => {
   const [listError, setListError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dryRun, setDryRun] = useState(false);
+  const [takeOver, setTakeOver] = useState(false);
+  const [lastDryRun, setLastDryRun] = useState<LastDryRun | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [installNotice, setInstallNotice] = useState<Notice | null>(null);
 
@@ -123,25 +130,46 @@ export const GamepacksPage: React.FC = () => {
     setBusyKey(key);
     setInstallNotice(null);
     try {
-      const result = await installFromCatalog(name, version, dryRun);
+      const result = await installFromCatalog(name, version, dryRun, takeOver);
       const counts = `Created ${result.created}, updated ${result.updated}, removed ${result.removed}.`;
       if (dryRun) {
+        const takenOver = result.takenOver ?? 0;
+        setLastDryRun({ key, takeOver, valid: result.valid, takenOver });
+        const takeOverText = takeOver ? ` Take over ${takenOver}.` : '';
+        const problems = (result.problems ?? [])
+          .map((p) => p.message)
+          .filter((m): m is string => !!m)
+          .join(' ');
         setInstallNotice({
           kind: result.valid ? 'ok' : 'error',
           text: result.valid
-            ? `Dry run for ${name} ${version}: the install would work. Nothing changed. ${counts}`
-            : `Dry run for ${name} ${version}: the install would fail. Nothing changed.`
+            ? `Dry run for ${name} ${version}: the install would work. Nothing changed. ${counts}${takeOverText}`
+            : `Dry run for ${name} ${version}: the install would fail. Nothing changed.${takeOverText}${problems ? ` ${problems}` : ''}`
         });
       } else {
         setInstallNotice({ kind: 'ok', text: `Installed ${name} ${version}. ${counts}` });
+        setLastDryRun(null);
         await reload();
       }
     } catch (err) {
+      if (dryRun) setLastDryRun(null);
       setInstallNotice({ kind: 'error', text: `${dryRun ? 'Dry run' : 'Install'} of ${name} ${version} failed. Nothing changed. ${errorText(err, '')}`.trim() });
     } finally {
       setBusyKey(null);
     }
   };
+
+  const handleTakeOverChange = (checked: boolean) => {
+    setTakeOver(checked);
+    setLastDryRun(null);
+    setInstallNotice(null);
+  };
+
+  // With take-over on and Dry run off, the button needs a valid dry run for the same version and choice.
+  const needsDryRun = (key: string): boolean =>
+    takeOver &&
+    !dryRun &&
+    !(lastDryRun !== null && lastDryRun.valid && lastDryRun.key === key && lastDryRun.takeOver === takeOver);
 
   return (
     <div className="gamepacks-page">
@@ -196,7 +224,12 @@ export const GamepacksPage: React.FC = () => {
             <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
             Dry run
           </label>
+          <label className="gamepacks-check">
+            <input type="checkbox" checked={takeOver} onChange={(e) => handleTakeOverChange(e.target.checked)} />
+            Take over objects of the user with the same name
+          </label>
         </div>
+        <p className="gamepacks-hint">The gamepack owns these objects and replaces them. The old content goes to a backup.</p>
 
         {installNotice && (
           <p role={installNotice.kind === 'error' ? 'alert' : 'status'} className={installNotice.kind === 'error' ? 'error' : undefined}>
@@ -215,6 +248,7 @@ export const GamepacksPage: React.FC = () => {
             <ul className="gamepacks-versions">
               {pack.versions.map((v) => {
                 const key = `${pack.name}@${v.version}`;
+                const blocked = needsDryRun(key);
                 return (
                   <li key={key} className="gamepacks-version">
                     <div className="gamepacks-version-head">
@@ -226,12 +260,13 @@ export const GamepacksPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => void handleInstall(pack.name, v.version)}
-                        disabled={busyKey !== null}
+                        disabled={busyKey !== null || blocked}
                         aria-label={`${pack.installedVersion ? 'Update' : 'Install'} ${pack.name} ${v.version}`}
                       >
                         {busyKey === key ? 'Working...' : pack.installedVersion ? 'Update' : 'Install'}
                       </button>
                     )}
+                    {v.updateAvailable && blocked && <p className="gamepacks-hint">{TAKE_OVER_FIRST_HINT}</p>}
                   </li>
                 );
               })}
