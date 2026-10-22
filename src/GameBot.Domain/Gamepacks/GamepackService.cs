@@ -54,6 +54,12 @@ public sealed class GamepackInstallOutcome {
   /// <summary>The number of removed objects (planned for a dry run).</summary>
   public int Removed { get; init; }
 
+  /// <summary>
+  /// True if the same file would pass the check with take-over on (feature 161). True for a valid check. False for a check with
+  /// take-over on that is not valid, for invalid JSON, and for a rejected signature.
+  /// </summary>
+  public bool WouldInstallWithTakeOver { get; init; }
+
   /// <summary>The error text for a failed write, or null.</summary>
   public string? ErrorMessage { get; init; }
 
@@ -287,7 +293,15 @@ public sealed partial class GamepackService : IDisposable {
       var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct, takeOver: options.TakeOver, seeds: true).ConfigureAwait(false);
       var manifest = parsed.File.Manifest;
       if (!check.IsValid || check.Plan is null) {
+        // Feature 161: a second check with take-over on, with the same inputs. The check does not write.
+        var wouldInstall = false;
+        if (!options.TakeOver) {
+          var retry = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct, takeOver: true, seeds: true).ConfigureAwait(false);
+          wouldInstall = retry.IsValid && retry.Plan is not null;
+        }
+
         return new GamepackInstallOutcome {
+          WouldInstallWithTakeOver = wouldInstall,
           Signature = signature,
           Status = GamepackInstallStatus.Invalid,
           DryRun = dryRun,
@@ -301,6 +315,7 @@ public sealed partial class GamepackService : IDisposable {
       if (dryRun) {
         return new GamepackInstallOutcome {
           Signature = signature,
+          WouldInstallWithTakeOver = true,
           Status = GamepackInstallStatus.Ok,
           DryRun = true,
           Name = plan.Manifest.Name,
@@ -334,6 +349,7 @@ public sealed partial class GamepackService : IDisposable {
 
       return new GamepackInstallOutcome {
         Signature = signature,
+        WouldInstallWithTakeOver = true,
         Status = GamepackInstallStatus.Ok,
         Name = plan.Manifest.Name,
         Version = plan.Manifest.Version,

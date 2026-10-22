@@ -164,7 +164,7 @@ internal sealed record ManagedUpdateReportDto {
       NewEntries = report.NewEntries.Select(ManagedEntryRefDto.From).ToList(),
       RemovedSequenceEntries = report.RemovedSequenceEntries.Select(ManagedEntryRefDto.From).ToList(),
       NotAffectedTemplates = report.NotAffectedTemplates,
-      Problems = report.Problems.Select(GamepackProblemDto.From).ToList(),
+      Problems = report.Problems.Select(p => GamepackProblemDto.From(p)).ToList(),
       Signature = report.Signature is null ? null : GamepackSignatureStatusDto.From(report.Signature),
       Restore = new ManagedRestoreDto {
         Happened = report.Restore.Happened,

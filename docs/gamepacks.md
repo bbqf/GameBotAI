@@ -70,6 +70,25 @@ takes over objects of the user with the same type and name (see the section "Tak
 The check finds all problems. It does not stop at the first. A problem has `category` (`structure`, `reference`, or
 `conflict`), `objectType`, `name`, `owner` (text), and `message`.
 
+#### Failure explanation (feature 161)
+
+Each answer that has a check result (200, 400, and 422) tells you why a file fails and what to do. The member `summary` comes
+before `problems`. The same data is in the answer of the catalog install route (`POST /api/gamepacks/catalog/install`).
+
+- `summary.headline` is one line with the counts, for example `20 conflicts.`. A file with no problem has `No problems.`.
+- `summary.entries` has one entry for each problem category, in this order: structure, signature, reference, conflict. An
+  entry has `category`, `count`, `label`, `remedy`, and `resolvedByTakeOver`. `resolvedByTakeOver` is true only if take-over
+  resolves every problem of the entry.
+- Each problem has `takeOverResolves` and `remedy`. `takeOverResolves` is true only for a conflict with an object of the user,
+  when `takeOver` is off. With `takeOver` on, each remaining problem gives false. A second object of the user with the same
+  name stays a conflict that take-over resolves.
+- `wouldInstallWithTakeOver` is true if the same file would pass the check with `takeOver` on. The service runs a second
+  check to find the value. The second check writes nothing.
+- The rollback refused answer and the managed update report have `takeOverResolves` and `remedy` in each problem. They have no `summary`.
+
+The Gamepacks page shows the summary lines when a dry run, an install, or an update fails. If an error has no reason, the
+page shows `The cause is not known. See the service log.`.
+
 - **Structure**: a missing manifest field, a bad name, two objects with the same name in the file, a bad image type, bad
   base64, an image larger than the limit, or a `requiredApiMajor` that differs from the running API major version.
 - **Reference**: a step names a command or an image that is not in the file and not in the installation. A target that the
