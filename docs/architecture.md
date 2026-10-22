@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-18 (feature 157: image, alternates, and registry file writes use `AtomicFile.ReplaceFile` (move with overwrite and a bounded retry), a failed write names the file, and the `partial_restore` response has `failedRestoreKeys`;
+_Last reviewed: 2026-10-22 (feature 159: a `notify` step with no `url` sends its message to the enabled notification targets through `INotificationDispatcher.SendText`;
+feature 157: image, alternates, and registry file writes use `AtomicFile.ReplaceFile` (move with overwrite and a bounded retry), a failed write names the file, and the `partial_restore` response has `failedRestoreKeys`;
 feature 150: seed queue templates in a gamepack, the file member `seedTemplates`, the result lists `seedTemplatesCreated` and `seedTemplatesSkipped`;
 feature 149: take-over of same-named user objects on gamepack install, the option `takeOver`, `/api/gamepacks/takeover-backups/{backupId}/restore`, the folder `gamepacks/takeover-backups` in the data root;
 feature 148: managed gamepack update, `/api/gamepacks/update`, the folder `gamepacks/backups` in the data root;
@@ -886,6 +887,16 @@ of feature 087, which acts on failed cycles.
   message. Each drop writes one log line. `ResetStreaks(queueId)` writes a control message to the same
   channel. It is never dropped. The level route calls it after a save of `none`. The delete route calls
   it after a delete.
+- **Text send (feature 159, issue #335).** A `notify` step with no `url` sends its plain `message` to
+  all enabled targets. `DispatchNotifyAsync` calls `INotificationDispatcher.SendText`. The dispatcher
+  writes a `TextSend` item to the same channel and returns a task. The worker reads the enabled targets
+  and sends one `ChainSend` for each target (order key `notify:<sequenceId>`, no retry by the worker).
+  The text has no prefix. The send ignores the queue level, the streaks, and the last-sent record. The
+  task result is `Delivered` (at least one target accepted; the log names the count of failed targets),
+  `Failed` (no target accepted), or `NoTarget` (no enabled target, or the list cannot be read). On
+  `NoTarget` the step uses the old `IFailureNotifier` path with the default URL. The step waits at most
+  `SendTimeout` + 5 s (35 s). The step outcome stays `success` also when the delivery fails. A `notify`
+  step with `url` sends only to that URL. A step-through run only describes the step and sends nothing.
 - **Streaks.** A failure at an allowed level opens a streak. A success after an open streak sends
   `recovered` and closes it, at both levels. Without an open streak, a success sends `success` at
   `successAndFailure` only. `cancelled` sends a message and changes no streak. Streaks are lost when

@@ -170,7 +170,7 @@ Status vocabulary:
 | 134 | Reduce CI Run Duration | Implemented |
 | 135 | Reject Unknown Command Step Fields | Implemented |
 | 136 | Reject a Parameters Object in Command Requests | Implemented |
-| 137 | Notify Alert Dedupe Window | Implemented |
+| 137 | Notify Alert Dedupe Window | Implemented (iterated by 159) |
 | 138 | Document the command "parameters" list in OpenAPI | Implemented |
 | 139 | Mobile-Friendly UI | Implemented (iterated by 140) |
 | 140 | Phone UI Queue Activity and Navigation | Implemented (real-phone check pending) |
@@ -186,6 +186,7 @@ Status vocabulary:
 | 151 | Fix Gamepack Action Step Command | Implemented |
 | 157 | Fix Gamepack Install File Replace Failure | Implemented (quickstart walk pending) |
 | 158 | OCR Text Condition for Sequences | Implemented (quickstart walk pending) |
+| 159 | Notify Step Delivers to the Notification Targets | Implemented |
 
 ## Numbering notes
 

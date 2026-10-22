@@ -2,7 +2,7 @@
 
 **Feature Branch**: `137-notify-alert-dedupe`
 **Created**: 2026-10-12
-**Status**: Draft
+**Status**: Implemented (iterated by 159)
 **Input**: GitHub issue #238 - "FR-010: send an alert at most once per window (notify dedupe key, or a stepRan condition)".
 
 ## Chosen shape

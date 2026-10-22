@@ -167,6 +167,9 @@ internal sealed class AlertCapturingDispatcher : INotificationDispatcher {
 
   public void ResetStreaks(string queueId) { }
 
+  public System.Threading.Tasks.Task<TextSendOutcome> SendText(string text, string scopeKey, string sequenceId, System.Threading.CancellationToken ct)
+    => System.Threading.Tasks.Task.FromResult(TextSendOutcome.NoTarget());
+
   public void SendAlert(QueueAlert alert) {
     _alerts.Enqueue(alert);
     alert.OnCompleted?.Invoke(DateTimeOffset.Now, true, null);

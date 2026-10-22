@@ -74,6 +74,11 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
         return;
       }
 
+      if (work.Text is { } text) {
+        HandleText(text);
+        return;
+      }
+
       if (work.Job is { } job) {
         try {
           await HandleJobAsync(job).ConfigureAwait(false);
@@ -153,6 +158,53 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
         Log.SendFaulted(_logger, ex.GetType().Name);
       }
     });
+  }
+
+  // Issue #335: a notify step with no url sends its plain text to all enabled targets. The text has no
+  // prefix. It ignores the queue level, the streaks, and the last-sent state. The worker does not wait
+  // for the sends. It sets the completion exactly one time, also on a fault.
+  private void HandleText(TextSend send) {
+    try {
+      List<NotificationTarget> targets;
+      try {
+        targets = _targets.List().Where(t => t.Enabled).ToList();
+      }
+      catch (Exception ex) {
+        Log.SendFaulted(_logger, ex.GetType().Name);
+        send.Completion.TrySetResult(TextSendOutcome.NoTarget());
+        return;
+      }
+
+      if (targets.Count == 0) {
+        send.Completion.TrySetResult(TextSendOutcome.NoTarget());
+        return;
+      }
+
+      // The worker thread chains here, so the sends for one target keep the order of the steps.
+      var sends = targets.Select(target => ChainSend(target, send.Text, send.ScopeKey, $"notify:{send.SequenceId}")).ToList();
+      _ = Task.Run(async () => {
+        try {
+          var results = await Task.WhenAll(sends).ConfigureAwait(false);
+          var failed = results.Count(r => !r.Succeeded);
+          if (failed < results.Length) {
+            if (failed > 0) Log.TextPartiallyDelivered(_logger, send.SequenceId, failed, results.Length);
+            send.Completion.TrySetResult(TextSendOutcome.Delivered());
+          }
+          else {
+            var reason = results.Select(r => r.Reason).FirstOrDefault(r => !string.IsNullOrEmpty(r)) ?? "unknown";
+            send.Completion.TrySetResult(TextSendOutcome.Failed(reason));
+          }
+        }
+        catch (Exception ex) {
+          Log.SendFaulted(_logger, ex.GetType().Name);
+          send.Completion.TrySetResult(TextSendOutcome.Failed(ex.GetType().Name));
+        }
+      });
+    }
+    catch (Exception ex) {
+      Log.SendFaulted(_logger, ex.GetType().Name);
+      send.Completion.TrySetResult(TextSendOutcome.Failed(ex.GetType().Name));
+    }
   }
 
   // The state table of research R-003, for levels Failure and Success+Failure.
@@ -351,6 +403,9 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
 
     [LoggerMessage(EventId = 12040, Level = LogLevel.Information, Message = "No notification target is available for the {Kind} alert of queue {QueueId}. The alert is not sent.")]
     public static partial void AlertNoTarget(ILogger logger, string queueId, QueueAlertKind kind);
+
+    [LoggerMessage(EventId = 12041, Level = LogLevel.Warning, Message = "The notify text of sequence {SequenceId} reached some targets. {Failed} of {Total} targets did not accept it.")]
+    public static partial void TextPartiallyDelivered(ILogger logger, string sequenceId, int failed, int total);
 
     [LoggerMessage(EventId = 12039, Level = LogLevel.Warning, Message = "Notification to target {TargetId} ({TargetName}) faulted. Error type: {ErrorType}.")]
     public static partial void TargetFaulted(ILogger logger, string targetId, string targetName, string errorType);

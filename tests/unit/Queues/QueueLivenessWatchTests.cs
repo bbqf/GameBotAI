@@ -45,6 +45,9 @@ public sealed partial class QueueExecutionServiceTests {
       public void ResetStreaks(string queueId) { }
 
       public void SendAlert(QueueAlert alert) { lock (_alerts) _alerts.Add(alert); }
+
+      public System.Threading.Tasks.Task<TextSendOutcome> SendText(string text, string scopeKey, string sequenceId, System.Threading.CancellationToken ct)
+        => System.Threading.Tasks.Task.FromResult(TextSendOutcome.NoTarget());
     }
 
     private sealed class Setup {
