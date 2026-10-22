@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { GamepacksPage } from '../GamepacksPage';
 import {
   CatalogApiError,
+  CatalogInstallRejectedError,
   getCatalogSettings,
   installFromCatalog,
   listCatalog,
@@ -313,6 +314,117 @@ describe('GamepacksPage', () => {
       expect(screen.getByRole('button', { name: 'Update alpha 1.2.0' })).toBeEnabled();
       expect(screen.getByRole('button', { name: 'Install beta 0.1.0' })).toBeDisabled();
       expect(screen.getAllByText(hint).length).toBe(1);
+    });
+  });
+
+  describe('failure explanation', () => {
+    const summary = {
+      headline: '20 conflicts.',
+      entries: [
+        {
+          category: 'conflict',
+          count: 20,
+          label: 'conflicts: objects owned by the user',
+          remedy: 'Install with take-over to replace them, or rename or delete them.',
+          resolvedByTakeOver: true
+        }
+      ]
+    };
+    const failed = (extra: object = {}) => ({
+      dryRun: false,
+      valid: false,
+      created: 0,
+      updated: 0,
+      removed: 0,
+      summary,
+      wouldInstallWithTakeOver: true,
+      problems: [{ message: 'A sequence exists.', takeOverResolves: true, remedy: 'x' }],
+      ...extra
+    });
+    const toggle = (label: string) => fireEvent.click(screen.getByLabelText(label));
+    const ready = async () => {
+      render(<GamepacksPage />);
+      await screen.findByText('Adds a new daily');
+    };
+
+    it('shows the summary and the take-over sentence for a failed dry run', async () => {
+      mockInstall.mockResolvedValueOnce(failed({ dryRun: true }));
+      await ready();
+      toggle('Dry run');
+      fireEvent.click(screen.getByRole('button', { name: 'Update alpha 1.2.0' }));
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('20 conflicts: objects owned by the user. Install with take-over');
+      expect(alert).toHaveTextContent('Take-over would resolve all problems.');
+      expect(alert).not.toHaveTextContent('A sequence exists.');
+    });
+
+    it('says that take-over would not resolve all problems when the field is false', async () => {
+      mockInstall.mockResolvedValueOnce(failed({ dryRun: true, wouldInstallWithTakeOver: false }));
+      await ready();
+      toggle('Dry run');
+      fireEvent.click(screen.getByRole('button', { name: 'Update alpha 1.2.0' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Take-over would not resolve all problems.');
+    });
+
+    it('shows the summary for a failed update (422)', async () => {
+      mockInstall.mockRejectedValueOnce(new CatalogInstallRejectedError('install_rejected', 'A sequence exists.', failed()));
+      await ready();
+      fireEvent.click(screen.getByRole('button', { name: 'Update alpha 1.2.0' }));
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('Install of alpha 1.2.0 failed. Nothing changed.');
+      expect(alert).toHaveTextContent('20 conflicts: objects owned by the user.');
+    });
+
+    it('shows the summary for a failed install of a new gamepack', async () => {
+      mockInstall.mockRejectedValueOnce(new CatalogInstallRejectedError('install_rejected', 'A sequence exists.', failed()));
+      await ready();
+      fireEvent.click(screen.getByRole('button', { name: 'Install beta 0.1.0' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('20 conflicts: objects owned by the user.');
+    });
+
+    it('shows No problems. for a valid dry run', async () => {
+      mockInstall.mockResolvedValueOnce({
+        dryRun: true,
+        valid: true,
+        created: 1,
+        updated: 0,
+        removed: 0,
+        summary: { headline: 'No problems.', entries: [] },
+        wouldInstallWithTakeOver: true
+      });
+      await ready();
+      toggle('Dry run');
+      fireEvent.click(screen.getByRole('button', { name: 'Update alpha 1.2.0' }));
+
+      expect(await screen.findByRole('status')).toHaveTextContent('No problems.');
+    });
+
+    it('shows a reason when the error has an empty message', async () => {
+      mockInstall.mockRejectedValueOnce(new Error(''));
+      await ready();
+      fireEvent.click(screen.getByRole('button', { name: 'Update alpha 1.2.0' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('The cause is not known. See the service log.');
+    });
+
+    it('shows the problem messages when the answer has no summary (old server)', async () => {
+      mockInstall.mockResolvedValueOnce({
+        dryRun: true,
+        valid: false,
+        created: 0,
+        updated: 0,
+        removed: 0,
+        problems: [{ message: 'Old server problem.' }]
+      });
+      await ready();
+      toggle('Dry run');
+      fireEvent.click(screen.getByRole('button', { name: 'Update alpha 1.2.0' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Old server problem.');
     });
   });
 });

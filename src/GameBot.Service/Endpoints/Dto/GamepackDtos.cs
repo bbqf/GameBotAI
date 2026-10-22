@@ -51,15 +51,65 @@ internal sealed record GamepackProblemDto {
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Code { get; init; }
 
-  internal static GamepackProblemDto From(GamepackProblem problem) {
+  /// <summary>True if an install with take-over removes this problem (feature 161).</summary>
+  public bool TakeOverResolves { get; init; }
+
+  /// <summary>What to do to remove this problem (feature 161).</summary>
+  public string Remedy { get; init; } = string.Empty;
+
+  internal static GamepackProblemDto From(GamepackProblem problem, bool takeOverOn = false) {
     ArgumentNullException.ThrowIfNull(problem);
+    var explanation = GamepackFailureExplainer.Explain(problem, takeOverOn);
     return new GamepackProblemDto {
+      TakeOverResolves = explanation.TakeOverResolves,
+      Remedy = explanation.Remedy,
       Category = problem.Category,
       ObjectType = problem.ObjectType,
       Name = problem.Name,
       Owner = problem.Owner,
       Message = problem.Message,
       Code = problem.Code
+    };
+  }
+}
+
+/// <summary>One line of the failure summary: all problems of one category (feature 161).</summary>
+internal sealed record GamepackInstallSummaryEntryDto {
+  /// <summary><c>structure</c>, <c>signature</c>, <c>reference</c>, or <c>conflict</c>.</summary>
+  public required string Category { get; init; }
+
+  /// <summary>The number of problems of the category. At least 1.</summary>
+  public int Count { get; init; }
+
+  /// <summary>The label. It uses the singular form when the count is 1.</summary>
+  public required string Label { get; init; }
+
+  /// <summary>What to do to remove these problems.</summary>
+  public required string Remedy { get; init; }
+
+  /// <summary>True only if take-over resolves every problem of the entry.</summary>
+  public bool ResolvedByTakeOver { get; init; }
+}
+
+/// <summary>The failure summary of an install check (feature 161).</summary>
+internal sealed record GamepackInstallSummaryDto {
+  /// <summary>One line with the counts. <c>No problems.</c> when the check has no problem.</summary>
+  public required string Headline { get; init; }
+
+  /// <summary>One entry for each category that has a problem. Order: structure, signature, reference, conflict.</summary>
+  public IReadOnlyList<GamepackInstallSummaryEntryDto> Entries { get; init; } = Array.Empty<GamepackInstallSummaryEntryDto>();
+
+  internal static GamepackInstallSummaryDto From(GamepackFailureSummary summary) {
+    ArgumentNullException.ThrowIfNull(summary);
+    return new GamepackInstallSummaryDto {
+      Headline = summary.Headline,
+      Entries = summary.Entries.Select(e => new GamepackInstallSummaryEntryDto {
+        Category = e.Category,
+        Count = e.Count,
+        Label = e.Label,
+        Remedy = e.Remedy,
+        ResolvedByTakeOver = e.ResolvedByTakeOver
+      }).ToList()
     };
   }
 }
@@ -88,6 +138,12 @@ internal sealed record GamepackInstallResponse {
 
   /// <summary>True when the file has no problem.</summary>
   public bool Valid { get; init; }
+
+  /// <summary>The failure summary: one entry for each problem category, with the count and the remedy (feature 161).</summary>
+  public GamepackInstallSummaryDto Summary { get; init; } = new() { Headline = "No problems." };
+
+  /// <summary>True if the same file would pass the check with take-over on (feature 161).</summary>
+  public bool WouldInstallWithTakeOver { get; init; }
 
   /// <summary>All problems.</summary>
   public IReadOnlyList<GamepackProblemDto> Problems { get; init; } = Array.Empty<GamepackProblemDto>();

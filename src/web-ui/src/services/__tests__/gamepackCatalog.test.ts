@@ -1,5 +1,5 @@
 import { apiPost } from '../../lib/api';
-import { CatalogApiError, installFromCatalog } from '../gamepackCatalog';
+import { CatalogApiError, CatalogInstallRejectedError, installFromCatalog } from '../gamepackCatalog';
 
 jest.mock('../../lib/api', () => ({
   ...jest.requireActual('../../lib/api'),
@@ -46,5 +46,23 @@ describe('installFromCatalog', () => {
     mockPost.mockResolvedValue(response(422, { result: 'signature_rejected', problems: [{ message: 'Bad signature.' }] }));
 
     await expect(installFromCatalog('alpha', '1.2.0', false, false)).rejects.toBeInstanceOf(CatalogApiError);
+  });
+
+  it('keeps the 422 body in a CatalogInstallRejectedError and keeps code and message', async () => {
+    const body = {
+      result: 'signature_rejected',
+      summary: { headline: '1 signature problem.', entries: [] },
+      problems: [{ message: 'Bad signature.' }]
+    };
+    mockPost.mockResolvedValue(response(422, body));
+
+    const error = await installFromCatalog('alpha', '1.2.0', false, false).catch((e) => e);
+
+    expect(error).toBeInstanceOf(CatalogInstallRejectedError);
+    expect(error).toBeInstanceOf(CatalogApiError);
+    expect(error.result).toEqual(body);
+    expect(error.code).toBe('signature_rejected');
+    expect(error.message).toBe('Bad signature.');
+    expect(error.status).toBe(422);
   });
 });

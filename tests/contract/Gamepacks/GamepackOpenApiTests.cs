@@ -35,6 +35,29 @@ public sealed class GamepackOpenApiTests {
   }
 
   [Fact]
+  public async Task TheFailureExplanationMembersAreDescribed() {
+    var document = await ReadDocumentAsync();
+    var schemas = document.GetProperty("components").GetProperty("schemas");
+
+    var response = schemas.GetProperty("GamepackInstallResponse").GetProperty("properties");
+    response.GetProperty("summary").TryGetProperty("$ref", out _).Should().BeTrue();
+    schemas.GetProperty("GamepackInstallResponse").GetProperty("properties").GetProperty("wouldInstallWithTakeOver")
+      .GetProperty("description").GetString().Should().NotBeNullOrWhiteSpace();
+    var problem = schemas.GetProperty("GamepackProblemDto").GetProperty("properties");
+    problem.GetProperty("takeOverResolves").GetProperty("description").GetString().Should().NotBeNullOrWhiteSpace();
+    problem.GetProperty("remedy").GetProperty("description").GetString().Should().NotBeNullOrWhiteSpace();
+
+    foreach (var name in new[] { "GamepackInstallSummaryDto", "GamepackInstallSummaryEntryDto" }) {
+      schemas.GetProperty(name).GetProperty("description").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+
+    var entry = schemas.GetProperty("GamepackInstallSummaryEntryDto").GetProperty("properties");
+    foreach (var member in new[] { "category", "count", "label", "remedy", "resolvedByTakeOver" }) {
+      entry.GetProperty(member).GetProperty("description").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+  }
+
+  [Fact]
   public async Task TheRemoveRouteIsDescribed() {
     var document = await ReadDocumentAsync();
 

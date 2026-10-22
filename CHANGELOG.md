@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Gamepack install failure explanation (161-gamepack-install-failure-explanation, #337)
+  - **New fields**: the install answer has `summary` (counts and remedies for each problem category) and `wouldInstallWithTakeOver`. Each problem has `takeOverResolves` and `remedy`. The Gamepacks page shows the summary when a dry run, an install, or an update fails.
+  - See `docs/gamepacks.md`.
+  - The patch version is now 15, so the next build is `1.11.15.<run number>`.
 - The Gamepacks page has a take-over check box (160-gamepacks-page-take-over, #336)
   - **New option**: the Gamepacks page has a check box to take over existing items when you install a gamepack. The page sends the option with the install request.
   - See `docs/gamepacks.md`.

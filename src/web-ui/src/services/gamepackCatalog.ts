@@ -30,10 +30,27 @@ export interface CatalogList {
   gamepacks: CatalogGamepack[];
 }
 
+/** One line of the failure summary: all problems of one category. */
+export interface CatalogInstallSummaryEntry {
+  category: string;
+  count: number;
+  label: string;
+  remedy: string;
+  resolvedByTakeOver: boolean;
+}
+
+/** The failure summary of an install check. The server writes the text. */
+export interface CatalogInstallSummary {
+  headline: string;
+  entries: CatalogInstallSummaryEntry[];
+}
+
 export interface CatalogInstallResult {
   dryRun: boolean;
   valid: boolean;
-  problems?: Array<{ code?: string; message?: string }>;
+  summary?: CatalogInstallSummary;
+  wouldInstallWithTakeOver?: boolean;
+  problems?: Array<{ code?: string; message?: string; takeOverResolves?: boolean; remedy?: string }>;
   gamepack?: { name: string; version: string } | null;
   created: number;
   updated: number;
@@ -50,6 +67,15 @@ export class CatalogApiError extends Error {
     super(message);
     this.status = status;
     this.code = code;
+  }
+}
+
+/** A 422 answer of an install. It keeps the full body, so the page can show the summary. */
+export class CatalogInstallRejectedError extends CatalogApiError {
+  result: CatalogInstallResult | undefined;
+  constructor(code: string, message: string, result: CatalogInstallResult | undefined) {
+    super(422, code, message);
+    this.result = result;
   }
 }
 
@@ -101,7 +127,7 @@ export async function installFromCatalog(name: string, version: string, dryRun: 
     const body = (await readJson(res)) as CatalogInstallResult;
     if (res.ok) return body;
     const first = body?.problems?.[0]?.message;
-    throw new CatalogApiError(422, body?.result ?? 'install_rejected', first ?? 'The install was rejected. Nothing changed.');
+    throw new CatalogInstallRejectedError(body?.result ?? 'install_rejected', first ?? 'The install was rejected. Nothing changed.', body);
   }
   throw await toError(res);
 }

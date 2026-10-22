@@ -2,7 +2,7 @@
 
 **Feature Branch**: `161-gamepack-install-failure-explanation`  
 **Created**: 2026-10-22  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Issue 337 (FR-034): a failed gamepack install or dry run explains why it fails and what resolves it. Closes #337."
 
 ## Clarifications

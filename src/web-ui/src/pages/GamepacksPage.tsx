@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   CatalogApiError,
   CatalogGamepack,
+  CatalogInstallRejectedError,
+  CatalogInstallResult,
   CatalogSettings,
   getCatalogSettings,
   installFromCatalog,
@@ -40,7 +42,22 @@ const errorText = (err: unknown, fallback: string): string => {
   return err instanceof Error ? err.message : fallback;
 };
 
-type Notice = { kind: 'ok' | 'error'; text: string };
+// The text shows when an error has no reason (for example a network error).
+const UNKNOWN_CAUSE_TEXT = 'The cause is not known. See the service log.';
+
+// A notice can have a list of lines under the text (the failure summary).
+type Notice = { kind: 'ok' | 'error'; text: string; lines?: string[] };
+
+// One line for each summary entry: "<count> <label>. <remedy>". The text comes from the server.
+export const summaryText = (result: CatalogInstallResult | undefined): string[] =>
+  (result?.summary?.entries ?? []).map((e) => `${e.count} ${e.label}. ${e.remedy}`);
+
+const takeOverSentence = (result: CatalogInstallResult): string =>
+  result.wouldInstallWithTakeOver === undefined
+    ? ''
+    : result.wouldInstallWithTakeOver
+      ? 'Take-over would resolve all problems.'
+      : 'Take-over would not resolve all problems.';
 
 // The last dry run. A take-over install is allowed only after a valid dry run with the same version and take-over choice.
 type LastDryRun = { key: string; takeOver: boolean; valid: boolean; takenOver: number };
@@ -140,12 +157,29 @@ export const GamepacksPage: React.FC = () => {
           .map((p) => p.message)
           .filter((m): m is string => !!m)
           .join(' ');
-        setInstallNotice({
-          kind: result.valid ? 'ok' : 'error',
-          text: result.valid
-            ? `Dry run for ${name} ${version}: the install would work. Nothing changed. ${counts}${takeOverText}`
-            : `Dry run for ${name} ${version}: the install would fail. Nothing changed.${takeOverText}${problems ? ` ${problems}` : ''}`
-        });
+        const lines = summaryText(result);
+        if (result.valid) {
+          const headline = result.summary?.headline ? ` ${result.summary.headline}` : '';
+          setInstallNotice({
+            kind: 'ok',
+            text: `Dry run for ${name} ${version}: the install would work. Nothing changed. ${counts}${takeOverText}${headline}`
+          });
+        }
+        else if (lines.length > 0) {
+          const sentence = takeOverSentence(result);
+          setInstallNotice({
+            kind: 'error',
+            text: `Dry run for ${name} ${version}: the install would fail. Nothing changed.${takeOverText}${sentence ? ` ${sentence}` : ''}`,
+            lines
+          });
+        }
+        else {
+          // An old server gives no summary. The page shows the problem messages.
+          setInstallNotice({
+            kind: 'error',
+            text: `Dry run for ${name} ${version}: the install would fail. Nothing changed.${takeOverText}${problems ? ` ${problems}` : ''}`
+          });
+        }
       } else {
         setInstallNotice({ kind: 'ok', text: `Installed ${name} ${version}. ${counts}` });
         setLastDryRun(null);
@@ -153,7 +187,15 @@ export const GamepacksPage: React.FC = () => {
       }
     } catch (err) {
       if (dryRun) setLastDryRun(null);
-      setInstallNotice({ kind: 'error', text: `${dryRun ? 'Dry run' : 'Install'} of ${name} ${version} failed. Nothing changed. ${errorText(err, '')}`.trim() });
+      const head = `${dryRun ? 'Dry run' : 'Install'} of ${name} ${version} failed. Nothing changed.`;
+      const lines = err instanceof CatalogInstallRejectedError ? summaryText(err.result) : [];
+      if (lines.length > 0) {
+        setInstallNotice({ kind: 'error', text: head, lines });
+      }
+      else {
+        const reason = errorText(err, '').trim();
+        setInstallNotice({ kind: 'error', text: `${head} ${reason || UNKNOWN_CAUSE_TEXT}` });
+      }
     } finally {
       setBusyKey(null);
     }
@@ -232,9 +274,16 @@ export const GamepacksPage: React.FC = () => {
         <p className="gamepacks-hint">The gamepack owns these objects and replaces them. The old content goes to a backup.</p>
 
         {installNotice && (
-          <p role={installNotice.kind === 'error' ? 'alert' : 'status'} className={installNotice.kind === 'error' ? 'error' : undefined}>
+          <div role={installNotice.kind === 'error' ? 'alert' : 'status'} className={installNotice.kind === 'error' ? 'error' : undefined}>
             {installNotice.text}
-          </p>
+            {installNotice.lines && (
+              <ul className="gamepacks-summary">
+                {installNotice.lines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
         {listError && <p role="alert" className="error">{listError}</p>}
         {packs && packs.length === 0 && <p>The catalog has no gamepacks.</p>}

@@ -35,7 +35,10 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
     ["name"] = "The name of the object, or null.",
     ["owner"] = "For a conflict: user, or the gamepack name and version as text (for example PackName 1.2.0). Else null.",
     ["message"] = "What is wrong, in plain words.",
-    ["code"] = "For a signature problem: signature_ and the status. Else not set."
+    ["code"] = "For a signature problem: signature_ and the status. Else not set.",
+    ["takeOverResolves"] = "True only for a conflict with an object of the user, when takeOver is off. An install with takeOver=true removes this problem. "
+      + "A second object of the user with the same name stays a conflict that take-over resolves. With takeOver on, each remaining problem gives false (feature 161).",
+    ["remedy"] = "What to do to remove this problem, in plain words (feature 161)."
   };
 
   public void Apply(OpenApiSchema schema, SchemaFilterContext context) {
@@ -67,11 +70,30 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       schema.Description = "The result of an install or a dry run. A dry run with problems gives 200 with valid false. "
         + "An install with problems gives 422. created, updated, and removed show what the install did, or would do for a dry run. "
         + "takenOver is the number of user objects that the gamepack took over (feature 149). It is always present and is 0 when takeOver is off.";
+      Describe(schema, "summary", "The failure summary (feature 161). It comes before problems. It has one entry for each problem category, with the count and the remedy. When the check has no problem, the headline is No problems. and entries is empty.");
+      Describe(schema, "wouldInstallWithTakeOver", "True if the same file would pass the check with takeOver=true (feature 161). True for a valid check. False for a check with takeOver on that is not valid, for invalid JSON, and for a rejected signature. Else the result of a second check with takeOver on. The second check writes nothing.");
       Describe(schema, "takenOver", "The number of user objects of the same type and name that the install took over (planned for a dry run). 0 when takeOver is off or nothing was taken over. It does not count an update of an object that the gamepack already owned.");
       Describe(schema, "takeOverBackupId", "The id of the take-over backup. Present only for a real install that replaced at least one object. Use it with POST /api/gamepacks/takeover-backups/{backupId}/restore.");
       Describe(schema, "takeOvers", "Present only for a dry run with takeOver=true and no problem. One entry for each object to take over, with identical true when the content of the user object equals the content of the gamepack object.");
       Describe(schema, "seedTemplatesCreated", "The names of the seed templates that the install created (planned for a dry run). Always present, also when empty (feature 150). A seed is an ordinary queue template with no link to the gamepack.");
       Describe(schema, "seedTemplatesSkipped", "The seed templates that the install did not create (planned for a dry run). Always present, also when empty. Each item has the name and the reason skipped_exists (a template with this name exists).");
+      return;
+    }
+
+    if (context.Type == typeof(GamepackInstallSummaryDto)) {
+      schema.Description = "The failure summary of an install check (feature 161). The order of the entries is structure, signature, reference, conflict.";
+      Describe(schema, "headline", "One line with the counts. No problems. when the check has no problem.");
+      Describe(schema, "entries", "One entry for each category that has a problem.");
+      return;
+    }
+
+    if (context.Type == typeof(GamepackInstallSummaryEntryDto)) {
+      schema.Description = "All problems of one category (feature 161).";
+      Describe(schema, "category", "structure, signature, reference, or conflict.");
+      Describe(schema, "count", "The number of problems of this category. At least 1.");
+      Describe(schema, "label", "The label. It uses the singular form when the count is 1.");
+      Describe(schema, "remedy", "What to do to remove these problems.");
+      Describe(schema, "resolvedByTakeOver", "True only if take-over resolves every problem of this entry.");
       return;
     }
 

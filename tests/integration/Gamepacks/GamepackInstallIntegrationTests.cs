@@ -83,6 +83,22 @@ public sealed class GamepackInstallIntegrationTests : IDisposable {
   }
 
   [Fact]
+  public async Task AFailedInstallWithoutTakeOverLeavesTheObjectsAndGivesTheExplanation() {
+    await _kit.AddUserObjectsAsync(GamepackTestKit.Pack("user-objects", "1",
+      sequences: new[] { GamepackTestKit.Seq("u-seq", "Daily", "u-cmd") },
+      commands: new[] { GamepackTestKit.Cmd("u-cmd", "Tap") }));
+    var before = _kit.Snapshot();
+
+    var outcome = await _kit.Service.InstallAsync(V1(), new GamepackInstallOptions(DryRun: false));
+
+    outcome.Status.Should().Be(GamepackInstallStatus.Invalid);
+    outcome.WouldInstallWithTakeOver.Should().BeTrue();
+    var summary = GamepackFailureExplainer.Summarize(outcome.Problems, takeOverOn: false);
+    summary.Entries.Should().ContainSingle(e => e.Category == "conflict" && e.ResolvedByTakeOver);
+    _kit.Snapshot().Should().BeEquivalentTo(before);
+  }
+
+  [Fact]
   public async Task AnEmptyGamepackInstallsAndIsListed() {
     await InstallAsync(GamepackTestKit.Pack("empty", "1"));
     _kit.Service.List().Should().ContainSingle(g => g.Name == "empty");

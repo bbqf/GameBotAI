@@ -41,6 +41,9 @@ internal static class GamepacksEndpoints {
         + "seedTemplatesCreated and seedTemplatesSkipped (for a dry run they show what the install would do). "
         + "Status 400 also covers a condition or loop config with a missing, unknown, duplicate, or not-string type member. The message gives the JSON path. "
         + "The type member can be at any position in its object. "
+        + "Each answer with a check result has a summary (headline and entries, one for each problem category, with count, label, and remedy) before the problems, "
+        + "and the field wouldInstallWithTakeOver. Each problem has takeOverResolves and remedy. "
+        + "A second user object with the same name stays a conflict that take-over resolves. "
         + "The request can have at most 100 MB. The request is the gamepack file as application/json (no signature), or multipart/form-data "
         + "with the part gamepack and the optional part signature. The response has a signature block with status, policy, and wouldReject. "
         + "If the policy is required and the status is not valid, an install gives 422 with result signature_rejected and changes nothing. "
@@ -170,7 +173,7 @@ internal static class GamepacksEndpoints {
     }
 
     var outcome = await service.InstallAsync(parts.Gamepack, new GamepackInstallOptions(isDryRun, takeOver ?? false, parts.Signature), ct).ConfigureAwait(false);
-    return ToInstallResult(outcome, isDryRun);
+    return ToInstallResult(outcome, isDryRun, takeOver ?? false);
   }
 
   private static async Task<IResult> RestoreTakeOverAsync(string backupId, GamepackService service, CancellationToken ct) {
@@ -191,14 +194,14 @@ internal static class GamepacksEndpoints {
   }
 
   /// <summary>Maps an install outcome to the response of the install routes (the manual route and the catalog route).</summary>
-  internal static IResult ToInstallResult(GamepackInstallOutcome outcome, bool isDryRun) =>
+  internal static IResult ToInstallResult(GamepackInstallOutcome outcome, bool isDryRun, bool takeOver) =>
     outcome.Status switch {
-      GamepackInstallStatus.Ok => Results.Ok(ToInstallResponse(outcome, valid: true)),
-      GamepackInstallStatus.InvalidJson => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status400BadRequest),
-      GamepackInstallStatus.SignatureRejected when isDryRun => Results.Ok(ToInstallResponse(outcome, valid: false)),
-      GamepackInstallStatus.SignatureRejected => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status422UnprocessableEntity),
-      GamepackInstallStatus.Invalid when isDryRun => Results.Ok(ToInstallResponse(outcome, valid: false)),
-      GamepackInstallStatus.Invalid => Results.Json(ToInstallResponse(outcome, valid: false), statusCode: StatusCodes.Status422UnprocessableEntity),
+      GamepackInstallStatus.Ok => Results.Ok(ToInstallResponse(outcome, valid: true, takeOver)),
+      GamepackInstallStatus.InvalidJson => Results.Json(ToInstallResponse(outcome, valid: false, takeOver), statusCode: StatusCodes.Status400BadRequest),
+      GamepackInstallStatus.SignatureRejected when isDryRun => Results.Ok(ToInstallResponse(outcome, valid: false, takeOver)),
+      GamepackInstallStatus.SignatureRejected => Results.Json(ToInstallResponse(outcome, valid: false, takeOver), statusCode: StatusCodes.Status422UnprocessableEntity),
+      GamepackInstallStatus.Invalid when isDryRun => Results.Ok(ToInstallResponse(outcome, valid: false, takeOver)),
+      GamepackInstallStatus.Invalid => Results.Json(ToInstallResponse(outcome, valid: false, takeOver), statusCode: StatusCodes.Status422UnprocessableEntity),
       GamepackInstallStatus.PartialRestore => WriteFailed("partial_restore", outcome.ErrorMessage, outcome.FailedRestoreKeys),
       _ => WriteFailed("failed", outcome.ErrorMessage)
     };
@@ -234,7 +237,7 @@ internal static class GamepacksEndpoints {
         Removed = outcome.Removed
       }),
       GamepackRollbackStatus.Refused => Results.Json(
-        new GamepackRollbackRefusedResponse { Problems = outcome.Problems.Select(GamepackProblemDto.From).ToList() },
+        new GamepackRollbackRefusedResponse { Problems = outcome.Problems.Select(p => GamepackProblemDto.From(p)).ToList() },
         statusCode: StatusCodes.Status422UnprocessableEntity),
       GamepackRollbackStatus.NoPreviousVersion => ProblemResult(
         StatusCodes.Status409Conflict, "no_previous_version", "The gamepack has no kept previous version."),
@@ -254,10 +257,12 @@ internal static class GamepacksEndpoints {
     };
   }
 
-  private static GamepackInstallResponse ToInstallResponse(GamepackInstallOutcome outcome, bool valid) => new() {
+  private static GamepackInstallResponse ToInstallResponse(GamepackInstallOutcome outcome, bool valid, bool takeOver) => new() {
     DryRun = outcome.DryRun,
     Valid = valid,
-    Problems = outcome.Problems.Select(GamepackProblemDto.From).ToList(),
+    Summary = GamepackInstallSummaryDto.From(GamepackFailureExplainer.Summarize(outcome.Problems, takeOver)),
+    WouldInstallWithTakeOver = outcome.WouldInstallWithTakeOver,
+    Problems = outcome.Problems.Select(p => GamepackProblemDto.From(p, takeOver)).ToList(),
     Gamepack = outcome.Name is null ? null : new GamepackRefDto(outcome.Name, outcome.Version),
     Created = outcome.Created,
     Updated = outcome.Updated,

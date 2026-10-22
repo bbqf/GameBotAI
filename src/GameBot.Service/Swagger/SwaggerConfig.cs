@@ -1121,6 +1121,11 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetResponseExample(operation, "200", new OpenApiObject {
         ["dryRun"] = new OpenApiBoolean(false),
         ["valid"] = new OpenApiBoolean(true),
+        ["summary"] = new OpenApiObject {
+          ["headline"] = new OpenApiString("No problems."),
+          ["entries"] = new OpenApiArray()
+        },
+        ["wouldInstallWithTakeOver"] = new OpenApiBoolean(true),
         ["problems"] = new OpenApiArray(),
         ["gamepack"] = gamepack,
         ["created"] = new OpenApiInteger(3),
@@ -1137,6 +1142,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       var invalid = new OpenApiObject {
         ["dryRun"] = new OpenApiBoolean(false),
         ["valid"] = new OpenApiBoolean(false),
+        ["summary"] = new OpenApiObject {
+          ["headline"] = new OpenApiString("1 conflict."),
+          ["entries"] = new OpenApiArray {
+            new OpenApiObject {
+              ["category"] = new OpenApiString("conflict"),
+              ["count"] = new OpenApiInteger(1),
+              ["label"] = new OpenApiString("conflict: objects owned by the user"),
+              ["remedy"] = new OpenApiString("Install with take-over to replace them, or rename or delete them."),
+              ["resolvedByTakeOver"] = new OpenApiBoolean(true)
+            }
+          }
+        },
+        ["wouldInstallWithTakeOver"] = new OpenApiBoolean(true),
         ["problems"] = problems,
         ["created"] = new OpenApiInteger(0),
         ["updated"] = new OpenApiInteger(0),
@@ -1299,6 +1317,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetResponseExample(operation, "422", new OpenApiObject {
         ["dryRun"] = new OpenApiBoolean(false),
         ["valid"] = new OpenApiBoolean(false),
+        ["summary"] = new OpenApiObject {
+          ["headline"] = new OpenApiString("1 conflict."),
+          ["entries"] = new OpenApiArray {
+            new OpenApiObject {
+              ["category"] = new OpenApiString("conflict"),
+              ["count"] = new OpenApiInteger(1),
+              ["label"] = new OpenApiString("conflict: objects owned by the user"),
+              ["remedy"] = new OpenApiString("Install with take-over to replace them, or rename or delete them."),
+              ["resolvedByTakeOver"] = new OpenApiBoolean(true)
+            }
+          }
+        },
+        ["wouldInstallWithTakeOver"] = new OpenApiBoolean(true),
         ["problems"] = new OpenApiArray { GamepackProblemExample() },
         ["created"] = new OpenApiInteger(0),
         ["updated"] = new OpenApiInteger(0),
@@ -1466,7 +1497,9 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["objectType"] = new OpenApiString("sequence"),
     ["name"] = new OpenApiString("daily-run"),
     ["owner"] = new OpenApiString("user"),
-    ["message"] = new OpenApiString("The sequence daily-run belongs to user. A gamepack does not overwrite it.")
+    ["message"] = new OpenApiString("The sequence daily-run belongs to user. A gamepack does not overwrite it."),
+    ["takeOverResolves"] = new OpenApiBoolean(true),
+    ["remedy"] = new OpenApiString("Install with take-over to replace it, or rename or delete it.")
   };
 
   private static void ApplyQuizExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
