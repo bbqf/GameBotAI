@@ -2,7 +2,7 @@
 
 **Feature Branch**: `160-gamepacks-page-take-over`  
 **Created**: 2026-10-22  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Issue 336 (FR-033): the Gamepacks page offers the take-over option for an install or update. Closes #336."
 
 ## Clarifications

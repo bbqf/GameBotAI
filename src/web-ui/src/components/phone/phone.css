@@ -435,6 +435,10 @@
     height: 24px;
   }
 
+  .app--phone .gamepacks-page p {
+    overflow-wrap: anywhere;
+  }
+
   .app--phone .gamepacks-page .gamepacks-version > button {
     width: 100%;
   }

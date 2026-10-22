@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- The Gamepacks page has a take-over check box (160-gamepacks-page-take-over, #336)
+  - **New option**: the Gamepacks page has a check box to take over existing items when you install a gamepack. The page sends the option with the install request.
+  - See `docs/gamepacks.md`.
+  - The patch version is now 14, so the next build is `1.11.14.<run number>`.
 - The `ocrText` sequence condition (158-ocr-text-condition, #338)
   - **New condition**: a step condition that reads text from a screen region with OCR and compares it with `expected` or `pattern`, with an optional `hh:mm:ss` parser. It works in `If`, `Loop`, `breakCondition`, the step guard, and `all`, `any`, `none`.
   - A failure to read gives false with a reason code in the run log. The run log shows the text that was read. The condition sends no input to the emulator.

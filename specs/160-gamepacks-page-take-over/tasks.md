@@ -15,8 +15,8 @@
 
 **Purpose**: Find the files and create the missing test file.
 
-- [ ] T001 Read `src/web-ui/src/pages/GamepacksPage.tsx`, `src/web-ui/src/services/gamepackCatalog.ts` and `src/web-ui/src/pages/__tests__/GamepacksPage.test.tsx`. Note the Dry run check box, the Install and Update buttons, the dry run notice, and the existing mocks of the service.
-- [ ] T002 Create `src/web-ui/src/services/__tests__/gamepackCatalog.test.ts` if it is absent (Jest APIs only). Add a first test that checks the existing request of `installFromCatalog`. List this file in the PR text as a new file.
+- [X] T001 Read `src/web-ui/src/pages/GamepacksPage.tsx`, `src/web-ui/src/services/gamepackCatalog.ts` and `src/web-ui/src/pages/__tests__/GamepacksPage.test.tsx`. Note the Dry run check box, the Install and Update buttons, the dry run notice, and the existing mocks of the service.
+- [X] T002 Create `src/web-ui/src/services/__tests__/gamepackCatalog.test.ts` if it is absent (Jest APIs only). Add a first test that checks the existing request of `installFromCatalog`. List this file in the PR text as a new file.
 
 ---
 
@@ -24,10 +24,10 @@
 
 **Purpose**: The service sends `takeOver` and returns `takenOver`. All user stories need this.
 
-- [ ] T003 Change `installFromCatalog` in `src/web-ui/src/services/gamepackCatalog.ts` to the signature `installFromCatalog(name, version, dryRun, takeOver)`. Send the body `{ name, version, dryRun, takeOver }`. Add the optional field `takenOver?: number` to `CatalogInstallResult`. Keep the error handling (HTTP 422 gives `CatalogApiError`).
-- [ ] T004 Update every call of `installFromCatalog` in `src/web-ui/src/pages/GamepacksPage.tsx` to pass a temporary `false` for `takeOver`, so the build passes. T008 replaces this temporary value.
-- [ ] T005 [P] Add a service test in `src/web-ui/src/services/__tests__/gamepackCatalog.test.ts`: `installFromCatalog` sends `{ name, version, dryRun, takeOver }` for takeOver true and false, and keeps `takenOver` in the result.
-- [ ] T006 Run `npm test` in `src/web-ui` for the service test and `npm run build`. Fix errors before you continue.
+- [X] T003 Change `installFromCatalog` in `src/web-ui/src/services/gamepackCatalog.ts` to the signature `installFromCatalog(name, version, dryRun, takeOver)`. Send the body `{ name, version, dryRun, takeOver }`. Add the optional field `takenOver?: number` to `CatalogInstallResult`. Keep the error handling (HTTP 422 gives `CatalogApiError`).
+- [X] T004 Update every call of `installFromCatalog` in `src/web-ui/src/pages/GamepacksPage.tsx` to pass a temporary `false` for `takeOver`, so the build passes. T008 replaces this temporary value.
+- [X] T005 [P] Add a service test in `src/web-ui/src/services/__tests__/gamepackCatalog.test.ts`: `installFromCatalog` sends `{ name, version, dryRun, takeOver }` for takeOver true and false, and keeps `takenOver` in the result.
+- [X] T006 Run `npm test` in `src/web-ui` for the service test and `npm run build`. Fix errors before you continue.
 
 **Checkpoint**: The service is ready. The page can use `takeOver`.
 
@@ -43,7 +43,7 @@
 
 Write these tests first in `src/web-ui/src/pages/__tests__/GamepacksPage.test.tsx`. They must fail before T008 to T012.
 
-- [ ] T007 [P] [US1] Add Jest tests in `src/web-ui/src/pages/__tests__/GamepacksPage.test.tsx` for these cases:
+- [X] T007 [P] [US1] Add Jest tests in `src/web-ui/src/pages/__tests__/GamepacksPage.test.tsx` for these cases:
   - The take-over check box (label `Take over objects of the user with the same name`) and its hint show at load, and the box is off (SC-002).
   - FR-005: the box is off, the dry run finds conflicts, the page lists the conflicts, and the box is still available.
   - A6: the dry run request sends `takeOver` false when the box is off, and true when it is on.
@@ -58,12 +58,12 @@ Write these tests first in `src/web-ui/src/pages/__tests__/GamepacksPage.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, add the page state `takeOver` (default false) and `lastDryRun` (`{ key, takeOver, valid, takenOver }` or null, as in data-model.md). Replace the temporary `false` from T004 with the real `takeOver` value in the dry run call and in the install call (A10). Save `lastDryRun` after each dry run response.
-- [ ] T009 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, render the take-over check box next to the Dry run check box. Use the class `gamepacks-check`. Use the label `Take over objects of the user with the same name` and the hint `The gamepack owns these objects and replaces them. The old content goes to a backup.` The box is off at load and is not kept between visits.
-- [ ] T010 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, add the rule for the buttons. With take-over on and Dry run off, enable the Install or Update button only when `lastDryRun` exists, is valid, and has the same `key` and `takeOver` as the current version and box. With Dry run on, the button stays enabled. With take-over off, keep the current behaviour. In the row of a disabled version, show the hint `Run the dry run with take-over first.`
-- [ ] T011 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, show `Take over N.` in the dry run notice for each dry run made with take-over on, valid or not. Keep the conflict and problem lines visible. With take-over off, show no count. Do not change the failure explanation text (FR-010).
-- [ ] T012 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, make a change of the take-over box set `lastDryRun` to null and clear the dry run notice. Make a change of the Dry run box keep `lastDryRun`. The page must not start a dry run by itself.
-- [ ] T013 [US1] Run `npm test` and `npm run build` in `src/web-ui`. All tests of T007 must pass.
+- [X] T008 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, add the page state `takeOver` (default false) and `lastDryRun` (`{ key, takeOver, valid, takenOver }` or null, as in data-model.md). Replace the temporary `false` from T004 with the real `takeOver` value in the dry run call and in the install call (A10). Save `lastDryRun` after each dry run response.
+- [X] T009 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, render the take-over check box next to the Dry run check box. Use the class `gamepacks-check`. Use the label `Take over objects of the user with the same name` and the hint `The gamepack owns these objects and replaces them. The old content goes to a backup.` The box is off at load and is not kept between visits.
+- [X] T010 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, add the rule for the buttons. With take-over on and Dry run off, enable the Install or Update button only when `lastDryRun` exists, is valid, and has the same `key` and `takeOver` as the current version and box. With Dry run on, the button stays enabled. With take-over off, keep the current behaviour. In the row of a disabled version, show the hint `Run the dry run with take-over first.`
+- [X] T011 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, show `Take over N.` in the dry run notice for each dry run made with take-over on, valid or not. Keep the conflict and problem lines visible. With take-over off, show no count. Do not change the failure explanation text (FR-010).
+- [X] T012 [US1] In `src/web-ui/src/pages/GamepacksPage.tsx`, make a change of the take-over box set `lastDryRun` to null and clear the dry run notice. Make a change of the Dry run box keep `lastDryRun`. The page must not start a dry run by itself.
+- [X] T013 [US1] Run `npm test` and `npm run build` in `src/web-ui`. All tests of T007 must pass.
 
 **Checkpoint**: The catalog update works with take-over. This is the MVP.
 
@@ -77,15 +77,15 @@ Write these tests first in `src/web-ui/src/pages/__tests__/GamepacksPage.test.ts
 
 ### Tests for User Story 2
 
-- [ ] T014 [P] [US2] Add Jest tests in `src/web-ui/src/pages/__tests__/GamepacksPage.test.tsx` for these cases:
+- [X] T014 [P] [US2] Add Jest tests in `src/web-ui/src/pages/__tests__/GamepacksPage.test.tsx` for these cases:
   - The take-over box applies to the Install button of a not-installed gamepack, and it is off.
   - With take-over on and a valid matching dry run, Install sends `takeOver` true.
   - A valid dry run of version A with take-over on does not enable the Install or Update button of version B. The row of B shows `Run the dry run with take-over first.`
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] In `src/web-ui/src/pages/GamepacksPage.tsx`, check that the rules of T008 to T012 apply to the Install button and to the Update button of every catalog version. Use one shared code path for both buttons. Fix any difference. A dry run result is valid only for its own `name@version`.
-- [ ] T016 [US2] Run `npm test` and `npm run build` in `src/web-ui`. All tests of T014 must pass.
+- [X] T015 [US2] In `src/web-ui/src/pages/GamepacksPage.tsx`, check that the rules of T008 to T012 apply to the Install button and to the Update button of every catalog version. Use one shared code path for both buttons. Fix any difference. A dry run result is valid only for its own `name@version`.
+- [X] T016 [US2] Run `npm test` and `npm run build` in `src/web-ui`. All tests of T014 must pass.
 
 **Checkpoint**: Install and Update behave the same.
 
@@ -93,12 +93,12 @@ Write these tests first in `src/web-ui/src/pages/__tests__/GamepacksPage.test.ts
 
 ## Phase 5: Polish and Cross-Cutting Concerns
 
-- [ ] T017 [P] Update `docs/gamepacks.md`. Describe the take-over check box, the dry run rule, the text `Take over N.`, and the gap: the page has no file install, so the file part of the issue criterion 6 is not applicable (FR-007, FR-011).
-- [ ] T018 [P] Run a grep for "Gamepacks" in `docs/architecture.md`. If a match is affected by this change, update the "Last reviewed" line in that file. Else make no change.
+- [X] T017 [P] Update `docs/gamepacks.md`. Describe the take-over check box, the dry run rule, the text `Take over N.`, and the gap: the page has no file install, so the file part of the issue criterion 6 is not applicable (FR-007, FR-011).
+- [X] T018 [P] Run a grep for "Gamepacks" in `docs/architecture.md`. If a match is affected by this change, update the "Last reviewed" line in that file. Else make no change.
 - [ ] T019 Do the manual phone check from `specs/160-gamepacks-page-take-over/quickstart.md`: 375 px width, touch target of 44 px, no horizontal scroll (FR-012). If long text overflows, fix `src/web-ui/src/phone.css`. Record the result in the PR text.
-- [ ] T020 Run the full `npm test` and `npm run build` in `src/web-ui`. Run the quickstart manual check on the desktop.
-- [ ] T021 Prepare the PR text in STE. State the gap (the page has no file install; the file install is out of scope). State the result of the phone check from T019. Include `Closes #336`.
-- [ ] T022 Set the Status line of `specs/160-gamepacks-page-take-over/spec.md` to `Implemented`. Add the row for feature 160 in `specs/STATUS.md`.
+- [X] T020 Run the full `npm test` and `npm run build` in `src/web-ui`. Run the quickstart manual check on the desktop.
+- [X] T021 Prepare the PR text in STE. State the gap (the page has no file install; the file install is out of scope). State the result of the phone check from T019. Include `Closes #336`.
+- [X] T022 Set the Status line of `specs/160-gamepacks-page-take-over/spec.md` to `Implemented`. Add the row for feature 160 in `specs/STATUS.md`.
 
 ---
 
