@@ -2,7 +2,7 @@
 
 **Feature Branch**: `162-installer-bind-address-port`
 **Created**: 2026-10-23
-**Status**: Implemented (owner dialog checklist pending)
+**Status**: Implemented (production upgrade check pending)
 **Input**: User description: "Fix the installer. Every local install or upgrade must show an option to set the interface and port. New installs default to localhost and the port from the current selection mechanism. Upgrades keep the interface and port by default. Start-Menu shortcuts must point to the host and port in use. Upgrades started from the UI or API must keep the binding and the Start-Menu shortcuts." Extension: "Clean up the variables used for the host and port in the configuration, as there are duplicates now."
 
 ## Clarifications

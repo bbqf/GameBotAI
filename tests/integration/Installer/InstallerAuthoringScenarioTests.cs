@@ -82,13 +82,30 @@ public sealed class InstallerAuthoringScenarioTests {
     var validateOrder = int.Parse(Attr(validate, "Order"), System.Globalization.CultureInfo.InvariantCulture);
 
     // Every other event of the Next button runs after the check, and only when the check found no error.
+    // The wait dialog row must stay always true. A wait dialog stays open until its condition is true, so a
+    // condition on the error text left a "Please wait" popup open when the check found an error.
     foreach (var other in next.Where(e => e != validate)) {
       int.Parse(Attr(other, "Order"), System.Globalization.CultureInfo.InvariantCulture).Should().BeGreaterThan(validateOrder);
-      Attr(other, "Condition").Should().Contain("NETWORK_BINDING_ERROR = \"\"");
+      if (Attr(other, "Event") == "SpawnWaitDialog") {
+        Attr(other, "Condition").Should().Be("1");
+      }
+      else if (Attr(other, "Value") == "NetworkBindingErrorDlg") {
+        // The error dialog opens only when there is an error. A new dialog formats its text when it opens.
+        Attr(other, "Event").Should().Be("SpawnDialog");
+        Attr(other, "Condition").Should().Be("NETWORK_BINDING_ERROR <> \"\"");
+      }
+      else {
+        Attr(other, "Condition").Should().Contain("NETWORK_BINDING_ERROR = \"\"");
+      }
     }
 
-    networkUi.Descendants(Wix + "Control").Single(e => Attr(e, "Id") == "BindingError")
+    // A control on the network page does not redraw when a custom action changes the property. The error dialog does.
+    var errorDialog = networkUi.Descendants(Wix + "Dialog").Single(e => Attr(e, "Id") == "NetworkBindingErrorDlg");
+    errorDialog.Descendants(Wix + "Control").Single(e => Attr(e, "Id") == "ErrorText")
       .Attribute("Text")!.Value.Should().Be("[NETWORK_BINDING_ERROR]");
+    networkUi.Descendants(Wix + "Dialog").Single(e => Attr(e, "Id") == "NetworkConfigDlg")
+      .Descendants(Wix + "Control").Should().NotContain(e => Attr(e, "Id") == "BindingError");
+    next.Should().ContainSingle(e => Attr(e, "Value") == "NetworkBindingErrorDlg");
     networkUi.Descendants(Wix + "Publish").Should().NotContain(e => Attr(e, "Property") == "SHORTCUT_HOST");
   }
 

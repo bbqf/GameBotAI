@@ -189,7 +189,7 @@ Status vocabulary:
 | 159 | Notify Step Delivers to the Notification Targets | Implemented |
 | 160 | Gamepacks Page Take-Over Option | Implemented (phone check pending) |
 | 161 | Gamepack Install Failure Explanation | Implemented (phone check pending) |
-| 162 | Installer Bind Address and Port Control | Implemented (owner dialog checklist pending) |
+| 162 | Installer Bind Address and Port Control | Implemented (production upgrade check pending) |
 
 ## Numbering notes
 

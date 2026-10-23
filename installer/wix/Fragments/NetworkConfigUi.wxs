@@ -12,25 +12,32 @@
         <Control Id="PortLabel" Type="Text" X="20" Y="112" Width="150" Height="15" Text="Port:" />
         <Control Id="PortEdit" Type="Edit" X="180" Y="110" Width="160" Height="18" Property="PORT" />
 
-        <!-- ValidateNetworkBinding sets NETWORK_BINDING_ERROR. The page stays while the text is not empty. -->
-        <Control Id="BindingError" Type="Text" X="20" Y="140" Width="330" Height="40" Transparent="yes" NoPrefix="yes" Text="[NETWORK_BINDING_ERROR]" />
-
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)" />
       </Dialog>
 
+      <!-- ValidateNetworkBinding sets NETWORK_BINDING_ERROR. This dialog shows the text. A new dialog formats its
+           text when it opens, so it always shows the current error. A bound control or a static text control on the
+           network page does not redraw when a custom action changes the property. -->
+      <Dialog Id="NetworkBindingErrorDlg" Width="270" Height="85" Title="[ProductName] Setup">
+        <Control Id="ErrorText" Type="Text" X="20" Y="15" Width="235" Height="40" NoPrefix="yes" Text="[NETWORK_BINDING_ERROR]" />
+        <Control Id="Ok" Type="PushButton" X="107" Y="60" Width="56" Height="17" Default="yes" Cancel="yes" Text="OK">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+      </Dialog>
       <!-- The folder can change the data directory that holds the saved file, so the resolver runs again here. -->
       <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="ResolveNetworkBinding" Order="99" Condition="1" />
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="NetworkConfigDlg" Order="100" Condition="1" />
       <Publish Dialog="NetworkConfigDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Condition="1" />
       <Publish Dialog="NetworkConfigDlg" Control="Next" Event="DoAction" Value="ValidateNetworkBinding" Order="1" Condition="1" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnWaitDialog" Value="WaitForCostingDlg" Order="2" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND (1 OR CostingComplete = 1)" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Order="3" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace &lt;&gt; 1" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfRbDiskDlg" Order="4" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND (PROMPTROLLBACKCOST=&quot;P&quot; OR NOT PROMPTROLLBACKCOST)" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Order="5" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EnableRollback" Value="False" Order="6" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
-      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfDiskDlg" Order="7" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND ((OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST=&quot;F&quot;))" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="NetworkBindingErrorDlg" Order="2" Condition="NETWORK_BINDING_ERROR &lt;&gt; &quot;&quot;" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnWaitDialog" Value="WaitForCostingDlg" Order="3" Condition="1" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Order="4" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace &lt;&gt; 1" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfRbDiskDlg" Order="5" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND (PROMPTROLLBACKCOST=&quot;P&quot; OR NOT PROMPTROLLBACKCOST)" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EndDialog" Value="Return" Order="6" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="EnableRollback" Value="False" Order="7" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST=&quot;D&quot;" />
+      <Publish Dialog="NetworkConfigDlg" Control="Next" Event="SpawnDialog" Value="OutOfDiskDlg" Order="8" Condition="NETWORK_BINDING_ERROR = &quot;&quot; AND BIND_HOST &lt;&gt; &quot;&quot; AND PORT &lt;&gt; &quot;&quot; AND ((OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST=&quot;F&quot;))" />
       <Publish Dialog="NetworkConfigDlg" Control="Cancel" Event="SpawnDialog" Value="CancelDlg" Condition="1" />
 
       <ComboBox Property="BIND_HOST">
