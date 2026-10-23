@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Installer bind address and port control (162-installer-bind-address-port)
+  - **Choice on every run**: every interactive install and upgrade shows the interface and port page, also an upgrade. The page checks the port when you click **Next**. A port that another program uses gives an error. The installed GameBot service does not count as another program.
+  - **Upgrade keeps the binding**: an upgrade keeps the saved interface and port, also an upgrade from the Web UI or the API. A silent upgrade keeps the saved port, also when another program uses it, and writes a warning to the installer log. The service then logs the bind failure and ends with exit code 98.
+  - **Shortcut address**: the `GameBot` Start-Menu shortcut opens `PROTOCOL://host:port/` with the host and port in use (`localhost` for `127.0.0.1`, the computer name for other hosts). It is made again on every install and upgrade.
+  - **One saved location**: `config\network.json` is the only saved location. The installer moves the older registry values `BindHost` and `Port` into the file and deletes them. The updater command line has no `--port` and no `--bind-host`. The names are `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` (aliases `Service:Network:*`). The configuration page shows one read-only row for each value with its source.
+  - **Test copy of the MSI**: `scripts/installer/new-test-variant.ps1` makes an isolated copy for install tests.
+  - See `INSTALL.md` and `docs/architecture.md`.
+  - The patch version is now 16, so the next build is `1.11.16.<run number>`.
 - Gamepack install failure explanation (161-gamepack-install-failure-explanation, #337)
   - **New fields**: the install answer has `summary` (counts and remedies for each problem category) and `wouldInstallWithTakeOver`. Each problem has `takeOverResolves` and `remedy`. The Gamepacks page shows the summary when a dry run, an install, or an update fails.
   - See `docs/gamepacks.md`.

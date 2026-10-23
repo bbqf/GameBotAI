@@ -9,7 +9,7 @@ This guide shows how to open the GameBot web UI on a phone. It takes about 10 mi
 
 ## Steps
 
-1. **Set the listen address.** Set `BIND_HOST` to `0.0.0.0` in the installer. You can also set the environment variable `GAMEBOT_BIND_HOST=0.0.0.0` and restart the service. See `INSTALL.md` for the installer options.
+1. **Set the listen address.** Select `all interfaces (0.0.0.0)` in the **Bind interface** list of the installer (it shows on every install and upgrade). You can also set `BIND_HOST=0.0.0.0` on the command line. The installer saves the choice in `config\network.json`, so an upgrade keeps it. You can also set the environment variable `GAMEBOT_BIND_HOST=0.0.0.0` and restart the service. See `INSTALL.md` for the installer options.
 2. **Open the firewall port.** Allow inbound TCP connections on the GameBot port (8080 by default) in Windows Firewall. Use the profile of your home network (Private).
 3. **Set an access token.** Set the environment variable `GAMEBOT_AUTH_TOKEN` to a long random value. Restart the service.
 4. **Find the PC address.** Run `ipconfig` on the PC. Note the IPv4 address, for example `192.168.1.20`.

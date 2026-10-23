@@ -67,23 +67,49 @@ Notes:
 - `DATA_ROOT` defaults to `%LocalAppData%\GameBot\data` when omitted.
 - Install root defaults to `%LocalAppData%\GameBot`.
 
+### Interface and port choice
+
+Every interactive install and upgrade shows the pages `WelcomeDlg`, the install folder, and the network settings.
+The network page has the **Bind interface** list and the **Port** field.
+
+- A new install pre-fills `localhost (127.0.0.1)` and the first free port of `8080,8088,8888,80`.
+- An upgrade pre-fills the saved interface and port. Click **Next** to keep them.
+- The page checks the port when you click **Next**. A port that is not a whole number from 1 to 65535 gives an error. A port that another program uses also gives an error. The page stays until the value is valid.
+- The installed GameBot service itself can use the saved port during an upgrade. The page does not count that as "in use".
+- A silent install or upgrade shows no page. The same rules apply to the command-line options.
+
 ### Saved host and port
 
-The installer saves the host and port in `config\network.json` in the data directory.
+The installer saves the host and port in `config\network.json` in the data directory. This is the only saved location.
+Only the installer writes the file. The installer and the service read it.
 The installer keeps these values for:
 
-- an update from the Web UI,
+- an update from the Web UI or the API (the update passes no host and no port),
 - a manual update with a newer installer,
 - an uninstall and a new install into the same data directory.
 
 Rules:
 - If you give `BIND_HOST` or `PORT` to the installer, your value replaces the saved value. The installer saves the new value.
 - If you give no option, the installer uses the saved value. The installer does not look for a free port again.
+- An older install (before the file existed) kept the host and port in the registry key `HKCU\Software\GameBot\Network`. The installer reads these values once, saves them in `network.json`, and deletes them from the registry after a successful install. A failed install keeps them.
 - The uninstall keeps `config\network.json`.
 - A new install into a different folder has a different data directory. The first-install rules apply there.
 - A manual update under a different Windows account must pass `APPLICATIONFOLDER` of the existing install. Without it, the installer uses the default folder of that account. It finds no saved file, and the first-install rules apply.
-- A runtime override (`GAMEBOT_PORT`, `GAMEBOT_BIND_HOST`, or `Service:Network:*`) is not saved. The Web UI update does not pass it to the installer.
+- A runtime override is not saved. The Web UI update does not pass it to the installer. The service names are `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT`. `Service:Network:BindHost` and `Service:Network:Port` are aliases. The configuration alias wins over the environment variable, and the environment variable wins over `network.json`.
 - The service ignores a saved value that is not valid, writes a warning to the log, and uses the next source.
+- The **Configuration** page of the Web UI shows the active host and port with their source (`Configuration`, `Environment`, `NetworkFile`, or `Default`). The two rows are read-only.
+
+### Start-Menu shortcut address
+
+The `GameBot` shortcut opens `PROTOCOL://host:port/` with the host and port in use after the install.
+The host is `localhost` for `127.0.0.1`. For all other values, the host is the computer name. The value `0.0.0.0` is one of them.
+A new install, an upgrade, and an update from the Web UI or the API all use this rule. The `GameBot Background` shortcut has no address.
+
+### A silent upgrade when the saved port is in use
+
+The upgrade ends with success and keeps the saved port. The installer log has the line `WARNING: port <n> is in use. The saved port is kept.`
+The service cannot start its web server then. It writes an error to its log (host, port, and the source of each) and ends with exit code 98.
+Stop the other program, or change the port with the installer.
 
 To open the web UI on a phone, set `BIND_HOST` to a network address, set an access token, and open the firewall port. See [docs/phone-access.md](docs/phone-access.md).
 
@@ -125,10 +151,11 @@ Example:
 
 ## 5) Port behavior
 
-- Deterministic preference order: `8080 -> 8088 -> 8888 -> 80`
-- During installation, occupied ports are automatically detected and resolved to the next available preferred port.
-- In interactive mode, detected values are shown on the network settings dialog and can be edited before continuing.
-- In silent mode, CLI overrides are honored when available; if a requested port is occupied, installer resolves to an available port.
+- Deterministic preference order for a first install: `8080 -> 8088 -> 8888 -> 80`
+- The installer reads `netstat -ano -p tcp` and counts only the listening lines. It compares the port with the local address. A port in a foreign address or in a closed connection does not count.
+- For each listener, the installer reads the program name and path. The installed `GameBot.Service.exe` does not count. Any other program counts. A program that the installer cannot read also counts.
+- In interactive mode, the detected values show on the network settings page and you can edit them. A port in use gives an error and the page stays.
+- In silent mode, the installer keeps a given or saved port, also when another program uses it. It writes a warning to the installer log.
 
 ---
 
@@ -332,9 +359,9 @@ The installer UX and runtime behavior are now validated against the following sc
 ### Scenario 2: Upgrade
 
 - Page 1 (Bootstrapper): same EULA + exact version display.
-- Configuration pages are skipped (directory + interface/port pages are not shown).
-- Existing configuration is retained.
-- Shortcut values are not rewritten during upgrade paths.
+- The directory page and the interface/port page show, as for a fresh install (feature 162).
+- The interface/port page shows the saved values. The saved configuration stays if you click **Next**.
+- The shortcut is created again from the host and port in use. An upgrade from the Web UI or the API does the same.
 
 ### Scenario 3: Removal
 
@@ -349,8 +376,8 @@ The installer UX and runtime behavior are now validated against the following sc
 ### Frontend shortcut stability rules
 
 - Frontend shortcut always uses URL protocol handler via `rundll32`.
-- Effective URL is normalized to avoid blank protocol/host edge cases.
-- Shortcut normalization is constrained to fresh install paths (not upgrade/remove).
+- The target is the property `SHORTCUT_URL`. The installer script `PortResolver.jscript` sets it once, from the host and port in use.
+- No action changes the shortcut file after the install.
 
 ### Automated regression coverage
 
@@ -361,4 +388,20 @@ The following tests now enforce this contract:
 - `tests/integration/Installer/DowngradeBlockFlowTests.cs`
 - `tests/integration/Installer/FirstInstallFlowTests.cs`
 - `tests/integration/Installer/HttpsConfigurationFlowTests.cs`
+- `tests/integration/Installer/PersistedNetworkScriptTests.cs` (resolver, port check, and registry migration)
+- `tests/integration/Installer/TestVariantTests.cs` (isolated test copy of the MSI)
+- `tests/unit/Installer/PortSelectionRulesTests.cs` (port check on sample `netstat` text)
 - `scripts/installer/scope-smoke.ps1` (authoring smoke assertions)
+
+### Test an install without a risk to your real install
+
+The MSI is per-user and has fixed identities. A test run of the real MSI replaces your installed GameBot.
+Use `scripts/installer/new-test-variant.ps1` instead. It copies a built MSI and gives the copy its own upgrade code,
+component GUIDs, registry root, Start-Menu folder, autostart name, and default install folder.
+
+```powershell
+.\scripts\installer\new-test-variant.ps1 -InstanceName T1
+msiexec /i installer\wix\bin\x64\Release\GameBot.T1.msi APPLICATIONFOLDER="C:\Temp\gb-test" PORT=18080 BIND_HOST=127.0.0.1
+```
+
+Use a temporary folder and a temporary port. Remove the copy with `msiexec /x` when you are done.

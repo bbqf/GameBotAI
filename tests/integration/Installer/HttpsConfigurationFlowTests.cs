@@ -15,7 +15,10 @@ public class HttpsConfigurationFlowTests {
     var directoriesContent = File.ReadAllText(directoriesPath);
     var bundleContent = File.ReadAllText(bundlePath);
 
-    directoriesContent.Should().Contain("url.dll,FileProtocolHandler http://localhost:[PORT]/");
+    // The resolver builds the address from the protocol (http by default), the host, and the port.
+    directoriesContent.Should().Contain("url.dll,FileProtocolHandler [SHORTCUT_URL]");
+    File.ReadAllText(Path.Combine(repoRoot, "installer", "wix", "Fragments", "InstallerProperties.wxs"))
+      .Should().Contain("Property Id=\"PROTOCOL\" Value=\"http\"");
     bundleContent.Should().NotContain("ENABLE_HTTPS");
     bundleContent.Should().NotContain("CERTIFICATE_REF");
   }

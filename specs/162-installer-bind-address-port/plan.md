@@ -65,6 +65,7 @@ Full reasons are in [research.md](research.md).
 | D8 | The updater drops `--port` and `--bind-host`, and `MsiexecArguments` drops `PORT` and `BIND_HOST`. The bot never passed them. |
 | D9 | The bot reads the host and port from the environment, the configuration alias, and `network.json`. It does not read the registry. `ResolveListenAddress` returns the source of each value. |
 | D10 | The configuration snapshot shows one row for each value (`GAMEBOT_BIND_HOST`, `GAMEBOT_PORT`) with the source from D9. The rows `Service__Network__*` are removed from the defaults. |
+| D11 | `MajorUpgrade` uses `Schedule="afterInstallInitialize"`, so the removal of the old product is inside the transaction and a failed upgrade rolls back (FR-012). Found in the Level 2 run (research R13). |
 
 ## Project Structure
 

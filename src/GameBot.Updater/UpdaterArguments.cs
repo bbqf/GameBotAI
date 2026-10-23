@@ -5,13 +5,13 @@ namespace GameBot.Updater;
 /// <summary>
 /// The command line of the updater. All values come as "--name value" pairs.
 /// The bot builds the command line (UpdaterLauncher).
+/// The command line has no host and no port. The MSI reads the saved binding from network.json.
+/// The parser accepts and ignores the older "--port" and "--bind-host" pairs.
 /// </summary>
 internal sealed record UpdaterArguments(
   int BotPid,
   string MsiPath,
   string InstallFolder,
-  string Port,
-  string BindHost,
   string DataRoot,
   string ResultPath,
   string AttemptId,
@@ -63,8 +63,6 @@ internal sealed record UpdaterArguments(
       pid,
       map["msi"],
       map["install-folder"],
-      map.GetValueOrDefault("port", string.Empty),
-      map.GetValueOrDefault("bind-host", string.Empty),
       map.GetValueOrDefault("data-root", string.Empty),
       map["result-path"],
       map["attempt-id"],

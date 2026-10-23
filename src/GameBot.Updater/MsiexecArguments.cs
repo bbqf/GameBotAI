@@ -6,8 +6,9 @@ internal static class MsiexecArguments {
   public const int SuccessRebootRequired = 3010;
 
   /// <summary>
-  /// Build: /i "msi" /qn /norestart /l*v "log" APPLICATIONFOLDER="folder" MSIINSTALLPERUSER=1,
-  /// then PORT and BIND_HOST when the bot gives a value.
+  /// Build: /i "msi" /qn /norestart /l*v "log" APPLICATIONFOLDER="folder" MSIINSTALLPERUSER=1.
+  /// The line has no PORT and no BIND_HOST. The MSI reads the saved binding from network.json,
+  /// so an update keeps the host, the port, and the Start-Menu shortcut address (feature 162).
   /// </summary>
   public static string Build(UpdaterArguments args) {
     ArgumentNullException.ThrowIfNull(args);
@@ -25,12 +26,6 @@ internal static class MsiexecArguments {
 
     parts.Add($"APPLICATIONFOLDER={Quote(args.InstallFolder.TrimEnd('\\', '/'))}");
     parts.Add("MSIINSTALLPERUSER=1");
-    if (!string.IsNullOrWhiteSpace(args.Port)) {
-      parts.Add($"PORT={Quote(args.Port)}");
-    }
-    if (!string.IsNullOrWhiteSpace(args.BindHost)) {
-      parts.Add($"BIND_HOST={Quote(args.BindHost)}");
-    }
 
     return string.Join(' ', parts);
   }

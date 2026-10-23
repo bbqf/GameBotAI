@@ -15,6 +15,7 @@ $propsPath = Join-Path $RepoRoot "installer/wix/Fragments/InstallerProperties.wx
 $dirsPath = Join-Path $RepoRoot "installer/wix/Fragments/Directories.wxs"
 $bundlePath = Join-Path $RepoRoot "installer/wix/Bundle.wxs"
 $startupPath = Join-Path $RepoRoot "installer/wix/Fragments/StartupRegistration.wxs"
+$resolverPath = Join-Path $RepoRoot "installer/wix/Scripts/PortResolver.jscript"
 
 Write-Host "Running installer scope smoke checks"
 
@@ -23,6 +24,7 @@ $props = Get-Content -Path $propsPath -Raw
 $dirs = Get-Content -Path $dirsPath -Raw
 $bundle = Get-Content -Path $bundlePath -Raw
 $startup = Get-Content -Path $startupPath -Raw
+$resolver = Get-Content -Path $resolverPath -Raw
 
 $checks = @(
   @{ Name = "WixUI user-scope support enabled"; Ok = $product.Contains('Property Id="WixUISupportPerUser" Value="1"') },
@@ -31,9 +33,9 @@ $checks = @(
   @{ Name = "Bundle mode variable removed"; Ok = -not $bundle.Contains('Variable Name="MODE"') },
   @{ Name = "Bundle defines bind host variable (empty = not given)"; Ok = $bundle.Contains('Variable Name="BIND_HOST" Type="string" Value=""') },
   @{ Name = "Bundle defines canonical port variable (empty = not given)"; Ok = $bundle.Contains('Variable Name="PORT" Type="string" Value=""') },
-  @{ Name = "Installer properties default bind host to loopback"; Ok = $props.Contains('SetProperty Id="BIND_HOST" Action="SetBindHostDefault" Value="127.0.0.1"') },
-  @{ Name = "Installer properties default port to 8080"; Ok = $props.Contains('SetProperty Id="PORT" Action="SetPortDefault" Value="8080"') },
-  @{ Name = "Installer properties include shortcut host"; Ok = $props.Contains('Property Id="SHORTCUT_HOST" Value="localhost"') },
+  @{ Name = "Resolver defaults bind host to loopback"; Ok = $resolver.Contains('var DEFAULT_BIND_HOST = "127.0.0.1";') },
+  @{ Name = "Resolver defaults port to the preferred order, first port 8080"; Ok = $resolver.Contains('var DEFAULT_PORT_ORDER = [8080, 8088, 8888, 80];') },
+  @{ Name = "Installer properties have no shortcut host copy"; Ok = -not $props.Contains('SHORTCUT_HOST') },
   @{ Name = "User-scope folder enforced"; Ok = $props.Contains('SetProperty Id="WixAppFolder" Value="WixPerUserFolder"') },
   @{ Name = "Legacy scope mapping removed"; Ok = -not $props.Contains('SetProperty Id="SCOPE"') },
   @{ Name = "Install path defaults to LocalAppData"; Ok = $props.Contains('CustomAction Id="SetApplicationFolder" Property="APPLICATIONFOLDER" Value="[LocalAppDataFolder]GameBot"') -and $props.Contains('Custom Action="SetApplicationFolder" Before="CostFinalize"') },
@@ -41,8 +43,8 @@ $checks = @(
   @{ Name = "Windows service registration removed"; Ok = -not $startup.Contains('WindowsServiceRegistrationComponent') },
   @{ Name = "Service mode launch constraint removed"; Ok = -not $product.Contains('Service mode requires') },
   @{ Name = "Install root uses APPLICATIONFOLDER"; Ok = $dirs.Contains('Directory Id="APPLICATIONFOLDER" Name="GameBot"') },
-  @{ Name = "Start menu shortcut uses URL protocol handler"; Ok = $dirs.Contains('Target="[SystemFolder]rundll32.exe"') -and $dirs.Contains('url.dll,FileProtocolHandler http://localhost:[PORT]/') },
-  @{ Name = "Start menu shortcut points to localhost with dynamic port"; Ok = $dirs.Contains('http://localhost:[PORT]/') }
+  @{ Name = "Start menu shortcut uses URL protocol handler"; Ok = $dirs.Contains('Target="[SystemFolder]rundll32.exe"') -and $dirs.Contains('url.dll,FileProtocolHandler [SHORTCUT_URL]') },
+  @{ Name = "Start menu shortcut uses the resolved address, not a fixed one"; Ok = -not $dirs.Contains('localhost:[PORT]') }
 )
 
 $failed = @($checks | Where-Object { -not $_.Ok })

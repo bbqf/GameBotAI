@@ -73,8 +73,6 @@ public sealed class UpdaterProgramTests {
     args!.BotPid.Should().Be(4242);
     args.MsiPath.Should().EndWith(".msi");
     args.InstallFolder.Should().EndWith(@"GameBot\app");
-    args.Port.Should().Be("8080");
-    args.BindHost.Should().Be("127.0.0.1");
     args.DataRoot.Should().Be(@"C:\data");
     args.AttemptId.Should().Be("6f1c0000-0000-0000-0000-000000000001");
     args.TargetVersion.Should().Be("1.7.0.430");
@@ -91,8 +89,23 @@ public sealed class UpdaterProgramTests {
     var args = UpdaterArguments.TryParse(line, out var error);
 
     error.Should().BeNull();
-    args!.Port.Should().BeEmpty();
+    args!.DataRoot.Should().BeEmpty();
     args.LogPath.Should().BeEmpty();
+  }
+
+  [Fact]
+  public void TheCommandLineCarriesNoHostAndNoPort() {
+    typeof(UpdaterArguments).GetProperty("Port").Should().BeNull();
+    typeof(UpdaterArguments).GetProperty("BindHost").Should().BeNull();
+  }
+
+  [Fact]
+  public void AnOldPortAndHostArgumentDoesNotFailTheParser() {
+    // An updater from an older bot can still pass these pairs. The parser accepts them and ignores them.
+    var args = UpdaterArguments.TryParse(FullLine, out var error);
+
+    error.Should().BeNull();
+    args.Should().NotBeNull();
   }
 
   [Theory]
@@ -145,18 +158,23 @@ public sealed class UpdaterProgramTests {
     line.Should().Contain("/l*v \"C:\\data\\updates\\msiexec-1.log\"");
     line.Should().Contain("APPLICATIONFOLDER=\"C:\\Users\\anton\\AppData\\Local\\GameBot\\app\"");
     line.Should().Contain("MSIINSTALLPERUSER=1");
-    line.Should().Contain("PORT=\"8080\"");
-    line.Should().Contain("BIND_HOST=\"127.0.0.1\"");
+  }
+
+  [Fact]
+  public void MsiexecLineHasNoPortAndNoHostSoTheInstallerKeepsTheSavedBinding() {
+    // FullLine has the old --port and --bind-host pairs. The line must still not carry them (feature 162, FR-011).
+    var line = MsiexecArguments.Build(Args());
+
+    line.Should().NotContain("PORT=");
+    line.Should().NotContain("BIND_HOST=");
   }
 
   [Fact]
   public void MsiexecLineLeavesOutEmptyOptionalValues() {
-    var args = Args() with { Port = "", BindHost = "", LogPath = "" };
+    var args = Args() with { LogPath = "" };
 
     var line = MsiexecArguments.Build(args);
 
-    line.Should().NotContain("PORT=");
-    line.Should().NotContain("BIND_HOST=");
     line.Should().NotContain("/l*v");
   }
 

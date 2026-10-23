@@ -247,7 +247,7 @@ internal static class GameBotServiceSetup {
     builder.Services.AddSingleton<GameBot.Domain.QueueTemplates.IQueueTemplateRepository>(_ => new GameBot.Domain.QueueTemplates.FileQueueTemplateRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRepository>(_ => new FileExecutionLogRepository(storageRoot));
     builder.Services.AddSingleton<IExecutionLogRetentionPolicyRepository>(_ => new ExecutionLogRetentionPolicyRepository(storageRoot));
-    builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>()));
+    builder.Services.AddSingleton<GameBot.Service.Services.IConfigSnapshotService>(sp => new GameBot.Service.Services.ConfigSnapshotService(storageRoot, sp.GetRequiredService<GameBot.Service.Services.IConfigApplier>(), sp.GetRequiredService<IConfiguration>()));
     builder.Services.AddSingleton<ICoverageSummaryService>(sp => new CoverageSummaryService(storageRoot, sp.GetRequiredService<ILogger<CoverageSummaryService>>()));
   }
 
@@ -559,9 +559,10 @@ internal static class GameBotServiceSetup {
       builder.WebHost.UseUrls("http://127.0.0.1:0");
     }
     else if (string.IsNullOrWhiteSpace(explicitUrlsEnv) && !hasUrlsArgument) {
-      var address = ResolveListenAddress(
-        builder.Configuration, Environment.GetEnvironmentVariable, storageRoot, PersistedNetworkSettings.ReadRegistryValue);
+      var address = ResolveListenAddress(builder.Configuration, Environment.GetEnvironmentVariable, storageRoot);
       builder.WebHost.UseUrls($"http://{address.Host}:{address.Port}");
+      // Program uses this value to name the host, the port, and their sources if the bind fails.
+      builder.Services.AddSingleton(address);
       if (address.Problems.Count > 0) {
         builder.Services.AddHostedService(sp => new GameBot.Service.Hosted.NetworkSettingsProblemLogger(
           address.Problems, sp.GetRequiredService<ILogger<GameBot.Service.Hosted.NetworkSettingsProblemLogger>>()));
@@ -569,34 +570,71 @@ internal static class GameBotServiceSetup {
     }
   }
 
-  internal sealed record ListenAddress(string Host, int Port, IReadOnlyList<string> Problems);
+  /// <summary>The active listen host and port, where each value came from, and warnings for values that are not valid.</summary>
+  internal sealed record ListenAddress(
+    string Host, int Port, string HostSource, string PortSource, IReadOnlyList<string> Problems);
+
+  internal const string SourceConfiguration = "Configuration";
+  internal const string SourceEnvironment = "Environment";
+  internal const string SourceNetworkFile = "NetworkFile";
+  internal const string SourceDefault = "Default";
+
+  internal const string DefaultBindHost = "127.0.0.1";
+  internal const int DefaultPort = 8080;
 
   internal static ListenAddress ResolveListenAddress(
       IConfiguration configuration,
       Func<string, string?> getEnvironmentVariable,
-      string storageRoot,
-      Func<string, string?> registryReader) {
-    // Priority for each field on its own: configuration, environment variable, saved file,
-    // older registry value, default (feature 132, FR-006).
-    var persisted = PersistedNetworkSettings.Read(storageRoot, registryReader);
+      string storageRoot) {
+    // Priority for each value on its own: configuration alias (Service:Network:*), environment variable
+    // (GAMEBOT_*), network.json, default (features 132 and 162). The bot does not read the registry.
+    var persisted = PersistedNetworkSettings.Read(storageRoot);
+    var problems = new List<string>(persisted.Problems);
 
-    var host = FirstNonBlank(configuration["Service:Network:BindHost"], getEnvironmentVariable("GAMEBOT_BIND_HOST"))
-               ?? persisted.BindHost
-               ?? "127.0.0.1";
-
-    var explicitPort = FirstNonBlank(configuration["Service:Network:Port"], getEnvironmentVariable("GAMEBOT_PORT"));
-    int port;
-    if (explicitPort is not null) {
-      // A port from configuration or environment that is not valid becomes the default.
-      port = PersistedNetworkSettings.TryParsePort(explicitPort, out var parsed) ? parsed : 8080;
+    var configHost = Clean(configuration["Service:Network:BindHost"]);
+    var environmentHost = Clean(getEnvironmentVariable("GAMEBOT_BIND_HOST"));
+    string host;
+    string hostSource;
+    if (configHost is not null) {
+      (host, hostSource) = (configHost, SourceConfiguration);
+    }
+    else if (environmentHost is not null) {
+      (host, hostSource) = (environmentHost, SourceEnvironment);
+    }
+    else if (persisted.BindHost is not null) {
+      (host, hostSource) = (persisted.BindHost, SourceNetworkFile);
     }
     else {
-      port = persisted.Port ?? 8080;
+      (host, hostSource) = (DefaultBindHost, SourceDefault);
     }
 
-    return new ListenAddress(host, port, persisted.Problems);
+    var configPort = Clean(configuration["Service:Network:Port"]);
+    var environmentPort = Clean(getEnvironmentVariable("GAMEBOT_PORT"));
+    var (givenPort, givenPortSource, givenPortName) = configPort is not null
+      ? (configPort, SourceConfiguration, "Service:Network:Port")
+      : (environmentPort, SourceEnvironment, "GAMEBOT_PORT");
+
+    int port;
+    string portSource;
+    if (givenPort is not null) {
+      if (PersistedNetworkSettings.TryParsePort(givenPort, out var parsed)) {
+        (port, portSource) = (parsed, givenPortSource);
+      }
+      else {
+        // A port from configuration or environment that is not valid becomes the default.
+        problems.Add($"The value '{givenPort}' of {givenPortName} is not a port number from 1 to 65535. The default port {DefaultPort} is used.");
+        (port, portSource) = (DefaultPort, SourceDefault);
+      }
+    }
+    else if (persisted.Port is not null) {
+      (port, portSource) = (persisted.Port.Value, SourceNetworkFile);
+    }
+    else {
+      (port, portSource) = (DefaultPort, SourceDefault);
+    }
+
+    return new ListenAddress(host, port, hostSource, portSource, problems);
   }
 
-  private static string? FirstNonBlank(params string?[] values) =>
-    values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
+  private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

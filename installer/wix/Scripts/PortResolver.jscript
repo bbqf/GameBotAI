@@ -73,48 +73,213 @@ function parsePortList(csv) {
   return list;
 }
 
-function isPortAvailable(port) {
-  var shell = new ActiveXObject("WScript.Shell");
-  var fso = new ActiveXObject("Scripting.FileSystemObject");
-  var tempFolder = shell.ExpandEnvironmentStrings("%TEMP%\\");
-  var outputPath = tempFolder + "gamebot_portscan_" + port + "_" + (new Date().getTime()) + ".txt";
-  var command = "%ComSpec% /c netstat -ano -p tcp > \"" + outputPath + "\"";
-  shell.Run(command, 0, true);
+// ---------------------------------------------------------------------------
+// Port check (feature 162, FR-006).
+// The parser and the classifier are pure functions, so tests can run them on sample
+// "netstat -ano -p tcp" text. The process lookup is a function that the caller gives.
+// ---------------------------------------------------------------------------
 
-  if (!fso.FileExists(outputPath)) {
-    return true;
+var GAMEBOT_SERVICE_EXE = "gamebot.service.exe";
+
+// States that netstat shows for a connection that is not a listener. A listener has the
+// foreign port 0. On a Windows with another language, the word LISTENING can differ.
+var CONNECTION_STATES = " ESTABLISHED TIME_WAIT CLOSE_WAIT SYN_SENT SYN_RECEIVED SYN_RECV FIN_WAIT_1 FIN_WAIT_2 LAST_ACK CLOSING BOUND ";
+
+// Splits "127.0.0.1:8080" or "[::1]:9000" into { address, port }. Returns null when the text is not valid.
+function splitEndpoint(text) {
+  var index = text.lastIndexOf(":");
+  if (index < 1) {
+    return null;
   }
 
-  var file = fso.OpenTextFile(outputPath, 1, false);
-  var output = file.ReadAll();
-  file.Close();
-  try {
-    fso.DeleteFile(outputPath, true);
-  }
-  catch (ignored) {
+  var port = parseInt(text.substring(index + 1), 10);
+  if (isNaN(port) || port < 0 || port > 65535) {
+    return null;
   }
 
-  return output.indexOf(":" + port + " ") === -1;
+  return { address: text.substring(0, index), port: port };
 }
 
-function firstAvailable(candidates) {
+// Reads the text of "netstat -ano -p tcp". Returns [{ address, port, pid }] for the listening lines.
+// Only the local address counts. A port in the foreign address does not count.
+function ParseNetstatListeners(text) {
+  var listeners = [];
+  var lines = ("" + text).split(/\r?\n/);
+  for (var index = 0; index < lines.length; index++) {
+    var parts = trimText(lines[index]).split(/\s+/);
+    if (parts.length < 5 || parts[0].toUpperCase() !== "TCP") {
+      continue;
+    }
+
+    var local = splitEndpoint(parts[1]);
+    var foreign = splitEndpoint(parts[2]);
+    if (local === null || foreign === null || local.port < 1) {
+      continue;
+    }
+
+    var state = parts[3].toUpperCase();
+    var listening = state === "LISTENING" || (foreign.port === 0 && CONNECTION_STATES.indexOf(" " + state + " ") < 0);
+    if (!listening) {
+      continue;
+    }
+
+    listeners.push({ address: local.address, port: local.port, pid: parseInt(parts[4], 10) });
+  }
+
+  return listeners;
+}
+
+function isWildcardAddress(address) {
+  return address === "0.0.0.0" || address === "[::]" || address === "::" || address === "*";
+}
+
+// Returns the listeners that block the port for the host.
+// A listener on all interfaces blocks every host. A listener on one address blocks the same address.
+// A host of 0.0.0.0 (all interfaces) is blocked by every listener on the port.
+function MatchListeners(listeners, port, host) {
+  var matches = [];
+  for (var index = 0; index < listeners.length; index++) {
+    var listener = listeners[index];
+    if (listener.port !== port) {
+      continue;
+    }
+
+    if (isWildcardAddress(listener.address) || isWildcardAddress(host) || listener.address === host) {
+      matches.push(listener);
+    }
+  }
+
+  return matches;
+}
+
+// True when the process is GameBot.Service.exe and its file is inside the application folder.
+function isGameBotService(info, appFolder) {
+  if (info === null || info === undefined) {
+    return false;
+  }
+
+  var folder = normalizeDataPath(appFolder).toLowerCase();
+  var name = trimText(info.name).toLowerCase();
+  var path = trimText(info.path).toLowerCase();
+  return name === GAMEBOT_SERVICE_EXE && folder.length > 0 && path.indexOf(folder) === 0;
+}
+
+// Returns { state, pid }. The state is "free", "gamebot" (only the installed bot holds the port),
+// or "inuse" (another program holds it, or the owner is not readable).
+function ClassifyPortCore(listeners, port, host, appFolder, lookup) {
+  var matches = MatchListeners(listeners, port, host);
+  var result = { state: "free", pid: 0 };
+  for (var index = 0; index < matches.length; index++) {
+    var info = null;
+    try {
+      info = lookup(matches[index].pid);
+    }
+    catch (ignored) {
+      info = null;
+    }
+
+    if (isGameBotService(info, appFolder)) {
+      result.state = "gamebot";
+      result.pid = matches[index].pid;
+      continue;
+    }
+
+    return { state: "inuse", pid: matches[index].pid };
+  }
+
+  return result;
+}
+
+// Returns the first candidate that no other program holds. If all are held, returns the first candidate.
+function FirstFreePortCore(candidates, listeners, host, appFolder, lookup) {
   for (var index = 0; index < candidates.length; index++) {
-    if (isPortAvailable(candidates[index])) {
+    if (ClassifyPortCore(listeners, candidates[index], host, appFolder, lookup).state !== "inuse") {
       return candidates[index];
     }
   }
 
-  return -1;
+  return candidates.length > 0 ? candidates[0] : -1;
 }
 
-function uniquePush(list, value) {
-  for (var index = 0; index < list.length; index++) {
-    if (list[index] === value) {
-      return;
+// Returns the error text for the dialog, or "" when the binding is valid.
+// The listeners can be an array or a function that returns an array (so that netstat runs only when needed).
+function ValidateBindingCore(host, portText, listeners, appFolder, lookup) {
+  var port = parsePortText(portText);
+  if (port < 1) {
+    return "Enter a port number from 1 to 65535.";
+  }
+
+  var hostText = trimText(host === null || host === undefined ? "" : host);
+  if (!isValidHostText(hostText)) {
+    return "Enter a host name or an address with no space, '/' or ':'.";
+  }
+
+  var list = typeof listeners === "function" ? listeners() : listeners;
+  if (ClassifyPortCore(list, port, hostText, appFolder, lookup).state === "inuse") {
+    return "Port " + port + " is in use by another program. Enter a different port.";
+  }
+
+  return "";
+}
+
+// Runs "netstat -ano -p tcp" once and returns the listeners.
+function readNetstatListeners() {
+  var shell = new ActiveXObject("WScript.Shell");
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+  var tempFolder = shell.ExpandEnvironmentStrings("%TEMP%\\");
+  var outputPath = tempFolder + "gamebot_portscan_" + (new Date().getTime()) + ".txt";
+  shell.Run("%ComSpec% /c netstat -ano -p tcp > \"" + outputPath + "\"", 0, true);
+
+  if (!fso.FileExists(outputPath)) {
+    return [];
+  }
+
+  var text = "";
+  try {
+    var file = fso.OpenTextFile(outputPath, 1, false);
+    text = file.ReadAll();
+    file.Close();
+  }
+  finally {
+    try {
+      fso.DeleteFile(outputPath, true);
+    }
+    catch (ignored) {
     }
   }
 
-  list.push(value);
+  return ParseNetstatListeners(text);
+}
+
+// Asks WMI (Win32_Process) for the name and the file of a process. Returns null when it cannot read them.
+function lookupProcessWmi(pid) {
+  try {
+    var locator = new ActiveXObject("WbemScripting.SWbemLocator");
+    var service = locator.ConnectServer(".", "root\\cimv2");
+    var items = service.ExecQuery("SELECT Name, ExecutablePath FROM Win32_Process WHERE ProcessId = " + parseInt(pid, 10));
+    var enumerator = new Enumerator(items);
+    if (!enumerator.atEnd()) {
+      var item = enumerator.item();
+      return { name: "" + item.Name, path: item.ExecutablePath ? "" + item.ExecutablePath : "" };
+    }
+  }
+  catch (ignored) {
+  }
+
+  return null;
+}
+
+// Returns a lookup function that asks WMI once for each process id.
+function createProcessLookup() {
+  var cache = {};
+  return function (pid) {
+    var key = "p" + pid;
+    if (!cache.hasOwnProperty(key)) {
+      cache[key] = lookupProcessWmi(pid);
+    }
+
+    return cache[key];
+  };
 }
 
 function addInterfaceCandidate(candidates, interfaceName, ipAddress) {
@@ -282,10 +447,6 @@ function discoverInterfaceCandidates() {
   return candidates;
 }
 
-function sqlEscape(value) {
-  return ("" + value).replace(/'/g, "''");
-}
-
 function describeError(errorObject) {
   if (!errorObject) {
     return "unknown";
@@ -330,6 +491,29 @@ function insertComboRow(propertyName, order, value, text) {
   }
 }
 
+// Returns the rows for the interface list: the discovered interfaces and, when it is not in the list,
+// the current host (for example a saved address that is not found now). The rows for 127.0.0.1 and
+// 0.0.0.0 are fixed rows in NetworkConfigUi.wxs.
+function InterfaceRowsCore(discovered, currentHost) {
+  var rows = [];
+  var known = {};
+  known["127.0.0.1"] = true;
+  known["0.0.0.0"] = true;
+
+  for (var index = 0; index < discovered.length; index++) {
+    var item = discovered[index];
+    rows.push({ value: item.ip, text: item.name + " (" + item.ip + ")" });
+    known[item.ip] = true;
+  }
+
+  var current = trimText(currentHost === null || currentHost === undefined ? "" : currentHost);
+  if (current.length > 0 && !known.hasOwnProperty(current)) {
+    rows.push({ value: current, text: current });
+  }
+
+  return rows;
+}
+
 function discoverAndPopulateInterfaces() {
   var propertyName = "BIND_HOST";
   if (trimText(Session.Property("BIND_HOST_DISCOVERY_POPULATED")) === "1") {
@@ -337,18 +521,16 @@ function discoverAndPopulateInterfaces() {
     return;
   }
 
-  var discovered = discoverInterfaceCandidates();
-  appendDebugLog("Populating ComboBox with " + discovered.length + " discovered interface row(s).");
+  var rows = InterfaceRowsCore(discoverInterfaceCandidates(), Session.Property("BIND_HOST"));
+  appendDebugLog("Populating ComboBox with " + rows.length + " interface row(s).");
   var order = 3;
-  for (var index = 0; index < discovered.length; index++) {
-    var item = discovered[index];
-    var text = item.name + " (" + item.ip + ")";
-    appendDebugLog("Adding item: " + text);
+  for (var index = 0; index < rows.length; index++) {
+    appendDebugLog("Adding item: " + rows[index].text);
     try {
-      insertComboRow(propertyName, order, item.ip, text);
+      insertComboRow(propertyName, order, rows[index].value, rows[index].text);
     }
     catch (insertErr) {
-      appendDebugLog("Insert failed for item: " + text + " | " + describeError(insertErr));
+      appendDebugLog("Insert failed for item: " + rows[index].text + " | " + describeError(insertErr));
     }
     order++;
   }
@@ -356,128 +538,307 @@ function discoverAndPopulateInterfaces() {
   Session.Property("BIND_HOST_DISCOVERY_POPULATED") = "1";
 }
 
-function updateShortcutHost() {
-  var bindHost = trimText(Session.Property("BIND_HOST"));
-  if (bindHost === "127.0.0.1" || bindHost.length === 0) {
-    Session.Property("SHORTCUT_HOST") = "localhost";
-    return;
-  }
-
-  var computerName = trimText(Session.Property("ComputerName"));
-  if (computerName.length > 0) {
-    Session.Property("SHORTCUT_HOST") = computerName;
-    return;
-  }
-
-  Session.Property("SHORTCUT_HOST") = bindHost;
-}
-
-function resolvePort(requestedRaw, fallbackList) {
-  var candidates = [];
-  var requested = parsePort(requestedRaw);
-
-  if (requested > 0) {
-    uniquePush(candidates, requested);
-  }
-
-  for (var index = 0; index < fallbackList.length; index++) {
-    uniquePush(candidates, fallbackList[index]);
-  }
-
-  var resolved = firstAvailable(candidates);
-  if (resolved > 0) {
-    return resolved;
-  }
-
-  return requested > 0 ? requested : fallbackList[0];
-}
-
-function DetectAvailablePorts() {
-  var requestedPort = Session.Property("PORT");
-  var preferredPortOrder = Session.Property("PREFERRED_PORT_ORDER");
-
-  var portFallback = parsePortList(preferredPortOrder);
-  if (portFallback.length === 0) {
-    portFallback = [8080, 8088, 8888, 80];
-  }
-
-  var resolvedPort = resolvePort(requestedPort, portFallback);
-
-  Session.Property("PORT") = "" + resolvedPort;
-  updateShortcutHost();
-
-  return 1;
-}
-
+// Immediate action: fills the interface list of the dialog. Runs after ResolveNetworkBinding.
 function DiscoverBindInterfaces() {
-  var currentBindHost = trimText(Session.Property("BIND_HOST"));
-  if (currentBindHost.length === 0) {
-    Session.Property("BIND_HOST") = "127.0.0.1";
-    appendDebugLog("BIND_HOST was empty; defaulted to 127.0.0.1.");
-  }
-
   discoverAndPopulateInterfaces();
-  updateShortcutHost();
-
   return 1;
 }
 
-function readPersistedPortFromRegistry() {
+// ---------------------------------------------------------------------------
+// Binding resolver (feature 162).
+// One rule decides BIND_HOST, PORT, and SHORTCUT_URL. The core functions take plain
+// arguments (no Session), so cscript tests can run them.
+// ---------------------------------------------------------------------------
+
+var DEFAULT_BIND_HOST = "127.0.0.1";
+var DEFAULT_PORT_ORDER = [8080, 8088, 8888, 80];
+
+function textOf(value) {
+  return trimText(value === null || value === undefined ? "" : value);
+}
+
+// The host in the shortcut: localhost for 127.0.0.1, and the computer name for all other values.
+function ShortcutHostCore(bindHost, computerName) {
+  var host = textOf(bindHost);
+  if (host.length === 0 || host === DEFAULT_BIND_HOST) {
+    return "localhost";
+  }
+
+  var name = textOf(computerName);
+  return name.length > 0 ? name : host;
+}
+
+// PROTOCOL://host:port/
+function BuildShortcutUrlCore(protocol, bindHost, port, computerName) {
+  var scheme = textOf(protocol);
+  if (scheme.length === 0) {
+    scheme = "http";
+  }
+
+  return scheme + "://" + ShortcutHostCore(bindHost, computerName) + ":" + textOf(port) + "/";
+}
+
+function readRegistryValue(shell, path) {
   try {
-    var shell = new ActiveXObject("WScript.Shell");
-    var value = shell.RegRead("HKCU\\Software\\GameBot\\Network\\Port");
-    return parsePort(value);
+    return shell.RegRead(path);
   }
   catch (ignored) {
-    return -1;
+    return null;
   }
 }
 
-function NormalizeStartMenuShortcut() {
+// Reads the older BindHost and Port values under HKCU\<registryRoot>. The caller gives the root. An empty
+// root gives nothing, so a test never reads the real key. Never throws. Returns { host, port }.
+function ReadLegacyRegistryCore(registryRoot) {
+  var result = { host: null, port: null };
+  var root = textOf(registryRoot);
+  if (root.length === 0) {
+    return result;
+  }
+
+  var shell = new ActiveXObject("WScript.Shell");
+  var host = readRegistryValue(shell, "HKCU\\" + root + "\\BindHost");
+  if (host !== null && isValidHostText(textOf(host))) {
+    result.host = textOf(host);
+  }
+
+  var port = readRegistryValue(shell, "HKCU\\" + root + "\\Port");
+  if (port !== null && parsePortText("" + port) > 0) {
+    result.port = parsePortText("" + port);
+  }
+
+  return result;
+}
+
+function validPortOrNull(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  var port = parsePortText("" + value);
+  return port > 0 ? port : null;
+}
+
+function sourceLabel(source) {
+  if (source === "Explicit") {
+    return "explicit";
+  }
+  if (source === "NetworkFile") {
+    return "network.json";
+  }
+  if (source === "LegacyRegistry") {
+    return "legacy registry, migrated";
+  }
+
+  return "default";
+}
+
+// Applies the priority for each field on its own: explicit value, network.json, legacy registry, default.
+// A value that equals the pre-filled value of an earlier run is not explicit. The input fields are
+// host, port, prefillHost, prefillPort, fileHost, filePort, legacyHost, legacyPort, preferredPorts,
+// getListeners (function) or listeners (array), appFolder, lookup, protocol, computerName, silent.
+// Returns { host, port, hostSource, portSource, prefillHost, prefillPort, shortcutUrl, log }.
+function ResolveBindingCore(input) {
+  var log = [];
+  var preferred = input.preferredPorts && input.preferredPorts.length > 0 ? input.preferredPorts : DEFAULT_PORT_ORDER;
+  var lookup = input.lookup ? input.lookup : function () { return null; };
+  var getListeners = typeof input.getListeners === "function" ? input.getListeners : function () { return input.listeners ? input.listeners : []; };
+  var result = {
+    host: "",
+    port: "",
+    hostSource: "Default",
+    portSource: "Default",
+    prefillHost: textOf(input.prefillHost),
+    prefillPort: textOf(input.prefillPort),
+    shortcutUrl: "",
+    log: log
+  };
+
+  // Host
+  var givenHost = textOf(input.host);
+  if (givenHost.length > 0 && givenHost !== result.prefillHost) {
+    if (isValidHostText(givenHost)) {
+      result.host = givenHost;
+      result.hostSource = "Explicit";
+    }
+    else {
+      log.push("WARNING: The given BIND_HOST value is not valid. The value is ignored.");
+    }
+  }
+
+  if (result.host.length === 0) {
+    if (isValidHostText(input.fileHost)) {
+      result.host = textOf(input.fileHost);
+      result.hostSource = "NetworkFile";
+    }
+    else if (isValidHostText(input.legacyHost)) {
+      result.host = textOf(input.legacyHost);
+      result.hostSource = "LegacyRegistry";
+    }
+    else {
+      result.host = DEFAULT_BIND_HOST;
+      result.hostSource = "Default";
+    }
+  }
+
+  if (result.hostSource !== "Explicit") {
+    result.prefillHost = result.host;
+  }
+
+  // Port
+  var port = -1;
+  var givenPortText = textOf(input.port);
+  if (givenPortText.length > 0) {
+    var givenPort = parsePortText(givenPortText);
+    if (givenPort > 0 && ("" + givenPort) !== result.prefillPort) {
+      port = givenPort;
+      result.portSource = "Explicit";
+    }
+    else if (givenPort < 1) {
+      log.push("WARNING: The given PORT value is not valid. The value is ignored.");
+    }
+  }
+
+  if (port < 1) {
+    var filePort = validPortOrNull(input.filePort);
+    var legacyPort = validPortOrNull(input.legacyPort);
+    if (filePort !== null) {
+      port = filePort;
+      result.portSource = "NetworkFile";
+    }
+    else if (legacyPort !== null) {
+      port = legacyPort;
+      result.portSource = "LegacyRegistry";
+    }
+    else {
+      port = FirstFreePortCore(preferred, getListeners(), result.host, textOf(input.appFolder), lookup);
+      result.portSource = "Default";
+    }
+  }
+
+  result.port = "" + port;
+  if (result.portSource !== "Explicit") {
+    result.prefillPort = result.port;
+  }
+
+  log.push("Binding: BIND_HOST=" + result.host + " (source: " + sourceLabel(result.hostSource) + ")");
+  log.push("Binding: PORT=" + result.port + " (source: " + sourceLabel(result.portSource) + ")");
+
+  // A silent run has no dialog. It keeps the port and warns when another program holds it (FR-022).
+  if (input.silent && result.portSource !== "Default") {
+    var check = ClassifyPortCore(getListeners(), port, result.host, textOf(input.appFolder), lookup);
+    if (check.state === "inuse") {
+      log.push("WARNING: port " + port + " is in use. The " + (result.portSource === "Explicit" ? "given" : "saved") + " port is kept.");
+    }
+  }
+
+  result.shortcutUrl = BuildShortcutUrlCore(input.protocol, result.host, result.port, input.computerName);
+  log.push("Shortcut: " + result.shortcutUrl);
+
+  return result;
+}
+
+// Reads the saved file under the data path and the older registry values under the registry root,
+// then applies ResolveBindingCore. The log has a warning for each problem in the saved file.
+function ResolveWithSavedValuesCore(dataPath, registryRoot, input) {
+  var file = ReadNetworkFileCore(dataPath);
+  var legacy = ReadLegacyRegistryCore(registryRoot);
+  input.fileHost = file.host;
+  input.filePort = file.port;
+  input.legacyHost = legacy.host;
+  input.legacyPort = legacy.port;
+
+  var result = ResolveBindingCore(input);
+  var log = [];
+  for (var index = 0; index < file.problems.length; index++) {
+    log.push("WARNING: " + file.problems[index]);
+  }
+
+  result.log = log.concat(result.log);
+  return result;
+}
+
+// Writes a line to the installer log (information message) and to the debug log.
+function logInstaller(message) {
+  appendDebugLog(message);
   try {
-    var shell = new ActiveXObject("WScript.Shell");
-    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var record = Session.Installer.CreateRecord(1);
+    record.StringData(0) = "[1]";
+    record.StringData(1) = message;
+    Session.Message(0x04000000, record);
+  }
+  catch (ignored) {
+  }
+}
 
-    var protocol = trimText(Session.Property("PROTOCOL"));
-    if (protocol.length === 0) {
-      protocol = "http";
-    }
+// Immediate action: sets BIND_HOST, PORT, SHORTCUT_URL, BINDING_PREFILL_HOST, and BINDING_PREFILL_PORT.
+// It runs in the UI sequence, on the Next click of the folder page, and in the execute sequence.
+// It never fails the install.
+function ResolveNetworkBinding() {
+  try {
+    var listeners = null;
+    var result = ResolveWithSavedValuesCore(Session.Property("DATAROOTFOLDER"), Session.Property("NETWORK_REGISTRY_ROOT"), {
+      host: Session.Property("BIND_HOST"),
+      port: Session.Property("PORT"),
+      prefillHost: Session.Property("BINDING_PREFILL_HOST"),
+      prefillPort: Session.Property("BINDING_PREFILL_PORT"),
+      preferredPorts: parsePortList(Session.Property("PREFERRED_PORT_ORDER")),
+      getListeners: function () {
+        if (listeners === null) {
+          listeners = readNetstatListeners();
+        }
 
-    var bindHost = trimText(Session.Property("BIND_HOST"));
-    var resolvedHost = "localhost";
-    if (bindHost.length > 0 && bindHost !== "127.0.0.1" && bindHost !== "0.0.0.0") {
-      var computerName = trimText(Session.Property("ComputerName"));
-      if (computerName.length > 0) {
-        resolvedHost = computerName;
-      }
-      else {
-        resolvedHost = bindHost;
-      }
-    }
+        return listeners;
+      },
+      appFolder: Session.Property("APPLICATIONFOLDER"),
+      lookup: createProcessLookup(),
+      protocol: Session.Property("PROTOCOL"),
+      computerName: Session.Property("ComputerName"),
+      silent: parseInt(Session.Property("UILevel"), 10) < 5
+    });
 
-    var port = parsePort(Session.Property("PORT"));
-    if (port < 1) {
-      port = readPersistedPortFromRegistry();
+    Session.Property("BIND_HOST") = result.host;
+    Session.Property("PORT") = result.port;
+    Session.Property("SHORTCUT_URL") = result.shortcutUrl;
+    Session.Property("BINDING_PREFILL_HOST") = result.prefillHost;
+    Session.Property("BINDING_PREFILL_PORT") = result.prefillPort;
+    for (var lineIndex = 0; lineIndex < result.log.length; lineIndex++) {
+      logInstaller(result.log[lineIndex]);
     }
-    if (port < 1) {
-      port = 8080;
-    }
-
-    var shortcutPath = shell.ExpandEnvironmentStrings("%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\GameBot\\GameBot.lnk");
-    if (!fso.FileExists(shortcutPath)) {
-      appendDebugLog("Start menu shortcut not found for normalization: " + shortcutPath);
-      return 1;
-    }
-
-    var shortcut = shell.CreateShortcut(shortcutPath);
-    shortcut.TargetPath = shell.ExpandEnvironmentStrings("%WINDIR%\\System32\\rundll32.exe");
-    shortcut.Arguments = "url.dll,FileProtocolHandler " + protocol + "://" + resolvedHost + ":" + port + "/";
-    shortcut.WorkingDirectory = Session.Property("APPLICATIONFOLDER");
-    shortcut.Save();
-    appendDebugLog("Normalized GameBot shortcut URL to " + protocol + "://" + resolvedHost + ":" + port + "/");
   }
   catch (errorObject) {
-    appendDebugLog("NormalizeStartMenuShortcut failed: " + describeError(errorObject));
+    logInstaller("ResolveNetworkBinding failed: " + describeError(errorObject));
+    if (textOf(Session.Property("BIND_HOST")).length === 0) {
+      Session.Property("BIND_HOST") = DEFAULT_BIND_HOST;
+    }
+    if (textOf(Session.Property("PORT")).length === 0) {
+      Session.Property("PORT") = "" + DEFAULT_PORT_ORDER[0];
+    }
+    Session.Property("SHORTCUT_URL") = BuildShortcutUrlCore(
+      Session.Property("PROTOCOL"), Session.Property("BIND_HOST"), Session.Property("PORT"), Session.Property("ComputerName"));
+  }
+
+  return 1;
+}
+
+// Immediate action: checks BIND_HOST and PORT of the dialog. Sets NETWORK_BINDING_ERROR to the error
+// text, or to "" when the binding is valid. A failure of the check never blocks the dialog.
+function ValidateNetworkBinding() {
+  try {
+    var error = ValidateBindingCore(
+      Session.Property("BIND_HOST"),
+      Session.Property("PORT"),
+      function () { return readNetstatListeners(); },
+      Session.Property("APPLICATIONFOLDER"),
+      createProcessLookup());
+    Session.Property("NETWORK_BINDING_ERROR") = error;
+    if (error.length > 0) {
+      logInstaller("Binding check: " + error);
+    }
+  }
+  catch (errorObject) {
+    logInstaller("ValidateNetworkBinding failed: " + describeError(errorObject));
+    Session.Property("NETWORK_BINDING_ERROR") = "";
   }
 
   return 1;
@@ -745,8 +1106,28 @@ function RollbackNetworkFileCore(dataPath) {
   deleteFileIfExists(fso, noneMarkerPath);
 }
 
-// Removes the temporary files. Never changes the file itself.
-function CommitNetworkFileCore(dataPath) {
+// Deletes the older BindHost and Port values under HKCU\<registryRoot>. Keeps the other values (Protocol).
+// An empty root deletes nothing. Never throws.
+function DeleteLegacyRegistryCore(registryRoot) {
+  var root = textOf(registryRoot);
+  if (root.length === 0) {
+    return;
+  }
+
+  var shell = new ActiveXObject("WScript.Shell");
+  var names = ["BindHost", "Port"];
+  for (var index = 0; index < names.length; index++) {
+    try {
+      shell.RegDelete("HKCU\\" + root + "\\" + names[index]);
+    }
+    catch (ignored) {
+    }
+  }
+}
+
+// Removes the temporary files. Never changes the file itself. After the file is written, the older registry
+// values are not needed any more, so this step deletes them (feature 162). Rollback never deletes them.
+function CommitNetworkFileCore(dataPath, registryRoot) {
   var basePath = normalizeDataPath(dataPath);
   if (basePath.length === 0) {
     return;
@@ -757,6 +1138,7 @@ function CommitNetworkFileCore(dataPath) {
   deleteFileIfExists(fso, path + ".tmp");
   deleteFileIfExists(fso, path + ".bak");
   deleteFileIfExists(fso, path + ".none");
+  DeleteLegacyRegistryCore(registryRoot);
 }
 
 // Splits the CustomActionData of the write action: data path, host, port.
@@ -770,25 +1152,10 @@ function SplitWriteData(data) {
   return { dataPath: parts[0], host: parts[1], port: parts[2] };
 }
 
-// Immediate action: sets PERSISTED_FILE_BIND_HOST and PERSISTED_FILE_PORT. Never fails the install.
-function ReadPersistedNetworkFile() {
-  try {
-    var result = ReadNetworkFileCore(Session.Property("DATAROOTFOLDER"));
-    if (result.host !== null) {
-      Session.Property("PERSISTED_FILE_BIND_HOST") = result.host;
-    }
-    if (result.port !== null) {
-      Session.Property("PERSISTED_FILE_PORT") = "" + result.port;
-    }
-    for (var index = 0; index < result.problems.length; index++) {
-      appendDebugLog("ReadPersistedNetworkFile: " + result.problems[index]);
-    }
-  }
-  catch (errorObject) {
-    appendDebugLog("ReadPersistedNetworkFile failed: " + describeError(errorObject));
-  }
-
-  return 1;
+// Splits the CustomActionData of the commit action: data path, and optionally the registry root.
+function SplitCommitData(data) {
+  var parts = ("" + (data === null || data === undefined ? "" : data)).split("|");
+  return { dataPath: parts[0], registryRoot: parts.length > 1 ? parts[1] : "" };
 }
 
 // Deferred action. CustomActionData is "<data path>|<host>|<port>". Never fails the install.
@@ -824,10 +1191,11 @@ function RollbackPersistedNetworkFile() {
   return 1;
 }
 
-// Commit action. CustomActionData is the data path. Never fails the install.
+// Commit action. CustomActionData is "<data path>|<registry root>". Never fails the install.
 function CommitPersistedNetworkFile() {
   try {
-    CommitNetworkFileCore(Session.Property("CustomActionData"));
+    var parts = SplitCommitData(Session.Property("CustomActionData"));
+    CommitNetworkFileCore(parts.dataPath, parts.registryRoot);
   }
   catch (errorObject) {
     appendDebugLog("CommitPersistedNetworkFile failed: " + describeError(errorObject));

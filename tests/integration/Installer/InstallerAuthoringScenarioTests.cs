@@ -1,9 +1,12 @@
+using System.Xml.Linq;
 using FluentAssertions;
 using Xunit;
 
 namespace GameBot.IntegrationTests.Installer;
 
 public sealed class InstallerAuthoringScenarioTests {
+  private static readonly XNamespace Wix = "http://wixtoolset.org/schemas/v4/wxs";
+
   [Fact]
   public void FreshInstallFlowShowsVersionThenConfigurationPagesAndCreatesShortcuts() {
     var repoRoot = FindRepoRoot();
@@ -11,13 +14,11 @@ public sealed class InstallerAuthoringScenarioTests {
     var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
     var networkUiPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "NetworkConfigUi.wxs");
     var directoriesPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "Directories.wxs");
-    var configPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "ConfigTemplates.wxs");
 
     var bundle = File.ReadAllText(bundlePath);
     var product = File.ReadAllText(productPath);
     var networkUi = File.ReadAllText(networkUiPath);
     var directories = File.ReadAllText(directoriesPath);
-    var config = File.ReadAllText(configPath);
 
     bundle.Should().Contain("<bal:WixStandardBootstrapperApplication");
     bundle.Should().Contain("Theme=\"rtfLargeLicense\"");
@@ -25,7 +26,6 @@ public sealed class InstallerAuthoringScenarioTests {
     bundle.Should().Contain("ShowVersion=\"yes\"");
 
     product.Should().Contain("Value=\"InstallDirDlg\"");
-    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot;\"");
 
     networkUi.Should().Contain("Publish Dialog=\"InstallDirDlg\" Control=\"Next\" Event=\"NewDialog\" Value=\"NetworkConfigDlg\"");
     networkUi.Should().Contain("Control Id=\"BindHostCombo\"");
@@ -38,30 +38,81 @@ public sealed class InstallerAuthoringScenarioTests {
 
     directories.Should().Contain("Id=\"GameBotStartMenuShortcut\"");
     directories.Should().Contain("Id=\"GameBotBackgroundManualStartShortcut\"");
-    directories.Should().Contain("url.dll,FileProtocolHandler http://localhost:[PORT]/");
-
-    config.Should().Contain("Name=\"BindHost\"");
-    config.Should().Contain("Name=\"Port\"");
+    directories.Should().Contain("url.dll,FileProtocolHandler [SHORTCUT_URL]");
   }
 
   [Fact]
-  public void UpgradeFlowSkipsConfigurationPagesAndPreservesExistingSettings() {
+  public void EveryInteractiveRunShowsTheFolderPageAndTheNetworkPageAlsoOnUpgrade() {
+    var product = LoadWix("Product.wxs");
+
+    // No row sends the welcome page to the ready page. This was the upgrade branch that skipped the network page.
+    product.Descendants(Wix + "Publish")
+      .Where(e => Attr(e, "Dialog") == "WelcomeDlg" && Attr(e, "Control") == "Next")
+      .Should().OnlyContain(e => Attr(e, "Value") == "InstallDirDlg");
+    product.Descendants(Wix + "Publish")
+      .Where(e => Attr(e, "Dialog") == "WelcomeDlg" && Attr(e, "Control") == "Next")
+      .Should().OnlyContain(e => !Attr(e, "Condition").Contains("WIX_UPGRADE_DETECTED", StringComparison.Ordinal));
+
+    var welcome = product.Descendants(Wix + "Publish").Single(e => Attr(e, "Dialog") == "WelcomeDlg" && Attr(e, "Control") == "Next");
+    Attr(welcome, "Condition").Should().Be("NOT Installed");
+  }
+
+  [Fact]
+  public void FolderPageResolvesTheBindingBeforeTheNetworkPage() {
+    var networkUi = LoadWix("Fragments", "NetworkConfigUi.wxs");
+    var folderNext = networkUi.Descendants(Wix + "Publish")
+      .Where(e => Attr(e, "Dialog") == "InstallDirDlg" && Attr(e, "Control") == "Next")
+      .ToList();
+
+    var resolve = folderNext.Single(e => Attr(e, "Event") == "DoAction" && Attr(e, "Value") == "ResolveNetworkBinding");
+    var show = folderNext.Single(e => Attr(e, "Event") == "NewDialog" && Attr(e, "Value") == "NetworkConfigDlg");
+    int.Parse(Attr(resolve, "Order"), System.Globalization.CultureInfo.InvariantCulture)
+      .Should().BeLessThan(int.Parse(Attr(show, "Order"), System.Globalization.CultureInfo.InvariantCulture));
+  }
+
+  [Fact]
+  public void NetworkPageValidatesBeforeItLeaves() {
+    var networkUi = LoadWix("Fragments", "NetworkConfigUi.wxs");
+    var next = networkUi.Descendants(Wix + "Publish")
+      .Where(e => Attr(e, "Dialog") == "NetworkConfigDlg" && Attr(e, "Control") == "Next")
+      .ToList();
+
+    var validate = next.Single(e => Attr(e, "Event") == "DoAction");
+    Attr(validate, "Value").Should().Be("ValidateNetworkBinding");
+    var validateOrder = int.Parse(Attr(validate, "Order"), System.Globalization.CultureInfo.InvariantCulture);
+
+    // Every other event of the Next button runs after the check, and only when the check found no error.
+    foreach (var other in next.Where(e => e != validate)) {
+      int.Parse(Attr(other, "Order"), System.Globalization.CultureInfo.InvariantCulture).Should().BeGreaterThan(validateOrder);
+      Attr(other, "Condition").Should().Contain("NETWORK_BINDING_ERROR = \"\"");
+    }
+
+    networkUi.Descendants(Wix + "Control").Single(e => Attr(e, "Id") == "BindingError")
+      .Attribute("Text")!.Value.Should().Be("[NETWORK_BINDING_ERROR]");
+    networkUi.Descendants(Wix + "Publish").Should().NotContain(e => Attr(e, "Property") == "SHORTCUT_HOST");
+  }
+
+  [Fact]
+  public void NoActionPatchesTheShortcutFileAfterTheInstall() {
     var repoRoot = FindRepoRoot();
-    var productPath = Path.Combine(repoRoot, "installer", "wix", "Product.wxs");
-    var detectionPath = Path.Combine(repoRoot, "installer", "wix", "Fragments", "PortDetection.wxs");
+    var detection = File.ReadAllText(Path.Combine(repoRoot, "installer", "wix", "Fragments", "PortDetection.wxs"));
+    var script = File.ReadAllText(Path.Combine(repoRoot, "installer", "wix", "Scripts", "PortResolver.jscript"));
 
-    var product = File.ReadAllText(productPath);
-    var detection = File.ReadAllText(detectionPath);
+    detection.Should().NotContain("NormalizeStartMenuShortcut");
+    script.Should().NotContain("NormalizeStartMenuShortcut");
+    script.Should().NotContain("updateShortcutHost");
+  }
 
-    product.Should().Contain("Value=\"VerifyReadyDlg\"");
-    product.Should().Contain("Condition=\"NOT Installed AND (WIX_UPGRADE_DETECTED OR PERSISTED_PORT &lt;&gt; &quot;&quot; OR PERSISTED_BIND_HOST &lt;&gt; &quot;&quot; OR PERSISTED_FILE_PORT &lt;&gt; &quot;&quot; OR PERSISTED_FILE_BIND_HOST &lt;&gt; &quot;&quot;)\"");
-    product.Should().Contain("Value=\"InstallDirDlg\"");
-    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot;\"");
+  [Fact]
+  public void BothShortcutsStayInTheShortcutComponents() {
+    var directories = LoadWix("Fragments", "Directories.wxs");
+    var shortcuts = directories.Descendants(Wix + "Shortcut").ToList();
 
-    detection.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5\"");
-    detection.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &lt; 5\"");
-    detection.Should().Contain("NormalizeStartMenuShortcut");
-    detection.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND NOT REMOVE~=&quot;ALL&quot;\"");
+    var main = shortcuts.Single(e => Attr(e, "Id") == "GameBotStartMenuShortcut");
+    Attr(main, "Arguments").Should().Be("url.dll,FileProtocolHandler [SHORTCUT_URL]");
+    var background = shortcuts.Single(e => Attr(e, "Id") == "GameBotBackgroundManualStartShortcut");
+    Attr(background, "Target").Should().Be("[APPLICATIONFOLDER]GameBot.Service.exe");
+    Attr(background, "Arguments").Should().BeEmpty();
   }
 
   [Fact]
@@ -72,8 +123,23 @@ public sealed class InstallerAuthoringScenarioTests {
     var product = File.ReadAllText(productPath);
 
     product.Should().Contain("Condition=\"WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND ((NOT Installed) OR (REINSTALL AND NOT REMOVE~=&quot;ALL&quot;))\"");
-    product.Should().Contain("Condition=\"NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot;\"");
-    product.Should().Contain("Condition=\"NOT Installed AND (WIX_UPGRADE_DETECTED OR PERSISTED_PORT &lt;&gt; &quot;&quot; OR PERSISTED_BIND_HOST &lt;&gt; &quot;&quot; OR PERSISTED_FILE_PORT &lt;&gt; &quot;&quot; OR PERSISTED_FILE_BIND_HOST &lt;&gt; &quot;&quot;)\"");
+
+    var detection = LoadWix("Fragments", "PortDetection.wxs");
+    foreach (var custom in detection.Descendants(Wix + "Custom").Where(e => Attr(e, "Action") == "ResolveNetworkBinding")) {
+      Attr(custom, "Condition").Should().Contain("NOT REMOVE~=\"ALL\"");
+    }
+  }
+
+  [Fact]
+  public void MajorUpgradeRemovesTheOldProductInsideTheTransactionSoAFailedUpgradeRollsBack() {
+    var product = LoadWix("Product.wxs");
+    var upgrade = product.Descendants(Wix + "MajorUpgrade").Single();
+
+    // With the default schedule (after InstallValidate) the old product is removed before the transaction starts.
+    // A failure later cannot bring it back, so the shortcuts and registry entries are lost (FR-012, SC-005).
+    // After InstallInitialize, the removal is part of the transaction and the rollback restores the old product.
+    Attr(upgrade, "Schedule").Should().Be("afterInstallInitialize");
+    Attr(upgrade, "AllowSameVersionUpgrades").Should().Be("yes");
   }
 
   [Fact]
@@ -89,6 +155,11 @@ public sealed class InstallerAuthoringScenarioTests {
     product.Should().Contain("DowngradeErrorMessage=\"A newer version of GameBot is already installed.\"");
     bundle.Should().Contain("SuppressDowngradeFailure=\"no\"");
   }
+
+  private static string Attr(XElement element, string name) => (string?)element.Attribute(name) ?? "";
+
+  private static XDocument LoadWix(params string[] parts) =>
+    XDocument.Load(Path.Combine(new[] { FindRepoRoot(), "installer", "wix" }.Concat(parts).ToArray()));
 
   private static string FindRepoRoot() {
     var dir = new DirectoryInfo(AppContext.BaseDirectory);

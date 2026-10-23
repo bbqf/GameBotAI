@@ -31,7 +31,7 @@ An explicit value replaces the saved value. The installer saves the new value in
 
 | Run type | Dialog |
 |----------|--------|
-| Interactive first install | `WelcomeDlg`, `InstallDirDlg`, `NetworkConfigDlg`, `VerifyReadyDlg`. |
+| Interactive first install | `WelcomeDlg`, `InstallDirDlg`, `NetworkConfigDlg`. The install starts when the user clicks **Next** on `NetworkConfigDlg` (this page ends the dialog, as before). |
 | Interactive upgrade | Same pages. `NetworkConfigDlg` shows the saved values. |
 | Interactive same-build reinstall | Same pages, after the bundle prompt. The binding stays unless the user changes it. |
 | Silent (any) | No dialog. The same priority applies. |
@@ -57,10 +57,13 @@ An explicit value replaces the saved value. The installer saves the new value in
 
 | Event | Line |
 |-------|------|
+| Explicit value (command line or dialog) | `Binding: <field>=<value> (source: explicit)` |
 | Value from the file | `Binding: <field>=<value> (source: network.json)` |
 | Value from the legacy registry | `Binding: <field>=<value> (source: legacy registry, migrated)` |
 | Default value | `Binding: <field>=<value> (source: default)` |
-| Silent port in use | `WARNING: port <n> is in use. The saved port is kept.` |
+| Silent port in use (saved value) | `WARNING: port <n> is in use. The saved port is kept.` |
+| Silent port in use (given value) | `WARNING: port <n> is in use. The given port is kept.` |
+| Value that is not valid | `WARNING: The given BIND_HOST value is not valid. The value is ignored.` (and the same for `PORT`) |
 | Shortcut address | `Shortcut: <SHORTCUT_URL>` |
 
 ## Shortcut
