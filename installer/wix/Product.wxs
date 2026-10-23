@@ -27,6 +27,13 @@
       Return="asyncNoWait"
       Impersonate="yes" />
 
+    <!-- Feature 163: the bot is a console program with no window. It does not answer the close request of the
+         Restart Manager (WM_CLOSE), and a running queue makes it slow to stop. Windows Installer then shows message
+         1611, and the nested uninstall of the old product shows the "Files in use" dialog a second time. With the
+         value 1, the Restart Manager ends a program that does not answer. This happens only after the owner chose
+         "Close the applications" (or in a silent run, which shows no dialog). -->
+    <Property Id="MSIRMSHUTDOWN" Value="1" />
+
     <CustomActionRef Id="ResolveNetworkBinding" />
     <CustomActionRef Id="ValidateNetworkBinding" />
     <CustomActionRef Id="DiscoverBindInterfaces" />
