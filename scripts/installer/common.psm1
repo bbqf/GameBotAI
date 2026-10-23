@@ -137,4 +137,69 @@ function Resolve-InstallerVersion {
   }
 }
 
-Export-ModuleMember -Function Get-InstallerRepoRoot, Get-DefaultDataRoot, New-InstallerLogDirectory, Get-DowngradeRemediationHint, Get-InstallerVersioningPaths, Get-InstallerVersioningState, Set-CiBuildCounter, Resolve-InstallerVersion
+# Feature 163. State of an isolated test install (made with new-test-variant.ps1). The rollback check (feature 162,
+# FR-012) takes one snapshot before an upgrade and one after a forced failure, then compares them.
+function Get-TestInstallSnapshot {
+  param(
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[A-Za-z0-9]{1,20}$')]
+    [string]$InstanceName,
+    [Parameter(Mandatory = $true)]
+    [string]$InstallFolder
+  )
+
+  # The same derivation as in new-test-variant.ps1.
+  $md5 = [System.Security.Cryptography.MD5]::Create()
+  try { $bytes = $md5.ComputeHash([Text.Encoding]::UTF8.GetBytes("upgrade|$InstanceName")) } finally { $md5.Dispose() }
+  $upgradeCode = '{' + ([Guid]::new($bytes)).ToString().ToUpperInvariant() + '}'
+
+  $installer = New-Object -ComObject WindowsInstaller.Installer
+  $products = @()
+  try {
+    $related = $installer.GetType().InvokeMember('RelatedProducts', 'GetProperty', $null, $installer, @($upgradeCode))
+    foreach ($code in $related) {
+      $version = $installer.GetType().InvokeMember('ProductInfo', 'GetProperty', $null, $installer, @($code, 'VersionString'))
+      $products += "$code $version"
+    }
+  }
+  catch { }
+  finally { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($installer) }
+
+  $autostartName = "GameBotTest$InstanceName"
+  $runValue = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name $autostartName -ErrorAction SilentlyContinue)
+  $runText = if ($null -ne $runValue) { [string]$runValue.$autostartName } else { '' }
+
+  $menuFolder = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\GameBotTest$InstanceName"
+  $shortcuts = @()
+  if (Test-Path $menuFolder) { $shortcuts = @(Get-ChildItem $menuFolder -File | ForEach-Object Name | Sort-Object) }
+
+  $networkFile = Join-Path $InstallFolder 'data\config\network.json'
+  $networkText = if (Test-Path $networkFile) { (Get-Content $networkFile -Raw) } else { '' }
+
+  return [pscustomobject]@{
+    Products    = @($products | Sort-Object)
+    RunValue    = $runText
+    Shortcuts   = $shortcuts
+    NetworkJson = $networkText
+  }
+}
+
+function Compare-TestInstallSnapshot {
+  param(
+    [Parameter(Mandatory = $true)] $Before,
+    [Parameter(Mandatory = $true)] $After
+  )
+
+  $differences = @()
+  foreach ($name in 'Products', 'Shortcuts') {
+    if ((@($Before.$name) -join '|') -ne (@($After.$name) -join '|')) {
+      $differences += "$name differ. Before: [$(@($Before.$name) -join ', ')] After: [$(@($After.$name) -join ', ')]"
+    }
+  }
+  foreach ($name in 'RunValue', 'NetworkJson') {
+    if ($Before.$name -ne $After.$name) { $differences += "$name differs." }
+  }
+  return , $differences
+}
+
+Export-ModuleMember -Function Get-InstallerRepoRoot, Get-DefaultDataRoot, New-InstallerLogDirectory, Get-DowngradeRemediationHint, Get-InstallerVersioningPaths, Get-InstallerVersioningState, Set-CiBuildCounter, Resolve-InstallerVersion, Get-TestInstallSnapshot, Compare-TestInstallSnapshot

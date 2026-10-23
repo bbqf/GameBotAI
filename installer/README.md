@@ -50,6 +50,18 @@ folder. A bot that starts from source cannot update itself.
 If the update fails, the old version still works. The page shows an error code, a message, and a hint. The
 Windows Installer log is in `<data root>\updates\msiexec-<attempt id>.log`.
 
+## Check the "Files in use" dialog (test copy only)
+
+Never test this on the production install. Make an isolated copy with `scripts/installer/new-test-variant.ps1`. Build an old and a new MSI with different file versions (for example 1.11.16.899 and 1.11.16.900). With equal file versions the first check finds no locked file, and the fault does not show.
+
+1. Install the old copy with a temporary folder and a temporary port.
+2. Run `scripts/installer/test-files-in-use-dialog.ps1 -Action Lock -InstallFolder <folder> -Port <port> -WindowMode Minimized`, then `-Action Suspend`. A frozen bot does not answer a close request. It models a bot with a running queue.
+3. Start the new copy with `msiexec /i <new.msi> /l*v <log> APPLICATIONFOLDER=<folder>` and choose **Close the applications**.
+4. Run `-Action Count -LogPath <log>`. The result must be one dialog or less, no message 1611, and no reboot choice.
+5. Run `-Action Stop` and remove the test products.
+
+Compare a failed upgrade (`-FailAfterInstallFiles`) with a baseline by the rollback operations in the log. The shell registry view can hide restored keys.
+
 ## Publish a release (owner)
 
 1. Merge the change to `master`.

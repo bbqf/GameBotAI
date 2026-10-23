@@ -131,6 +131,15 @@ To open the web UI on a phone, set `BIND_HOST` to a network address, set an acce
 - Do not deploy raw MSI directly for end-user installs.
 - Installing both MSI and EXE channels on the same machine can create side-by-side registrations and confusing uninstall behavior.
 
+### Upgrade while the bot runs
+
+The bot is a program with no window. It does not answer the close request of the Windows Installer Restart Manager, and a running queue makes it slow to stop.
+
+- An interactive upgrade shows the "Files in use" dialog one time. Choose **Close the applications and attempt to restart them**. The installer then ends the bot, finishes the upgrade, and starts the bot again with the saved host and port.
+- The installer sets the property `MSIRMSHUTDOWN=1`. The Restart Manager then ends a program that does not answer. This happens only after you make the choice in the dialog. A silent upgrade shows no dialog and uses the same rule.
+- Before this change, the bot could stay alive after the first choice. The uninstall of the old product then showed the dialog a second time and the message "Unable to close the applications". This is fixed for the upgrade that installs this version or a newer one. The upgrade from an older version also shows one dialog, because the property is in the new installer.
+- Stop the queues first if you want a controlled stop. The installer does not wait for a queue to finish.
+
 ---
 
 ## 4) HTTPS behavior

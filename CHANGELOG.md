@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Second "Files in use" dialog in an interactive upgrade (163-fix-files-in-use-dialog)
+  - **Cause**: the bot (a program with no window) did not answer the close request of the Windows Installer Restart Manager, for example while a queue runs. The uninstall of the old product then checked the locked files again and showed the dialog a second time.
+  - **Fix**: the MSI sets `MSIRMSHUTDOWN=1`. After you choose **Close the applications**, the Restart Manager ends the bot also when it does not answer. The upgrade shows the dialog one time and starts the bot again. The rollback of a failed upgrade (feature 162) is not changed.
+  - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
+
 ### Added
 - Installer bind address and port control (162-installer-bind-address-port)
   - **Choice on every run**: every interactive install and upgrade shows the interface and port page, also an upgrade. The page checks the port when you click **Next**. A port that another program uses gives an error. The installed GameBot service does not count as another program.
