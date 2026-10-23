@@ -27,28 +27,22 @@
       Return="asyncNoWait"
       Impersonate="yes" />
 
-    <CustomActionRef Id="DetectAvailablePorts" />
+    <CustomActionRef Id="ResolveNetworkBinding" />
+    <CustomActionRef Id="ValidateNetworkBinding" />
     <CustomActionRef Id="DiscoverBindInterfaces" />
-    <CustomActionRef Id="ReadPersistedNetworkFile" />
-    <!-- Pulls in InstallerProperties.wxs (saved-value searches, SetProperty rows). No other element
+    <!-- Pulls in InstallerProperties.wxs (the protocol search, SetProperty rows). No other element
          references that fragment, so without this line the MSI did not contain it (feature 132). -->
     <CustomActionRef Id="SetApplicationFolder" />
     <UI>
       <DialogRef Id="NetworkConfigDlg" />
+      <!-- Every interactive run shows the folder page and then the network page, also an upgrade (feature 162). -->
       <Publish
         Dialog="WelcomeDlg"
         Control="Next"
         Event="NewDialog"
         Value="InstallDirDlg"
         Order="1000"
-        Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot;" />
-      <Publish
-        Dialog="WelcomeDlg"
-        Control="Next"
-        Event="NewDialog"
-        Value="VerifyReadyDlg"
-        Order="1001"
-        Condition="NOT Installed AND (WIX_UPGRADE_DETECTED OR PERSISTED_PORT &lt;&gt; &quot;&quot; OR PERSISTED_BIND_HOST &lt;&gt; &quot;&quot; OR PERSISTED_FILE_PORT &lt;&gt; &quot;&quot; OR PERSISTED_FILE_BIND_HOST &lt;&gt; &quot;&quot;)" />
+        Condition="NOT Installed" />
       <Publish
         Dialog="ExitDialog"
         Control="Finish"
@@ -58,8 +52,12 @@
         Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND ((NOT Installed) OR (REINSTALL AND NOT REMOVE~=&quot;ALL&quot;))" />
     </UI>
 
+    <!-- Feature 162: the old product is removed after InstallInitialize, inside the transaction. With the default
+         schedule (afterInstallValidate) the removal is not part of the transaction. A failed upgrade then left no
+         product, no shortcut, and no registry entry. Now the rollback restores the old product (FR-012). -->
     <MajorUpgrade
       AllowSameVersionUpgrades="yes"
+      Schedule="afterInstallInitialize"
       DowngradeErrorMessage="A newer version of GameBot is already installed." />
 
     <MediaTemplate EmbedCab="yes" />

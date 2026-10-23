@@ -65,8 +65,8 @@ internal sealed class UpdaterLauncher : IUpdaterLauncher {
       "--started-at", request.StartedAtUtc.ToString("o", CultureInfo.InvariantCulture)
     };
 
-    // The bot does not pass --port or --bind-host. The installer keeps the saved network values by
-    // itself, and a runtime override must not become a saved value (feature 132).
+    // The bot does not pass --port or --bind-host. The MSI reads the saved host and port from
+    // network.json, and a runtime override must not become a saved value (features 132 and 162).
     return args;
   }
 

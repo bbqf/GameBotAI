@@ -116,8 +116,8 @@ public sealed class UpdaterLauncherTests : IDisposable {
     _starter.Arguments.Should().NotContain("--port");
     _starter.Arguments.Should().NotContain("--bind-host");
     var parsed = GameBot.Updater.UpdaterArguments.TryParse(_starter.Arguments!.ToList(), out _);
-    parsed!.Port.Should().BeNullOrEmpty();
-    parsed.BindHost.Should().BeNullOrEmpty();
+    parsed.Should().NotBeNull();
+    _starter.Arguments.Should().NotContain("7000").And.NotContain("10.0.0.5").And.NotContain("8088").And.NotContain("0.0.0.0");
   }
 
   [Fact]

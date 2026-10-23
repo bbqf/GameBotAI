@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GameBot.Service.Models;
+using Microsoft.Extensions.Configuration;
 
 namespace GameBot.Service.Services;
 
@@ -17,16 +18,25 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
   private readonly SemaphoreSlim _gate = new(1, 1);
   private int _refreshCount;
   private readonly IConfigApplier _applier;
-  private readonly Func<string, string?>? _registryReader;
+  private readonly IConfiguration? _configuration;
+  private readonly Func<string, string?> _getEnvironmentVariable;
+
+  /// <summary>The names of the two rows that show the active host and port. They are read-only (feature 162).</summary>
+  internal static readonly string[] NetworkKeys = { "GAMEBOT_BIND_HOST", "GAMEBOT_PORT" };
+
+  private static readonly string[] s_obsoleteNetworkKeys = { "GAMEBOT_BIND_HOST", "GAMEBOT_PORT", "Service__Network__BindHost", "Service__Network__Port" };
+
+  internal const string NetworkUpdateRejectedMessage = "The host and port come from the installer. Change them with the installer or in network.json.";
 
   public ConfigurationSnapshot? Current { get; private set; }
 
-  public ConfigSnapshotService(string storageRoot, IConfigApplier applier)
-      : this(storageRoot, applier, null) {
-  }
-
-  public ConfigSnapshotService(string storageRoot, IConfigApplier applier, Func<string, string?>? registryReader) {
-    _registryReader = registryReader;
+  public ConfigSnapshotService(
+      string storageRoot,
+      IConfigApplier applier,
+      IConfiguration? configuration = null,
+      Func<string, string?>? getEnvironmentVariable = null) {
+    _configuration = configuration;
+    _getEnvironmentVariable = getEnvironmentVariable ?? Environment.GetEnvironmentVariable;
     _storageRoot = storageRoot;
     _configDir = Path.Combine(_storageRoot, "config");
     _configFile = Path.Combine(_configDir, "config.json");
@@ -43,7 +53,8 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       var baseline = await LoadSavedConfigAsync(ct).ConfigureAwait(false);
       var envInfo = LoadEnvironmentFiltered();
       var env = envInfo.env;
-      var defaults = BuildDefaultRelevantKeys();
+      var listen = ResolveListen();
+      var defaults = BuildDefaultRelevantKeys(listen);
       var merged = MergeWithPrecedence(
           defaults: defaults,
           otherFiles: new Dictionary<string, object?>(),
@@ -78,10 +89,21 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
         var value = kvp.Value;
         var isSecret = ConfigurationMasking.IsSecretKey(name);
         object? masked = ConfigurationMasking.MaskIfSecret(name, value);
+        var source = DetermineSource(name, env, baseline);
+
+        // The host and port rows show the value that the bot uses and where it came from (feature 162).
+        if (name.Equals("GAMEBOT_BIND_HOST", StringComparison.OrdinalIgnoreCase)) {
+          masked = listen.Host;
+          source = listen.HostSource;
+        }
+        else if (name.Equals("GAMEBOT_PORT", StringComparison.OrdinalIgnoreCase)) {
+          masked = listen.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+          source = listen.PortSource;
+        }
 
         parameters[name] = new ConfigurationParameter {
           Name = name,
-          Source = DetermineSource(name, env, baseline),
+          Source = source,
           Value = masked,
           IsSecret = isSecret
         };
@@ -110,6 +132,12 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
   }
 
   public async Task<ConfigurationSnapshot> UpdateParametersAsync(Dictionary<string, string?> updates, CancellationToken ct = default) {
+    foreach (var key in updates.Keys) {
+      if (NetworkKeys.Contains(key, StringComparer.OrdinalIgnoreCase)) {
+        throw new InvalidOperationException(NetworkUpdateRejectedMessage);
+      }
+    }
+
     await _gate.WaitAsync(ct).ConfigureAwait(false);
     try {
       var envInfo = LoadEnvironmentFiltered();
@@ -135,7 +163,7 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
     await _gate.WaitAsync(ct).ConfigureAwait(false);
     try {
       var saved = await LoadSavedConfigAsync(ct).ConfigureAwait(false);
-      var defaults = BuildDefaultRelevantKeys();
+      var defaults = BuildDefaultRelevantKeys(ResolveListen());
       var envInfo = LoadEnvironmentFiltered();
       var allKeys = MergeWithPrecedence(defaults, new Dictionary<string, object?>(), saved, envInfo.env);
 
@@ -197,6 +225,12 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
           dict[name] = value;
         }
       }
+
+      // The host and port come from the installer. A saved copy here has no effect, so it is dropped.
+      foreach (var obsolete in s_obsoleteNetworkKeys) {
+        dict.Remove(obsolete);
+      }
+
       return dict;
     }
     catch {
@@ -233,11 +267,12 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
     return (dict, scanned, included, excluded);
   }
 
-  private Dictionary<string, object?> BuildDefaultRelevantKeys() {
-    // Default display values: saved file first, then the older registry value (feature 132).
-    var persisted = PersistedNetworkSettings.Read(_storageRoot, _registryReader);
-    var installerBindHost = persisted.BindHost ?? "127.0.0.1";
-    var installerPort = persisted.Port?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "8080";
+  private GameBotServiceSetup.ListenAddress ResolveListen() =>
+    GameBotServiceSetup.ResolveListenAddress(_configuration ?? new ConfigurationBuilder().Build(), _getEnvironmentVariable, _storageRoot);
+
+  private Dictionary<string, object?> BuildDefaultRelevantKeys(GameBotServiceSetup.ListenAddress listen) {
+    var installerBindHost = listen.Host;
+    var installerPort = listen.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     // Always include known GameBot-relevant env vars, even if not set
     var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) {
@@ -285,8 +320,6 @@ internal sealed class ConfigSnapshotService : IConfigSnapshotService, IDisposabl
       ["Service__Triggers__Worker__GameFilter"] = null,
       ["Service__Triggers__Worker__SkipWhenNoSessions"] = "true",
       ["Service__Triggers__Worker__IdleBackoffSeconds"] = 5,
-      ["Service__Network__BindHost"] = installerBindHost,
-      ["Service__Network__Port"] = installerPort,
       ["Logging__LogLevel__Default"] = null,
     };
     return dict;

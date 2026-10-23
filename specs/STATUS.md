@@ -165,7 +165,7 @@ Status vocabulary:
 | 129 | Restart The Game From A Sequence (forceRestart) | Implemented |
 | 130 | Region-Restricted Image Detection | Implemented |
 | 131 | Auto-Update | Implemented |
-| 132 | Persist The Listen Host And Port | Implemented |
+| 132 | Persist The Listen Host And Port | Implemented (iterated by 162) |
 | 133 | Reduce Build Time | Implemented |
 | 134 | Reduce CI Run Duration | Implemented |
 | 135 | Reject Unknown Command Step Fields | Implemented |
@@ -189,6 +189,7 @@ Status vocabulary:
 | 159 | Notify Step Delivers to the Notification Targets | Implemented |
 | 160 | Gamepacks Page Take-Over Option | Implemented (phone check pending) |
 | 161 | Gamepack Install Failure Explanation | Implemented (phone check pending) |
+| 162 | Installer Bind Address and Port Control | Implemented (production upgrade check pending) |
 
 ## Numbering notes
 

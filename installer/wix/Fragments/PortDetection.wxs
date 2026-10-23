@@ -5,12 +5,23 @@
          is selected by JScriptCall below, not by the file extension. -->
     <Binary Id="PortResolverScript" SourceFile="Scripts\PortResolver.jscript" />
 
+    <!-- Feature 162: one action decides BIND_HOST, PORT, and SHORTCUT_URL. The priority for each value is:
+         explicit value, [DATAROOTFOLDER]config\network.json, older registry value (read once), first-install default.
+         DATAROOTFOLDER is valid only after CostFinalize. -->
     <CustomAction
-      Id="DetectAvailablePorts"
+      Id="ResolveNetworkBinding"
       BinaryRef="PortResolverScript"
-      JScriptCall="DetectAvailablePorts"
+      JScriptCall="ResolveNetworkBinding"
       Execute="immediate"
-      Return="check" />
+      Return="ignore" />
+
+    <!-- Runs on the Next click of the network page. Sets NETWORK_BINDING_ERROR to the error text, or to an empty value. -->
+    <CustomAction
+      Id="ValidateNetworkBinding"
+      BinaryRef="PortResolverScript"
+      JScriptCall="ValidateNetworkBinding"
+      Execute="immediate"
+      Return="ignore" />
 
     <CustomAction
       Id="DiscoverBindInterfaces"
@@ -19,32 +30,15 @@
       Execute="immediate"
       Return="ignore" />
 
-    <CustomAction
-      Id="NormalizeStartMenuShortcut"
-      BinaryRef="PortResolverScript"
-      JScriptCall="NormalizeStartMenuShortcut"
-      Execute="immediate"
-      Return="ignore" />
-
-    <!-- Feature 132: reads [DATAROOTFOLDER]config\network.json. DATAROOTFOLDER is valid only after CostFinalize. -->
-    <CustomAction
-      Id="ReadPersistedNetworkFile"
-      BinaryRef="PortResolverScript"
-      JScriptCall="ReadPersistedNetworkFile"
-      Execute="immediate"
-      Return="ignore" />
-
-    <!-- The chain is: ReadPersistedNetworkFile, DiscoverBindInterfaces (UI only), DetectAvailablePorts,
-         then the SetProperty rows in InstallerProperties.wxs. -->
+    <!-- The UI run resolves once here and again on the Next click of the folder page.
+         The execute run resolves once for a silent run and gives the final values.
+         CreateShortcuts runs later, so the shortcut uses the final SHORTCUT_URL. -->
     <InstallUISequence>
-      <Custom Action="ReadPersistedNetworkFile" After="CostFinalize" />
-      <Custom Action="DiscoverBindInterfaces" After="ReadPersistedNetworkFile" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5" />
-      <Custom Action="DetectAvailablePorts" After="DiscoverBindInterfaces" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &gt;= 5" />
+      <Custom Action="ResolveNetworkBinding" After="CostFinalize" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="DiscoverBindInterfaces" After="ResolveNetworkBinding" Condition="UILevel &gt;= 5 AND NOT REMOVE~=&quot;ALL&quot;" />
     </InstallUISequence>
     <InstallExecuteSequence>
-      <Custom Action="ReadPersistedNetworkFile" After="CostFinalize" />
-      <Custom Action="DetectAvailablePorts" After="ReadPersistedNetworkFile" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND PERSISTED_PORT = &quot;&quot; AND PERSISTED_BIND_HOST = &quot;&quot; AND PERSISTED_FILE_PORT = &quot;&quot; AND PERSISTED_FILE_BIND_HOST = &quot;&quot; AND UILevel &lt; 5" />
-      <Custom Action="NormalizeStartMenuShortcut" After="CreateShortcuts" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED AND NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="ResolveNetworkBinding" After="CostFinalize" Condition="NOT REMOVE~=&quot;ALL&quot;" />
     </InstallExecuteSequence>
   </Fragment>
 </Wix>

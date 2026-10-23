@@ -167,7 +167,30 @@ if (hasInstalledWebUi) {
   }).ExcludeFromDescription();
 }
 
-app.Run();
+// Start and run the web server in two steps. A bind failure is written to the log with the host, the port,
+// and their sources. Then the bot ends with a non-zero exit code (feature 162).
+try {
+  await app.StartAsync().ConfigureAwait(false);
+}
+catch (Exception ex) when (NetworkBindFailure.IsAddressInUse(ex)) {
+  var listenAddress = app.Services.GetService<GameBotServiceSetup.ListenAddress>();
+  var message = listenAddress is null
+    ? "The bot cannot listen on its address because the address is in use."
+    : NetworkBindFailure.Describe(listenAddress);
+  NetworkBindFailure.Log(app.Logger, ex, message);
+  await Console.Error.WriteLineAsync(message).ConfigureAwait(false);
+  await app.DisposeAsync().ConfigureAwait(false);
+  return NetworkBindFailure.ExitCode;
+}
+
+try {
+  await app.WaitForShutdownAsync().ConfigureAwait(false);
+}
+finally {
+  await app.DisposeAsync().ConfigureAwait(false);
+}
+
+return 0;
 
 // For WebApplicationFactory discovery in tests
 internal partial class Program { }

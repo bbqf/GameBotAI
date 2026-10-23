@@ -2,7 +2,7 @@
 
 **Feature Branch**: `132-persist-listen-host-port`
 **Created**: 2026-10-09
-**Status**: Implemented
+**Status**: Implemented (iterated by 162)
 **Input**: User description: "Persist the listen host and port across upgrades and reinstalls (GitHub issue #65, 'Upgrade always resets the listen host:port to localhost:8080')."
 
 ## Clarifications

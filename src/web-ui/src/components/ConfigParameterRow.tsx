@@ -13,10 +13,16 @@ export type ConfigParameterRowProps = {
   onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
 };
 
+// The host and port come from the installer (network.json) or from an override. The page cannot change them.
+const networkParameterNames = ['GAMEBOT_BIND_HOST', 'GAMEBOT_PORT'];
+const readOnlySources = ['Environment', 'Configuration', 'NetworkFile'];
+
 const sourceBadgeClass = (source: string) => {
   switch (source) {
-    case 'Environment': return 'badge badge-env';
-    case 'File': return 'badge badge-file';
+    case 'Environment':
+    case 'Configuration': return 'badge badge-env';
+    case 'File':
+    case 'NetworkFile': return 'badge badge-file';
     default: return 'badge badge-default';
   }
 };
@@ -24,7 +30,7 @@ const sourceBadgeClass = (source: string) => {
 export const ConfigParameterRow: React.FC<ConfigParameterRowProps> = ({
   param, editValue, isDirty, onChange, draggable, onDragStart, onDragOver, onDragEnd, onDrop
 }) => {
-  const isReadOnly = param.source === 'Environment';
+  const isReadOnly = readOnlySources.includes(param.source) || networkParameterNames.includes(param.name);
   const displayValue = param.isSecret ? '***' : String(param.value ?? '');
 
   return (

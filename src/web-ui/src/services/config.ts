@@ -2,7 +2,8 @@ import { getJson, putJson } from '../lib/api';
 
 export type ConfigurationParameter = {
   name: string;
-  source: 'Default' | 'File' | 'Environment';
+  // 'Configuration' and 'NetworkFile' are the sources of the host and port rows (feature 162).
+  source: 'Default' | 'File' | 'Environment' | 'Configuration' | 'NetworkFile';
   value: unknown;
   isSecret: boolean;
 };

@@ -5,20 +5,19 @@ namespace GameBot.IntegrationTests.Installer;
 
 public sealed class UpgradePropertyRetentionTests {
   [Fact]
-  public void InstallerFragmentsPersistAndReloadNetworkPropertiesAcrossUpgrade() {
+  public void InstallerFragmentsKeepOneSavedLocationForTheBindingAcrossUpgrade() {
     var repoRoot = FindRepoRoot();
-    var configTemplates = Path.Combine(repoRoot, "installer", "wix", "Fragments", "ConfigTemplates.wxs");
     var installerProperties = Path.Combine(repoRoot, "installer", "wix", "Fragments", "InstallerProperties.wxs");
+    var portDetection = Path.Combine(repoRoot, "installer", "wix", "Fragments", "PortDetection.wxs");
 
-    var configContent = File.ReadAllText(configTemplates);
     var propertyContent = File.ReadAllText(installerProperties);
+    var detectionContent = File.ReadAllText(portDetection);
 
-    configContent.Should().Contain("Name=\"BindHost\"");
-    configContent.Should().Contain("Name=\"Port\"");
-    propertyContent.Should().Contain("Property Id=\"PERSISTED_BIND_HOST\"");
-    propertyContent.Should().Contain("Property Id=\"PERSISTED_PORT\"");
-    propertyContent.Should().Contain("SetProperty Id=\"BIND_HOST\" Action=\"SetBindHostFromRegistry\" Value=\"[PERSISTED_BIND_HOST]\"");
-    propertyContent.Should().Contain("SetProperty Id=\"PORT\" Action=\"SetPortFromRegistry\" Value=\"[PERSISTED_PORT]\"");
+    // The resolver reads the file and the older registry value. No SetProperty row copies a saved value.
+    propertyContent.Should().Contain("Property Id=\"NETWORK_REGISTRY_ROOT\"");
+    propertyContent.Should().NotContain("PERSISTED_BIND_HOST");
+    propertyContent.Should().NotContain("PERSISTED_PORT");
+    detectionContent.Should().Contain("Action=\"ResolveNetworkBinding\"");
   }
 
   private static string FindRepoRoot() {
