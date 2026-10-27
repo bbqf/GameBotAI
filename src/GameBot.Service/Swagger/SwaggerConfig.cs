@@ -1835,14 +1835,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
             ["label"] = new OpenApiString("Key name"),
             ["dataType"] = new OpenApiString("string"),
             ["required"] = new OpenApiBoolean(true),
-            ["constraints"] = new OpenApiObject
-            {
-              ["allowedValues"] = new OpenApiArray
-              {
-                new OpenApiString("HOME"), new OpenApiString("BACK"), new OpenApiString("ESCAPE")
-              }
-            },
-            ["helpText"] = new OpenApiString("Symbolic key name")
+            ["helpText"] = new OpenApiString(KeyInputSchemaFilter.RuleSummary)
           },
           new OpenApiObject
           {

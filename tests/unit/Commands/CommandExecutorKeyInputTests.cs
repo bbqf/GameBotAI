@@ -144,4 +144,43 @@ public sealed class CommandExecutorKeyInputTests {
 
     result.StepOutcomes.Should().ContainSingle().Which.StepType.Should().Be("key");
   }
+
+  // ── Feature 164: digit keys and a truthful outcome ───────────────────────────
+
+  [Fact]
+  public async Task KeyInputStepPassesADigitKeyUnchangedAndIsExecuted() {
+    var cmds = new FakeCommandRepository();
+    var sessions = new RecordingSessionManager(RunningSession()) { SendResult = 1 };
+    cmds.Seed(KeyInputCommand("6"));
+    var executor = BuildExecutor(cmds, sessions);
+
+    var result = await executor.ForceExecuteDetailedAsync("session1", "cmd1");
+
+    sessions.ReceivedInputs.Should().ContainSingle().Which.Args["key"].Should().Be("6");
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.Status.Should().Be("executed");
+    outcome.Reason.Should().BeNull();
+  }
+
+  [Theory]
+  [InlineData("6a", "key_input_unknown_key")]
+  [InlineData("-1", "key_input_unknown_key")]
+  [InlineData("301", "key_input_code_out_of_range")]
+  [InlineData("99999999999", "key_input_code_out_of_range")]
+  [InlineData("6", "key_input_not_accepted")]
+  [InlineData("ENTER", "key_input_not_accepted")]
+  public async Task KeyInputStepThatTheDeviceDoesNotAcceptIsNotAcceptedWithAReason(string key, string expectedReason) {
+    var cmds = new FakeCommandRepository();
+    var sessions = new RecordingSessionManager(RunningSession()) { SendResult = 0 };
+    cmds.Seed(KeyInputCommand(key));
+    var executor = BuildExecutor(cmds, sessions);
+
+    var result = await executor.ForceExecuteDetailedAsync("session1", "cmd1");
+
+    result.Accepted.Should().Be(0);
+    var outcome = result.StepOutcomes.Should().ContainSingle().Subject;
+    outcome.Status.Should().Be("not_accepted");
+    outcome.Reason.Should().Be(expectedReason);
+    outcome.StepType.Should().Be("key");
+  }
 }
