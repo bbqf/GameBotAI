@@ -396,7 +396,10 @@ public sealed class SessionManager : ISessionManager {
         }
         else if (a.Args.TryGetValue("key", out var keyRaw)) {
           var keyName = keyRaw is JsonElement je && je.ValueKind == JsonValueKind.String ? je.GetString() : keyRaw?.ToString();
-          keyCode = ResolveAndroidKeyCode(keyName);
+          var resolved = AndroidKeyCodes.TryResolve(keyName, out keyCode);
+          if (resolved != KeyResolveResult.Ok) {
+            return (false, DescribeKeyFailure(resolved, keyName));
+          }
         }
         else {
           return (false, "key: missing required argument 'keyCode' or 'key'");
@@ -594,56 +597,22 @@ public sealed class SessionManager : ISessionManager {
     }
   }
 
-  // Minimal Android key name mapping for common special keys
-  private static readonly Dictionary<string, int> KeyNameMap = new(StringComparer.OrdinalIgnoreCase) {
-    ["HOME"] = 3,
-    ["BACK"] = 4,
-    ["ESCAPE"] = 111, // KEYCODE_ESCAPE
-    ["MENU"] = 82,
-    ["ENTER"] = 66,
-    ["SPACE"] = 62,
-    ["TAB"] = 61,
-    ["DEL"] = 67,
-    ["DELETE"] = 67,
-    ["UP"] = 19,
-    ["DOWN"] = 20,
-    ["LEFT"] = 21,
-    ["RIGHT"] = 22,
-    ["VOLUME_UP"] = 24,
-    ["VOLUME_DOWN"] = 25,
-    ["POWER"] = 26,
-    ["A"] = 29,
-    ["B"] = 30,
-    ["C"] = 31,
-    ["D"] = 32,
-    ["E"] = 33,
-    ["F"] = 34,
-    ["G"] = 35,
-    ["H"] = 36,
-    ["I"] = 37,
-    ["J"] = 38,
-    ["K"] = 39,
-    ["L"] = 40,
-    ["M"] = 41,
-    ["N"] = 42,
-    ["O"] = 43,
-    ["P"] = 44,
-    ["Q"] = 45,
-    ["R"] = 46,
-    ["S"] = 47,
-    ["T"] = 48,
-    ["U"] = 49,
-    ["V"] = 50,
-    ["W"] = 51,
-    ["X"] = 52,
-    ["Y"] = 53,
-    ["Z"] = 54
+  // The reason that the session input route gives for a key text that does not resolve.
+  private static string DescribeKeyFailure(KeyResolveResult result, string? keyName) => result switch {
+    KeyResolveResult.Empty => "key: key name is empty",
+    KeyResolveResult.OutOfRange => string.Format(CultureInfo.InvariantCulture, "key: key code {0} is outside 0 to {1}", keyName?.Trim(), AndroidKeyCodes.MaxRawKeyCode),
+    _ => string.Format(CultureInfo.InvariantCulture, "key: unknown key name '{0}'", keyName)
   };
 
+  // The legacy input path (SendInputsAsync) reports a bad key text with an exception that it logs.
   private static int ResolveAndroidKeyCode(string? name) {
-    if (string.IsNullOrWhiteSpace(name)) throw new FormatException("Empty key name");
-    if (KeyNameMap.TryGetValue(name.Trim(), out var code)) return code;
-    throw new KeyNotFoundException($"Unknown key name '{name}'");
+    return AndroidKeyCodes.TryResolve(name, out var code) switch {
+      KeyResolveResult.Ok => code,
+      KeyResolveResult.Empty => throw new FormatException("Empty key name"),
+      KeyResolveResult.OutOfRange => throw new KeyNotFoundException(
+        string.Format(CultureInfo.InvariantCulture, "Key code '{0}' is outside 0 to {1}", name, AndroidKeyCodes.MaxRawKeyCode)),
+      _ => throw new KeyNotFoundException($"Unknown key name '{name}'")
+    };
   }
 }
 

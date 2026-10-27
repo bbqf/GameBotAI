@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-23 (feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
+_Last reviewed: 2026-10-27 (feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
+feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
 feature 161: the gamepack install answer has `summary`, `wouldInstallWithTakeOver`, and the problem fields `takeOverResolves` and `remedy`, made by `GamepackFailureExplainer`;
 feature 159: a `notify` step with no `url` sends its message to the enabled notification targets through `INotificationDispatcher.SendText`;
 feature 157: image, alternates, and registry file writes use `AtomicFile.ReplaceFile` (move with overwrite and a bounded retry), a failed write names the file, and the `partial_restore` response has `failedRestoreKeys`;
@@ -170,7 +171,18 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
   session fails or is cancelled during the dispatch, the outcome is `dispatch_unknown` (`dispatch_error`
   or `dispatch_cancelled`), because the device can have the input. `POST /api/steps/execute` writes one
   execution-log entry of the type `step` (object id = session id) for each call that passes the session
-  check, also for the 10-second timeout. The command executor owns that limit. **Go to Home Screen** (`go-to-home-screen`, feature 069) is a parameterless
+  check, also for the 10-second timeout. The command executor owns that limit. The **key text** of a
+  `KeyInput` command step, of the `key` argument of a session `key` action, and of the `key` payload of a
+  sequence `key` action (feature 164) is one of: a key name (`HOME`, `BACK`, `ESCAPE`, `MENU`, `ENTER`,
+  `SPACE`, `TAB`, `DEL`, `DELETE`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `VOLUME_UP`, `VOLUME_DOWN`, `POWER`,
+  `A` to `Z`), a digit name `0` to `9` (key codes 7 to 16), a number pad name `NUMPAD_0` to `NUMPAD_9`
+  (key codes 144 to 153), or a raw Android key code (a whole number from 0 to 300). A name has priority
+  over a raw key code, so `6` is the digit key (key code 13). `AndroidKeyCodes` (in `GameBot.Emulator`)
+  owns this rule. A key that does not resolve is not sent. The session input route gives the reason
+  `key: unknown key name '<text>'`, `key: key code <n> is outside 0 to 300`, or `key: key name is empty`.
+  A `KeyInput` command step that the device does not accept has the status `not_accepted` (and not
+  `executed`) with the reason `key_input_unknown_key`, `key_input_code_out_of_range`, or
+  `key_input_not_accepted`. **Go to Home Screen** (`go-to-home-screen`, feature 069) is a parameterless
   action that presses Android HOME (keycode 3) so the device returns to its home/main screen,
   leaving the game running in the background — the leave-game counterpart to Connect to Game. It is
   usable both as a sequence action (dispatched through the session input pipeline) and a command

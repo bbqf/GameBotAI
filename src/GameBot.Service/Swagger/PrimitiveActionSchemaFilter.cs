@@ -33,7 +33,8 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
       [ActionTypes.Swipe] =
         "x1, y1 (start) and x2, y2 (end), integers, required, in device pixels; durationMs, integer, optional.",
       [ActionTypes.Key] =
-        "keyCode (integer Android key code) or key (string key name), one required; keyCode wins when both are given.",
+        "keyCode (integer Android key code) or key (string key text), one required; keyCode wins when both are given. "
+        + "The key text is: " + KeyInputSchemaFilter.RuleSummary,
       [ActionTypes.Command] =
         "commandId, string, required: the id of an existing command to run. The step-level commandReference does not "
         + "replace it.",

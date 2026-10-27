@@ -468,7 +468,17 @@ internal sealed class CommandExecutor : ICommandExecutor {
       var keyArgs = new Dictionary<string, object> { ["key"] = step.KeyInput.Key };
       var keyAction = new GameBot.Emulator.Session.InputAction("key", keyArgs, null, null);
       var keyAccepted = await _sessions.SendInputsAsync(sessionId, new[] { keyAction }, ct).ConfigureAwait(false);
-      return (keyAccepted, new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "key"));
+      if (keyAccepted > 0) {
+        return (keyAccepted, new PrimitiveTapStepOutcome(step.Order, "executed", null, null, null, StepType: "key"));
+      }
+
+      // Feature 164: the device took no key. Find out why, so that the step log does not show a false success.
+      var keyReason = GameBot.Emulator.Session.AndroidKeyCodes.TryResolve(step.KeyInput.Key, out _) switch {
+        GameBot.Emulator.Session.KeyResolveResult.Empty or GameBot.Emulator.Session.KeyResolveResult.UnknownName => "key_input_unknown_key",
+        GameBot.Emulator.Session.KeyResolveResult.OutOfRange => "key_input_code_out_of_range",
+        _ => "key_input_not_accepted"
+      };
+      return (0, new PrimitiveTapStepOutcome(step.Order, "not_accepted", keyReason, null, null, StepType: "key"));
     }
 
     if (step.Type == CommandStepType.Swipe) {

@@ -1,5 +1,6 @@
 #pragma warning disable CA2007 // test code: no ConfigureAwait
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using GameBot.Domain.Sessions;
@@ -43,7 +44,15 @@ internal sealed class FakeAdbSessionClient : IAdbSessionClient {
 
   public Task<(int ExitCode, string StdOut, string StdErr)> SwipeAsync(int x1, int y1, int x2, int y2, int? durationMs = null, CancellationToken ct = default) => InputAsync(ct);
 
-  public Task<(int ExitCode, string StdOut, string StdErr)> KeyEventAsync(int keyCode, CancellationToken ct = default) => InputAsync(ct);
+  /// <summary>The key codes that the fake received, in order (feature 164).</summary>
+  public List<int> KeyCodes { get; } = new();
+
+  public Task<(int ExitCode, string StdOut, string StdErr)> KeyEventAsync(int keyCode, CancellationToken ct = default) {
+    lock (KeyCodes) {
+      KeyCodes.Add(keyCode);
+    }
+    return InputAsync(ct);
+  }
 
   public async Task<byte[]> GetScreenshotPngAsync(CancellationToken ct = default) {
     Interlocked.Increment(ref _screenshotCalls);

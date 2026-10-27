@@ -11,6 +11,15 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Digit keys and raw key codes in key input steps (164-key-input-digits)
+  - **Digit keys**: a key input step accepts the key names `0` to `9` and `NUMPAD_0` to `NUMPAD_9`. For example, `6` presses the digit key 6 (key code 13). Before, the step failed with "Unknown key name".
+  - **Raw key code**: the key text can be a whole number from 0 to 300, for example `85`. The device gets that Android key code. A name in the key list has priority, so `6` is the digit key and not key code 6.
+  - **Where it works**: the `KeyInput` command step, the `key` argument of a session `key` action, and the `key` payload of a sequence `key` action. The numeric `keyCode` argument does not change.
+  - **Clear reasons**: the session input route gives `key: unknown key name '<text>'`, `key: key code <n> is outside 0 to 300`, or `key: key name is empty`. No key goes to the device in these cases.
+  - **Changed step outcome**: a `KeyInput` command step that the device does not accept now has the status `not_accepted` with the reason `key_input_unknown_key`, `key_input_code_out_of_range`, or `key_input_not_accepted`. Before, the status was `executed`.
+  - **Docs**: the Swagger docs of `KeyInputConfigDto.key`, the `key` payload of a primitive action, and the key action definition show the rule with a digit example and a raw key code example. The hint text of the key field in the web UI shows the same.
+  - See `docs/architecture.md`.
+  - The patch version is now 18, so the next build is `1.11.18.<run number>`.
 - Installer bind address and port control (162-installer-bind-address-port)
   - **Choice on every run**: every interactive install and upgrade shows the interface and port page, also an upgrade. The page checks the port when you click **Next**. A port that another program uses gives an error. The installed GameBot service does not count as another program.
   - **Upgrade keeps the binding**: an upgrade keeps the saved interface and port, also an upgrade from the Web UI or the API. A silent upgrade keeps the saved port, also when another program uses it, and writes a warning to the installer log. The service then logs the bind failure and ends with exit code 98.
