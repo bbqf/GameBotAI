@@ -754,8 +754,10 @@ internal sealed class CommandExecutor : ICommandExecutor {
   private void LogWaitForImageTimeout(int order, string sessionId, DetectionTarget detectionTarget, DetectionPassResult lastPass, int passCount) {
     if (!_logger.IsEnabled(LogLevel.Debug)) return;
     var bestScore = lastPass.BestScore is { } score ? score.ToString("0.000", CultureInfo.InvariantCulture) : "none";
-    Log.WaitForImageTimedOut(_logger, order, sessionId, detectionTarget.ReferenceImageId, detectionTarget.Confidence.ToString(CultureInfo.InvariantCulture), passCount,
-      lastPass.FrameAvailable ? "true" : "false", bestScore);
+    var confidence = detectionTarget.Confidence.ToString(CultureInfo.InvariantCulture);
+    var referenceImageId = detectionTarget.ReferenceImageId;
+    var frameState = lastPass.FrameAvailable ? "true" : "false";
+    Log.WaitForImageTimedOut(_logger, order, sessionId, referenceImageId, confidence, passCount, frameState, bestScore);
   }
 
   /// <summary>

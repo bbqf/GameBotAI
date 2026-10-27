@@ -1120,7 +1120,9 @@ namespace GameBot.Domain.Services {
       if (_logger is null || !_logger.IsEnabled(LogLevel.Debug)) return;
       var frameState = lastPass is null ? "unknown" : (lastPass.FrameAvailable ? "true" : "false");
       var bestScore = lastPass?.BestScore is { } score ? score.ToString("0.000", CultureInfo.InvariantCulture) : "none";
-      SequenceRunnerLog.WaitForImageTimedOut(_logger, sequenceId, stepKey, detectionTarget.ReferenceImageId, detectionTarget.Confidence.ToString(CultureInfo.InvariantCulture), passCount, frameState, bestScore);
+      var confidence = detectionTarget.Confidence.ToString(CultureInfo.InvariantCulture);
+      var referenceImageId = detectionTarget.ReferenceImageId;
+      SequenceRunnerLog.WaitForImageTimedOut(_logger, sequenceId, stepKey, referenceImageId, confidence, passCount, frameState, bestScore);
     }
 
     private static async Task WaitUntilDeadlineAsync(DateTimeOffset deadline, CancellationToken ct) {
