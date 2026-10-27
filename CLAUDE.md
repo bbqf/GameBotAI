@@ -11,5 +11,5 @@ Before you push a branch for a new PR, bump the version in `installer/versioning
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/165-ocr-pattern-params/plan.md
+at specs/166-fix-waitforimage-timeout/plan.md
 <!-- SPECKIT END -->
