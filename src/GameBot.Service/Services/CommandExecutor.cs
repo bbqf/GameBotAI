@@ -1,4 +1,5 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Commands.Execution;
 using GameBot.Domain.Config;
 using GameBot.Domain.Parameters;
 using GameBot.Domain.Logging;
@@ -679,13 +680,14 @@ internal sealed class CommandExecutor : ICommandExecutor {
     }
 
     templateSet.LogMissingAlternates(_logger);
-    if (TryDetectImage(screenSrc, templateSet, detectionTarget, matcher, out var resolvedPoint, out var detectionConfidence)) {
+    var (lastPass, passCount) = await PollForImageAsync(screenSrc, templateSet, detectionTarget, matcher, deadline, ct).ConfigureAwait(false);
+    if (lastPass.Found) {
       return new PrimitiveTapStepOutcome(
         step.Order,
         "executed",
         "image_detected",
-        resolvedPoint,
-        detectionConfidence,
+        lastPass.ResolvedPoint,
+        lastPass.DetectionConfidence,
         StepType: "waitForImage",
         TimeoutMs: timeoutMs,
         EffectiveTimeoutMs: timeoutMs,
@@ -694,31 +696,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
         ConfiguredConfidence: detectionTarget.Confidence);
     }
 
-    while (DateTimeOffset.UtcNow < deadline) {
-      var remaining = deadline - DateTimeOffset.UtcNow;
-      if (remaining <= TimeSpan.Zero) {
-        break;
-      }
-
-      var pollMs = Math.Max(1, Math.Min(_appConfig.CaptureIntervalMs, (int)Math.Ceiling(remaining.TotalMilliseconds)));
-      await Task.Delay(pollMs, ct).ConfigureAwait(false);
-
-      if (TryDetectImage(screenSrc, templateSet, detectionTarget, matcher, out resolvedPoint, out detectionConfidence)) {
-        return new PrimitiveTapStepOutcome(
-          step.Order,
-          "executed",
-          "image_detected",
-          resolvedPoint,
-          detectionConfidence,
-          StepType: "waitForImage",
-          TimeoutMs: timeoutMs,
-          EffectiveTimeoutMs: timeoutMs,
-          ReferenceImageId: detectionTarget.ReferenceImageId,
-          ImageLoadStatus: "loaded",
-          ConfiguredConfidence: detectionTarget.Confidence);
-      }
-    }
-
+    LogWaitForImageTimeout(step.Order, sessionId, detectionTarget, lastPass, passCount);
     return new PrimitiveTapStepOutcome(
       step.Order,
       "completed_timeout",
@@ -740,14 +718,45 @@ internal sealed class CommandExecutor : ICommandExecutor {
     }
   }
 
-  private bool TryDetectImage(
+  /// <summary>
+  /// Runs the detection passes of a <c>WaitForImage</c> step until a pass finds the image or the time
+  /// ends (feature 166, FR-010). The first pass runs at once. No pass starts at or after the deadline,
+  /// and the last wait ends 50 ms before the deadline (<see cref="WaitForImageSchedule"/>).
+  /// Returns the last pass and the number of passes.
+  /// </summary>
+  private async Task<(DetectionPassResult LastPass, int PassCount)> PollForImageAsync(
     GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
     GameBot.Domain.Images.ReferenceImageSet templateSet,
     DetectionTarget detectionTarget,
     GameBot.Domain.Vision.ITemplateMatcher matcher,
-    out PrimitiveTapResolvedPoint? resolvedPoint,
-    out double? detectionConfidence)
-    => ImageDetectionHelper.TryDetect(screenSrc, templateSet, detectionTarget, matcher, out resolvedPoint, out detectionConfidence, _logger);
+    DateTimeOffset deadline,
+    CancellationToken ct) {
+    var pollInterval = TimeSpan.FromMilliseconds(Math.Max(1, _appConfig.CaptureIntervalMs));
+    var lastPass = ImageDetectionHelper.DetectPass(screenSrc, templateSet, detectionTarget, matcher, _logger);
+    var passCount = 1;
+    while (!lastPass.Found) {
+      var next = WaitForImageSchedule.NextWait(deadline - DateTimeOffset.UtcNow, pollInterval);
+      if (next.Stop) break;
+      if (next.Wait > TimeSpan.Zero) await Task.Delay(next.Wait, ct).ConfigureAwait(false);
+      // Read the clock again: a pass starts only before the deadline.
+      if (DateTimeOffset.UtcNow >= deadline) break;
+      lastPass = ImageDetectionHelper.DetectPass(screenSrc, templateSet, detectionTarget, matcher, _logger);
+      passCount++;
+      if (next.IsLastWait) break;
+    }
+    return (lastPass, passCount);
+  }
+
+  /// <summary>
+  /// Writes one debug line when a <c>WaitForImage</c> step times out (feature 166, FR-012). The line has
+  /// the frame state and the best score of the last pass. The API response does not change.
+  /// </summary>
+  private void LogWaitForImageTimeout(int order, string sessionId, DetectionTarget detectionTarget, DetectionPassResult lastPass, int passCount) {
+    if (!_logger.IsEnabled(LogLevel.Debug)) return;
+    var bestScore = lastPass.BestScore is { } score ? score.ToString("0.000", CultureInfo.InvariantCulture) : "none";
+    Log.WaitForImageTimedOut(_logger, order, sessionId, detectionTarget.ReferenceImageId, detectionTarget.Confidence.ToString(CultureInfo.InvariantCulture), passCount,
+      lastPass.FrameAvailable ? "true" : "false", bestScore);
+  }
 
   /// <summary>
   /// Attempts a single screenshot-fetch â†’ template-match â†’ coordinate-resolve â†’ tap cycle.
@@ -952,4 +961,7 @@ internal static partial class Log {
 
   [LoggerMessage(EventId = 6015, Level = LogLevel.Warning, Message = "The execution-log entry for a single step on session {SessionId} was not written.")]
   public static partial void StepLogWriteFailed(ILogger logger, Exception ex, string SessionId);
+
+  [LoggerMessage(EventId = 6016, Level = LogLevel.Debug, Message = "WaitForImage step {Order} on session {SessionId} timed out for image {ReferenceImageId} at confidence {Confidence}: {PassCount} passes, last pass frame available {FrameAvailable}, best score {BestScore}.")]
+  public static partial void WaitForImageTimedOut(ILogger logger, int Order, string SessionId, string ReferenceImageId, string Confidence, int PassCount, string FrameAvailable, string BestScore);
 }

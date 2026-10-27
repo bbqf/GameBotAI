@@ -2,7 +2,7 @@
 
 **Feature Branch**: `166-fix-waitforimage-timeout`  
 **Created**: 2026-10-27  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: GitHub issue #350 (https://github.com/bbqf/GameBotAI/issues/350). "Fix: WaitForImage times out on an image that is on screen (B-038)". Closes #350.
 
 ## Background

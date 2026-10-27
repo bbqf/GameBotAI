@@ -98,6 +98,104 @@ public sealed class SequenceRunnerWaitForImageTests {
     stopwatch.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(25);
   }
 
+  [Fact]
+  public async Task WaitForImageStartsNoEvaluationAtOrAfterTheDeadline() {
+    // Feature 166 (FR-010): each evaluation takes 150 ms and gives false. With timeoutMs 300 and a poll
+    // interval of 1000 ms, the step does two evaluations, and the last wait ends 50 ms before the deadline.
+    var runner = new SequenceRunner(
+      new StubRepo(BuildSequence(new WaitForImageConfig { TimeoutMs = 300, DetectionTarget = new DetectionTarget("map-image", 0.85) })),
+      NullLogger<SequenceRunner>.Instance,
+      new AppConfig { CaptureIntervalMs = 1000 });
+    var clock = new Stopwatch();
+    var offsets = new List<long>();
+
+    var result = await runner.ExecuteAsync(
+      "wait-sequence",
+      (_, _) => Task.CompletedTask,
+      conditionEvaluator: (_, _) => {
+        // The first evaluation is the start of the step.
+        if (!clock.IsRunning) clock.Start();
+        offsets.Add(clock.ElapsedMilliseconds);
+        // A synchronous pass, as the image matcher of the service is.
+#pragma warning disable CA1849
+        Thread.Sleep(150);
+#pragma warning restore CA1849
+        return Task.FromResult(false);
+      },
+      ct: CancellationToken.None).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "timeout_elapsed");
+    offsets.Should().HaveCount(2);
+    // timeoutMs - 50 ms + 30 ms tolerance for the timer resolution.
+    offsets.Should().OnlyContain(offset => offset < 280);
+  }
+
+  [Fact]
+  public async Task WaitForImageTimeoutWritesOneDebugLineWithThePassOfTheEvaluator() {
+    // Feature 166 (FR-012): the evaluator writes the pass into the ambient scope of the wait.
+    var logger = new CapturingLogger();
+    var runner = new SequenceRunner(
+      new StubRepo(BuildSequence(new WaitForImageConfig { TimeoutMs = 60, DetectionTarget = new DetectionTarget("map-image", 0.85) })),
+      logger,
+      new AppConfig { CaptureIntervalMs = 20 });
+
+    await runner.ExecuteAsync(
+      "wait-sequence",
+      (_, _) => Task.CompletedTask,
+      conditionEvaluator: (_, _) => {
+        var scope = GameBot.Domain.Vision.ImageDetectionPassScope.Current;
+        if (scope is not null) scope.LastPass = new GameBot.Domain.Vision.ImageDetectionPass(true, 0.423);
+        return Task.FromResult(false);
+      },
+      ct: CancellationToken.None).ConfigureAwait(false);
+
+    var line = SingleTimeoutLine(logger);
+    line.Should().Contain("wait-sequence");
+    line.Should().Contain("wait-step");
+    line.Should().Contain("map-image");
+    line.Should().Contain("0.85");
+    line.Should().MatchRegex(@"\d+ passes");
+    line.Should().Contain("frame available true");
+    line.Should().Contain("best score 0.423");
+  }
+
+  [Fact]
+  public async Task WaitForImageTimeoutWritesUnknownFrameStateWhenNoEvaluatorWrites() {
+    var logger = new CapturingLogger();
+    var runner = new SequenceRunner(
+      new StubRepo(BuildSequence(new WaitForImageConfig { TimeoutMs = 60, DetectionTarget = new DetectionTarget("map-image", 0.85) })),
+      logger,
+      new AppConfig { CaptureIntervalMs = 20 });
+
+    await runner.ExecuteAsync(
+      "wait-sequence",
+      (_, _) => Task.CompletedTask,
+      conditionEvaluator: (_, _) => Task.FromResult(false),
+      ct: CancellationToken.None).ConfigureAwait(false);
+
+    var line = SingleTimeoutLine(logger);
+    line.Should().Contain("frame available unknown");
+    line.Should().Contain("best score none");
+  }
+
+  private static string SingleTimeoutLine(CapturingLogger logger) {
+    var lines = logger.Entries
+      .Where(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Debug && e.Message.Contains("timed out", StringComparison.Ordinal))
+      .ToList();
+    lines.Should().ContainSingle();
+    return lines[0].Message;
+  }
+
+  private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<SequenceRunner> {
+    private readonly List<(Microsoft.Extensions.Logging.LogLevel Level, string Message)> _entries = new();
+    public IReadOnlyList<(Microsoft.Extensions.Logging.LogLevel Level, string Message)> Entries { get { lock (_entries) return _entries.ToList(); } }
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+      lock (_entries) _entries.Add((logLevel, formatter(state, exception)));
+    }
+  }
+
   private static CommandSequence BuildSequence(WaitForImageConfig waitConfig) {
     var sequence = new CommandSequence {
       Id = "wait-sequence",

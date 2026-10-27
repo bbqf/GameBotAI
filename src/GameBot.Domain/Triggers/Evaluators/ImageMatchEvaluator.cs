@@ -59,7 +59,13 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
   private double ComputeSimilarity(ImageMatchParams p) {
     if (!Images.ReferenceImageSetLoader.TryLoad(_store, _alternates, p.ReferenceImageId, out var set) || set is null) return 0d;
     using var screenBmp = _screen.GetLatestScreenshot();
-    if (screenBmp is null) return 0d;
+    // Feature 166 (FR-012): a WaitForImage wait keeps the last pass for its timeout log line. With no
+    // scope, nothing is written, so triggers and imageVisible conditions do not change.
+    var passScope = ImageDetectionPassScope.Current;
+    if (screenBmp is null) {
+      if (passScope is not null) passScope.LastPass = new ImageDetectionPass(false, null);
+      return 0d;
+    }
 
     var best = ComputeSimilarity(p, set.Primary, screenBmp);
     string? bestAlternate = null;
@@ -77,6 +83,7 @@ public sealed class ImageMatchEvaluator : ITriggerEvaluator {
         ImageMatchLog.AlternateMatched(_logger, p.ReferenceImageId, bestAlternate, best, null);
       }
     }
+    if (passScope is not null) passScope.LastPass = new ImageDetectionPass(true, best);
     return best;
   }
 

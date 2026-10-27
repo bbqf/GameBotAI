@@ -35,13 +35,30 @@ internal static class ImageDetectionHelper {
     out PrimitiveTapResolvedPoint? resolvedPoint,
     out double? detectionConfidence,
     ILogger? logger = null) {
+    var pass = DetectPass(screenSrc, references, detectionTarget, matcher, logger);
+    resolvedPoint = pass.ResolvedPoint;
+    detectionConfidence = pass.DetectionConfidence;
+    return pass.Found;
+  }
+
+  /// <summary>
+  /// Runs one detection pass, as <see cref="TryDetect"/> does, and also tells if a frame was available
+  /// and the best score at or above the matcher threshold (feature 166, FR-012). The
+  /// <c>WaitForImage</c> step writes these values in its timeout log line.
+  /// </summary>
+  public static DetectionPassResult DetectPass(
+    GameBot.Domain.Triggers.Evaluators.IScreenSource screenSrc,
+    ReferenceImageSet references,
+    DetectionTarget detectionTarget,
+    GameBot.Domain.Vision.ITemplateMatcher matcher,
+    ILogger? logger = null) {
+    ArgumentNullException.ThrowIfNull(screenSrc);
     ArgumentNullException.ThrowIfNull(references);
-    resolvedPoint = null;
-    detectionConfidence = null;
+    ArgumentNullException.ThrowIfNull(detectionTarget);
 
     var screenshotBmp = screenSrc.GetLatestScreenshot();
     if (screenshotBmp is null) {
-      return false;
+      return DetectionPassResult.NoFrame;
     }
 
     using var screenMs = new System.IO.MemoryStream();
@@ -65,24 +82,46 @@ internal static class ImageDetectionHelper {
       out var err,
       DetectionSelectionStrategy.HighestConfidence);
 
+    // The score of the selected match, when the matcher found one at or above its threshold.
+    var bestScore = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
+      ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
+      : (double?)null;
+
     if (!ok || err is not null) {
-      return false;
+      return DetectionPassResult.NotFound(bestScore);
     }
 
     if (!primitiveAction.Args.TryGetValue("x", out var xVal) || !primitiveAction.Args.TryGetValue("y", out var yVal)) {
-      return false;
+      return DetectionPassResult.NotFound(bestScore);
     }
 
     var x = Convert.ToInt32(xVal, CultureInfo.InvariantCulture);
     var y = Convert.ToInt32(yVal, CultureInfo.InvariantCulture);
     if (x < 0 || y < 0 || x >= screenshotBmp.Width || y >= screenshotBmp.Height) {
-      return false;
+      return DetectionPassResult.NotFound(bestScore);
     }
 
-    detectionConfidence = primitiveAction.Args.TryGetValue("confidence", out var confidenceVal)
-      ? Convert.ToDouble(confidenceVal, CultureInfo.InvariantCulture)
-      : (double?)null;
-    resolvedPoint = new PrimitiveTapResolvedPoint(x, y);
-    return true;
+    return new DetectionPassResult(true, true, bestScore, new PrimitiveTapResolvedPoint(x, y), bestScore);
   }
+}
+
+/// <summary>
+/// The result of one detection pass (feature 166, FR-012). It is not stored and not in an API response.
+/// </summary>
+/// <param name="Found">A match at or above the step confidence was found inside the capture.</param>
+/// <param name="FrameAvailable">The screen source gave a frame. False means that the session has no cached frame.</param>
+/// <param name="BestScore">The best match score at or above the matcher threshold, or null.</param>
+/// <param name="ResolvedPoint">The point with the offsets. Not null only when <paramref name="Found"/> is true.</param>
+/// <param name="DetectionConfidence">The score of the selected match. Not null only when <paramref name="Found"/> is true.</param>
+internal sealed record DetectionPassResult(
+  bool Found,
+  bool FrameAvailable,
+  double? BestScore,
+  PrimitiveTapResolvedPoint? ResolvedPoint,
+  double? DetectionConfidence) {
+  /// <summary>The result of a pass with no frame.</summary>
+  public static DetectionPassResult NoFrame { get; } = new(false, false, null, null, null);
+
+  /// <summary>The result of a pass with a frame and no match.</summary>
+  public static DetectionPassResult NotFound(double? bestScore) => new(false, true, bestScore, null, null);
 }

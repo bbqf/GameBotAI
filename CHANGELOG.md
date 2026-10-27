@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- WaitForImage timeout on an image that is on screen (166-fix-waitforimage-timeout, #350)
+  - **Cause**: a session from `POST /api/sessions` had no capture loop. The session screen source then had no frame, and each detection pass of a `WaitForImage` step found nothing. The step timed out also when the image was on screen. `POST /api/images/detect` with a `captureId` worked, because it reads a stored capture.
+  - **Fix**: `POST /api/sessions` starts the capture loop of a session with a device. `DELETE /api/sessions/{id}` and each other removal of a session (for example the idle sweep) stop the loop. A `WaitForImage` step starts no detection pass at or after its deadline, and its last wait ends 50 ms before the deadline. A timeout writes one debug log line with the pass count, the frame state, and the best score of the last pass.
+  - **Not changed**: the `imageVisible` condition, `POST /api/images/detect`, the image lookup, and the API shape.
+  - See `docs/architecture.md`.
+  - The patch version is now 20, so the next build is `1.11.20.<run number>`.
 - Second "Files in use" dialog in an interactive upgrade (163-fix-files-in-use-dialog)
   - **Cause**: the bot (a program with no window) did not answer the close request of the Windows Installer Restart Manager, for example while a queue runs. The uninstall of the old product then checked the locked files again and showed the dialog a second time.
   - **Fix**: the MSI sets `MSIRMSHUTDOWN=1`. After you choose **Close the applications**, the Restart Manager ends the bot also when it does not answer. The upgrade shows the dialog one time and starts the bot again. The rollback of a failed upgrade (feature 162) is not changed.

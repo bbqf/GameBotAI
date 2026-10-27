@@ -16,7 +16,7 @@ internal static class SessionsEndpoints {
   public static IEndpointRouteBuilder MapSessionEndpoints(this IEndpointRouteBuilder app) {
     var group = app.MapGroup(ApiRoutes.Sessions).WithTags("Sessions");
 
-    group.MapPost("", async (CreateSessionRequest req, ISessionManager mgr, ISessionContextCache cache, IOptions<SessionCreationOptions> createOptions, ILogger<SessionsLoggingTag> logger, CancellationToken ct) => {
+    group.MapPost("", async (CreateSessionRequest req, HttpContext ctx, ISessionManager mgr, ISessionContextCache cache, IOptions<SessionCreationOptions> createOptions, ILogger<SessionsLoggingTag> logger, CancellationToken ct) => {
       var game = req.GameId ?? req.GamePath;
       if (string.IsNullOrWhiteSpace(game))
         return Results.BadRequest(new { error = new { code = "invalid_request", message = "Provide gameId or gamePath.", hint = (string?)null } });
@@ -33,6 +33,7 @@ internal static class SessionsEndpoints {
         var sess = await createTask.WaitAsync(TimeSpan.FromSeconds(timeoutSeconds), timeoutCts.Token).ConfigureAwait(false);
         cache.SetSessionId(sess.GameId, sess.DeviceSerial ?? req.AdbSerial ?? string.Empty, sess.Id);
         SessionsLog.SessionCreated(logger, sess.Id, sess.GameId, sess.DeviceSerial ?? req.AdbSerial ?? string.Empty);
+        StartCaptureLoop(ctx.RequestServices, sess, logger);
         var resp = new CreateSessionResponse { Id = sess.Id, SessionId = sess.Id, Status = sess.Status.ToString().ToUpperInvariant(), GameId = sess.GameId };
         return Results.Created($"{ApiRoutes.Sessions}/{sess.Id}", resp);
       }
@@ -131,13 +132,31 @@ internal static class SessionsEndpoints {
       }
     }).WithName("GetSnapshot").WithTags("Sessions");
 
-    group.MapDelete("{id}", (string id, ISessionManager mgr) => {
+    group.MapDelete("{id}", (string id, HttpContext ctx, ISessionManager mgr) => {
+      // Feature 166 (FR-013): stop the capture loop before the session goes. Stub mode has no capture service.
+      ctx.RequestServices.GetService<BackgroundScreenCaptureService>()?.StopCapture(id);
       var stopped = mgr.StopSession(id);
       return stopped ? Results.Accepted($"{ApiRoutes.Sessions}/{id}", new { status = "stopping" })
                      : Results.NotFound(new { error = new { code = "not_found", message = "Session not found", hint = (string?)null } });
     }).WithName("StopSession").WithTags("Sessions");
 
     return app;
+  }
+
+  /// <summary>
+  /// Feature 166 (FR-013, issue #350): starts the capture loop of a new session that has a device. A
+  /// <c>WaitForImage</c> step reads its frames from this loop. Stub mode has no capture service, so this
+  /// method does nothing there. A failure to start the loop does not fail the create of the session.
+  /// </summary>
+  private static void StartCaptureLoop(IServiceProvider services, EmulatorSession session, ILogger logger) {
+    var capture = services.GetService<BackgroundScreenCaptureService>();
+    if (capture is null || string.IsNullOrWhiteSpace(session.DeviceSerial)) return;
+    try {
+      capture.StartCapture(session.Id, session.DeviceSerial);
+    }
+    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or ObjectDisposedException) {
+      SessionsLog.CaptureStartFailed(logger, session.Id, ex);
+    }
   }
 
   /// <summary>
@@ -222,6 +241,9 @@ internal static class SessionsEndpoints {
 internal static partial class SessionsLog {
   [LoggerMessage(EventId = 7000, Level = LogLevel.Information, Message = "Session created {SessionId} for game {GameId} adb {AdbSerial}.")]
   public static partial void SessionCreated(ILogger logger, string SessionId, string GameId, string AdbSerial);
+
+  [LoggerMessage(EventId = 7001, Level = LogLevel.Warning, Message = "The capture loop of session {SessionId} did not start. The session has no frames until a loop starts.")]
+  public static partial void CaptureStartFailed(ILogger logger, string SessionId, Exception ex);
 }
 
 internal sealed class SessionsLoggingTag { }

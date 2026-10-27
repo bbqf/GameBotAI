@@ -485,10 +485,13 @@ internal static class GameBotServiceSetup {
           new GameBot.Emulator.Session.AdbScreenCaptureProvider(serial, adbLogger);
         // Feature 106: the loops write their capture data to the tracker, with the capture time limit.
         var livenessOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GameBot.Domain.Sessions.DeviceLivenessOptions>>().Value.Normalized();
-        return new GameBot.Emulator.Session.BackgroundScreenCaptureService(
+        var service = new GameBot.Emulator.Session.BackgroundScreenCaptureService(
           factory, appConfig.CaptureIntervalMs, sp.GetRequiredService<ILogger<GameBot.Emulator.Session.BackgroundScreenCaptureService>>(),
           sp.GetRequiredService<GameBot.Domain.Sessions.IDeviceLivenessTracker>(), livenessOptions,
           sp.GetRequiredService<GameBot.Emulator.DeviceCaptureGate>());
+        // Feature 166 (FR-013): each removal of a session (a stop or the idle sweep) stops its capture loop.
+        GameBot.Emulator.Session.SessionCaptureCleanup.Attach(sp.GetRequiredService<ISessionManager>(), service);
+        return service;
       });
       // IScreenSource backed by background capture cache (replaces direct ADB + TTL cache chain).
       // Feature 079: the ambient device context decides which session it observes, so concurrent
