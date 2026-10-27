@@ -43,6 +43,43 @@ public sealed class OcrTextConditionRulesTests {
     OcrTextConditionRules.Validate(Match("(unclosed")).Should().ContainSingle().Which.Should().Contain("pattern");
   }
 
+  // Feature 165: a pattern with a placeholder is not compiled at save time.
+
+  [Fact]
+  public void TryValidatePatternAcceptsAValidPattern() {
+    OcrTextConditionRules.TryValidatePattern("(Gathering.*){3}", out var problem).Should().BeTrue();
+    problem.Should().BeNull();
+  }
+
+  [Fact]
+  public void TryValidatePatternRejectsAnInvalidPatternWithAProblemText() {
+    OcrTextConditionRules.TryValidatePattern("(abc", out var problem).Should().BeFalse();
+    problem.Should().NotBeNullOrWhiteSpace();
+  }
+
+  [Theory]
+  [InlineData("[{{chars}}]")]
+  [InlineData("(?s)(Gathering.*){{{n}}}")]
+  public void APatternWithAPlaceholderIsNotCompiled(string pattern) {
+    OcrTextConditionRules.Validate(Match(pattern)).Should().BeEmpty();
+  }
+
+  [Fact]
+  public void APatternWithNoPlaceholderKeepsTheExistingCheckAndMessage() {
+    OcrTextConditionRules.TryValidatePattern("(abc", out var problem);
+    OcrTextConditionRules.Validate(Match("(abc")).Should().ContainSingle()
+        .Which.Should().Be($"ocrText pattern is not a valid regular expression: {problem}");
+  }
+
+  [Fact]
+  public void ExactlyOneOfExpectedAndPatternStillAppliesWithAPlaceholder() {
+    var both = Match("{{p}}");
+    both.Expected = "{{e}}";
+
+    OcrTextConditionRules.Validate(both).Should().ContainSingle()
+        .Which.Should().Be(OcrTextConditionRules.ExpectedOrPatternMessage);
+  }
+
   [Fact]
   public void AnEmptyExpectedIsAllowed() {
     OcrTextConditionRules.Validate(Expect(string.Empty)).Should().BeEmpty();

@@ -24,9 +24,13 @@ internal sealed class OcrTextConditionSchemaFilter : ISchemaFilter {
   private static readonly Dictionary<string, string> FieldDescriptions = new() {
     ["region"] = "The screen region to read, in capture pixels (x, y, width, height). Width and height are more "
       + "than zero. The region must be fully inside the frame at run time.",
-    ["expected"] = "Exact, case-sensitive match against the trimmed text. Set exactly one of expected and pattern.",
+    ["expected"] = "Exact, case-sensitive match against the trimmed text. Set exactly one of expected and pattern. "
+      + "It can hold {{name}} placeholders of sequence parameters. The run puts each value in the text before "
+      + "the compare.",
     ["pattern"] = "A regular expression that matches anywhere in the trimmed text. A match has a time limit of "
-      + "1 second. Set exactly one of expected and pattern.",
+      + "1 second. Set exactly one of expected and pattern. It can hold {{name}} placeholders of sequence "
+      + "parameters. The run puts each value in the pattern with no escape. Write {{{name}}} to get the value "
+      + "between literal braces, for example (Gathering.*){{{count}}}.",
     ["parser"] = "Optional. A parser name: hh:mm:ss. The name is not case-sensitive, and the service stores the "
       + "lower-case name. The compare then uses the parsed text. Only the sequence endpoint checks the name.",
     ["negate"] = "When true, the result is inverted."

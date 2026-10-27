@@ -11,6 +11,15 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Sequence parameters in `ocrText.pattern` and `ocrText.expected` (165-ocr-pattern-params, #347)
+  - **Placeholders**: the `pattern` and `expected` fields of an `ocrText` condition accept `{{name}}` placeholders of sequence parameters. The run puts each value in the field before the OCR check. This works in each condition position: the step guard, `If`, `Loop`, `breakCondition`, and the children of `all`, `any`, and `none`.
+  - **Pattern rules**: the value goes into the pattern with no regex escape. Write `{{{name}}}` to get the value between literal braces, for example `(Gathering.*){{{marchTarget}}}` with `marchTarget` = `4` gives `(Gathering.*){4}`. `{{3}}` is a placeholder with the name `3`, not a quantifier.
+  - **Run errors**: an unknown name, or a full field that resolves to empty text, fails the step with the unresolved-parameter message. A resolved pattern that is not a valid regular expression fails the step with the new message "resolved to the pattern '...', which is not a valid regular expression". A break condition with one of these errors gives "No break".
+  - **Save errors**: a save and a save dry run give `400 unresolvable_parameter_reference` for an unknown name in the two fields. When each name of a pattern has a sequence default, a pattern that is not valid with the defaults gives `400 invalid_resolved_pattern`. The save does not compile a pattern that has a placeholder.
+  - **Log**: the run log shows the resolved value, not the placeholder. The stored sequence keeps its placeholder text.
+  - **Not changed**: the gamepack check, and the `imageVisible.imageId` behavior.
+  - See `docs/architecture.md`.
+  - The patch version is now 19, so the next build is `1.11.19.<run number>`.
 - Digit keys and raw key codes in key input steps (164-key-input-digits)
   - **Digit keys**: a key input step accepts the key names `0` to `9` and `NUMPAD_0` to `NUMPAD_9`. For example, `6` presses the digit key 6 (key code 13). Before, the step failed with "Unknown key name".
   - **Raw key code**: the key text can be a whole number from 0 to 300, for example `85`. The device gets that Android key code. A name in the key list has priority, so `6` is the digit key and not key code 6.

@@ -11,7 +11,10 @@ namespace GameBot.Domain.Parameters;
 /// <para>
 /// The resolver substitutes each <see cref="ImageVisibleStepCondition.ImageId"/>. The inline form
 /// accepts text around the placeholder, for example <c>nova-{{option}}</c>, the same as the inline
-/// image field of a command step. Other leaves do not change. The stored condition does not change:
+/// image field of a command step. Feature 165 adds <see cref="OcrTextStepCondition.Pattern"/> and
+/// <see cref="OcrTextStepCondition.Expected"/> with the same rule. A resolved pattern that is not a valid
+/// regular expression gives the reason <see cref="ParameterResolutionReasons.InvalidPattern"/>.
+/// Other leaves do not change. The stored condition does not change:
 /// the result is a new tree when a leaf has a placeholder, and the same instance when no leaf has one.
 /// </para>
 /// <para>
@@ -62,6 +65,8 @@ public static class SequenceStepConditionResolver {
 
   private static bool HasPlaceholder(SequenceStepCondition? condition) => condition switch {
     ImageVisibleStepCondition image => TemplateSubstitutor.ContainsPlaceholder(image.ImageId),
+    OcrTextStepCondition ocr => TemplateSubstitutor.ContainsPlaceholder(ocr.Pattern)
+        || TemplateSubstitutor.ContainsPlaceholder(ocr.Expected),
     CompositeStepCondition composite => composite.Children is not null && AnyChildHasPlaceholder(composite.Children),
     _ => false
   };
@@ -86,6 +91,9 @@ public static class SequenceStepConditionResolver {
     switch (condition) {
       case ImageVisibleStepCondition image:
         return TryResolveImage(image, scope, context, $"{fieldPath}.imageId", used, ref error, out resolved);
+
+      case OcrTextStepCondition ocr when HasPlaceholder(ocr):
+        return TryResolveOcrText(ocr, scope, context, fieldPath, used, ref error, out resolved);
 
       case CompositeStepCondition composite when HasPlaceholder(composite):
         var children = new List<SequenceStepCondition>(composite.Children.Count);
@@ -117,13 +125,84 @@ public static class SequenceStepConditionResolver {
     resolved = image;
     if (!TemplateSubstitutor.ContainsPlaceholder(image.ImageId)) return true;
 
-    var keys = TemplateSubstitutor.ExtractKeys(image.ImageId);
-    if (!TemplateSubstitutor.TrySubstitute(image.ImageId, context, out var substituted, out var unresolved)) {
+    // An empty id cannot name an image. This is the same rule as the empty-id check of a command step.
+    if (!TryResolveText(image.ImageId, fieldPath, scope, context, used, ref error, out var substituted)) {
+      return false;
+    }
+
+    resolved = new ImageVisibleStepCondition {
+      ImageId = substituted,
+      MinSimilarity = image.MinSimilarity,
+      Negate = image.Negate,
+      Region = image.Region
+    };
+    return true;
+  }
+
+  /// <summary>
+  /// Resolves the <c>pattern</c> and <c>expected</c> fields of an <c>ocrText</c> leaf (feature 165).
+  /// The value goes into the field with no regex escape. A resolved pattern that is not a valid regular
+  /// expression gives the reason <see cref="ParameterResolutionReasons.InvalidPattern"/>. The method
+  /// makes a new leaf. It does not change the input leaf.
+  /// </summary>
+  private static bool TryResolveOcrText(
+      OcrTextStepCondition ocr,
+      ParameterScope scope,
+      IReadOnlyDictionary<string, string> context,
+      string fieldPath,
+      List<ResolvedParameter> used,
+      ref ParameterResolutionError? error,
+      out SequenceStepCondition resolved) {
+    resolved = ocr;
+    var pattern = ocr.Pattern;
+    if (TemplateSubstitutor.ContainsPlaceholder(pattern)) {
+      var patternPath = $"{fieldPath}.pattern";
+      if (!TryResolveText(pattern!, patternPath, scope, context, used, ref error, out var resolvedPattern)) return false;
+
+      if (!OcrTextConditionRules.TryValidatePattern(resolvedPattern, out _)) {
+        var firstKey = TemplateSubstitutor.ExtractKeys(pattern)[0];
+        error = new ParameterResolutionError(firstKey, patternPath, ParameterResolutionReasons.InvalidPattern, resolvedPattern);
+        return false;
+      }
+
+      pattern = resolvedPattern;
+    }
+
+    var expected = ocr.Expected;
+    if (TemplateSubstitutor.ContainsPlaceholder(expected)
+        && !TryResolveText(expected!, $"{fieldPath}.expected", scope, context, used, ref error, out expected)) {
+      return false;
+    }
+
+    resolved = new OcrTextStepCondition {
+      Region = ocr.Region,
+      Expected = expected,
+      Pattern = pattern,
+      Parser = ocr.Parser,
+      Negate = ocr.Negate
+    };
+    return true;
+  }
+
+  /// <summary>
+  /// Substitutes the placeholders of one text field. An unknown name, or a full result that is empty or
+  /// white space, gives the reason <see cref="ParameterResolutionReasons.Unresolved"/>. The method adds
+  /// each used value to <paramref name="used"/>.
+  /// </summary>
+  private static bool TryResolveText(
+      string text,
+      string fieldPath,
+      ParameterScope scope,
+      IReadOnlyDictionary<string, string> context,
+      List<ResolvedParameter> used,
+      ref ParameterResolutionError? error,
+      out string substituted) {
+    var keys = TemplateSubstitutor.ExtractKeys(text);
+    if (!TemplateSubstitutor.TrySubstitute(text, context, out substituted, out var unresolved)) {
       error = new ParameterResolutionError(unresolved[0], fieldPath, ParameterResolutionReasons.Unresolved);
       return false;
     }
 
-    // An empty id cannot name an image. This is the same rule as the empty-id check of a command step.
     if (string.IsNullOrWhiteSpace(substituted)) {
       error = new ParameterResolutionError(keys[0], fieldPath, ParameterResolutionReasons.Unresolved);
       return false;
@@ -133,12 +212,6 @@ public static class SequenceStepConditionResolver {
       if (scope.TryResolve(key, out var value)) used.Add(new ResolvedParameter(key, value.Text, value.OriginLayer));
     }
 
-    resolved = new ImageVisibleStepCondition {
-      ImageId = substituted,
-      MinSimilarity = image.MinSimilarity,
-      Negate = image.Negate,
-      Region = image.Region
-    };
     return true;
   }
 

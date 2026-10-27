@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using GameBot.Domain.Utils;
 
 namespace GameBot.Domain.Commands;
 
@@ -38,16 +39,34 @@ public static class OcrTextConditionRules {
       errors.Add(ExpectedOrPatternMessage);
     }
 
-    if (condition.Pattern is not null) {
-      try {
-        _ = new Regex(condition.Pattern, RegexOptions.CultureInvariant, PatternTimeout);
-      }
-      catch (ArgumentException ex) {
-        errors.Add($"ocrText pattern is not a valid regular expression: {ex.Message}");
-      }
+    // Feature 165: a pattern with a placeholder is not compiled here. The run checks the resolved
+    // pattern, and the parameter validation checks the pattern with the sequence defaults.
+    if (condition.Pattern is not null
+        && !TemplateSubstitutor.ContainsPlaceholder(condition.Pattern)
+        && !TryValidatePattern(condition.Pattern, out var problem)) {
+      errors.Add($"ocrText pattern is not a valid regular expression: {problem}");
     }
 
     return errors;
+  }
+
+  /// <summary>
+  /// Compiles <paramref name="pattern"/> with the same options as <see cref="Matches"/> (feature 165).
+  /// </summary>
+  /// <param name="pattern">The pattern to compile.</param>
+  /// <param name="problem">The reason when the pattern is not valid; otherwise <c>null</c>.</param>
+  /// <returns><c>true</c> when the pattern is a valid regular expression; otherwise <c>false</c>.</returns>
+  public static bool TryValidatePattern(string pattern, out string? problem) {
+    ArgumentNullException.ThrowIfNull(pattern);
+    try {
+      _ = new Regex(pattern, RegexOptions.CultureInvariant, PatternTimeout);
+      problem = null;
+      return true;
+    }
+    catch (ArgumentException ex) {
+      problem = ex.Message;
+      return false;
+    }
   }
 
   /// <summary>

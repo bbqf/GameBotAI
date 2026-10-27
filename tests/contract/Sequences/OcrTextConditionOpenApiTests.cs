@@ -54,4 +54,19 @@ public sealed class OcrTextConditionOpenApiTests {
     description.Should().Contain("exactly one of expected and pattern")
       .And.Contain("no-session").And.Contain("parse-failed").And.Contain("web UI does not know");
   }
+
+  [Fact]
+  public async Task PatternAndExpectedDescribeTheParameterPlaceholders() {
+    var schemas = await ReadSchemasAsync().ConfigureAwait(false);
+    var properties = schemas.GetProperty("OcrTextCondition").GetProperty("properties");
+
+    // Feature 165, contract section 4.
+    properties.GetProperty("pattern").GetProperty("description").GetString().Should()
+      .Contain("It can hold {{name}} placeholders of sequence parameters.")
+      .And.Contain("The run puts each value in the pattern with no escape.")
+      .And.Contain("Write {{{name}}} to get the value between literal braces, for example (Gathering.*){{{count}}}.");
+    properties.GetProperty("expected").GetProperty("description").GetString().Should()
+      .Contain("It can hold {{name}} placeholders of sequence parameters.")
+      .And.Contain("The run puts each value in the text before the compare.");
+  }
 }

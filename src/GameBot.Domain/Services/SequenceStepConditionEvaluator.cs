@@ -23,7 +23,14 @@ public enum ConditionEvaluationFailureKind {
   /// A placeholder in the condition has no value in scope (feature 114). <c>Detail</c> holds the
   /// parameter name.
   /// </summary>
-  ParameterUnresolved
+  ParameterUnresolved,
+
+  /// <summary>
+  /// A placeholder in the condition resolved, but the result is not usable (feature 165). For example,
+  /// a resolved <c>ocrText.pattern</c> is not a valid regular expression. <c>Detail</c> holds the
+  /// parameter name.
+  /// </summary>
+  ParameterValueInvalid
 }
 
 /// <summary>
