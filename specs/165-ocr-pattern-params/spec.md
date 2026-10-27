@@ -2,7 +2,7 @@
 
 **Feature Branch**: `165-ocr-pattern-params`  
 **Created**: 2026-10-27  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Resolve a sequence parameter in ocrText.pattern and ocrText.expected (GitHub issue #347). A `{{name}}` placeholder in `ocrText.pattern` or `ocrText.expected` of a sequence step condition must resolve to the sequence parameter value, as it resolves now in `imageVisible.imageId`."
 
 Issue: #347 - https://github.com/bbqf/GameBotAI/issues/347

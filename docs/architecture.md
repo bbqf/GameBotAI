@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-27 (feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
+_Last reviewed: 2026-10-27 (feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
+feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
 feature 161: the gamepack install answer has `summary`, `wouldInstallWithTakeOver`, and the problem fields `takeOverResolves` and `remedy`, made by `GamepackFailureExplainer`;
 feature 159: a `notify` step with no `url` sends its message to the enabled notification targets through `INotificationDispatcher.SendText`;
@@ -126,6 +127,20 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
     warning `static_check_skipped`. A queue template save checks each known value (entry value or
     default) that goes to an image field, and gives `400 unknown_image_reference` when no image has
     that id. A non-null step binding of the name covers it, so the save does not check it.
+  - **Parameters in `ocrText.pattern` and `ocrText.expected`** (feature 165, #347): these two fields
+    also resolve `{{name}}` placeholders, with the same resolver, the same call sites and the same
+    scopes as `imageVisible.imageId`. The value goes in with no regex escape. Write `{{{name}}}` to
+    get the value between literal braces, for example `(Gathering.*){{{count}}}` gives
+    `(Gathering.*){4}`. `{{3}}` is a placeholder with the name `3`, not a quantifier. The resolver
+    makes a new condition; the stored condition keeps its `{{...}}` text. An unknown name, or a full
+    field that resolves to empty or white space, gives the reason `unresolved`. A resolved `pattern`
+    that is not a valid regular expression gives the reason `invalid_pattern`
+    (`ConditionEvaluationFailureKind.ParameterValueInvalid`). Each failure fails the step, and a
+    break condition gives "No break". The run log and the condition description show the resolved
+    value. At save time, `ParameterReferenceScanner` reports the names of the two fields, so an
+    unknown name gives `400 unresolvable_parameter_reference`. When each name of a `pattern` has a
+    sequence default, the save checks the pattern with the defaults and gives
+    `400 invalid_resolved_pattern` when it is not valid. The gamepack check does not change.
   - **Placeholder in a binding value** (feature 115): a `{{name}}` placeholder in a step
     `parameterBindings` value resolves against the scope outside the binding
     (`ParameterScope.TryBindChild`), never against the new binding layer. This applies to a sequence
@@ -875,7 +890,10 @@ list: `no-session`, `capture-failed`, `ocr-unavailable`, `region-outside-frame`,
 `OcrTextEvaluationRecord`. The runner drains the records after the condition and puts one line for each in
 the step message, for example `ocrText: read='0' expected='0' result=true`, with `reason=<code>` for a failure.
 `OcrTextConditionRules` holds the field rules (save-time: `CompositeConditionValidator` walks the leaf) and the
-match rules. Only the sequence endpoint checks the `parser` name and stores the canonical name. The web UI does
+match rules. Since feature 165, the save does not compile a `pattern` that has a `{{name}}` placeholder.
+`OcrTextConditionRules.TryValidatePattern` checks the resolved pattern at run time, and the parameter check
+compiles it with the sequence defaults (see the sequence parameter section). A `pattern` with no placeholder
+has the same save check as before. The gamepack check does not change. Only the sequence endpoint checks the `parser` name and stores the canonical name. The web UI does
 not know this type: authors write `ocrText` conditions through the API.
 
 ### Queue sequence notifications (feature 120)
@@ -1490,6 +1508,14 @@ Feature 114 added, all additively:
   otherwise, and a dry run does not change.
 - `POST /api/queue-templates` answers `400 unknown_image_reference` when a known value goes to an
   image field and no image has that id. The service saves nothing.
+
+Feature 165 added, all additively:
+
+- A placeholder in `ocrText.pattern` and `ocrText.expected` in each condition position of a sequence.
+- `POST`, `PUT` and `PATCH /api/sequences` (also with `"dryRun": true`) answer
+  `400 unresolvable_parameter_reference` for an unknown name in these fields, and
+  `400 invalid_resolved_pattern` when a `pattern` with the sequence defaults is not a valid regular
+  expression. A `pattern` with a placeholder is not compiled at save time.
 
 Feature 080 fixed three platform bugs, additively/tightening only (no route removed or renamed):
 

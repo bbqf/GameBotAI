@@ -303,4 +303,116 @@ public sealed class ParameterReferenceScannerTests {
 
     ParameterReferenceScanner.Scan(sequence).Should().BeEmpty();
   }
+
+  // ── Feature 165: ocrText.pattern and ocrText.expected ─────────────────────
+
+  private static OcrTextStepCondition OcrPattern(string pattern) =>
+      new() { Region = new PixelRegion(10, 20, 300, 400), Pattern = pattern };
+
+  private static OcrTextStepCondition OcrExpected(string expected) =>
+      new() { Region = new PixelRegion(10, 20, 300, 400), Expected = expected };
+
+  [Fact]
+  public void OcrPatternKeysAreScannedAsRegexPattern() {
+    var sequence = new CommandSequence { Id = "s", Name = "S" };
+    sequence.SetSteps(new[] {
+      new SequenceStep {
+        Order = 0, StepId = "s3", StepType = SequenceStepType.Action, Action = TapAction(),
+        Condition = OcrPattern("{{word}}.*{{{n}}}")
+      }
+    });
+
+    var found = ParameterReferenceScanner.Scan(sequence);
+
+    found.Select(r => r.ParameterName).Should().Equal("word", "n");
+    found.Should().OnlyContain(r => r.FieldPath == "condition.pattern" && r.IsRegexPattern
+        && !r.DefeatsStaticCheck && r.SourceText == "{{word}}.*{{{n}}}" && r.StepLabel == "s3" && !r.InsideLoop);
+  }
+
+  [Fact]
+  public void OcrExpectedKeyIsScannedAsPlainText() {
+    var reference = ScanSingle(new SequenceStep {
+      Order = 0, StepId = "s3", StepType = SequenceStepType.Action, Action = TapAction(),
+      Condition = OcrExpected("Level {{level}}")
+    });
+
+    reference.ParameterName.Should().Be("level");
+    reference.FieldPath.Should().Be("condition.expected");
+    reference.IsRegexPattern.Should().BeFalse();
+    reference.DefeatsStaticCheck.Should().BeFalse();
+    reference.SourceText.Should().Be("Level {{level}}");
+  }
+
+  [Fact]
+  public void OcrPatternInIfConditionIsScannedOutsideTheLoop() {
+    var reference = ScanSingle(new SequenceStep {
+      Order = 0, StepId = "if1", StepType = SequenceStepType.If,
+      If = new IfConfig { Condition = OcrPattern("{{p}}") }
+    });
+
+    reference.FieldPath.Should().Be("if.condition.pattern");
+    reference.InsideLoop.Should().BeFalse();
+  }
+
+  [Fact]
+  public void OcrPatternInLoopConditionIsScannedInsideTheLoop() {
+    var reference = ScanSingle(new SequenceStep {
+      Order = 0, StepId = "w1", StepType = SequenceStepType.Loop,
+      Loop = new WhileLoopConfig { Condition = OcrPattern("{{iteration}}"), MaxIterations = 3 }
+    });
+
+    reference.FieldPath.Should().Be("loop.condition.pattern");
+    reference.InsideLoop.Should().BeTrue();
+  }
+
+  [Fact]
+  public void OcrExpectedInBreakConditionIsScannedInsideTheLoop() {
+    var reference = ScanSingle(new SequenceStep {
+      Order = 0, StepId = "loop1", StepType = SequenceStepType.Loop,
+      Loop = new CountLoopConfig { Count = 2 },
+      Body = new[] {
+        new SequenceStep {
+          Order = 0, StepId = "brk", StepType = SequenceStepType.Break,
+          BreakCondition = OcrExpected("{{accountName}}")
+        }
+      }
+    });
+
+    reference.FieldPath.Should().Be("breakCondition.expected");
+    reference.StepLabel.Should().Be("brk");
+    reference.InsideLoop.Should().BeTrue();
+  }
+
+  [Fact]
+  public void OcrPatternInACompositeChildIsScannedWithTheChildPath() {
+    var reference = ScanSingle(new SequenceStep {
+      Order = 0, StepId = "tap", StepType = SequenceStepType.Action, Action = TapAction(),
+      Condition = new AllStepCondition {
+        Children = new SequenceStepCondition[] { Image("option-a"), OcrPattern("(Gathering.*){{{n}}}") }
+      }
+    });
+
+    reference.FieldPath.Should().Be("condition.children[1].pattern");
+    reference.IsRegexPattern.Should().BeTrue();
+  }
+
+  [Fact]
+  public void OcrPatternDoubleBraceDigitsGivesAReference() {
+    ScanSingle(new SequenceStep {
+      Order = 0, StepId = "tap", StepType = SequenceStepType.Action, Action = TapAction(),
+      Condition = OcrPattern("(Gathering.*){{3}}")
+    }).ParameterName.Should().Be("3");
+  }
+
+  [Fact]
+  public void OcrParserGivesNoReference() {
+    var condition = OcrPattern("(Gathering.*){3}");
+    condition.Parser = "{{parser}}";
+    var sequence = new CommandSequence { Id = "s", Name = "S" };
+    sequence.SetSteps(new[] {
+      new SequenceStep { Order = 0, StepId = "tap", StepType = SequenceStepType.Action, Action = TapAction(), Condition = condition }
+    });
+
+    ParameterReferenceScanner.Scan(sequence).Should().BeEmpty();
+  }
 }

@@ -28,7 +28,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 **Purpose**: Make sure that the start state is good.
 
-- [ ] T001 Do a check of the start state of `GameBot.sln`:
+- [X] T001 Do a check of the start state of `GameBot.sln`:
   - Run `dotnet build "C:\src\GameBot\GameBot.sln" -c Debug`.
   - Run `dotnet test "C:\src\GameBot\GameBot.sln" -c Debug`.
   - Record the result.
@@ -42,15 +42,15 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 **CRITICAL**: Do not start a user story before this phase is complete.
 
-- [ ] T002 [P] Add the new reason in `src/GameBot.Domain/Parameters/ParameterResolutionError.cs` (plan D-002):
+- [X] T002 [P] Add the new reason in `src/GameBot.Domain/Parameters/ParameterResolutionError.cs` (plan D-002):
   - Add the constant `InvalidPattern = "invalid_pattern"` to `ParameterResolutionReasons`.
   - Extend `ToMessage` for the new reason.
   - Use this text: `Step '<label>': field '<path>' resolved to the pattern '<pattern>', which is not a valid regular expression. Change the value of '<name>' or the pattern.`
   - `OffendingValue` holds the resolved pattern.
-- [ ] T003 [P] Add the member `ParameterValueInvalid` to `ConditionEvaluationFailureKind` in `src/GameBot.Domain/Services/SequenceStepConditionEvaluator.cs` (data-model, research R-004):
+- [X] T003 [P] Add the member `ParameterValueInvalid` to `ConditionEvaluationFailureKind` in `src/GameBot.Domain/Services/SequenceStepConditionEvaluator.cs` (data-model, research R-004):
   - Add an STE XML comment.
   - The comment says: a placeholder resolved, but the result is not usable. `Detail` holds the parameter name.
-- [ ] T004 [P] Add unit tests to `tests/unit/Sequences/OcrTextConditionRulesTests.cs` (FR-014):
+- [X] T004 [P] Add unit tests to `tests/unit/Sequences/OcrTextConditionRulesTests.cs` (FR-014):
   - `TryValidatePattern` gives true for `(Gathering.*){3}`.
   - `TryValidatePattern` gives false and a problem text for `(abc`.
   - `Validate` accepts the pattern `[{{chars}}]` (placeholder, no compile).
@@ -58,18 +58,18 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
   - `Validate` rejects the pattern `(abc` with no placeholder.
   - The message of that error is the existing message `ocrText pattern is not a valid regular expression: <reason>`.
   - The rule "exactly one of expected and pattern" does not change.
-- [ ] T005 Add the pattern check to `src/GameBot.Domain/Commands/OcrTextConditionRules.cs` (plan D-005, research R-007). (depends on T004)
+- [X] T005 Add the pattern check to `src/GameBot.Domain/Commands/OcrTextConditionRules.cs` (plan D-005, research R-007). (depends on T004)
   - Add `public static bool TryValidatePattern(string pattern, out string? problem)`.
   - Compile with `RegexOptions.CultureInvariant` and `PatternTimeout`. These are the same options as `Matches`.
   - Change `Validate`. It calls `TryValidatePattern` only when `TemplateSubstitutor.ContainsPlaceholder(Pattern)` is false.
   - Make T004 pass.
-- [ ] T006 Add the shared private method `TryResolveText(string text, string fieldPath, ...)` to `src/GameBot.Domain/Parameters/SequenceStepConditionResolver.cs` (plan D-001):
+- [X] T006 Add the shared private method `TryResolveText(string text, string fieldPath, ...)` to `src/GameBot.Domain/Parameters/SequenceStepConditionResolver.cs` (plan D-001):
   - The method calls `TrySubstitute`.
   - The method does the empty or white-space check of the full result.
   - The method adds each key to `used`.
   - `TryResolveImage` calls `TryResolveText` for these steps. The `imageVisible.imageId` results stay the same (FR-016).
   - Run the existing tests in `tests/unit/Parameters/SequenceStepConditionResolverTests.cs`. Make sure that they pass.
-- [ ] T007 Change the failure kind map in `src/GameBot.Domain/Services/SequenceRunner.cs` (plan D-002, FR-008). (depends on T002, T003)
+- [X] T007 Change the failure kind map in `src/GameBot.Domain/Services/SequenceRunner.cs` (plan D-002, FR-008). (depends on T002, T003)
   - First, create `tests/unit/Sequences/SequenceRunnerConditionFailureKindTests.cs`. Make sure that the tests fail.
   - Test: `ParameterResolutionReasons.InvalidPattern` maps to `ConditionEvaluationFailureKind.ParameterValueInvalid`.
   - Test: `ParameterResolutionReasons.Unresolved` maps to `ParameterUnresolved`, as now.
@@ -92,7 +92,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 ### Tests for User Story 1
 
-- [ ] T008 [US1] Add `ocrText` pattern unit tests to `tests/unit/Parameters/SequenceStepConditionResolverTests.cs`:
+- [X] T008 [US1] Add `ocrText` pattern unit tests to `tests/unit/Parameters/SequenceStepConditionResolverTests.cs`:
   - The full field `{{countPattern}}` resolves (scenario 1).
   - The inline pattern `(?s)(Gathering.*){{{marchTarget}}}` with `4` gives `(?s)(Gathering.*){4}` (scenario 2).
   - Two placeholders in one pattern resolve.
@@ -111,7 +111,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
   - The value `(` for `{{countPattern}}` fails with the reason `invalid_pattern`.
   - For that failure, the field path is `condition.pattern` and `OffendingValue` is `(`.
   - The `imageVisible.imageId` cases do not change.
-- [ ] T009 [P] [US1] Create `tests/integration/Sequences/OcrTextConditionParameterRunTests.cs`. Use `tests/integration/Sequences/OcrTextRunKit.cs`. Add these run tests:
+- [X] T009 [P] [US1] Create `tests/integration/Sequences/OcrTextConditionParameterRunTests.cs`. Use `tests/integration/Sequences/OcrTextRunKit.cs`. Add these run tests:
   - A step condition with `marchTarget` = `2` and an OCR text with two "Gathering" lines gives true.
   - The same step with `marchTarget` = `3` gives false.
   - The same placeholder resolves in an `If` condition (FR-005).
@@ -129,7 +129,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Resolve `ocrText.pattern` in `src/GameBot.Domain/Parameters/SequenceStepConditionResolver.cs` (plan D-001). (depends on T005, T006, T008)
+- [X] T010 [US1] Resolve `ocrText.pattern` in `src/GameBot.Domain/Parameters/SequenceStepConditionResolver.cs` (plan D-001). (depends on T005, T006, T008)
   - Add an `OcrTextStepCondition` case to `HasPlaceholder`. It is true when `Pattern` or `Expected` holds a placeholder.
   - Add an `OcrTextStepCondition` case to `TryResolveNode`. It calls the new method `TryResolveOcrText`.
   - In `TryResolveOcrText`, resolve `Pattern` with `TryResolveText` and the field path `{prefix}.pattern`.
@@ -140,7 +140,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
   - Do not set a property of the input condition (FR-006).
   - Keep each method under 50 lines.
   - Make the T008 pattern cases pass.
-- [ ] T011 [US1] Run the T009 tests. Fix a failure only if a test shows a gap (research R-001, R-005). (depends on T007, T009, T010)
+- [X] T011 [US1] Run the T009 tests. Fix a failure only if a test shows a gap (research R-001, R-005). (depends on T007, T009, T010)
   - Research R-001 and R-005 say that no other call site needs a change.
   - Make fixes only in `src/GameBot.Domain/Services/SequenceRunner.cs` or `src/GameBot.Domain/Parameters/SequenceStepConditionResolver.cs`.
 
@@ -156,7 +156,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 ### Tests for User Story 2
 
-- [ ] T012 [US2] Add `ocrText` expected unit tests to `tests/unit/Parameters/SequenceStepConditionResolverTests.cs`. (depends on T008, same file)
+- [X] T012 [US2] Add `ocrText` expected unit tests to `tests/unit/Parameters/SequenceStepConditionResolverTests.cs`. (depends on T008, same file)
   - The full field `{{accountName}}` with `Alpha` gives `Alpha`.
   - The inline field `Level {{level}}` with `5` gives `Level 5`.
   - `Level {{suffix}}` with an empty `suffix` does not fail.
@@ -164,13 +164,13 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
   - An unknown name inside a composite fails with the field path `condition.children[0].expected`.
   - The resolver does not compile `expected` as a regular expression. The value `(` is valid text.
   - After the resolve, the input condition still holds its `{{...}}` text in `expected` (FR-006).
-- [ ] T013 [US2] Add run tests to `tests/integration/Sequences/OcrTextConditionParameterRunTests.cs`. (depends on T009, same file)
+- [X] T013 [US2] Add run tests to `tests/integration/Sequences/OcrTextConditionParameterRunTests.cs`. (depends on T009, same file)
   - `expected` `{{accountName}}` with `Alpha` and the OCR text `Alpha` gives true.
   - `expected` `Level {{level}}` with `5` and the OCR text `Level 6` gives false.
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Resolve `Expected` in `TryResolveOcrText` in `src/GameBot.Domain/Parameters/SequenceStepConditionResolver.cs`. (depends on T010, T012)
+- [X] T014 [US2] Resolve `Expected` in `TryResolveOcrText` in `src/GameBot.Domain/Parameters/SequenceStepConditionResolver.cs`. (depends on T010, T012)
   - Use `TryResolveText` and the field path `{prefix}.expected`.
   - Do not compile `Expected`.
   - Make T012 and T013 pass.
@@ -187,7 +187,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 ### Tests for User Story 3
 
-- [ ] T015 [US3] Add run log tests to `tests/integration/Sequences/OcrTextConditionParameterRunTests.cs` (FR-009, FR-010, SC-005). (depends on T013, same file)
+- [X] T015 [US3] Add run log tests to `tests/integration/Sequences/OcrTextConditionParameterRunTests.cs` (FR-009, FR-010, SC-005). (depends on T013, same file)
   - Use the run log asserts of `tests/integration/Sequences/OcrTextConditionRunLogTests.cs` as a model.
   - For a step condition, the condition description shows the resolved `pattern`.
   - For the same step, the `ocrText:` line (`OcrTextEvaluationRecord`) shows the resolved `pattern`.
@@ -198,7 +198,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 ### Implementation for User Story 3
 
-- [ ] T016 [US3] Run T015. Plan D-003 expects no new code. (depends on T014, T015)
+- [X] T016 [US3] Run T015. Plan D-003 expects no new code. (depends on T014, T015)
   - The callers give the resolved condition to `Describe` and to the evaluator.
   - If a test fails, find the call site that gives the stored condition in place of the resolved condition.
   - Fix it in `src/GameBot.Domain/Services/SequenceRunner.cs` or `src/GameBot.Domain/Services/SequenceStepConditionEvaluator.cs`.
@@ -215,7 +215,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 ### Tests for User Story 4
 
-- [ ] T017 [P] [US4] Add `ocrText` cases to `tests/unit/Parameters/ParameterReferenceScannerTests.cs` (FR-013, FR-016):
+- [X] T017 [P] [US4] Add `ocrText` cases to `tests/unit/Parameters/ParameterReferenceScannerTests.cs` (FR-013, FR-016):
   - Each key in `pattern` gives a reference with the field path `condition.pattern` and `IsRegexPattern` true.
   - Each key in `expected` gives a reference with the field path `condition.expected` and `IsRegexPattern` false.
   - `DefeatsStaticCheck` is false for the two fields.
@@ -225,7 +225,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
   - `SourceText` holds the field text.
   - `{{3}}` in `pattern` gives a reference with the name `3`.
   - `region` and `parser` give no reference.
-- [ ] T018 [P] [US4] Create `tests/unit/Parameters/ParameterValidationOcrPatternTests.cs` for `ParameterValidationService.ValidateSequence` (FR-011, FR-012, FR-013). Add these cases:
+- [X] T018 [P] [US4] Create `tests/unit/Parameters/ParameterValidationOcrPatternTests.cs` for `ParameterValidationService.ValidateSequence` (FR-011, FR-012, FR-013). Add these cases:
   - An unknown name in `pattern` gives `unresolvable_parameter_reference` with the correct field path.
   - An unknown name in `expected` gives the same error. The field path ends in `.expected`.
   - The message is `Step '<label>': '<name>' is not declared here and is not a queue built-in.`
@@ -242,7 +242,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
   - `[{{chars}}]` with no default for a declared `chars` gives no error.
   - A valid pattern with defaults gives no error.
   - A parameter that only `pattern` or `expected` uses is not reported as unused.
-- [ ] T019 [P] [US4] Add contract tests to `tests/contract/Sequences/OcrTextConditionContractTests.cs` (contract sections 1 and 2):
+- [X] T019 [P] [US4] Add contract tests to `tests/contract/Sequences/OcrTextConditionContractTests.cs` (contract sections 1 and 2):
   - Use `POST /api/sequences`, `PUT /api/sequences/{id}`, and `PATCH /api/sequences/{id}`.
   - Test each one with and without `"dryRun": true`.
   - The contract 1.1 body gives `400` with `unresolvable_parameter_reference`.
@@ -259,7 +259,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 ### Implementation for User Story 4
 
-- [ ] T020 [US4] Scan the two fields in `src/GameBot.Domain/Parameters/ParameterReferenceScanner.cs` (plan D-004). (depends on T017)
+- [X] T020 [US4] Scan the two fields in `src/GameBot.Domain/Parameters/ParameterReferenceScanner.cs` (plan D-004). (depends on T017)
   - Add the optional member `IsRegexPattern` (default `false`) to the record `ParameterReference`.
   - Add an `OcrTextStepCondition` case to `ScanCondition`.
   - Add a reference for each key in `Pattern`. Use the field path `{prefix}.pattern` and `IsRegexPattern` true.
@@ -267,7 +267,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
   - Set `DefeatsStaticCheck` to false.
   - Set `SourceText` to the field text.
   - Make T017 pass.
-- [ ] T021 [US4] Add the save check with defaults to `src/GameBot.Domain/Services/ParameterValidationService.cs` (plan D-005). (depends on T005, T018, T020)
+- [X] T021 [US4] Add the save check with defaults to `src/GameBot.Domain/Services/ParameterValidationService.cs` (plan D-005). (depends on T005, T018, T020)
   - Add the code `invalid_resolved_pattern` to `ParameterValidationCodes`.
   - Add the private method `AddResolvedPatternIssues`. Call it from `ValidateSequence`.
   - In the method, examine each distinct `(StepLabel, FieldPath, SourceText)` with `IsRegexPattern`.
@@ -278,7 +278,7 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
   - Use this message: `Step '<label>': '<fieldPath>' with the default values gives the pattern '<pattern>', which is not a valid regular expression: <reason>. Change the default value or the pattern.`
   - Keep the method under 50 lines.
   - Make T018 pass.
-- [ ] T022 [US4] Run T019. (depends on T010, T019, T021)
+- [X] T022 [US4] Run T019. (depends on T010, T019, T021)
   - Make sure that `SequencesEndpoints.ValidateSequenceParametersAsync` gives the new errors for create, update, patch, and the save dry run (research R-006).
   - Do not change the endpoint, unless a test shows a gap.
   - Make sure that the dry-run execution test passes with the T010 resolver.
@@ -291,39 +291,39 @@ description: "Task list for feature 165: sequence parameters in ocrText.pattern 
 
 **Purpose**: OpenAPI text, living docs, and the last checks.
 
-- [ ] T023 [P] Update the OpenAPI text in `src/GameBot.Service/Swagger/OcrTextConditionSchemaFilter.cs` (plan D-007):
+- [X] T023 [P] Update the OpenAPI text in `src/GameBot.Service/Swagger/OcrTextConditionSchemaFilter.cs` (plan D-007):
   - Change the `pattern` and `expected` text in `FieldDescriptions`.
   - Use the sentences of contract section 4.
   - Do not change the schema shape.
-- [ ] T024 Update `tests/contract/Sequences/OcrTextConditionOpenApiTests.cs`. Assert the new `pattern` and `expected` description text. (depends on T023)
-- [ ] T025 [P] Update `docs/architecture.md` (FR-017, plan D-008):
+- [X] T024 Update `tests/contract/Sequences/OcrTextConditionOpenApiTests.cs`. Assert the new `pattern` and `expected` description text. (depends on T023)
+- [X] T025 [P] Update `docs/architecture.md` (FR-017, plan D-008):
   - In the sequence parameter section, add `ocrText.pattern` and `ocrText.expected` to the fields that resolve placeholders.
   - In the same section, give the triple-brace rule and the no-escape rule.
   - In the same section, give the reason `invalid_pattern` and the code `invalid_resolved_pattern`.
   - In the `ocrText` section, state that save time does not compile a pattern with a placeholder.
   - State that the gamepack check does not change.
   - Set the "Last reviewed" date to the date of the change.
-- [ ] T026 [P] Write the performance statement for the PR description (SC-006, Constitution Principle IV). The PR description must give these two items:
+- [X] T026 [P] Write the performance statement for the PR description (SC-006, Constitution Principle IV). The PR description must give these two items:
   - A condition with no placeholder keeps the current fast path. The resolver gives the same instance and makes no new allocation (T008 test).
   - A condition with a placeholder adds one substitution and one regex parse, less than 1 ms for each evaluation.
-- [ ] T027 [P] Add an STE entry for feature 165 (issue #347) to `CHANGELOG.md` (FR-017).
-- [ ] T028 Examine the files of T002 to T027:
+- [X] T027 [P] Add an STE entry for feature 165 (issue #347) to `CHANGELOG.md` (FR-017).
+- [X] T028 Examine the files of T002 to T027:
   - Make sure that all new code comments, error messages, and docs text obey STE (Principle VI).
   - Make sure that each new method is under 50 lines (Principle I).
   - Make sure that each new method has a CamelCase name with no underscore (Principle I).
   - Make sure that `GamepackValidator` has no change (FR-011).
-- [ ] T029 Do the last checks:
+- [X] T029 Do the last checks:
   - Run `dotnet build "C:\src\GameBot\GameBot.sln" -c Debug`.
   - Run `dotnet test "C:\src\GameBot\GameBot.sln" -c Debug`. All tests must pass.
   - Compare the steps of `specs/165-ocr-pattern-params/quickstart.md` sections 1 to 6 with the tests. Record the result.
   - Record the T026 performance statement with the result, for the PR description.
-- [ ] T030 Before the PR push, bump `installer/versioning/version.override.json`:
+- [X] T030 Before the PR push, bump `installer/versioning/version.override.json`:
   - Run `git fetch origin master`. Compare the file with `origin/master`.
   - If `minor` or `major` changed, set `patch` to `"0"`.
   - Else, set `patch` to the `origin/master` value plus 1.
   - If the file already has this value, do nothing.
   - Set `updatedBy` and `updatedAtUtc`.
-- [ ] T031 Set the status of the feature to Implemented (FR-017, Constitution Principle V). Do this task when all other tasks are complete. (depends on T029)
+- [X] T031 Set the status of the feature to Implemented (FR-017, Constitution Principle V). Do this task when all other tasks are complete. (depends on T029)
   - Set the `**Status**:` line of `specs/165-ocr-pattern-params/spec.md` to `Implemented`.
   - Add the row for feature 165 to `specs/STATUS.md` with the status `Implemented`. Use the row form of the other features. No earlier task adds this row.
   - Make sure that the items of quickstart section 7 are true.

@@ -18,13 +18,18 @@ namespace GameBot.Domain.Parameters;
 /// The full text of the field that holds the reference (feature 114). The queue template save uses
 /// it to substitute known values and get the image id.
 /// </param>
+/// <param name="IsRegexPattern">
+/// True when the field is a regular expression, for example <c>ocrText.pattern</c> (feature 165). The
+/// save then checks the pattern with the sequence defaults.
+/// </param>
 public sealed record ParameterReference(
     string ParameterName,
     string FieldPath,
     string StepLabel,
     bool InsideLoop = false,
     bool DefeatsStaticCheck = false,
-    string? SourceText = null);
+    string? SourceText = null,
+    bool IsRegexPattern = false);
 
 /// <summary>
 /// Finds every parameter reference in a command or a sequence (feature 078), so validation can decide
@@ -48,8 +53,8 @@ public static class ParameterReferenceScanner {
   }
 
   /// <summary>
-  /// Scans a sequence's steps, including loop and if bodies and the <c>imageVisible</c> leaves of
-  /// each condition, for parameter references.
+  /// Scans a sequence's steps, including loop and if bodies and the <c>imageVisible</c> and
+  /// <c>ocrText</c> leaves of each condition, for parameter references.
   /// </summary>
   /// <param name="sequence">Sequence to scan; <c>null</c> yields an empty list.</param>
   public static IReadOnlyList<ParameterReference> Scan(CommandSequence? sequence) {
@@ -133,8 +138,9 @@ public static class ParameterReferenceScanner {
   }
 
   /// <summary>
-  /// Scans each <c>imageVisible</c> leaf of a condition tree (feature 114). The field path is
-  /// <paramref name="fieldPath"/>, then <c>.children[i]</c> for each composite level, then <c>.imageId</c>.
+  /// Scans each <c>imageVisible</c> leaf (feature 114) and each <c>ocrText</c> leaf (feature 165) of a
+  /// condition tree. The field path is <paramref name="fieldPath"/>, then <c>.children[i]</c> for each
+  /// composite level, then <c>.imageId</c>, <c>.pattern</c>, or <c>.expected</c>.
   /// </summary>
   private static void ScanCondition(
       ICollection<ParameterReference> found,
@@ -145,6 +151,11 @@ public static class ParameterReferenceScanner {
     switch (condition) {
       case ImageVisibleStepCondition image:
         AddFrom(found, image.ImageId, $"{fieldPath}.imageId", stepLabel, insideLoop, defeatsStaticCheck: true);
+        break;
+      case OcrTextStepCondition ocr:
+        // These fields name no image, so the static check is not skipped.
+        AddFrom(found, ocr.Pattern, $"{fieldPath}.pattern", stepLabel, insideLoop, isRegexPattern: true);
+        AddFrom(found, ocr.Expected, $"{fieldPath}.expected", stepLabel, insideLoop);
         break;
       case CompositeStepCondition composite when composite.Children is not null:
         for (var index = 0; index < composite.Children.Count; index++) {
@@ -163,10 +174,11 @@ public static class ParameterReferenceScanner {
       string fieldPath,
       string stepLabel,
       bool insideLoop = false,
-      bool defeatsStaticCheck = false) {
+      bool defeatsStaticCheck = false,
+      bool isRegexPattern = false) {
     if (!TemplateSubstitutor.ContainsPlaceholder(text)) return;
     foreach (var key in TemplateSubstitutor.ExtractKeys(text)) {
-      found.Add(new ParameterReference(key, fieldPath, stepLabel, insideLoop, defeatsStaticCheck, text));
+      found.Add(new ParameterReference(key, fieldPath, stepLabel, insideLoop, defeatsStaticCheck, text, isRegexPattern));
     }
   }
 

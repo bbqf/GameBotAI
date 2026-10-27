@@ -192,6 +192,7 @@ Status vocabulary:
 | 162 | Installer Bind Address and Port Control | Implemented (production upgrade check pending) |
 | 163 | Fix The Second Files In Use Dialog | Implemented (production upgrade check pending) |
 | 164 | Digit Keys and Raw Key Codes in Key Input Steps | Implemented (phone check pending) |
+| 165 | Sequence Parameters in ocrText Pattern and Expected | Implemented |
 
 ## Numbering notes
 

@@ -1165,7 +1165,7 @@ namespace GameBot.Domain.Services {
       }
       catch (ConditionEvaluationException ex) {
         var failureMessage = ex.Kind switch {
-          ConditionEvaluationFailureKind.ParameterUnresolved => ex.Message,
+          ConditionEvaluationFailureKind.ParameterUnresolved or ConditionEvaluationFailureKind.ParameterValueInvalid => ex.Message,
           ConditionEvaluationFailureKind.ImageEvaluatorUnavailable =>
             "Per-step imageVisible condition evaluator is unavailable",
           ConditionEvaluationFailureKind.CommandOutcomeUnavailable =>
@@ -1830,9 +1830,12 @@ namespace GameBot.Domain.Services {
     }
 
     /// <summary>
-    /// Resolves each <c>imageVisible.imageId</c> placeholder of <paramref name="condition"/> against
-    /// <paramref name="scope"/> (feature 114). Throws <see cref="ConditionEvaluationException"/> with
-    /// <see cref="ConditionEvaluationFailureKind.ParameterUnresolved"/> when a name has no value.
+    /// Resolves each placeholder in <c>imageVisible.imageId</c> (feature 114), <c>ocrText.pattern</c>, and
+    /// <c>ocrText.expected</c> (feature 165) of <paramref name="condition"/> against <paramref name="scope"/>.
+    /// Throws <see cref="ConditionEvaluationException"/> with
+    /// <see cref="ConditionEvaluationFailureKind.ParameterUnresolved"/> when a name has no value or the full
+    /// result is empty. Throws with <see cref="ConditionEvaluationFailureKind.ParameterValueInvalid"/> when a
+    /// resolved <c>ocrText.pattern</c> is not a valid regular expression.
     /// </summary>
     internal static SequenceStepCondition ResolveCondition(
         SequenceStepCondition condition,
@@ -1844,10 +1847,21 @@ namespace GameBot.Domain.Services {
       }
 
       throw new ConditionEvaluationException(
-          ConditionEvaluationFailureKind.ParameterUnresolved,
-          error!.ParameterName,
+          ToFailureKind(error!.Reason),
+          error.ParameterName,
           error.ToMessage(stepKey ?? string.Empty));
     }
+
+    /// <summary>
+    /// Gives the failure kind for a <see cref="ParameterResolutionReasons"/> value (feature 165).
+    /// <see cref="ParameterResolutionReasons.InvalidPattern"/> gives
+    /// <see cref="ConditionEvaluationFailureKind.ParameterValueInvalid"/>. All other reasons give
+    /// <see cref="ConditionEvaluationFailureKind.ParameterUnresolved"/>.
+    /// </summary>
+    internal static ConditionEvaluationFailureKind ToFailureKind(string reason) =>
+        reason == ParameterResolutionReasons.InvalidPattern
+            ? ConditionEvaluationFailureKind.ParameterValueInvalid
+            : ConditionEvaluationFailureKind.ParameterUnresolved;
 
     /// <summary>
     /// Evaluates a condition that has no placeholders left.

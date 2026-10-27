@@ -9,6 +9,12 @@ public static class ParameterResolutionReasons {
 
   /// <summary>A value was found but could not be converted to the target field's numeric type.</summary>
   public const string NotANumber = "not_a_number";
+
+  /// <summary>
+  /// The placeholders of an <c>ocrText.pattern</c> resolved, but the result is not a valid regular
+  /// expression (feature 165). <see cref="ParameterResolutionError.OffendingValue"/> holds the resolved pattern.
+  /// </summary>
+  public const string InvalidPattern = "invalid_pattern";
 }
 
 /// <summary>
@@ -38,6 +44,9 @@ public sealed record ParameterResolutionError(
   public string ToMessage(string stepLabel) {
     if (Reason == ParameterResolutionReasons.NotANumber)
       return $"Step '{stepLabel}': parameter '{ParameterName}' resolved to '{OffendingValue}', which is not a whole number for field '{FieldPath}'.";
+
+    if (Reason == ParameterResolutionReasons.InvalidPattern)
+      return $"Step '{stepLabel}': field '{FieldPath}' resolved to the pattern '{OffendingValue}', which is not a valid regular expression. Change the value of '{ParameterName}' or the pattern.";
 
     var message = $"Step '{stepLabel}': parameter '{ParameterName}' used by field '{FieldPath}' could not be resolved from any scope.";
     if (Reason == ParameterResolutionReasons.Unresolved

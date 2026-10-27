@@ -45,6 +45,12 @@ public static class ParameterValidationCodes {
   /// <summary>Warning: a field's static existence check was skipped because it is parametrized.</summary>
   public const string StaticCheckSkipped = "static_check_skipped";
 
+  /// <summary>
+  /// An <c>ocrText.pattern</c> with the sequence default values is not a valid regular expression
+  /// (feature 165).
+  /// </summary>
+  public const string InvalidResolvedPattern = "invalid_resolved_pattern";
+
   /// <summary>Warning: a supplied value is consumed by nothing in the entry's reachable chain.</summary>
   public const string UnusedValue = "unused_parameter_value";
 
@@ -153,9 +159,12 @@ public static class ParameterValidationService {
     AddDeclarationIssues(sequence.Parameters, errors);
 
     var declared = NamesOf(sequence.Parameters);
-    foreach (var reference in ParameterReferenceScanner.Scan(sequence)) {
+    var references = ParameterReferenceScanner.Scan(sequence);
+    foreach (var reference in references) {
       AddReferenceIssues(reference, declared, errors, warnings);
     }
+
+    AddResolvedPatternIssues(references, sequence.Parameters, errors);
 
     foreach (var step in FlattenSteps(sequence.Steps)) {
       if (step.ParameterBindings is not { Count: > 0 }) continue;
@@ -576,6 +585,46 @@ public static class ParameterValidationService {
         $"Step '{reference.StepLabel}': '{reference.ParameterName}' is not declared here and is not a queue built-in.",
         reference.FieldPath,
         reference.ParameterName));
+  }
+
+  /// <summary>
+  /// Checks each <c>ocrText.pattern</c> with placeholders against the sequence defaults (feature 165).
+  /// The check runs only when each name of the pattern has a sequence default. A queue built-in,
+  /// <c>iteration</c>, or a name with no default stops the check of that field. The run then checks the
+  /// resolved pattern.
+  /// </summary>
+  private static void AddResolvedPatternIssues(
+      IEnumerable<ParameterReference> references,
+      IEnumerable<ParameterDeclaration> declarations,
+      List<ParameterValidationIssue> errors) {
+    var fields = references
+        .Where(r => r.IsRegexPattern && r.SourceText is not null)
+        .Select(r => (r.StepLabel, r.FieldPath, SourceText: r.SourceText!))
+        .Distinct();
+
+    foreach (var (stepLabel, fieldPath, sourceText) in fields) {
+      var keys = TemplateSubstitutor.ExtractKeys(sourceText);
+      var values = new Dictionary<string, string>(StringComparer.Ordinal);
+      foreach (var key in keys) {
+        if (ParameterNameRules.IsBuiltIn(key)
+            || string.Equals(key, ParameterNameRules.IterationName, StringComparison.Ordinal)) break;
+        var declaration = declarations.FirstOrDefault(d => d is not null
+            && string.Equals(d.Name, key, StringComparison.Ordinal)
+            && d.Default is not null);
+        if (declaration is null) break;
+        values[key] = declaration.Default!;
+      }
+
+      if (keys.Count == 0 || values.Count != keys.Count) continue;
+      var pattern = TemplateSubstitutor.Substitute(sourceText, values);
+      if (OcrTextConditionRules.TryValidatePattern(pattern, out var problem)) continue;
+
+      errors.Add(new ParameterValidationIssue(
+          ParameterValidationCodes.InvalidResolvedPattern,
+          $"Step '{stepLabel}': '{fieldPath}' with the default values gives the pattern '{pattern}', which is not a valid regular expression: {problem?.TrimEnd('.')}. Change the default value or the pattern.",
+          fieldPath,
+          keys[0]));
+    }
   }
 
   private static HashSet<string> NamesOf(IEnumerable<ParameterDeclaration> declarations) =>
