@@ -1289,7 +1289,29 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   /// asked to. Cancellation is deliberately NOT reported as a miss — a stopped queue or a tripped
   /// watchdog must keep surfacing as cancellation rather than as a sequence failure.
   /// </summary>
-  private static CommandDispatchOutcome ClassifyDispatch(CommandForceExecutionResult result, CancellationToken ct) {
+  internal static CommandDispatchOutcome ClassifyDispatch(CommandForceExecutionResult result, CancellationToken ct) {
+    var outcome = ClassifyDispatchCore(result, ct);
+    var states = ReadStepStates(result);
+    return states is null ? outcome : outcome with { StepStates = states };
+  }
+
+  /// <summary>
+  /// Feature 167: gives the readable state of each top-level step (depth 0) of the command, keyed by
+  /// step order. A step of a nested command is not included. A step with another status is not included.
+  /// Gives null when no step has a readable state.
+  /// </summary>
+  private static Dictionary<int, string>? ReadStepStates(CommandForceExecutionResult result) {
+    Dictionary<int, string>? states = null;
+    foreach (var step in result.StepOutcomes) {
+      if (step.Depth != 0 || !CommandStepOutcomeStates.IsAllowed(step.Status)) continue;
+      states ??= new Dictionary<int, string>();
+      states.TryAdd(step.StepOrder, step.Status.ToLowerInvariant());
+    }
+
+    return states;
+  }
+
+  private static CommandDispatchOutcome ClassifyDispatchCore(CommandForceExecutionResult result, CancellationToken ct) {
     if (ct.IsCancellationRequested) return CommandDispatchOutcome.Executed;
 
     var inputSteps = result.StepOutcomes.Where(IsInputBearing).ToList();

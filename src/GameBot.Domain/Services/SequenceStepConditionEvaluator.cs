@@ -132,17 +132,69 @@ public static class SequenceStepConditionEvaluator {
       Func<Condition, CancellationToken, Task<bool>>? imageEvaluator,
       IReadOnlyDictionary<string, string> stepOutcomes,
       Func<LastRunStepCondition, CancellationToken, Task<bool>>? lastRunEvaluator,
-      CancellationToken ct = default) {
+      CancellationToken ct = default)
+    => EvaluateAsync(condition, imageEvaluator, stepOutcomes, lastRunEvaluator, null, ct);
+
+  /// <summary>
+  /// Evaluates <paramref name="condition"/> with an explicit map of command step states (feature 167).
+  /// </summary>
+  /// <param name="condition">The condition to evaluate.</param>
+  /// <param name="imageEvaluator">Resolves an <c>imageVisible</c> leaf. See the other overload.</param>
+  /// <param name="stepOutcomes">Outcomes recorded by earlier steps, keyed by step id.</param>
+  /// <param name="lastRunEvaluator">Resolves a <c>lastRun</c> leaf. See the other overload.</param>
+  /// <param name="commandStepStates">
+  /// For each sequence step id (not case-sensitive), the state of each top-level step of its command, keyed
+  /// by step order. When it is null, the ambient <see cref="CommandStepStateScope"/> answers.
+  /// </param>
+  /// <param name="ct">Cancellation token.</param>
+  /// <returns>The result plus, for a composite, which child settled it.</returns>
+  /// <exception cref="ConditionEvaluationException">The condition could not be evaluated.</exception>
+  public static Task<ConditionEvaluation> EvaluateAsync(
+      SequenceStepCondition condition,
+      Func<Condition, CancellationToken, Task<bool>>? imageEvaluator,
+      IReadOnlyDictionary<string, string> stepOutcomes,
+      Func<LastRunStepCondition, CancellationToken, Task<bool>>? lastRunEvaluator,
+      IReadOnlyDictionary<string, IReadOnlyDictionary<int, string>>? commandStepStates,
+      CancellationToken ct) {
     ArgumentNullException.ThrowIfNull(condition);
     ArgumentNullException.ThrowIfNull(stepOutcomes);
 
-    return EvaluateNodeAsync(condition, "$", new LeafEvaluators(imageEvaluator, lastRunEvaluator), stepOutcomes, ct);
+    return EvaluateNodeAsync(condition, "$", new LeafEvaluators(imageEvaluator, lastRunEvaluator, commandStepStates), stepOutcomes, ct);
   }
 
   /// <summary>The delegates that answer the leaves which need the outside world.</summary>
   private readonly record struct LeafEvaluators(
       Func<Condition, CancellationToken, Task<bool>>? Image,
-      Func<LastRunStepCondition, CancellationToken, Task<bool>>? LastRun);
+      Func<LastRunStepCondition, CancellationToken, Task<bool>>? LastRun,
+      IReadOnlyDictionary<string, IReadOnlyDictionary<int, string>>? CommandStepStates);
+
+  /// <summary>
+  /// Feature 167: evaluates a <c>commandStepOutcome</c> leaf. A missing outcome gives false and no failure.
+  /// <c>negate</c> is applied by the caller. Each evaluation writes one log line to the ambient scope.
+  /// The explicit map in <paramref name="evaluators"/> has priority over the ambient scope.
+  /// </summary>
+  private static bool EvaluateCommandStepOutcome(CommandStepOutcomeStepCondition condition, LeafEvaluators evaluators) {
+    string? actual = null;
+    if (evaluators.CommandStepStates is not null) {
+      if (!string.IsNullOrWhiteSpace(condition.StepRef)
+          && evaluators.CommandStepStates.TryGetValue(condition.StepRef, out var map)
+          && map.TryGetValue(condition.CommandStepOrder, out var found)) {
+        actual = found;
+      }
+    }
+    else {
+      actual = CommandStepStateScope.Current?.TryGetState(condition.StepRef, condition.CommandStepOrder);
+    }
+
+    var result = actual is not null
+      && string.Equals(actual, condition.ExpectedState, StringComparison.OrdinalIgnoreCase);
+    var actualText = actual ?? "none (no outcome recorded)";
+    CommandStepStateScope.Current?.AddLog(string.Format(
+      CultureInfo.InvariantCulture,
+      "commandStepOutcome(stepRef={0}, order={1}, expected={2}) actual={3}",
+      condition.StepRef, condition.CommandStepOrder, condition.ExpectedState, actualText));
+    return result;
+  }
 
   private static async Task<ConditionEvaluation> EvaluateNodeAsync(
       SequenceStepCondition condition,
@@ -190,6 +242,9 @@ public static class SequenceStepConditionEvaluator {
           ConfidenceThreshold = image.MinSimilarity,
           PixelRegion = image.Region
         }, ct).ConfigureAwait(false);
+
+      case CommandStepOutcomeStepCondition stepOutcome:
+        return EvaluateCommandStepOutcome(stepOutcome, evaluators);
 
       case CommandOutcomeStepCondition outcome:
         if (string.IsNullOrWhiteSpace(outcome.StepRef)
@@ -316,6 +371,9 @@ public static class SequenceStepConditionEvaluator {
 
       case CommandOutcomeStepCondition outcome:
         return $"{negatePrefix}commandOutcome(stepRef={outcome.StepRef}, expected={outcome.ExpectedState})";
+
+      case CommandStepOutcomeStepCondition stepOutcome:
+        return $"{negatePrefix}commandStepOutcome(stepRef={stepOutcome.StepRef}, order={stepOutcome.CommandStepOrder}, expected={stepOutcome.ExpectedState})";
 
       case LastRunStepCondition lastRun:
         var window = lastRun.Since is not null ? $"since={lastRun.Since}" : $"within={lastRun.Within}";

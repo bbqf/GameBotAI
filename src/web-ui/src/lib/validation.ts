@@ -1,6 +1,7 @@
 import { ApiError, ApiValidationError } from './api';
 import type { ConditionExpression, SequenceFlowUpsertRequest } from '../types/sequenceFlow';
-import type { SequenceLinearStep } from '../types/sequenceFlow';
+import type { CommandStepOutcomeStepCondition, SequenceLinearStep, SequenceStepCondition } from '../types/sequenceFlow';
+import { COMMAND_STEP_OUTCOME_STATES } from '../types/sequenceFlow';
 
 export type ParsedValidation = {
   byField: Record<string, string[]>;
@@ -275,6 +276,58 @@ const flattenStepsInAuthoredOrder = (steps: SequenceLinearStep[]): SequenceLinea
   return flattened;
 };
 
+const COMMAND_STEP_OUTCOME_STATE_TEXT = COMMAND_STEP_OUTCOME_STATES.join('|');
+
+const stepRunsCommand = (step: SequenceLinearStep): boolean => {
+  if (step.stepType === 'Loop' || step.stepType === 'Break' || step.stepType === 'If') {
+    return false;
+  }
+  return step.primitiveAction?.type === 'command'
+    || step.action?.type === 'command'
+    || Boolean(step.commandReference?.commandId);
+};
+
+/**
+ * Feature 167: the rules for a commandStepOutcome condition. The messages are the same as the service
+ * messages. The order of the step inside the command is not checked against the command here: only the
+ * service can load the command.
+ */
+const validateCommandStepOutcomeCondition = (
+  condition: CommandStepOutcomeStepCondition,
+  stepLabel: string,
+  position: number,
+  positionByStepId: Map<string, number>,
+  stepsByStepId: Map<string, SequenceLinearStep>
+): string[] => {
+  const errors: string[] = [];
+  const stepRef = condition.stepRef;
+  if (!stepRef?.trim()) {
+    errors.push(`Step '${stepLabel}' commandStepOutcome condition requires stepRef.`);
+  } else {
+    const referencedPosition = positionByStepId.get(stepRef);
+    if (referencedPosition === undefined) {
+      errors.push(`Step '${stepLabel}' commandStepOutcome references unknown prior step '${stepRef}'.`);
+    } else if (referencedPosition >= position) {
+      errors.push(`Step '${stepLabel}' commandStepOutcome stepRef '${stepRef}' must reference a prior step.`);
+    } else {
+      const target = stepsByStepId.get(stepRef);
+      if (target && !stepRunsCommand(target)) {
+        errors.push(`Step '${stepLabel}' commandStepOutcome stepRef '${stepRef}' must reference a step that runs a command.`);
+      }
+    }
+  }
+
+  if (!Number.isInteger(condition.commandStepOrder) || condition.commandStepOrder < 1) {
+    errors.push(`Step '${stepLabel}' commandStepOutcome commandStepOrder must be 1 or more.`);
+  }
+
+  if (!(COMMAND_STEP_OUTCOME_STATES as readonly string[]).includes((condition.expectedState ?? '').toLowerCase())) {
+    errors.push(`Step '${stepLabel}' commandStepOutcome expectedState must be one of ${COMMAND_STEP_OUTCOME_STATE_TEXT}.`);
+  }
+
+  return errors;
+};
+
 export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[] => {
   const errors: string[] = [];
   const seenStepIds = new Set<string>();
@@ -283,9 +336,11 @@ export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[]
   // duplicate nested id with its own distinct message, and raising that here would double-report.
   const ordered = flattenStepsInAuthoredOrder(steps);
   const positionByStepId = new Map<string, number>();
+  const stepsByStepId = new Map<string, SequenceLinearStep>();
   ordered.forEach((step, position) => {
     if (step.stepId?.trim() && !positionByStepId.has(step.stepId)) {
       positionByStepId.set(step.stepId, position);
+      stepsByStepId.set(step.stepId, step);
     }
   });
 
@@ -338,6 +393,18 @@ export const validatePerStepConditions = (steps: SequenceLinearStep[]): string[]
         errors.push(
           `Step '${stepLabel}' commandOutcome expectedState must be one of ${COMMAND_OUTCOME_STATES.join('|')}.`
         );
+      }
+    }
+    // Feature 167: the same rules as the service, for every slot that holds a condition.
+    const slots: Array<SequenceStepCondition | null | undefined> = [
+      step.condition,
+      step.breakCondition,
+      step.if?.condition,
+      step.loop && 'condition' in step.loop ? step.loop.condition : undefined
+    ];
+    for (const slot of slots) {
+      if (slot?.type === 'commandStepOutcome') {
+        errors.push(...validateCommandStepOutcomeCondition(slot, stepLabel, position, positionByStepId, stepsByStepId));
       }
     }
   });

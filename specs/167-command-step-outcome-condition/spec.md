@@ -2,7 +2,7 @@
 
 **Feature Branch**: `167-command-step-outcome-condition`  
 **Created**: 2026-10-28  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Let a sequence condition read the outcome of a step inside a command (GitHub issue #352, FR-037). Example: step 12 (a PrimitiveTap) of the command that step send-1 ran was executed, or was skipped (detection failed)."
 
 Issue: #352 - https://github.com/bbqf/GameBotAI/issues/352 (labels: enhancement, P2). Closes #352.

@@ -123,13 +123,14 @@ public sealed class OcrTextEvaluationScope {
   /// Returns an empty text when no scope or no record is present.
   /// </summary>
   public static string DrainLog() {
+    // Feature 167: the lines of the commandStepOutcome conditions share this drain, so they reach the same log text.
+    var stepLog = CommandStepStateScope.DrainLog();
     var scope = Current;
-    if (scope is null) return string.Empty;
-    var records = scope.Drain();
-    if (records.Count == 0) return string.Empty;
-    var lines = new string[records.Count];
-    for (var i = 0; i < records.Count; i++) lines[i] = records[i].ToLogLine();
-    return string.Join("; ", lines);
+    IReadOnlyList<OcrTextEvaluationRecord> records = scope is null ? Array.Empty<OcrTextEvaluationRecord>() : scope.Drain();
+    var lines = new List<string>(records.Count + 1);
+    for (var i = 0; i < records.Count; i++) lines.Add(records[i].ToLogLine());
+    if (stepLog.Length > 0) lines.Add(stepLog);
+    return lines.Count == 0 ? string.Empty : string.Join("; ", lines);
   }
 
   /// <summary>Makes <paramref name="scope"/> current until the returned handle is disposed.</summary>

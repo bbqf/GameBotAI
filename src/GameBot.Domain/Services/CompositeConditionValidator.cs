@@ -71,7 +71,9 @@ public static class CompositeConditionValidator {
 
     // Feature 105: a lastRun leaf at the root is walked too. No slot checks it by itself, so this one
     // gate covers all six slots and no message is written two times.
-    if (condition is not CompositeStepCondition and not LastRunStepCondition and not OcrTextStepCondition && !validateLeafAtRoot) {
+    // Feature 167: the same is true for a commandStepOutcome leaf.
+    if (condition is not CompositeStepCondition and not LastRunStepCondition and not OcrTextStepCondition
+        and not CommandStepOutcomeStepCondition && !validateLeafAtRoot) {
       return;
     }
 
@@ -129,6 +131,10 @@ public static class CompositeConditionValidator {
 
         break;
 
+      case CommandStepOutcomeStepCondition stepOutcome:
+        ValidateCommandStepOutcome(stepOutcome, stepLabel, path, errors, positionByStepId, referencingStepPosition);
+        break;
+
       case LastRunStepCondition lastRun:
         ValidateLastRun(lastRun, stepLabel, path, errors);
         break;
@@ -178,6 +184,34 @@ public static class CompositeConditionValidator {
     if (referencingStepPosition is { } ownPosition && referencedPosition >= ownPosition) {
       errors.Add($"Step '{stepLabel}' condition at {path}: commandOutcome stepRef '{stepRef}' must reference a prior step.");
     }
+  }
+
+  /// <summary>
+  /// Feature 167: adds the problems of a <c>commandStepOutcome</c> leaf: the <c>stepRef</c> rules, the
+  /// order minimum, and the expected state. The check that the command has the order is not here: it
+  /// needs the command repository and runs at save only.
+  /// </summary>
+  private static void ValidateCommandStepOutcome(
+      CommandStepOutcomeStepCondition condition,
+      string stepLabel,
+      string path,
+      ICollection<string> errors,
+      IReadOnlyDictionary<string, int>? positionByStepId,
+      int? referencingStepPosition) {
+    var prefix = CommandStepOutcomeRules.Prefix(stepLabel, path);
+    if (string.IsNullOrWhiteSpace(condition.StepRef)) {
+      errors.Add($"{prefix}commandStepOutcome condition requires stepRef.");
+    }
+    else if (positionByStepId is not null) {
+      if (!positionByStepId.TryGetValue(condition.StepRef, out var referencedPosition)) {
+        errors.Add($"{prefix}commandStepOutcome references unknown prior step '{condition.StepRef}'.");
+      }
+      else if (referencingStepPosition is { } ownPosition && referencedPosition >= ownPosition) {
+        errors.Add($"{prefix}commandStepOutcome stepRef '{condition.StepRef}' must reference a prior step.");
+      }
+    }
+
+    CommandStepOutcomeRules.ValidateFields(condition, stepLabel, path, errors);
   }
 
   /// <summary>

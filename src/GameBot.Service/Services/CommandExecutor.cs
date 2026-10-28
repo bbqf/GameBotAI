@@ -298,7 +298,7 @@ internal sealed class CommandExecutor : ICommandExecutor {
     }
   }
 
-  private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, ParameterScope scope, ExecutionOptions? options, List<string> previewed, CancellationToken ct) {
+  private async Task<int> ExecuteCommandRecursiveAsync(string sessionId, string commandId, HashSet<string> visited, List<PrimitiveTapStepOutcome> stepOutcomes, ParameterScope scope, ExecutionOptions? options, List<string> previewed, CancellationToken ct, int depth = 0) {
     if (!visited.Add(commandId))
       throw new InvalidOperationException("command_cycle_detected");
 
@@ -329,14 +329,15 @@ internal sealed class CommandExecutor : ICommandExecutor {
               bindingError.ToMessage(step.Order.ToString(System.Globalization.CultureInfo.InvariantCulture)),
               null,
               null,
-              StepType: step.Type.ToString()));
+              StepType: step.Type.ToString(),
+              Depth: depth));
             continue;
           }
 
           nestedScope = bound;
         }
 
-        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, nestedScope, options, previewed, ct).ConfigureAwait(false);
+        totalAccepted += await ExecuteCommandRecursiveAsync(sessionId, step.TargetId, visited, stepOutcomes, nestedScope, options, previewed, ct, depth + 1).ConfigureAwait(false);
         continue;
       }
 
@@ -349,7 +350,8 @@ internal sealed class CommandExecutor : ICommandExecutor {
           resolutionError!.ToMessage(step.Order.ToString(System.Globalization.CultureInfo.InvariantCulture)),
           null,
           null,
-          StepType: step.Type.ToString()));
+          StepType: step.Type.ToString(),
+          Depth: depth));
         continue;
       }
 
@@ -362,15 +364,16 @@ internal sealed class CommandExecutor : ICommandExecutor {
           previewedEffect,
           null,
           null,
-          StepType: step.Type.ToString()));
+          StepType: step.Type.ToString(),
+          Depth: depth));
         continue;
       }
 
       var (accepted, outcome) = await ExecuteOneStepAsync(sessionId, effectiveStep, cmd.Detection, ct).ConfigureAwait(false);
       totalAccepted += accepted;
       stepOutcomes.Add(usedParameters.Count > 0
-        ? outcome with { ResolvedParameters = usedParameters }
-        : outcome);
+        ? outcome with { ResolvedParameters = usedParameters, Depth = depth }
+        : outcome with { Depth = depth });
     }
 
     visited.Remove(commandId);

@@ -23,7 +23,8 @@ import { IfBlock } from '../components/sequences/IfBlock';
 import { PrimitiveActionFields, summarizePrimitiveAction } from '../components/sequences/PrimitiveActionFields';
 import { QUIZ_LEARN_TYPE, QUIZ_LOOKUP_TYPE, createDefaultQuizAction } from '../components/sequences/QuizActionFields';
 import type { ActionStepEntry, LoopStepEntry, BreakStepEntry, IfStepEntry, StepEntry } from '../types/stepEntry';
-import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference } from '../types/sequenceFlow';
+import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference, CommandStepOutcomeExpectedState, CommandOutcomeExpectedState } from '../types/sequenceFlow';
+import { COMMAND_STEP_OUTCOME_STATES } from '../types/sequenceFlow';
 import { ImageSelectorDropdown } from '../components/images/ImageSelectorDropdown';
 import { StepThroughPanel } from '../components/stepthrough/StepThroughPanel';
 
@@ -46,12 +47,16 @@ type SequenceStep = {
   waitReferenceImageId: string;
   waitConfidence: string;
   waitTimeoutMs: string;
-  conditionType: 'none' | 'imageVisible' | 'commandOutcome';
+  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome';
   conditionNegate: boolean;
   imageId: string;
   minSimilarity: string;
   outcomeStepRef: string;
-  expectedState: 'success' | 'failed' | 'skipped';
+  expectedState: CommandOutcomeExpectedState;
+  /** Feature 167: the order of the step inside the command, as typed (conditionType commandStepOutcome). */
+  stepOutcomeOrder?: string;
+  /** Feature 167: the state of the step inside the command; empty means no state is chosen. */
+  stepOutcomeState?: CommandStepOutcomeExpectedState | '';
   loopEntry?: LoopStepEntry;
   ifEntry?: IfStepEntry;
   /**
@@ -348,11 +353,16 @@ const linearBodyToStepEntries = (body: SequenceLinearStep[]): StepEntry[] => {
       commandReference: inline ? undefined : child.commandReference ?? undefined,
       primitiveAction: inline ? primitiveAction! : undefined,
       conditionType: child.condition?.type === 'imageVisible' ? 'imageVisible'
-        : child.condition?.type === 'commandOutcome' ? 'commandOutcome' : 'none',
+        : child.condition?.type === 'commandOutcome' ? 'commandOutcome'
+          : child.condition?.type === 'commandStepOutcome' ? 'commandStepOutcome' : 'none',
+      stepOutcomeOrder: child.condition?.type === 'commandStepOutcome' && child.condition.commandStepOrder > 0
+        ? String(child.condition.commandStepOrder) : '',
+      stepOutcomeState: child.condition?.type === 'commandStepOutcome' ? child.condition.expectedState : '',
       conditionNegate: child.condition?.negate ?? false,
       imageId: child.condition?.type === 'imageVisible' ? child.condition.imageId : '',
       minSimilarity: child.condition?.type === 'imageVisible' && child.condition.minSimilarity != null ? String(child.condition.minSimilarity) : '',
-      outcomeStepRef: child.condition?.type === 'commandOutcome' ? child.condition.stepRef : '',
+      outcomeStepRef: child.condition?.type === 'commandOutcome' || child.condition?.type === 'commandStepOutcome'
+        ? child.condition.stepRef : '',
       expectedState: child.condition?.type === 'commandOutcome' ? child.condition.expectedState : 'success'
     };
   });
@@ -385,7 +395,26 @@ const loopDtoToEntry = (step: SequenceLinearStep): LoopStepEntry => {
 
 const toStepEntriesFromLinear = (steps: SequenceLinearStep[]): SequenceStep[] =>
   // The label is attached here rather than in each branch below so no future branch can forget it.
-  steps.map((step) => ({ ...linearStepToFormStep(step), label: step.label }));
+  steps.map((step) => ({ ...withCommandStepOutcomeFields(linearStepToFormStep(step), step), label: step.label }));
+
+/**
+ * Feature 167: copies a commandStepOutcome step condition into the form fields. This runs for every step
+ * kind, so each load branch does not need its own copy.
+ */
+const withCommandStepOutcomeFields = (formStep: SequenceStep, step: SequenceLinearStep): SequenceStep => {
+  const condition = step.condition;
+  if (condition?.type !== 'commandStepOutcome') {
+    return formStep;
+  }
+  return {
+    ...formStep,
+    conditionType: 'commandStepOutcome',
+    conditionNegate: condition.negate ?? false,
+    outcomeStepRef: condition.stepRef,
+    stepOutcomeOrder: condition.commandStepOrder > 0 ? String(condition.commandStepOrder) : '',
+    stepOutcomeState: condition.expectedState
+  };
+};
 
 const linearStepToFormStep = (step: SequenceLinearStep): SequenceStep => {
   {
@@ -661,7 +690,24 @@ const buildConditionPayload = (step: SequenceStep) => {
       negate: step.conditionNegate || undefined
     };
   }
+  if (step.conditionType === 'commandStepOutcome') {
+    return buildCommandStepOutcomePayload(step);
+  }
   return null;
+};
+
+/** Feature 167: an empty or bad order is sent as 0, so the validation shows the order message. */
+const buildCommandStepOutcomePayload = (
+  step: Pick<SequenceStep, 'outcomeStepRef' | 'stepOutcomeOrder' | 'stepOutcomeState' | 'conditionNegate'>
+) => {
+  const order = Number.parseInt((step.stepOutcomeOrder ?? '').trim(), 10);
+  return {
+    type: 'commandStepOutcome' as const,
+    stepRef: step.outcomeStepRef.trim(),
+    commandStepOrder: Number.isNaN(order) ? 0 : order,
+    expectedState: step.stepOutcomeState ?? '',
+    negate: step.conditionNegate || undefined
+  };
 };
 
 const buildLoopConfigPayload = (loop: LoopStepEntry): LoopConfigDto | null => {
@@ -710,7 +756,9 @@ const bodyEntryToPayloadStep = (entry: StepEntry): SequenceLinearStep => {
     ? { type: 'imageVisible' as const, imageId: a.imageId.trim(), minSimilarity: a.minSimilarity.trim() === '' ? null : Number(a.minSimilarity), negate: a.conditionNegate || undefined }
     : a.conditionType === 'commandOutcome'
       ? { type: 'commandOutcome' as const, stepRef: a.outcomeStepRef.trim(), expectedState: a.expectedState, negate: a.conditionNegate || undefined }
-      : null;
+      : a.conditionType === 'commandStepOutcome'
+        ? buildCommandStepOutcomePayload({ ...a, conditionNegate: a.conditionNegate ?? false })
+        : null;
 
   // An inline action goes back exactly as it came in, apart from the slots edited in the form.
   if (a.primitiveAction) {
@@ -1307,8 +1355,10 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   conditionType: value,
                   imageId: value === 'imageVisible' ? candidate.imageId : '',
                   minSimilarity: value === 'imageVisible' ? candidate.minSimilarity : '',
-                  outcomeStepRef: value === 'commandOutcome' ? candidate.outcomeStepRef : '',
-                  expectedState: value === 'commandOutcome' ? candidate.expectedState : 'success'
+                  outcomeStepRef: value === 'commandOutcome' || value === 'commandStepOutcome' ? candidate.outcomeStepRef : '',
+                  expectedState: value === 'commandOutcome' ? candidate.expectedState : 'success',
+                  stepOutcomeOrder: value === 'commandStepOutcome' ? candidate.stepOutcomeOrder : '',
+                  stepOutcomeState: value === 'commandStepOutcome' ? candidate.stepOutcomeState : ''
                 }
                 : candidate)
             }));
@@ -1319,6 +1369,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           <option value="none">None</option>
           <option value="imageVisible">imageVisible</option>
           <option value="commandOutcome">commandOutcome</option>
+          <option value="commandStepOutcome">commandStepOutcome</option>
         </select>
       </div>
 
@@ -1447,6 +1498,74 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               <option value="success">success</option>
               <option value="failed">failed</option>
               <option value="skipped">skipped</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {step.conditionType === 'commandStepOutcome' && (
+        <div className="sequence-step-condition-pair">
+          <div className="sequence-step-condition-field sequence-step-condition-field--step-ref">
+            <label htmlFor={`step-outcome-step-ref-${step.id}`}>Step Ref</label>
+            <select
+              id={`step-outcome-step-ref-${step.id}`}
+              value={step.outcomeStepRef}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, outcomeStepRef: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            >
+              <option value="">Select prior step</option>
+              {form.steps.slice(0, index).map((candidate, candidateIndex) => (
+                <option key={candidate.id} value={candidate.stepId}>{`Step ${candidateIndex + 1}`}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--command-step-order">
+            <label htmlFor={`step-outcome-order-${step.id}`}>Step Order</label>
+            <input
+              id={`step-outcome-order-${step.id}`}
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={step.stepOutcomeOrder ?? ''}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, stepOutcomeOrder: event.target.value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            />
+          </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--expected-state">
+            <label htmlFor={`step-outcome-state-${step.id}`}>Expected State</label>
+            <select
+              id={`step-outcome-state-${step.id}`}
+              value={step.stepOutcomeState ?? ''}
+              onChange={(event) => {
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id
+                    ? { ...candidate, stepOutcomeState: event.target.value as CommandStepOutcomeExpectedState | '' }
+                    : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            >
+              <option value="">Select state</option>
+              {COMMAND_STEP_OUTCOME_STATES.map((state) => (
+                <option key={state} value={state}>{state}</option>
+              ))}
             </select>
           </div>
         </div>

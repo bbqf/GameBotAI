@@ -66,7 +66,7 @@ internal static class SequencesEndpoints {
 
       var linearSteps = MapToLinearSteps(perStepRequest);
       var commandLookup = await EnrichCommandReferencesAsync(linearSteps, commandRepository, existingSteps: null, ct).ConfigureAwait(false);
-      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandLookup, NoToleratedCommandIds, ct).ConfigureAwait(false);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandRepository, commandLookup, NoToleratedCommandIds, ct).ConfigureAwait(false);
       if (perStepValidationErrors.Count > 0) {
         return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
       }
@@ -209,7 +209,7 @@ internal static class SequencesEndpoints {
       var linearSteps = MapToLinearSteps(perStepRequest);
       var commandLookup = await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
       var toleratedCommandIds = CollectReferencedCommandIds(existing.Steps);
-      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandLookup, toleratedCommandIds, ct).ConfigureAwait(false);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandRepository, commandLookup, toleratedCommandIds, ct).ConfigureAwait(false);
       if (perStepValidationErrors.Count > 0) {
         return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
       }
@@ -303,7 +303,7 @@ internal static class SequencesEndpoints {
       var linearSteps = MapToLinearSteps(perStepRequest);
       var commandLookup = await EnrichCommandReferencesAsync(linearSteps, commandRepository, existing.Steps, ct).ConfigureAwait(false);
       var toleratedCommandIds = CollectReferencedCommandIds(existing.Steps);
-      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandLookup, toleratedCommandIds, ct).ConfigureAwait(false);
+      var perStepValidationErrors = await ValidatePerStepForPersistenceAsync(linearSteps, stepValidationService, imageRepository, commandRepository, commandLookup, toleratedCommandIds, ct).ConfigureAwait(false);
       if (perStepValidationErrors.Count > 0) {
         return Results.BadRequest(new { message = "Invalid sequence payload", errors = perStepValidationErrors });
       }
@@ -662,6 +662,13 @@ internal static class SequencesEndpoints {
         stepRef = commandOutcome.StepRef,
         expectedState = commandOutcome.ExpectedState,
         negate = commandOutcome.Negate
+      },
+      CommandStepOutcomeStepCondition stepOutcome => new {
+        type = "commandStepOutcome",
+        stepRef = stepOutcome.StepRef,
+        commandStepOrder = stepOutcome.CommandStepOrder,
+        expectedState = stepOutcome.ExpectedState,
+        negate = stepOutcome.Negate
       },
       LastRunStepCondition lastRun => MapLastRunConditionToDto(lastRun),
       OcrTextStepCondition ocrText => new {
@@ -1606,6 +1613,12 @@ internal static class SequencesEndpoints {
         ExpectedState = commandOutcome.ExpectedState,
         Negate = commandOutcome.Negate
       },
+      CommandStepOutcomeConditionContract stepOutcome => new CommandStepOutcomeStepCondition {
+        StepRef = stepOutcome.StepRef ?? string.Empty,
+        CommandStepOrder = stepOutcome.CommandStepOrder,
+        ExpectedState = stepOutcome.ExpectedState ?? string.Empty,
+        Negate = stepOutcome.Negate
+      },
       LastRunConditionContract lastRun => new LastRunStepCondition {
         Sequence = lastRun.Sequence ?? string.Empty,
         Status = lastRun.Status ?? string.Empty,
@@ -1691,6 +1704,7 @@ internal static class SequencesEndpoints {
     List<SequenceStep> steps,
     SequenceStepValidationService stepValidationService,
     IImageRepository imageRepository,
+    ICommandRepository commandRepository,
     IReadOnlyDictionary<string, string> commandLookup,
     IReadOnlySet<string> toleratedCommandIds,
     CancellationToken ct) {
@@ -1698,6 +1712,7 @@ internal static class SequencesEndpoints {
     errors.AddRange(stepValidationService.Validate(steps));
     errors.AddRange(await ValidatePerStepImageReferencesAsync(steps, imageRepository, ct).ConfigureAwait(false));
     errors.AddRange(ValidateCommandReferencesExist(steps, commandLookup, toleratedCommandIds));
+    errors.AddRange(await ValidateCommandStepOrdersAsync(steps, commandRepository, ct).ConfigureAwait(false));
 
     for (var index = 0; index < steps.Count; index++) {
       ct.ThrowIfCancellationRequested();
@@ -1717,6 +1732,52 @@ internal static class SequencesEndpoints {
 
       if (string.IsNullOrWhiteSpace(step.Action.Type)) {
         errors.Add($"Step '{stepLabel}' action type is required.");
+      }
+    }
+
+    return errors;
+  }
+
+  /// <summary>
+  /// Feature 167: a <c>commandStepOutcome</c> condition must name an order that the command has. The check
+  /// runs at save and in the save dry run only. A run does not check it: a missing order gives "no outcome
+  /// recorded". The check is skipped when the command cannot be loaded or its id has a placeholder.
+  /// </summary>
+  private static async Task<IReadOnlyList<string>> ValidateCommandStepOrdersAsync(
+    IReadOnlyList<SequenceStep> steps,
+    ICommandRepository commandRepository,
+    CancellationToken ct) {
+    var errors = new List<string>();
+    var all = FlattenSequenceSteps(steps).ToList();
+    var byId = new Dictionary<string, SequenceStep>(StringComparer.Ordinal);
+    foreach (var step in all) {
+      if (!string.IsNullOrWhiteSpace(step.StepId)) byId.TryAdd(step.StepId, step);
+    }
+
+    var commands = new Dictionary<string, Command?>(StringComparer.OrdinalIgnoreCase);
+    foreach (var step in all) {
+      foreach (var condition in GameBot.Domain.Services.CommandStepOutcomeRules.ConditionsOf(step)) {
+        foreach (var leaf in GameBot.Domain.Services.CommandStepOutcomeRules.Collect(condition)) {
+          ct.ThrowIfCancellationRequested();
+          if (leaf.CommandStepOrder < 1
+              || string.IsNullOrWhiteSpace(leaf.StepRef)
+              || !byId.TryGetValue(leaf.StepRef, out var target)
+              || !GameBot.Domain.Services.CommandStepOutcomeRules.RunsCommand(target)) {
+            continue;
+          }
+
+          var commandId = target.CommandId.Trim();
+          if (GameBot.Domain.Utils.TemplateSubstitutor.ContainsPlaceholder(commandId)) continue;
+          if (!commands.TryGetValue(commandId, out var command)) {
+            command = await commandRepository.GetAsync(commandId, ct).ConfigureAwait(false);
+            commands[commandId] = command;
+          }
+
+          if (command is not null && !command.Steps.Any(commandStep => commandStep.Order == leaf.CommandStepOrder)) {
+            var label = string.IsNullOrWhiteSpace(step.StepId) ? $"index:{step.Order}" : step.StepId;
+            errors.Add($"Step '{label}' commandStepOutcome: command '{commandId}' has no step with order {leaf.CommandStepOrder}.");
+          }
+        }
       }
     }
 

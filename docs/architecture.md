@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-27 (feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
+_Last reviewed: 2026-10-28 (feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
 feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
 feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
@@ -729,6 +729,20 @@ execution log** carries `brokeVia` and `exhaustedMaxIterations` attributes besid
 record it leaves — so before feature 103 the exit reason was unreadable after the fact for precisely
 the runs that matter, inferable only from the prose in `message`. A loop that fails early
 (`AddLoopStep` on the early-stop path) still carries no exit reason at all.
+
+**`commandStepOutcome` condition** (feature 167): a sequence condition that is true when one step inside
+a command ended in an expected state. Fields: `stepRef` (a sequence step that runs a command),
+`commandStepOrder` (1 or more, the order of the step in the command), `expectedState` (`executed`,
+`skipped_detection_failed`, `completed_timeout`, or `image_detected`), and `negate`. The condition works
+in each slot where `commandOutcome` works: the step guard, `If`, `Loop`, `breakCondition`, and the
+children of `all`, `any`, and `none`. Data path: `CommandExecutor` marks each step outcome with a `Depth`
+(0 for a step of the command, 1 or more for a nested command). `SequenceExecutionService` copies the
+readable states of the depth 0 steps to `CommandDispatchOutcome.StepStates`. `SequenceRunner` keeps the
+latest map for each sequence step and gives it to `SequenceStepConditionEvaluator`. A missing state gives
+false (before `negate`) and the run log line `actual=none (no outcome recorded)`; the run does not fail.
+Errors: a bad `stepRef`, order, or state gives an error at save, at save dry run, at run, and at load.
+Only the save and the save dry run check the order against the command (`SequencesEndpoints`, through
+`ICommandRepository`). A step-through run does not evaluate the condition. `commandOutcome` is not changed.
 
 **Composite step conditions** (feature 088): `SequenceStepCondition` has a third form alongside
 `imageVisible` and `commandOutcome` — a **composite** that owns an ordered list of child conditions

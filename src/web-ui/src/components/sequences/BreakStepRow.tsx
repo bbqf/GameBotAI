@@ -1,5 +1,6 @@
 import React from 'react';
-import type { SequenceStepCondition } from '../../types/sequenceFlow';
+import type { CommandStepOutcomeExpectedState, SequenceStepCondition } from '../../types/sequenceFlow';
+import { COMMAND_STEP_OUTCOME_STATES } from '../../types/sequenceFlow';
 import { SimilarityInput } from './SimilarityInput';
 import { ImageSelectorDropdown } from '../images/ImageSelectorDropdown';
 
@@ -60,6 +61,8 @@ export const BreakStepRow: React.FC<BreakStepRowProps> = ({ breakCondition, onCh
                   const newType = e.target.value;
                   if (newType === 'imageVisible') {
                     onChange({ type: 'imageVisible', imageId: '', minSimilarity: null });
+                  } else if (newType === 'commandStepOutcome') {
+                    onChange({ type: 'commandStepOutcome', stepRef: '', commandStepOrder: 0, expectedState: '' });
                   } else {
                     onChange({ type: 'commandOutcome', stepRef: '', expectedState: 'success' });
                   }
@@ -67,6 +70,7 @@ export const BreakStepRow: React.FC<BreakStepRowProps> = ({ breakCondition, onCh
               >
                 <option value="imageVisible">Image Visible</option>
                 <option value="commandOutcome">Command Outcome</option>
+                <option value="commandStepOutcome">Command Step Outcome</option>
               </select>
             </label>
           </div>
@@ -121,6 +125,56 @@ export const BreakStepRow: React.FC<BreakStepRowProps> = ({ breakCondition, onCh
                     <option value="success">success</option>
                     <option value="failed">failed</option>
                     <option value="skipped">skipped</option>
+                  </select>
+                </label>
+              </div>
+            </>
+          )}
+          {breakCondition.type === 'commandStepOutcome' && (
+            <>
+              <div className="break-step-row__field">
+                <label>
+                  Step Ref
+                  <input
+                    type="text"
+                    data-testid="break-step-ref"
+                    value={breakCondition.stepRef}
+                    disabled={disabled}
+                    placeholder="Enter step reference"
+                    onChange={(e) => onChange({ ...breakCondition, stepRef: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="break-step-row__field">
+                <label>
+                  Step Order
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    data-testid="break-command-step-order"
+                    value={breakCondition.commandStepOrder > 0 ? breakCondition.commandStepOrder : ''}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      const parsed = Number.parseInt(e.target.value, 10);
+                      onChange({ ...breakCondition, commandStepOrder: Number.isNaN(parsed) ? 0 : parsed });
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="break-step-row__field">
+                <label>
+                  Expected State
+                  <select
+                    data-testid="break-expected-state"
+                    value={breakCondition.expectedState}
+                    disabled={disabled}
+                    onChange={(e) => onChange({ ...breakCondition, expectedState: e.target.value as CommandStepOutcomeExpectedState | '' })}
+                  >
+                    <option value="">Select state</option>
+                    {COMMAND_STEP_OUTCOME_STATES.map((state) => (
+                      <option key={state} value={state}>{state}</option>
+                    ))}
                   </select>
                 </label>
               </div>

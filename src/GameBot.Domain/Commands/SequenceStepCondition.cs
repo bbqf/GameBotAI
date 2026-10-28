@@ -7,6 +7,7 @@ namespace GameBot.Domain.Commands;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ImageVisibleStepCondition), typeDiscriminator: "imageVisible")]
 [JsonDerivedType(typeof(CommandOutcomeStepCondition), typeDiscriminator: "commandOutcome")]
+[JsonDerivedType(typeof(CommandStepOutcomeStepCondition), typeDiscriminator: "commandStepOutcome")]
 [JsonDerivedType(typeof(AllStepCondition), typeDiscriminator: "all")]
 [JsonDerivedType(typeof(AnyStepCondition), typeDiscriminator: "any")]
 [JsonDerivedType(typeof(NoneStepCondition), typeDiscriminator: "none")]
@@ -38,6 +39,24 @@ public sealed class CommandOutcomeStepCondition : SequenceStepCondition {
   [JsonIgnore]
   public override string Type => "commandOutcome";
   public string StepRef { get; set; } = string.Empty;
+  public string ExpectedState { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// True when one top-level step of the command that a prior sequence step ran ended in the expected
+/// state (feature 167, issue #352). A missing outcome gives false before <c>negate</c>.
+/// </summary>
+public sealed class CommandStepOutcomeStepCondition : SequenceStepCondition {
+  [JsonIgnore]
+  public override string Type => "commandStepOutcome";
+
+  /// <summary>The id of a prior sequence step that runs a command.</summary>
+  public string StepRef { get; set; } = string.Empty;
+
+  /// <summary>The <c>order</c> of a top-level step in that command. At least 1.</summary>
+  public int CommandStepOrder { get; set; }
+
+  /// <summary>One of <see cref="CommandStepOutcomeStates.All"/> (not case-sensitive).</summary>
   public string ExpectedState { get; set; } = string.Empty;
 }
 
