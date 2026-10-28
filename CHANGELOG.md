@@ -17,6 +17,15 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Sequence condition on a step outcome inside a command (167-command-step-outcome-condition, #352)
+  - **New condition**: `commandStepOutcome` is true when one step inside the command of a sequence step ended in an expected state. Fields: `stepRef` (a prior sequence step that runs a command), `commandStepOrder` (1 or more), `expectedState` (`executed`, `skipped_detection_failed`, `completed_timeout`, or `image_detected`), and `negate`. It works in each position where `commandOutcome` works: the step guard, `If`, `Loop`, `breakCondition`, and the children of `all`, `any`, and `none`.
+  - **Use**: a sequence can end the run after a recall, or fail by name, when a step inside the command was skipped. The command is not changed.
+  - **Missing state**: when no state is recorded, the condition is false (before `negate`) and the run log shows `actual=none (no outcome recorded)`. The run does not fail. A step of a nested command does not change the result.
+  - **Save errors**: a bad `stepRef`, order, or state gives `400` at save and at save dry run. The save and the save dry run also check that the command has a step with that order. The run and the run dry run check only the `stepRef`, order, and state rules.
+  - **Web UI**: the condition editor and the break row have the new type.
+  - **Not changed**: `commandOutcome`, the command run, and saved sequences.
+  - See `docs/architecture.md`.
+  - The patch version is now 21, so the next build is `1.11.21.<run number>`.
 - Sequence parameters in `ocrText.pattern` and `ocrText.expected` (165-ocr-pattern-params, #347)
   - **Placeholders**: the `pattern` and `expected` fields of an `ocrText` condition accept `{{name}}` placeholders of sequence parameters. The run puts each value in the field before the OCR check. This works in each condition position: the step guard, `If`, `Loop`, `breakCondition`, and the children of `all`, `any`, and `none`.
   - **Pattern rules**: the value goes into the pattern with no regex escape. Write `{{{name}}}` to get the value between literal braces, for example `(Gathering.*){{{marchTarget}}}` with `marchTarget` = `4` gives `(Gathering.*){4}`. `{{3}}` is a placeholder with the name `3`, not a quantifier.

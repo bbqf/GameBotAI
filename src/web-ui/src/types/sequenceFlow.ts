@@ -75,7 +75,7 @@ export type ConditionEvaluationTrace = {
   operatorSteps?: Array<Record<string, unknown>>;
 };
 
-export type PerStepConditionType = 'imageVisible' | 'commandOutcome';
+export type PerStepConditionType = 'imageVisible' | 'commandOutcome' | 'commandStepOutcome';
 
 export type ImageVisibleStepCondition = {
   type: 'imageVisible';
@@ -98,7 +98,30 @@ export type CommandOutcomeStepCondition = {
   negate?: boolean;
 };
 
-export type SequenceStepCondition = ImageVisibleStepCondition | CommandOutcomeStepCondition;
+/** The states of a step inside a command that the service accepts (feature 167). */
+export type CommandStepOutcomeExpectedState = 'executed' | 'skipped_detection_failed' | 'completed_timeout' | 'image_detected';
+
+/** The states of a step inside a command, in the order the service names them. */
+export const COMMAND_STEP_OUTCOME_STATES: readonly CommandStepOutcomeExpectedState[] = [
+  'executed',
+  'skipped_detection_failed',
+  'completed_timeout',
+  'image_detected'
+];
+
+/**
+ * True when the step inside the command (given by its order) ended in the expected state.
+ * The `stepRef` names a sequence step that runs a command (feature 167).
+ */
+export type CommandStepOutcomeStepCondition = {
+  type: 'commandStepOutcome';
+  stepRef: string;
+  commandStepOrder: number;
+  expectedState: CommandStepOutcomeExpectedState | '';
+  negate?: boolean;
+};
+
+export type SequenceStepCondition = ImageVisibleStepCondition | CommandOutcomeStepCondition | CommandStepOutcomeStepCondition;
 
 export type SequenceActionPayload = {
   type: string;

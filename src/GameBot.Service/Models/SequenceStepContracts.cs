@@ -125,6 +125,7 @@ internal sealed record WaitForImagePayloadContract {
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ImageVisibleConditionContract), typeDiscriminator: "imageVisible")]
 [JsonDerivedType(typeof(CommandOutcomeConditionContract), typeDiscriminator: "commandOutcome")]
+[JsonDerivedType(typeof(CommandStepOutcomeConditionContract), typeDiscriminator: "commandStepOutcome")]
 [JsonDerivedType(typeof(AllConditionContract), typeDiscriminator: "all")]
 [JsonDerivedType(typeof(AnyConditionContract), typeDiscriminator: "any")]
 [JsonDerivedType(typeof(NoneConditionContract), typeDiscriminator: "none")]
@@ -146,6 +147,17 @@ internal sealed record ImageVisibleConditionContract : SequenceStepConditionCont
 internal sealed record CommandOutcomeConditionContract : SequenceStepConditionContract {
   public required string StepRef { get; init; }
   public required string ExpectedState { get; init; }
+}
+
+/// <summary>
+/// A condition on the state of one top-level step of the command that a prior sequence step ran
+/// (feature 167). All fields are optional in JSON, so an absent field gives a 400 from validation and
+/// not a JSON read error.
+/// </summary>
+internal sealed record CommandStepOutcomeConditionContract : SequenceStepConditionContract {
+  public string? StepRef { get; init; }
+  public int CommandStepOrder { get; init; }
+  public string? ExpectedState { get; init; }
 }
 
 /// <summary>

@@ -1,4 +1,10 @@
-import type { SequenceCommandReference, SequencePrimitiveActionPayload, SequenceStepCondition } from './sequenceFlow';
+import type {
+  CommandOutcomeExpectedState,
+  CommandStepOutcomeExpectedState,
+  SequenceCommandReference,
+  SequencePrimitiveActionPayload,
+  SequenceStepCondition
+} from './sequenceFlow';
 
 /** Discriminated union for all step types in the sequence form editor. */
 export type StepEntry =
@@ -21,12 +27,16 @@ export type ActionStepEntry = {
    * still round-trips, and its scalar slots stay parametrizable.
    */
   primitiveAction?: SequencePrimitiveActionPayload;
-  conditionType: 'none' | 'imageVisible' | 'commandOutcome';
+  conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome';
   conditionNegate?: boolean;
   imageId: string;
   minSimilarity: string;
   outcomeStepRef: string;
-  expectedState: 'success' | 'failed' | 'skipped';
+  expectedState: CommandOutcomeExpectedState;
+  /** Feature 167: the order of the step inside the command, as typed. Used when conditionType is commandStepOutcome. */
+  stepOutcomeOrder?: string;
+  /** Feature 167: the state of the step inside the command. Empty means no state is chosen. */
+  stepOutcomeState?: CommandStepOutcomeExpectedState | '';
 };
 
 export type LoopStepEntry = {

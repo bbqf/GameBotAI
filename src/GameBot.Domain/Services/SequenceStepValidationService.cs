@@ -66,7 +66,43 @@ public sealed class SequenceStepValidationService {
       ValidateStepCondition(step, stepLabel, ownPosition, positionByStepId, errors, insideLoop: false);
     }
 
+    ValidateCommandStepOutcomeTargets(steps, errors);
     return errors;
+  }
+
+  /// <summary>
+  /// Feature 167: a <c>commandStepOutcome</c> condition must name a step that runs a command. The check
+  /// is a separate pass over all steps, so each slot of a condition gets it, and a reference that does
+  /// not resolve (reported by the slot rules) is not reported two times.
+  /// </summary>
+  private static void ValidateCommandStepOutcomeTargets(IReadOnlyList<SequenceStep> steps, List<string> errors) {
+    var all = new List<SequenceStep>();
+    CollectAllSteps(steps, all);
+    var byId = new Dictionary<string, SequenceStep>(StringComparer.Ordinal);
+    foreach (var step in all) {
+      if (!string.IsNullOrWhiteSpace(step.StepId)) byId.TryAdd(step.StepId, step);
+    }
+
+    foreach (var step in all) {
+      var label = string.IsNullOrWhiteSpace(step.StepId) ? $"order:{step.Order}" : step.StepId;
+      foreach (var condition in CommandStepOutcomeRules.ConditionsOf(step)) {
+        foreach (var leaf in CommandStepOutcomeRules.Collect(condition)) {
+          if (!string.IsNullOrWhiteSpace(leaf.StepRef)
+              && byId.TryGetValue(leaf.StepRef, out var target)
+              && !CommandStepOutcomeRules.RunsCommand(target)) {
+            errors.Add($"Step '{label}' commandStepOutcome stepRef '{leaf.StepRef}' must reference a step that runs a command.");
+          }
+        }
+      }
+    }
+  }
+
+  private static void CollectAllSteps(IReadOnlyList<SequenceStep> steps, List<SequenceStep> into) {
+    foreach (var step in steps) {
+      into.Add(step);
+      CollectAllSteps(step.Body, into);
+      if (step.ElseBody is not null) CollectAllSteps(step.ElseBody, into);
+    }
   }
 
   // Preorder walk (root steps in order; each Loop's Body and each If's Body/ElseBody expanded in

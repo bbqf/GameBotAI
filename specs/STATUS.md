@@ -194,6 +194,7 @@ Status vocabulary:
 | 164 | Digit Keys and Raw Key Codes in Key Input Steps | Implemented (phone check pending) |
 | 165 | Sequence Parameters in ocrText Pattern and Expected | Implemented |
 | 166 | Fix WaitForImage Timeout on an Image That Is on Screen | Implemented |
+| 167 | Sequence Condition on a Step Outcome Inside a Command | Implemented |
 
 ## Numbering notes
 

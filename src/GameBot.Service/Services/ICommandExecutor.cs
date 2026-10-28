@@ -69,6 +69,10 @@ internal sealed record PrimitiveTapResolvedPoint(int X, int Y);
 /// <summary>Start/end point pair for a swipe step (pre- or post-jitter).</summary>
 internal sealed record PrimitiveSwipePoints(PrimitiveTapResolvedPoint Start, PrimitiveTapResolvedPoint End);
 
+/// <remarks>
+/// <c>Depth</c> (feature 167) is the nesting depth of the step. It is 0 for a step of the command that
+/// the caller runs, and 1 or more for a step of a nested command. It changes no other field.
+/// </remarks>
 internal sealed record PrimitiveTapStepOutcome(
   int StepOrder,
   string Status,
@@ -85,7 +89,8 @@ internal sealed record PrimitiveTapStepOutcome(
   PrimitiveSwipePoints? TargetSwipe = null,
   PrimitiveSwipePoints? ExecutedSwipe = null,
   IReadOnlyList<ResolvedParameter>? ResolvedParameters = null,
-  int? HoldMs = null);
+  int? HoldMs = null,
+  int Depth = 0);
 
 /// <summary>
 /// The options of one command run (feature 127).

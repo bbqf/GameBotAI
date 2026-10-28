@@ -361,6 +361,20 @@ namespace GameBot.Domain.Commands {
 
           return;
 
+        case CommandStepOutcomeStepCondition stepOutcomeCondition:
+          // Feature 167: the last guard only. The save path gives a 400 before this point.
+          var stepOutcomeErrors = new List<string>();
+          GameBot.Domain.Services.CommandStepOutcomeRules.ValidateFields(stepOutcomeCondition, stepId, "$", stepOutcomeErrors);
+          if (string.IsNullOrWhiteSpace(stepOutcomeCondition.StepRef)) {
+            stepOutcomeErrors.Insert(0, $"Step '{stepId}' commandStepOutcome condition requires stepRef.");
+          }
+
+          if (stepOutcomeErrors.Count > 0) {
+            throw new InvalidOperationException(stepOutcomeErrors[0]);
+          }
+
+          return;
+
         case LastRunStepCondition lastRunCondition:
           // Feature 105: the last guard only. The save path gives a 400 before this point.
           var lastRunErrors = LastRunConditionRules.Validate(lastRunCondition);

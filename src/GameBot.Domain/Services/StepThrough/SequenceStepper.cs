@@ -41,6 +41,9 @@ public sealed class SequenceStepper {
   /// <summary>The note for a condition that reads the screen with OCR. A step-through does not read the screen.</summary>
   public const string OcrTextNote = "ocrText is not evaluated";
 
+  /// <summary>The note for a condition that reads the state of a step inside a command. A step-through keeps no such state (feature 167).</summary>
+  public const string CommandStepOutcomeNote = "commandStepOutcome is not evaluated";
+
   /// <summary>The note for a step that a real run would end the sequence at.</summary>
   public const string SequenceEndNote = "sequence would end here";
 
@@ -246,10 +249,20 @@ public sealed class SequenceStepper {
     };
   }
 
+  private static bool HasCommandStepOutcome(SequenceStepCondition? condition) {
+    return condition switch {
+      null => false,
+      CommandStepOutcomeStepCondition => true,
+      CompositeStepCondition composite => composite.Children.Any(HasCommandStepOutcome),
+      _ => false
+    };
+  }
+
   private static string[] ConditionNotes(params SequenceStepCondition?[] conditions) {
-    var notes = new List<string>(2);
+    var notes = new List<string>(3);
     if (conditions.Any(HasLastRun)) notes.Add(LastRunNote);
     if (conditions.Any(HasOcrText)) notes.Add(OcrTextNote);
+    if (conditions.Any(HasCommandStepOutcome)) notes.Add(CommandStepOutcomeNote);
     return notes.ToArray();
   }
 

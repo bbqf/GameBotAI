@@ -117,6 +117,10 @@ namespace GameBot.Domain.Services {
       // the run log shows the reason no-session.
       using var ocrScope = OcrTextEvaluationScope.EnsureScope();
 
+      // Feature 167: each run has its own step states. A nested run (a sequence that calls another one)
+      // gets a new scope, and the scope of the caller comes back at the end.
+      using var stepStateScope = CommandStepStateScope.Push(new CommandStepStateScope());
+
       // The sequence's own declarations join the scope so their defaults apply to any name no caller
       // supplied. Bindings still outrank defaults regardless of layer depth (see ParameterScope).
       var runScope = (scope ?? ParameterScope.Empty)
@@ -127,6 +131,14 @@ namespace GameBot.Domain.Services {
 
       if (!string.IsNullOrWhiteSpace(sequence.EntryStepId) && sequence.FlowSteps.Count > 0) {
         await ExecuteFlowGraphAsync(sequence, executeCommandAsync, commandDispatcher, conditionEvaluator, result, ct).ConfigureAwait(false);
+        if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
+        return result;
+      }
+
+      // Feature 167: a bad commandStepOutcome reference fails the run (and the dry run) before any step runs.
+      var stepRefErrors = CommandStepOutcomeRules.ValidateReferences(sequence.Steps);
+      if (stepRefErrors.Count > 0) {
+        result.Fail(string.Join("; ", stepRefErrors));
         if (_logger != null) LogSequenceEnd(_logger, sequenceId, result.Status, null);
         return result;
       }
@@ -878,6 +890,12 @@ namespace GameBot.Domain.Services {
         return true;
       }
       var durationMs = (int)(DateTimeOffset.UtcNow - cmdStart).TotalMilliseconds;
+
+      // Feature 167: the latest command run of this step replaces the older step states. A dry run does
+      // not run the command, so it keeps the older entry.
+      if (!cmdDispatch.SkippedDryRun && !string.IsNullOrWhiteSpace(stepKey)) {
+        CommandStepStateScope.Current?.Set(stepKey, cmdDispatch.StepStates);
+      }
 
       // The command ran without throwing, but nothing it contained reached the device — an
       // image-anchored tap that never found its template is the usual cause. Reporting "executed"
@@ -1934,6 +1952,8 @@ namespace GameBot.Domain.Services {
       // says which signals were involved rather than just naming a type.
       if (condition is CompositeStepCondition composite)
         return (composite.Type, SequenceStepConditionEvaluator.Describe(composite));
+      if (condition is CommandStepOutcomeStepCondition stepOutcome)
+        return (stepOutcome.Type, SequenceStepConditionEvaluator.Describe(stepOutcome));
       if (condition is LastRunStepCondition lastRun)
         return (lastRun.Type, SequenceStepConditionEvaluator.Describe(lastRun));
       if (condition is OcrTextStepCondition ocrText)

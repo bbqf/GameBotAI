@@ -31,11 +31,16 @@ namespace GameBot.Domain.Services;
 /// Feature 127: the outside effects that a step-through previewed inside the command instead of applying
 /// them (for example <c>would reschedule at 14:30</c>). Null or empty for every real run.
 /// </param>
+/// <param name="StepStates">
+/// Feature 167: the readable state of each top-level step of the command (key: step order). Only the
+/// states in <c>CommandStepOutcomeStates</c> are present. Null when no step has a readable state.
+/// </param>
 public sealed record CommandDispatchOutcome(
   bool Dispatched,
   string? Reason,
   bool SkippedDryRun = false,
-  IReadOnlyList<string>? PreviewedEffects = null) {
+  IReadOnlyList<string>? PreviewedEffects = null,
+  IReadOnlyDictionary<int, string>? StepStates = null) {
   /// <summary>The ordinary case: the command ran and its input reached the device.</summary>
   public static readonly CommandDispatchOutcome Executed = new(true, null);
 }
