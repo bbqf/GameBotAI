@@ -14,8 +14,14 @@ namespace GameBot.Emulator.Session;
 
 /// <summary>Manages emulator sessions and delegates ADB input/screenshot operations (Windows-only).</summary>
 [SupportedOSPlatform("windows")]
-public sealed class SessionManager : ISessionManager {
+public sealed class SessionManager : ISessionManager, ISessionRemovalNotifier {
   private readonly ConcurrentDictionary<string, EmulatorSession> _sessions = new();
+
+  /// <summary>
+  /// Occurs one time after a session goes out of the session table: a stop or the idle sweep
+  /// (feature 166). The capture service uses it to stop the capture loop of the session.
+  /// </summary>
+  public event EventHandler<SessionRemovedEventArgs>? SessionRemoved;
   private readonly ILogger<SessionManager> _logger;
   private readonly ILogger<AdbClient> _adbLogger;
   private readonly SessionOptions _options;
@@ -173,12 +179,34 @@ public sealed class SessionManager : ISessionManager {
   public bool StopSession(string id) {
     if (_sessions.TryGetValue(id, out var s)) {
       s.Status = SessionStatus.Stopping;
-      _sessions.TryRemove(id, out _);
+      var removed = _sessions.TryRemove(id, out _);
       _liveness?.Remove(id);
       Log.SessionStopped(_logger, id);
+      if (removed) RaiseSessionRemoved(id);
       return true;
     }
     return false;
+  }
+
+  /// <summary>
+  /// Raises <see cref="SessionRemoved"/> for one removed session (feature 166). The caller holds no lock.
+  /// Each handler runs in its own try block: a handler that fails gets a warning log, and the removal
+  /// does not fail.
+  /// </summary>
+  private void RaiseSessionRemoved(string id) {
+    var handlers = SessionRemoved;
+    if (handlers is null) return;
+    var args = new SessionRemovedEventArgs(id);
+    foreach (var handler in handlers.GetInvocationList().Cast<EventHandler<SessionRemovedEventArgs>>()) {
+      try {
+        handler(this, args);
+      }
+#pragma warning disable CA1031 // A handler failure must not fail the removal of the session.
+      catch (Exception ex) {
+#pragma warning restore CA1031
+        Log.SessionRemovedHandlerFailed(_logger, id, ex);
+      }
+    }
   }
 
   public async Task<int> SendInputsAsync(string id, IEnumerable<InputAction> actions, CancellationToken ct = default) {
@@ -513,6 +541,7 @@ public sealed class SessionManager : ISessionManager {
         if (_sessions.TryRemove(kv.Key, out _)) {
           _liveness?.Remove(kv.Key);
           Log.SessionEvicted(_logger, kv.Key, _options.IdleTimeoutSeconds);
+          RaiseSessionRemoved(kv.Key);
         }
       }
     }
@@ -683,4 +712,10 @@ internal static class Log {
           "Session {Id}: the device did not answer input action {Index} in {LimitMs} ms. The service did not send the actions after it.");
 
   public static void InputTimedOut(ILogger l, string id, int index, int limitMs) => _inputTimedOut(l, id, index, limitMs, null);
+
+  private static readonly Action<ILogger, string, Exception?> _sessionRemovedHandlerFailed =
+      LoggerMessage.Define<string>(LogLevel.Warning, new EventId(26, nameof(SessionRemovedHandlerFailed)),
+          "A handler of the SessionRemoved event failed for session {Id}. The session is removed.");
+
+  public static void SessionRemovedHandlerFailed(ILogger l, string id, Exception ex) => _sessionRemovedHandlerFailed(l, id, ex);
 }

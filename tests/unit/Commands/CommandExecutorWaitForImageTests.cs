@@ -123,6 +123,100 @@ public sealed class CommandExecutorWaitForImageTests {
     stopwatch.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(25);
   }
 
+  [Fact]
+  public async Task WaitForImageStartsNoPassAtOrAfterTheDeadline() {
+    // Feature 166 (FR-010): each pass takes 150 ms and finds nothing. With timeoutMs 300 and a poll
+    // interval of 1000 ms, the step does two passes, and the last wait ends 50 ms before the deadline.
+    using var bmp = CreateOneByOneBitmap();
+    var command = CreateWaitCommand(config: new WaitForImageConfig {
+      TimeoutMs = 300,
+      DetectionTarget = new DetectionTarget("img-1", 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence)
+    });
+    var screen = new SlowNullScreenSource(150);
+    var executor = new CommandExecutor(
+      new CommandRepoStub(command),
+      new SessionManagerStub(),
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      NullLogger<CommandExecutor>.Instance,
+      new ReferenceImageStoreStub(("img-1", bmp)),
+      screen,
+      new TemplateMatcherStub(Array.Empty<TemplateMatch>()),
+      new SessionContextCache(),
+      new AppConfig { CaptureIntervalMs = 1000 });
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
+
+    result.StepOutcomes[0].Status.Should().Be("completed_timeout");
+    result.StepOutcomes[0].Reason.Should().Be("timeout_elapsed");
+    var offsets = screen.StartOffsetsMs;
+    offsets.Should().HaveCount(2);
+    // timeoutMs - 50 ms + 30 ms tolerance for the timer resolution.
+    offsets.Should().OnlyContain(offset => offset < 280);
+  }
+
+  [Fact]
+  public async Task WaitForImageTimeoutWritesOneDebugLine() {
+    // Feature 166 (FR-012): one debug line on timeout, with the frame state and the best score.
+    using var bmp = CreateOneByOneBitmap();
+    var command = CreateWaitCommand(config: new WaitForImageConfig {
+      TimeoutMs = 60,
+      DetectionTarget = new DetectionTarget("img-1", 0.9, 0, 0, DetectionSelectionStrategy.HighestConfidence)
+    });
+    var logger = new CapturingLogger();
+    var executor = new CommandExecutor(
+      new CommandRepoStub(command),
+      new SessionManagerStub(),
+      new TriggerRepoStub(),
+      new TriggerEvaluationService(Array.Empty<ITriggerEvaluator>()),
+      logger,
+      new ReferenceImageStoreStub(("img-1", bmp)),
+      new ScreenSourceStub(null),
+      new TemplateMatcherStub(Array.Empty<TemplateMatch>()),
+      new SessionContextCache(),
+      new AppConfig { CaptureIntervalMs = 20 });
+
+    var result = await executor.ForceExecuteDetailedAsync("sess-1", command.Id, CancellationToken.None).ConfigureAwait(false);
+
+    result.StepOutcomes[0].Status.Should().Be("completed_timeout");
+    var lines = logger.Entries
+      .Where(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Debug && e.Message.Contains("timed out", StringComparison.Ordinal))
+      .ToList();
+    lines.Should().ContainSingle();
+    var line = lines[0].Message;
+    line.Should().Contain("sess-1");
+    line.Should().Contain("img-1");
+    line.Should().Contain("0.9");
+    line.Should().MatchRegex(@"\d+ passes");
+    line.Should().Contain("frame available false");
+    line.Should().Contain("best score none");
+  }
+
+  private sealed class SlowNullScreenSource : IScreenSource {
+    private readonly int _passMs;
+    private readonly Stopwatch _clock = new();
+    private readonly List<long> _offsets = new();
+    public SlowNullScreenSource(int passMs) => _passMs = passMs;
+    public IReadOnlyList<long> StartOffsetsMs { get { lock (_offsets) return _offsets.ToList(); } }
+    public Bitmap? GetLatestScreenshot() {
+      // The first pass is the start of the step.
+      if (!_clock.IsRunning) _clock.Start();
+      lock (_offsets) _offsets.Add(_clock.ElapsedMilliseconds);
+      Thread.Sleep(_passMs);
+      return null;
+    }
+  }
+
+  private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<CommandExecutor> {
+    private readonly List<(Microsoft.Extensions.Logging.LogLevel Level, string Message)> _entries = new();
+    public IReadOnlyList<(Microsoft.Extensions.Logging.LogLevel Level, string Message)> Entries { get { lock (_entries) return _entries.ToList(); } }
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+      lock (_entries) _entries.Add((logLevel, formatter(state, exception)));
+    }
+  }
+
   private sealed class CommandRepoStub : ICommandRepository {
     private readonly Command _command;
     public CommandRepoStub(Command command) => _command = command;

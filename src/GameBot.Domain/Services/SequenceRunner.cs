@@ -8,6 +8,9 @@ using System.Collections.Generic;
 using System.Text.Json;
 using GameBot.Domain.Commands.Blocks;
 using GameBot.Domain.Commands.EnsureGameRunning;
+using GameBot.Domain.Commands.Execution;
+using GameBot.Domain.Vision;
+using System.Globalization;
 using GameBot.Domain.Config;
 using GameBot.Domain.Logging;
 using GameBot.Domain.Actions;
@@ -603,7 +606,7 @@ namespace GameBot.Domain.Services {
       }
 
       if (IsWaitForImageStep(step)) {
-        await RecordWaitForImageStepAsync(step, stepKey, appliedDelay, conditionEvaluator, result, stepOutcomes, ct).ConfigureAwait(false);
+        await RecordWaitForImageStepAsync(step, stepKey, appliedDelay, conditionEvaluator, sequenceId, result, stepOutcomes, ct).ConfigureAwait(false);
         return false;
       }
 
@@ -719,10 +722,11 @@ namespace GameBot.Domain.Services {
         string stepKey,
         int appliedDelay,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+        string sequenceId,
         SequenceExecutionResult result,
         Dictionary<string, string> stepOutcomes,
         CancellationToken ct) {
-      var waitOutcome = await WaitForImageAsync(step.WaitForImage, conditionEvaluator, ct).ConfigureAwait(false);
+      var waitOutcome = await WaitForImageAsync(step.WaitForImage, conditionEvaluator, sequenceId, stepKey, ct).ConfigureAwait(false);
       result.AddStep(
           stepKey,
           appliedDelay,
@@ -1010,6 +1014,8 @@ namespace GameBot.Domain.Services {
     private async Task<WaitForImageStepOutcome> WaitForImageAsync(
         WaitForImageConfig? waitConfig,
         Func<Condition, CancellationToken, Task<bool>>? conditionEvaluator,
+        string sequenceId,
+        string stepKey,
         CancellationToken ct) {
       var effectiveConfig = waitConfig ?? new WaitForImageConfig();
       var timeoutMs = Math.Max(0, effectiveConfig.TimeoutMs);
@@ -1049,44 +1055,74 @@ namespace GameBot.Domain.Services {
         PixelRegion = detectionTarget.Region
       };
 
-      try {
-        if (await conditionEvaluator(condition, ct).ConfigureAwait(false)) {
-          detail.ExitCondition = "image_detected";
-          return new WaitForImageStepOutcome("image_detected", detail);
-        }
+      // Feature 166 (FR-012): the image evaluator writes each pass into this scope, for the timeout log line.
+      using var passScope = ImageDetectionPassScope.Push();
+      var (pollResult, passCount) = await PollImageConditionAsync(condition, conditionEvaluator, deadline, ct).ConfigureAwait(false);
+      if (pollResult == WaitPollResult.Detected) {
+        detail.ExitCondition = "image_detected";
+        return new WaitForImageStepOutcome("image_detected", detail);
       }
-      catch {
+      if (pollResult == WaitPollResult.Unavailable) {
         await WaitUntilDeadlineAsync(deadline, ct).ConfigureAwait(false);
         detail.ExitCondition = "image_unavailable";
         detail.ImageLoadStatus = "unavailable";
         return new WaitForImageStepOutcome("image_unavailable", detail);
       }
 
-      while (DateTimeOffset.UtcNow < deadline) {
-        var remaining = deadline - DateTimeOffset.UtcNow;
-        if (remaining <= TimeSpan.Zero) {
-          break;
-        }
+      LogWaitForImageTimeout(sequenceId, stepKey, detectionTarget, passCount, ImageDetectionPassScope.Current?.LastPass);
+      detail.ExitCondition = "timeout_elapsed";
+      return new WaitForImageStepOutcome("timeout_elapsed", detail);
+    }
 
-        var pollMs = Math.Max(1, Math.Min(_config.CaptureIntervalMs, (int)Math.Ceiling(remaining.TotalMilliseconds)));
-        await Task.Delay(pollMs, ct).ConfigureAwait(false);
+    private enum WaitPollResult { Detected, Unavailable, TimedOut }
 
+    /// <summary>
+    /// Evaluates the image condition of a <c>WaitForImage</c> step until it is true or the time ends
+    /// (feature 166, FR-010). The first evaluation runs at once. No evaluation starts at or after the
+    /// deadline, and the last wait ends 50 ms before the deadline (<see cref="WaitForImageSchedule"/>).
+    /// Returns the result and the number of evaluations.
+    /// </summary>
+    private async Task<(WaitPollResult Result, int PassCount)> PollImageConditionAsync(
+        Condition condition,
+        Func<Condition, CancellationToken, Task<bool>> conditionEvaluator,
+        DateTimeOffset deadline,
+        CancellationToken ct) {
+      var pollInterval = TimeSpan.FromMilliseconds(Math.Max(1, _config.CaptureIntervalMs));
+      var passCount = 0;
+      var isLastPass = false;
+      while (true) {
+        passCount++;
         try {
           if (await conditionEvaluator(condition, ct).ConfigureAwait(false)) {
-            detail.ExitCondition = "image_detected";
-            return new WaitForImageStepOutcome("image_detected", detail);
+            return (WaitPollResult.Detected, passCount);
           }
         }
         catch {
-          await WaitUntilDeadlineAsync(deadline, ct).ConfigureAwait(false);
-          detail.ExitCondition = "image_unavailable";
-          detail.ImageLoadStatus = "unavailable";
-          return new WaitForImageStepOutcome("image_unavailable", detail);
+          return (WaitPollResult.Unavailable, passCount);
         }
-      }
 
-      detail.ExitCondition = "timeout_elapsed";
-      return new WaitForImageStepOutcome("timeout_elapsed", detail);
+        if (isLastPass) break;
+        var next = WaitForImageSchedule.NextWait(deadline - DateTimeOffset.UtcNow, pollInterval);
+        if (next.Stop) break;
+        if (next.Wait > TimeSpan.Zero) await Task.Delay(next.Wait, ct).ConfigureAwait(false);
+        // Read the clock again: an evaluation starts only before the deadline.
+        if (DateTimeOffset.UtcNow >= deadline) break;
+        isLastPass = next.IsLastWait;
+      }
+      return (WaitPollResult.TimedOut, passCount);
+    }
+
+    /// <summary>
+    /// Writes one debug line when an inline <c>WaitForImage</c> step times out (feature 166, FR-012). The
+    /// frame state is <c>unknown</c> when no evaluator wrote a pass. The API response does not change.
+    /// </summary>
+    private void LogWaitForImageTimeout(string sequenceId, string stepKey, DetectionTarget detectionTarget, int passCount, ImageDetectionPass? lastPass) {
+      if (_logger is null || !_logger.IsEnabled(LogLevel.Debug)) return;
+      var frameState = lastPass is null ? "unknown" : (lastPass.FrameAvailable ? "true" : "false");
+      var bestScore = lastPass?.BestScore is { } score ? score.ToString("0.000", CultureInfo.InvariantCulture) : "none";
+      var confidence = detectionTarget.Confidence.ToString(CultureInfo.InvariantCulture);
+      var referenceImageId = detectionTarget.ReferenceImageId;
+      SequenceRunnerLog.WaitForImageTimedOut(_logger, sequenceId, stepKey, referenceImageId, confidence, passCount, frameState, bestScore);
     }
 
     private static async Task WaitUntilDeadlineAsync(DateTimeOffset deadline, CancellationToken ct) {
@@ -2766,5 +2802,11 @@ namespace GameBot.Domain.Services {
     public int IterationIndex { get; set; }
     public bool BreakTriggered { get; set; }
     public int StepCount { get; set; }
+  }
+
+  /// <summary>Log lines of <see cref="SequenceRunner"/> with more values than <c>LoggerMessage.Define</c> accepts.</summary>
+  internal static partial class SequenceRunnerLog {
+    [LoggerMessage(EventId = 51013, Level = LogLevel.Debug, Message = "WaitForImage step {StepKey} of sequence {SequenceId} timed out for image {ReferenceImageId} at confidence {Confidence}: {PassCount} passes, last pass frame available {FrameAvailable}, best score {BestScore}.")]
+    public static partial void WaitForImageTimedOut(ILogger logger, string SequenceId, string StepKey, string ReferenceImageId, string Confidence, int PassCount, string FrameAvailable, string BestScore);
   }
 }

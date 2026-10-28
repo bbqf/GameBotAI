@@ -10,7 +10,8 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-27 (feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
+_Last reviewed: 2026-10-27 (feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
+feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
 feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
 feature 161: the gamepack install answer has `summary`, `wouldInstallWithTakeOver`, and the problem fields `takeOverResolves` and `remedy`, made by `GamepackFailureExplainer`;
@@ -1007,6 +1008,33 @@ after it. When the data-only report after the dispatch is `not_live`, the servic
 process tree on the token before the first read. A cancel or a time-out thus stops the process, also
 when the read of the synchronous screenshot pipe is blocked. Each capture of the capture loop has the
 limit `CaptureTimeoutMs`, so one hung `screencap` does not stop the loop.
+
+**Capture loop lifecycle (feature 166, #350).** All three paths that make a session start the capture
+loop of a session with a device: `POST /api/sessions`, `POST /api/sessions/start`, and the session of a
+queue run. Before feature 166, `POST /api/sessions` started no loop. The session screen source then had
+no frame, and a `WaitForImage` step timed out on an image that was on screen. A failure to start the
+loop writes a warning and does not fail the create. Each removal of a session stops its loop:
+`DELETE /api/sessions/{id}` calls `StopCapture` before `StopSession`. `SessionManager` implements
+`ISessionRemovalNotifier` and raises `SessionRemoved` one time after each removal from its session
+table (a stop or the idle sweep). `SessionCaptureCleanup.Attach`, called in the DI factory of
+`BackgroundScreenCaptureService`, stops the loop on this event. A handler failure writes a warning and
+does not fail the removal. A second stop of a loop does nothing. The idle sweep is lazy: it runs at the
+start of a session manager call, so the loop stops at the first call after the idle timeout. Stub mode
+(`GAMEBOT_USE_ADB=false`) has no capture service and starts no loop.
+
+**WaitForImage poll schedule (feature 166).** `CommandExecutor` (step execute, command force-execute,
+sequence command step) and `SequenceRunner` (inline sequence step) use one rule,
+`WaitForImageSchedule.NextWait`. The first pass runs at once. While more time remains than the poll
+interval (`CaptureIntervalMs`), the step waits one interval. When not more than one interval remains,
+the last wait ends 50 ms before the deadline, and the step does one last pass. After each wait the
+step reads the clock again, and no pass starts at or after the deadline. Thus the step completes in not
+more than `timeoutMs` plus one pass. On a timeout, each path writes one debug log line with the pass
+count, the frame state of the last pass, and the best score (three decimals, or `none`).
+`ImageDetectionHelper.DetectPass` gives these values on the command path. On the sequence path,
+`SequenceRunner` pushes an `ImageDetectionPassScope` for the wait, and `ImageMatchEvaluator` writes the
+last pass into it. The frame state is `unknown` when no evaluator wrote a pass. With no scope, the
+evaluator writes nothing, so triggers and `imageVisible` conditions do not change. The API response
+does not change.
 
 **Queue gate.** `QueueExecutionService` evaluates the data-only report one time for each firing
 group (the main firing, its before-each-run pass and its every-step pass; a standalone every-step pass

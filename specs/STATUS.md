@@ -193,6 +193,7 @@ Status vocabulary:
 | 163 | Fix The Second Files In Use Dialog | Implemented (production upgrade check pending) |
 | 164 | Digit Keys and Raw Key Codes in Key Input Steps | Implemented (phone check pending) |
 | 165 | Sequence Parameters in ocrText Pattern and Expected | Implemented |
+| 166 | Fix WaitForImage Timeout on an Image That Is on Screen | Implemented |
 
 ## Numbering notes
 
