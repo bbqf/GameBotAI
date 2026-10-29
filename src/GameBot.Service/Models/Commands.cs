@@ -15,20 +15,29 @@ internal sealed class ParameterDeclarationDto {
   public bool? Required { get; init; }
   public string? Description { get; init; }
   /// <summary>Readable name for the person who fills the value (feature 168). 1 to 80 characters.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Label { get; init; }
   /// <summary>Short help text under the field (feature 168). Up to 300 characters.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? HelpText { get; init; }
   /// <summary>"text", "number", "choice", or "image". When omitted, the kind follows from the type.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Kind { get; init; }
   /// <summary>Options of a choice parameter. 1 to 50 items.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Collection<ParameterOptionDto>? Options { get; init; }
   /// <summary>IDs of the images that a person may select. 1 to 50 items.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public Collection<string>? AllowedImages { get; init; }
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public int? Min { get; init; }
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public int? Max { get; init; }
   /// <summary>Unit text next to a number, for example "ms". Up to 20 characters.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Unit { get; init; }
   /// <summary>Technical text with exactly one {value} marker. The result is text.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Pattern { get; init; }
 }
 
