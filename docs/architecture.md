@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-28 (feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
+_Last reviewed: 2026-10-29 (feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
 feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
 feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
@@ -93,6 +93,17 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
   - A **declaration** (`ParameterDeclaration`: name, type `text`/`number`, optional default, required
     flag, description) is what makes a parameter discoverable — the authoring UI renders it as a
     binding form on every call site and offers it in the insert-parameter picker.
+  - **Friendly members** (feature 168): a declaration can also have a `label`, `helpText`, and a `kind`
+    (`text`, `number`, `choice`, or `image`). A `choice` has 1 to 50 `options` (readable `label`, technical
+    `value`). An `image` has 1 to 50 `allowedImages` (image IDs). A `number` can have `min`, `max`, `unit`,
+    and a `pattern` with one `{value}` marker. All members are optional, and a declaration without them
+    works as before. A binding stores the technical value, so there is no migration. `ParameterValueRules`
+    checks a saved value, and a value that does not fit is the warning `invalid_parameter_value`, never an
+    error and never a refused queue start. `ParameterScope.TryResolve` applies the pattern, and the
+    `Mapped` flag of `ParameterValue` stops a second application. The execution log shows the option
+    `label` of a choice next to the technical value (not for a masked name). The step form has "Use a
+    parameter of this sequence", which stores `{{name}}`. A text-typed friendly parameter in a numeric
+    field is the error `text_parameter_in_numeric_field`.
   - A **binding** (`ParameterBinding`) supplies a value at one call site: a queue-template entry binds
     a sequence's parameters, and a sequence's command step binds a command's. `Value == null` means
     *inherit*; the empty string is a deliberate real value.

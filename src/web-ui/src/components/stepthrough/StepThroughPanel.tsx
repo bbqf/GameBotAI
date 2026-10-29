@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { getRunningSessions, RunningSessionDto } from '../../services/sessionsApi';
+import { getSequence } from '../../services/sequences';
+import type { ParameterDeclaration } from '../parameters/types';
 import { HistoryList } from './HistoryList';
 import { QueueBanner } from './QueueBanner';
 import { StepList } from './StepList';
@@ -47,6 +49,24 @@ export const StepThroughPanel: React.FC<StepThroughPanelProps> = ({ sequenceId, 
   useEffect(() => {
     void loadSessions();
   }, [loadSessions]);
+
+  // Feature 168: the declarations give the Values form its friendly fields. When they do not load, the
+  // form shows plain text boxes as before.
+  const [declarations, setDeclarations] = useState<ParameterDeclaration[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => getSequence(sequenceId))
+      .then((sequence) => {
+        if (!cancelled) setDeclarations(sequence?.parameters ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setDeclarations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sequenceId]);
 
   const close = async () => {
     await stepThrough.end();
@@ -155,6 +175,7 @@ export const StepThroughPanel: React.FC<StepThroughPanelProps> = ({ sequenceId, 
         outcomes={state.outcomes}
         nodes={state.nodes}
         disabled={controlsLocked}
+        declarations={declarations}
         onApply={(values) => void stepThrough.setValues(values)}
       />
 

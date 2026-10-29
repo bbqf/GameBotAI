@@ -14,6 +14,30 @@ internal sealed class ParameterDeclarationDto {
   public string? Default { get; init; }
   public bool? Required { get; init; }
   public string? Description { get; init; }
+  /// <summary>Readable name for the person who fills the value (feature 168). 1 to 80 characters.</summary>
+  public string? Label { get; init; }
+  /// <summary>Short help text under the field (feature 168). Up to 300 characters.</summary>
+  public string? HelpText { get; init; }
+  /// <summary>"text", "number", "choice", or "image". When omitted, the kind follows from the type.</summary>
+  public string? Kind { get; init; }
+  /// <summary>Options of a choice parameter. 1 to 50 items.</summary>
+  public Collection<ParameterOptionDto>? Options { get; init; }
+  /// <summary>IDs of the images that a person may select. 1 to 50 items.</summary>
+  public Collection<string>? AllowedImages { get; init; }
+  public int? Min { get; init; }
+  public int? Max { get; init; }
+  /// <summary>Unit text next to a number, for example "ms". Up to 20 characters.</summary>
+  public string? Unit { get; init; }
+  /// <summary>Technical text with exactly one {value} marker. The result is text.</summary>
+  public string? Pattern { get; init; }
+}
+
+/// <summary>One option of a choice parameter on the wire (feature 168).</summary>
+internal sealed class ParameterOptionDto {
+  /// <summary>The text that the person sees.</summary>
+  public string? Label { get; init; }
+  /// <summary>The technical value that the commands receive.</summary>
+  public string? Value { get; init; }
 }
 
 /// <summary>

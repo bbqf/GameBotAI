@@ -69,6 +69,15 @@ internal sealed class ParametrizedReferenceImageSchemaFilter : ISchemaFilter {
     }
     else if (context.Type == typeof(ParameterDeclarationDto)) {
       Describe(schema, "type", ParameterTypeDescription);
+      Describe(schema, "label", "Readable name that the person sees in the value form. 1 to 80 characters. Optional. The form shows `name` when the label is empty.");
+      Describe(schema, "helpText", "Short help text under the field in the value form. Up to 300 characters. Optional.");
+      Describe(schema, "kind", "How the person enters the value: `text`, `number`, `choice`, or `image`. Optional. When empty, the kind follows from `type`. A binding stores the technical value for each kind. `choice` needs `options`. `image` needs `allowedImages`. The pair kind `text` with type `number` is refused.");
+      Describe(schema, "options", "The options of a `choice` parameter. 1 to 50 items. Each item has a `label` (unique, no case) and a technical `value` (unique). An option value that is exactly one `{{name}}` placeholder is refused. `{{` inside longer text is plain text.");
+      Describe(schema, "allowedImages", "The IDs of the images that a person may select for an `image` parameter. 1 to 50 items, no duplicates. An ID with no stored image gives the warning `unknown_allowed_image`.");
+      Describe(schema, "min", "Lowest allowed whole number of a `number` parameter. Optional. A saved value outside the range gives the warning `invalid_parameter_value`.");
+      Describe(schema, "max", "Highest allowed whole number of a `number` parameter. Optional. Not less than `min`.");
+      Describe(schema, "unit", "Unit text next to the number in the value form, for example `ms`. Up to 20 characters. Optional.");
+      Describe(schema, "pattern", "Technical text with exactly one `{value}` marker for a `number` parameter. The entered number goes into the marker when the name is resolved. The result is text, so you cannot use it in a numeric field (error `text_parameter_in_numeric_field`).");
     }
     else if (context.Type == typeof(TemplateEntrySaveRequest)) {
       Describe(schema, "parameterValues", ParameterValuesDescription);

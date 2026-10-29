@@ -80,6 +80,15 @@ namespace GameBot.Domain.Services {
       _config = config;
     }
 
+    // Feature 168: with a command repository, a step binding that equals an option value of the called
+    // command stays plain text. DI uses this constructor, because it has the most parameters.
+    public SequenceRunner(ISequenceRepository repository, ILogger<SequenceRunner> logger, AppConfig config, ICommandRepository? commands)
+      : this(repository, logger, config) {
+      _commands = commands;
+    }
+
+    private readonly ICommandRepository? _commands;
+
     /// <summary>
     /// Executes a sequence.
     /// </summary>
@@ -846,7 +855,10 @@ namespace GameBot.Domain.Services {
       // When a placeholder does not resolve, the step fails and the command does not run.
       var commandScope = scope;
       if (originalStep.ParameterBindings is { Count: > 0 }) {
-        if (!scope.TryBindChild(ParameterScopeLayers.Command, originalStep.ParameterBindings, out var bound, out var bindingError)) {
+        var callee = _commands is null || string.IsNullOrWhiteSpace(step.CommandId)
+            ? null
+            : await _commands.GetAsync(step.CommandId, CancellationToken.None).ConfigureAwait(false);
+        if (!scope.TryBindChild(ParameterScopeLayers.Command, originalStep.ParameterBindings, out var bound, out var bindingError, callee?.Parameters)) {
           var bindingMessage = bindingError.ToMessage(stepKey);
           result.AddStep(
               step.CommandId,

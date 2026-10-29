@@ -26,12 +26,48 @@ internal static class ParameterDtoMapper {
             : ParameterValueType.Text,
         Default = dto.Default,
         Required = dto.Required ?? false,
-        Description = dto.Description
+        Description = dto.Description,
+        Label = dto.Label,
+        HelpText = dto.HelpText,
+        Kind = ParseKind(dto.Kind),
+        Options = dto.Options?
+            .Select(o => new ParameterOption { Label = o.Label ?? string.Empty, Value = o.Value ?? string.Empty })
+            .ToList(),
+        AllowedImages = dto.AllowedImages?.ToList(),
+        Min = dto.Min,
+        Max = dto.Max,
+        Unit = dto.Unit,
+        Pattern = dto.Pattern
       });
     }
 
     return result;
   }
+
+  /// <summary>
+  /// The value that stands for a kind text that no kind matches. The declaration rules report it as an
+  /// error, so the caller sees a clear message and not a silent fallback.
+  /// </summary>
+  internal const ParameterInputKind UnknownKind = (ParameterInputKind)(-1);
+
+  private static ParameterInputKind? ParseKind(string? kind) {
+    if (string.IsNullOrWhiteSpace(kind)) return null;
+    return kind.Trim().ToLowerInvariant() switch {
+      "text" => ParameterInputKind.Text,
+      "number" => ParameterInputKind.Number,
+      "choice" => ParameterInputKind.Choice,
+      "image" => ParameterInputKind.Image,
+      _ => UnknownKind
+    };
+  }
+
+  private static string? KindToText(ParameterInputKind? kind) => kind switch {
+    ParameterInputKind.Text => "text",
+    ParameterInputKind.Number => "number",
+    ParameterInputKind.Choice => "choice",
+    ParameterInputKind.Image => "image",
+    _ => null
+  };
 
   /// <summary>Projects declarations for a response; returns null when there are none, so the member is omitted.</summary>
   /// <param name="declarations">Domain declarations.</param>
@@ -43,7 +79,19 @@ internal static class ParameterDtoMapper {
       Type = d.Type == ParameterValueType.Number ? "number" : "text",
       Default = d.Default,
       Required = d.Required,
-      Description = d.Description
+      Description = d.Description,
+      Label = d.Label,
+      HelpText = d.HelpText,
+      Kind = KindToText(d.Kind),
+      Options = d.Options is { Count: > 0 }
+          ? new Collection<ParameterOptionDto>(
+              d.Options.Select(o => new ParameterOptionDto { Label = o.Label, Value = o.Value }).ToList())
+          : null,
+      AllowedImages = d.AllowedImages is { Count: > 0 } ? new Collection<string>(d.AllowedImages.ToList()) : null,
+      Min = d.Min,
+      Max = d.Max,
+      Unit = d.Unit,
+      Pattern = d.Pattern
     }).ToList());
   }
 

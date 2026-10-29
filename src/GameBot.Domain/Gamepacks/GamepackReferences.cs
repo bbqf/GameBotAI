@@ -19,8 +19,18 @@ public static class GamepackReferences {
   /// <param name="sequence">The sequence.</param>
   public static IEnumerable<string> ImageIds(CommandSequence sequence) {
     ArgumentNullException.ThrowIfNull(sequence);
-    return Flatten(sequence.Steps).SelectMany(StepImageIds);
+    return Flatten(sequence.Steps).SelectMany(StepImageIds).Concat(AllowedImageIds(sequence.Parameters));
   }
+
+  /// <summary>
+  /// Gets the image ids that parameter declarations allow (feature 168). An allowed image is an image
+  /// reference, so a pack that is installed must hold it or the target must have it.
+  /// </summary>
+  private static IEnumerable<string> AllowedImageIds(IEnumerable<GameBot.Domain.Parameters.ParameterDeclaration> declarations) =>
+    declarations
+      .Where(d => d.AllowedImages is not null)
+      .SelectMany(d => d.AllowedImages!)
+      .Where(id => !string.IsNullOrWhiteSpace(id));
 
   /// <summary>Gets the command ids that a command names.</summary>
   /// <param name="command">The command.</param>
@@ -43,6 +53,7 @@ public static class GamepackReferences {
       AddIfSet(ids, step.EnsureGameRunning?.ReadinessImage?.ReferenceImageId);
     }
 
+    ids.AddRange(AllowedImageIds(command.Parameters));
     return ids;
   }
 

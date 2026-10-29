@@ -58,6 +58,24 @@ export const listImages = async (): Promise<string[]> => {
   return [];
 };
 
+/** One stored image with its read-only owner (feature 143). `owner.kind` is `user` or `gamepack`. */
+export type ImageListItem = {
+  id: string;
+  owner?: { kind: string; name?: string; version?: string } | null;
+};
+
+/** Lists the stored images with their owners. Used by the image picker of friendly parameters (feature 168). */
+export const listImageItems = async (): Promise<ImageListItem[]> => {
+  const data = await getJson<{ ids?: string[]; items?: ImageListItem[] }>('/api/images');
+  if (data && Array.isArray(data.items)) {
+    return data.items.filter((item) => typeof item?.id === 'string');
+  }
+  if (data && Array.isArray(data.ids)) {
+    return data.ids.filter((id): id is string => typeof id === 'string').map((id) => ({ id }));
+  }
+  return [];
+};
+
 export const getImageMetadata = async (id: string) => getJson<ImageMetadata>(`/api/images/${encodeURIComponent(id)}/metadata`);
 
 export const getImageBlob = async (id: string): Promise<Blob> => {

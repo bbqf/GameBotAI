@@ -37,6 +37,10 @@ The level is the field `phone` in `src/types/navigation.ts`. A new area cannot c
 | Authoring | `desktop-only` |
 | Execution Logs | `desktop-only` |
 
+The value form of a parameter (feature 168) is a component, not an area. It works at 375 px: one column,
+controls of at least 44 px, no horizontal scroll, and an image grid that wraps. The parameter editor
+(cards, options, allowed images, preview) is desktop-only. On a phone it shows "Use a larger screen".
+
 ## Queue activity on a phone
 
 The queue detail shows what the queue does now and what it will do next.

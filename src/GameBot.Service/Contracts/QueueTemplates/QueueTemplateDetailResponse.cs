@@ -4,6 +4,12 @@ namespace GameBot.Service.Contracts.QueueTemplates {
   /// <summary>Single-template representation including its ordered, resolved sequence entries.</summary>
   internal sealed class QueueTemplateDetailResponse : QueueTemplateSummaryResponse {
     public Collection<QueueTemplateEntryResponse> Entries { get; } = new Collection<QueueTemplateEntryResponse>();
+
+    /// <summary>
+    /// Warnings from the save (feature 168): a saved value that does not match its declaration.
+    /// Null when there are none. A warning never stops the save.
+    /// </summary>
+    public Collection<GameBot.Service.Models.ParameterWarningDto>? Warnings { get; set; }
   }
 
   /// <summary>

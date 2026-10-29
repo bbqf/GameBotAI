@@ -9,6 +9,15 @@
 /** "text" values substitute verbatim; "number" values must occupy a whole field. */
 export type ParameterValueType = 'text' | 'number';
 
+/** How a person enters the value (feature 168). When absent, the kind follows from the type. */
+export type ParameterInputKind = 'text' | 'number' | 'choice' | 'image';
+
+/** One option of a choice parameter: the label the person sees and the technical value (feature 168). */
+export type ParameterOption = {
+  label: string;
+  value: string;
+};
+
 /** A parameter a command or sequence declares. */
 export type ParameterDeclaration = {
   name: string;
@@ -16,6 +25,29 @@ export type ParameterDeclaration = {
   default?: string | null;
   required: boolean;
   description?: string | null;
+  /** Readable name for the person who fills the value. */
+  label?: string | null;
+  /** Short help text under the field. */
+  helpText?: string | null;
+  kind?: ParameterInputKind | null;
+  options?: ParameterOption[] | null;
+  /** IDs of the images a person may select (image kind). */
+  allowedImages?: string[] | null;
+  min?: number | null;
+  max?: number | null;
+  unit?: string | null;
+  /** Technical text with one {value} marker (number kind). */
+  pattern?: string | null;
+};
+
+/** The kind in use: the declared kind, or the kind that follows from the type. */
+export const effectiveKind = (declaration: Pick<ParameterDeclaration, 'kind' | 'type'>): ParameterInputKind =>
+  declaration.kind ?? (declaration.type === 'number' ? 'number' : 'text');
+
+/** The text a person sees for a parameter: the label when set, otherwise the technical name. */
+export const displayLabel = (declaration: Pick<ParameterDeclaration, 'label' | 'name'>): string => {
+  const label = declaration.label?.trim();
+  return label ? label : declaration.name;
 };
 
 /**

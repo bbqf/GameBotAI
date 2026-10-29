@@ -17,6 +17,16 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Friendly sequence parameters (168-friendly-sequence-parameters)
+  - **New**: a parameter declaration can have a `label`, `helpText`, and a `kind`: `choice` (readable `options` with technical values), `image` (a short list of `allowedImages`), or `number` (with `min`, `max`, `unit`, and a `pattern` with one `{value}` marker). A person fills the value with an image picker, buttons or a list of readable options, or a number field. The sequence gets the technical value.
+  - **No migration**: all new members are optional. A saved binding stores the technical value, so old commands, sequences, and queue templates run as before.
+  - **Warnings, not errors**: a saved value that does not fit its declaration (for example a number out of range or an option that was removed) gives the warning `invalid_parameter_value` at save. It never stops a queue start or a run.
+  - **Errors**: a text-typed friendly parameter (a text choice, an image, or a number with a pattern) in a numeric field of a command step gives `text_parameter_in_numeric_field`. A declaration with a bad member gives `invalid_parameter_declaration` with a hint.
+  - **Log**: the execution log shows the option label of a choice next to the technical value.
+  - **Web UI**: the parameter editor has cards, an options editor, an allowed-images dialog, number settings, name suggestions, and a live preview. A step form has "Use a parameter of this sequence". The value form works at phone width. The editor is desktop-only and shows "Use a larger screen" on a phone.
+  - **Gamepack**: an allowed image counts as an image reference of the pack.
+  - The patch version is now 22, so the next build is `1.11.22.<run number>`.
+  - See `docs/architecture.md`.
 - Sequence condition on a step outcome inside a command (167-command-step-outcome-condition, #352)
   - **New condition**: `commandStepOutcome` is true when one step inside the command of a sequence step ended in an expected state. Fields: `stepRef` (a prior sequence step that runs a command), `commandStepOrder` (1 or more), `expectedState` (`executed`, `skipped_detection_failed`, `completed_timeout`, or `image_detected`), and `negate`. It works in each position where `commandOutcome` works: the step guard, `If`, `Loop`, `breakCondition`, and the children of `all`, `any`, and `none`.
   - **Use**: a sequence can end the run after a recall, or fail by name, when a step inside the command was skipped. The command is not changed.

@@ -1165,6 +1165,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
           <ParameterBindingForm
             declarations={commandParameters.get(step.commandId) ?? []}
             bindings={step.parameterBindings ?? []}
+            sequenceDeclarations={form.parameters}
             disabled={submitting || loading}
             onChange={(bindings) => {
               setForm((prev) => ({
@@ -1571,7 +1572,7 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         </div>
       )}
     </div>
-  ), [form.steps, submitting, loading, commandParameters, editorParameterScope]);
+  ), [form.steps, form.parameters, submitting, loading, commandParameters, editorParameterScope]);
 
   const createLoopStep = (loopType: 'count' | 'while' | 'repeatUntil'): SequenceStep => {
     const id = makeId();

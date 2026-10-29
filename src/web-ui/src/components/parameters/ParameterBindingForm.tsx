@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import type { ParameterBinding, ParameterDeclaration, ParameterScopeEntry } from './types';
-import { originLayerLabel } from './types';
+import { displayLabel, originLayerLabel } from './types';
 import { validateParameterName } from './ParameterDeclarationList';
+import { ParameterValueField } from './fields/ParameterValueField';
 
 export type ParameterBindingFormProps = {
   /** What the callee declares. Every row starts on "inherit", so the common case is zero clicks. */
@@ -23,6 +24,16 @@ export type ParameterBindingFormProps = {
   disabled?: boolean;
   /** Non-blocking advisories keyed by parameter name, e.g. "used by nothing in this entry". */
   warnings?: Record<string, string>;
+  /**
+   * The parameters of the sequence. Give this only at a sequence step form. It shows
+   * "Use a parameter of this sequence" for a parameter of the same type (feature 168, FR-028).
+   */
+  sequenceDeclarations?: readonly ParameterDeclaration[];
+  /**
+   * The author's preview (feature 168): every row shows its value field, there is no Inherit control and
+   * no effective-value note, and nothing is saved.
+   */
+  previewMode?: boolean;
 };
 
 const INHERIT = null;
@@ -42,6 +53,8 @@ export const ParameterBindingForm: React.FC<ParameterBindingFormProps> = ({
   allowAdHoc,
   disabled,
   warnings,
+  sequenceDeclarations,
+  previewMode,
 }) => {
   const [adHocName, setAdHocName] = useState('');
   const [adHocError, setAdHocError] = useState<string | undefined>();
@@ -78,25 +91,30 @@ export const ParameterBindingForm: React.FC<ParameterBindingFormProps> = ({
 
   const renderRow = (name: string, declaration?: ParameterDeclaration, adHoc = false) => {
     const binding = bindingFor(name);
-    const inheriting = !binding || binding.value === INHERIT || binding.value === undefined;
+    const inheriting = !previewMode && (!binding || binding.value === INHERIT || binding.value === undefined);
     const resolved = effectiveFor(name);
     const warning = warnings?.[name];
 
     return (
       <li key={name} className={`parameter-binding-row${adHoc ? ' parameter-binding-adhoc' : ''}`}>
         <div className="parameter-binding-head">
-          <span className="parameter-binding-name">{name}</span>
+          <span className="parameter-binding-name">{declaration ? displayLabel(declaration) : name}</span>
           {adHoc && <span className="parameter-binding-badge">ad-hoc</span>}
           {declaration?.required && <span className="parameter-binding-required">required</span>}
-          {declaration?.type === 'number' && <span className="parameter-binding-type">number</span>}
+          {declaration?.type === 'number' && !declaration.label && (
+            <span className="parameter-binding-type">number</span>
+          )}
         </div>
 
+        {declaration?.helpText && (
+          <p className="parameter-binding-help">{declaration.helpText}</p>
+        )}
         {declaration?.description && (
           <p className="parameter-binding-description">{declaration.description}</p>
         )}
 
         <div className="parameter-binding-controls">
-          {!adHoc && (
+          {!adHoc && !previewMode && (
             <label className="parameter-binding-inherit">
               <input
                 type="checkbox"
@@ -108,15 +126,25 @@ export const ParameterBindingForm: React.FC<ParameterBindingFormProps> = ({
               <span>Inherit</span>
             </label>
           )}
-          <input
-            type="text"
-            className="parameter-binding-value"
-            value={binding?.value ?? ''}
-            disabled={disabled || (!adHoc && inheriting)}
-            placeholder={inheriting ? 'inherited' : ''}
-            aria-label={`Value for ${name}`}
-            onChange={(e) => setValue(name, e.target.value)}
-          />
+          {declaration && !adHoc ? (
+            <ParameterValueField
+              declaration={declaration}
+              value={binding?.value ?? ''}
+              disabled={disabled || inheriting}
+              sequenceDeclarations={sequenceDeclarations}
+              onChange={(next) => setValue(name, next)}
+            />
+          ) : (
+            <input
+              type="text"
+              className="parameter-binding-value"
+              value={binding?.value ?? ''}
+              disabled={disabled || (!adHoc && inheriting)}
+              placeholder={inheriting ? 'inherited' : ''}
+              aria-label={`Value for ${name}`}
+              onChange={(e) => setValue(name, e.target.value)}
+            />
+          )}
           {adHoc && (
             <button
               type="button"

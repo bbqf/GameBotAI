@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
 namespace GameBot.Domain.Parameters;
 
 /// <summary>
@@ -35,4 +38,50 @@ public sealed class ParameterDeclaration {
 
   /// <summary>Operator-facing explanation, shown in the insert-parameter picker and binding forms.</summary>
   public string? Description { get; init; }
+
+  /// <summary>Readable name for the person who fills the value (feature 168). 1 to 80 characters when set.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Label { get; init; }
+
+  /// <summary>Short help text under the field (feature 168). Up to 300 characters.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? HelpText { get; init; }
+
+  /// <summary>
+  /// How the value is entered. <c>null</c> means: derive from <see cref="Type"/> (feature 168).
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public ParameterInputKind? Kind { get; init; }
+
+  /// <summary>The options of a <see cref="ParameterInputKind.Choice"/> parameter. 1 to 50 items.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<ParameterOption>? Options { get; init; }
+
+  /// <summary>The IDs of the images that a person may select for an image parameter. 1 to 50 items.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<string>? AllowedImages { get; init; }
+
+  /// <summary>Lowest allowed whole number for a number parameter.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? Min { get; init; }
+
+  /// <summary>Highest allowed whole number for a number parameter.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? Max { get; init; }
+
+  /// <summary>Unit text that the form shows next to a number, for example "ms". Up to 20 characters.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Unit { get; init; }
+
+  /// <summary>
+  /// Technical text with exactly one <c>{value}</c> marker. The entered number goes into the marker
+  /// when the name is resolved. The result is text.
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public string? Pattern { get; init; }
+
+  /// <summary>The kind in use: <see cref="Kind"/> when set, otherwise the kind that follows from <see cref="Type"/>.</summary>
+  [JsonIgnore]
+  public ParameterInputKind EffectiveKind =>
+      Kind ?? (Type == ParameterValueType.Number ? ParameterInputKind.Number : ParameterInputKind.Text);
 }

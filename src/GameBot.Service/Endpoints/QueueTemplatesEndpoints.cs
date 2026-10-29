@@ -132,14 +132,20 @@ internal static class QueueTemplatesEndpoints {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(imageErrors));
       }
 
+      // Feature 168 (FR-012): a value that does not match its declaration is a warning. The save works.
+      var valueWarnings = await FindInvalidValueWarningsAsync(target, sequences, commands, images, ct).ConfigureAwait(false);
+
       if (existing is null) {
         var created = await repo.CreateAsync(target).ConfigureAwait(false);
         var detail = await BuildDetailAsync(created, sequences).ConfigureAwait(false);
+        detail.Warnings = ParameterDtoMapper.ToResponseWarnings(valueWarnings);
         return Results.Created($"{ApiRoutes.QueueTemplates}/{created.Id}", detail);
       }
 
       var saved = await repo.UpdateAsync(target).ConfigureAwait(false);
-      return Results.Ok(await BuildDetailAsync(saved, sequences).ConfigureAwait(false));
+      var savedDetail = await BuildDetailAsync(saved, sequences).ConfigureAwait(false);
+      savedDetail.Warnings = ParameterDtoMapper.ToResponseWarnings(valueWarnings);
+      return Results.Ok(savedDetail);
     }).WithName("SaveQueueTemplate");
 
     group.MapDelete("{id}", async (string id, IQueueTemplateRepository repo) => {
@@ -189,6 +195,35 @@ internal static class QueueTemplatesEndpoints {
     }
 
     return issues;
+  }
+
+  /// <summary>
+  /// Finds each saved value of the template that does not match its declaration (feature 168). The
+  /// check looks at each entry. An entry whose sequence does not exist is not checked.
+  /// </summary>
+  private static async Task<List<ParameterValidationIssue>> FindInvalidValueWarningsAsync(
+      QueueTemplate template,
+      ISequenceRepository sequences,
+      ICommandRepository commands,
+      IImageRepository images,
+      CancellationToken ct) {
+    var warnings = new List<ParameterValidationIssue>();
+    for (var index = 0; index < template.Entries.Count; index++) {
+      var entry = template.Entries[index];
+      if (entry.ParameterValues.Count == 0) continue;
+      var sequence = await sequences.GetAsync(entry.SequenceId).ConfigureAwait(false);
+      if (sequence is null) continue;
+
+      var reachable = await QueuesEndpoints.CollectReachableCommandsAsync(sequence, commands).ConfigureAwait(false);
+      var declarations = reachable.SelectMany(c => c.Parameters).ToList();
+      var imageExists = await ParameterImageLookup.BuildAsync(
+          images, sequence.Parameters.Concat(declarations), entry.ParameterValues, ct).ConfigureAwait(false);
+
+      var result = ParameterValidationService.ValidateTemplateEntry(entry, index, sequence, declarations, null, imageExists);
+      warnings.AddRange(result.Warnings.Where(w => w.Code == ParameterValidationCodes.InvalidValue));
+    }
+
+    return warnings;
   }
 
   private static string? ValidateName(string? trimmedName) => QueueTemplateRules.ValidateName(trimmedName);
