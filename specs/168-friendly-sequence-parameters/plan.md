@@ -20,7 +20,7 @@ when a name resolves. All new fields are optional, so old data loads and runs wi
 **Testing**: xUnit in `tests/unit`, `tests/contract`, `tests/integration`; Jest in `src/web-ui`
 **Target Platform**: Windows service host, browser UI (desktop and phone layout)
 **Project Type**: Web application (service and web UI)
-**Performance Goals**: name resolution with a number pattern adds no more than 2% to the time without a pattern (spec SC-008; benchmark in tasks.md); no change to the p95 step dispatch time. The plan sets no timing goal for the UI; thumbnails load on demand
+**Performance Goals**: one name resolution with a number pattern takes less than 1 µs (spec SC-008; benchmark in tasks.md); no change to the p95 step dispatch time. The plan sets no timing goal for the UI; thumbnails load on demand
 **Constraints**: No migration; old API clients that send technical values keep working; the form never shows the technical value
 **Scale/Scope**: 4 input kinds; at most 50 options per list; about 25 changed or new UI files; about 12 changed or new service and domain files
 

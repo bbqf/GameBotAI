@@ -7,7 +7,7 @@ using Xunit.Abstractions;
 namespace GameBot.UnitTests.Parameters;
 
 /// <summary>
-/// Feature 168 (SC-008): the number pattern adds little work to the name resolution. The benchmark is
+/// Feature 168 (SC-008): one name resolution with a number pattern takes less than 1 µs. The benchmark is
 /// run by hand for the perf note. CI skips it with <c>--filter "Category!=Benchmark"</c>.
 /// </summary>
 public sealed class ParameterScopeResolvePerfTests {
@@ -49,8 +49,9 @@ public sealed class ParameterScopeResolvePerfTests {
     var mapped = Measure(with, iterations);
     _output.WriteLine($"without pattern: {baseline:F1} ms; with pattern: {mapped:F1} ms; ratio {mapped / baseline:F2}");
 
-    // Smoke limit only. The target in SC-008 is 2%, checked by hand from the printed numbers.
-    mapped.Should().BeLessThan(baseline * 25);
+    // SC-008: one name resolution with a pattern takes less than 1 µs.
+    var microsecondsPerCall = mapped * 1000.0 / iterations;
+    microsecondsPerCall.Should().BeLessThan(1.0);
   }
 
   [Fact]

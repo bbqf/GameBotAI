@@ -42,7 +42,7 @@ This feature adds a friendly layer on top of parameters. The author of a sequenc
 - Q: Does the step-through values form use the shared value form? → A: Yes.
 - Q: Are command-to-command step bindings checked like sequence step bindings? → A: Yes.
 - Q: How do we verify the success criteria? → A: A regression test covers SC-005. Timed manual checks cover SC-001, SC-002, and SC-004. SC-003 and SC-006 are post-release measures.
-- Q: Does the pattern step need a performance proof? → A: Yes. A hand-run benchmark and a perf note in the PR. A smoke test with a wide limit (25%) guards against a large regression, and CI skips it. A deterministic test counts calls.
+- Q: Does the pattern step need a performance proof? → A: Yes. A hand-run benchmark and a perf note in the PR. The limit is absolute: less than 1 µs for one name resolution with a pattern (changed from "2% more", which no string operation can meet). CI skips the benchmark. A deterministic test counts calls.
 - Q: What is the log label for image and number parameters? → A: None. Only a choice has a label. Image and number show the technical value.
 - Q: What happens with a kind of text and a type of number? → A: The declaration save refuses the pair.
 - Q: Do error messages carry a hint? → A: Yes. Each message names the problem and one way to fix it.
@@ -198,7 +198,7 @@ The value form (pickers, choice lists, and number fields) works at phone width. 
 - **SC-005**: 100% of existing saved sequences, commands, and queue templates load and run with the same result as before the feature. (Regression test.)
 - **SC-006**: Zero runs fail because of a mistyped image ID or technical string for parameters that use the friendly kinds. (Post-release measure.)
 - **SC-007**: Filling in values on a phone-size screen works for all four input kinds with no horizontal scroll.
-- **SC-008**: The name resolution with a number pattern adds no more than 2% to the time of name resolution without a pattern. (Hand-run benchmark for the perf note. A smoke test with a limit of 25% guards against a large regression; CI skips it.)
+- **SC-008**: One name resolution with a number pattern takes less than 1 µs. (Hand-run benchmark for the perf note. The benchmark test checks the same limit; CI skips it.)
 
 ## Assumptions
 
