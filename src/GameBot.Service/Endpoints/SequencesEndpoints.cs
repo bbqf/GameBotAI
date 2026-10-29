@@ -86,7 +86,7 @@ internal static class SequencesEndpoints {
 
       // Feature 078 (FR-003, FR-020, unknown_parameter_binding): reject bad declarations, references
       // nothing could supply, and bindings naming a parameter the target command does not declare.
-      var parameterCheck = await ValidateSequenceParametersAsync(perStepSequence, commandRepository, ct).ConfigureAwait(false);
+      var parameterCheck = await ValidateSequenceParametersAsync(perStepSequence, commandRepository, imageRepository, ct).ConfigureAwait(false);
       if (!parameterCheck.IsValid) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
@@ -226,7 +226,7 @@ internal static class SequencesEndpoints {
         }
       }
 
-      parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, ct).ConfigureAwait(false);
+      parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, imageRepository, ct).ConfigureAwait(false);
       if (!parameterCheck.IsValid) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
@@ -320,7 +320,7 @@ internal static class SequencesEndpoints {
         }
       }
 
-      parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, ct).ConfigureAwait(false);
+      parameterCheck = await ValidateSequenceParametersAsync(existing, commandRepository, imageRepository, ct).ConfigureAwait(false);
       if (!parameterCheck.IsValid) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
@@ -594,6 +594,7 @@ internal static class SequencesEndpoints {
   private static async Task<GameBot.Domain.Services.ParameterValidationResult> ValidateSequenceParametersAsync(
       GameBot.Domain.Commands.CommandSequence sequence,
       ICommandRepository commandRepository,
+      IImageRepository imageRepository,
       CancellationToken ct) {
     var declarationsById = new Dictionary<string, IReadOnlyList<GameBot.Domain.Parameters.ParameterDeclaration>?>(
         StringComparer.OrdinalIgnoreCase);
@@ -603,9 +604,19 @@ internal static class SequencesEndpoints {
       declarationsById[step.CommandId] = command?.Parameters;
     }
 
+    // Feature 168: read the stored images one time, so validation can warn about a missing image.
+    var allDeclarations = sequence.Parameters
+        .Concat(declarationsById.Values.Where(v => v is not null).SelectMany(v => v!));
+    var allBindings = FlattenStepsForParameters(sequence.Steps)
+        .Where(s => s.ParameterBindings is not null)
+        .SelectMany(s => s.ParameterBindings!);
+    var imageExists = await ParameterImageLookup.BuildAsync(imageRepository, allDeclarations, allBindings, ct)
+        .ConfigureAwait(false);
+
     return GameBot.Domain.Services.ParameterValidationService.ValidateSequence(
         sequence,
-        commandId => declarationsById.TryGetValue(commandId ?? string.Empty, out var found) ? found : null);
+        commandId => declarationsById.TryGetValue(commandId ?? string.Empty, out var found) ? found : null,
+        imageExists);
   }
 
   private static IEnumerable<GameBot.Domain.Commands.SequenceStep> FlattenStepsForParameters(

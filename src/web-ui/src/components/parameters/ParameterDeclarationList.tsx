@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
-import type { ParameterDeclaration, ParameterValueType } from './types';
-import { BUILT_IN_PREFIX } from './types';
+import type { ParameterDeclaration } from './types';
+import { validateParameterName } from './parameterNameRules';
+import { ParameterDeclarationCard } from './ParameterDeclarationCard';
+import { ParameterFormPreview } from './ParameterFormPreview';
+import { useLayoutMode } from '../../hooks/useLayoutMode';
+
+export { validateParameterName };
 
 export type ParameterDeclarationListProps = {
   parameters: ParameterDeclaration[];
@@ -8,31 +13,6 @@ export type ParameterDeclarationListProps = {
   disabled?: boolean;
   /** What owns these declarations, used in the empty-state copy. */
   ownerLabel?: string;
-};
-
-const RESERVED_ITERATION = 'iteration';
-const IDENTIFIER = /^[A-Za-z_]\w*$/;
-
-/**
- * Mirrors the backend's ParameterNameRules so the operator gets the message while typing rather than
- * on save. The backend remains authoritative — this is a convenience, not the enforcement point.
- */
-export const validateParameterName = (
-  name: string,
-  others: readonly string[],
-): string | undefined => {
-  if (!name.trim()) return 'Name is required.';
-  if (name === RESERVED_ITERATION) return "'iteration' is reserved for the loop iteration value.";
-  if (name === 'queue' || name.startsWith(BUILT_IN_PREFIX)) {
-    return "Names may not use the reserved 'queue' namespace.";
-  }
-  if (!IDENTIFIER.test(name)) {
-    return 'Use letters, digits and underscore; do not start with a digit.';
-  }
-  if (others.some((other) => other.toLowerCase() === name.toLowerCase())) {
-    return 'Another parameter already uses this name.';
-  }
-  return undefined;
 };
 
 const emptyDeclaration = (): ParameterDeclaration => ({
@@ -44,10 +24,12 @@ const emptyDeclaration = (): ParameterDeclaration => ({
 });
 
 /**
- * The Parameters section of the command and sequence editors (feature 078, FR-025).
+ * The Parameters section of the command and sequence editors (feature 078, FR-025; feature 168).
  *
  * Declaring a parameter is what makes it appear in the insert-parameter picker and in the binding
- * form on every call site, so this is the entry point to the whole mechanism.
+ * form on every call site, so this is the entry point to the whole mechanism. Each parameter is a
+ * card, and a live preview shows the form that a person fills. On a phone, the editor shows a notice
+ * and no card controls (FR-024).
  */
 export const ParameterDeclarationList: React.FC<ParameterDeclarationListProps> = ({
   parameters,
@@ -56,6 +38,7 @@ export const ParameterDeclarationList: React.FC<ParameterDeclarationListProps> =
   ownerLabel = 'this item',
 }) => {
   const [touched, setTouched] = useState<Record<number, boolean>>({});
+  const layoutMode = useLayoutMode();
 
   const update = (index: number, patch: Partial<ParameterDeclaration>) => {
     onChange(parameters.map((p, i) => (i === index ? { ...p, ...patch } : p)));
@@ -70,6 +53,17 @@ export const ParameterDeclarationList: React.FC<ParameterDeclarationListProps> =
     [next[index], next[target]] = [next[target], next[index]];
     onChange(next);
   };
+
+  if (layoutMode === 'phone') {
+    return (
+      <section className="parameter-declarations" aria-label="Parameters">
+        <h3>Parameters</h3>
+        <p className="parameter-declarations-phone-notice">
+          Use a larger screen to edit parameters. You can still fill their values on this screen.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="parameter-declarations" aria-label="Parameters">
@@ -91,130 +85,26 @@ export const ParameterDeclarationList: React.FC<ParameterDeclarationListProps> =
           it — or reference a <code>queue.…</code> built-in directly, which needs no declaration.
         </p>
       ) : (
-        <ul className="parameter-declarations-list">
-          {parameters.map((parameter, index) => {
-            const others = parameters.filter((_, i) => i !== index).map((p) => p.name);
-            const nameError = touched[index] ? validateParameterName(parameter.name, others) : undefined;
-            const defaultError =
-              parameter.type === 'number' &&
-              parameter.default != null &&
-              parameter.default !== '' &&
-              !/^-?\d+$/.test(parameter.default)
-                ? 'A numeric default must be a whole number.'
-                : undefined;
-
-            return (
-              <li key={index} className="parameter-declaration-row">
-                <div className="parameter-declaration-fields">
-                  <label>
-                    <span>Name</span>
-                    <input
-                      type="text"
-                      value={parameter.name}
-                      disabled={disabled}
-                      aria-invalid={nameError ? true : undefined}
-                      aria-label={`Parameter ${index + 1} name`}
-                      onBlur={() => setTouched((t) => ({ ...t, [index]: true }))}
-                      onChange={(e) => update(index, { name: e.target.value })}
-                    />
-                  </label>
-
-                  <label>
-                    <span>Type</span>
-                    <select
-                      value={parameter.type}
-                      disabled={disabled}
-                      aria-label={`Parameter ${index + 1} type`}
-                      onChange={(e) => update(index, { type: e.target.value as ParameterValueType })}
-                    >
-                      <option value="text">Text</option>
-                      <option value="number">Number</option>
-                    </select>
-                  </label>
-
-                  <label>
-                    <span>Default</span>
-                    <input
-                      type="text"
-                      value={parameter.default ?? ''}
-                      disabled={disabled}
-                      placeholder="(none)"
-                      aria-label={`Parameter ${index + 1} default`}
-                      onChange={(e) => update(index, { default: e.target.value === '' ? null : e.target.value })}
-                    />
-                  </label>
-
-                  <label className="parameter-declaration-required">
-                    <input
-                      type="checkbox"
-                      checked={parameter.required}
-                      disabled={disabled}
-                      aria-label={`Parameter ${index + 1} required`}
-                      onChange={(e) => update(index, { required: e.target.checked })}
-                    />
-                    <span>Required</span>
-                  </label>
-                </div>
-
-                <label className="parameter-declaration-description">
-                  <span>Description</span>
-                  <input
-                    type="text"
-                    value={parameter.description ?? ''}
-                    disabled={disabled}
-                    placeholder="Shown in the insert-parameter picker"
-                    aria-label={`Parameter ${index + 1} description`}
-                    onChange={(e) => update(index, { description: e.target.value })}
-                  />
-                </label>
-
-                <div className="parameter-declaration-actions">
-                  <button
-                    type="button"
-                    disabled={disabled || index === 0}
-                    aria-label={`Move ${parameter.name || `parameter ${index + 1}`} up`}
-                    onClick={() => move(index, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    disabled={disabled || index === parameters.length - 1}
-                    aria-label={`Move ${parameter.name || `parameter ${index + 1}`} down`}
-                    onClick={() => move(index, 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    aria-label={`Remove ${parameter.name || `parameter ${index + 1}`}`}
-                    onClick={() => remove(index)}
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                {nameError && (
-                  <p className="parameter-declaration-error" role="alert">
-                    {nameError}
-                  </p>
-                )}
-                {defaultError && (
-                  <p className="parameter-declaration-error" role="alert">
-                    {defaultError}
-                  </p>
-                )}
-                {parameter.required && (parameter.default ?? '') === '' && (
-                  <p className="parameter-declaration-hint">
-                    Required with no default: every queue that runs this must supply a value, or its
-                    start is refused.
-                  </p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <div className="parameter-declarations-body">
+          <ul className="parameter-declarations-list">
+            {parameters.map((parameter, index) => (
+              <ParameterDeclarationCard
+                key={index}
+                parameter={parameter}
+                index={index}
+                count={parameters.length}
+                otherNames={parameters.filter((_, i) => i !== index).map((p) => p.name)}
+                touched={!!touched[index]}
+                onTouched={() => setTouched((t) => ({ ...t, [index]: true }))}
+                onChange={(patch) => update(index, patch)}
+                onMove={(delta) => move(index, delta)}
+                onRemove={() => remove(index)}
+                disabled={disabled}
+              />
+            ))}
+          </ul>
+          <ParameterFormPreview parameters={parameters} />
+        </div>
       )}
     </section>
   );

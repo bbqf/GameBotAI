@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { StepThroughNodeDto, StepThroughParameterDto, StepThroughValuesRequest } from '../../services/stepThrough';
+import type { ParameterDeclaration } from '../parameters/types';
+import { displayLabel, effectiveKind } from '../parameters/types';
+import { ParameterValueField } from '../parameters/fields/ParameterValueField';
 
 type ValuesFormProps = {
   parameters: StepThroughParameterDto[];
@@ -8,12 +11,17 @@ type ValuesFormProps = {
   /** True while a step runs. The author cannot change values then (FR-017). */
   disabled: boolean;
   onApply: (values: StepThroughValuesRequest) => void;
+  /**
+   * What the sequence declares (feature 168). A parameter with a friendly kind shows the same field as
+   * the other value forms: an image picker, a list of options, or a number field.
+   */
+  declarations?: ParameterDeclaration[];
 };
 
 const OUTCOME_CHOICES = ['success', 'failed', 'skipped', 'not_executed', 'break', 'no_break'];
 
 /** The values that the author gives for the parameters and for the step outcomes that conditions read (FR-017). */
-export const ValuesForm: React.FC<ValuesFormProps> = ({ parameters, outcomes, nodes, disabled, onApply }) => {
+export const ValuesForm: React.FC<ValuesFormProps> = ({ parameters, outcomes, nodes, disabled, onApply, declarations }) => {
   const [parameterDraft, setParameterDraft] = useState<Record<string, string>>({});
   const [outcomeDraft, setOutcomeDraft] = useState<Record<string, string>>({});
 
@@ -55,17 +63,33 @@ export const ValuesForm: React.FC<ValuesFormProps> = ({ parameters, outcomes, no
       {parameters.length > 0 && (
         <fieldset disabled={disabled}>
           <legend>Parameters</legend>
-          {parameters.map((parameter) => (
-            <div className="field" key={parameter.name}>
-              <label htmlFor={`step-through-param-${parameter.name}`}>{parameter.name}</label>
-              <input
-                id={`step-through-param-${parameter.name}`}
-                value={parameterDraft[parameter.name] ?? parameter.value ?? ''}
-                onChange={(e) => setParameterDraft((draft) => ({ ...draft, [parameter.name]: e.target.value }))}
-              />
-              {!parameter.isSet && parameter.value != null && <span className="form-hint">default value</span>}
-            </div>
-          ))}
+          {parameters.map((parameter) => {
+            const declaration = declarations?.find((d) => d.name === parameter.name);
+            const friendly = declaration !== undefined && (effectiveKind(declaration) !== 'text' || !!declaration.label);
+            return (
+              <div className="field" key={parameter.name}>
+                <label htmlFor={`step-through-param-${parameter.name}`}>
+                  {declaration ? displayLabel(declaration) : parameter.name}
+                </label>
+                {friendly && declaration ? (
+                  <ParameterValueField
+                    declaration={declaration}
+                    value={parameterDraft[parameter.name] ?? parameter.value ?? ''}
+                    ariaLabel={`Value for ${parameter.name}`}
+                    onChange={(next) => setParameterDraft((draft) => ({ ...draft, [parameter.name]: next }))}
+                  />
+                ) : (
+                  <input
+                    id={`step-through-param-${parameter.name}`}
+                    value={parameterDraft[parameter.name] ?? parameter.value ?? ''}
+                    onChange={(e) => setParameterDraft((draft) => ({ ...draft, [parameter.name]: e.target.value }))}
+                  />
+                )}
+                {declaration?.helpText && <span className="form-hint">{declaration.helpText}</span>}
+                {!parameter.isSet && parameter.value != null && <span className="form-hint">default value</span>}
+              </div>
+            );
+          })}
         </fieldset>
       )}
       {stepIds.length > 0 && (

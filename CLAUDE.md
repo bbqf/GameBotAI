@@ -11,5 +11,5 @@ Before you push a branch for a new PR, bump the version in `installer/versioning
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/167-command-step-outcome-condition/plan.md
+at specs/168-friendly-sequence-parameters/plan.md
 <!-- SPECKIT END -->

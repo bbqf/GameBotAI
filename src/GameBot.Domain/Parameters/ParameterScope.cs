@@ -36,10 +36,16 @@ public static class ParameterScopeLayers {
 /// Set only for a binding value with text around one or more placeholders. One item for each
 /// placeholder name, with its value and origin layer. For all other values, this is <c>null</c>.
 /// </param>
+/// <param name="Mapped">
+/// True when the text is final (feature 168): a number pattern was applied to it, or it is an option
+/// value that must stay plain text. A mapped value gets no pattern a second time, and <c>{{</c> in it is
+/// not resolved again.
+/// </param>
 public readonly record struct ParameterValue(
     string Text,
     string OriginLayer,
-    IReadOnlyList<ResolvedParameter>? Sources = null);
+    IReadOnlyList<ResolvedParameter>? Sources = null,
+    bool Mapped = false);
 
 /// <summary>One entry of a scope description, used to render the authoring UI's preview and picker.</summary>
 /// <param name="Name">Parameter name.</param>
@@ -174,17 +180,27 @@ public sealed class ParameterScope {
   /// When a placeholder does not resolve: the error with the field path
   /// <c>parameterBindings.&lt;bindingName&gt;</c> and the reason <see cref="ParameterResolutionReasons.Unresolved"/>.
   /// </param>
+  /// <param name="calleeDeclarations">
+  /// The declarations of the command that the step calls (feature 168). A binding value that equals an
+  /// option value of the callee declaration is plain text: <c>{{</c> in it is not resolved (FR-027).
+  /// </param>
   /// <returns><c>true</c> when all placeholders resolved; otherwise <c>false</c>.</returns>
   public bool TryBindChild(
       string layerName,
       IEnumerable<ParameterBinding>? bindings,
       [NotNullWhen(true)] out ParameterScope? child,
-      [NotNullWhen(false)] out ParameterResolutionError? error) {
+      [NotNullWhen(false)] out ParameterResolutionError? error,
+      IEnumerable<ParameterDeclaration>? calleeDeclarations = null) {
     var values = new Dictionary<string, ParameterValue>(StringComparer.Ordinal);
     IReadOnlyDictionary<string, string>? context = null;
     foreach (var binding in bindings ?? Array.Empty<ParameterBinding>()) {
       if (binding?.Name is null || binding.Value is null) continue;
       var text = binding.Value;
+      if (IsOptionValue(calleeDeclarations, binding.Name, text)) {
+        values[binding.Name] = new ParameterValue(text, layerName, null, Mapped: true);
+        continue;
+      }
+
       var keys = TemplateSubstitutor.ExtractKeys(text);
       string? missing = null;
       if (keys.Count == 0) {
@@ -202,7 +218,7 @@ public sealed class ParameterScope {
             TryResolve(key, out var source);
             sources.Add(new ResolvedParameter(key, source.Text, source.OriginLayer));
           }
-          values[binding.Name] = new ParameterValue(composed, layerName, sources);
+          values[binding.Name] = new ParameterValue(composed, layerName, sources, Mapped: true);
         }
         else missing = unresolved[0];
       }
@@ -217,6 +233,20 @@ public sealed class ParameterScope {
     child = new ParameterScope(this, layerName, values, new Dictionary<string, ParameterDeclaration>(StringComparer.Ordinal));
     error = null;
     return true;
+  }
+
+  private static bool IsOptionValue(
+      IEnumerable<ParameterDeclaration>? declarations, string name, string text) {
+    if (declarations is null || !text.Contains("{{", StringComparison.Ordinal)) return false;
+    foreach (var declaration in declarations) {
+      if (declaration is null || !string.Equals(declaration.Name, name, StringComparison.Ordinal)
+          || declaration.Options is null) continue;
+      foreach (var option in declaration.Options) {
+        if (string.Equals(option.Value, text, StringComparison.Ordinal)) return true;
+      }
+    }
+
+    return false;
   }
 
   /// <summary>
@@ -247,14 +277,15 @@ public sealed class ParameterScope {
     for (var scope = this; scope is not null; scope = scope.Parent) {
       if (scope._values.TryGetValue(name, out var bound)) {
         // A whole-placeholder binding keeps the layer that supplied its value (feature 115).
-        value = bound;
+        value = bound.Mapped ? bound : ApplyPattern(name, bound);
         return true;
       }
     }
 
     for (var scope = this; scope is not null; scope = scope.Parent) {
       if (scope._declarations.TryGetValue(name, out var declaration) && declaration.Default is not null) {
-        value = new ParameterValue(declaration.Default, ParameterScopeLayers.Default);
+        var fromDefault = new ParameterValue(declaration.Default, ParameterScopeLayers.Default);
+        value = string.IsNullOrEmpty(declaration.Pattern) ? fromDefault : MapWithPattern(declaration.Pattern, fromDefault);
         return true;
       }
     }
@@ -262,6 +293,36 @@ public sealed class ParameterScope {
     value = default;
     return false;
   }
+
+  /// <summary>
+  /// Finds the innermost declaration of <paramref name="name"/> in the chain (feature 168). Used to read
+  /// the number pattern and the option label of a parameter.
+  /// </summary>
+  /// <param name="name">Parameter name, matched case-sensitively.</param>
+  /// <param name="declaration">The declaration, when found.</param>
+  /// <returns><c>true</c> when a layer declares the name.</returns>
+  public bool TryFindDeclaration(string name, [NotNullWhen(true)] out ParameterDeclaration? declaration) {
+    for (var scope = this; scope is not null; scope = scope.Parent) {
+      if (scope._declarations.TryGetValue(name, out var found)) {
+        declaration = found;
+        return true;
+      }
+    }
+
+    declaration = null;
+    return false;
+  }
+
+  private ParameterValue ApplyPattern(string name, ParameterValue bound) {
+    if (!TryFindDeclaration(name, out var declaration) || string.IsNullOrEmpty(declaration.Pattern)) return bound;
+    return MapWithPattern(declaration.Pattern, bound);
+  }
+
+  private static ParameterValue MapWithPattern(string pattern, ParameterValue source) =>
+      source with {
+        Text = pattern.Replace(ParameterNameRules.PatternMarker, source.Text, StringComparison.Ordinal),
+        Mapped = true
+      };
 
   /// <summary>
   /// Flattens the chain into a substitution map for <see cref="Utils.TemplateSubstitutor"/>. Inner
@@ -313,15 +374,4 @@ public sealed class ParameterScope {
     return LayerName;
   }
 
-  private bool TryFindDeclaration(string name, out ParameterDeclaration? declaration) {
-    for (var scope = this; scope is not null; scope = scope.Parent) {
-      if (scope._declarations.TryGetValue(name, out var found)) {
-        declaration = found;
-        return true;
-      }
-    }
-
-    declaration = null;
-    return false;
-  }
 }

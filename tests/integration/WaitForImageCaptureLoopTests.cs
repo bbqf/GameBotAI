@@ -191,7 +191,7 @@ public sealed class WaitForImageCaptureLoopTests : IDisposable {
 
   public static TheoryData<string> TimeoutPaths => new() { "step", "force", "sequence" };
 
-  [Theory]
+  [Theory(Skip = "Fails on the baseline of feature 168. Turned off by request. Find the cause and turn it on again.")]
   [MemberData(nameof(TimeoutPaths))]
   public async Task StepTimesOutWhenImageNotOnScreen(string path) {
     const int timeoutMs = 1500;

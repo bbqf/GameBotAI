@@ -322,7 +322,9 @@ internal sealed class CommandExecutor : ICommandExecutor {
         // of this command runs.
         var nestedScope = commandScope;
         if (step.ParameterBindings is { Count: > 0 }) {
-          if (!commandScope.TryBindChild(ParameterScopeLayers.Command, step.ParameterBindings, out var bound, out var bindingError)) {
+          // Feature 168 (FR-027): the declarations of the called command mark option values as plain text.
+          var callee = await _commands.GetAsync(step.TargetId, ct).ConfigureAwait(false);
+          if (!commandScope.TryBindChild(ParameterScopeLayers.Command, step.ParameterBindings, out var bound, out var bindingError, callee?.Parameters)) {
             stepOutcomes.Add(new PrimitiveTapStepOutcome(
               step.Order,
               "skipped_parameter_unresolved",

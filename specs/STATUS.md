@@ -112,7 +112,7 @@ Status vocabulary:
 | 074 | Start the Emulator From a Backend-Only, Session-Less State | Implemented |
 | 075 | Deduplicate Self-Rescheduled Sequence Firings | Implemented |
 | 077 | Enable/Disable Template Sequences | Implemented |
-| 078 | Sequence & Command Parameters | Implemented (iterated by 116) |
+| 078 | Sequence & Command Parameters | Implemented (iterated by 116, 168) |
 | 079 | Concurrent Queue Execution | Implemented |
 | 080 | Fix Sequence & Session-Input API Bugs | Implemented |
 | 081 | Loop Exit Reason & Nested Step-Outcome References | Implemented (iterated by 117) |
@@ -195,6 +195,7 @@ Status vocabulary:
 | 165 | Sequence Parameters in ocrText Pattern and Expected | Implemented |
 | 166 | Fix WaitForImage Timeout on an Image That Is on Screen | Implemented |
 | 167 | Sequence Condition on a Step Outcome Inside a Command | Implemented |
+| 168 | Friendly Sequence Parameters | Implemented |
 
 ## Numbering notes
 

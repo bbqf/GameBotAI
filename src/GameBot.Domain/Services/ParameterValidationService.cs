@@ -59,6 +59,21 @@ public static class ParameterValidationCodes {
 
   /// <summary>Warning/blocker: a required parameter cannot be supplied by anything in scope.</summary>
   public const string UnsatisfiedRequired = "unsatisfied_required_parameter";
+
+  /// <summary>
+  /// Warning: a saved value does not match its declaration, for example a number outside the range or a
+  /// value that is not an option (feature 168). It never stops a queue start (FR-016).
+  /// </summary>
+  public const string InvalidValue = "invalid_parameter_value";
+
+  /// <summary>Warning: an allowed image of an image parameter has no stored image (feature 168).</summary>
+  public const string UnknownAllowedImage = "unknown_allowed_image";
+
+  /// <summary>
+  /// A parameter whose value is text (a text choice, an image, or a number with a pattern) is used in a
+  /// numeric field (feature 168, FR-026).
+  /// </summary>
+  public const string TextParameterInNumericField = "text_parameter_in_numeric_field";
 }
 
 /// <summary>One piece of parameter validation feedback.</summary>
@@ -115,15 +130,33 @@ public sealed record ParameterValidationResult(
 public static class ParameterValidationService {
   /// <summary>Validates a command's declarations, field templates and references.</summary>
   /// <param name="command">Command to validate.</param>
-  public static ParameterValidationResult ValidateCommand(Command command) {
+  /// <param name="commandLookup">
+  /// Resolves a command id to its declarations; returns null when unknown. When given, the bindings of
+  /// each command step are checked against the declarations of the command it calls (feature 168).
+  /// </param>
+  /// <param name="imageExists">Tells whether a stored image has an ID; when null, image existence is not checked.</param>
+  public static ParameterValidationResult ValidateCommand(
+      Command command,
+      Func<string, IReadOnlyList<ParameterDeclaration>?>? commandLookup = null,
+      Func<string, bool>? imageExists = null) {
     ArgumentNullException.ThrowIfNull(command);
     var errors = new List<ParameterValidationIssue>();
     var warnings = new List<ParameterValidationIssue>();
 
     AddDeclarationIssues(command.Parameters, errors);
+    AddUnknownAllowedImageWarnings(command.Parameters, imageExists, warnings);
 
     foreach (var step in command.Steps) {
       ValidateFieldTemplateKeys(step, errors);
+      AddTextInNumericFieldErrors(step, command.Parameters, errors);
+
+      if (commandLookup is not null && step.Type == CommandStepType.Command
+          && step.ParameterBindings is { Count: > 0 }) {
+        var callee = commandLookup(step.TargetId ?? string.Empty);
+        if (callee is not null) {
+          AddBindingValueWarnings(step.ParameterBindings, callee, $"Step {step.Order}", imageExists, warnings);
+        }
+      }
 
       // A placeholder in a Command step's TargetId would defeat the dangling-reference check.
       if (step.Type == CommandStepType.Command && TemplateSubstitutor.ContainsPlaceholder(step.TargetId)) {
@@ -148,15 +181,18 @@ public static class ParameterValidationService {
   /// </summary>
   /// <param name="sequence">Sequence to validate.</param>
   /// <param name="commandLookup">Resolves a command id to its declarations; returns null when unknown.</param>
+  /// <param name="imageExists">Tells whether a stored image has an ID; when null, image existence is not checked (feature 168).</param>
   public static ParameterValidationResult ValidateSequence(
       CommandSequence sequence,
-      Func<string, IReadOnlyList<ParameterDeclaration>?> commandLookup) {
+      Func<string, IReadOnlyList<ParameterDeclaration>?> commandLookup,
+      Func<string, bool>? imageExists = null) {
     ArgumentNullException.ThrowIfNull(sequence);
     ArgumentNullException.ThrowIfNull(commandLookup);
     var errors = new List<ParameterValidationIssue>();
     var warnings = new List<ParameterValidationIssue>();
 
     AddDeclarationIssues(sequence.Parameters, errors);
+    AddUnknownAllowedImageWarnings(sequence.Parameters, imageExists, warnings);
 
     var declared = NamesOf(sequence.Parameters);
     var references = ParameterReferenceScanner.Scan(sequence);
@@ -180,6 +216,8 @@ public static class ParameterValidationService {
             $"parameterBindings.{binding.Name}",
             binding.Name));
       }
+
+      AddBindingValueWarnings(step.ParameterBindings, calleeDeclarations, $"Step '{StepLabel(step)}'", imageExists, warnings);
     }
 
     return new ParameterValidationResult(errors, warnings);
@@ -194,12 +232,14 @@ public static class ParameterValidationService {
   /// <param name="sequence">The referenced sequence, or null when the reference is stale.</param>
   /// <param name="reachableDeclarations">Declarations of every command reachable from the sequence.</param>
   /// <param name="queueSuppliedNames">Names the target queue's built-ins can supply, if known.</param>
+  /// <param name="imageExists">Tells whether a stored image has an ID; when null, image existence is not checked (feature 168).</param>
   public static ParameterValidationResult ValidateTemplateEntry(
       QueueTemplateEntry entry,
       int entryIndex,
       CommandSequence? sequence,
       IReadOnlyList<ParameterDeclaration> reachableDeclarations,
-      IReadOnlyCollection<string>? queueSuppliedNames = null) {
+      IReadOnlyCollection<string>? queueSuppliedNames = null,
+      Func<string, bool>? imageExists = null) {
     ArgumentNullException.ThrowIfNull(entry);
     ArgumentNullException.ThrowIfNull(reachableDeclarations);
     var errors = new List<ParameterValidationIssue>();
@@ -236,6 +276,11 @@ public static class ParameterValidationService {
           name,
           entryIndex));
     }
+
+    // Feature 168: a supplied value that does not fit its declaration is a warning, never an error.
+    AddBindingValueWarnings(
+        entry.ParameterValues, AllDeclarations(sequence, reachableDeclarations).ToList(),
+        $"Entry {entryIndex}", imageExists, warnings, entryIndex);
 
     // A required parameter must be satisfiable from this entry, the queue built-ins, or its default.
     foreach (var declaration in AllDeclarations(sequence, reachableDeclarations)) {
@@ -516,11 +561,90 @@ public static class ParameterValidationService {
     foreach (var declaration in reachableDeclarations) yield return declaration;
   }
 
+  private static void AddBindingValueWarnings(
+      IEnumerable<ParameterBinding?> bindings,
+      IReadOnlyList<ParameterDeclaration> declarations,
+      string where,
+      Func<string, bool>? imageExists,
+      List<ParameterValidationIssue> warnings,
+      int? entryIndex = null) {
+    foreach (var binding in bindings) {
+      if (binding?.Name is null || binding.Value is null) continue;
+      var declaration = declarations.FirstOrDefault(d => string.Equals(d.Name, binding.Name, StringComparison.Ordinal));
+      if (declaration is null) continue;
+
+      var message = ParameterValueRules.Check(declaration, binding.Value);
+      if (message is not null) {
+        warnings.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.InvalidValue, $"{where}: {message}",
+            $"parameterBindings.{binding.Name}", binding.Name, entryIndex));
+        continue;
+      }
+
+      if (declaration.EffectiveKind == ParameterInputKind.Image && imageExists is not null
+          && !ParameterNameRules.IsWholePlaceholder(binding.Value) && !imageExists(binding.Value)) {
+        warnings.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.InvalidValue,
+            $"{where}: image '{binding.Value}' of parameter '{binding.Name}' is not stored. Select an image that exists.",
+            $"parameterBindings.{binding.Name}", binding.Name, entryIndex));
+      }
+    }
+  }
+
+  private static void AddUnknownAllowedImageWarnings(
+      IEnumerable<ParameterDeclaration> declarations,
+      Func<string, bool>? imageExists,
+      List<ParameterValidationIssue> warnings) {
+    if (imageExists is null) return;
+    foreach (var declaration in declarations) {
+      if (declaration.AllowedImages is null) continue;
+      foreach (var imageId in declaration.AllowedImages) {
+        if (imageExists(imageId)) continue;
+        warnings.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.UnknownAllowedImage,
+            $"Allowed image '{imageId}' of parameter '{declaration.Name}' is not stored. Remove it from the list or add the image.",
+            null, declaration.Name));
+      }
+    }
+  }
+
+  private static void AddTextInNumericFieldErrors(
+      CommandStep step,
+      IEnumerable<ParameterDeclaration> declarations,
+      List<ParameterValidationIssue> errors) {
+    if (step.FieldTemplates is null) return;
+    var byName = declarations.ToDictionary(d => d.Name, d => d, StringComparer.Ordinal);
+    foreach (var (path, template) in step.FieldTemplates) {
+      if (!CommandStepFieldPaths.SupportedNumericPaths.ContainsKey(path)) continue;
+      foreach (System.Text.RegularExpressions.Match match in PlaceholderPattern.Matches(template ?? string.Empty)) {
+        var name = match.Groups[1].Value.Trim();
+        if (!byName.TryGetValue(name, out var declaration) || !YieldsText(declaration)) continue;
+        errors.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.TextParameterInNumericField,
+            $"Step {step.Order}: parameter '{name}' gives text, but field '{path}' needs a number. Use a number parameter without a pattern, or a choice with number values.",
+            path, name));
+      }
+    }
+  }
+
+  private static readonly System.Text.RegularExpressions.Regex PlaceholderPattern =
+      new(@"\{\{\s*([A-Za-z_][\w.]*)\s*\}\}", System.Text.RegularExpressions.RegexOptions.Compiled,
+          TimeSpan.FromMilliseconds(500));
+
+  /// <summary>
+  /// True when a friendly declaration gives a text value. A plain text declaration with no friendly
+  /// member keeps its old behavior (feature 168, FR-018).
+  /// </summary>
+  private static bool YieldsText(ParameterDeclaration d) =>
+      !string.IsNullOrEmpty(d.Pattern)
+      || d.Kind == ParameterInputKind.Image
+      || (d.Kind == ParameterInputKind.Choice && d.Type == ParameterValueType.Text);
+
   private static void AddDeclarationIssues(
       IEnumerable<ParameterDeclaration> declarations,
       List<ParameterValidationIssue> errors) {
     foreach (var error in ParameterNameRules.ValidateDeclarations(declarations)) {
-      var code = error.Contains("is not a whole number", StringComparison.Ordinal)
+      var code = error.Contains("default value", StringComparison.Ordinal)
           ? ParameterValidationCodes.InvalidDefault
           : ParameterValidationCodes.InvalidDeclaration;
       errors.Add(new ParameterValidationIssue(code, error));

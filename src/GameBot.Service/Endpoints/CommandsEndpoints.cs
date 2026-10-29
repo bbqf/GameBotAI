@@ -330,6 +330,39 @@ internal static class CommandsEndpoints {
   /// <summary>
   /// Feature 136: true when the JSON error is at "parameters" or under it.
   /// </summary>
+  /// <summary>
+  /// Runs parameter validation for a command. It looks up each command that a step calls, so the
+  /// bindings are checked against the right declarations, and the stored images, so a missing image
+  /// gives a warning (feature 168).
+  /// </summary>
+  private static async Task<ParameterValidationResult> ValidateCommandParametersAsync(
+      Command command,
+      ICommandRepository repo,
+      GameBot.Domain.Images.IImageRepository images,
+      CancellationToken ct) {
+    var declarationsById = new Dictionary<string, IReadOnlyList<GameBot.Domain.Parameters.ParameterDeclaration>?>(
+        StringComparer.OrdinalIgnoreCase);
+    foreach (var step in command.Steps) {
+      if (step.Type != CommandStepType.Command || string.IsNullOrWhiteSpace(step.TargetId)
+          || declarationsById.ContainsKey(step.TargetId)) continue;
+      var callee = await repo.GetAsync(step.TargetId, ct).ConfigureAwait(false);
+      declarationsById[step.TargetId] = callee?.Parameters;
+    }
+
+    var allDeclarations = command.Parameters
+        .Concat(declarationsById.Values.Where(v => v is not null).SelectMany(v => v!));
+    var allBindings = command.Steps
+        .Where(s => s.ParameterBindings is not null)
+        .SelectMany(s => s.ParameterBindings!);
+    var imageExists = await ParameterImageLookup.BuildAsync(images, allDeclarations, allBindings, ct)
+        .ConfigureAwait(false);
+
+    return ParameterValidationService.ValidateCommand(
+        command,
+        id => declarationsById.TryGetValue(id ?? string.Empty, out var found) ? found : null,
+        imageExists);
+  }
+
   private static bool IsParametersPath(string? path) =>
     path is not null
     && (string.Equals(path, "$.parameters", StringComparison.Ordinal)
@@ -381,7 +414,7 @@ internal static class CommandsEndpoints {
     return opts;
   }
   public static IEndpointRouteBuilder MapCommandEndpoints(this IEndpointRouteBuilder app) {
-    app.MapPost(ApiRoutes.Commands, async (HttpRequest http, ICommandRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks, CancellationToken ct) => {
+    app.MapPost(ApiRoutes.Commands, async (HttpRequest http, ICommandRepository repo, GameBot.Domain.Gamepacks.GamepackService gamepacks, GameBot.Domain.Images.IImageRepository images, CancellationToken ct) => {
       using var doc = await JsonDocument.ParseAsync(http.Body, cancellationToken: ct).ConfigureAwait(false);
       var root = doc.RootElement;
       // Feature 135: the root alias "detectionTarget" stays accepted (see TryReadDetection).
@@ -434,7 +467,7 @@ internal static class CommandsEndpoints {
 
       // Feature 078 (FR-003, FR-020): reject malformed declarations and references that nothing in
       // scope could ever supply, before anything is persisted.
-      var parameterCheck = ParameterValidationService.ValidateCommand(command);
+      var parameterCheck = await ValidateCommandParametersAsync(command, repo, images, ct).ConfigureAwait(false);
       if (!parameterCheck.IsValid) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }
@@ -500,7 +533,7 @@ internal static class CommandsEndpoints {
     .WithName("ListCommands")
     .WithTags("Commands");
 
-    app.MapPatch($"{ApiRoutes.Commands}/{{id}}", async (string id, HttpRequest http, ICommandRepository repo, CancellationToken ct) => {
+    app.MapPatch($"{ApiRoutes.Commands}/{{id}}", async (string id, HttpRequest http, ICommandRepository repo, GameBot.Domain.Images.IImageRepository images, CancellationToken ct) => {
       // Feature 135: the body is read by hand so the unknown-field scan can see the raw JSON. A bad
       // body fails before the lookup, as it did when the framework bound the body.
       var (parsed, body, readError) = await ReadUpdateBodyAsync(http, ct).ConfigureAwait(false);
@@ -540,7 +573,7 @@ internal static class CommandsEndpoints {
         }
       }
 
-      var parameterCheck = ParameterValidationService.ValidateCommand(existing);
+      var parameterCheck = await ValidateCommandParametersAsync(existing, repo, images, ct).ConfigureAwait(false);
       if (!parameterCheck.IsValid) {
         return Results.BadRequest(ParameterDtoMapper.ToErrorBody(parameterCheck.Errors));
       }

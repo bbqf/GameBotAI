@@ -223,15 +223,29 @@ internal sealed class ExecutionLogService : IExecutionLogService {
         details.Add(new ExecutionDetailItem(
           "parameters",
           $"Step {outcome.StepOrder} resolved {resolvedParameters.Count} parameter(s): "
-            + string.Join(", ", resolvedParameters.Select(
-                p => $"{p.Name}={ExecutionLogSanitizer.MaskParameterValue(p.Name, p.Value)}")),
+            + string.Join(", ", resolvedParameters.Select(p => {
+                var shown = ExecutionLogSanitizer.MaskParameterValue(p.Name, p.Value);
+                // Feature 168 (FR-017): a choice shows its option label after the technical value.
+                return p.Label is not null && string.Equals(shown, p.Value, StringComparison.Ordinal)
+                  ? $"{p.Name}={shown} ({p.Label})"
+                  : $"{p.Name}={shown}";
+              })),
           new Dictionary<string, object?> {
             ["stepOrder"] = outcome.StepOrder,
             ["resolvedParameters"] = resolvedParameters
-              .Select(p => new Dictionary<string, object?> {
-                ["name"] = p.Name,
-                ["value"] = ExecutionLogSanitizer.MaskParameterValue(p.Name, p.Value),
-                ["originLayer"] = p.OriginLayer
+              .Select(p => {
+                var shown = ExecutionLogSanitizer.MaskParameterValue(p.Name, p.Value);
+                var entry = new Dictionary<string, object?> {
+                  ["name"] = p.Name,
+                  ["value"] = shown,
+                  ["originLayer"] = p.OriginLayer
+                };
+                // Feature 168 (FR-017): the option label of a choice. A masked name has no label.
+                if (p.Label is not null && string.Equals(shown, p.Value, StringComparison.Ordinal)) {
+                  entry["label"] = p.Label;
+                }
+
+                return entry;
               })
               .ToList()
           },

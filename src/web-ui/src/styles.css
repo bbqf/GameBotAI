@@ -204,3 +204,42 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .sortable-step-item__handle { flex-shrink: 0; line-height: 1; padding-top: 2px; }
 .drop-indicator { height: 2px; background: #4a90d9; border-radius: 1px; margin: 2px 4px; position: relative; pointer-events: none; }
 .drop-indicator::before { content: ''; display: block; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; background: #4a90d9; border-radius: 50%; }
+
+/* Feature 168: friendly parameters. The card, the field components, the preview, and the phone rules. */
+.parameter-declarations-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--gb-space-4); align-items: start; }
+.parameter-declarations-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--gb-space-3); }
+.parameter-declaration-card { padding: var(--gb-space-3); border: 1px solid var(--gb-color-border); border-radius: var(--gb-radius-lg); background: var(--gb-color-surface); box-shadow: var(--gb-shadow-card); display: grid; gap: var(--gb-space-2); }
+.parameter-declaration-fields { display: flex; flex-wrap: wrap; gap: var(--gb-space-2); align-items: flex-end; }
+.parameter-declaration-fields label, .parameter-declaration-description, .number-settings label { display: flex; flex-direction: column; gap: 2px; color: var(--gb-color-muted); font-size: 0.85rem; }
+.parameter-declaration-actions { display: flex; gap: var(--gb-space-2); }
+.parameter-declaration-error, .parameter-value-message { color: var(--gb-color-danger); font-weight: 600; margin: 0; }
+.parameter-declaration-hint, .parameter-value-hint, .parameter-binding-help { color: var(--gb-color-muted); margin: 0; font-size: 0.9rem; }
+.parameter-declarations-phone-notice { color: var(--gb-color-muted); }
+.parameter-form-preview { padding: var(--gb-space-3); border: 1px dashed var(--gb-color-border-strong); border-radius: var(--gb-radius-lg); background: var(--gb-color-surface-alt); position: sticky; top: var(--gb-space-3); }
+.parameter-value-field { display: inline-flex; flex-direction: column; gap: var(--gb-space-2); min-width: 0; max-width: 100%; }
+.parameter-value-unit { color: var(--gb-color-muted); }
+.parameter-pass-through { display: flex; flex-direction: column; gap: 2px; font-size: 0.85rem; color: var(--gb-color-muted); }
+.options-editor-list, .allowed-images-list { list-style: none; margin: 0 0 var(--gb-space-2); padding: 0; display: grid; gap: var(--gb-space-2); }
+.options-editor-row { display: flex; flex-wrap: wrap; gap: var(--gb-space-2); align-items: center; }
+.number-settings { display: flex; flex-wrap: wrap; gap: var(--gb-space-2); align-items: flex-end; }
+.choice-buttons { display: flex; flex-wrap: wrap; gap: var(--gb-space-2); }
+.choice-button-selected, .image-tile-selected { border-color: var(--gb-color-primary); background: var(--gb-color-primary-soft); box-shadow: 0 0 0 2px var(--gb-color-primary); }
+.image-picker-grid, .allowed-images-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--gb-space-2); }
+.image-tile, .allowed-image { display: flex; flex-direction: column; align-items: center; gap: var(--gb-space-2); height: auto; padding: var(--gb-space-2); }
+.image-tile-preview { width: 96px; height: 64px; object-fit: contain; background: var(--gb-color-surface-alt); border-radius: var(--gb-radius-md); display: inline-flex; align-items: center; justify-content: center; }
+.image-tile-name { max-width: 100%; overflow-wrap: anywhere; font-size: 0.85rem; }
+.allowed-images-dialog { position: fixed; inset: var(--gb-space-4); z-index: 20; overflow: auto; padding: var(--gb-space-4); background: var(--gb-color-surface); border: 1px solid var(--gb-color-border-strong); border-radius: var(--gb-radius-lg); box-shadow: var(--gb-shadow-card); display: grid; gap: var(--gb-space-3); align-content: start; }
+.allowed-images-option { display: flex; gap: var(--gb-space-2); align-items: center; }
+.allowed-images-actions { display: flex; gap: var(--gb-space-2); }
+
+@media (max-width: 768px), (max-height: 500px) {
+  .parameter-declarations-body { grid-template-columns: minmax(0, 1fr); }
+  .parameter-binding-row { display: grid; gap: var(--gb-space-2); }
+  .parameter-binding-controls { display: grid; gap: var(--gb-space-2); }
+  .parameter-binding-controls input, .parameter-binding-controls select, .choice-select, .choice-search, .image-picker-search { width: 100%; min-height: 44px; font-size: 1rem; }
+  .choice-button, .parameter-binding-controls button, .image-tile { min-height: 44px; min-width: 44px; }
+  .choice-buttons { flex-direction: column; }
+  .choice-button { width: 100%; }
+  .image-picker-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .parameter-value-field { display: flex; width: 100%; }
+}
