@@ -106,7 +106,7 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
     masked name). A subtree step node has the optional `parameters` list (`name`, `value`, `label`), which
     the log grid writes into the info text of the step. The step form has "Use a
     parameter of this sequence", which stores `{{name}}`. A text-typed friendly parameter in a numeric
-    field is the error `text_parameter_in_numeric_field`.
+    field is the error `text_parameter_in_numeric_field`. The guide for authors is `docs/parameters.md`.
   - **Command editor fields** (feature 169, web UI only): the editor has a "Use a parameter" control
     (`ParameterSourceControl`) on 12 step fields: Swipe `startX`, `startY`, `endX`, `endY`, `durationMs`;
     Tap `confidence`, `offsetX`, `offsetY`, and the image; WaitForImage `timeoutMs` and the image;
