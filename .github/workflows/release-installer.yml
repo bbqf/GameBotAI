@@ -33,6 +33,10 @@ concurrency:
   # A run can publish a release, so a newer run must never cancel it.
   cancel-in-progress: false
 
+# Run JavaScript actions on Node.js 24. This removes the Node.js 20 deprecation warning.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build-release-installer:
     runs-on: windows-latest
