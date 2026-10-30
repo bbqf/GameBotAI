@@ -79,7 +79,7 @@
 - [X] T021 Bump the version before the push. Run `git fetch origin master` and compare `installer/versioning/version.override.json` with `origin/master`. If `minor` or `major` changed, set `patch` to `"0"`. If not, set `patch` to the `patch` on `origin/master` plus 1. Set `updatedBy` and `updatedAtUtc`. Mention the bump in the changelog text
 - [X] T022 Run the full unit test project and the build with analyzers. Command: `dotnet build "C:\src\GameBot\GameBot.sln" -c Release -warnaserror`, then `dotnet test "C:\src\GameBot\tests\unit\GameBot.UnitTests.csproj" -c Release --no-build`. Confirm that both are green
 - [X] T023 Read all new and changed text against Principle VI (STE): plan files, `docs/ci-time.md`, the constitution bullet, the PR template, script comments, and the changelog. Fix each violation
-- [ ] T024 After the push, wait for the `.NET CI` run. Read the time of the longest `test-contract` job with `& "C:\src\GameBot\scripts\ci\measure-ci.ps1" -Branch 172-ci-test-shard-split -Limit 5`. Compare it with the baseline from T005. Confirm that the CI time is lower than before (SC-002, FR-011). Write the numbers to `specs/172-ci-test-shard-split/measurements.md`
+- [X] T024 After the push, wait for the `.NET CI` run. Read the time of the longest `test-contract` job with `& "C:\src\GameBot\scripts\ci\measure-ci.ps1" -Branch 172-ci-test-shard-split -Limit 5`. Compare it with the baseline from T005. Confirm that the CI time is lower than before (SC-002, FR-011). Write the numbers to `specs/172-ci-test-shard-split/measurements.md`
 
 ---
 

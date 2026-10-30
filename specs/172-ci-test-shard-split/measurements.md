@@ -14,6 +14,18 @@ Source: `scripts/ci/measure-ci.ps1 -Branch master -Limit 5 -Conclusion success`,
 
 The longest job in 4 of 5 runs is `test-contract (contract-4)`.
 
+## CI after the change (T024)
+
+Source: `measure-ci.ps1 -Branch 172-ci-test-shard-split`, run 41133408185 (success). One run only, so the noise of up to 10% applies.
+
+| Item | Before, median (s) | After (s) |
+|------|--------------------|-----------|
+| Critical path | 487 | 284 |
+| Longest contract job | 314 (`contract-4`) | 142 (`contract-4`) |
+| Longest job overall | `contract-4` | `analyze` (221 s) |
+
+Contract jobs after: 110, 125, 118, 142, 132, 137 s. The longest test job is now 142 s. The critical path is 42% lower than the baseline. CI time is lower (SC-002, FR-011). The contract jobs no longer set the critical path.
+
 ## Local class times (T003, T004)
 
 Source: one full local run of the contract project with the `trx` logger (1177 results, 176 classes, 670 s in total).
