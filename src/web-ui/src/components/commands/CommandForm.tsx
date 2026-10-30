@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ImageSelectorDropdown } from '../images/ImageSelectorDropdown';
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
@@ -17,6 +17,7 @@ import { SwipePanel } from './SwipePanel';
 import { VisualStepPicker } from './VisualStepPicker/VisualStepPicker';
 import { ParameterDeclarationList } from '../parameters/ParameterDeclarationList';
 import { buildEditorScope } from '../parameters/types';
+import { dropForeignTemplateKeys } from '../parameters/fieldTemplatePaths';
 import type { ParameterDeclaration } from '../parameters/types';
 import './CommandForm.css';
 
@@ -38,6 +39,11 @@ export type StepEntry = {
   ensureEmulatorRunning?: { instanceName?: string; instanceIndex?: string; adbSerial: string };
   /** The option of an EnsureGameRunning step (feature 129). Absent means false. */
   ensureGameRunning?: { forceRestart: boolean };
+  /**
+   * Placeholders for step fields, keyed by dotted path (features 078, 114, 169). The editor keeps the
+   * whole map when a step is saved, also keys that have no control.
+   */
+  fieldTemplates?: Record<string, string>;
 };
 
 export type DetectionTargetForm = {
@@ -66,6 +72,11 @@ export type CommandFormProps = {
   submitting?: boolean;
   loading?: boolean;
   errors?: Record<string, string>;
+  /**
+   * Service messages for step fields (feature 169): step order, then field path. The editor opens
+   * the first step that has a message, so the person sees the message at the field.
+   */
+  stepFieldErrors?: Record<number, Record<string, string>>;
   onChange: (next: CommandFormValue) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
@@ -159,6 +170,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   submitting,
   loading,
   errors,
+  stepFieldErrors,
   onChange,
   onSubmit,
   onCancel,
@@ -177,6 +189,8 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const stepItems = useMemo(() => toStepItems(value.steps, commandOptions), [value.steps, commandOptions]);
 
+  const declaredParameters = value.parameters ?? [];
+
   const addStep = (step: Omit<StepEntry, 'id'>) => {
     onChange({ ...value, steps: [...value.steps, { ...step, id: makeId() }] });
   };
@@ -187,6 +201,16 @@ export const CommandForm: React.FC<CommandFormProps> = ({
     const next = [...value.steps];
     next[idx] = { ...step, id };
     onChange({ ...value, steps: next });
+  };
+
+  // Feature 169: the templates of a saved step. A panel with a control gives the whole map. A panel
+  // with no control gives none, so the editor keeps the map of the step that is in edit. A key of
+  // another step type is dropped (the type change rule).
+  const withTemplates = (step: Omit<StepEntry, 'id'>, previous: StepEntry | undefined): Omit<StepEntry, 'id'> => {
+    const source = 'fieldTemplates' in step ? step.fieldTemplates : previous?.fieldTemplates;
+    const kept = dropForeignTemplateKeys(source, step.type);
+    const { fieldTemplates: _ignored, ...rest } = step;
+    return kept ? { ...rest, fieldTemplates: kept } : rest;
   };
 
   const removeStep = (itemId: string) => {
@@ -205,7 +229,9 @@ export const CommandForm: React.FC<CommandFormProps> = ({
     setPendingActionType(step.type as PrimitiveActionType);
   };
 
-  const handlePanelConfirm = (step: Omit<StepEntry, 'id'>) => {
+  const handlePanelConfirm = (rawStep: Omit<StepEntry, 'id'>) => {
+    const previous = editingStepId ? value.steps.find((s) => s.id === editingStepId) : undefined;
+    const step = withTemplates(rawStep, previous);
     if (editingStepId) {
       updateStep(editingStepId, step);
     } else {
@@ -221,6 +247,20 @@ export const CommandForm: React.FC<CommandFormProps> = ({
   };
 
   const editingStep = editingStepId ? value.steps.find((s) => s.id === editingStepId) : undefined;
+  const editingStepErrors = editingStepId
+    ? stepFieldErrors?.[value.steps.findIndex((s) => s.id === editingStepId)]
+    : undefined;
+
+  // Feature 169: open the first step that has a service message, so the message shows at its field.
+  useEffect(() => {
+    if (!stepFieldErrors) return;
+    const order = Object.keys(stepFieldErrors).map(Number).sort((a, b) => a - b)[0];
+    const step = order === undefined ? undefined : value.steps[order];
+    if (!step || !EDITABLE_TYPES.has(step.type)) return;
+    setEditingStepId(step.id);
+    setPendingActionType(step.type as PrimitiveActionType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepFieldErrors]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveStepId(event.active.id as string);
@@ -342,15 +382,20 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
         {pendingActionType === 'PrimitiveTap' && (
           <TapPanel
+            key={editingStepId ?? 'new'}
+            parameters={declaredParameters}
+            fieldTemplates={editingStep?.fieldTemplates}
+            fieldErrors={editingStepErrors}
             initialValue={
               editingStep?.primitiveTap
                 ? { ...editingStep.primitiveTap.detectionTarget, holdMs: editingStep.primitiveTap.holdMs }
                 : undefined
             }
-            onConfirm={({ holdMs, ...detectionTarget }) =>
+            onConfirm={({ holdMs, fieldTemplates, ...detectionTarget }) =>
               handlePanelConfirm({
                 type: 'PrimitiveTap',
                 primitiveTap: { detectionTarget, holdMs },
+                fieldTemplates,
               })
             }
             onCancel={handlePanelCancel}
@@ -360,6 +405,10 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
         {pendingActionType === 'WaitForImage' && (
           <WaitForImagePanel
+            key={editingStepId ?? 'new'}
+            parameters={declaredParameters}
+            fieldTemplates={editingStep?.fieldTemplates}
+            fieldErrors={editingStepErrors}
             initialValue={
               editingStep?.waitForImage
                 ? {
@@ -378,6 +427,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
                     ? { referenceImageId: wfValue.referenceImageId, confidence: wfValue.confidence }
                     : undefined,
                 },
+                fieldTemplates: wfValue.fieldTemplates,
               })
             }
             onCancel={handlePanelCancel}
@@ -410,8 +460,12 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
         {pendingActionType === 'EnsureEmulatorRunning' && (
           <EnsureEmulatorRunningPanel
+            key={editingStepId ?? 'new'}
             initialValue={editingStep?.ensureEmulatorRunning}
             parameterScope={parameterScope}
+            parameters={declaredParameters}
+            fieldTemplates={editingStep?.fieldTemplates}
+            fieldErrors={editingStepErrors}
             onConfirm={(v) =>
               handlePanelConfirm({
                 type: 'EnsureEmulatorRunning',
@@ -420,6 +474,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({
                   instanceIndex: v.instanceIndex,
                   adbSerial: v.adbSerial,
                 },
+                fieldTemplates: v.fieldTemplates,
               })
             }
             onCancel={handlePanelCancel}
@@ -438,11 +493,16 @@ export const CommandForm: React.FC<CommandFormProps> = ({
 
         {pendingActionType === 'Swipe' && (
           <SwipePanel
+            key={editingStepId ?? 'new'}
             initialValue={editingStep?.swipe}
+            parameters={declaredParameters}
+            fieldTemplates={editingStep?.fieldTemplates}
+            fieldErrors={editingStepErrors}
             onConfirm={(v) =>
               handlePanelConfirm({
                 type: 'Swipe',
                 swipe: { startX: v.startX, startY: v.startY, endX: v.endX, endY: v.endY, durationMs: v.durationMs },
+                fieldTemplates: v.fieldTemplates,
               })
             }
             onCancel={handlePanelCancel}
@@ -522,6 +582,8 @@ export const CommandForm: React.FC<CommandFormProps> = ({
         </div>
         {errors?.detection && <div className="field-error" role="alert">{errors.detection}</div>}
       </FormSection>
+
+      {errors?.form && <div className="field-error" role="alert" data-testid="command-form-summary">{errors.form}</div>}
 
       <FormActions submitting={submitting} onCancel={onCancel}>
         {loading && <span className="form-hint">Loading…</span>}

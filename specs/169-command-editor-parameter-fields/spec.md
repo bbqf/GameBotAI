@@ -2,7 +2,7 @@
 
 **Feature Branch**: `169-command-editor-parameter-fields`
 **Created**: 2026-10-30
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Use a parameter in a numeric field or an image field of a command step in the command editor. Source: GitHub issue #358. Closes #358."
 
 ## Overview

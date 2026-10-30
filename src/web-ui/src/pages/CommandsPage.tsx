@@ -5,6 +5,7 @@ import { useUnsavedChangesPrompt } from '../hooks/useUnsavedChangesPrompt';
 import { useResetSignal } from '../hooks/useResetSignal';
 import { ApiError } from '../lib/api';
 import { parseParameterErrors, parameterErrorSummary } from '../lib/validation';
+import { mapParameterErrorsToSteps, StepFieldErrors } from './parameterErrorMapping';
 import { SearchableOption } from '../components/SearchableDropdown';
 import { listCommands, getCommand, createCommand, updateCommand, deleteCommand, CommandDto, CommandStepDto } from '../services/commands';
 import { listGames, GameDto } from '../services/games';
@@ -66,12 +67,24 @@ const stepsFromDto = (dto: CommandDto): StepEntry[] => {
             adbSerial: s.ensureEmulatorRunning.adbSerial,
           }
           : undefined,
+        // Feature 169: keep the whole map, also keys that the editor has no control for.
+        fieldTemplates: s.fieldTemplates && Object.keys(s.fieldTemplates).length > 0
+          ? { ...s.fieldTemplates }
+          : undefined,
       }));
   }
   return [];
 };
 
+// Feature 169: sends the map only when it has one key or more.
 const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) => {
+  const dto = stepToDto(s, idx);
+  return s.fieldTemplates && Object.keys(s.fieldTemplates).length > 0
+    ? { ...dto, fieldTemplates: { ...s.fieldTemplates } }
+    : dto;
+});
+
+const stepToDto = (s: StepEntry, idx: number): CommandStepDto => {
   if (s.type === 'PrimitiveTap') {
     return {
       type: 'PrimitiveTap',
@@ -173,7 +186,7 @@ const stepsToDto = (steps: StepEntry[]): CommandStepDto[] => steps.map((s, idx) 
     targetId: s.targetId ?? '',
     order: idx
   };
-});
+};
 
 const detectionFromDto = (dto?: { referenceImageId: string; confidence?: number; offsetX?: number; offsetY?: number; selectionStrategy?: string }): DetectionTargetForm | undefined => {
   if (!dto) return undefined;
@@ -215,6 +228,7 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const [form, setForm] = useState<CommandFormValue>(emptyForm);
   const [commandOptions, setCommandOptions] = useState<SearchableOption[]>([]);
   const [errors, setErrors] = useState<Record<string, string> | undefined>(undefined);
+  const [stepFieldErrors, setStepFieldErrors] = useState<StepFieldErrors | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState<string | undefined>(undefined);
@@ -272,6 +286,11 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
     setDirty(false);
   };
 
+  // Feature 169: the step messages go away with the form messages.
+  useEffect(() => {
+    if (!errors) setStepFieldErrors(undefined);
+  }, [errors]);
+
   /**
    * Turns a save rejection into the editor's field-error map (feature 078, FR-029). A parameter
    * rejection carries `details` naming the offending field and parameter, so those are surfaced
@@ -280,6 +299,9 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
   const toSaveErrors = (err: unknown, fallback: string): Record<string, string> => {
     const parameterErrors = parseParameterErrors(err);
     const summary = parameterErrorSummary(parameterErrors);
+    // Feature 169: show each message at the field of the step that the message names. The summary
+    // stays, so a message that names no known step still shows.
+    setStepFieldErrors(mapParameterErrorsToSteps(parameterErrors, form.steps.map((s) => s.type)));
     if (summary) return { form: summary };
     return { form: (err as { message?: string })?.message ?? fallback };
   };
@@ -442,9 +464,10 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
           value={form}
           commandOptions={commandOptions}
           errors={errors}
+          stepFieldErrors={stepFieldErrors}
           submitting={submitting}
           loading={loadingCommands}
-          onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
+          onChange={(v) => { setErrors(undefined); setStepFieldErrors(undefined); setForm(v); setDirty(true); }}
           onCancel={() => { if (!confirmNavigate()) return; setCreating(false); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
           onSubmit={async () => {
             const validation = validate(form);
@@ -488,9 +511,10 @@ export const CommandsPage: React.FC<CommandsPageProps> = ({ initialCreate, initi
             value={form}
             commandOptions={filteredCommandOptions}
             errors={errors}
+            stepFieldErrors={stepFieldErrors}
             submitting={submitting}
             loading={loadingCommands}
-            onChange={(v) => { setErrors(undefined); setForm(v); setDirty(true); }}
+            onChange={(v) => { setErrors(undefined); setStepFieldErrors(undefined); setForm(v); setDirty(true); }}
             onCancel={() => { if (!confirmNavigate()) return; setEditingId(undefined); setForm(emptyForm); setErrors(undefined); setDirty(false); }}
             onSubmit={async () => {
               if (!editingId) return;

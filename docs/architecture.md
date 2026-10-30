@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-29 (feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
+_Last reviewed: 2026-10-30 (feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
 feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
 feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
@@ -107,6 +107,18 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
     the log grid writes into the info text of the step. The step form has "Use a
     parameter of this sequence", which stores `{{name}}`. A text-typed friendly parameter in a numeric
     field is the error `text_parameter_in_numeric_field`.
+  - **Command editor fields** (feature 169, web UI only): the editor has a "Use a parameter" control
+    (`ParameterSourceControl`) on 12 step fields: Swipe `startX`, `startY`, `endX`, `endY`, `durationMs`;
+    Tap `confidence`, `offsetX`, `offsetY`, and the image; WaitForImage `timeoutMs` and the image;
+    EnsureEmulatorRunning `instanceIndex`. The control writes and removes `{{name}}` in
+    `CommandStep.FieldTemplates`. The editor keeps the whole `fieldTemplates` map when it saves a step,
+    also keys that have no control. The list of paths is a copy of `CommandStepFieldPaths` in
+    `fieldTemplatePaths.ts`. The test `FieldTemplatePathMirrorTests` fails when the copy and the C# class
+    differ. A parameter that does not fit a field shows a hint, and the person can still select it. The
+    service decides on save. The editor shows a service message at the field of the step that the message
+    names (it reads the step order from `Step {order}:`). The service rules and the API do not change.
+    The service refuses a tap step with an empty inline image, also with an image template, so the
+    editor asks for a stored image before it offers the image parameter.
   - A **binding** (`ParameterBinding`) supplies a value at one call site: a queue-template entry binds
     a sequence's parameters, and a sequence's command step binds a command's. `Value == null` means
     *inherit*; the empty string is a deliberate real value.

@@ -5,6 +5,8 @@ const config = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
   roots: ['<rootDir>/src'],
+  // Shared helper files of tests. They hold no test.
+  testPathIgnorePatterns: ['/node_modules/', '/__tests__/(parameterPanelTestHelpers|commandsPageTestSetup)\.tsx$'],
   moduleFileExtensions: ['ts', 'tsx', 'js'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   moduleNameMapper: {

@@ -20,9 +20,9 @@ describe('WaitForImagePanel', () => {
   describe('field rendering', () => {
     it('renders timeoutMs, image, and confidence inputs', () => {
       render(<WaitForImagePanel onConfirm={() => {}} onCancel={() => {}} />);
-      expect(screen.getByLabelText(/timeout/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^timeout/i)).toBeInTheDocument();
       expect(screen.getByTestId('wfi-image-input')).toBeInTheDocument();
-      expect(screen.getByLabelText(/confidence/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^confidence/i)).toBeInTheDocument();
     });
 
     it('renders Add and Cancel buttons', () => {
@@ -54,7 +54,7 @@ describe('WaitForImagePanel', () => {
       const onConfirm = jest.fn();
       render(<WaitForImagePanel onConfirm={onConfirm} onCancel={() => {}} />);
       // Set a timeout to make form valid
-      fireEvent.change(screen.getByLabelText(/timeout/i), { target: { value: '1000' } });
+      fireEvent.change(screen.getByLabelText(/^timeout/i), { target: { value: '1000' } });
       // Even with a referenceImageId that could be stale, confirm should fire
       fireEvent.change(screen.getByTestId('wfi-image-input'), { target: { value: 'some-img' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
@@ -71,9 +71,9 @@ describe('WaitForImagePanel', () => {
           onCancel={() => {}}
         />
       );
-      expect(screen.getByLabelText(/timeout/i)).toHaveValue(3000);
+      expect(screen.getByLabelText(/^timeout/i)).toHaveValue(3000);
       expect(screen.getByTestId('wfi-image-input')).toHaveValue('img-y');
-      expect(screen.getByLabelText(/confidence/i)).toHaveValue(0.7);
+      expect(screen.getByLabelText(/^confidence/i)).toHaveValue(0.7);
     });
   });
 
@@ -81,7 +81,7 @@ describe('WaitForImagePanel', () => {
     it('does not call onConfirm and shows error when timeout is empty', () => {
       const onConfirm = jest.fn();
       render(<WaitForImagePanel onConfirm={onConfirm} onCancel={() => {}} />);
-      fireEvent.change(screen.getByLabelText(/timeout/i), { target: { value: '' } });
+      fireEvent.change(screen.getByLabelText(/^timeout/i), { target: { value: '' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).not.toHaveBeenCalled();
       expect(screen.getByRole('alert')).toHaveTextContent('Timeout must be a non-negative whole number (ms).');
@@ -90,7 +90,7 @@ describe('WaitForImagePanel', () => {
     it('does not call onConfirm and shows error when timeout is non-integer', () => {
       const onConfirm = jest.fn();
       render(<WaitForImagePanel onConfirm={onConfirm} onCancel={() => {}} />);
-      fireEvent.change(screen.getByLabelText(/timeout/i), { target: { value: '1.5' } });
+      fireEvent.change(screen.getByLabelText(/^timeout/i), { target: { value: '1.5' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).not.toHaveBeenCalled();
       expect(screen.getByRole('alert')).toHaveTextContent('Timeout must be a non-negative whole number (ms).');
@@ -99,7 +99,7 @@ describe('WaitForImagePanel', () => {
     it('does not call onConfirm and shows error when timeout is negative', () => {
       const onConfirm = jest.fn();
       render(<WaitForImagePanel onConfirm={onConfirm} onCancel={() => {}} />);
-      fireEvent.change(screen.getByLabelText(/timeout/i), { target: { value: '-1' } });
+      fireEvent.change(screen.getByLabelText(/^timeout/i), { target: { value: '-1' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).not.toHaveBeenCalled();
     });
@@ -109,7 +109,7 @@ describe('WaitForImagePanel', () => {
     it('does not call onConfirm and shows error when confidence is out of range', () => {
       const onConfirm = jest.fn();
       render(<WaitForImagePanel onConfirm={onConfirm} onCancel={() => {}} />);
-      fireEvent.change(screen.getByLabelText(/confidence/i), { target: { value: '2' } });
+      fireEvent.change(screen.getByLabelText(/^confidence/i), { target: { value: '2' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).not.toHaveBeenCalled();
       expect(screen.getByRole('alert')).toHaveTextContent('Confidence must be a number between 0 and 1.');
@@ -127,7 +127,7 @@ describe('WaitForImagePanel', () => {
     it('calls onConfirm with timeout only when image is empty', () => {
       const onConfirm = jest.fn();
       render(<WaitForImagePanel onConfirm={onConfirm} onCancel={() => {}} />);
-      fireEvent.change(screen.getByLabelText(/timeout/i), { target: { value: '2000' } });
+      fireEvent.change(screen.getByLabelText(/^timeout/i), { target: { value: '2000' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).toHaveBeenCalledWith({
         timeoutMs: '2000',
@@ -139,9 +139,9 @@ describe('WaitForImagePanel', () => {
     it('calls onConfirm with all three values when all are filled', () => {
       const onConfirm = jest.fn();
       render(<WaitForImagePanel onConfirm={onConfirm} onCancel={() => {}} />);
-      fireEvent.change(screen.getByLabelText(/timeout/i), { target: { value: '5000' } });
+      fireEvent.change(screen.getByLabelText(/^timeout/i), { target: { value: '5000' } });
       fireEvent.change(screen.getByTestId('wfi-image-input'), { target: { value: 'img-z' } });
-      fireEvent.change(screen.getByLabelText(/confidence/i), { target: { value: '0.6' } });
+      fireEvent.change(screen.getByLabelText(/^confidence/i), { target: { value: '0.6' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).toHaveBeenCalledWith({
         timeoutMs: '5000',
