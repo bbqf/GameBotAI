@@ -43,8 +43,10 @@ Use these steps to check the feature by hand after the implementation.
 ## Check 5: Phone size (US5)
 
 1. Set the window to 375 px wide.
-2. Open the declaration editor. Check the "Use a larger screen" notice.
-3. In a place that shows the value form, check that all four kinds work with touch-size controls and no horizontal scroll.
+2. Open the Authoring area. Check that the area says it needs a larger screen, and that the declaration editor does not show.
+3. Open the Queues area. Check that it shows the list of entries with a check box for each, and no horizontal scroll.
+
+The phone UI has no place that shows the value form. The Queues area is "reduced" and has no Parameters button. The Jest test `ParameterFormPhone` checks the value form at 375 px.
 
 ## Check 5a: Pass-through and numeric field
 
