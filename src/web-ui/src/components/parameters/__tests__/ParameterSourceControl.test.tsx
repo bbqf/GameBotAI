@@ -79,7 +79,7 @@ describe('ParameterSourceControl', () => {
     openList();
     const option = screen.getByRole('option', { name: /label/ });
     expect(option).toHaveAccessibleDescription(
-      'This parameter gives text. A numeric field needs a number. The save will fail.',
+      'This parameter gives text. A numeric field needs a number. The save works, but the run fails when the value is not a number.',
     );
     fireEvent.click(option);
     expect(spy).toHaveBeenCalledWith('{{label}}');
