@@ -68,6 +68,7 @@ namespace GameBot.Domain.Commands {
       ValidateActionPayloads(sequence);
       ValidateInterStepDelayRange(sequence);
       ValidateWatchdogTimeout(sequence);
+      ValidateOnTimeLimit(sequence);
       Directory.CreateDirectory(_root);
       if (string.IsNullOrWhiteSpace(sequence.Id)) {
         sequence.Id = Guid.NewGuid().ToString("N");
@@ -85,6 +86,7 @@ namespace GameBot.Domain.Commands {
       ValidateActionPayloads(sequence);
       ValidateInterStepDelayRange(sequence);
       ValidateWatchdogTimeout(sequence);
+      ValidateOnTimeLimit(sequence);
       Directory.CreateDirectory(_root);
       if (string.IsNullOrWhiteSpace(sequence.Id)) {
         throw new InvalidOperationException("Sequence Id is required for update");
@@ -295,6 +297,12 @@ namespace GameBot.Domain.Commands {
 
       if (sequence.InterStepDelayRangeMs.Min > sequence.InterStepDelayRangeMs.Max) {
         throw new InvalidOperationException("InterStepDelayRangeMs.Min must be <= Max.");
+      }
+    }
+
+    private static void ValidateOnTimeLimit(CommandSequence sequence) {
+      if (!SequenceTimeLimits.IsValidOnTimeLimit(sequence.OnTimeLimit)) {
+        throw new InvalidOperationException(SequenceTimeLimits.OnTimeLimitInvalidMessage);
       }
     }
 

@@ -17,6 +17,12 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- End a run at its time limit without a failure status (170-end-run-at-time-limit, #354)
+  - **New**: a sequence has the option `onTimeLimit` with the values `fail` (default) and `end`. With `end`, a run that reaches its time limit gets the log status `success`. The entry keeps the reason `sequence_time_limit` and the limit value. The queue counts the run as successful: it sends no failure message and makes no daily retry.
+  - **Where**: the API (POST, PUT, PATCH, GET, and the list), the OpenAPI text, and a select "When the time limit is reached" in the sequence form of the web UI. An unknown value gives the error `onTimeLimit must be one of: fail, end.`.
+  - **Not changed**: the limit value, the default of 240000 ms, and the cancel of the step in progress. A step that fails keeps the status `failure`. A sequence without the option behaves as before. The update of a sequence in the web UI now always sends `onTimeLimit`.
+  - See `docs/architecture.md` and `docs/parameters.md`.
+  - The patch version is now 29, so the next build is `1.11.29.<run number>`.
 - Command editor parameter fields (169-command-editor-parameter-fields, #358)
   - **New**: the command editor has a "Use a parameter" button on 12 step fields: Swipe (start X, start Y, end X, end Y, duration), Tap (confidence, offset X, offset Y, image), Wait for image (timeout, image), and Ensure emulator running (instance index). You select a parameter of the command or a queue value. The editor writes `{{name}}` in `fieldTemplates`. You can remove it again.
   - **Round trip fix**: the editor did not keep `fieldTemplates` before. A save in the editor removed the templates of a command. Now it keeps all of them, also the keys that have no control.

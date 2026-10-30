@@ -123,9 +123,37 @@ type SequenceFormValue = {
   parameters: ParameterDeclaration[];
   /** Feature 122: when true, queues send no success message for this sequence. */
   excludeFromSuccessNotifications: boolean;
+  /** Feature 170: what a queue run does at its time limit. */
+  onTimeLimit: 'fail' | 'end';
 };
 
 const EXCLUDE_NOTIFICATIONS_HELP = 'The queue sends no success message for this sequence. It still sends failure, cancelled and recovered messages.';
+
+const ON_TIME_LIMIT_HELP = 'Choose "End the run as success" for a sequence that is meant to run until its time limit. The run log shows success and keeps the time-limit reason.';
+
+// Phone support level: full (docs/mobile-ui-principles.md). A hit area of at least 44 x 44 CSS px,
+// an input font of at least 16 px, and one column.
+const ON_TIME_LIMIT_SELECT_STYLE = { width: '100%', boxSizing: 'border-box', minHeight: 44, minWidth: 44, fontSize: 16 } as const;
+
+function OnTimeLimitField(props: { id: string; value: 'fail' | 'end'; disabled: boolean; onChange: (value: 'fail' | 'end') => void }) {
+  return (
+    <div className="field">
+      <label htmlFor={props.id}>When the time limit is reached</label>
+      <select
+        id={props.id}
+        value={props.value}
+        style={ON_TIME_LIMIT_SELECT_STYLE}
+        onChange={(event) => props.onChange(event.target.value === 'end' ? 'end' : 'fail')}
+        disabled={props.disabled}
+        aria-describedby={`${props.id}-hint`}
+      >
+        <option value="fail">Fail the run</option>
+        <option value="end">End the run as success</option>
+      </select>
+      <div id={`${props.id}-hint`} className="form-hint">{ON_TIME_LIMIT_HELP}</div>
+    </div>
+  );
+}
 
 // Collision detection that uses the cursor position rather than the dragged item's
 // bounding box, and only considers droppables in the same scope as the active item.
@@ -155,7 +183,8 @@ const emptyForm: SequenceFormValue = {
   delayMin: '',
   delayMax: '',
   parameters: [],
-  excludeFromSuccessNotifications: false
+  excludeFromSuccessNotifications: false,
+  onTimeLimit: 'fail'
 };
 
 const createDefaultStep = (commandId: string, stepId: string, commandReference?: SequenceCommandReference): SequenceStep => ({
@@ -1127,7 +1156,8 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       delayMin: delayRange ? String(delayRange.min) : '',
       delayMax: delayRange ? String(delayRange.max) : '',
       parameters: s.parameters ?? [],
-      excludeFromSuccessNotifications: s.excludeFromSuccessNotifications === true
+      excludeFromSuccessNotifications: s.excludeFromSuccessNotifications === true,
+      onTimeLimit: s.onTimeLimit === 'end' ? 'end' : 'fail'
     });
     setLoadedVersion(s.version ?? 1);
     setDirty(false);
@@ -1924,7 +1954,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   interStepDelayRangeMs: linearPayload.interStepDelayRangeMs,
                   ...(form.parameters.length > 0 ? { parameters: form.parameters } : {}),
                   // Feature 122: sent only when on. An absent member means false on create.
-                  ...(form.excludeFromSuccessNotifications ? { excludeFromSuccessNotifications: true } : {})
+                  ...(form.excludeFromSuccessNotifications ? { excludeFromSuccessNotifications: true } : {}),
+                  // Feature 170: sent only for 'end'. An absent member means 'fail' on create.
+                  ...(form.onTimeLimit === 'end' ? { onTimeLimit: 'end' as const } : {})
                 }
               );
               setCreating(false);
@@ -1971,6 +2003,16 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               </label>
               <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
             </div>
+            <OnTimeLimitField
+              id="sequence-on-time-limit"
+              value={form.onTimeLimit}
+              disabled={submitting || loading}
+              onChange={(value) => {
+                setForm((prev) => ({ ...prev, onTimeLimit: value }));
+                setErrors(undefined);
+                setDirty(true);
+              }}
+            />
             <div className="field">
               <label>
                 <input
@@ -2204,7 +2246,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                     // actually persists — an absent member means "leave unchanged" server-side.
                     parameters: form.parameters,
                     // Feature 122: always sent on update, so a save of another change keeps the value.
-                    excludeFromSuccessNotifications: form.excludeFromSuccessNotifications
+                    excludeFromSuccessNotifications: form.excludeFromSuccessNotifications,
+                    // Feature 170: always sent on update, because PUT resets an absent value to 'fail'.
+                    onTimeLimit: form.onTimeLimit
                   }
                 );
                 await reloadSequences();
@@ -2254,6 +2298,16 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                 </label>
                 <div className="form-hint">{EXCLUDE_NOTIFICATIONS_HELP}</div>
               </div>
+              <OnTimeLimitField
+                id="sequence-edit-on-time-limit"
+                value={form.onTimeLimit}
+                disabled={submitting || loading}
+                onChange={(value) => {
+                  setForm((prev) => ({ ...prev, onTimeLimit: value }));
+                  setErrors(undefined);
+                  setDirty(true);
+                }}
+              />
               <div className="field">
                 <label>
                   <input

@@ -23,8 +23,10 @@ internal sealed class SequenceTimeLimitSchemaFilter : ISchemaFilter {
   internal static readonly string CancellationReasonDescription =
     $"Why the platform ended this execution early. '{ExecutionCancellationReasons.SequenceTimeLimit}': a queue firing's "
     + "sequence ran past its time bound (watchdogTimeoutMs, default "
-    + $"{SequenceTimeLimits.DefaultWatchdogTimeoutMs} ms). Null otherwise — including ordinary failures, successes, "
-    + "user stops and ad-hoc runs. finalStatus stays 'failure' for a time-limit cancellation.";
+    + $"{SequenceTimeLimits.DefaultWatchdogTimeoutMs} ms). With the status 'failure' it means the limit ended a run "
+    + "of a sequence with onTimeLimit 'fail'. With the status 'success' it means the limit ended a run of a sequence "
+    + "with onTimeLimit 'end' (a planned stop). Null otherwise — including ordinary failures, successes, "
+    + "user stops and ad-hoc runs.";
 
   private const string TimeLimitDescription =
     "The time bound in milliseconds that applied to the firing; set exactly when cancellationReason is set.";
@@ -34,15 +36,26 @@ internal sealed class SequenceTimeLimitSchemaFilter : ISchemaFilter {
     "If true, queues send no success message for this sequence. Failure, cancelled and recovered messages "
     + "are still sent. If absent on PUT or PATCH, the stored value does not change.";
 
+  // Feature 170: the description of the sequence option that ends a run at its time limit.
+  internal const string OnTimeLimitDescription =
+    "What a queue run does when it reaches its time limit. Allowed values: 'fail' "
+    + "(default) gives the log status failure. "
+    + "'end' gives the log status success; the entry keeps cancellationReason "
+    + "'sequence_time_limit' and timeLimitMs. A response always holds the value. "
+    + "If absent on POST, the value is 'fail'. If absent on PUT, the value resets to 'fail'. If absent on PATCH, "
+    + "the stored value does not change. An unknown value gives 400.";
+
   public void Apply(OpenApiSchema schema, SchemaFilterContext context) {
     if (context.Type == typeof(SequenceUpsertContract) || context.Type == typeof(SequencePatchContract)) {
       Describe(schema, "watchdogTimeoutMs", WatchdogDescription);
       Describe(schema, "excludeFromSuccessNotifications", ExcludeFromSuccessNotificationsDescription);
+      Describe(schema, "onTimeLimit", OnTimeLimitDescription);
     }
     else if (context.Type == typeof(SequenceRequestSchema)
       || context.Type == typeof(SequenceResponseSchema)
       || context.Type == typeof(SequenceListItemResponse)) {
       Describe(schema, "excludeFromSuccessNotifications", ExcludeFromSuccessNotificationsDescription);
+      Describe(schema, "onTimeLimit", OnTimeLimitDescription);
     }
     else if (context.Type == typeof(ExecutionLogEntryDto)) {
       Describe(schema, "cancellationReason", CancellationReasonDescription);

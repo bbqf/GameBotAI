@@ -1135,12 +1135,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     // longer than the default — one that waits out a scripted in-game animation such as an auto-battle
     // can exceed it on every single run, so the default would not protect that sequence but abort it
     // every time. Anything without an override keeps the default exactly as before.
-    var watchdogTimeout = await ResolveWatchdogTimeoutAsync(sequenceId).ConfigureAwait(false);
+    var (watchdogTimeout, endsAtLimit) = await ResolveWatchdogTimeoutAsync(sequenceId).ConfigureAwait(false);
     // The bound gets its own timer token (feature 094) so the sequence's log entry can tell "ran out of
     // time" from "the run was stopped" — a single linked source carrying both would erase that.
     using var watchdogTimer = new CancellationTokenSource(watchdogTimeout);
     using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(ct, watchdogTimer.Token);
-    using var timeLimitScope = SequenceTimeLimitScope.Push((int)watchdogTimeout.TotalMilliseconds, watchdogTimer.Token, ct);
+    using var timeLimitScope = SequenceTimeLimitScope.Push((int)watchdogTimeout.TotalMilliseconds, watchdogTimer.Token, ct, endsAtLimit);
     // Sequence-level "now" tracking for the live monitor (feature 072): every firing — at-start,
     // once-per-run, every-step, timer, relative, live, self-reschedule — flows through here, so
     // set the current sequence at the top and clear it in the finally. This is purely observational
@@ -1196,6 +1196,13 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       startedAt = _timeProvider.GetLocalNow();
       var res = await _sequenceExecution.ExecuteAsync(sequenceId, sessionId, parentContext, scope, ct: watchdog.Token).ConfigureAwait(false);
       var succeeded = string.Equals(res.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
+      // Feature 170: a stop at the time limit with onTimeLimit = end is a planned stop. The queue counts
+      // it as a success: no failure message and no daily retry.
+      if (!succeeded && endsAtLimit && !ct.IsCancellationRequested && watchdogTimer.IsCancellationRequested
+          && SequenceExecutionService.EndsAtLimitByChoice(res)) {
+        await RecordRunAsync(queueId, sequenceId, startedAt, SequenceRunStatus.Success).ConfigureAwait(false);
+        return true;
+      }
       var status = ClassifyResult(succeeded, ct, watchdogTimer.Token);
       // Feature 120: a run that the time limit ended is a failure for the notification. The stop
       // request has priority: a stop by the queue is a cancel.
@@ -1211,6 +1218,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // Watchdog fired: the sequence overran its bound. Non-fatal — record it and let the run continue
       // so the timeout releases the queue instead of hanging it (FR-008/008b analogue).
       QueueExecutionLog.SequenceWatchdogTimedOut(_logger, sequenceId, (int)watchdogTimeout.TotalSeconds);
+      if (endsAtLimit && watchdogTimer.IsCancellationRequested) {
+        // Feature 170: onTimeLimit = end. The stop is planned, so the firing is a success.
+        await RecordRunAsync(queueId, sequenceId, startedAt, SequenceRunStatus.Success).ConfigureAwait(false);
+        return true;
+      }
       await RecordRunAsync(queueId, sequenceId, startedAt, SequenceRunStatus.Cancelled, watchdogEnded: true).ConfigureAwait(false);
       return false;
     }
@@ -1306,16 +1318,22 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
     QueueExecutionLog.DailyRetryArmed(_logger, sequenceId, nextAttempt, maxAttempts, (int)delay.TotalMinutes);
   }
 
-  private async Task<TimeSpan> ResolveWatchdogTimeoutAsync(string sequenceId) {
-    if (_sequences is null) return SequenceWatchdogTimeout;
+  /// <summary>
+  /// Feature 170: the same lookup also returns the option <c>onTimeLimit</c>. A lookup failure gives
+  /// the default limit and the option <c>fail</c>.
+  /// </summary>
+  private async Task<(TimeSpan Timeout, bool EndsAtLimit)> ResolveWatchdogTimeoutAsync(string sequenceId) {
+    if (_sequences is null) return (SequenceWatchdogTimeout, false);
     try {
       var sequence = await _sequences.GetAsync(sequenceId).ConfigureAwait(false);
-      return TimeSpan.FromMilliseconds(GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence?.WatchdogTimeoutMs));
+      return (
+        TimeSpan.FromMilliseconds(GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence?.WatchdogTimeoutMs)),
+        sequence?.OnTimeLimit == GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitEnd);
     }
     catch (Exception ex) {
       QueueExecutionLog.WatchdogTimeoutLookupFailed(_logger, sequenceId, ex);
     }
-    return SequenceWatchdogTimeout;
+    return (SequenceWatchdogTimeout, false);
   }
 
   /// <summary>

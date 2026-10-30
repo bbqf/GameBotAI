@@ -53,11 +53,17 @@ internal static class SequencesEndpoints {
       return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { excludeError } });
     }
 
+    // Feature 170: check onTimeLimit in the same way, before any other change.
+    if (!TryReadOnTimeLimit(root, out var onTimeLimit, out var onTimeLimitError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { onTimeLimitError } });
+    }
+
     var isPerStepCandidate = IsPerStepRequestCandidate(root);
     if (TryReadPerStepRequest(root, out var perStepRequest, out var perStepRequestError) && perStepRequest is not null) {
       var perStepSequence = new GameBot.Domain.Commands.CommandSequence {
         Id = string.Empty,
         ExcludeFromSuccessNotifications = excludeFlag ?? false,
+        OnTimeLimit = onTimeLimit,
         Name = perStepRequest.Name.Trim(),
         Version = perStepRequest.Version > 0 ? perStepRequest.Version : 1,
         CreatedAt = DateTimeOffset.UtcNow,
@@ -108,7 +114,7 @@ internal static class SequencesEndpoints {
     // Authoring shape: { name: string, steps?: string[] }
     if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String && !root.TryGetProperty("blocks", out _)) {
       var name = nameProp.GetString()!.Trim();
-      var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, ExcludeFromSuccessNotifications = excludeFlag ?? false, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+      var seq = new GameBot.Domain.Commands.CommandSequence { Id = string.Empty, Name = name, ExcludeFromSuccessNotifications = excludeFlag ?? false, OnTimeLimit = onTimeLimit, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
       // Issue #242: this shape keeps only string command ids. Reject each part of the request that
       // it cannot keep, so that the stored sequence never differs from the request.
       var oldShapeErrors = ValidateOldShapeRequest(root);
@@ -137,6 +143,7 @@ internal static class SequencesEndpoints {
     var seqDomain = JsonSerializer.Deserialize<GameBot.Domain.Commands.CommandSequence>(root);
     if (seqDomain is null) return Results.BadRequest(new { message = "Invalid sequence payload" });
     seqDomain.ExcludeFromSuccessNotifications = excludeFlag ?? false;
+    seqDomain.OnTimeLimit = onTimeLimit;
     var errors = ValidateSequence(seqDomain);
     if (errors.Count > 0) return Results.BadRequest(new { message = "Invalid sequence", errors });
     if (IsDryRunRequested(root)) {
@@ -156,6 +163,23 @@ internal static class SequencesEndpoints {
     if (prop.ValueKind == JsonValueKind.True) { value = true; return true; }
     if (prop.ValueKind == JsonValueKind.False) { value = false; return true; }
     error = "excludeFromSuccessNotifications must be true or false.";
+    return false;
+  }
+
+  // Feature 170: reads the optional member onTimeLimit. Only the JSON strings fail and end are valid.
+  // Absent gives null. A non-string value and JSON null are errors.
+  private static bool TryReadOnTimeLimit(JsonElement root, out string? value, out string? error) {
+    value = null;
+    error = null;
+    if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("onTimeLimit", out var prop)) return true;
+    if (prop.ValueKind == JsonValueKind.String) {
+      var text = prop.GetString();
+      if (text == GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail || text == GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitEnd) {
+        value = text;
+        return true;
+      }
+    }
+    error = GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitInvalidMessage;
     return false;
   }
 
@@ -200,6 +224,13 @@ internal static class SequencesEndpoints {
     }
 
     if (excludeFlag is { } excludeValue) existing.ExcludeFromSuccessNotifications = excludeValue;
+
+    // Feature 170: PUT replaces the sequence, so an absent onTimeLimit resets to fail.
+    if (!TryReadOnTimeLimit(root, out var onTimeLimit, out var onTimeLimitError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { onTimeLimitError } });
+    }
+
+    existing.OnTimeLimit = onTimeLimit;
 
     var isPerStepCandidate = IsPerStepRequestCandidate(root);
     // Feature 114: only a per-step-shape body has a parameter check, so only its response shows warnings.
@@ -294,6 +325,13 @@ internal static class SequencesEndpoints {
     }
 
     if (excludeFlag is { } excludeValue) existing.ExcludeFromSuccessNotifications = excludeValue;
+
+    // Feature 170: an absent onTimeLimit keeps the saved value.
+    if (!TryReadOnTimeLimit(root, out var onTimeLimit, out var onTimeLimitError)) {
+      return Results.BadRequest(new { message = "Invalid sequence payload", errors = new[] { onTimeLimitError } });
+    }
+
+    if (onTimeLimit is not null) existing.OnTimeLimit = onTimeLimit;
 
     var isPerStepCandidate = IsPerStepRequestCandidate(root);
     // Feature 114: only a per-step-shape body has a parameter check, so only its response shows warnings.
@@ -399,6 +437,7 @@ internal static class SequencesEndpoints {
       Steps = new System.Collections.ObjectModel.Collection<string>(s.Steps.Select(x => x.CommandId).ToList()),
       Parameters = ParameterDtoMapper.ToResponseDeclarations(s.Parameters),
       ExcludeFromSuccessNotifications = s.ExcludeFromSuccessNotifications,
+      OnTimeLimit = s.OnTimeLimit ?? GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail,
       Owner = GamepackOwnerResponse.For(owners, GameBot.Domain.Gamepacks.GamepackObjectTypes.Sequence, s.Id)
     });
     return Results.Ok(resp);
@@ -549,7 +588,8 @@ internal static class SequencesEndpoints {
           : null,
         watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
         effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
-        excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications
+        excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications,
+        onTimeLimit = sequence.OnTimeLimit ?? GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail
       };
     }
 
@@ -565,7 +605,8 @@ internal static class SequencesEndpoints {
         watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
         effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
         parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters),
-        excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications
+        excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications,
+        onTimeLimit = sequence.OnTimeLimit ?? GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail
       };
     }
 
@@ -580,7 +621,8 @@ internal static class SequencesEndpoints {
       watchdogTimeoutMs = sequence.WatchdogTimeoutMs,
       effectiveWatchdogTimeoutMs = GameBot.Domain.Commands.SequenceTimeLimits.Resolve(sequence.WatchdogTimeoutMs),
       parameters = ParameterDtoMapper.ToResponseDeclarations(sequence.Parameters),
-      excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications
+      excludeFromSuccessNotifications = sequence.ExcludeFromSuccessNotifications,
+      onTimeLimit = sequence.OnTimeLimit ?? GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail
     };
   }
 

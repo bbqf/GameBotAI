@@ -197,6 +197,7 @@ Status vocabulary:
 | 167 | Sequence Condition on a Step Outcome Inside a Command | Implemented |
 | 168 | Friendly Sequence Parameters | Implemented |
 | 169 | Command Editor Parameter Fields | Implemented |
+| 170 | End a Run at Its Time Limit Without a Failure Status | Implemented |
 
 ## Numbering notes
 

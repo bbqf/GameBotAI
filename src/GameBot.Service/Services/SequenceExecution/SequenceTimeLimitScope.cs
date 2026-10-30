@@ -16,11 +16,18 @@ internal sealed class SequenceTimeLimitScope {
   private readonly CancellationToken _timerToken;
   private readonly CancellationToken _stopToken;
 
-  private SequenceTimeLimitScope(int timeLimitMs, CancellationToken timerToken, CancellationToken stopToken) {
+  private SequenceTimeLimitScope(int timeLimitMs, bool endsRunAtLimit, CancellationToken timerToken, CancellationToken stopToken) {
     TimeLimitMs = timeLimitMs;
     _timerToken = timerToken;
     _stopToken = stopToken;
+    EndsRunAtLimit = endsRunAtLimit;
   }
+
+  /// <summary>
+  /// True when the sequence has <c>onTimeLimit</c> = <c>end</c> (feature 170). A run that reaches its
+  /// time limit then ends with the status success. Use it together with <see cref="HasElapsed"/>.
+  /// </summary>
+  public bool EndsRunAtLimit { get; }
 
   /// <summary>The innermost scope on the current async flow, or null outside a queue firing.</summary>
   public static SequenceTimeLimitScope? Current => Ambient.Value;
@@ -40,10 +47,11 @@ internal sealed class SequenceTimeLimitScope {
   /// <param name="timeLimitMs">The bound applied to the firing.</param>
   /// <param name="timerToken">A token cancelled only by the bound's timer.</param>
   /// <param name="stopToken">The run's stop token.</param>
+  /// <param name="endsRunAtLimit">True when the run ends with the status success at the bound (feature 170).</param>
   /// <returns>A handle that restores the previous scope on dispose.</returns>
-  public static IDisposable Push(int timeLimitMs, CancellationToken timerToken, CancellationToken stopToken) {
+  public static IDisposable Push(int timeLimitMs, CancellationToken timerToken, CancellationToken stopToken, bool endsRunAtLimit = false) {
     var previous = Ambient.Value;
-    Ambient.Value = new SequenceTimeLimitScope(timeLimitMs, timerToken, stopToken);
+    Ambient.Value = new SequenceTimeLimitScope(timeLimitMs, endsRunAtLimit, timerToken, stopToken);
     return new Restore(previous);
   }
 

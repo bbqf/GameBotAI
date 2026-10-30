@@ -35,6 +35,9 @@ internal sealed record SequenceUpsertContract {
   /// </summary>
   public bool? ExcludeFromSuccessNotifications { get; init; }
 
+  /// <summary>What a queue run does at its time limit (feature 170): fail (default) or end. Absent means fail.</summary>
+  public string? OnTimeLimit { get; init; }
+
   /// <summary>
   /// Validate-only mode (feature 082, FR-002): when <c>true</c> on create, runs the same
   /// enrichment/validation a real create runs but never persists a sequence. Defaults to
@@ -61,6 +64,9 @@ internal sealed record SequencePatchContract {
 
   /// <summary>If true, queues send no success message for this sequence (feature 122). Absent leaves it unchanged.</summary>
   public bool? ExcludeFromSuccessNotifications { get; init; }
+
+  /// <summary>What a queue run does at its time limit (feature 170): fail or end. Absent leaves it unchanged.</summary>
+  public string? OnTimeLimit { get; init; }
 }
 
 internal sealed record SequenceStepContract {
@@ -250,6 +256,9 @@ internal sealed record SequenceListItemResponse {
 
   /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
   public bool ExcludeFromSuccessNotifications { get; init; }
+
+  /// <summary>What a queue run does at its time limit (feature 170): fail or end.</summary>
+  public string OnTimeLimit { get; init; } = GameBot.Domain.Commands.SequenceTimeLimits.OnTimeLimitFail;
 
   /// <summary>The read-only owner: the user or a gamepack (feature 143). A write request ignores it.</summary>
   public GameBot.Service.Endpoints.Dto.GamepackOwnerDto? Owner { get; init; }

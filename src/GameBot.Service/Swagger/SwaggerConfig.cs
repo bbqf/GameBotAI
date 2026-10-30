@@ -2476,6 +2476,9 @@ internal sealed class SequenceRequestSchema {
 
   /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
   public bool? ExcludeFromSuccessNotifications { get; set; }
+
+  /// <summary>What a queue run does at its time limit (feature 170): fail (default) or end.</summary>
+  public string? OnTimeLimit { get; set; }
 }
 
 internal sealed class SequenceResponseSchema {
@@ -2491,6 +2494,9 @@ internal sealed class SequenceResponseSchema {
 
   /// <summary>If true, queues send no success message for this sequence (feature 122).</summary>
   public bool ExcludeFromSuccessNotifications { get; set; }
+
+  /// <summary>What a queue run does at its time limit (feature 170): fail or end.</summary>
+  public string OnTimeLimit { get; set; } = "fail";
 }
 
 internal sealed class SequenceValidateResponseSchema {
