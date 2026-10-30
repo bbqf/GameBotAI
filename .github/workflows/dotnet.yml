@@ -23,8 +23,6 @@ concurrency:
 env:
   DOTNET_NOLOGO: 'true'
   DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
-  # Run JavaScript actions on Node.js 24. This removes the Node.js 20 deprecation warning.
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   # Secret scan, path groups, and the shard lists. About 10 s on Linux.
@@ -187,7 +185,7 @@ jobs:
         with:
           dotnet-version: '9.0.x'
       - name: Download unit test output
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: bin-unit
           path: tests/unit/bin/Release/net9.0
@@ -228,7 +226,7 @@ jobs:
         with:
           dotnet-version: '9.0.x'
       - name: Download contract test output
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: bin-contract
           path: tests/contract/bin/Release/net9.0
@@ -257,12 +255,12 @@ jobs:
         with:
           dotnet-version: '9.0.x'
       - name: Download integration test output
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: bin-integration
           path: tests/integration/bin/Release/net9.0
       - name: Download OCR stub
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: bin-stub
           path: tests/TestAssets/TesseractStub/bin/Release
@@ -327,13 +325,13 @@ jobs:
           sparse-checkout: scripts
       - name: Download unit coverage
         if: needs.test-unit.result == 'success' && needs.test-integration.result == 'success'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: coverage-unit
           path: coverage/unit
       - name: Download integration coverage
         if: needs.test-unit.result == 'success' && needs.test-integration.result == 'success'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: coverage-integration
           path: coverage/integration
