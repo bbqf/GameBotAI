@@ -217,6 +217,14 @@
   gap: var(--gb-space-1, 4px);
 }
 
+/* The general input rule above would stretch the check boxes of the "Choose images" dialog. */
+.command-form .allowed-images-option input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0;
+  box-shadow: none;
+}
+
 /* The image chooser needs the full width: its list is positioned against it. */
 .parameter-source > .image-selector {
   align-self: stretch;
