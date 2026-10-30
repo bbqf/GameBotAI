@@ -169,6 +169,7 @@ export const ParameterSourceControl: React.FC<ParameterSourceControlProps> = ({
           aria-expanded={open}
           aria-describedby={describedBy}
           disabled={disabled || blocked}
+          title={blocked ? blockedMessage : undefined}
           onClick={() => setOpen((v) => !v)}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown' && !open) {

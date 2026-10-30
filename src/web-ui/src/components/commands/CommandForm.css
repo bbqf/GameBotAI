@@ -217,6 +217,11 @@
   gap: var(--gb-space-1, 4px);
 }
 
+/* The image chooser needs the full width: its list is positioned against it. */
+.parameter-source > .image-selector {
+  align-self: stretch;
+}
+
 .parameter-source__chip-row {
   display: flex;
   align-items: center;
