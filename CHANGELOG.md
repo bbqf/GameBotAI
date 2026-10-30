@@ -17,6 +17,12 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Split of the largest contract test shard, and a shard balance rule (172-ci-test-shard-split)
+  - **Cause**: the shard `contract-4` was the complement shard of the contract tests. It ran about 3 times longer than the other shards (350 s of test time against 75 to 123 s), and it set the CI time.
+  - **Change**: the contract tests now run in 6 shards. `contract-4` and the new `contract-5` have named class prefixes. `contract-6` is the complement. Locally, the longest shard is now 123 s, the average is 112 s, and the limit is 134 s. Each test class still runs in exactly one shard.
+  - **Rule**: a shard whose local run time is more than 20% above the average of the shards of its own project MUST be split again. See "Shard balance rule" in `docs/ci-time.md` and the constitution (version 1.6.0).
+  - **New**: `scripts/ci/measure-shards.ps1 -Project <unit|contract|integration>` runs each shard on your PC, prints the times, and names each shard that you must split. CI does not run it. The new pull request template asks for the result.
+  - The patch version is now 1, so the next build is `1.12.1.<run number>`.
 - Apply template changes to a running queue (171-live-template-changes)
   - **New**: you can pause a running queue between sequences, apply the changes of its linked template, and resume the same run. The run does not restart. You can enable, disable, add, and remove entries, change their parameter values, and change their order. No schedule and no next due time changes, unless you select a schedule change.
   - **Pause**: `POST /api/queues/{id}/pause` lets the sequence that runs finish. Then the queue starts no new sequence until `POST /api/queues/{id}/resume`. The state shows as `health.operatorPause` (`none`, `pausing`, `paused`), and `pauseKind` has the new value `operator`. A restart or a stop ends the pause. The pause is not the "Pause when idle" setting.
