@@ -16,3 +16,14 @@
 8. Run the tests:
    `dotnet test` (unit, integration, contract filters for `SequenceTimeLimit` and `OnTimeLimit`) and
    `npm test` in `src/web-ui`.
+
+## Result of the check
+
+The check ran as automated tests. No live queue ran on an emulator, and no browser check ran at phone width.
+
+- Steps 1, 2, 5, 5a, 6: `SequenceOnTimeLimitApiIntegrationTests`, `SequenceTimeLimitEndLogIntegrationTests`,
+  `SequenceTimeLimitEndDefaultLimitTests`, and `SequenceTimeLimitFailRegressionTests` pass.
+- Steps 3 and 4: `QueueExecutionServiceTests` (end and fail at the limit) pass. They show the `Success` record,
+  no failure message, and no daily retry for `end`.
+- Step 7: the Jest tests `SequencesPage.onTimeLimit` and `SequencesPage.onTimeLimitLayout` pass. They check the
+  select, the saved value, and the style values (44 px and 16 px).

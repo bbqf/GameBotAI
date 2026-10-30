@@ -2,7 +2,7 @@
 
 **Feature Branch**: `170-end-run-at-time-limit`  
 **Created**: 2026-10-30  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "GitHub issue #354: FR-038: End a run at its time limit without a failure status, or read the elapsed time. Closes #354."
 
 ## Background

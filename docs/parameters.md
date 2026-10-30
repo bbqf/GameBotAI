@@ -115,6 +115,23 @@ The log shows each value that a step used, in the info text of the step: `Parame
 mode)`. A choice shows its label after the value. An image and a number show the technical value. A name
 that contains `token`, `password`, `secret`, `apikey`, `api_key`, or `authorization` is masked.
 
+## End a run at its time limit
+
+A queue gives each sequence run a time limit. The member `watchdogTimeoutMs` sets it. The default is 240000 ms.
+Some sequences must run until this limit, for example a sequence that waits for an auto-battle. For these
+sequences, set the member `onTimeLimit`.
+
+| Value | Result at the time limit |
+|-------|--------------------------|
+| `fail` (default) | The run log shows `failure`. The queue counts the run as failed. |
+| `end` | The run log shows `success`. The queue counts the run as successful: it sends no failure message and makes no daily retry. |
+
+The limit still stops the step that is in progress. An `end` run keeps the log reason `sequence_time_limit` and
+the limit value `timeLimitMs`. To find such a run, filter the log with the status `success` and the reason
+`sequence_time_limit`. A step that fails keeps the status `failure`. A value that is not `fail` or `end` gives
+the error `onTimeLimit must be one of: fail, end.`. In the web UI, use the select "When the time limit is
+reached" in the sequence form.
+
 ## Where to find more
 
 - The Swagger shows the schemas `ParameterDeclarationDto`, `ParameterOptionDto`, `ParameterBindingDto`, and

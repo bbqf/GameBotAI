@@ -51,6 +51,20 @@ namespace GameBot.Domain.Commands {
     public bool ExcludeFromSuccessNotifications { get; set; }
 
     /// <summary>
+    /// What a queue run does at its time limit (feature 170): <c>fail</c> (default) or <c>end</c>. With
+    /// <c>end</c> the run gets the status success. Omitted from JSON when null or <c>fail</c>, so an old
+    /// file with no member reads as <c>fail</c>.
+    /// </summary>
+    [JsonPropertyName("onTimeLimit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OnTimeLimit {
+      get => _onTimeLimit;
+      set => _onTimeLimit = value == SequenceTimeLimits.OnTimeLimitFail ? null : value;
+    }
+
+    private string? _onTimeLimit;
+
+    /// <summary>
     /// Parameters this sequence accepts (feature 078). Empty means the sequence is unparametrized and
     /// behaves exactly as before the feature. A sequence need <em>not</em> declare a parameter merely
     /// to pass it through to a nested command: unbound names inherit from the enclosing run scope.

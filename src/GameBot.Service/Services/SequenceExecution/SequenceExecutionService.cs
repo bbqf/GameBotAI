@@ -200,7 +200,12 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     var cancelled = ex is OperationCanceledException;
     var name = opened.SequenceName ?? opened.SequenceId ?? "sequence";
     var timeLimitMs = ElapsedTimeLimitMs("failure");
-    var summary = timeLimitMs is { } limit
+    // Feature 170: a cancel by the time limit ends the run with success when the sequence has "end".
+    // Any other exception is a fault, so the status stays failure.
+    var endedByChoice = cancelled && timeLimitMs is not null && SequenceTimeLimitScope.Current is { EndsRunAtLimit: true };
+    var summary = endedByChoice
+      ? $"Sequence '{name}' ended at its time limit of {timeLimitMs} ms by choice (onTimeLimit is end)."
+      : timeLimitMs is { } limit
       ? $"Sequence '{name}' exceeded its time limit of {limit} ms and was cancelled before it finished."
       : cancelled
         ? $"Sequence '{name}' was cancelled before it finished."
@@ -210,7 +215,7 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
         opened.ExecutionId!,
         opened.SequenceId ?? string.Empty,
         name,
-        "failure",
+        endedByChoice ? "success" : "failure",
         summary,
         new ExecutionLogContext {
           Depth = 0,
@@ -236,6 +241,15 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   /// its verdict was reached on a budget that had already run out.
   /// </summary>
   /// <param name="status">The normalized final status about to be logged.</param>
+  /// <summary>
+  /// Feature 170: true when the run reached its time limit, the sequence has <c>onTimeLimit</c> = <c>end</c>,
+  /// and no step or block failed. A step fault keeps the status failure. The queue uses the same rule.
+  /// </summary>
+  internal static bool EndsAtLimitByChoice(SequenceExecutionResult res) =>
+    SequenceTimeLimitScope.Current is { HasElapsed: true, EndsRunAtLimit: true }
+    && !res.Steps.Any(s => string.Equals(s.Status, "Failed", StringComparison.OrdinalIgnoreCase))
+    && !res.Blocks.Any(b => string.Equals(b.Status, "Failed", StringComparison.OrdinalIgnoreCase));
+
   private static int? ElapsedTimeLimitMs(string status) {
     if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase)) return null;
     return SequenceTimeLimitScope.Current is { HasElapsed: true } scope ? scope.TimeLimitMs : null;
@@ -638,12 +652,20 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     }
 
     var elapsedTimeLimitMs = ElapsedTimeLimitMs(status);
+    var summaryPrefix = $"Sequence '{sequenceName}' {status}";
+    // Feature 170: a run that reached its time limit with onTimeLimit = end gets the status success.
+    // The reason and the limit value stay on the entry.
+    if (status == "failure" && EndsAtLimitByChoice(res)) {
+      status = "success";
+      elapsedTimeLimitMs = SequenceTimeLimitScope.Current!.TimeLimitMs;
+      summaryPrefix = $"Sequence '{sequenceName}' ended at its time limit by choice (onTimeLimit is end)";
+    }
     await _executionLogService.LogSequenceFinalizeAsync(
       rootExecutionId,
       sequenceId,
       sequenceName,
       status,
-      $"Sequence '{sequenceName}' {status} with {commandSteps.Count} step{(commandSteps.Count == 1 ? "" : "s")} executed.",
+      $"{summaryPrefix} with {commandSteps.Count} step{(commandSteps.Count == 1 ? "" : "s")} executed.",
       new ExecutionLogContext {
         Depth = 0,
         SequenceId = sequenceId,

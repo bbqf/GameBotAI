@@ -121,6 +121,7 @@ describe('SequencesPage', () => {
       // Feature 078: update always sends the full declaration list so clearing the last one persists.
       parameters: [],
       excludeFromSuccessNotifications: false,
+      onTimeLimit: 'fail',
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -213,6 +214,7 @@ describe('SequencesPage', () => {
       version: 4,
       parameters: [],
       excludeFromSuccessNotifications: false,
+      onTimeLimit: 'fail',
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -286,6 +288,7 @@ describe('SequencesPage', () => {
       version: 3,
       parameters: [],
       excludeFromSuccessNotifications: false,
+      onTimeLimit: 'fail',
       interStepDelayRangeMs: null,
       steps: [
         {
@@ -438,6 +441,7 @@ describe('SequencesPage', () => {
       version: 2,
       parameters: [],
       excludeFromSuccessNotifications: false,
+      onTimeLimit: 'fail',
       interStepDelayRangeMs: null,
       steps: [
         {

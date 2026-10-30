@@ -289,7 +289,10 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
   `watchdogTimeoutMs` when set (1..1,800,000 ms), otherwise the default 240,000 ms
   (`SequenceTimeLimits`). A firing that exceeds it is cancelled and the run continues with its next
   entry. `GET /api/sequences/{id}` reports the stored override (`watchdogTimeoutMs`) and the bound
-  that applies (`effectiveWatchdogTimeoutMs`, read-only) (feature 094).
+  that applies (`effectiveWatchdogTimeoutMs`, read-only) (feature 094). The sequence member
+  `onTimeLimit` (`fail` by default, or `end`) sets the result at the bound. With `end`, the run gets the
+  log status `success`, and the queue records the firing as `Success`: no failure message and no daily
+  retry (feature 170). The bound, its default, and the cancel of the step in progress do not change.
 - **Queue failure policy** (`QueueFailurePolicy`, feature 087) — optional persisted configuration on
   a queue: a consecutive-failed-cycle threshold, a `QueueFailureAction`
   (`Notify`/`Stop`/`Pause`/`NotifyAndStop`), and an optional destination URL. Null means no policy
@@ -545,7 +548,10 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
   `running`/`success`/`failure`. When a queue firing's time bound cuts a sequence off, that sequence's
   entry stays `failure` and also carries `cancellationReason: "sequence_time_limit"` and
   `timeLimitMs`. This also applies when a step swallowed the cancellation and the run ended as an
-  ordinary failure after the bound fired. User stops, ordinary failures, successes, ad-hoc runs and
+  ordinary failure after the bound fired. When the sequence has `onTimeLimit` = `end` (feature 170),
+  the entry gets the status `success` and keeps the reason and `timeLimitMs`, unless a step failed:
+  a step fault keeps `failure`. The scope field `EndsRunAtLimit` carries the option to the finalize.
+  A reader tells the two cases apart with the status and the reason, not with the summary text. User stops, ordinary failures, successes, ad-hoc runs and
   child command entries never carry it. The queue pushes an ambient `SequenceTimeLimitScope` with a
   timer-only token, so the finalize can tell the bound from a stop (feature 094).
 
@@ -950,7 +956,8 @@ of feature 087, which acts on failed cycles.
   a known status. It hands one `QueueNotificationJob` to `INotificationDispatcher.Enqueue`. A nested
   step and a manual run never reach it. The run of the host stop returns before the hook, so a stop
   of the service sends no message. A queue stop while the service runs gives `cancelled`. The time limit
-  (watchdog) gives `failure` for the message, and the statistics keep `Cancelled`.
+  (watchdog) gives `failure` for the message, and the statistics keep `Cancelled`. A time limit of a
+  sequence with `onTimeLimit` = `end` gives `success` for the message and for the statistics (feature 170).
 - **Dispatcher and worker.** `QueueNotificationDispatcher` writes to one unbounded channel and returns
   at once. `QueueNotificationWorker` is the one reader and the only owner of the failure streak state
   (`NotificationStreakState`, in memory, keys are queue ID and sequence ID). It reads the level of the

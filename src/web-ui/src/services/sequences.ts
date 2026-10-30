@@ -34,6 +34,8 @@ export type SequenceDto = {
   parameters?: ParameterDeclaration[] | null;
   /** If true, queues send no success message for this sequence (feature 122). */
   excludeFromSuccessNotifications?: boolean;
+  /** What a queue run does at its time limit (feature 170). Absent means 'fail'. */
+  onTimeLimit?: 'fail' | 'end';
 };
 
 export type SequenceCreate = {
@@ -46,6 +48,8 @@ export type SequenceCreate = {
   parameters?: ParameterDeclaration[];
   /** If true, queues send no success message for this sequence (feature 122). */
   excludeFromSuccessNotifications?: boolean;
+  /** What a queue run does at its time limit (feature 170). Absent means 'fail'. */
+  onTimeLimit?: 'fail' | 'end';
 };
 
 export type SequenceLinearCreate = SequenceLinearUpsertRequest;
