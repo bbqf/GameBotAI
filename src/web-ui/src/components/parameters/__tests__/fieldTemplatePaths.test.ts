@@ -2,6 +2,7 @@ import {
   EDITOR_PATHS,
   IMAGE_HINT,
   NUMERIC_TEXT_HINT,
+  PLAIN_TEXT_HINT,
   PARAMETRIZABLE_PATHS,
   dropForeignTemplateKeys,
   isImagePath,
@@ -39,7 +40,7 @@ describe('fieldTemplatePaths', () => {
     });
 
     it('shows the hint for a text parameter, a pattern, and an image kind in a numeric field', () => {
-      expect(parameterFit(decl({ type: 'text' }), 'swipe.durationMs')).toEqual({ fits: false, hint: NUMERIC_TEXT_HINT });
+      expect(parameterFit(decl({ type: 'text' }), 'swipe.durationMs')).toEqual({ fits: false, hint: PLAIN_TEXT_HINT });
       expect(parameterFit(decl({ type: 'number', pattern: 'x{value}' }), 'swipe.durationMs')).toEqual({ fits: false, hint: NUMERIC_TEXT_HINT });
       expect(parameterFit(decl({ type: 'text', kind: 'image' }), 'swipe.durationMs')).toEqual({ fits: false, hint: NUMERIC_TEXT_HINT });
     });

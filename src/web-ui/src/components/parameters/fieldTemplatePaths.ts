@@ -42,7 +42,10 @@ export const EDITOR_PATHS: readonly string[] = PARAMETRIZABLE_PATHS
 
 export const NUMERIC_TEXT_HINT =
   'This parameter gives text. A numeric field needs a number. The save will fail.';
-export const IMAGE_HINT = 'This parameter is not an image picker.';
+/** A plain text parameter keeps its old behavior: the service saves it and the value is checked at run time. */
+export const PLAIN_TEXT_HINT =
+  'This parameter gives text. A numeric field needs a number. The save works, but the run fails when the value is not a number.';
+export const IMAGE_HINT ='This parameter is not an image picker.';
 
 const findPath = (path: string): ParametrizablePath | undefined =>
   PARAMETRIZABLE_PATHS.find((p) => p.path === path);
@@ -69,7 +72,9 @@ export const parameterFit = (
   }
   const givesNumber =
     !declaration.pattern && ((kind === 'number') || (kind === 'choice' && declaration.type === 'number'));
-  return givesNumber ? { fits: true } : { fits: false, hint: NUMERIC_TEXT_HINT };
+  if (givesNumber) return { fits: true };
+  const plainText = kind === 'text' && !declaration.pattern;
+  return { fits: false, hint: plainText ? PLAIN_TEXT_HINT : NUMERIC_TEXT_HINT };
 };
 
 const WHOLE_PLACEHOLDER = /^\s*\{\{\s*([A-Za-z_][\w.]*)\s*\}\}\s*$/;

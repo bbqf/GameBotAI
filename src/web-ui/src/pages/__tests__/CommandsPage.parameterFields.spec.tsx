@@ -59,7 +59,7 @@ describe('CommandsPage parameter fields with the real control (feature 169)', ()
     fireEvent.click(within(panel).getByRole('button', { name: 'Use a parameter for Duration (ms)' }));
     const option = within(panel).getByRole('option', { name: /label/ });
     expect(option).toHaveAccessibleDescription(
-      'This parameter gives text. A numeric field needs a number. The save will fail.',
+      'This parameter gives text. A numeric field needs a number. The save works, but the run fails when the value is not a number.',
     );
     fireEvent.click(option);
     expect(within(panel).getByTestId('chip-swipe.durationMs')).toHaveTextContent('label');

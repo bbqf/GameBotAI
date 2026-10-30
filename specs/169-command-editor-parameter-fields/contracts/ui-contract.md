@@ -23,7 +23,8 @@ The feature adds no API. The wire format of `fieldTemplates` stays as it is. Thi
 
 ## Hint texts (STE)
 
-- Numeric field, text parameter: "This parameter gives text. A numeric field needs a number. The save will fail."
+- Numeric field, plain text parameter (no pattern, not an image, not a choice): "This parameter gives text. A numeric field needs a number. The save works, but the run fails when the value is not a number." The service saves it (feature 168, FR-018).
+- Numeric field, image parameter, pattern, or choice with text options: "This parameter gives text. A numeric field needs a number. The save will fail."
 - Image field, other parameter: "This parameter is not an image picker."
 - Fit rule: a number or a choice with number options fits a numeric field. An image picker parameter fits an image field. A choice with text options fits neither field type. A queue value shows no hint.
 - Fields: the control shows only on a field that exists in the editor (12 fields). The 4 `ensureGameRunning` numeric paths get no control.
