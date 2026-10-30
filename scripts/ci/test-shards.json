@@ -24,7 +24,17 @@
       { "name": "contract-3", "include": [
           "GameBot.ContractTests.Queues.", "GameBot.ContractTests.Images.",
           "GameBot.ContractTests.QueueTemplates.", "GameBot.ContractTests.Sessions." ] },
-      { "name": "contract-4", "complement": true }
+      { "name": "contract-4", "include": [
+          "GameBot.ContractTests.Gamepacks.GamepackCatalog", "GameBot.ContractTests.Gamepacks.GamepackSignature",
+          "GameBot.ContractTests.Gamepacks.GamepackRemove", "GameBot.ContractTests.Gamepacks.GamepackManaged",
+          "GameBot.ContractTests.Commands." ] },
+      { "name": "contract-5", "include": [
+          "GameBot.ContractTests.Sequences.Sequence", "GameBot.ContractTests.Sequences.Friendly",
+          "GameBot.ContractTests.Sequences.OcrText", "GameBot.ContractTests.Sequences.NotifyAction",
+          "GameBot.ContractTests.Sequences.CommandStep", "GameBot.ContractTests.Sequences.CommandParameters",
+          "GameBot.ContractTests.Sequences.IfStep", "GameBot.ContractTests.Sequences.Exclude",
+          "GameBot.ContractTests.Sequences.GoHome", "GameBot.ContractTests.ExecutionLogs." ] },
+      { "name": "contract-6", "complement": true }
     ]
   },
   "integration": {

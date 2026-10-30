@@ -1,7 +1,7 @@
 <!--
 Sync Impact Report
-Version change: 1.5.0 → 1.5.1
-Modified principles: N/A (1.5.1 made the patch rule exact: master patch plus 1, or 0 when minor or major changed; CLAUDE.md and the speckit-pipeline skill carry the same rule). Earlier, 1.5.0 added a Definition of Done bullet and a Workflow bullet: raise the patch number before a PR is created). Earlier, 1.4.0: III (each UI feature MUST state its phone support level and follow docs/mobile-ui-principles.md)
+Version change: 1.5.1 → 1.6.0
+Modified principles: N/A (1.6.0 added a Workflow bullet: the shard balance rule, a shard more than 20% above the average of its project MUST be split). Earlier, 1.5.1 made the patch rule exact: master patch plus 1, or 0 when minor or major changed; CLAUDE.md and the speckit-pipeline skill carry the same rule). Earlier, 1.5.0 added a Definition of Done bullet and a Workflow bullet: raise the patch number before a PR is created). Earlier, 1.4.0: III (each UI feature MUST state its phone support level and follow docs/mobile-ui-principles.md)
 Added sections: N/A (1.3.1 widened Principle VI to conversation with the user; 1.3.0 added Principle VI, a Definition of Done bullet, and a Review bullet)
 Removed sections: N/A
 Templates requiring updates:
@@ -141,6 +141,10 @@ A change is Done only when all gates pass:
 - Review: reviewers MUST check against this constitution (quality, tests, UX, performance, STE) and request evidence as needed.
 - Gate: CI enforces quality/test gates; red build/test states block progression; maintainers may approve explicit, time-bound waivers with follow-up tasks.
 - Traceability: link PRs to plans/specs and record decisions in the PR description.
+- Shard balance: a CI test shard whose local run time is more than 20% above the average of the
+  shards of its own project MUST be split again in the same change. Measure with
+  `scripts/ci/measure-shards.ps1`. The rule and the steps are in `docs/ci-time.md`
+  ("Shard balance rule").
 - Version bump: before a PR is created, compare `installer/versioning/version.override.json` on the
   branch with the same file on `master`. Set `updatedBy` and `updatedAtUtc` in the same change.
   - If `minor` or `major` changed, `patch` MUST be 0. Do not raise it.
@@ -157,4 +161,4 @@ A change is Done only when all gates pass:
 - Versioning: Semantic versioning for this document: MAJOR (principle removals/redefinitions), MINOR (new sections/principles), PATCH (clarifications).
 - Compliance: Periodic audits review adherence. Non-compliance requires remediation tasks prioritized in the next cycle.
 
-**Version**: 1.5.1 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-10-14
+**Version**: 1.6.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown — needs confirmation | **Last Amended**: 2026-10-30

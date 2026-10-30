@@ -37,7 +37,7 @@ and classify each failed run with `gh run view <id> --log-failed`.
 | `analyze` | Windows | Builds with all analyzers and `-warnaserror`. A warning fails the job and the run. It does not stop the test jobs |
 | `test-unit` (3 shards) | Windows | Runs the unit tests. The pinned shard collects coverage |
 | `test-integration` (4 shards) | Windows | Runs the integration tests. The pinned shard collects coverage and runs the performance gate (`GAMEBOT_PERF_PROFILE: ci`) |
-| `test-contract` (4 shards) | Windows | Runs the contract tests. No coverage |
+| `test-contract` (6 shards) | Windows | Runs the contract tests. No coverage |
 | `web-ui-tests` | Windows | Runs `npm ci` and the Jest tests |
 | `ci-gate` | Linux | Runs the five coverage thresholds. Gives the pass or fail result of the run |
 
@@ -82,6 +82,34 @@ Some classes are pinned. They must stay in one shard:
 
 When you add a shard, keep the slowest shard plus its fixed cost (about 25 s) below the
 longest other job.
+
+### Shard balance rule
+
+This rule is binding. A shard whose local run time is more than 20 % above the average
+local run time of all shards of the same project MUST be split again. Compare each shard
+only with the shards of its own project (unit, contract, or integration).
+
+- **Limit**: average of the shard times of the project, times 1.2.
+- **Measure**: build the solution in Release, then run
+  `& "C:\src\GameBot\scripts\ci\measure-shards.ps1" -Project contract`
+  (or `unit`, or `integration`). The script runs each shard on your PC with its filter. It
+  runs a shard that is above the limit one more time and keeps the lower time. It prints the
+  times, the average, the limit, and one `Split <shard>` line for each shard above the limit.
+  Exit status 0 means the rule is met. Exit status 1 means a split is required.
+- **When**: measure when a change adds many tests, when it changes
+  `scripts/ci/test-shards.json`, or when CI is slow. Write the result in the pull request.
+- **Action**: if a shard is above the limit, split it in the same change. Move the heavy
+  class prefixes to a new shard in `scripts/ci/test-shards.json`. Keep the last shard as the
+  complement. Run the script again. Do not add a shard if the slowest shard plus its fixed
+  cost (about 25 s) is not lower than before.
+- **Check**: CI does not run the script. Local times and CI times are different, so the rule
+  uses the local times. The pull request template asks you for the result.
+
+To find the heavy classes, use step 4 of "How to measure".
+
+Contract shards after feature 172: the old `contract-4` ran 3.1 times the average. It is now
+three shards (`contract-4`, `contract-5`, `contract-6`). The measured times are in
+`specs/172-ci-test-shard-split/measurements.md`.
 
 ## Patterns that make CI slow
 
@@ -135,6 +163,7 @@ move to Linux needs product changes, so the idea is dropped. See
 ## Related
 
 - `scripts/ci/measure-ci.ps1`: reads past runs.
+- `scripts/ci/measure-shards.ps1`: runs the shards on your PC and checks the balance rule.
 - `scripts/ci/get-changed-groups.ps1`, `scripts/ci/get-test-shard-filter.ps1`,
   `scripts/ci/evaluate-gate.ps1`: the scripts that the workflow calls.
 - `specs/134-ci-duration-reduction/`: the spec, the plan, and the measurements.

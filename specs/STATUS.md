@@ -199,6 +199,7 @@ Status vocabulary:
 | 169 | Command Editor Parameter Fields | Implemented |
 | 170 | End a Run at Its Time Limit Without a Failure Status | Implemented |
 | 171 | Apply Template Changes to a Running Queue | Implemented |
+| 172 | Split the Largest CI Test Shard | Implemented |
 
 ## Numbering notes
 
