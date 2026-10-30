@@ -324,6 +324,124 @@ internal sealed class QueueRunHandle {
     }
   }
 
+  // ── Operator pause (feature 171) ─────────────────────────────────────────────────────────────
+  // The operator asks for a pause so that a template change can be applied with no sequence in flight. The
+  // register is separate from the failure-policy pause (087, gated at the loop top only) and from the idle
+  // pause (073, self-releasing), so neither of their behaviors changes. The run loop reaches the gate between
+  // two firing groups. Run-scoped and in memory: a restart ends the run, and the pause with it (FR-007).
+
+  private readonly object _operatorLock = new();
+  private OperatorPauseState _operatorState;
+  private DateTimeOffset? _operatorRequestedAt;
+  private DateTimeOffset? _operatorPausedAt;
+  private TaskCompletionSource<bool>? _operatorGate;
+  private bool _gameBackedOut;
+
+  /// <summary>The state of the operator pause.</summary>
+  public OperatorPauseState OperatorPause {
+    get { lock (_operatorLock) { return _operatorState; } }
+  }
+
+  /// <summary>True from the request until a resume, a cancel, or the end of the run.</summary>
+  public bool OperatorPauseRequested => OperatorPause != OperatorPauseState.None;
+
+  /// <summary>When the operator asked for the pause (local clock); null when none is requested.</summary>
+  public DateTimeOffset? OperatorPauseRequestedAt {
+    get { lock (_operatorLock) { return _operatorRequestedAt; } }
+  }
+
+  /// <summary>When the loop reached the gate (local clock); null while "pausing" and when none is requested.</summary>
+  public DateTimeOffset? OperatorPausedAt {
+    get { lock (_operatorLock) { return _operatorPausedAt; } }
+  }
+
+  /// <summary>
+  /// Asks for a pause. Returns false when one is already requested (the first time stays), so a repeat call is safe.
+  /// </summary>
+  public bool RequestOperatorPause(DateTimeOffset at) {
+    lock (_operatorLock) {
+      if (_operatorState != OperatorPauseState.None) return false;
+      _operatorState = OperatorPauseState.Pausing;
+      _operatorRequestedAt = at;
+      _operatorPausedAt = null;
+      _operatorGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+      return true;
+    }
+  }
+
+  /// <summary>
+  /// Ends the pause, or cancels the request while the state is "pausing". Returns false when no pause was requested,
+  /// so a caller can report <c>resumed: false</c> rather than pretend that it did something.
+  /// </summary>
+  public bool ReleaseOperatorPause() {
+    TaskCompletionSource<bool>? gate;
+    lock (_operatorLock) {
+      if (_operatorState == OperatorPauseState.None) return false;
+      _operatorState = OperatorPauseState.None;
+      _operatorRequestedAt = null;
+      _operatorPausedAt = null;
+      gate = _operatorGate;
+      _operatorGate = null;
+    }
+    // TrySet, not Set: a resume that races another resume must not throw.
+    gate?.TrySetResult(true);
+    return true;
+  }
+
+  /// <summary>Clears the pause when the run ends, so that no waiter stays blocked (FR-007).</summary>
+  public void ClearOperatorPause() => ReleaseOperatorPause();
+
+  /// <summary>
+  /// The gate of the run loop. When a pause is requested, the state becomes "paused" and the returned task completes on
+  /// a resume, a cancel, or the end of the run. When no pause is requested, the task is already complete. A stop request
+  /// ends the wait with a cancel, so a paused run can still be stopped.
+  /// </summary>
+  public Task WaitAtOperatorGateAsync(DateTimeOffset now, CancellationToken ct) {
+    TaskCompletionSource<bool>? gate;
+    lock (_operatorLock) {
+      if (_operatorState == OperatorPauseState.None) return Task.CompletedTask;
+      if (_operatorState == OperatorPauseState.Pausing) {
+        _operatorState = OperatorPauseState.Paused;
+        _operatorPausedAt = now;
+      }
+      gate = _operatorGate;
+    }
+    return gate is null ? Task.CompletedTask : gate.Task.WaitAsync(ct);
+  }
+
+  private int _applyActive;
+
+  /// <summary>
+  /// Takes the apply lock of the run (feature 171, FR-020). Returns false when another apply holds it. One apply
+  /// runs at a time for one run.
+  /// </summary>
+  public bool TryEnterApply() => Interlocked.CompareExchange(ref _applyActive, 1, 0) == 0;
+
+  /// <summary>Gives back the apply lock.</summary>
+  public void ExitApply() => Interlocked.Exchange(ref _applyActive, 0);
+
+  /// <summary>
+  /// True when an idle hold (073) stopped early because of a pause request. The game stays backed out while the queue is
+  /// paused. On a resume, the run loop brings the game to the front (FR-036).
+  /// </summary>
+  public bool GameBackedOut {
+    get { lock (_operatorLock) { return _gameBackedOut; } }
+  }
+
+  /// <summary>Records that the idle hold stopped early and left the game backed out.</summary>
+  public void MarkGameBackedOut() {
+    lock (_operatorLock) { _gameBackedOut = true; }
+  }
+
+  /// <summary>Reads and clears <see cref="GameBackedOut"/> in one step.</summary>
+  public bool TakeGameBackedOut() {
+    lock (_operatorLock) {
+      var was = _gameBackedOut;
+      _gameBackedOut = false;
+      return was;
+    }
+  }
+
   // ── Combined pause projection (feature 096, issue #199) ──────────────────────────────────────
 
   /// <summary>
@@ -336,6 +454,11 @@ internal sealed class QueueRunHandle {
     lock (_policyLock) {
       if (_policyPausedAt is not null) {
         return new QueuePauseSnapshot(true, _policyPausedAt, _pauseReason, QueuePauseKinds.FailurePolicy);
+      }
+    }
+    lock (_operatorLock) {
+      if (_operatorState == OperatorPauseState.Paused) {
+        return new QueuePauseSnapshot(true, _operatorPausedAt, "operator pause: waiting for resume", QueuePauseKinds.Operator);
       }
     }
     lock (_idleLock) {

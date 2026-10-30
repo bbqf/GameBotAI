@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-30 (feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
+_Last reviewed: 2026-10-30 (feature 171: live template changes. A running queue can pause between sequences, and the operator can apply template changes to it with no restart. See the domain model section and `docs/live-template-changes.md`; feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
 feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
 feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
@@ -474,6 +474,37 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
   `pauseReason: "idle pause: resumes at HH:mm"`, `pauseKind: "idle"`. Both pause kinds go through one
   `QueueRunHandle.SnapshotPause()`, which reports the failure-policy pause when both are in force.
   Disabled queues are byte-for-byte unchanged.
+- **Live template changes** (feature 171, user guide `docs/live-template-changes.md`) — the operator can pause a running
+  queue between sequences, apply the changes of its linked template to it, and resume the same run. The change is
+  atomic. No schedule and no next due time changes, unless the operator selects a schedule change.
+  - **Entry ID**: `QueueTemplateEntry.EntryId` is new. It is stored as `entryId`, and it is omitted when empty. The
+    system creates it once, and it never changes. `QueueTemplate.NeedsUpgrade` is computed: it is true when an entry has no
+    ID. An old template gets IDs only from the explicit upgrade (`POST /api/queue-templates/{id}/upgrade`,
+    `QueueTemplateUpgrade`). A template save gives IDs to a new template and to an overwrite of a template that has IDs. It
+    never gives IDs to a template that needs an upgrade. The runtime entries of a running queue use the same IDs
+    (`IQueueRuntimeStore.ReplaceEntries`). A gamepack seed template and a template from a settings import get IDs when they
+    are new.
+  - **Run plan**: `QueueRunPlan` is immutable. It holds the entries of a run (`AllEntries`, also the disabled ones) and the
+    partitions by schedule type that the run loop kept in locals before. `QueueRunSchedule` keys the consumed state
+    (time-of-day timers fired today, relative timers fired, once-per-run entries done in this cycle, daily retries) by the
+    entry key. The key is the entry ID, or `idx:<position>` for an entry of an old template. `SwapPlan` keeps the state of an
+    entry that stays. It drops the state of a removed entry and of an entry with a selected schedule change. It renames
+    keys when the upgrade gives IDs to a running queue.
+  - **Operator pause**: a register on `QueueRunHandle` (`OperatorPauseState`: none, pausing, paused). It is separate from
+    the idle pause and from the failure-policy pause. The run loop waits at its gate between two firing groups (a scheduled
+    sequence and its before-each-run and every-step helper sequences) and at the top of each iteration. The pause belongs to
+    the run: a run end or a service restart clears it. An idle hold (feature 073) ends early on a pause request, and the
+    game stays backed out until the resume. The pause never changes the time limit of a sequence.
+    `health.operatorPause` is `none`, `pausing`, or `paused`. `pauseKind` has the new value `operator`.
+  - **Diff and apply**: `QueueTemplateDiff` computes the differences (`added`, `removed`, `enabled`, `disabled`, `parameters`,
+    `schedule`, `order`) and a base token (a hash of the template content). `QueueLiveApplyService` applies the selected
+    differences to a paused queue. It builds the new entries first and checks them. Then it swaps the plan and the runtime
+    entries in one step. If a check fails, the queue stays as it was. One apply runs at a time for one run. The run loop
+    reads the new plan on its next iteration, with the "held iteration" path of feature 106: an entry that ran in this cycle
+    does not run again.
+  - **Limits**: an `AtQueueStart` entry that the operator adds during a run does not run in this run. In a run that does not
+    cycle, the once-per-run pass runs one time, so an entry that the operator adds after that pass does not run in this run.
+    A template with entries that have no ID can be used as before, but it cannot be applied.
 - **Resume after a service restart** (feature 098, #203) — an opt-in per-queue flag,
   `ExecutionQueue.ResumeOnServiceStart` (default `false`; absent in older JSON ⇒ off; on queue
   create/update/response, copied by duplicate, a checkbox in the web-ui queue form). Queue run state
@@ -1730,6 +1761,29 @@ Feature 127 added, additively (see "Step-through of a saved sequence" above):
 - The member `origin` on the execution log entry (`step-through` or absent), and the query parameter
   `origin` on `GET /api/execution-logs`.
 - No new persisted file. A step-through lives in memory and ends with the view or the lease.
+
+Feature 171 added, additively (see "Live template changes" above):
+
+- `POST /api/queues/{id}/pause` asks a running queue to pause between sequences. It answers 200 with `operatorPause`
+  (`pausing` or `paused`) and `requestedAt`, 409 `not_running` for a queue that does not run, and 404 for an unknown queue. A
+  repeat call is safe.
+- `POST /api/queues/{id}/resume` ends the operator pause first, and cancels the request while the state is `pausing`. A
+  second call ends a failure-policy pause. The response has the new member `kind` (`operator` or `failurePolicy`; absent when
+  nothing changed).
+- `health.operatorPause` (`none`, `pausing`, `paused`), and the value `operator` for `health.pauseKind`. When more than one
+  pause is in force, `pauseKind` reports `failurePolicy` first, then `operator`.
+- `GET /api/queues/{id}/template-diff` returns the differences between a running queue and its linked template, and a
+  `baseToken`. `POST /api/queues/{id}/apply-template` (`{ baseToken, selectedKeys }`) applies the selected differences to a
+  paused queue. The codes of a refusal are `not_running`, `no_template`, `needs_upgrade`, `not_paused`, `template_changed`,
+  `apply_in_progress`, and `invalid_request`.
+- `entryId` on each entry of a queue template (request, summary, and detail), and `needsUpgrade` on a template. The
+  settings document (feature 145) carries `entryId` too.
+- `POST /api/queue-templates/{id}/upgrade` (`dryRun`, `confirm`) gives an ID to each entry that has none. It also gives the
+  same IDs to the running entries of a queue that uses the template, with no change to any schedule. A repeat call
+  changes 0 entries. The codes of a refusal are `confirm_required` and `unmatched_entries`.
+- Log events 1103, 1104 (request and release of the pause), 1134, 1135 (the run loop reaches the gate and leaves it), and
+  1136 (an apply, with the list of applied differences).
+- No new persisted file. The pause and the run plan live in memory with the run.
 
 ## Legacy / removed (don't be misled by old specs)
 

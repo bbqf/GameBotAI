@@ -50,3 +50,21 @@ describe('toggleTemplateEntry', () => {
     expect(JSON.stringify(template)).toBe(before);
   });
 });
+
+describe('toggleTemplateEntry keeps the entry IDs (feature 171)', () => {
+  it('sends back the entryId of each entry that has one, and leaves it out for an entry that has none', () => {
+    const template = {
+      id: 't1', name: 'Daily', entryCount: 2, createdAt: null, updatedAt: null,
+      entries: [
+        { entryId: 'e1', sequenceId: 'a', sequenceName: 'A', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null, timerRelativeOffset: null, enabled: true },
+        { sequenceId: 'b', sequenceName: 'B', stale: false, scheduleType: 'OncePerRun', timerTimeOfDay: null, timerRelativeOffset: null, enabled: true }
+      ]
+    } as any;
+
+    const request = toggleTemplateEntry(template, 0);
+
+    expect(request.entries[0].entryId).toBe('e1');
+    expect(request.entries[0].enabled).toBe(false);
+    expect('entryId' in request.entries[1]).toBe(false);
+  });
+});

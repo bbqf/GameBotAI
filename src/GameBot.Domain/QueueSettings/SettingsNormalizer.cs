@@ -101,7 +101,15 @@ public static class SettingsNormalizer {
   /// <param name="template">The template.</param>
   public static string Canonical(QueueTemplateDoc template) {
     ArgumentNullException.ThrowIfNull(template);
-    return Sort(JsonSerializer.SerializeToNode(template, SettingsDocumentJson.Options))!.ToJsonString();
+    var node = JsonSerializer.SerializeToNode(template, SettingsDocumentJson.Options)!;
+    // Feature 171: the entry IDs are not content. A template with the same entries is unchanged, whatever
+    // their IDs are, so an import does not report a change that only moves an ID.
+    if (node["entries"] is JsonArray entries) {
+      foreach (var entry in entries.OfType<JsonObject>()) {
+        entry.Remove("entryId");
+      }
+    }
+    return Sort(node)!.ToJsonString();
   }
 
   /// <summary>Gives the canonical text of the settings of a queue.</summary>

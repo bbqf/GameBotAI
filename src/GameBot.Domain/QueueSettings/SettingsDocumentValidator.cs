@@ -97,6 +97,13 @@ public static class SettingsDocumentValidator {
       if (template.Entries.Any(e => e is null || string.IsNullOrWhiteSpace(e.Sequence))) {
         errors.Add($"The queue template '{template.Name}' has an entry with an empty sequence name.");
       }
+
+      var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+      foreach (var id in template.Entries.Where(e => e is not null && !string.IsNullOrWhiteSpace(e.EntryId)).Select(e => e.EntryId!.Trim())) {
+        if (!seenIds.Add(id)) {
+          errors.Add($"The queue template '{template.Name}' uses the entryId '{id}' more than once. Give each entry its own entryId.");
+        }
+      }
     }
   }
 

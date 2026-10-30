@@ -1,0 +1,42 @@
+/* Feature 171: manual upgrade of a template that has no entry IDs. Phone support level: full. */
+.template-upgrade {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.template-upgrade p,
+.template-upgrade li {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.template-upgrade ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.template-upgrade__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.template-upgrade button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 16px;
+}
+
+.template-upgrade-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.template-upgrade-notice__mark {
+  display: inline-block;
+  font-weight: 600;
+}

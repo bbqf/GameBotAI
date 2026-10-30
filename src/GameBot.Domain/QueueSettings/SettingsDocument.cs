@@ -115,6 +115,13 @@ public sealed class QueueTemplateDoc {
 
 /// <summary>One entry of a queue template in the document.</summary>
 public sealed class QueueTemplateEntryDoc {
+  /// <summary>
+  /// The stable entry ID (feature 171), or null when the entry has none (a template that needs an upgrade,
+  /// or a document from an older release). Omitted from the JSON when null.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public string? EntryId { get; init; }
+
   /// <summary>The sequence name. It can name a sequence that a gamepack owns.</summary>
   public string Sequence { get; init; } = string.Empty;
 

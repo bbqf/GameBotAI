@@ -12,6 +12,42 @@ namespace GameBot.Domain.QueueTemplates {
   public class QueueTemplateEntry {
     private readonly Collection<ParameterBinding> _parameterValues = new();
 
+    /// <summary>
+    /// Stable ID of this entry (feature 171). Created once and never changed by an edit, a move, or a
+    /// disable. The running queue keeps the same ID, so a live apply matches entries by it. Empty on a
+    /// template saved before the feature; such a template "needs upgrade" and gets IDs only from the
+    /// explicit upgrade action.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string EntryId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// JSON projection of <see cref="EntryId"/>, omitted when empty so a template with no IDs keeps its
+    /// stored text.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonInclude]
+    [System.Text.Json.Serialization.JsonPropertyName("entryId")]
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? EntryIdWritable {
+      get => string.IsNullOrEmpty(EntryId) ? null : EntryId;
+      private set => EntryId = value ?? string.Empty;
+    }
+
+    /// <summary>Makes a copy of this entry. The copy has its own parameter value list.</summary>
+    public QueueTemplateEntry Clone() {
+      var copy = new QueueTemplateEntry {
+        EntryId = EntryId,
+        SequenceId = SequenceId,
+        Enabled = Enabled,
+        ScheduleType = ScheduleType,
+        TimerTimeOfDay = TimerTimeOfDay,
+        TimerRelativeOffset = TimerRelativeOffset
+      };
+      foreach (var binding in _parameterValues) copy._parameterValues.Add(binding);
+      return copy;
+    }
+
     /// <summary>ID of the referenced sequence.</summary>
     public string SequenceId { get; set; } = string.Empty;
 

@@ -1,0 +1,34 @@
+/* Feature 171: pause and resume controls of a running queue. Phone support level: full (docs/mobile-ui-principles.md). */
+.queue-pause-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.queue-pause-controls__state {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.queue-pause-controls__state--paused {
+  font-weight: 600;
+}
+
+.queue-pause-controls button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 16px;
+}
+
+.queue-pause-controls__review {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.queue-pause-controls__error {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}

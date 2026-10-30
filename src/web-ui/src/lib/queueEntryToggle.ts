@@ -5,6 +5,7 @@ const toSaveEntry = (entry: QueueTemplateDetail['entries'][number], enabled: boo
   const isRelative = scheduleType === 'Timer' && !!entry.timerRelativeOffset;
   const bound = (entry.parameterValues ?? []).filter((v) => v.value !== null && v.value !== undefined);
   return {
+    ...(entry.entryId ? { entryId: entry.entryId } : {}),
     sequenceId: entry.sequenceId,
     scheduleType,
     ...(scheduleType === 'Timer' && !isRelative && entry.timerTimeOfDay ? { timerTimeOfDay: entry.timerTimeOfDay } : {}),

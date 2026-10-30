@@ -147,6 +147,7 @@ public sealed class QueueSettingsExporter {
   }
 
   internal static QueueTemplateEntryDoc ToEntryDoc(QueueTemplateEntry entry, string sequenceName) => new() {
+    EntryId = string.IsNullOrEmpty(entry.EntryId) ? null : entry.EntryId,
     Sequence = sequenceName,
     Enabled = entry.Enabled,
     ScheduleType = entry.ScheduleType,

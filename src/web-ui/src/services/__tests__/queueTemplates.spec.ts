@@ -3,6 +3,8 @@ import {
   getQueueTemplate,
   saveQueueTemplate,
   deleteQueueTemplate,
+  previewQueueTemplateUpgrade,
+  upgradeQueueTemplate,
 } from '../queueTemplates';
 import { getJson, postJson, deleteJson } from '../../lib/api';
 
@@ -48,5 +50,25 @@ describe('queueTemplates service', () => {
     mockDeleteJson.mockResolvedValue(undefined as any);
     await deleteQueueTemplate('t1');
     expect(mockDeleteJson).toHaveBeenCalledWith('/api/queue-templates/t1');
+  });
+});
+
+describe('queueTemplates service: manual upgrade (feature 171)', () => {
+  const mockPostJson = postJson as jest.MockedFunction<typeof postJson>;
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('reads the preview with dryRun', async () => {
+    mockPostJson.mockResolvedValue({ entriesToChange: 2, runningMatch: [], unmatched: [] } as any);
+    await previewQueueTemplateUpgrade('t1');
+    expect(mockPostJson).toHaveBeenCalledWith('/api/queue-templates/t1/upgrade?dryRun=true', {});
+  });
+
+  it('upgrades with no confirm, and with confirm when a running queue uses the template', async () => {
+    mockPostJson.mockResolvedValue({ entriesChanged: 2 } as any);
+    await upgradeQueueTemplate('t1');
+    await upgradeQueueTemplate('t1', true);
+    expect(mockPostJson).toHaveBeenNthCalledWith(1, '/api/queue-templates/t1/upgrade', {});
+    expect(mockPostJson).toHaveBeenNthCalledWith(2, '/api/queue-templates/t1/upgrade?confirm=true', {});
   });
 });

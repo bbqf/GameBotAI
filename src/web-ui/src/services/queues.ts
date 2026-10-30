@@ -36,9 +36,23 @@ export type QueueEntryDto = {
   stale: boolean;
 };
 
+/** State of the operator pause (feature 171). 'pausing' means a sequence still runs. */
+export type OperatorPauseState = 'none' | 'pausing' | 'paused';
+
+/** The part of the health block of a running queue that the pause controls read. */
+export type QueueHealthDto = {
+  paused: boolean;
+  pausedAt?: string | null;
+  pauseKind?: 'idle' | 'failurePolicy' | 'operator' | null;
+  pauseReason?: string | null;
+  operatorPause?: OperatorPauseState;
+};
+
 export type QueueDetailDto = QueueDto & {
   entries: QueueEntryDto[];
   linkedTemplateName: string | null;
+  /** Live health of the run; null or absent when the queue is not running. */
+  health?: QueueHealthDto | null;
   // linkedGameId and linkedGameName are inherited from QueueDto
 };
 
@@ -67,6 +81,12 @@ const base = '/api/queues';
 
 export const listQueues = () => getJson<QueueDto[]>(base);
 export const getQueue = (id: string) => getJson<QueueDetailDto>(`${base}/${id}`);
+/**
+ * Reads the health block of one queue (feature 171): the live state of its run, with the operator pause. Null when
+ * the queue does not run. It reads the same endpoint as <see cref="getQueue"/>.
+ */
+export const getQueueHealth = async (id: string): Promise<QueueHealthDto | null> =>
+  (await getJson<QueueDetailDto>(`${base}/${id}`)).health ?? null;
 export const createQueue = (input: QueueCreate) => postJson<QueueDto>(base, input);
 export const updateQueue = (id: string, input: QueueUpdate) => putJson<QueueDto>(`${base}/${id}`, input);
 export const deleteQueue = (id: string) => deleteJson<void>(`${base}/${id}`);
@@ -105,6 +125,88 @@ export const setQueueGameLink = (id: string, gameId: string | null) =>
 
 export const startQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/start`, {});
 export const stopQueue = (id: string) => postJson<QueueDto>(`${base}/${id}/stop`, {});
+
+/** Result of asking a running queue to pause between sequences (feature 171). */
+export type QueuePauseResult = {
+  id: string;
+  operatorPause: OperatorPauseState;
+  requestedAt?: string | null;
+};
+
+/** Result of a resume call. `kind` says which pause the call ended; absent when nothing changed. */
+export type QueueResumeResult = {
+  id: string;
+  status: QueueStatus;
+  resumed: boolean;
+  kind?: 'operator' | 'failurePolicy';
+};
+
+// ── Apply template changes to a running queue (feature 171) ────────────────────────────────────
+
+/** The type of one difference between a running queue and its template. */
+export type TemplateDifferenceType = 'added' | 'removed' | 'enabled' | 'disabled' | 'parameters' | 'schedule' | 'order';
+
+/** One difference between the entries of a running queue and the entries of its template. */
+export type TemplateDifferenceDto = {
+  /** `<type>:<entryId>`. Send it back in `selectedKeys` to apply the difference. */
+  key: string;
+  type: TemplateDifferenceType;
+  entryId: string;
+  sequenceName: string;
+  /** One sentence that says what the apply does. */
+  summary: string;
+  /** False for a schedule change: a schedule changes only on a direct instruction. */
+  selectedByDefault: boolean;
+  /** True when the difference starts or moves the schedule of the entry. */
+  affectsSchedule: boolean;
+};
+
+export type QueueTemplateDiffDto = {
+  queueId: string;
+  templateId: string;
+  /** True when the template or the run has entries with no entry ID. The list is empty then. */
+  needsUpgrade: boolean;
+  /** Send it back with the apply call. A change of the template changes it. */
+  baseToken: string;
+  differences: TemplateDifferenceDto[];
+};
+
+export type ApplyTemplateResult = {
+  applied: string[];
+  planVersion: number;
+};
+
+/** Reads the differences between a running queue and its linked template. It changes nothing. */
+export const getTemplateDiff = (id: string) => getJson<QueueTemplateDiffDto>(`${base}/${id}/template-diff`);
+
+/**
+ * Applies the selected differences to a paused queue. All of them go in, or none. The call is refused with 409 when
+ * the queue is not paused (`not_paused`), when the template changed after the read (`template_changed`), when the
+ * template needs an upgrade (`needs_upgrade`), or when another apply runs (`apply_in_progress`).
+ */
+export const applyTemplate = (id: string, baseToken: string, selectedKeys: string[]) =>
+  postJson<ApplyTemplateResult>(`${base}/${id}/apply-template`, { baseToken, selectedKeys });
+
+/** The error code of a refused call (for example `not_paused`), or null. */
+export const apiErrorCode = (err: unknown): string | null => {
+  const code = (err as { payload?: { error?: { code?: unknown } } } | null)?.payload?.error?.code;
+  return typeof code === 'string' ? code : null;
+};
+
+/** The hint of a refused call (what to do next), or null. */
+export const apiErrorHint = (err: unknown): string | null => {
+  const hint = (err as { payload?: { error?: { hint?: unknown } } } | null)?.payload?.error?.hint;
+  return typeof hint === 'string' && hint.length > 0 ? hint : null;
+};
+
+/**
+ * Asks a running queue to pause between sequences (feature 171). The running sequence finishes first. A repeat
+ * call is safe.
+ */
+export const pauseQueue = (id: string) => postJson<QueuePauseResult>(`${base}/${id}/pause`, {});
+
+/** Ends the operator pause, or cancels its request while the state is 'pausing'. The run goes on. */
+export const resumeQueue = (id: string) => postJson<QueueResumeResult>(`${base}/${id}/resume`, {});
 
 /** Result of scheduling a sequence to fire after a relative offset against a running queue. */
 export type LiveScheduleResult = {

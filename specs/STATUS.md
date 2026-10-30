@@ -121,7 +121,7 @@ Status vocabulary:
 | 084 | Execution Log Retention Default & Long-Run Rotation | Implemented |
 | 085 | Device-Scoped Image Detection | Implemented |
 | 086 | Queue Cycle Observability | Implemented |
-| 087 | Queue Failure Policy and Outbound Notification | Implemented (iterated by 096) |
+| 087 | Queue Failure Policy and Outbound Notification | Implemented (iterated by 096, 171) |
 | 088 | Composite Image Conditions | Implemented |
 | 089 | Reference Image Transparency Masks | Implemented (iterated by 090) |
 | 090 | Masked Match No-Information Rule | Implemented |
@@ -198,6 +198,7 @@ Status vocabulary:
 | 168 | Friendly Sequence Parameters | Implemented |
 | 169 | Command Editor Parameter Fields | Implemented |
 | 170 | End a Run at Its Time Limit Without a Failure Status | Implemented |
+| 171 | Apply Template Changes to a Running Queue | Implemented |
 
 ## Numbering notes
 

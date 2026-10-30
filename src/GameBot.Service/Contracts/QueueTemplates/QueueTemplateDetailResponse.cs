@@ -17,6 +17,13 @@ namespace GameBot.Service.Contracts.QueueTemplates {
   /// sequence store; <see cref="Stale"/> is true when the referenced sequence no longer exists.
   /// </summary>
   internal sealed class QueueTemplateEntryResponse {
+    /// <summary>
+    /// Stable ID of the entry (feature 171); omitted for an entry of a template that needs an upgrade.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? EntryId { get; set; }
+
     public string SequenceId { get; set; } = string.Empty;
     public string? SequenceName { get; set; }
     public bool Stale { get; set; }

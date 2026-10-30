@@ -4,6 +4,14 @@ namespace GameBot.Service.Contracts.QueueTemplates {
   /// and optional schedule configuration.
   /// </summary>
   internal sealed class TemplateEntrySaveRequest {
+    /// <summary>
+    /// Stable ID of the entry (feature 171). Send back the value from the detail response so that an
+    /// overwrite keeps the identity of the entry. Omit it for a new entry: the service creates one when the
+    /// template has IDs. Letters, digits, '-' and '_' only, at most 64 characters. Names the same entry in the
+    /// running queue, so a live apply matches by it.
+    /// </summary>
+    public string? EntryId { get; set; }
+
     /// <summary>ID of the sequence to reference. Must be non-blank.</summary>
     public string? SequenceId { get; set; }
 

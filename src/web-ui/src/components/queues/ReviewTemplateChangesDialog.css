@@ -1,0 +1,62 @@
+/* Feature 171: review of the differences between a running queue and its template. Phone support level: full. */
+.review-template-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.review-template-changes__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review-template-changes__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.review-template-changes__row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-template-changes__row input[type='checkbox'] {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.review-template-changes__note {
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+.review-template-changes__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-template-changes button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 16px;
+}
+
+.review-template-changes p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

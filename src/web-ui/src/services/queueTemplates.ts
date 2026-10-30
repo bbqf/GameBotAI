@@ -5,6 +5,11 @@ export type QueueTemplateSummary = {
   id: string;
   name: string;
   entryCount: number;
+  /**
+   * True when at least one entry has no entry ID (feature 171). The template works as before. A live apply to a
+   * running queue needs the manual upgrade first.
+   */
+  needsUpgrade?: boolean;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -12,6 +17,8 @@ export type QueueTemplateSummary = {
 export type ScheduleType = 'OncePerRun' | 'EveryStep' | 'Timer' | 'AtQueueStart' | 'BeforeEachRun';
 
 export type QueueTemplateEntryDto = {
+  /** Stable ID of the entry (feature 171). Absent for an entry of a template that needs an upgrade. */
+  entryId?: string | null;
   sequenceId: string;
   sequenceName: string | null;
   stale: boolean;
@@ -33,6 +40,8 @@ export type QueueTemplateDetail = QueueTemplateSummary & { entries: QueueTemplat
 
 /** Per-entry payload for saving a template. */
 export type TemplateEntrySaveDto = {
+  /** Send back the entry ID that the detail gave, so that a save keeps the identity of the entry (feature 171). */
+  entryId?: string;
   sequenceId: string;
   scheduleType?: ScheduleType;
   timerTimeOfDay?: string;
@@ -59,3 +68,38 @@ export const listQueueTemplates = () => getJson<QueueTemplateSummary[]>(base);
 export const getQueueTemplate = (id: string) => getJson<QueueTemplateDetail>(`${base}/${id}`);
 export const saveQueueTemplate = (input: SaveQueueTemplate) => postJson<QueueTemplateDetail>(base, input);
 export const deleteQueueTemplate = (id: string) => deleteJson<void>(`${base}/${id}`);
+
+// ── Manual upgrade of a template (feature 171) ───────────────────────────────────────────────
+
+export type TemplateUpgradeMatch = { queueId: string; position: number; sequenceName: string };
+
+export type TemplateUpgradeUnmatched = {
+  queueId: string;
+  position: number;
+  runningSequence?: string | null;
+  templateSequence?: string | null;
+  reason: string;
+};
+
+/** What the upgrade would do. It changes nothing. */
+export type TemplateUpgradePreview = {
+  /** The number of entries that have no entry ID now. */
+  entriesToChange: number;
+  /** The entries of running queues that use the template, with their match. */
+  runningMatch: TemplateUpgradeMatch[];
+  /** The running entries that the upgrade cannot match. The upgrade is refused while this list is not empty. */
+  unmatched: TemplateUpgradeUnmatched[];
+};
+
+export type TemplateUpgradeResult = { entriesChanged: number };
+
+/** Reads what the upgrade of a template would do. */
+export const previewQueueTemplateUpgrade = (id: string) =>
+  postJson<TemplateUpgradePreview>(`${base}/${id}/upgrade?dryRun=true`, {});
+
+/**
+ * Gives an entry ID to each entry that has none. It changes no other field. Send `confirm` when a running queue uses
+ * the template. A repeat changes nothing and gives 0.
+ */
+export const upgradeQueueTemplate = (id: string, confirm = false) =>
+  postJson<TemplateUpgradeResult>(`${base}/${id}/upgrade${confirm ? '?confirm=true' : ''}`, {});

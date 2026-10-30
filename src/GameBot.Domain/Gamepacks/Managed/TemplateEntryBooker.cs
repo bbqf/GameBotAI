@@ -39,9 +39,16 @@ public static class TemplateEntryBooker {
     ArgumentNullException.ThrowIfNull(newSequences);
     var list = newSequences.ToList();
     var planned = Plan(template, list);
+    // Feature 171: a template that has entry IDs gets an ID for each new entry. A template that needs an
+    // upgrade gets none: the operator upgrades it with the explicit action, never in silence.
+    var giveIds = !template.NeedsUpgrade;
     foreach (var entry in planned) {
       var sequence = list.First(s => string.Equals(s.Name, entry.SequenceName, StringComparison.Ordinal));
-      template.Entries.Add(new QueueTemplateEntry { SequenceId = sequence.Id, Enabled = false });
+      template.Entries.Add(new QueueTemplateEntry {
+        EntryId = giveIds ? QueueTemplateUpgrade.NewEntryId() : string.Empty,
+        SequenceId = sequence.Id,
+        Enabled = false
+      });
     }
 
     return planned;

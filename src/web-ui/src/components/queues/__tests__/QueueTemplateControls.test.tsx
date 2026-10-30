@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueueTemplateControls } from '../QueueTemplateControls';
-import { listQueueTemplates } from '../../../services/queueTemplates';
+import { getQueueTemplate, listQueueTemplates } from '../../../services/queueTemplates';
 import { ApiError } from '../../../lib/api';
 
 jest.mock('../../../services/queueTemplates');
@@ -161,5 +161,41 @@ describe('QueueTemplateControls', () => {
   it('renders an error save-result message at the template controls', () => {
     renderControls({ saveResult: { kind: 'error', message: 'Failed to save template' } });
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to save template');
+  });
+});
+
+describe('QueueTemplateControls: template that needs an upgrade (feature 171)', () => {
+  it('shows the mark and the upgrade action for a template with no entry IDs', async () => {
+    (getQueueTemplate as jest.MockedFunction<typeof getQueueTemplate>).mockResolvedValue({
+      id: 't1', name: 'Daily', entryCount: 1, needsUpgrade: true, createdAt: null, updatedAt: null, entries: []
+    });
+
+    render(
+      <QueueTemplateControls
+        associatedTemplateName="Daily"
+        associatedTemplateId="t1"
+        status="Stopped"
+        onSaveTemplate={jest.fn()}
+        onLoadTemplate={jest.fn()}
+        onReload={jest.fn()}
+      />
+    );
+
+    expect(await screen.findByTestId('needs-upgrade-mark')).toHaveTextContent('Needs upgrade');
+    expect(screen.getByRole('button', { name: 'Upgrade template' })).toBeInTheDocument();
+  });
+
+  it('shows no mark when the queue gives no template ID', () => {
+    render(
+      <QueueTemplateControls
+        associatedTemplateName="Daily"
+        status="Stopped"
+        onSaveTemplate={jest.fn()}
+        onLoadTemplate={jest.fn()}
+        onReload={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByTestId('template-upgrade-notice')).not.toBeInTheDocument();
   });
 });

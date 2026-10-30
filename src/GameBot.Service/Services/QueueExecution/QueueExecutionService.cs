@@ -267,7 +267,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // from the template detail BY POSITION, so disabled entries must stay present and in order
       // for the operator to see and re-enable them. Execution excludes disabled entries in RunAsync,
       // where the template is read directly (077).
-      _runtime.SetEntries(queueId, template.Entries.Select(e => e.SequenceId));
+      // Feature 171: each runtime entry keeps the ID of its template entry (empty for an old template, which
+      // then gets a generated ID until the operator upgrades the template).
+      _runtime.ReplaceEntries(queueId, template.Entries.Select(e => new QueueEntry { EntryId = e.EntryId, SequenceId = e.SequenceId }));
     }
 
     // Recorded before the run launches, not at shutdown, so a crash or host reboot still leaves the
@@ -316,14 +318,13 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         failureReason = "no template to run (the queue has no linked template, or it could not be resolved)";
       }
       else {
-        // Pre-partition entries by schedule type (FR-001). Snapshots taken once at run start.
-        // Once-per-run and timer partitions carry each entry's index in `allEntries`: that index is the
-        // stable key the run's QueueRunSchedule records consumed work under, so the monitor can project
-        // exactly what is left instead of re-deriving an idealized plan from the template.
+        // Partition entries by schedule type (FR-001) into one immutable plan, taken at run start. Once-per-run
+        // and timer partitions carry each entry's position and key: the key is what the run's
+        // QueueRunSchedule records consumed work under (feature 171), so the monitor can project exactly what
+        // is left, and a live apply can swap the plan without a change of any timer.
         // Disabled entries (Enabled == false) are excluded once here, so every schedule partition
         // (AtQueueStart/OncePerRun/EveryStep/Timer) and the monitor projection all skip them (077).
-        var allEntries = template.Entries.Where(e => e.Enabled).ToList();
-        var indexed = allEntries.Select((Entry, Index) => (Entry, Index)).ToList();
+        var plan = QueueRunPlan.Build(template.Entries, version: 0);
 
         // Feature 078: the outermost parameter layer is derived from the queue's own configuration, so
         // three queues that already differ by emulator serial drive one shared sequence with no extra
@@ -333,11 +334,6 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             entry.ParameterValues.Count > 0
               ? queueScope.Child(ParameterScopeLayers.Entry, entry.ParameterValues, null)
               : queueScope;
-        var atQueueStartEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.AtQueueStart).ToList();
-        var oncePerRunEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.OncePerRun).ToList();
-        var everyStepEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.EveryStep).ToList();
-        var beforeEachRunEntries = allEntries.Where(e => e.ScheduleType == ScheduleType.BeforeEachRun).ToList();
-        var timerEntries = indexed.Where(x => x.Entry.ScheduleType == ScheduleType.Timer).ToList();
 
         // 1.5 Feature 074: when the queue is configured with an emulator instance identifier, bring that
         // instance up BEFORE binding the device session, so a queue can self-start from a backend-only
@@ -410,10 +406,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // `executed` (FR-015) — only toward `failed` when one fails, which stays non-fatal.
             var everyStepRanThisIteration = false;
             async Task RunEveryStepPassAsync() {
-              if (everyStepEntries.Count == 0 && handle.EveryStepInjections.IsEmpty) return;
+              if (plan.EveryStep.Count == 0 && handle.EveryStepInjections.IsEmpty) return;
               everyStepRanThisIteration = true;
 
-              foreach (var esEntry in everyStepEntries) {
+              foreach (var esEntry in plan.EveryStep) {
                 ct.ThrowIfCancellationRequested();
                 EnsureSessionBound();
                 var esOk = await RunOneSequenceAsync(esEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(esEntry), ct).ConfigureAwait(false);
@@ -440,10 +436,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // It never runs the every-step pass or itself, so it cannot loop.
             var beforeEachRunRanThisIteration = false;
             async Task RunBeforeEachRunPassAsync() {
-              if (beforeEachRunRanThisIteration || beforeEachRunEntries.Count == 0) return;
+              if (beforeEachRunRanThisIteration || plan.BeforeEachRun.Count == 0) return;
               beforeEachRunRanThisIteration = true;
 
-              foreach (var berEntry in beforeEachRunEntries) {
+              foreach (var berEntry in plan.BeforeEachRun) {
                 ct.ThrowIfCancellationRequested();
                 EnsureSessionBound();
                 var berOk = await RunOneSequenceAsync(berEntry.SequenceId, rootId, ++index, sessionId, queue.Id, EntryScope(berEntry), ct).ConfigureAwait(false);
@@ -457,6 +453,18 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // iteration is held in hold-only mode with the same report: no new evaluation, no run.
             var held = false;
             DeviceLivenessReport? holdReport = null;
+            // Feature 171: a live apply swapped the plan while the loop waited at the operator gate. The rest of the
+            // iteration runs no firing group (each one returns null, as for a held firing, and marks nothing). The
+            // end of the iteration then skips the cycle completion and the next iteration reads the new plan. The
+            // once-per-run entries that ran in this cycle do not run again (research R-004).
+            var replanRequested = false;
+
+            bool PlanChangedSinceIterationStart() {
+              var current = handle.Schedule?.Plan;
+              if (current is null || current.Version == plan.Version) return false;
+              replanRequested = true;
+              return true;
+            }
             // A held template once-per-run pass continues later with the first entry that did not run.
             var oncePerRunPassHeld = false;
 
@@ -470,10 +478,31 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
               return true;
             }
 
+            // Operator pause gate (feature 171). Called between two firing groups and at the top of each loop
+            // iteration, never inside a group: the main sequence and its helper sequences always finish together.
+            // With no pause requested it returns at once. With a request, the state becomes "paused" and the loop
+            // waits here until a resume. A stop request ends the wait with a cancel. After a resume, a game that an
+            // idle hold left backed out is brought to the front before the loop goes on (FR-036).
+            async Task WaitAtOperatorGateAsync() {
+              var wait = handle.WaitAtOperatorGateAsync(_timeProvider.GetLocalNow(), ct);
+              if (wait.IsCompleted) {
+                await wait.ConfigureAwait(false);
+                return;
+              }
+              QueueExecutionLog.OperatorPaused(_logger, queue.Id);
+              await wait.ConfigureAwait(false);
+              QueueExecutionLog.OperatorResumed(_logger, queue.Id);
+              if (handle.TakeGameBackedOut() && sessionId is not null) {
+                await ForegroundGameAsync(sessionId, handle, ct).ConfigureAwait(false);
+              }
+            }
+
             // One firing group without its every-step pass: the gate, the before-each-run pass (for
             // the kinds that have one) and the main sequence. Returns null when the gate held it; the
             // site then keeps the firing due and does not run its every-step pass.
             async Task<bool?> FireGroupAsync(string sequenceId, GameBot.Domain.Parameters.ParameterScope scope, bool beforeEachRun, string? originActionId = null) {
+              await WaitAtOperatorGateAsync().ConfigureAwait(false);
+              if (PlanChangedSinceIterationStart()) return null;
               if (await HoldIfNotLiveAsync(sequenceId).ConfigureAwait(false)) return null;
               if (beforeEachRun) await RunBeforeEachRunPassAsync().ConfigureAwait(false);
               ct.ThrowIfCancellationRequested();
@@ -486,8 +515,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // and before the first OncePerRun step. Runs once per run (outside the do/while, so it
             // never repeats on a cycling queue). Each firing COUNTS toward `executed`; a failure is
             // non-fatal (recorded in `failed`, run continues), consistent with OncePerRun handling.
-            for (var startPos = 0; startPos < atQueueStartEntries.Count; startPos++) {
-              var startEntry = atQueueStartEntries[startPos];
+            for (var startPos = 0; startPos < plan.AtQueueStart.Count; startPos++) {
+              var startEntry = plan.AtQueueStart[startPos];
               ct.ThrowIfCancellationRequested();
               EnsureSessionBound();
               var startOk = await FireGroupAsync(startEntry.SequenceId, EntryScope(startEntry), beforeEachRun: false).ConfigureAwait(false);
@@ -505,11 +534,11 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             }
 
             async Task MoveHeldAtStartEntriesAsync(int fromPos) {
-              for (var pos = fromPos; pos < atQueueStartEntries.Count; pos++) {
-                var entry = atQueueStartEntries[pos];
+              for (var pos = fromPos; pos < plan.AtQueueStart.Count; pos++) {
+                var entry = plan.AtQueueStart[pos];
                 if (pos > fromPos) await HoldIfNotLiveAsync(entry.SequenceId).ConfigureAwait(false);
                 handle.PendingNextCycleStart.Enqueue(new SelfRescheduleEntry(
-                  AtQueueStartHoldIdPrefix + allEntries.IndexOf(entry).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                  AtQueueStartHoldIdPrefix + plan.IndexOf(entry).ToString(System.Globalization.CultureInfo.InvariantCulture),
                   entry.SequenceId,
                   GameBot.Domain.Commands.SelfReschedule.SelfRescheduleOption.AtQueueStart,
                   null,
@@ -526,7 +555,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // run's real remaining plan rather than an idealized one (feature 072/073 fix).
             var runStartedAt = _timeProvider.GetLocalNow();
             handle.RunStartedAt = runStartedAt;
-            var schedule = new QueueRunSchedule(allEntries, runStartedAt, queue.CycleExecution);
+            var schedule = new QueueRunSchedule(plan, runStartedAt, queue.CycleExecution);
             handle.Schedule = schedule;
 
             // True while a relative-offset timer (template) or a live schedule is still pending and
@@ -545,14 +574,19 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
             // The loop also runs when the at-queue-start pass booked work only the loop drains
             // (self-reschedule / live schedules): otherwise an AtQueueStart-only template would take the
             // empty-template branch and silently drop those bookings (feature 092, #198).
-            if (oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0 || timerEntries.Count > 0
-                || handle.HasPendingSelfRescheduleWork) {
+            if (plan.HasLoopWork || handle.HasPendingSelfRescheduleWork) {
               do {
                 ct.ThrowIfCancellationRequested();
                 // Failure-policy pause gate (feature 087): hold here while the run is parked. This
                 // sits BEFORE every due-ness evaluation below, which is what makes resume free —
                 // a firing that came due during the pause is simply still due (FR-018a).
                 await handle.WaitIfPausedAsync(ct).ConfigureAwait(false);
+                // Operator pause gate (feature 171): also here, so that an iteration with no firing waits too.
+                await WaitAtOperatorGateAsync().ConfigureAwait(false);
+                // Feature 171: each iteration works on the newest plan. A swap only happens while the loop waits at
+                // the gate, so this read is the one point where the loop takes it.
+                plan = schedule.Plan;
+                replanRequested = false;
                 everyStepRanThisIteration = false;
                 beforeEachRunRanThisIteration = false;
                 held = false;
@@ -590,7 +624,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 }
 
                 // (a) Evaluate timer entries at iteration boundary (FR-011/FR-012/FR-016).
-                foreach (var (timerEntry, timerIndex) in timerEntries) {
+                foreach (var (timerEntry, timerIndex) in plan.Timers) {
                   if (timerEntry.TimerTimeOfDay is null) continue;
 
                   var localNow = _timeProvider.GetLocalNow();
@@ -613,6 +647,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // this one flaky firing silently costs the whole day's task.
                 foreach (var (retryIndex, attempt) in schedule.DueDailyRetries(_timeProvider.GetLocalNow())) {
                   var retryEntry = schedule.Entries[retryIndex];
+                  await WaitAtOperatorGateAsync().ConfigureAwait(false);
+                  if (PlanChangedSinceIterationStart()) continue;
                   // Feature 106: a held retry stays armed with the same attempt number.
                   if (await HoldIfNotLiveAsync(retryEntry.SequenceId).ConfigureAwait(false)) continue;
                   await RunBeforeEachRunPassAsync().ConfigureAwait(false);
@@ -630,7 +666,7 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // COUNT toward `executed` (FR-016a), unlike time-of-day timers. A failed firing is
                 // non-fatal: recorded in `failed`, run continues (FR-016).
                 var elapsedSinceStart = _timeProvider.GetLocalNow() - runStartedAt;
-                foreach (var (relEntry, relIndex) in timerEntries) {
+                foreach (var (relEntry, relIndex) in plan.Timers) {
                   if (relEntry.TimerRelativeOffset is not { } relOffset) continue;
                   if (schedule.RelativeFired(relIndex)) continue;
                   if (elapsedSinceStart < relOffset) continue;
@@ -690,14 +726,14 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 // relative/live timer-wait passes below never re-run the once-per-run steps. A cycling
                 // iteration where neither this pass nor any firing above runs a sequence is not a cycle
                 // and is not counted (feature 093, #200) — it waits below instead.
-                var cycleHasWork = oncePerRunEntries.Count > 0 || everyStepEntries.Count > 0
+                var cycleHasWork = plan.OncePerRun.Count > 0 || plan.EveryStep.Count > 0
                   || !handle.PendingOncePerRun.IsEmpty || index != indexAtIterationStart;
                 if (queue.CycleExecution ? cycleHasWork : !schedule.OncePerRunPassDone) {
                   // Feature 106: a pass after a held pass continues the same cycle, so the entries
                   // that ran do not run again.
                   if (!oncePerRunPassHeld) schedule.BeginCycle();
-                  if (oncePerRunEntries.Count > 0) {
-                    foreach (var (entry, entryIndex) in oncePerRunEntries) {
+                  if (plan.OncePerRun.Count > 0) {
+                    foreach (var (entry, entryIndex) in plan.OncePerRun) {
                       if (oncePerRunPassHeld && schedule.OncePerRunCompletedThisCycle(entryIndex)) continue;
                       ct.ThrowIfCancellationRequested();
                       EnsureSessionBound();
@@ -718,13 +754,13 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                       handle.Cycles.ClearCurrentEntryIndex();
                     }
                   }
-                  else if (everyStepEntries.Count > 0 && !everyStepRanThisIteration && !held) {
+                  else if (plan.EveryStep.Count > 0 && !everyStepRanThisIteration && !held) {
                     // FR-009: no OncePerRun entries — EveryStep still runs at least once per cycle,
                     // unless a firing earlier in this iteration already triggered a pass.
                     // Feature 106: this standalone pass is a firing group too; its main sequence is
                     // the first every-step sequence. After a hold earlier in the iteration, the held
                     // firing owns this pass, so the pass gets no gate entry of its own.
-                    if (!await HoldIfNotLiveAsync(everyStepEntries[0].SequenceId).ConfigureAwait(false)) {
+                    if (!await HoldIfNotLiveAsync(plan.EveryStep[0].SequenceId).ConfigureAwait(false)) {
                       await RunEveryStepPassAsync().ConfigureAwait(false);
                     }
                   }
@@ -761,8 +797,8 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                   foreach (var heldFiring in heldReschedules) handle.PendingOncePerRun.Enqueue(heldFiring);
 
                   // Feature 106: a held iteration does not complete the cycle.
-                  oncePerRunPassHeld = held;
-                  if (!held) {
+                  oncePerRunPassHeld = held || replanRequested;
+                  if (!held && !replanRequested) {
                     schedule.MarkOncePerRunPassDone();
                     cycles++;
                     // Publish the cycle exactly when the engine counts one (feature 086).
@@ -772,6 +808,10 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                     _failurePolicy?.OnCycleCompleted(queue, handle);
                   }
                 }
+
+                // Feature 171: the plan changed during this iteration. Read it at once, with no wait. The cycle is not
+                // complete, and the entries that ran stay marked as done.
+                if (replanRequested && !held) continue;
 
                 // Feature 106 (research R-011): a held iteration does not end the run (also with
                 // cycleExecution: false) and does no idle pause. It waits QueueCheckIntervalMs and then
@@ -804,7 +844,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
                 var pollNow = _timeProvider.GetLocalNow();
                 var nextDue = schedule.ComputeNextDue(handle, pollNow);
                 var thresholdSeconds = Math.Max(1, queue.IdleThresholdSeconds);
+                // A pause request skips the idle hold (feature 171): the loop goes to the gate at once.
                 if (queue.PauseWhenIdle
+                    && !handle.OperatorPauseRequested
                     && nextDue is { } dueAt
                     && dueAt - pollNow > TimeSpan.FromSeconds(thresholdSeconds)) {
                   await IdlePauseHoldAsync(dueAt, sessionId!, handle, now => schedule.ComputeNextDue(handle, now), ct).ConfigureAwait(false);
@@ -844,6 +886,9 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       QueueExecutionLog.RunFaulted(_logger, queue.Id, ex);
     }
     finally {
+      // Feature 171 (FR-007): the pause belongs to the run. It clears when the run ends for any reason, so no
+      // waiter stays blocked and no queue stays "paused" for a run that is not active.
+      handle.ClearOperatorPause();
       // Feature 106: stop the liveness watch before the session stops.
       await StopLivenessWatchAsync(watchCts, watchTask).ConfigureAwait(false);
       watchCts?.Dispose();
@@ -1366,6 +1411,12 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
       // Hold until the next firing is due (or an earlier one arrives), or the run is stopped.
       while (true) {
         ct.ThrowIfCancellationRequested();
+        // Feature 171 (FR-036): an operator pause request ends the hold early. The game stays backed out, and the
+        // run loop brings it to the front when the operator resumes.
+        if (handle.OperatorPauseRequested) {
+          handle.MarkGameBackedOut();
+          return;
+        }
         var now = _timeProvider.GetLocalNow();
         var nextDue = computeNextDue(now);
         if (nextDue is not { } due || due <= now) break;
@@ -1374,19 +1425,27 @@ internal sealed class QueueExecutionService : IQueueExecutionService {
         await Task.Delay(RelativeTimerPollInterval, ct).ConfigureAwait(false);
       }
 
-      // Resume: foreground the game (best-effort). A failure is non-fatal — the due sequence's own
-      // connect/recovery steps handle a game that is not in front (FR-011).
-      try {
-        if (_ensureGameRunning is not null) {
-          await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false);
-        }
-      }
-      catch (OperationCanceledException) { throw; }
-      catch (Exception ex) { QueueExecutionLog.IdlePauseForegroundFailed(_logger, handle.QueueId, ex); }
+      // Resume: foreground the game (best-effort).
+      await ForegroundGameAsync(sessionId, handle, ct).ConfigureAwait(false);
     }
     finally {
       handle.ClearIdlePause();
     }
+  }
+
+  /// <summary>
+  /// Brings the game to the front (best-effort). A failure is non-fatal — the due sequence's own
+  /// connect/recovery steps handle a game that is not in front (feature 073, FR-011). Used at the end of an idle hold
+  /// and after a resume that follows a hold that a pause request ended early (feature 171).
+  /// </summary>
+  private async Task ForegroundGameAsync(string sessionId, QueueRunHandle handle, CancellationToken ct) {
+    try {
+      if (_ensureGameRunning is not null) {
+        await _ensureGameRunning.ExecuteAsync(sessionId, ct).ConfigureAwait(false);
+      }
+    }
+    catch (OperationCanceledException) { throw; }
+    catch (Exception ex) { QueueExecutionLog.IdlePauseForegroundFailed(_logger, handle.QueueId, ex); }
   }
 
   private static string BuildSummary(string queueName, QueueRunResult r) {
@@ -1479,4 +1538,10 @@ internal static partial class QueueExecutionLog {
 
   [LoggerMessage(EventId = 1133, Level = LogLevel.Warning, Message = "Queue {QueueId} could not hand the notification of sequence {SequenceId} to the dispatcher. The run continues.")]
   public static partial void NotificationHandOffFailed(ILogger logger, string QueueId, string SequenceId, Exception ex);
+
+  [LoggerMessage(EventId = 1134, Level = LogLevel.Information, Message = "Queue {QueueId} is paused between sequences (operator pause). It starts no new sequence until a resume.")]
+  public static partial void OperatorPaused(ILogger logger, string QueueId);
+
+  [LoggerMessage(EventId = 1135, Level = LogLevel.Information, Message = "Queue {QueueId} left the operator pause and goes on with the same run.")]
+  public static partial void OperatorResumed(ILogger logger, string QueueId);
 }

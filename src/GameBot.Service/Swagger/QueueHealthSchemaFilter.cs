@@ -14,22 +14,29 @@ namespace GameBot.Service.Swagger;
 /// </summary>
 internal sealed class QueueHealthSchemaFilter : ISchemaFilter {
   private const string PausedDescription =
-    "Whether the run is paused right now, for either reason: an idle pause (routine; the game is backed out "
-    + "between firings and the pause ends by itself when the next firing is due) or a failure-policy pause "
+    "Whether the run is paused right now, for one of three reasons: an idle pause (routine; the game is backed out "
+    + "between firings and the pause ends by itself when the next firing is due), a failure-policy pause "
     + "(the run is parked after too many consecutive failed cycles and is released only by "
-    + "POST /api/queues/{id}/resume). pauseKind tells them apart.";
+    + "POST /api/queues/{id}/resume), or an operator pause (the operator asked for a pause with "
+    + "POST /api/queues/{id}/pause, and the queue waits between sequences until a resume). pauseKind tells them apart. "
+    + "A queue in the state 'pausing' is not paused yet: see operatorPause.";
+
+  private const string OperatorPauseDescription =
+    "The state of the operator pause: 'none', 'pausing' (a pause is requested and a sequence still runs), or 'paused' "
+    + "(the queue waits between sequences and starts no new sequence). Start it with POST /api/queues/{id}/pause. "
+    + "End it, or cancel it while 'pausing', with POST /api/queues/{id}/resume. This is not the 'Pause when idle' setting.";
 
   private const string PausedAtDescription =
     "When the reported pause began (service-local clock). Null when not paused.";
 
   private const string PauseReasonDescription =
-    "Why the run is paused: 'idle pause: resumes at HH:mm' for an idle pause, or a text starting "
-    + "'failure policy:' for a failure-policy pause. Null when not paused.";
+    "Why the run is paused: 'idle pause: resumes at HH:mm' for an idle pause, a text starting "
+    + "'failure policy:' for a failure-policy pause, or 'operator pause: waiting for resume'. Null when not paused.";
 
   private const string PauseKindDescription =
-    $"Which pause is in force: '{QueuePauseKinds.Idle}' or '{QueuePauseKinds.FailurePolicy}'; null when not "
-    + $"paused. If both were in force at once, '{QueuePauseKinds.FailurePolicy}' is reported, because it is the "
-    + "one that needs an operator's resume.";
+    $"Which pause is in force: '{QueuePauseKinds.Idle}', '{QueuePauseKinds.FailurePolicy}', or '{QueuePauseKinds.Operator}'; "
+    + $"null when not paused. If more than one were in force at once, '{QueuePauseKinds.FailurePolicy}' is reported first, "
+    + $"then '{QueuePauseKinds.Operator}', because they need an operator's resume.";
 
   public void Apply(OpenApiSchema schema, SchemaFilterContext context) {
     if (context.Type != typeof(QueueHealthResponse) || schema.Properties is null) return;
@@ -37,6 +44,7 @@ internal sealed class QueueHealthSchemaFilter : ISchemaFilter {
     Describe(schema, "paused", PausedDescription);
     Describe(schema, "pausedAt", PausedAtDescription);
     Describe(schema, "pauseReason", PauseReasonDescription);
+    Describe(schema, "operatorPause", OperatorPauseDescription);
     // Feature 106: the device liveness of the run.
     Describe(schema, "deviceLiveness", DeviceLivenessSchemaFilter.QueueDeviceLivenessDescription);
     // Feature 121: the last alert result also shows for a queue with no failure policy.
@@ -47,7 +55,8 @@ internal sealed class QueueHealthSchemaFilter : ISchemaFilter {
       pauseKind.Description = PauseKindDescription;
       pauseKind.Enum = new List<IOpenApiAny> {
         new OpenApiString(QueuePauseKinds.Idle),
-        new OpenApiString(QueuePauseKinds.FailurePolicy)
+        new OpenApiString(QueuePauseKinds.FailurePolicy),
+        new OpenApiString(QueuePauseKinds.Operator)
       };
     }
   }

@@ -20,4 +20,23 @@ internal static class QueuePauseKinds {
 
   /// <summary>Feature 087's park after a tripped <c>pause</c> policy; released only by an explicit resume.</summary>
   public const string FailurePolicy = "failurePolicy";
+
+  /// <summary>Feature 171's pause between firing groups, asked for by the operator; released only by a resume.</summary>
+  public const string Operator = "operator";
+}
+
+/// <summary>
+/// The state of the operator pause of a run (feature 171). <see cref="Pausing"/>: the operator asked for a pause and
+/// a firing group still runs, or the loop has not reached its gate yet. <see cref="Paused"/>: the loop waits at the
+/// gate and starts no new firing group until a resume.
+/// </summary>
+internal enum OperatorPauseState {
+  /// <summary>No pause is requested.</summary>
+  None,
+
+  /// <summary>A pause is requested. The loop has not reached the gate yet.</summary>
+  Pausing,
+
+  /// <summary>The loop waits at the gate.</summary>
+  Paused
 }
