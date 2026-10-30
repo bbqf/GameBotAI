@@ -22,7 +22,7 @@ All notable changes to this project will be documented in this file.
   - **No migration**: all new members are optional. A saved binding stores the technical value, so old commands, sequences, and queue templates run as before.
   - **Warnings, not errors**: a saved value that does not fit its declaration (for example a number out of range or an option that was removed) gives the warning `invalid_parameter_value` at save. It never stops a queue start or a run.
   - **Errors**: a text-typed friendly parameter (a text choice, an image, or a number with a pattern) in a numeric field of a command step gives `text_parameter_in_numeric_field`. A declaration with a bad member gives `invalid_parameter_declaration` with a hint.
-  - **Log**: the execution log shows the option label of a choice next to the technical value.
+  - **Log**: the execution log shows the option label of a choice next to the technical value. The label comes from the declaration of the sequence too, when the command only passes the value through. The log grid shows the parameter values of a step in its info text (`Parameters: name = value (label)`). The log tree node has a new optional `parameters` list.
   - **Web UI**: the parameter editor has cards, an options editor, an allowed-images dialog, number settings, name suggestions, and a live preview. A step form has "Use a parameter of this sequence". The value form works at phone width. The editor is desktop-only and shows "Use a larger screen" on a phone.
   - **Gamepack**: an allowed image counts as an image reference of the pack.
   - The patch version is now 22, so the next build is `1.11.22.<run number>`.

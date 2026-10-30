@@ -66,7 +66,13 @@ internal sealed record ExecutionTreeNodeProjection(
 
   /// <summary>The time bound (ms) that applied when <see cref="CancellationReason"/> is set; null otherwise.</summary>
   public int? TimeLimitMs { get; init; }
+
+  /// <summary>The parameter values that this step used (feature 168); null when the step used none.</summary>
+  public IReadOnlyList<ExecutionParameterProjection>? Parameters { get; init; }
 }
+
+/// <summary>One parameter value of a step: the value as logged (masked when needed) and the option label of a choice.</summary>
+internal sealed record ExecutionParameterProjection(string Name, string Value, string? Label);
 
 internal sealed record ExecutionSubtreeProjection(
   string ExecutionId,
@@ -684,7 +690,36 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       step.DetailAttributes,
       step.ConditionTrace,
       BuildDeepLink(entry, step),
-      Array.Empty<ExecutionTreeNodeProjection>());
+      Array.Empty<ExecutionTreeNodeProjection>()) {
+      Parameters = ReadStepParameters(entry, step.StepOrder)
+    };
+
+  /// <summary>
+  /// Reads the parameter values that the step used from the "parameters" detail item of the entry
+  /// (feature 168). The attributes are plain objects in memory and JSON elements after a read from disk,
+  /// so both go through one JSON element.
+  /// </summary>
+  private static List<ExecutionParameterProjection>? ReadStepParameters(ExecutionLogEntry entry, int stepOrder) {
+    List<ExecutionParameterProjection>? result = null;
+    foreach (var item in entry.Details) {
+      if (!string.Equals(item.Kind, "parameters", StringComparison.Ordinal) || item.Attributes is null) continue;
+      if (!item.Attributes.TryGetValue("stepOrder", out var order) || !item.Attributes.TryGetValue("resolvedParameters", out var list)) continue;
+      var orderElement = JsonSerializer.SerializeToElement(order);
+      if (orderElement.ValueKind != JsonValueKind.Number || orderElement.GetInt32() != stepOrder) continue;
+      var listElement = JsonSerializer.SerializeToElement(list);
+      if (listElement.ValueKind != JsonValueKind.Array) continue;
+      result ??= new List<ExecutionParameterProjection>();
+      foreach (var parameter in listElement.EnumerateArray()) {
+        if (!parameter.TryGetProperty("name", out var name) || !parameter.TryGetProperty("value", out var value)) continue;
+        var label = parameter.TryGetProperty("label", out var labelElement) && labelElement.ValueKind == JsonValueKind.String
+          ? labelElement.GetString()
+          : null;
+        result.Add(new ExecutionParameterProjection(name.GetString() ?? string.Empty, value.GetString() ?? string.Empty, label));
+      }
+    }
+
+    return result;
+  }
 
   private static bool IsConditionStep(ExecutionStepOutcome step)
     => step.ConditionTrace is not null

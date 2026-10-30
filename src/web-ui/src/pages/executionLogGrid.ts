@@ -64,6 +64,10 @@ export const composeInfo = (node: ExecutionTreeNodeDto): string => {
   if (typeof node.appliedDelayMs === 'number') {
     parts.push(`(delay ${node.appliedDelayMs} ms)`);
   }
+  if (node.parameters && node.parameters.length > 0) {
+    const shown = node.parameters.map((p) => (p.label ? `${p.name} = ${p.value} (${p.label})` : `${p.name} = ${p.value}`));
+    parts.push(`Parameters: ${shown.join('; ')}.`);
+  }
   if (node.conditionTrace) {
     parts.push(
       `Condition: final result ${node.conditionTrace.finalResult ? 'true' : 'false'} (${node.conditionTrace.selectedBranch} branch)`

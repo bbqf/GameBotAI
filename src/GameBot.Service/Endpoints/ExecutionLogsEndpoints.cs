@@ -195,6 +195,9 @@ internal static class ExecutionLogsEndpoints {
         },
       CancellationReason = node.CancellationReason,
       TimeLimitMs = node.TimeLimitMs,
+      Parameters = node.Parameters is null
+        ? null
+        : node.Parameters.Select(p => new ExecutionTreeParameterDto { Name = p.Name, Value = p.Value, Label = p.Label }).ToArray(),
       Children = node.Children.Select(ToTreeNodeDto).ToArray()
     };
 

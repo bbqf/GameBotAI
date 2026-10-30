@@ -308,7 +308,7 @@ public static class CommandStepResolver {
       return false;
     }
 
-    AddUsage(keys[0], value, used, scope);
+    AddUsage(keys[0], value, used);
     text = value.Text;
     return true;
   }
@@ -325,22 +325,9 @@ public static class CommandStepResolver {
   private static void RecordUsage(string template, ParameterScope scope, List<ResolvedParameter> used) {
     foreach (var key in TemplateSubstitutor.ExtractKeys(template)) {
       if (scope.TryResolve(key, out var value)) {
-        AddUsage(key, value, used, scope);
+        AddUsage(key, value, used);
       }
     }
-  }
-
-  /// <summary>
-  /// The label of the option whose value equals <paramref name="text"/>, when the name is a choice
-  /// parameter (feature 168). Other kinds have no label.
-  /// </summary>
-  private static string? OptionLabel(ParameterScope scope, string key, string text) {
-    if (!scope.TryFindDeclaration(key, out var declaration) || declaration.Options is null) return null;
-    foreach (var option in declaration.Options) {
-      if (string.Equals(option.Value, text, StringComparison.Ordinal)) return option.Label;
-    }
-
-    return null;
   }
 
   /// <summary>
@@ -348,8 +335,8 @@ public static class CommandStepResolver {
   /// text around placeholders, this also adds one item for each source name after the used name
   /// (feature 115). A source item is not added when <paramref name="used"/> already has that name.
   /// </summary>
-  private static void AddUsage(string key, ParameterValue value, List<ResolvedParameter> used, ParameterScope scope) {
-    used.Add(new ResolvedParameter(key, value.Text, value.OriginLayer, OptionLabel(scope, key, value.Text)));
+  private static void AddUsage(string key, ParameterValue value, List<ResolvedParameter> used) {
+    used.Add(new ResolvedParameter(key, value.Text, value.OriginLayer, value.Label));
     if (value.Sources is null) return;
     foreach (var source in value.Sources) {
       if (!used.Exists(u => string.Equals(u.Name, source.Name, StringComparison.Ordinal))) used.Add(source);

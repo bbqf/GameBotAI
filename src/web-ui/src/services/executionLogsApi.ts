@@ -42,6 +42,13 @@ export type ExecutionTreeNodeKind =
 
 export type ExecutionTreeNodeStatus = ExecutionStatus | 'skipped' | 'not_executed' | 'no_break';
 
+/** Feature 168: a parameter value that a step used. `label` is the readable label of a choice option. */
+export type ExecutionTreeParameterDto = {
+  name: string;
+  value: string;
+  label?: string;
+};
+
 export type ExecutionTreeNodeDto = {
   nodeKind: ExecutionTreeNodeKind;
   executionId?: string;
@@ -55,6 +62,8 @@ export type ExecutionTreeNodeDto = {
   detailAttributes?: ExecutionLogWaitForImageDetailAttributesDto;
   conditionTrace?: ExecutionLogConditionTraceDto;
   deepLink?: ExecutionLogStepDeepLinkDto;
+  /** Feature 168: the parameter values that this step used. Absent when it used none. */
+  parameters?: ExecutionTreeParameterDto[];
   children: ExecutionTreeNodeDto[];
 };
 

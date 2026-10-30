@@ -100,8 +100,11 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
     works as before. A binding stores the technical value, so there is no migration. `ParameterValueRules`
     checks a saved value, and a value that does not fit is the warning `invalid_parameter_value`, never an
     error and never a refused queue start. `ParameterScope.TryResolve` applies the pattern, and the
-    `Mapped` flag of `ParameterValue` stops a second application. The execution log shows the option
-    `label` of a choice next to the technical value (not for a masked name). The step form has "Use a
+    `Mapped` flag of `ParameterValue` stops a second application. `ParameterScope.TryResolve` also sets
+    `ParameterValue.Label` from the option of the innermost declaration, and a pass-through binding keeps
+    it. The execution log shows the option `label` of a choice next to the technical value (not for a
+    masked name). A subtree step node has the optional `parameters` list (`name`, `value`, `label`), which
+    the log grid writes into the info text of the step. The step form has "Use a
     parameter of this sequence", which stores `{{name}}`. A text-typed friendly parameter in a numeric
     field is the error `text_parameter_in_numeric_field`.
   - A **binding** (`ParameterBinding`) supplies a value at one call site: a queue-template entry binds

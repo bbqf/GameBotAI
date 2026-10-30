@@ -36,6 +36,23 @@ describe('executionLogGrid helpers', () => {
       expect(composeInfo(makeNode({ message: 'ran ok' }))).toBe('ran ok');
     });
 
+    it('shows the parameter values of a step, with the option label of a choice', () => {
+      const info = composeInfo(
+        makeNode({
+          message: 'executed',
+          parameters: [
+            { name: 'buttonToTap', value: 'img-1' },
+            { name: 'difficulty', value: '3', label: 'Hard mode' }
+          ]
+        })
+      );
+      expect(info).toBe('executed Parameters: buttonToTap = img-1; difficulty = 3 (Hard mode).');
+    });
+
+    it('adds nothing for an empty parameter list', () => {
+      expect(composeInfo(makeNode({ message: 'ran ok', parameters: [] }))).toBe('ran ok');
+    });
+
     it('appends applied delay', () => {
       expect(composeInfo(makeNode({ message: 'Step ran', appliedDelayMs: 197 }))).toBe(
         'Step ran (delay 197 ms)'

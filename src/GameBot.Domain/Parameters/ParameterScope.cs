@@ -41,11 +41,16 @@ public static class ParameterScopeLayers {
 /// value that must stay plain text. A mapped value gets no pattern a second time, and <c>{{</c> in it is
 /// not resolved again.
 /// </param>
+/// <param name="Label">
+/// The readable label of the option whose value equals <paramref name="Text"/> (feature 168). Set only for
+/// a choice parameter. A pass-through binding keeps it, so the label of the declaring layer reaches the log.
+/// </param>
 public readonly record struct ParameterValue(
     string Text,
     string OriginLayer,
     IReadOnlyList<ResolvedParameter>? Sources = null,
-    bool Mapped = false);
+    bool Mapped = false,
+    string? Label = null);
 
 /// <summary>One entry of a scope description, used to render the authoring UI's preview and picker.</summary>
 /// <param name="Name">Parameter name.</param>
@@ -216,7 +221,7 @@ public sealed class ParameterScope {
           var sources = new List<ResolvedParameter>(keys.Count);
           foreach (var key in keys) {
             TryResolve(key, out var source);
-            sources.Add(new ResolvedParameter(key, source.Text, source.OriginLayer));
+            sources.Add(new ResolvedParameter(key, source.Text, source.OriginLayer, source.Label));
           }
           values[binding.Name] = new ParameterValue(composed, layerName, sources, Mapped: true);
         }
@@ -277,7 +282,7 @@ public sealed class ParameterScope {
     for (var scope = this; scope is not null; scope = scope.Parent) {
       if (scope._values.TryGetValue(name, out var bound)) {
         // A whole-placeholder binding keeps the layer that supplied its value (feature 115).
-        value = bound.Mapped ? bound : ApplyPattern(name, bound);
+        value = WithOptionLabel(name, bound.Mapped ? bound : ApplyPattern(name, bound));
         return true;
       }
     }
@@ -285,7 +290,9 @@ public sealed class ParameterScope {
     for (var scope = this; scope is not null; scope = scope.Parent) {
       if (scope._declarations.TryGetValue(name, out var declaration) && declaration.Default is not null) {
         var fromDefault = new ParameterValue(declaration.Default, ParameterScopeLayers.Default);
-        value = string.IsNullOrEmpty(declaration.Pattern) ? fromDefault : MapWithPattern(declaration.Pattern, fromDefault);
+        value = string.IsNullOrEmpty(declaration.Pattern)
+            ? WithOptionLabel(name, fromDefault)
+            : MapWithPattern(declaration.Pattern, fromDefault);
         return true;
       }
     }
@@ -311,6 +318,22 @@ public sealed class ParameterScope {
 
     declaration = null;
     return false;
+  }
+
+  /// <summary>
+  /// Adds the option label when the innermost declaration of <paramref name="name"/> has an option with this
+  /// value. A value that already has a label keeps it (a pass-through from the declaring layer).
+  /// </summary>
+  private ParameterValue WithOptionLabel(string name, ParameterValue resolved) {
+    if (resolved.Label is not null) return resolved;
+    if (!TryFindDeclaration(name, out var declaration) || declaration.Options is null) return resolved;
+    foreach (var option in declaration.Options) {
+      if (option is not null && string.Equals(option.Value, resolved.Text, StringComparison.Ordinal)) {
+        return resolved with { Label = option.Label };
+      }
+    }
+
+    return resolved;
   }
 
   private ParameterValue ApplyPattern(string name, ParameterValue bound) {
