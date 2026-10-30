@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { ImageSelectorDropdown } from '../images/ImageSelectorDropdown';
+import { ParameterSourceControl } from '../parameters/ParameterSourceControl';
+import { useFieldTemplates } from '../parameters/useFieldTemplates';
+import type { ParameterDeclaration } from '../parameters/types';
 
 export type WaitForImagePanelValue = {
   timeoutMs: string;
   referenceImageId?: string;
   confidence?: string;
+  /** Placeholders for step fields (feature 169). Includes keys that this panel has no control for. */
+  fieldTemplates?: Record<string, string>;
 };
 
 export type WaitForImagePanelProps = {
@@ -16,7 +21,16 @@ export type WaitForImagePanelProps = {
   onConfirm: (value: WaitForImagePanelValue) => void;
   onCancel: () => void;
   disabled?: boolean;
+  /** Parameters that the command declares (feature 169). */
+  parameters?: ParameterDeclaration[];
+  /** Placeholders of the step that is in edit. */
+  fieldTemplates?: Record<string, string>;
+  /** Service messages by field path, for this step only. */
+  fieldErrors?: Record<string, string>;
 };
+
+const TIMEOUT_PATH = 'waitForImage.timeoutMs';
+const IMAGE_PATH = 'waitForImage.detectionTarget.referenceImageId';
 
 const validateTimeoutMs = (value: string): string | null => {
   if (!value.trim()) return 'Timeout must be a non-negative whole number (ms).';
@@ -36,13 +50,17 @@ export const WaitForImagePanel: React.FC<WaitForImagePanelProps> = ({
   onConfirm,
   onCancel,
   disabled,
+  parameters,
+  fieldTemplates,
+  fieldErrors,
 }) => {
+  const templates = useFieldTemplates(fieldTemplates);
   const [timeoutMs, setTimeoutMs] = useState(initialValue?.timeoutMs ?? '1000');
   const [referenceImageId, setReferenceImageId] = useState(initialValue?.referenceImageId ?? '');
   const [confidence, setConfidence] = useState(initialValue?.confidence ?? '');
   const [attempted, setAttempted] = useState(false);
 
-  const timeoutError = validateTimeoutMs(timeoutMs);
+  const timeoutError = templates.get(TIMEOUT_PATH) ? null : validateTimeoutMs(timeoutMs);
   const confidenceError = validateConfidence(confidence);
   const hasErrors = Boolean(timeoutError || confidenceError);
 
@@ -52,9 +70,11 @@ export const WaitForImagePanel: React.FC<WaitForImagePanelProps> = ({
     setAttempted(true);
     if (hasErrors) return;
     onConfirm({
-      timeoutMs: timeoutMs.trim(),
+      // The kept plain value goes to the service. It is 0 for an empty required whole-number field.
+      timeoutMs: timeoutMs.trim() || '0',
       referenceImageId: referenceImageId.trim() || undefined,
       confidence: confidence.trim() || undefined,
+      fieldTemplates: templates.result(),
     });
   };
 
@@ -62,27 +82,47 @@ export const WaitForImagePanel: React.FC<WaitForImagePanelProps> = ({
     <div className="action-panel action-panel--wait-for-image">
       <div className="field">
         <label htmlFor="wfi-panel-timeout">Timeout (ms) *</label>
-        <input
-          id="wfi-panel-timeout"
-          type="number"
-          min="0"
-          value={timeoutMs}
-          onChange={(e) => setTimeoutMs(e.target.value)}
+        <ParameterSourceControl
+          path={TIMEOUT_PATH}
+          label="Timeout"
+          parameters={parameters ?? []}
+          template={templates.get(TIMEOUT_PATH)}
+          onChange={(t) => templates.set(TIMEOUT_PATH, t)}
           disabled={disabled}
-        />
+          error={fieldErrors?.[TIMEOUT_PATH]}
+        >
+          <input
+            id="wfi-panel-timeout"
+            type="number"
+            min="0"
+            value={timeoutMs}
+            onChange={(e) => setTimeoutMs(e.target.value)}
+            disabled={disabled}
+          />
+        </ParameterSourceControl>
         {attempted && timeoutError && <div className="field-error" role="alert">{timeoutError}</div>}
       </div>
       <div className="field">
-        <ImageSelectorDropdown
-          id="wfi-panel-image"
-          label="Reference image (optional)"
-          value={referenceImageId}
-          onChange={(id) => {
-            setReferenceImageId(id);
-            if (!id) setConfidence('');
-          }}
+        <ParameterSourceControl
+          path={IMAGE_PATH}
+          label="Reference image"
+          parameters={parameters ?? []}
+          template={templates.get(IMAGE_PATH)}
+          onChange={(t) => templates.set(IMAGE_PATH, t)}
           disabled={disabled}
-        />
+          error={fieldErrors?.[IMAGE_PATH]}
+        >
+          <ImageSelectorDropdown
+            id="wfi-panel-image"
+            label="Reference image (optional)"
+            value={referenceImageId}
+            onChange={(id) => {
+              setReferenceImageId(id);
+              if (!id) setConfidence('');
+            }}
+            disabled={disabled}
+          />
+        </ParameterSourceControl>
       </div>
       <div className="field">
         <label htmlFor="wfi-panel-confidence">Confidence (0–1)</label>

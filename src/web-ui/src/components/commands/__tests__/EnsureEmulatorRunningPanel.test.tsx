@@ -6,7 +6,7 @@ describe('EnsureEmulatorRunningPanel', () => {
   it('renders instance name, index, and adb serial fields', () => {
     render(<EnsureEmulatorRunningPanel onConfirm={() => {}} onCancel={() => {}} />);
     expect(screen.getByLabelText(/instance name/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/instance index/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^instance index/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/adb serial/i)).toBeInTheDocument();
   });
 
@@ -50,7 +50,7 @@ describe('EnsureEmulatorRunningPanel', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-    expect(screen.getByLabelText(/instance index/i)).toHaveValue(2);
+    expect(screen.getByLabelText(/^instance index/i)).toHaveValue(2);
     expect(screen.getByLabelText(/adb serial/i)).toHaveValue('emulator-5558');
   });
 

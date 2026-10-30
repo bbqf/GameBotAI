@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Http.Json;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -266,5 +268,69 @@ public sealed class ParametrizedReferenceImageIntegrationTests {
     AttributeText(TapNotExecutedItem(details), "reasonCode").Should().Be("skipped_invalid_config");
     details.Should().NotContain(d => string.Equals(d.Kind, "tap", StringComparison.Ordinal));
     ShouldRecordValue(ParameterItems(details, 0).Single(), "no-such-bound-image", ParameterScopeLayers.Command);
+  }
+
+  // ── Feature 169: empty inline image together with an image template ──────
+
+  /// <summary>
+  /// Feature 169 (T021). Result of the check, recorded for the PR description: the service REFUSES
+  /// a tap step that has an empty inline image, also when an image template is set for the step
+  /// (HTTP 400, "primitiveTap.detectionTarget.referenceImageId is required for PrimitiveTap steps").
+  /// The editor must therefore send a stored image id as the inline image of a tap step. The editor
+  /// asks the person to select a stored image first, then the parameter.
+  /// </summary>
+  [Fact]
+  public async Task SaveRefusesTapStepWithEmptyInlineImageAndImageTemplate() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var request = new {
+      name = "EmptyInlineImageWithTemplate",
+      parameters = new[] { new { name = "buttonToTap", type = "text", required = true } },
+      steps = new[] {
+        new {
+          type = "PrimitiveTap",
+          order = 0,
+          primitiveTap = new { detectionTarget = new { referenceImageId = "" } },
+          fieldTemplates = new Dictionary<string, string> { [TapImageKey] = "{{buttonToTap}}" }
+        }
+      }
+    };
+
+    var response = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), request).ConfigureAwait(false);
+    response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    var payload = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+    payload.Should().Contain("primitiveTap.detectionTarget.referenceImageId is required");
+  }
+
+  /// <summary>
+  /// Feature 169 (T021). A wait step may have no detection target. The check records what the service
+  /// does with an image template on such a step. See the assertion for the result.
+  /// </summary>
+  [Fact]
+  public async Task SaveResultForWaitStepWithNoInlineImageAndImageTemplate() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
+
+    var request = new {
+      name = "WaitNoInlineImageWithTemplate",
+      parameters = new[] { new { name = "buttonToTap", type = "text", required = true } },
+      steps = new[] {
+        new {
+          type = "WaitForImage",
+          order = 0,
+          waitForImage = new { timeoutMs = 100 },
+          fieldTemplates = new Dictionary<string, string> { [WaitImageKey] = "{{buttonToTap}}" }
+        }
+      }
+    };
+
+    var response = await client.PostAsJsonAsync(new Uri("/api/commands", UriKind.Relative), request).ConfigureAwait(false);
+    var payload = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+    // Result: the service ACCEPTS it (HTTP 201). A wait step with no inline image and an image template
+    // is valid, so the wait image control may save an empty inline image.
+    response.StatusCode.Should().Be(HttpStatusCode.Created, payload);
   }
 }

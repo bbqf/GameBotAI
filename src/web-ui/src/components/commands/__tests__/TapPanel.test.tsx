@@ -40,9 +40,9 @@ describe('TapPanel', () => {
 
     it('renders confidence, offsetX, and offsetY inputs', () => {
       render(<TapPanel onConfirm={() => {}} onCancel={() => {}} />);
-      expect(screen.getByLabelText(/confidence/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/offset x/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/offset y/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^confidence/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^offset x/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^offset y/i)).toBeInTheDocument();
     });
 
     it('renders Add and Cancel buttons', () => {
@@ -86,9 +86,9 @@ describe('TapPanel', () => {
         />
       );
       expect(screen.getByTestId('image-input')).toHaveValue('img-x');
-      expect(screen.getByLabelText(/confidence/i)).toHaveValue(0.9);
-      expect(screen.getByLabelText(/offset x/i)).toHaveValue(5);
-      expect(screen.getByLabelText(/offset y/i)).toHaveValue(-3);
+      expect(screen.getByLabelText(/^confidence/i)).toHaveValue(0.9);
+      expect(screen.getByLabelText(/^offset x/i)).toHaveValue(5);
+      expect(screen.getByLabelText(/^offset y/i)).toHaveValue(-3);
     });
   });
 
@@ -117,7 +117,7 @@ describe('TapPanel', () => {
       const onConfirm = jest.fn();
       render(<TapPanel onConfirm={onConfirm} onCancel={() => {}} />);
       fireEvent.change(screen.getByTestId('image-input'), { target: { value: 'img-a' } });
-      fireEvent.change(screen.getByLabelText(/confidence/i), { target: { value: '1.5' } });
+      fireEvent.change(screen.getByLabelText(/^confidence/i), { target: { value: '1.5' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).not.toHaveBeenCalled();
       expect(screen.getByRole('alert')).toHaveTextContent('Confidence must be a number between 0 and 1.');
@@ -127,7 +127,7 @@ describe('TapPanel', () => {
       const onConfirm = jest.fn();
       render(<TapPanel onConfirm={onConfirm} onCancel={() => {}} />);
       fireEvent.change(screen.getByTestId('image-input'), { target: { value: 'img-a' } });
-      fireEvent.change(screen.getByLabelText(/confidence/i), { target: { value: '-0.1' } });
+      fireEvent.change(screen.getByLabelText(/^confidence/i), { target: { value: '-0.1' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).not.toHaveBeenCalled();
       expect(screen.getByRole('alert')).toHaveTextContent('Confidence must be a number between 0 and 1.');
@@ -147,9 +147,9 @@ describe('TapPanel', () => {
       const onConfirm = jest.fn();
       render(<TapPanel onConfirm={onConfirm} onCancel={() => {}} />);
       fireEvent.change(screen.getByTestId('image-input'), { target: { value: 'img-a' } });
-      fireEvent.change(screen.getByLabelText(/confidence/i), { target: { value: '0.8' } });
-      fireEvent.change(screen.getByLabelText(/offset x/i), { target: { value: '10' } });
-      fireEvent.change(screen.getByLabelText(/offset y/i), { target: { value: '-5' } });
+      fireEvent.change(screen.getByLabelText(/^confidence/i), { target: { value: '0.8' } });
+      fireEvent.change(screen.getByLabelText(/^offset x/i), { target: { value: '10' } });
+      fireEvent.change(screen.getByLabelText(/^offset y/i), { target: { value: '-5' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).toHaveBeenCalledWith({
         referenceImageId: 'img-a',
@@ -164,8 +164,8 @@ describe('TapPanel', () => {
       const onConfirm = jest.fn();
       render(<TapPanel onConfirm={onConfirm} onCancel={() => {}} />);
       fireEvent.change(screen.getByTestId('image-input'), { target: { value: 'img-a' } });
-      fireEvent.change(screen.getByLabelText(/offset x/i), { target: { value: '' } });
-      fireEvent.change(screen.getByLabelText(/offset y/i), { target: { value: '' } });
+      fireEvent.change(screen.getByLabelText(/^offset x/i), { target: { value: '' } });
+      fireEvent.change(screen.getByLabelText(/^offset y/i), { target: { value: '' } });
       fireEvent.click(screen.getByRole('button', { name: 'Add' }));
       expect(onConfirm).toHaveBeenCalledWith({
         referenceImageId: 'img-a',

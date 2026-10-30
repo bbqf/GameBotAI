@@ -196,6 +196,7 @@ Status vocabulary:
 | 166 | Fix WaitForImage Timeout on an Image That Is on Screen | Implemented |
 | 167 | Sequence Condition on a Step Outcome Inside a Command | Implemented |
 | 168 | Friendly Sequence Parameters | Implemented |
+| 169 | Command Editor Parameter Fields | Implemented |
 
 ## Numbering notes
 

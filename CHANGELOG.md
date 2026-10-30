@@ -17,6 +17,14 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Command editor parameter fields (169-command-editor-parameter-fields, #358)
+  - **New**: the command editor has a "Use a parameter" button on 12 step fields: Swipe (start X, start Y, end X, end Y, duration), Tap (confidence, offset X, offset Y, image), Wait for image (timeout, image), and Ensure emulator running (instance index). You select a parameter of the command or a queue value. The editor writes `{{name}}` in `fieldTemplates`. You can remove it again.
+  - **Round trip fix**: the editor did not keep `fieldTemplates` before. A save in the editor removed the templates of a command. Now it keeps all of them, also the keys that have no control.
+  - **Hints**: a parameter that does not fit a field shows a hint. You can still select it. The service decides on save. A template that names a parameter that is not declared shows "Parameter not found".
+  - **Errors**: a service message for a field shows at the field of the step that the message names. The form shows the message too.
+  - **Not changed**: the service rules for `FieldTemplates` and the API. The service still refuses a tap step with an empty image. So the tap image control asks for a stored image first.
+  - The patch version is now 25, so the next build is `1.11.25.<run number>`.
+  - See `docs/architecture.md`.
 - Friendly sequence parameters (168-friendly-sequence-parameters)
   - **New**: a parameter declaration can have a `label`, `helpText`, and a `kind`: `choice` (readable `options` with technical values), `image` (a short list of `allowedImages`), or `number` (with `min`, `max`, `unit`, and a `pattern` with one `{value}` marker). A person fills the value with an image picker, buttons or a list of readable options, or a number field. The sequence gets the technical value.
   - **No migration**: all new members are optional. A saved binding stores the technical value, so old commands, sequences, and queue templates run as before.

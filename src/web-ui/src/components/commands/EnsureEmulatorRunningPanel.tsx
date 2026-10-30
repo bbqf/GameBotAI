@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { ParameterizableField } from '../parameters/ParameterizableField';
-import type { ParameterScopeEntry } from '../parameters/types';
+import { ParameterSourceControl } from '../parameters/ParameterSourceControl';
+import { useFieldTemplates } from '../parameters/useFieldTemplates';
+import type { ParameterDeclaration, ParameterScopeEntry } from '../parameters/types';
 
 export type EnsureEmulatorRunningPanelValue = {
   instanceName?: string;
   instanceIndex?: string;
   adbSerial: string;
+  /** Placeholders for step fields (feature 169). Includes keys that this panel has no control for. */
+  fieldTemplates?: Record<string, string>;
 };
 
 export type EnsureEmulatorRunningPanelProps = {
@@ -19,7 +23,15 @@ export type EnsureEmulatorRunningPanelProps = {
    * the fields as plain inputs, which is exactly the pre-feature behaviour.
    */
   parameterScope?: ParameterScopeEntry[];
+  /** Parameters that the command declares (feature 169). */
+  parameters?: ParameterDeclaration[];
+  /** Placeholders of the step that is in edit. */
+  fieldTemplates?: Record<string, string>;
+  /** Service messages by field path, for this step only. */
+  fieldErrors?: Record<string, string>;
 };
+
+const INDEX_PATH = 'ensureEmulatorRunning.instanceIndex';
 
 /** True when a value is a parameter reference rather than a literal. */
 const isReference = (value: string): boolean => /\{\{[\w.]+\}\}/.test(value);
@@ -39,16 +51,21 @@ export const EnsureEmulatorRunningPanel: React.FC<EnsureEmulatorRunningPanelProp
   onCancel,
   disabled,
   parameterScope,
+  parameters,
+  fieldTemplates,
+  fieldErrors,
 }) => {
+  const templates = useFieldTemplates(fieldTemplates);
   const [instanceName, setInstanceName] = useState(initialValue?.instanceName ?? '');
   const [instanceIndex, setInstanceIndex] = useState(initialValue?.instanceIndex ?? '');
   const [adbSerial, setAdbSerial] = useState(initialValue?.adbSerial ?? '');
   const [attempted, setAttempted] = useState(false);
 
   const serialError = adbSerial.trim() ? null : 'ADB serial is required.';
-  const indexError = validateIndex(instanceIndex);
+  const indexTemplate = templates.get(INDEX_PATH);
+  const indexError = indexTemplate ? null : validateIndex(instanceIndex);
   const identifierError =
-    instanceName.trim() || instanceIndex.trim() ? null : 'Provide an instance name or index.';
+    instanceName.trim() || instanceIndex.trim() || indexTemplate ? null : 'Provide an instance name or index.';
   const hasErrors = Boolean(serialError || indexError || identifierError);
 
   const buttonLabel = initialValue !== undefined ? 'Save' : 'Add';
@@ -58,8 +75,10 @@ export const EnsureEmulatorRunningPanel: React.FC<EnsureEmulatorRunningPanelProp
     if (hasErrors) return;
     onConfirm({
       instanceName: instanceName.trim() || undefined,
-      instanceIndex: instanceIndex.trim() || undefined,
+      // The service needs a name or an index. With a placeholder and no plain value, send 0.
+      instanceIndex: instanceIndex.trim() || (indexTemplate && !instanceName.trim() ? '0' : undefined),
       adbSerial: adbSerial.trim(),
+      fieldTemplates: templates.result(),
     });
   };
 
@@ -80,16 +99,26 @@ export const EnsureEmulatorRunningPanel: React.FC<EnsureEmulatorRunningPanelProp
       </div>
       <div className="field">
         <label htmlFor="ensure-emulator-instance-index">Instance index</label>
-        <input
-          id="ensure-emulator-instance-index"
-          type="number"
-          min="0"
-          value={instanceIndex}
-          onChange={(e) => setInstanceIndex(e.target.value)}
+        <ParameterSourceControl
+          path={INDEX_PATH}
+          label="Instance index"
+          parameters={parameters ?? []}
+          template={indexTemplate}
+          onChange={(t) => templates.set(INDEX_PATH, t)}
           disabled={disabled}
-          aria-invalid={attempted && Boolean(indexError)}
-          aria-describedby={attempted && indexError ? 'ensure-emulator-instance-index-error' : undefined}
-        />
+          error={fieldErrors?.[INDEX_PATH]}
+        >
+          <input
+            id="ensure-emulator-instance-index"
+            type="number"
+            min="0"
+            value={instanceIndex}
+            onChange={(e) => setInstanceIndex(e.target.value)}
+            disabled={disabled}
+            aria-invalid={attempted && Boolean(indexError)}
+            aria-describedby={attempted && indexError ? 'ensure-emulator-instance-index-error' : undefined}
+          />
+        </ParameterSourceControl>
         {attempted && indexError && (
           <div id="ensure-emulator-instance-index-error" className="field-error" role="alert">{indexError}</div>
         )}
