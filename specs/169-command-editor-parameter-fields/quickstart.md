@@ -22,13 +22,15 @@ Use this guide to check the feature by hand. No API script is needed (SC-003).
 2. Next to "Reference image", select "Use a parameter for Reference image". Select `buttonToTap`.
 3. Save the step and the command. Expect `fieldTemplates` with `primitiveTap.detectionTarget.referenceImageId` = `{{buttonToTap}}`.
 
-If the service refuses an empty inline image, the control first asks you to select a stored image. Select an image, then select the parameter.
+The service refuses an empty inline image. So the button "Use a parameter" stays disabled until you select a stored image. The text "Select a stored image first. Then select the parameter." shows under the field. Select a stored image in the image chooser, then select the parameter. Expect the image list to fill the width of the field and to show aligned rows.
 
 ## Check 3: hint and service error (US3)
 
-1. Open the control on the Swipe duration field. Expect `note` with the hint "This parameter gives text...".
-2. Select `note`. Save the command.
-3. Expect the error `text_parameter_in_numeric_field`. The message names `swipe.durationMs` and `note`. Expect the error at the duration field of the step that the message names. If the command has two Swipe steps, only the named step shows the error at its field. If the editor cannot find the step, the form summary shows the error alone.
+The service gives the error only for a parameter that gives a friendly text value: an image parameter, a text parameter with a pattern, or a choice with text options. A plain text parameter keeps its old behavior and gives no error (feature 168, FR-018). So use `buttonToTap` for this check.
+
+1. Open the control on the Swipe duration field. Expect `buttonToTap` with the hint "This parameter gives text...".
+2. Select `buttonToTap`. Add the step. Save the command.
+3. Expect the error `text_parameter_in_numeric_field`. The message names `swipe.durationMs` and `buttonToTap`. Expect the error at the duration field of the step that the message names. If the command has two Swipe steps, only the named step shows the error at its field. If the editor cannot find the step, the form summary shows the error alone.
 4. Remove all parameters from the command. Open a control. Expect the text "This command has no parameters".
 
 5. Add a choice parameter with number options and one with text options. Expect no hint for the number choice in the Swipe duration control. Expect the hint for the text choice. Expect the group "Queue values" with no hint.
