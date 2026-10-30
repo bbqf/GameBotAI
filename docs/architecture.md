@@ -106,7 +106,7 @@ The auto-update (feature 131) keeps its files in `<data root>\updates\`. The fol
     masked name). A subtree step node has the optional `parameters` list (`name`, `value`, `label`), which
     the log grid writes into the info text of the step. The step form has "Use a
     parameter of this sequence", which stores `{{name}}`. A text-typed friendly parameter in a numeric
-    field is the error `text_parameter_in_numeric_field`.
+    field is the error `text_parameter_in_numeric_field`. The guide for authors is `docs/parameters.md`.
   - A **binding** (`ParameterBinding`) supplies a value at one call site: a queue-template entry binds
     a sequence's parameters, and a sequence's command step binds a command's. `Value == null` means
     *inherit*; the empty string is a deliberate real value.
