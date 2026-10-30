@@ -6,31 +6,34 @@ Use these steps to check the feature by hand after the implementation.
 
 1. Start the service and the web UI. Open the Authoring area on a desktop-size window.
 2. Make sure at least two images exist (Images page).
-3. Create a sequence "Friendly demo" with one command step that taps an image field and uses a numeric field.
+3. The web UI has no field to put a parameter into a field of a command step. Run the demo script. It uses the API to create the command "Friendly demo command" and the sequence "Friendly demo". Use your own address, token, and image IDs.
+
+   ```powershell
+   & "C:\src\GameBot\specs\168-friendly-sequence-parameters\demo-data.ps1" -BaseUrl "http://127.0.0.1:8080" -Token "<token>"
+   ```
+
+   The command has three steps: tap on an image, swipe, and key input. Each step has a parameter in its field. The sequence has the three friendly parameters of Checks 1 to 3. The tap step finds no image when the image is not on the emulator screen, and the key step rejects the name `emulator-N`. This is expected. Read the parameter values in the log text of the step, not the step outcome.
 
 ## Check 1: Image parameter (US1)
 
-1. In the sequence, add a parameter. Type the label "Button to tap". Check that the name `buttonToTap` is suggested.
+1. In a sequence, add a parameter. Type the label "Button to tap". Check that the name `buttonToTap` is suggested.
 2. Set the kind to Image. Choose two of the stored images as allowed images. Check that the live preview shows a picker with only these two. Check that a save with no allowed image is refused.
-3. Put `{{buttonToTap}}` in the image field of the step. Save.
-4. Open a queue template. Add the sequence. Open Parameters.
+3. Open the sequence "Friendly demo". Check that "Button to tap" is an image parameter with two allowed images, and that the step binding uses the sequence parameter.
+4. Open a queue template. Add the sequence. Open Parameters. In each of the three rows, clear "Inherit" and give a value (the demo parameters have no default, so a row on "Inherit" has no value and the run fails).
 5. Select an image by its thumbnail. Check that no text box for an ID shows and that no other image shows.
-6. Save and run. Check in the execution log that the step used the ID of the selected image, and the log shows the image name.
+6. Save and run. Open the run in the execution log. Check that the step line of the tap step shows `Parameters: buttonToTap = <ID of the selected image>`.
 
 ## Check 2: Choice parameter (US2)
 
-1. Add a parameter "Difficulty" with the kind Choice and the options Easy = 1, Hard mode = 3 (type Number).
-2. Use `{{difficulty}}` in a numeric field. Save.
-3. In the queue template, select "Hard mode". Check that the form shows labels only.
-4. Run. Check that the log shows value 3 and label "Hard mode".
-5. Try to add two options with the same label. Check that the save is refused with a clear message.
+1. In a sequence, add a parameter "Difficulty" with the kind Choice and the options Easy = 1, Hard mode = 3 (type Number). Try to add two options with the same label. Check that the save is refused with a clear message.
+2. In the queue template of Check 1, select "Hard mode" for "Difficulty". Check that the form shows labels only.
+3. Run. Check that the swipe step line in the log shows `difficulty = 3 (Hard mode)`.
 
 ## Check 3: Number with pattern (US3)
 
-1. Add a parameter "Emulator number" with the kind Number, min 1, max 10, pattern `emulator-{value}`.
-2. Use `{{emulatorNumber}}` in a text field. Save.
-3. In the queue template, enter 11. Check that the form shows a range error with a hint and does not accept the value.
-4. Enter 5. Run. Check that the field got `emulator-5`.
+1. In a sequence, add a parameter "Emulator number" with the kind Number, min 1, max 10, pattern `emulator-{value}`.
+2. In the queue template of Check 1, enter 11. Check that the form shows a range error with a hint and does not accept the value.
+3. Enter 5. Run. Check that the key step line in the log shows `emulatorNumber = emulator-5`.
 
 ## Check 4: Editor (US4)
 

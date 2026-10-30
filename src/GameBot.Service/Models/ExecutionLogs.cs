@@ -89,7 +89,20 @@ internal sealed class ExecutionTreeNodeDto {
   public string? CancellationReason { get; init; }
   /// <summary>Feature 094: the time bound (ms) that applied; set exactly when <see cref="CancellationReason"/> is.</summary>
   public int? TimeLimitMs { get; init; }
+
+  /// <summary>Feature 168: the parameter values that a step used. Omitted when the step used none.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<ExecutionTreeParameterDto>? Parameters { get; init; }
   public IReadOnlyList<ExecutionTreeNodeDto> Children { get; init; } = Array.Empty<ExecutionTreeNodeDto>();
+}
+
+internal sealed class ExecutionTreeParameterDto {
+  public required string Name { get; init; }
+  public required string Value { get; init; }
+
+  /// <summary>The readable label of a choice option; omitted for other kinds.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public string? Label { get; init; }
 }
 
 internal sealed class ExecutionSubtreeResponseDto {
