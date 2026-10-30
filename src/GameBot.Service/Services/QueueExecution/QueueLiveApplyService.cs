@@ -158,7 +158,8 @@ internal sealed partial class QueueLiveApplyService {
       _runtime.ReplaceEntries(queueId, built.AllEntries.Select(e => new QueueEntry { EntryId = e.EntryId, SequenceId = e.SequenceId }));
 
       var applied = selected.OrderBy(k => k, StringComparer.Ordinal).ToList();
-      LogApplied(_logger, queueId, newPlan.Version, applied.Count, string.Join(", ", applied));
+      var appliedText = string.Join(", ", applied);
+      LogApplied(_logger, queueId, newPlan.Version, applied.Count, appliedText);
       return new LiveApplyOutcome { Status = LiveApplyStatus.Applied, Applied = applied, PlanVersion = newPlan.Version };
     }
     finally {
