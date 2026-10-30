@@ -382,6 +382,7 @@ public sealed class QueueSettingsImporter {
   }
 
   private static QueueTemplateEntryDoc CopyEntry(QueueTemplateEntryDoc entry, string sequenceName) => new() {
+    EntryId = string.IsNullOrWhiteSpace(entry.EntryId) ? null : entry.EntryId.Trim(),
     Sequence = sequenceName,
     Enabled = entry.Enabled,
     ScheduleType = entry.ScheduleType,
@@ -390,10 +391,22 @@ public sealed class QueueSettingsImporter {
     ParameterValues = entry.ParameterValues ?? Array.Empty<GameBot.Domain.Parameters.ParameterBinding>()
   };
 
+  // Feature 171: an entry keeps the ID of the document. An entry with no ID in the document keeps the ID of
+  // the stored entry at the same position when it names the same sequence, so an import of an old export does
+  // not break the identity of the entries of a running queue. A new template, or a stored template that has
+  // IDs, then gets an ID for each entry that has none. A stored template that needs an upgrade gets none (the
+  // operator upgrades it with the explicit action).
   private static void FillEntries(QueueTemplate template, List<QueueTemplateEntryDoc> docs, List<string> sequenceIds) {
+    var previous = template.Entries.ToList();
+    var storedNeedsUpgrade = previous.Count > 0 && previous.Any(e => string.IsNullOrEmpty(e.EntryId));
     template.Entries.Clear();
     for (var i = 0; i < docs.Count; i++) {
+      var keptId = i < previous.Count
+        && string.Equals(previous[i].SequenceId, sequenceIds[i], StringComparison.Ordinal)
+          ? previous[i].EntryId
+          : string.Empty;
       var entry = new QueueTemplateEntry {
+        EntryId = string.IsNullOrWhiteSpace(docs[i].EntryId) ? keptId : docs[i].EntryId!,
         SequenceId = sequenceIds[i],
         Enabled = docs[i].Enabled,
         ScheduleType = docs[i].ScheduleType,
@@ -405,6 +418,10 @@ public sealed class QueueSettingsImporter {
       }
 
       template.Entries.Add(entry);
+    }
+
+    if (!storedNeedsUpgrade) {
+      QueueTemplateUpgrade.Apply(template);
     }
   }
 

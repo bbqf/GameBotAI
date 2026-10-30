@@ -17,6 +17,7 @@ import {
 } from '../../services/queues';
 import { getQueueTemplate, saveQueueTemplate, QueueTemplateDetail } from '../../services/queueTemplates';
 import { buildCardSummary, buildScheduleRows, describeNow } from './queueActivity';
+import { QueuePauseControls } from './QueuePauseControls';
 import '../../features/execution/StatusChip.css';
 
 export const PHONE_QUEUES_POLL_MS = 5000;
@@ -253,6 +254,9 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
                 {runLabel(detail.status)}
               </button>
             </div>
+            {detail.status === 'Running' && (
+              <QueuePauseControls queueId={detail.id} health={detail.health ?? null} reviewChanges onChanged={() => void loadDetail()} />
+            )}
             <div className="phone-queue-activity" aria-label="Queue activity">
               {detailStale && <StaleMark />}
               <p className="phone-queue-activity__now" data-testid="queue-now">

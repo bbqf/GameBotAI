@@ -17,6 +17,14 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Apply template changes to a running queue (171-live-template-changes)
+  - **New**: you can pause a running queue between sequences, apply the changes of its linked template, and resume the same run. The run does not restart. You can enable, disable, add, and remove entries, change their parameter values, and change their order. No schedule and no next due time changes, unless you select a schedule change.
+  - **Pause**: `POST /api/queues/{id}/pause` lets the sequence that runs finish. Then the queue starts no new sequence until `POST /api/queues/{id}/resume`. The state shows as `health.operatorPause` (`none`, `pausing`, `paused`), and `pauseKind` has the new value `operator`. A restart or a stop ends the pause. The pause is not the "Pause when idle" setting.
+  - **Review and apply**: `GET /api/queues/{id}/template-diff` lists the differences. `POST /api/queues/{id}/apply-template` applies the selected ones to a paused queue. All selected changes go in, or none. The web UI has **Pause**, **Resume**, and **Review changes** on the queue list and on a phone.
+  - **Entry ID (needs an upgrade)**: each template entry now has a stable `entryId`. A template that an older release saved has no IDs. It works as before, and the page marks it **Needs upgrade**. To apply changes from it to a running queue, upgrade it first: **Upgrade template** in the web UI, or `POST /api/queue-templates/{id}/upgrade`. The upgrade changes no other field, and a repeat changes nothing. The steps are in `docs/live-template-changes.md`.
+  - **Not changed**: how a queue runs when you do not use the new controls, the time limit of a sequence, and the restart rules. A new template, a gamepack seed template, and an import get IDs by themselves.
+  - See `docs/architecture.md` and `docs/live-template-changes.md`.
+  - The minor version is now 12 and the patch version is 0, so the next build is `1.12.0.<run number>`.
 - End a run at its time limit without a failure status (170-end-run-at-time-limit, #354)
   - **New**: a sequence has the option `onTimeLimit` with the values `fail` (default) and `end`. With `end`, a run that reaches its time limit gets the log status `success`. The entry keeps the reason `sequence_time_limit` and the limit value. The queue counts the run as successful: it sends no failure message and makes no daily retry.
   - **Where**: the API (POST, PUT, PATCH, GET, and the list), the OpenAPI text, and a select "When the time limit is reached" in the sequence form of the web UI. An unknown value gives the error `onTimeLimit must be one of: fail, end.`.

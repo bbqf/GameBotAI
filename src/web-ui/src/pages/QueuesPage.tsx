@@ -20,6 +20,7 @@ import {
 import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
 import { QueueMonitor } from '../components/queues/QueueMonitor';
+import { QueuePauseControls } from '../components/queues/QueuePauseControls';
 import { EntrySchedule } from '../components/queues/QueueEntryList';
 import { QueueSchedulingAreas } from '../components/queues/QueueSchedulingAreas';
 import type { ParameterBinding } from '../components/parameters/types';
@@ -150,6 +151,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
       const tplEntry = tplEntries[i];
       if (tplEntry) {
         schedule[entryId] = {
+          ...(tplEntry.entryId ? { templateEntryId: tplEntry.entryId } : {}),
           scheduleType: tplEntry.scheduleType ?? 'OncePerRun',
           timerTimeOfDay: tplEntry.timerTimeOfDay ?? '',
           timerMode: tplEntry.timerRelativeOffset ? 'relative' : 'timeOfDay',
@@ -292,6 +294,8 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
       const timerMode = sched.timerMode ?? (sched.timerRelativeOffset ? 'relative' : 'timeOfDay');
       const isRelative = sched.scheduleType === 'Timer' && timerMode === 'relative';
       return {
+        // Feature 171: send back the ID of the template entry, so that the save keeps its identity.
+        ...(sched.templateEntryId ? { entryId: sched.templateEntryId } : {}),
         sequenceId: e.sequenceId,
         scheduleType: sched.scheduleType,
         ...(sched.scheduleType === 'Timer' && !isRelative && sched.timerTimeOfDay ? { timerTimeOfDay: sched.timerTimeOfDay } : {}),
@@ -465,6 +469,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
                     ) : (
                       <button type="button" onClick={() => void runAction(q.id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}>Start</button>
                     )}
+                    {running && <QueuePauseControls queueId={q.id} reviewChanges />}
                     {running && (
                       <button
                         type="button"
@@ -563,6 +568,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
             templateControls={
               <QueueTemplateControls
                 associatedTemplateName={associatedTemplateName}
+                associatedTemplateId={detail.linkedTemplateId ?? undefined}
                 status={detail.status}
                 onSaveTemplate={handleSaveTemplate}
                 onLoadTemplate={(id) => void handleLoadTemplate(id)}

@@ -51,6 +51,23 @@ namespace GameBot.Domain.Queues {
       }
     }
 
+    public IReadOnlyList<QueueEntry> ReplaceEntries(string queueId, IEnumerable<QueueEntry> entries) {
+      ArgumentNullException.ThrowIfNull(entries);
+      var copy = new List<QueueEntry>();
+      foreach (var entry in entries) {
+        copy.Add(new QueueEntry {
+          EntryId = string.IsNullOrEmpty(entry.EntryId) ? Guid.NewGuid().ToString("N") : entry.EntryId,
+          SequenceId = entry.SequenceId
+        });
+      }
+      var state = StateFor(queueId);
+      lock (state) {
+        state.Entries.Clear();
+        state.Entries.AddRange(copy);
+        return state.Entries.ToArray();
+      }
+    }
+
     public bool RemoveEntry(string queueId, string entryId) {
       if (!_states.TryGetValue(queueId, out var state)) return false;
       lock (state) {

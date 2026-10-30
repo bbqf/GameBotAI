@@ -50,9 +50,18 @@ public sealed class QueueHealthOpenApiTests {
 
     var pauseKind = HealthProperty(document, "pauseKind");
 
-    pauseKind.GetProperty("description").GetString().Should().Contain("idle").And.Contain("failurePolicy");
+    pauseKind.GetProperty("description").GetString().Should().Contain("idle").And.Contain("failurePolicy").And.Contain("operator");
     pauseKind.GetProperty("enum").EnumerateArray().Select(v => v.GetString())
-      .Should().Equal("idle", "failurePolicy");
+      .Should().Equal("idle", "failurePolicy", "operator");
+  }
+
+  [Fact]
+  public async Task OperatorPauseIsDescribedAndIsNotThePauseWhenIdleSetting() {
+    var document = await ReadDocumentAsync().ConfigureAwait(false);
+
+    HealthProperty(document, "paused").GetProperty("description").GetString().Should().Contain("operator pause");
+    var state = HealthProperty(document, "operatorPause").GetProperty("description").GetString();
+    state.Should().Contain("pausing").And.Contain("paused").And.Contain("Pause when idle");
   }
 
   [Fact]

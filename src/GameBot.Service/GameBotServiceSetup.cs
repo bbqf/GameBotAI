@@ -301,6 +301,8 @@ internal static class GameBotServiceSetup {
       GameBot.Service.Services.Notifications.HttpFailureNotifier>();
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.QueueFailurePolicyEvaluator>();
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueExecutionService, GameBot.Service.Services.QueueExecution.QueueExecutionService>();
+    // Feature 171: reads the differences between a running queue and its template, and applies selected ones while paused.
+    builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.QueueLiveApplyService>();
     // Read-only live monitor projection (feature 072): pure fold of run handle + linked template + now.
     builder.Services.AddSingleton<GameBot.Service.Services.QueueExecution.IQueueMonitorService, GameBot.Service.Services.QueueExecution.QueueMonitorService>();
     builder.Services.AddSingleton<SemanticVersionComparer>();

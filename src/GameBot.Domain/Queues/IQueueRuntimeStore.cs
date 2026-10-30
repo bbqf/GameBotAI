@@ -31,6 +31,13 @@ namespace GameBot.Domain.Queues {
     /// </summary>
     IReadOnlyList<QueueEntry> SetEntries(string queueId, IEnumerable<string> sequenceIds);
 
+    /// <summary>
+    /// Replaces all entries for the queue in one step (feature 171). Unlike <see cref="SetEntries"/>, each
+    /// entry keeps the <see cref="QueueEntry.EntryId"/> that the caller gives (the ID of the template entry);
+    /// an entry with an empty ID gets a new one. The store copies the input. An empty input clears the entries.
+    /// </summary>
+    IReadOnlyList<QueueEntry> ReplaceEntries(string queueId, IEnumerable<QueueEntry> entries);
+
     /// <summary>Current status; <see cref="QueueExecutionStatus.Stopped"/> for an unknown queue.</summary>
     QueueExecutionStatus GetStatus(string queueId);
 

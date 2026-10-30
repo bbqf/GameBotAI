@@ -589,6 +589,28 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
       SetRequestExample(operation, QueueLiveScheduleRequest(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleRequest));
       SetResponseExample(operation, "200", QueueLiveScheduleResponse(), context, typeof(GameBot.Service.Contracts.Queues.LiveScheduleResponse));
     }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/pause", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Pause a running queue between sequences (operator pause)";
+      operation.Description ??=
+        "The queue lets the sequence that runs finish. Then it starts no new sequence until POST /api/queues/{id}/resume. "
+        + "The run, its cycle position, and all schedules stay as they are. A repeat call is safe. A queue that does not run "
+        + "answers 409 not_running. This is not the 'Pause when idle' setting.";
+    }
+    else if (IsMethod(method, HttpMethods.Get) && path.EndsWith("/template-diff", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Differences between a running queue and its linked template";
+      operation.Description ??=
+        "Lists the changes that an apply can make: added, removed, enabled, disabled, parameters, schedule, and order. "
+        + "A schedule change is not selected by default. Send the baseToken back with POST /api/queues/{id}/apply-template. "
+        + "A template with entries that have no entry ID answers needsUpgrade: true and an empty list.";
+    }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/apply-template", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Apply selected template changes to a paused queue";
+      operation.Description ??=
+        "All selected changes go in, or none. The queue must be paused (409 not_paused). The call is refused with 409 "
+        + "template_changed when the template changed after the differences were read, 409 needs_upgrade when the template "
+        + "has entries with no entry ID, and 409 apply_in_progress when another apply runs. The call does not resume the queue.";
+      SetRequestExample(operation, QueueApplyTemplateRequestExample(), context, typeof(GameBot.Service.Contracts.Queues.ApplyTemplateRequest));
+    }
     else if (IsMethod(method, HttpMethods.Get) && path.EndsWith("/cycles", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Recent completed cycles of a running queue (newest first)";
       operation.Description ??=
@@ -656,6 +678,14 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     ["offset"] = new OpenApiString("00:10:00")
   };
 
+  private static OpenApiObject QueueApplyTemplateRequestExample() => new OpenApiObject {
+    ["baseToken"] = new OpenApiString("sha256:3b7a1c0e9f"),
+    ["selectedKeys"] = new OpenApiArray {
+      new OpenApiString("parameters:3f2a8d1c"),
+      new OpenApiString("added:9c1b7e44")
+    }
+  };
+
   private static OpenApiObject QueueDuplicateRequest() => new OpenApiObject {
     ["name"] = new OpenApiString("Daily Farm 2"),
     ["emulatorSerial"] = new OpenApiString("emulator-5554")
@@ -695,6 +725,14 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }
     else if (IsMethod(method, HttpMethods.Delete) && path.StartsWith(ApiRoutes.QueueTemplates + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Delete a queue template";
+    }
+    else if (IsMethod(method, HttpMethods.Post) && path.EndsWith("/upgrade", StringComparison.OrdinalIgnoreCase)) {
+      operation.Summary ??= "Give an entry ID to each entry of an old template (manual upgrade)";
+      operation.Description ??=
+        "Gives a stable entry ID to each entry that has none. It changes no other field, and a repeat call changes 0 entries. "
+        + "dryRun=true shows what the upgrade does and changes nothing. When a running queue uses the template, the real call "
+        + "needs confirm=true and also gives the same IDs to the running entries, with no change to any schedule. "
+        + "The call is refused with 409 unmatched_entries when it cannot match some running entries.";
     }
   }
 

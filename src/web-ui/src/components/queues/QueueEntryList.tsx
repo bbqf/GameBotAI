@@ -8,6 +8,11 @@ import type { ParameterBinding, ParameterScopeEntry } from '../parameters/types'
 export type TimerMode = 'timeOfDay' | 'relative';
 
 export type EntrySchedule = {
+  /**
+   * The stable ID of the template entry that this row came from (feature 171). A template save sends it back, so the
+   * entry keeps its identity. Absent for a row that the operator added in the editor.
+   */
+  templateEntryId?: string;
   scheduleType: ScheduleType;
   timerTimeOfDay: string;
   /** Which Timer sub-mode is active. Defaults to time-of-day when unset. */

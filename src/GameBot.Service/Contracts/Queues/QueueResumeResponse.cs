@@ -24,5 +24,30 @@ namespace GameBot.Service.Contracts.Queues {
     /// running but not paused — neither of which is an error.
     /// </summary>
     public bool Resumed { get; set; }
+
+    /// <summary>
+    /// Which pause the call released: <c>operator</c> (an operator pause, or the cancel of its request) or
+    /// <c>failurePolicy</c>. Null when nothing changed. When both are in force, the first call releases the
+    /// operator pause and a second call releases the failure-policy pause (feature 171).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Kind { get; set; }
+  }
+
+  /// <summary>
+  /// Result of <c>POST /api/queues/{id}/pause</c> (feature 171).
+  /// </summary>
+  internal sealed class QueuePauseResponse {
+    /// <summary>The queue's id.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>
+    /// <c>pausing</c> when a sequence still runs or the loop has not reached its gate yet, or <c>paused</c> when the queue
+    /// waits between sequences.
+    /// </summary>
+    public string OperatorPause { get; set; } = "pausing";
+
+    /// <summary>When the pause was requested (service-local clock).</summary>
+    public System.DateTimeOffset? RequestedAt { get; set; }
   }
 }

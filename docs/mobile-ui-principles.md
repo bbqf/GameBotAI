@@ -1,6 +1,6 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-10-13 (features 139 and 140)
+Last reviewed: 2026-10-30 (features 139, 140, and 171)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
 
@@ -53,6 +53,11 @@ The queue detail shows what the queue does now and what it will do next.
   the page is hidden or the connection is lost. When it starts again, one refresh runs at once.
 - When a refresh fails, the last data stays on the screen with an "Old data" mark.
 - The phone shows no control to create, reorder, or edit a schedule.
+- A running queue has the controls of feature 171 (phone support level: full). The controls are **Pause**,
+  **Cancel pause**, **Resume**, **Review changes** (with **Apply**), and **Upgrade template**. They work in one column, each
+  control is at least 44 px high, and the text wraps with no sideways scroll. The state shows as "Pausing (waiting for the
+  running sequence)" or "Paused (between sequences)". The phone view reads the health block with the detail, so it makes no
+  extra request. The guide is `docs/live-template-changes.md`.
 
 ## Back navigation on a phone
 

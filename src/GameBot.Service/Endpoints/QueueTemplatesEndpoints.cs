@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using GameBot.Domain.Commands;
 using GameBot.Domain.Images;
 using GameBot.Domain.Parameters;
+using GameBot.Domain.Queues;
 using GameBot.Domain.QueueSettings;
 using GameBot.Domain.QueueTemplates;
 using GameBot.Domain.Services;
@@ -69,6 +70,9 @@ internal static class QueueTemplatesEndpoints {
         }
       }
 
+      var idError = ValidateEntryIds(entries);
+      if (idError is not null) return Error(400, "invalid_request", idError);
+
       var existing = await repo.FindByNameAsync(name!).ConfigureAwait(false);
       if (existing is not null && !req!.Overwrite) {
         return Error(409, "template_exists",
@@ -76,6 +80,8 @@ internal static class QueueTemplatesEndpoints {
           "Resend with overwrite=true to replace.");
       }
 
+      // Read before the entries are replaced: the rule below looks at the stored template, not the new one.
+      var storedNeedsUpgrade = existing is not null && existing.NeedsUpgrade;
       var target = existing ?? new QueueTemplate();
       target.Name = name!;
       target.Entries.Clear();
@@ -97,6 +103,7 @@ internal static class QueueTemplatesEndpoints {
           : null;
 
         var domainEntry = new QueueTemplateEntry {
+          EntryId = entry.EntryId?.Trim() ?? string.Empty,
           SequenceId = entry.SequenceId!,
           ScheduleType = scheduleType,
           TimerTimeOfDay = timerTime,
@@ -109,6 +116,13 @@ internal static class QueueTemplatesEndpoints {
         }
 
         target.Entries.Add(domainEntry);
+      }
+
+      // Feature 171 (research R-003): a new template, or an overwrite of a template that has IDs, gives an
+      // ID to each entry that has none. An overwrite of a template that needs an upgrade creates no ID: the
+      // operator upgrades it with an explicit action, never in silence.
+      if (!storedNeedsUpgrade) {
+        QueueTemplateUpgrade.Apply(target);
       }
 
       // Feature 078: only a malformed or reserved value name blocks the save (FR-012b's unused-value
@@ -154,8 +168,77 @@ internal static class QueueTemplatesEndpoints {
         : NotFound();
     }).WithName("DeleteQueueTemplate");
 
+    // Feature 171: the manual upgrade. It gives an entry ID to each entry that has none and changes nothing else.
+    // For a running queue that uses the template, it first matches the running entries (dryRun), and the real call
+    // needs confirm=true. A repeat call changes nothing.
+    group.MapPost("{id}/upgrade", async (
+        string id,
+        bool? dryRun,
+        bool? confirm,
+        IQueueTemplateRepository repo,
+        ISequenceRepository sequences,
+        IQueueRepository queues,
+        IQueueRunRegistry runs,
+        IQueueRuntimeStore runtime) => {
+      var template = await repo.GetAsync(id).ConfigureAwait(false);
+      if (template is null) return NotFound();
+
+      var running = QueueTemplateUpgradeRunner.Plan(template, await queues.ListAsync().ConfigureAwait(false), runs, runtime);
+      var unmatched = running.SelectMany(r => r.Unmatched).ToList();
+      var toChange = template.Entries.Count(e => string.IsNullOrEmpty(e.EntryId));
+
+      if (dryRun == true) {
+        var names = (await sequences.ListAsync().ConfigureAwait(false)).ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
+        var preview = new QueueTemplateUpgradePreviewResponse { EntriesToChange = toChange };
+        foreach (var match in running.SelectMany(r => r.Matches)) {
+          preview.RunningMatch.Add(new QueueTemplateUpgradeMatchResponse {
+            QueueId = match.QueueId,
+            Position = match.Position,
+            SequenceName = names.TryGetValue(match.SequenceId, out var name) ? name : match.SequenceId
+          });
+        }
+        foreach (var item in unmatched) preview.Unmatched.Add(ToUnmatchedResponse(item));
+        return Results.Ok(preview);
+      }
+
+      if (unmatched.Count > 0) {
+        return Results.Json(new {
+          error = new {
+            code = "unmatched_entries",
+            message = "The upgrade cannot match some entries of a running queue to the template.",
+            hint = "Stop the queue or reload the template, then upgrade again."
+          },
+          unmatched = unmatched.Select(ToUnmatchedResponse).ToList()
+        }, statusCode: 409);
+      }
+
+      var needsRunWork = running.Count > 0 && running.Any(r => r.Schedule is not null && r.Schedule.Plan.HasIndexKeys);
+      if (running.Count > 0 && confirm != true && (toChange > 0 || needsRunWork)) {
+        return Error(409, "confirm_required",
+          "A running queue uses this template. The upgrade gives IDs to its running entries too.",
+          "Send the call with dryRun=true, read the match, then send it again with confirm=true.");
+      }
+
+      var changed = QueueTemplateUpgrade.Apply(template);
+      if (changed > 0) {
+        template = await repo.UpdateAsync(template).ConfigureAwait(false);
+      }
+      foreach (var item in running) {
+        QueueTemplateUpgradeRunner.Apply(item, template, runtime);
+      }
+      return Results.Ok(new QueueTemplateUpgradeResultResponse { EntriesChanged = changed });
+    }).WithName("UpgradeQueueTemplate");
+
     return app;
   }
+
+  private static QueueTemplateUpgradeUnmatchedResponse ToUnmatchedResponse(UpgradeUnmatched item) => new() {
+    QueueId = item.QueueId,
+    Position = item.Position,
+    RunningSequence = item.RunningSequenceId,
+    TemplateSequence = item.TemplateSequenceId,
+    Reason = item.Reason
+  };
 
   /// <summary>
   /// Finds each known value of the template that goes to an image field and names no image
@@ -163,7 +246,7 @@ internal static class QueueTemplatesEndpoints {
   /// can enable it later. An entry whose sequence does not exist is not checked. Each distinct image
   /// id is checked one time.
   /// </summary>
-  private static async Task<List<ParameterValidationIssue>> FindUnknownImageReferencesAsync(
+  internal static async Task<List<ParameterValidationIssue>> FindUnknownImageReferencesAsync(
       QueueTemplate template,
       ISequenceRepository sequences,
       ICommandRepository commands,
@@ -228,6 +311,32 @@ internal static class QueueTemplatesEndpoints {
 
   private static string? ValidateName(string? trimmedName) => QueueTemplateRules.ValidateName(trimmedName);
 
+  private const int MaxEntryIdLength = 64;
+
+  /// <summary>
+  /// Checks the supplied entry IDs of a save (feature 171): the format, and no ID twice in one template
+  /// (compared without case). Returns the error text, or null when all are valid.
+  /// </summary>
+  private static string? ValidateEntryIds(TemplateEntrySaveRequest[] entries) {
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    for (var i = 0; i < entries.Length; i++) {
+      var raw = entries[i].EntryId;
+      if (raw is null) continue;
+      var id = raw.Trim();
+      if (id.Length == 0) continue;
+      if (id.Length > MaxEntryIdLength || !EntryIdPattern.IsMatch(id)) {
+        return $"entries[{i}].entryId must have 1 to {MaxEntryIdLength} letters, digits, '-' or '_'.";
+      }
+      if (!seen.Add(id)) {
+        return $"entries[{i}].entryId '{id}' is used more than once in this template. Send each entryId one time.";
+      }
+    }
+    return null;
+  }
+
+  private static readonly System.Text.RegularExpressions.Regex EntryIdPattern =
+    new("^[A-Za-z0-9_-]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
   private static bool TryParseScheduleType(string? raw, out ScheduleType result) {
     if (string.IsNullOrWhiteSpace(raw)) {
       result = ScheduleType.OncePerRun;
@@ -241,6 +350,7 @@ internal static class QueueTemplatesEndpoints {
     Id = template.Id,
     Name = template.Name,
     EntryCount = template.Entries.Count,
+    NeedsUpgrade = template.NeedsUpgrade,
     CreatedAt = template.CreatedAt,
     UpdatedAt = template.UpdatedAt
   };
@@ -252,6 +362,7 @@ internal static class QueueTemplatesEndpoints {
       Id = template.Id,
       Name = template.Name,
       EntryCount = template.Entries.Count,
+      NeedsUpgrade = template.NeedsUpgrade,
       CreatedAt = template.CreatedAt,
       UpdatedAt = template.UpdatedAt
     };
@@ -259,6 +370,7 @@ internal static class QueueTemplatesEndpoints {
     foreach (var entry in template.Entries) {
       var found = namesById.TryGetValue(entry.SequenceId, out var name);
       detail.Entries.Add(new QueueTemplateEntryResponse {
+        EntryId = string.IsNullOrEmpty(entry.EntryId) ? null : entry.EntryId,
         SequenceId = entry.SequenceId,
         SequenceName = found ? name : null,
         Stale = !found,

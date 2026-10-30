@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace GameBot.Domain.QueueTemplates {
   /// <summary>
@@ -20,6 +21,13 @@ namespace GameBot.Domain.QueueTemplates {
 
     /// <summary>Ordered list of sequence entries; may be empty. Order is run order.</summary>
     public Collection<QueueTemplateEntry> Entries { get; init; } = new();
+
+    /// <summary>
+    /// True when at least one entry has no <see cref="QueueTemplateEntry.EntryId"/> (feature 171). Computed,
+    /// not stored. An empty template does not need an upgrade.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool NeedsUpgrade => Entries.Any(e => string.IsNullOrEmpty(e.EntryId));
 
     public DateTimeOffset? CreatedAt { get; set; }
 

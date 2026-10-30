@@ -81,6 +81,13 @@ namespace GameBot.Service.Contracts.Queues {
     /// </summary>
     public string? PauseKind { get; set; }
 
+    /// <summary>
+    /// The state of the operator pause (feature 171): <c>none</c>, <c>pausing</c> (a pause is requested and a
+    /// sequence still runs), or <c>paused</c> (the queue waits between sequences). <see cref="Paused"/> is true
+    /// only for <c>paused</c>.
+    /// </summary>
+    public string OperatorPause { get; set; } = "none";
+
     /// <summary>When the most recent notification attempt finished; null until one is made.</summary>
     public DateTimeOffset? LastNotificationAt { get; set; }
 

@@ -318,16 +318,116 @@ internal static class QueuesEndpoints {
     // rather than a 409 for "known but not paused" — the contract {id}/monitor and {id}/cycles
     // already established, so a polling or scripted client renders a state instead of handling an
     // error. Resuming is idempotent: a second call reports resumed:false and changes nothing.
-    group.MapPost("{id}/resume", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, IQueueRunRegistry runs) => {
+    //
+    // Since feature 171 the same call also ends the operator pause, and cancels its request while the state is
+    // "pausing". It ends the operator pause first. When a failure-policy pause is in force too, a second call
+    // ends that one. The response says which pause the call ended (`kind`).
+    group.MapPost("{id}/resume", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, IQueueRunRegistry runs, ILoggerFactory loggerFactory) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
-      var resumed = TryGetLiveRun(id, runtime, runs, out var handle) && handle.ResumeFromPolicyPause();
+      string? kind = null;
+      if (TryGetLiveRun(id, runtime, runs, out var handle)) {
+        var wasPausing = handle.OperatorPause == OperatorPauseState.Pausing;
+        if (handle.ReleaseOperatorPause()) {
+          kind = QueuePauseKinds.Operator;
+          loggerFactory.CreateLogger("Queues").LogQueuePauseReleased(id, wasPausing ? "pause request cancelled" : "resumed");
+        }
+        else if (handle.ResumeFromPolicyPause()) {
+          kind = QueuePauseKinds.FailurePolicy;
+        }
+      }
       return Results.Ok(new QueueResumeResponse {
         Id = id,
         Status = runtime.GetStatus(id),
-        Resumed = resumed
+        Resumed = kind is not null,
+        Kind = kind
       });
     }).WithName("ResumeQueue");
+
+    // Operator pause (feature 171): the queue lets the running sequence and its helper sequences finish. Then it
+    // starts no new sequence until a resume. The run, its cycle position, and all schedules stay as they are.
+    // A repeat call is safe and returns the state. A queue that does not run answers 409.
+    group.MapPost("{id}/pause", async (string id, IQueueRepository repo, IQueueRuntimeStore runtime, IQueueRunRegistry runs, TimeProvider time, ILoggerFactory loggerFactory) => {
+      var queue = await repo.GetAsync(id).ConfigureAwait(false);
+      if (queue is null) return NotFound();
+      if (!TryGetLiveRun(id, runtime, runs, out var handle))
+        return Error(409, "not_running", "The queue does not run, so it cannot pause.", "Start the queue first.");
+      if (handle.RequestOperatorPause(time.GetLocalNow())) {
+        loggerFactory.CreateLogger("Queues").LogQueuePauseRequested(id);
+      }
+      return Results.Ok(new QueuePauseResponse {
+        Id = id,
+        OperatorPause = OperatorPauseName(handle.OperatorPause),
+        RequestedAt = handle.OperatorPauseRequestedAt
+      });
+    }).WithName("PauseQueue");
+
+    // Differences between a running queue and its linked template (feature 171). It reads and changes nothing.
+    group.MapGet("{id}/template-diff", async (string id, QueueLiveApplyService live) => {
+      var outcome = await live.GetDiffAsync(id).ConfigureAwait(false);
+      switch (outcome.Status) {
+        case LiveApplyStatus.QueueNotFound:
+          return NotFound();
+        case LiveApplyStatus.NoTemplate:
+          return Error(404, "no_template", "The queue has no linked template.", "Link a template to the queue first.");
+        case LiveApplyStatus.NotRunning:
+          return Error(409, "not_running", "The queue does not run, so there is no run to compare.", "Start the queue first.");
+      }
+
+      var diff = outcome.Diff!;
+      var response = new QueueTemplateDiffResponse {
+        QueueId = outcome.QueueId,
+        TemplateId = outcome.TemplateId,
+        NeedsUpgrade = diff.NeedsUpgrade,
+        BaseToken = diff.BaseToken
+      };
+      foreach (var d in diff.Differences) {
+        response.Differences.Add(new TemplateDifferenceResponse {
+          Key = d.Key,
+          Type = d.Type,
+          EntryId = d.EntryId,
+          SequenceName = d.SequenceName,
+          Summary = d.Summary,
+          SelectedByDefault = d.SelectedByDefault,
+          AffectsSchedule = d.AffectsSchedule
+        });
+      }
+      return Results.Ok(response);
+    }).WithName("GetQueueTemplateDiff");
+
+    // Apply selected differences to a paused queue (feature 171). All of them go in, or none (FR-015).
+    group.MapPost("{id}/apply-template", async (string id, ApplyTemplateRequest? req, QueueLiveApplyService live, CancellationToken ct) => {
+      if (string.IsNullOrWhiteSpace(req?.BaseToken))
+        return Error(400, "invalid_request", "baseToken is required.", "Read the differences first and send back their baseToken.");
+
+      var outcome = await live.ApplyAsync(id, req.BaseToken, req.SelectedKeys ?? Array.Empty<string>(), ct).ConfigureAwait(false);
+      switch (outcome.Status) {
+        case LiveApplyStatus.QueueNotFound:
+          return NotFound();
+        case LiveApplyStatus.NoTemplate:
+          return Error(404, "no_template", "The queue has no linked template.", "Link a template to the queue first.");
+        case LiveApplyStatus.NotRunning:
+          return Error(409, "not_running", "The queue does not run, so it cannot get template changes.", "Start the queue first.");
+        case LiveApplyStatus.NeedsUpgrade:
+          return Error(409, "needs_upgrade", "The template has entries with no entry ID.", "Upgrade the template first.");
+        case LiveApplyStatus.NotPaused:
+          return Error(409, "not_paused", "The queue is not paused.", "Pause the queue first.");
+        case LiveApplyStatus.TemplateChanged:
+          return Error(409, "template_changed", "The template changed after you read the differences.", "Review the changes again.");
+        case LiveApplyStatus.ApplyInProgress:
+          return Error(409, "apply_in_progress", "Another apply runs for this queue.", "Wait for it to end, then read the differences again.");
+        case LiveApplyStatus.UnknownKey:
+          return Error(400, "invalid_request", "These keys are not differences of this template: " + string.Join(", ", outcome.UnknownKeys) + ".", "Read the differences again and send only their keys.");
+        case LiveApplyStatus.Invalid:
+          return outcome.Issues.Count > 0
+            ? Results.BadRequest(ParameterDtoMapper.ToErrorBody(outcome.Issues.ToList()))
+            : Error(400, "invalid_request", string.Join(" ", outcome.Errors), "Change the template, save it, and read the differences again.");
+      }
+
+      var response = new ApplyTemplateResponse { PlanVersion = outcome.PlanVersion };
+      foreach (var key in outcome.Applied) response.Applied.Add(key);
+      return Results.Ok(response);
+    }).WithName("ApplyQueueTemplate");
 
     // Live relative scheduling (feature 059): schedule any library sequence to fire once after a
     // relative offset from now against the queue's active run. Ephemeral; never persisted.
@@ -377,7 +477,8 @@ internal static class QueuesEndpoints {
       await repo.UpdateAsync(queue).ConfigureAwait(false);
       return;
     }
-    runtime.SetEntries(queue.Id, template.Entries.Select(e => e.SequenceId));
+    // Feature 171: the runtime entry keeps the ID of its template entry (empty for an old template).
+    runtime.ReplaceEntries(queue.Id, template.Entries.Select(e => new QueueEntry { EntryId = e.EntryId, SequenceId = e.SequenceId }));
   }
 
   /// <summary>
@@ -624,6 +725,13 @@ internal static class QueuesEndpoints {
 
   private static string CycleStatus(bool succeeded) => succeeded ? "success" : "failure";
 
+  /// <summary>The wire text of the operator pause state (feature 171).</summary>
+  private static string OperatorPauseName(OperatorPauseState state) => state switch {
+    OperatorPauseState.Pausing => "pausing",
+    OperatorPauseState.Paused => "paused",
+    _ => "none"
+  };
+
   private static QueueHealthResponse ProjectHealth(QueueRunHandle handle, ExecutionQueue? queue = null) {
     var health = handle.Cycles.SnapshotHealth();
     var notification = handle.LastNotification;
@@ -647,6 +755,7 @@ internal static class QueuesEndpoints {
       PausedAt = pause.PausedAt,
       PauseReason = pause.Reason,
       PauseKind = pause.Kind,
+      OperatorPause = OperatorPauseName(handle.OperatorPause),
       LastNotificationAt = notification.At,
       LastNotificationSucceeded = notification.Succeeded,
       LastNotificationError = notification.Error
@@ -697,6 +806,6 @@ internal static class QueuesEndpoints {
 
   private static IResult NotFound() => Error(404, "not_found", "Queue not found");
 
-  private static IResult Error(int status, string code, string message) =>
-    Results.Json(new { error = new { code, message, hint = (string?)null } }, statusCode: status);
+  private static IResult Error(int status, string code, string message, string? hint = null) =>
+    Results.Json(new { error = new { code, message, hint } }, statusCode: status);
 }

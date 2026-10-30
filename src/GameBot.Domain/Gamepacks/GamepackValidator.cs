@@ -208,6 +208,8 @@ public sealed class GamepackValidator {
       var entries = new List<QueueTemplateEntry>();
       foreach (var doc in seed.Entries) {
         var entry = new QueueTemplateEntry {
+          // Feature 171: a new seed template is a new object, so each entry gets an ID.
+          EntryId = QueueTemplateUpgrade.NewEntryId(),
           SequenceId = ids[doc.Sequence],
           Enabled = doc.Enabled,
           ScheduleType = doc.ScheduleType,

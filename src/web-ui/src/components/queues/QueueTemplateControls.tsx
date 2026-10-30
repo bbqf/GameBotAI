@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { QueueStatus } from '../../services/queues';
 import { ApiError } from '../../lib/api';
 import { TemplatePickerDialog } from './TemplatePickerDialog';
+import { TemplateUpgradeNotice } from './TemplateUpgradeNotice';
 
 /** An inline confirmation prompt shown between the template header and sequences. */
 export type TemplateConfirm = {
@@ -15,6 +16,8 @@ export type TemplateConfirm = {
 type QueueTemplateControlsProps = {
   /** Name of the template the queue is currently associated with (loaded or saved this session). */
   associatedTemplateName?: string;
+  /** ID of the template that the queue links to. When given, a template that needs an upgrade shows its mark (feature 171). */
+  associatedTemplateId?: string;
   status: QueueStatus;
   /** Persists the current queue entries as a template; rejects with ApiError(409) when the name exists. */
   onSaveTemplate: (name: string, overwrite: boolean) => Promise<void>;
@@ -42,6 +45,7 @@ const validateName = (raw: string): string | undefined => {
 
 export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
   associatedTemplateName,
+  associatedTemplateId,
   status,
   onSaveTemplate,
   onLoadTemplate,
@@ -135,6 +139,8 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
           {associatedTemplateName ?? '(no template)'}
         </button>
       </div>
+
+      {associatedTemplateId && <TemplateUpgradeNotice templateId={associatedTemplateId} />}
 
       <TemplatePickerDialog
         open={open && !pendingConfirm}
