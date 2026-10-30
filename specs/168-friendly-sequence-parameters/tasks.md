@@ -193,7 +193,7 @@ description: "Task list for feature 168: friendly sequence parameters"
 - [X] T061 Write the perf note for the PR text (constitution, Principle IV): the benchmark numbers from T045 for `TryResolve`, with and without a pattern.
 - [X] T062 Check all new and changed text for STE (comments, messages, docs, commit and PR text) and that each user-facing message has a hint (Principle III).
 - [X] T063 Run `dotnet test C:\src\GameBot\GameBot.sln`, `npm test`, `npm run lint`, and `npm run build` in `C:\src\GameBot\src\web-ui`. Check the coverage of touched files (80% line, 70% branch). Fix every failure.
-- [ ] T064 Run the checks in `quickstart.md` by hand against a running service, including the timed checks for SC-001, SC-002, and SC-004. Record the result in the PR notes. SC-003 and SC-006 are post-release measures.
+- [X] T064 Run the checks in `quickstart.md` by hand against a running service, including the timed checks for SC-001, SC-002, and SC-004. Record the result in the PR notes. Result (2026-10-30): Checks 1, 2, 3, 4, 5 (reduced), 5a Part A, and 6 pass. Timed checks pass: SC-001 well under 10 s, SC-002 1 tap, SC-004 16 s. Check 5a Part B is not complete: the web UI cannot put a placeholder in a numeric field (issue 358). SC-003 and SC-006 are post-release measures.
 - [X] T065 Before the push for the PR, bump `patch` in `installer/versioning/version.override.json` as CLAUDE.md says: run `git fetch origin master`, compare with `origin/master`, set `patch` to the master `patch` plus 1 (or 0 if `minor` or `major` changed), and set `updatedBy` and `updatedAtUtc`.
 
 ---
