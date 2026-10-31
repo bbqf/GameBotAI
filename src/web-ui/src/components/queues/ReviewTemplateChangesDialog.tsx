@@ -31,6 +31,10 @@ const toProblem = (err: unknown, fallback: string): Problem => {
 
 const countText = (n: number): string => `${n} ${n === 1 ? 'change' : 'changes'}`;
 
+/** What the review compares, what Apply does, and that the queue must be paused first (feature 173, FR-014). */
+const REVIEW_EXPLANATION =
+  'Compare the running queue with its template, then pause the queue and apply the changes that you select.';
+
 /**
  * Review of the differences between a running queue and its linked template (feature 171). The operator selects the
  * changes to apply and applies them to a paused queue. All selected changes go in, or none. A schedule change is not
@@ -124,9 +128,7 @@ export const ReviewTemplateChangesDialog: React.FC<ReviewTemplateChangesDialogPr
       )}
       {!loading && diff && !diff.needsUpgrade && total > 0 && appliedCount === null && (
         <>
-          <p className="form-hint">
-            These are the differences between the running queue and its template. Select the changes to apply.
-          </p>
+          <p className="form-hint" data-testid="review-explanation">{REVIEW_EXPLANATION}</p>
           {!paused && (
             <p className="form-hint" role="status" data-testid="review-not-paused">
               The queue is not paused. Pause the queue first, then apply the changes.

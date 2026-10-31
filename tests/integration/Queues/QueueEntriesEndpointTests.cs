@@ -6,7 +6,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
+using GameBot.Domain.Queues;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GameBot.IntegrationTests.Queues;
@@ -100,6 +102,44 @@ public sealed class QueueEntriesEndpointTests {
 
     (await client.DeleteAsync(new Uri($"/api/queues/{id}/entries/{entryId}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NoContent);
     (await client.DeleteAsync(new Uri($"/api/queues/{id}/entries/{entryId}", UriKind.Relative)).ConfigureAwait(true)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+  }
+
+  [Fact]
+  public async Task AddEntryToARunningQueueReturns409AndPointsToTheTemplate() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var id = await CreateQueueAsync(client).ConfigureAwait(true);
+    var runtime = app.Services.GetRequiredService<IQueueRuntimeStore>();
+    runtime.SetStatus(id, QueueExecutionStatus.Running);
+
+    var resp = await client.PostAsJsonAsync(new Uri($"/api/queues/{id}/entries", UriKind.Relative), new { sequenceId = "seq-a" }).ConfigureAwait(true);
+
+    resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    var error = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("error");
+    error.GetProperty("code").GetString().Should().Be("queue_running");
+    error.GetProperty("message").GetString().Should().Contain("template");
+    runtime.GetEntries(id).Should().BeEmpty();
+    runtime.SetStatus(id, QueueExecutionStatus.Stopped);
+  }
+
+  [Fact]
+  public async Task RemoveEntryFromARunningQueueReturns409AndKeepsTheEntry() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var id = await CreateQueueAsync(client).ConfigureAwait(true);
+    var addResp = await client.PostAsJsonAsync(new Uri($"/api/queues/{id}/entries", UriKind.Relative), new { sequenceId = "ghost" }).ConfigureAwait(true);
+    var entryId = JsonDocument.Parse(await addResp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("entryId").GetString();
+    var runtime = app.Services.GetRequiredService<IQueueRuntimeStore>();
+    runtime.SetStatus(id, QueueExecutionStatus.Running);
+
+    var resp = await client.DeleteAsync(new Uri($"/api/queues/{id}/entries/{entryId}", UriKind.Relative)).ConfigureAwait(true);
+
+    resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    var error = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement.GetProperty("error");
+    error.GetProperty("code").GetString().Should().Be("queue_running");
+    error.GetProperty("message").GetString().Should().Contain("template");
+    runtime.GetEntries(id).Should().HaveCount(1);
+    runtime.SetStatus(id, QueueExecutionStatus.Stopped);
   }
 
   [Fact]

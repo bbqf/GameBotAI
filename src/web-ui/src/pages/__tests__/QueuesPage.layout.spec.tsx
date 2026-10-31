@@ -83,12 +83,13 @@ describe('QueuesPage edit layout', () => {
 });
 
 describe('QueuesPage overview table columns (US3)', () => {
-  it('does not render a Sequences column, but keeps Name/Emulator/Cycle/Status/Actions', async () => {
+  it('does not render a Sequences or Emulator column, but keeps Name/Cycle/Status/Activity/Actions', async () => {
     render(<QueuesPage />);
     await screen.findByText('Daily');
 
     expect(screen.queryByRole('columnheader', { name: 'Sequences' })).not.toBeInTheDocument();
-    ['Name', 'Emulator', 'Cycle', 'Status', 'Actions'].forEach((header) => {
+    expect(screen.queryByRole('columnheader', { name: 'Emulator' })).not.toBeInTheDocument();
+    ['Name', 'Cycle', 'Status', 'Activity', 'Actions'].forEach((header) => {
       expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
     });
   });
@@ -97,22 +98,10 @@ describe('QueuesPage overview table columns (US3)', () => {
     render(<QueuesPage />);
     await screen.findByText('Daily');
 
-    // A stopped queue exposes Start / Edit / Delete (Schedule only appears while running).
-    expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
-  });
-
-  it('spans the expanded live-schedule row across the 5 remaining columns', async () => {
-    listQueuesMock.mockResolvedValue([
-      { id: 'q1', name: 'Daily', emulatorSerial: 'emu-9', cycleExecution: false, status: 'Running', entryCount: 1 },
-    ] as any);
-    render(<QueuesPage />);
-    await screen.findByText('Daily');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule a sequence for Daily' }));
-    const cell = document.querySelector('.queues-live-schedule-row td') as HTMLTableCellElement;
-    expect(cell).not.toBeNull();
-    expect(cell.colSpan).toBe(5);
+    // A stopped queue shows the icons Start, Edit, Duplicate, and Delete.
+    expect(screen.getByRole('button', { name: 'Start Daily' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Daily' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Duplicate Daily' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete Daily' })).toBeInTheDocument();
   });
 });

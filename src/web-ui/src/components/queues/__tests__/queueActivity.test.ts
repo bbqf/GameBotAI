@@ -1,4 +1,4 @@
-import { buildCardSummary, buildScheduleRows, describeNow, formatRelative } from '../queueActivity';
+import { buildQueueActivity, buildScheduleRows, describeNow, formatRelative } from '../queueActivity';
 import type { QueueDetailDto, QueueMonitorDto, QueueMonitorItemDto } from '../../../services/queues';
 import type { QueueTemplateDetail } from '../../../services/queueTemplates';
 
@@ -82,11 +82,11 @@ describe('buildScheduleRows', () => {
   });
 });
 
-describe('describeNow and buildCardSummary', () => {
+describe('describeNow and buildQueueActivity', () => {
   it('describes a running sequence', () => {
     const m = monitor({ current: item({ sequenceName: 'Help All', scheduleKind: 'OncePerRun' }) });
     expect(describeNow(m)).toBe('Running: Help All');
-    expect(buildCardSummary({ status: 'Running' }, m)).toBe('Running: Help All');
+    expect(buildQueueActivity({ status: 'Running' }, m)).toBe('Running: Help All');
   });
 
   it('describes an idle pause', () => {
@@ -97,13 +97,64 @@ describe('describeNow and buildCardSummary', () => {
   it('describes waiting and the next time', () => {
     const m = monitor({ upcoming: [item({ expectedAt: at(11, 5) })] });
     expect(describeNow(m)).toBe('Waiting until 11:05');
-    expect(buildCardSummary({ status: 'Running' }, m)).toBe('Next run at 11:05');
+    expect(buildQueueActivity({ status: 'Running' }, m)).toBe('Next run at 11:05');
   });
 
   it('describes nothing scheduled and a stopped queue', () => {
     expect(describeNow(monitor({ nothingScheduled: true }))).toBe('Nothing scheduled');
     expect(describeNow(monitor({ running: false }))).toBe('Stopped');
-    expect(buildCardSummary({ status: 'Stopped' }, monitor({ running: false }))).toBe('Stopped');
+    expect(buildQueueActivity({ status: 'Stopped' }, monitor({ running: false }))).toBe('Stopped');
     expect(describeNow(null)).toBe('No data yet');
+  });
+});
+
+describe('buildQueueActivity (feature 173)', () => {
+  const running = { status: 'Running' as const };
+
+  it('gives Stopped for a stopped queue, even with a running monitor', () => {
+    expect(buildQueueActivity({ status: 'Stopped' }, monitor())).toBe('Stopped');
+    expect(buildQueueActivity({ status: 'Stopped', operatorPause: 'paused' }, monitor())).toBe('Stopped');
+  });
+
+  it('gives Paused and Pausing from the pause state', () => {
+    expect(buildQueueActivity({ ...running, operatorPause: 'paused' }, monitor())).toBe('Paused');
+    expect(buildQueueActivity({ ...running, operatorPause: 'pausing' }, monitor())).toBe('Pausing');
+  });
+
+  it('shows the pause before the running sequence', () => {
+    const m = monitor({ current: item({ sequenceName: 'Help All', scheduleKind: 'OncePerRun' }) });
+    expect(buildQueueActivity({ ...running, operatorPause: 'pausing' }, m)).toBe('Pausing');
+    expect(buildQueueActivity({ ...running, operatorPause: 'paused' }, m)).toBe('Paused');
+  });
+
+  it('gives the running sequence, with the sequence ID when the name is missing', () => {
+    const named = monitor({ current: item({ sequenceName: 'Help All', scheduleKind: 'OncePerRun' }) });
+    const unnamed = monitor({ current: item({ sequenceId: 'seq-9', sequenceName: null, scheduleKind: 'OncePerRun' }) });
+    expect(buildQueueActivity({ ...running, operatorPause: 'none' }, named)).toBe('Running: Help All');
+    expect(buildQueueActivity(running, unnamed)).toBe('Running: seq-9');
+  });
+
+  it('does not call an idle pause a running sequence', () => {
+    const m = monitor({ current: item({ scheduleKind: 'IdlePause' }), upcoming: [item({ expectedAt: at(11, 5) })] });
+    expect(buildQueueActivity(running, m)).toBe('Next run at 11:05');
+  });
+
+  it('gives the next run time, the earliest first', () => {
+    const m = monitor({ upcoming: [item({ expectedAt: at(12, 0) }), item({ expectedAt: at(11, 5) })] });
+    expect(buildQueueActivity(running, m)).toBe('Next run at 11:05');
+  });
+
+  it('gives Nothing scheduled when the monitor says so', () => {
+    expect(buildQueueActivity(running, monitor({ nothingScheduled: true }))).toBe('Nothing scheduled');
+  });
+
+  it('gives Waiting when nothing else matches', () => {
+    expect(buildQueueActivity(running, monitor())).toBe('Waiting');
+  });
+
+  it('gives the status only when the monitor data is missing', () => {
+    expect(buildQueueActivity(running, null)).toBe('Running');
+    expect(buildQueueActivity(running, undefined)).toBe('Running');
+    expect(buildQueueActivity({ ...running, operatorPause: 'paused' }, null)).toBe('Paused');
   });
 });

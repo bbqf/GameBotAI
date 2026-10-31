@@ -22,11 +22,6 @@
   font-size: 16px;
 }
 
-.queue-pause-controls__review {
-  flex-basis: 100%;
-  min-width: 0;
-}
-
 .queue-pause-controls__error {
   flex-basis: 100%;
   margin: 0;

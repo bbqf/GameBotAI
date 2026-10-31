@@ -36,6 +36,11 @@ type QueueFormProps = {
    * Save Template / Reload Template), rendered below the separator.
    */
   templateControls?: React.ReactNode;
+  /**
+   * Edit-mode only: the queue runs (feature 173). The emulator stays read-only, as in every edit. A note near Save says
+   * when the saved settings apply.
+   */
+  running?: boolean;
 };
 
 export const QueueForm: React.FC<QueueFormProps> = ({
@@ -50,6 +55,7 @@ export const QueueForm: React.FC<QueueFormProps> = ({
   fieldErrors,
   gameControls,
   templateControls,
+  running,
 }) => {
   const isEdit = mode === 'edit';
   const { devices, loading: devicesLoading } = useAdbDevices(!isEdit);
@@ -206,6 +212,7 @@ export const QueueForm: React.FC<QueueFormProps> = ({
         <button type="button" onClick={onSubmit} disabled={submitting}>Save</button>
         <button type="button" onClick={onCancel} disabled={submitting}>Cancel</button>
       </div>
+      {isEdit && running && <div className="form-hint" id="queue-running-note">Settings apply at the next start.</div>}
       {saveResult && (
         saveResult.kind === 'success'
           ? <div className="form-hint" role="status">{saveResult.message}</div>

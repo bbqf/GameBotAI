@@ -12,7 +12,7 @@ export const QueueBanner: React.FC<QueueBannerProps> = ({ queue, busy, onPause }
   if (queue.pausedByStepThrough) {
     return (
       <div className="step-through-banner" role="status">
-        The queue "{queue.queueName}" is paused by this step-through. It resumes when you close this view.
+        The queue &quot;{queue.queueName}&quot; is paused by this step-through. It resumes when you close this view.
       </div>
     );
   }
@@ -20,7 +20,7 @@ export const QueueBanner: React.FC<QueueBannerProps> = ({ queue, busy, onPause }
   if (queue.alreadyPaused) {
     return (
       <div className="step-through-banner" role="status">
-        The queue "{queue.queueName}" was paused before. This step-through does not resume it.
+        The queue &quot;{queue.queueName}&quot; was paused before. This step-through does not resume it.
       </div>
     );
   }
@@ -28,7 +28,7 @@ export const QueueBanner: React.FC<QueueBannerProps> = ({ queue, busy, onPause }
   if (queue.firingActive) {
     return (
       <div className="step-through-banner step-through-banner--warning" role="alert">
-        The queue "{queue.queueName}" runs a firing on this device now. Wait for the firing to end, then pause the queue.
+        The queue &quot;{queue.queueName}&quot; runs a firing on this device now. Wait for the firing to end, then pause the queue.
       </div>
     );
   }
@@ -36,7 +36,7 @@ export const QueueBanner: React.FC<QueueBannerProps> = ({ queue, busy, onPause }
   return (
     <div className="step-through-banner step-through-banner--warning" role="alert">
       <span>
-        The queue "{queue.queueName}" runs on this device. A step could collide with a firing of the queue.
+        The queue &quot;{queue.queueName}&quot; runs on this device. A step could collide with a firing of the queue.
         Pause the queue before you run a step.
       </span>
       <button type="button" onClick={onPause} disabled={busy}>Pause queue</button>

@@ -48,6 +48,8 @@ export const RestartEmulatorDialog: React.FC<RestartEmulatorDialogProps> = ({
   };
 
   return (
+    // The dialog holds the focus trap, so the key handler stays on the dialog element.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Restart emulator" onKeyDown={onKeyDown}>
       <div className="modal">
         <h3>Restart emulator</h3>

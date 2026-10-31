@@ -16,8 +16,9 @@ import {
   QueueMonitorDto
 } from '../../services/queues';
 import { getQueueTemplate, saveQueueTemplate, QueueTemplateDetail } from '../../services/queueTemplates';
-import { buildCardSummary, buildScheduleRows, describeNow } from './queueActivity';
+import { buildQueueActivity, buildScheduleRows, describeNow } from './queueActivity';
 import { QueuePauseControls } from './QueuePauseControls';
+import { TemplateChangesNotice } from './TemplateChangesNotice';
 import '../../features/execution/StatusChip.css';
 
 export const PHONE_QUEUES_POLL_MS = 5000;
@@ -68,6 +69,7 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
   const [detailStale, setDetailStale] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [templateSaves, setTemplateSaves] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(queueId);
   selectedRef.current = queueId;
@@ -221,6 +223,8 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
     try {
       const saved = await saveQueueTemplate(toggleTemplateEntry(template, index));
       setTemplate(saved);
+      // A switch on a running queue changes the template only. The notice reads the waiting changes again.
+      setTemplateSaves((count) => count + 1);
     } catch (err) {
       setMessage(errorText(err));
     } finally {
@@ -255,7 +259,17 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
               </button>
             </div>
             {detail.status === 'Running' && (
-              <QueuePauseControls queueId={detail.id} health={detail.health ?? null} reviewChanges onChanged={() => void loadDetail()} />
+              <>
+                <QueuePauseControls queueId={detail.id} health={detail.health ?? null} onChanged={() => void loadDetail()} />
+                <TemplateChangesNotice
+                  queueId={detail.id}
+                  hasTemplate={Boolean(detail.linkedTemplateId)}
+                  paused={detail.health?.operatorPause === 'paused'}
+                  refreshKey={templateSaves}
+                  enabled={!lost}
+                  onChanged={() => void loadDetail()}
+                />
+              </>
             )}
             <div className="phone-queue-activity" aria-label="Queue activity">
               {detailStale && <StaleMark />}
@@ -305,7 +319,7 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
                 </ul>
               </>
             )}
-            {template && <p className="form-hint">Changes apply when the queue starts again.</p>}
+            {template && detail.status !== 'Running' && <p className="form-hint">Changes apply when the queue starts again.</p>}
             <p className="form-hint">Use a larger screen to edit schedules.</p>
           </>
         )}
@@ -326,7 +340,7 @@ export const PhoneQueuesView: React.FC<PhoneQueuesViewProps> = ({
             title={q.name}
             testId={`queue-card-${q.id}`}
             status={<QueueStatusChip status={q.status} />}
-            summary={<>{buildCardSummary(q, monitors[q.id])}{listStale ? ' (old data)' : ''}</>}
+            summary={<>{buildQueueActivity(q, monitors[q.id])}{listStale ? ' (old data)' : ''}</>}
             onOpen={() => open(q.id)}
             action={{ label: runLabel(q.status), onClick: () => void toggleRun(q), disabled: busy || lost }}
           />

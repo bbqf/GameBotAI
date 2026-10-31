@@ -30,13 +30,24 @@ beforeEach(() => {
 });
 
 describe('QueuesPage CRUD', () => {
-  it('lists queues with their emulator and status', async () => {
+  it('lists queues with their status and activity, and no emulator', async () => {
     listQueuesMock.mockResolvedValue([queue()] as any);
     render(<QueuesPage />);
 
     await screen.findByText('Daily');
-    expect(screen.getByText('emu-1')).toBeInTheDocument();
+    expect(screen.queryByText('emu-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('queue-status')).toHaveTextContent('Stopped');
+    expect(screen.getByTestId('queue-activity')).toHaveTextContent('Stopped');
+  });
+
+  it('has no Schedule button on a running row and opens no live-schedule form (feature 173)', async () => {
+    listQueuesMock.mockResolvedValue([queue({ status: 'Running' })] as any);
+    render(<QueuesPage />);
+
+    await screen.findByText('Daily');
+    expect(screen.queryByRole('button', { name: /Schedule/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Schedule')).not.toBeInTheDocument();
+    expect(document.querySelector('.queues-live-schedule-row')).toBeNull();
   });
 
   it('validates required fields and creates a queue', async () => {
@@ -79,7 +90,7 @@ describe('QueuesPage CRUD', () => {
 
     render(<QueuesPage />);
     await screen.findByText('Daily');
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Daily' }));
 
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));

@@ -138,10 +138,20 @@ const nextUpcomingTime = (monitor: QueueMonitorDto | null | undefined): string |
   return times[0] ?? null;
 };
 
-/** One line for a queue card: the running sequence name, else the next time, else "Stopped". */
-export const buildCardSummary = (queue: Pick<QueueDto, 'status'>, monitor: QueueMonitorDto | null | undefined): string => {
+/**
+ * The activity text of a queue. The Queues list and the phone card both use it, so they show the same text.
+ * The first rule that fits wins: stopped, paused, pausing, a running sequence, the next time, nothing scheduled, waiting.
+ */
+export const buildQueueActivity = (
+  queue: Pick<QueueDto, 'status' | 'operatorPause'>,
+  monitor: QueueMonitorDto | null | undefined
+): string => {
   if (queue.status !== 'Running') return 'Stopped';
-  const current = monitor?.current;
+  if (queue.operatorPause === 'paused') return 'Paused';
+  if (queue.operatorPause === 'pausing') return 'Pausing';
+  // No monitor data (not loaded yet, or the call failed): the status is all that is known.
+  if (!monitor) return 'Running';
+  const current = monitor.current;
   if (current && current.scheduleKind !== 'IdlePause') {
     return `Running: ${current.sequenceName ?? current.sequenceId}`;
   }

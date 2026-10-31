@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   QueueDto,
   QueueDetailDto,
+  QueueMonitorDto,
+  getQueueMonitor,
   listQueues,
   getQueue,
   createQueue,
@@ -15,18 +17,19 @@ import {
   setQueueGameLink,
   startQueue,
   stopQueue,
-  liveScheduleSequence,
 } from '../services/queues';
 import { listSequences, SequenceDto } from '../services/sequences';
 import { QueueForm, QueueFormValue } from '../components/queues/QueueForm';
 import { QueueMonitor } from '../components/queues/QueueMonitor';
-import { QueuePauseControls } from '../components/queues/QueuePauseControls';
+import { QueueRowActions } from '../components/queues/QueueRowActions';
 import { EntrySchedule } from '../components/queues/QueueEntryList';
 import { QueueSchedulingAreas } from '../components/queues/QueueSchedulingAreas';
 import type { ParameterBinding } from '../components/parameters/types';
 import { SchedulingAreasState } from '../components/queues/schedulingAreas';
-import { QueueLiveScheduleControl } from '../components/queues/QueueLiveScheduleControl';
 import { QueueTemplateControls } from '../components/queues/QueueTemplateControls';
+import { RunningQueueEditor } from '../components/queues/RunningQueueEditor';
+import { RunningQueueControls } from '../components/queues/RunningQueueControls';
+import { buildTemplateSaveEntries, scheduleFromTemplateEntry } from '../components/queues/templateEntryEditing';
 import { QueueGameControls } from '../components/queues/QueueGameControls';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { DuplicateQueueModal, DuplicateQueueEmulator } from '../components/queues/DuplicateQueueModal';
@@ -34,15 +37,25 @@ import { saveQueueTemplate, getQueueTemplate, listQueueTemplates, ScheduleType, 
 import { sameSequenceOrder } from '../lib/sequenceOrder';
 import { ApiError } from '../lib/api';
 import { useResetSignal } from '../hooks/useResetSignal';
+import { usePolling } from '../hooks/usePolling';
+import { buildQueueActivity } from '../components/queues/queueActivity';
 
 type QueuesPageProps = {
   navResetSignal?: number;
 };
 
+/** How often the open Edit page checks whether its queue has started (feature 173). */
+const START_CHECK_INTERVAL_MS = 5000;
+
+/** How often the list reads the queues and the monitor of each running queue (feature 173). The phone list uses the same time. */
+const LIST_POLL_INTERVAL_MS = 5000;
+
 const emptyForm: QueueFormValue = { name: '', emulatorSerial: '', cycleExecution: false, pauseWhenIdle: false, idleThresholdSeconds: 30, emulatorInstanceName: '', emulatorInstanceIndex: null, resumeOnServiceStart: false };
 
 export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
   const [queues, setQueues] = useState<QueueDto[]>([]);
+  // The monitor of each running queue, for the Activity column. A queue with no entry has no data (not loaded, or the call failed).
+  const [monitors, setMonitors] = useState<Record<string, QueueMonitorDto>>({});
   const [sequences, setSequences] = useState<SequenceDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [tableError, setTableError] = useState<string | undefined>(undefined);
@@ -70,8 +83,12 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
   // Keys are entryIds from the runtime queue entries.
   const [entrySchedule, setEntrySchedule] = useState<Record<string, EntrySchedule>>({});
 
-  // Which running queue (if any) currently has its live-schedule control expanded.
-  const [liveScheduleFor, setLiveScheduleFor] = useState<string | undefined>(undefined);
+  // True when the queue started while the operator edited it. The running editor then keeps the unsaved edits (feature 173).
+  const [startedDuringEdit, setStartedDuringEdit] = useState(false);
+  // Counts the template saves of the running editor, so the notice of waiting changes reads again.
+  const [templateSavedTick, setTemplateSavedTick] = useState(0);
+  const detailRef = useRef<QueueDetailDto | undefined>(undefined);
+  detailRef.current = detail;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -91,6 +108,26 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     void refresh();
     listSequences().then(setSequences).catch(() => setSequences([]));
   }, [refresh]);
+
+  // A stopped queue can start while its Edit page is open. Only the status changes: the form and the working entries stay.
+  // The end of a run is shown by the monitor, which offers the way back to the editor.
+  const openId = detail?.id;
+  useEffect(() => {
+    if (!openId || creating) return;
+    const timer = setInterval(() => {
+      void getQueue(openId)
+        .then((fresh) => {
+          const current = detailRef.current;
+          if (!fresh || !current || current.id !== openId) return;
+          if (current.status === 'Stopped' && fresh.status === 'Running') {
+            setStartedDuringEdit(true);
+            setDetail({ ...current, status: 'Running' });
+          }
+        })
+        .catch(() => undefined);
+    }, START_CHECK_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [openId, creating]);
 
   const reloadDetail = useCallback(async (id: string) => {
     try {
@@ -116,6 +153,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     setFormError(undefined);
     setQueueSaveResult(undefined);
     setTemplateSaveResult(undefined);
+    setStartedDuringEdit(false);
     const q = await getQueue(id);
     setDetail(q);
     setAssociatedTemplateName(q.linkedTemplateName ?? undefined);
@@ -143,6 +181,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     setTemplateSaveResult(undefined);
     setAssociatedTemplateName(undefined);
     setEntrySchedule({});
+    setStartedDuringEdit(false);
   };
 
   const buildScheduleFromTemplateEntries = (runtimeEntryIds: string[], tplEntries: QueueTemplateEntryDto[]): Record<string, EntrySchedule> => {
@@ -150,18 +189,7 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     runtimeEntryIds.forEach((entryId, i) => {
       const tplEntry = tplEntries[i];
       if (tplEntry) {
-        schedule[entryId] = {
-          ...(tplEntry.entryId ? { templateEntryId: tplEntry.entryId } : {}),
-          scheduleType: tplEntry.scheduleType ?? 'OncePerRun',
-          timerTimeOfDay: tplEntry.timerTimeOfDay ?? '',
-          timerMode: tplEntry.timerRelativeOffset ? 'relative' : 'timeOfDay',
-          timerRelativeOffset: tplEntry.timerRelativeOffset ?? '',
-          enabled: tplEntry.enabled ?? true,
-          // Feature 078: restore supplied values and their effective-value preview, or reopening the
-          // queue would show every row back on "inherit" and the next save would erase them.
-          parameterValues: tplEntry.parameterValues ?? undefined,
-          effectiveParameters: tplEntry.effectiveParameters ?? undefined,
-        };
+        schedule[entryId] = scheduleFromTemplateEntry(tplEntry);
       } else {
         schedule[entryId] = { scheduleType: 'OncePerRun', timerTimeOfDay: '' };
       }
@@ -289,27 +317,9 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
     refreshed.entries.forEach((e, i) => {
       rekeyed[e.entryId] = orderedSchedules[i] ?? { scheduleType: 'OncePerRun', timerTimeOfDay: '' };
     });
-    const entries = refreshed.entries.map((e, i) => {
-      const sched = orderedSchedules[i] ?? { scheduleType: 'OncePerRun' as ScheduleType, timerTimeOfDay: '' };
-      const timerMode = sched.timerMode ?? (sched.timerRelativeOffset ? 'relative' : 'timeOfDay');
-      const isRelative = sched.scheduleType === 'Timer' && timerMode === 'relative';
-      return {
-        // Feature 171: send back the ID of the template entry, so that the save keeps its identity.
-        ...(sched.templateEntryId ? { entryId: sched.templateEntryId } : {}),
-        sequenceId: e.sequenceId,
-        scheduleType: sched.scheduleType,
-        ...(sched.scheduleType === 'Timer' && !isRelative && sched.timerTimeOfDay ? { timerTimeOfDay: sched.timerTimeOfDay } : {}),
-        ...(isRelative && sched.timerRelativeOffset ? { timerRelativeOffset: sched.timerRelativeOffset } : {}),
-        // Only emit when disabled; omission means enabled (backend treats null/absent as true).
-        ...(sched.enabled === false ? { enabled: false } : {}),
-        // Feature 078: only rows that actually bind something. A row left on "inherit" carries a
-        // null value and is dropped, so an entry that supplies nothing stays unchanged on the wire.
-        ...(() => {
-          const bound = (sched.parameterValues ?? []).filter((v) => v.value !== null && v.value !== undefined);
-          return bound.length > 0 ? { parameterValues: bound } : {};
-        })(),
-      };
-    });
+    const entries = buildTemplateSaveEntries(
+      refreshed.entries.map((e, i) => ({ sequenceId: e.sequenceId, schedule: orderedSchedules[i] }))
+    );
     const saved = await saveQueueTemplate({ name, entries, overwrite });
     await setQueueTemplateLink(detail.id, saved.id);
     setDetail(refreshed);
@@ -423,6 +433,35 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
 
   const panelOpen = creating || Boolean(detail);
 
+  // Reads the list again (status, pause state) and the monitor of each running queue. A failed call keeps the old data.
+  const pollQueues = useCallback(async () => {
+    try {
+      const data = await listQueues();
+      if (!Array.isArray(data)) return;
+      setQueues(data);
+      const running = data.filter((q) => q.status === 'Running');
+      const results = await Promise.all(
+        running.map(async (q) => {
+          try {
+            return [q.id, await getQueueMonitor(q.id)] as const;
+          } catch {
+            return [q.id, null] as const;
+          }
+        })
+      );
+      const next: Record<string, QueueMonitorDto> = {};
+      for (const [id, monitor] of results) if (monitor) next[id] = monitor;
+      setMonitors(next);
+    } catch {
+      // Keep the rows on screen. The next poll tries again.
+    }
+  }, []);
+
+  usePolling(() => { void pollQueues(); }, {
+    intervalMs: LIST_POLL_INTERVAL_MS,
+    enabled: !panelOpen && queues.some((q) => q.status === 'Running'),
+  });
+
   useResetSignal(navResetSignal, () => { if (panelOpen) closeForms(); });
 
   return (
@@ -439,9 +478,9 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
         <thead>
           <tr>
             <th>Name</th>
-            <th>Emulator</th>
             <th>Cycle</th>
             <th>Status</th>
+            <th>Activity</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -451,62 +490,30 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
           {!loading && queues.map((q) => {
             const running = q.status === 'Running';
             return (
-              <React.Fragment key={q.id}>
-                <tr className="queues-row">
-                  <td>
-                    <button type="button" className="link-button" onClick={() => void openEdit(q.id)}>{q.name}</button>
-                  </td>
-                  <td>{q.emulatorSerial}</td>
-                  <td>{q.cycleExecution ? 'On' : 'Off'}</td>
-                  <td>
-                    <span className={running ? 'status-chip status-running' : 'status-chip status-stopped'} data-testid="queue-status">
-                      {q.status}
-                    </span>
-                  </td>
-                  <td>
-                    {running ? (
-                      <button type="button" onClick={() => void runAction(q.id, stopQueue, 'Queue stopped.')}>Stop</button>
-                    ) : (
-                      <button type="button" onClick={() => void runAction(q.id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}>Start</button>
-                    )}
-                    {running && <QueuePauseControls queueId={q.id} reviewChanges />}
-                    {running && (
-                      <button
-                        type="button"
-                        aria-label={`Schedule a sequence for ${q.name}`}
-                        onClick={() => setLiveScheduleFor((cur) => (cur === q.id ? undefined : q.id))}
-                      >
-                        Schedule
-                      </button>
-                    )}
-                    <button type="button" onClick={() => void openEdit(q.id)} disabled={running}>Edit</button>
-                    <button
-                      type="button"
-                      onClick={() => { setDuplicateError(undefined); setDuplicateSource(q); }}
-                    >
-                      Duplicate
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      disabled={running}
-                      onClick={async () => { await openEdit(q.id); setDeleteOpen(true); }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-                {running && liveScheduleFor === q.id && (
-                  <tr className="queues-live-schedule-row">
-                    <td colSpan={5}>
-                      <QueueLiveScheduleControl
-                        sequences={sequences}
-                        onSchedule={(sequenceId, offset) => liveScheduleSequence(q.id, sequenceId, offset)}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
+              <tr key={q.id} className="queues-row">
+                <td>
+                  <button type="button" className="link-button" onClick={() => void openEdit(q.id)}>{q.name}</button>
+                </td>
+                <td>{q.cycleExecution ? 'On' : 'Off'}</td>
+                <td>
+                  <span className={running ? 'status-chip status-running' : 'status-chip status-stopped'} data-testid="queue-status">
+                    {q.status}
+                  </span>
+                </td>
+                <td data-testid="queue-activity">{buildQueueActivity(q, monitors[q.id])}</td>
+                <td>
+                  <QueueRowActions
+                    queue={q}
+                    onStart={(id) => void runAction(id, startQueue, 'Queue started — see Execution Logs for progress and the run outcome.')}
+                    onStop={(id) => void runAction(id, stopQueue, 'Queue stopped.')}
+                    onEdit={(id) => void openEdit(id)}
+                    onDuplicate={() => { setDuplicateError(undefined); setDuplicateSource(q); }}
+                    onDelete={async (id) => { await openEdit(id); setDeleteOpen(true); }}
+                    onChanged={() => void pollQueues()}
+                    onError={setTableError}
+                  />
+                </td>
+              </tr>
             );
           })}
         </tbody>
@@ -539,7 +546,14 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
 
       {detail && !creating && detail.status === 'Running' && (
         <section>
-          <h3>Monitor: {detail.name}</h3>
+          <h3>Edit Queue</h3>
+          <RunningQueueControls
+            queueId={detail.id}
+            hasTemplate={Boolean(detail.linkedTemplateId)}
+            refreshKey={templateSavedTick}
+            onChanged={() => void refresh()}
+          />
+          <h4>Monitor: {detail.name}</h4>
           <QueueMonitor
             queueId={detail.id}
             onReturnToEditor={async () => {
@@ -548,6 +562,37 @@ export const QueuesPage: React.FC<QueuesPageProps> = ({ navResetSignal }) => {
               await refresh();
               await openEdit(detail.id);
             }}
+          />
+          <QueueForm
+            mode="edit"
+            running
+            value={form}
+            onChange={setForm}
+            onSubmit={() => void submitForm()}
+            onCancel={closeForms}
+            submitting={submitting}
+            formError={formError}
+            saveResult={queueSaveResult}
+            fieldErrors={fieldErrors}
+            templateControls={
+              <RunningQueueEditor
+                key={`${detail.id}-${startedDuringEdit ? 'carried' : 'template'}`}
+                queue={detail}
+                sequences={sequences}
+                carried={startedDuringEdit ? { entries: detail.entries, schedule: entrySchedule } : undefined}
+                onTemplateSaved={() => setTemplateSavedTick((tick) => tick + 1)}
+                onLinked={() => void reloadDetail(detail.id).then(refresh)}
+              />
+            }
+            gameControls={
+              <QueueGameControls
+                linkedGameId={detail.linkedGameId}
+                linkedGameName={detail.linkedGameName}
+                status={detail.status}
+                onLink={(gameId) => void handleLinkGame(gameId)}
+                onUnlink={() => void handleUnlinkGame()}
+              />
+            }
           />
         </section>
       )}

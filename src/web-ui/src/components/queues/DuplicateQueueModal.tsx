@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SearchableDropdown, SearchableOption } from '../SearchableDropdown';
 import { useAdbDevices } from '../../services/useAdbDevices';
 
@@ -39,6 +39,7 @@ export const DuplicateQueueModal: React.FC<DuplicateQueueModalProps> = ({
   const [emulatorInstanceName, setEmulatorInstanceName] = useState(sourceEmulator.emulatorInstanceName ?? '');
   const [emulatorInstanceIndex, setEmulatorInstanceIndex] = useState<number | null>(sourceEmulator.emulatorInstanceIndex);
 
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const { devices, loading: devicesLoading } = useAdbDevices(open);
   const emulatorOptions = useMemo<SearchableOption[]>(
     () => devices.map((d) => ({ value: d.serial, label: d.serial, description: d.state })),
@@ -54,6 +55,11 @@ export const DuplicateQueueModal: React.FC<DuplicateQueueModalProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, suggestedName]);
+
+  // The name field takes the focus when the dialog opens.
+  useEffect(() => {
+    if (open) nameInputRef.current?.focus();
+  }, [open]);
 
   if (!open) return null;
 
@@ -76,7 +82,7 @@ export const DuplicateQueueModal: React.FC<DuplicateQueueModalProps> = ({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          autoFocus
+          ref={nameInputRef}
         />
         {nameInvalid && trimmed.length > 0 && (
           <div className="form-hint" role="status">Name must differ from &quot;{sourceName}&quot;.</div>

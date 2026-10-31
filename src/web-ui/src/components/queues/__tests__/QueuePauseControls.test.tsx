@@ -13,17 +13,6 @@ import { ApiError } from '../../../lib/api';
 
 jest.mock('../../../services/queues');
 
-// The review has its own tests. Here a stub shows what the pause controls give to it.
-jest.mock('../ReviewTemplateChangesDialog', () => ({
-  ReviewTemplateChangesDialog: ({ queueId, paused, onClose, onApplied }: { queueId: string; paused: boolean; onClose: () => void; onApplied?: () => void }) => (
-    <div data-testid="review-dialog-stub">
-      queue:{queueId} paused:{String(paused)}
-      <button type="button" onClick={onClose}>Close review</button>
-      <button type="button" onClick={() => onApplied?.()}>Applied in review</button>
-    </div>
-  )
-}));
-
 const getHealthMock = getQueueHealth as jest.MockedFunction<typeof getQueueHealth>;
 const pauseQueueMock = pauseQueue as jest.MockedFunction<typeof pauseQueue>;
 const resumeQueueMock = resumeQueue as jest.MockedFunction<typeof resumeQueue>;
@@ -178,38 +167,15 @@ describe('QueuePauseControls', () => {
     expect(getHealthMock).not.toHaveBeenCalled();
   });
 
-  it('opens the review of template changes, and tells it whether the queue is paused', async () => {
-    getHealthMock.mockResolvedValue(health({ paused: true, pauseKind: 'operator', operatorPause: 'paused', pausedAt: '2026-10-30T12:00:00+00:00' }));
-
-    render(<QueuePauseControls queueId="q1" reviewChanges />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Review changes' }));
-
-    expect(screen.getByTestId('review-dialog-stub')).toHaveTextContent('queue:q1 paused:true');
-    expect(screen.queryByRole('button', { name: 'Review changes' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Close review' }));
-    expect(screen.getByRole('button', { name: 'Review changes' })).toBeInTheDocument();
-  });
-
-  it('shows no review button unless the parent asks for it', async () => {
-    getHealthMock.mockResolvedValue(health());
+  it('has no Review button: the notice of template changes owns it (feature 173)', async () => {
+    getHealthMock.mockResolvedValue(health({ paused: true, pauseKind: 'operator', operatorPause: 'paused' }));
 
     render(<QueuePauseControls queueId="q1" />);
-    await screen.findByRole('button', { name: 'Pause' });
+    await screen.findByRole('button', { name: 'Resume' });
 
-    expect(screen.queryByRole('button', { name: 'Review changes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Review/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('review-template-changes')).not.toBeInTheDocument();
   });
-
-  it('tells the parent when the review applied changes', async () => {
-    getHealthMock.mockResolvedValue(health({ paused: true, pauseKind: 'operator', operatorPause: 'paused' }));
-    const onChanged = jest.fn();
-
-    render(<QueuePauseControls queueId="q1" reviewChanges onChanged={onChanged} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Review changes' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Applied in review' }));
-
-    expect(onChanged).toHaveBeenCalledTimes(1);
-  });
-
   it('shows nothing when the parent gives a null health', () => {
     const { container } = render(<QueuePauseControls queueId="q1" health={null} />);
 

@@ -5,7 +5,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
+using GameBot.Domain.Queues;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GameBot.IntegrationTests.Queues;
@@ -76,6 +78,34 @@ public sealed class QueuesCrudEndpointTests {
     updated.GetProperty("name").GetString().Should().Be("Farm2");
     updated.GetProperty("cycleExecution").GetBoolean().Should().BeTrue();
     updated.GetProperty("emulatorSerial").GetString().Should().Be("emu-1");
+  }
+
+  [Fact]
+  public async Task UpdateOfARunningQueueSavesTheSettingsAndKeepsTheEmulator() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var id = (await CreateQueueAsync(client).ConfigureAwait(true)).GetProperty("id").GetString();
+    app.Services.GetRequiredService<IQueueRuntimeStore>().SetStatus(id!, QueueExecutionStatus.Running);
+
+    var resp = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}", UriKind.Relative), new {
+      name = "Farm running",
+      cycleExecution = true,
+      pauseWhenIdle = true,
+      idleThresholdSeconds = 45,
+      resumeOnServiceStart = true,
+      emulatorSerial = "emu-999"
+    }).ConfigureAwait(true);
+
+    resp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var updated = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    updated.GetProperty("name").GetString().Should().Be("Farm running");
+    updated.GetProperty("cycleExecution").GetBoolean().Should().BeTrue();
+    updated.GetProperty("pauseWhenIdle").GetBoolean().Should().BeTrue();
+    updated.GetProperty("idleThresholdSeconds").GetInt32().Should().Be(45);
+    updated.GetProperty("resumeOnServiceStart").GetBoolean().Should().BeTrue();
+    updated.GetProperty("emulatorSerial").GetString().Should().Be("emu-1");
+    updated.GetProperty("status").GetString().Should().Be("Running");
+    app.Services.GetRequiredService<IQueueRuntimeStore>().SetStatus(id!, QueueExecutionStatus.Stopped);
   }
 
   [Fact]

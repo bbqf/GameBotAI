@@ -241,7 +241,7 @@ export const GamepacksPage: React.FC = () => {
             />
           </label>
           {settings?.tokenSet && <p className="gamepacks-hint">A token is set. Leave the field empty to keep it.</p>}
-          <p className="gamepacks-hint">The token and "allow insecure" apply to web addresses only. A folder catalog ignores both.</p>
+          <p className="gamepacks-hint">The token and &quot;allow insecure&quot; apply to web addresses only. A folder catalog ignores both.</p>
           <div className="gamepacks-actions">
             <button type="submit">Save settings</button>
             {settings?.tokenSet && (

@@ -1,0 +1,20 @@
+/* Feature 173: the notice of waiting template changes. Phone support level: reduced (docs/mobile-ui-principles.md). */
+.template-changes-notice {
+  margin: 8px 0;
+  min-width: 0;
+}
+
+.template-changes-notice__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.template-changes-notice button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 16px;
+}

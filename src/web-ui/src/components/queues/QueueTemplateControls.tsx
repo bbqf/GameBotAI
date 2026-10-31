@@ -31,6 +31,11 @@ type QueueTemplateControlsProps = {
   saveResult?: { kind: 'success' | 'error'; message: string };
   /** Sequence entries to render between the template header and the Save/Reload action row. */
   children?: React.ReactNode;
+  /**
+   * The editor of a running queue (feature 173). It changes the template only. The load picker, the rename area,
+   * and the Reload button are off, because they replace the entries of the queue.
+   */
+  templateOnly?: boolean;
 };
 
 const NAME_PATTERN = /^[A-Za-z0-9 _-]+$/;
@@ -53,6 +58,7 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
   pendingConfirm,
   saveResult,
   children,
+  templateOnly,
 }) => {
   // The "manage" area (opened from the template name button) lets the user pick a template to load
   // and edit the name the queue will be saved under.
@@ -130,38 +136,44 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
       {/* Template name — clicking opens the manage area (load picker + name editing) */}
       <div className="queue-template-row">
         <span className="queue-section-label">Template</span>
-        <button
-          type="button"
-          className="link-button queue-template-name"
-          onClick={toggleManage}
-          aria-expanded={open}
-        >
-          {associatedTemplateName ?? '(no template)'}
-        </button>
+        {templateOnly ? (
+          <span className="queue-template-name">{associatedTemplateName ?? '(no template)'}</span>
+        ) : (
+          <button
+            type="button"
+            className="link-button queue-template-name"
+            onClick={toggleManage}
+            aria-expanded={open}
+          >
+            {associatedTemplateName ?? '(no template)'}
+          </button>
+        )}
       </div>
 
       {associatedTemplateId && <TemplateUpgradeNotice templateId={associatedTemplateId} />}
 
-      <TemplatePickerDialog
-        open={open && !pendingConfirm}
-        loadDisabled={running}
-        name={templateName}
-        onNameChange={(value) => {
-          setTemplateName(value);
-          setNameError(undefined);
-        }}
-        onSubmitName={handleRename}
-        submitDisabled={saving}
-        nameError={nameError}
-        confirmingOverwrite={confirmingOverwrite}
-        onConfirmOverwrite={() => void persist(templateName.trim(), true)}
-        onCancelOverwrite={() => setConfirmingOverwrite(false)}
-        onLoad={(templateId) => {
-          onLoadTemplate(templateId);
-          closeManage();
-        }}
-        onClose={closeManage}
-      />
+      {!templateOnly && (
+        <TemplatePickerDialog
+          open={open && !pendingConfirm}
+          loadDisabled={running}
+          name={templateName}
+          onNameChange={(value) => {
+            setTemplateName(value);
+            setNameError(undefined);
+          }}
+          onSubmitName={handleRename}
+          submitDisabled={saving}
+          nameError={nameError}
+          confirmingOverwrite={confirmingOverwrite}
+          onConfirmOverwrite={() => void persist(templateName.trim(), true)}
+          onCancelOverwrite={() => setConfirmingOverwrite(false)}
+          onLoad={(templateId) => {
+            onLoadTemplate(templateId);
+            closeManage();
+          }}
+          onClose={closeManage}
+        />
+      )}
 
       {pendingConfirm && (
         <section className="queue-template-section" aria-label={pendingConfirm.title}>
@@ -191,20 +203,22 @@ export const QueueTemplateControls: React.FC<QueueTemplateControlsProps> = ({
         >
           Save Template
         </button>
-        <button
-          type="button"
-          onClick={onReload}
-          disabled={!associatedTemplateName || running}
-          title={
-            !associatedTemplateName
-              ? 'No template to reload.'
-              : running
-                ? 'Stop the queue before reloading a template.'
-                : undefined
-          }
-        >
-          Reload Template
-        </button>
+        {!templateOnly && (
+          <button
+            type="button"
+            onClick={onReload}
+            disabled={!associatedTemplateName || running}
+            title={
+              !associatedTemplateName
+                ? 'No template to reload.'
+                : running
+                  ? 'Stop the queue before reloading a template.'
+                  : undefined
+            }
+          >
+            Reload Template
+          </button>
+        )}
       </div>
 
       {/* When the manage area is open the name error is shown inline with the field; here it

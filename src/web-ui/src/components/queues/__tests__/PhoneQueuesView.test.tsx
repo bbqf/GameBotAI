@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { PhoneQueuesView, PhoneQueuesViewProps } from '../PhoneQueuesView';
 import { ApiError } from '../../../lib/api';
@@ -288,6 +290,214 @@ describe('PhoneQueuesView activity', () => {
   });
 });
 
+describe('PhoneQueuesView pause states on the card (feature 173, US6)', () => {
+  it('shows Paused and Pausing from the pause state of the list, as the big screen does', async () => {
+    queuesMock.listQueues.mockResolvedValue([
+      queue({ id: 'q1', name: 'Daily', status: 'Running', operatorPause: 'paused' }),
+      queue({ id: 'q2', name: 'Arena', status: 'Running', operatorPause: 'pausing' }),
+      queue({ id: 'q3', name: 'Quiet', status: 'Stopped' }),
+    ]);
+    queuesMock.getQueueMonitor.mockResolvedValue(monitorDto({ running: true }));
+
+    render(<View />);
+
+    await waitFor(() => expect(screen.getByTestId('queue-card-q1')).toHaveTextContent('Paused'));
+    expect(screen.getByTestId('queue-card-q2')).toHaveTextContent('Pausing');
+    expect(screen.getByTestId('queue-card-q3')).toHaveTextContent('Stopped');
+  });
+
+  it('shows the status only when the monitor call fails', async () => {
+    queuesMock.listQueues.mockResolvedValue([queue({ status: 'Running', operatorPause: 'none' })]);
+    queuesMock.getQueueMonitor.mockRejectedValue(new Error('down'));
+
+    render(<View />);
+
+    const card = await screen.findByTestId('queue-card-q1');
+    await waitFor(() => expect(card.querySelector('.phone-card__summary')?.textContent).toBe('Running'));
+  });
+});
+
+describe('PhoneQueuesView template changes (feature 173, US6 and US7)', () => {
+  const health = (operatorPause: 'none' | 'pausing' | 'paused'): queuesApi.QueueHealthDto => ({
+    paused: operatorPause === 'paused', pausedAt: null, pauseKind: operatorPause === 'paused' ? 'operator' : null,
+    pauseReason: null, operatorPause,
+  });
+  const difference: queuesApi.TemplateDifferenceDto = {
+    key: 'disabled:te1', type: 'disabled', entryId: 'te1', sequenceName: 'Help All', summary: "Disable the entry 'Help All'.",
+    selectedByDefault: true, affectsSchedule: false,
+  };
+  const diff = (count: number): queuesApi.QueueTemplateDiffDto => ({
+    queueId: 'q1', templateId: 't1', needsUpgrade: false, baseToken: 'tok', differences: count > 0 ? [difference] : [],
+  });
+  const runningDetail = (over: Partial<queuesApi.QueueDetailDto> = {}) =>
+    detail({ status: 'Running', operatorPause: 'none', health: health('none'), ...over });
+
+  beforeEach(() => {
+    queuesMock.getQueue.mockResolvedValue(runningDetail());
+    queuesMock.getQueueMonitor.mockResolvedValue(monitorDto({ running: true }));
+    queuesMock.getTemplateDiff.mockResolvedValue(diff(1));
+  });
+
+  it('shows the pause controls and the notice with a Review button when changes wait', async () => {
+    render(<View initialQueueId="q1" />);
+
+    expect(await screen.findByTestId('queue-pause-controls')).toBeInTheDocument();
+    expect(await screen.findByText('1 change waits in the template.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review changes' })).toBeInTheDocument();
+  });
+
+  it('shows no notice and no Review button when the queue matches its template', async () => {
+    queuesMock.getTemplateDiff.mockResolvedValue(diff(0));
+
+    render(<View initialQueueId="q1" />);
+    await screen.findByTestId('queue-pause-controls');
+    await waitFor(() => expect(queuesMock.getTemplateDiff).toHaveBeenCalled());
+
+    expect(screen.queryByTestId('template-changes-notice')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Review changes' })).not.toBeInTheDocument();
+  });
+
+  it('shows no notice and reads no differences for a stopped queue', async () => {
+    queuesMock.getQueue.mockResolvedValue(detail({ status: 'Stopped' }));
+
+    render(<View initialQueueId="q1" />);
+    await screen.findByRole('switch', { name: 'Help All' });
+
+    expect(queuesMock.getTemplateDiff).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('template-changes-notice')).not.toBeInTheDocument();
+  });
+
+  it('shows no notice and reads no differences for a running queue with no template', async () => {
+    queuesMock.getQueue.mockResolvedValue(runningDetail({ linkedTemplateId: null, linkedTemplateName: null }));
+
+    render(<View initialQueueId="q1" />);
+    await screen.findByRole('switch', { name: 'Help All' });
+
+    expect(queuesMock.getTemplateDiff).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('template-changes-notice')).not.toBeInTheDocument();
+  });
+
+  it('opens the review with the same one-sentence explanation as the big screen', async () => {
+    queuesMock.getQueue.mockResolvedValue(runningDetail({ health: health('paused') }));
+
+    render(<View initialQueueId="q1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Review changes' }));
+
+    expect(await screen.findByTestId('review-explanation')).toHaveTextContent(
+      'Compare the running queue with its template, then pause the queue and apply the changes that you select.'
+    );
+  });
+
+  it('replaces the note about the next start with the notice for a running queue', async () => {
+    render(<View initialQueueId="q1" />);
+    await screen.findByText('1 change waits in the template.');
+
+    expect(screen.queryByText('Changes apply when the queue starts again.')).not.toBeInTheDocument();
+  });
+
+  it('keeps the note about the next start for a stopped queue', async () => {
+    queuesMock.getQueue.mockResolvedValue(detail({ status: 'Stopped' }));
+
+    render(<View initialQueueId="q1" />);
+
+    expect(await screen.findByText('Changes apply when the queue starts again.')).toBeInTheDocument();
+  });
+
+  describe('a switch on a running queue (US7)', () => {
+    it('changes the template only: no pause, no apply, no resume, no queue entry call', async () => {
+      queuesMock.getTemplateDiff.mockResolvedValue(diff(0));
+      const saved = template();
+      saved.entries[0].enabled = false;
+      templatesMock.saveQueueTemplate.mockResolvedValue(saved);
+
+      render(<View initialQueueId="q1" />);
+      fireEvent.click(await screen.findByRole('switch', { name: 'Help All' }));
+
+      await waitFor(() => expect(templatesMock.saveQueueTemplate).toHaveBeenCalledTimes(1));
+      expect(queuesMock.pauseQueue).not.toHaveBeenCalled();
+      expect(queuesMock.resumeQueue).not.toHaveBeenCalled();
+      expect(queuesMock.applyTemplate).not.toHaveBeenCalled();
+      expect(queuesMock.replaceQueueEntries).not.toHaveBeenCalled();
+      expect(queuesMock.addQueueEntry).not.toHaveBeenCalled();
+      expect(queuesMock.removeQueueEntry).not.toHaveBeenCalled();
+    });
+
+    it('shows the notice after the switch, without waiting for the next refresh', async () => {
+      let waiting = 0;
+      queuesMock.getTemplateDiff.mockImplementation(async () => diff(waiting));
+      const saved = template();
+      saved.entries[0].enabled = false;
+      templatesMock.saveQueueTemplate.mockImplementation(async () => { waiting = 1; return saved; });
+
+      render(<View initialQueueId="q1" />);
+      await waitFor(() => expect(queuesMock.getTemplateDiff).toHaveBeenCalled());
+      expect(screen.queryByTestId('template-changes-notice')).not.toBeInTheDocument();
+
+      fireEvent.click(await screen.findByRole('switch', { name: 'Help All' }));
+
+      expect(await screen.findByText('1 change waits in the template.')).toBeInTheDocument();
+    });
+
+    it('shows an entry that is turned off as disabled, and an entry that is turned on with its time', async () => {
+      queuesMock.getQueue.mockResolvedValue(detail({ status: 'Stopped' }));
+
+      render(<View initialQueueId="q1" />);
+
+      const gift = (await screen.findByRole('switch', { name: 'Gift' })).closest('li') as HTMLElement;
+      expect(within(gift).getByText('disabled')).toBeInTheDocument();
+      expect(screen.getByRole('switch', { name: 'Help All' }).closest('li')).not.toHaveTextContent('disabled');
+    });
+
+    it('shows read-only switches and a message for a running queue with no template', async () => {
+      queuesMock.getQueue.mockResolvedValue(runningDetail({ linkedTemplateId: null, linkedTemplateName: null }));
+
+      render(<View initialQueueId="q1" />);
+
+      expect(await screen.findByRole('switch', { name: 'Help All' })).toBeDisabled();
+      expect(screen.getByText(/No template is linked/)).toBeInTheDocument();
+    });
+  });
+
+  describe('big screen and phone agree on entries (FR-026)', () => {
+    it('shows an entry that the template turns off as an off switch', async () => {
+      const tpl = template();
+      tpl.entries[0].enabled = false;
+      templatesMock.getQueueTemplate.mockResolvedValue(tpl);
+
+      render(<View initialQueueId="q1" />);
+
+      expect(await screen.findByRole('switch', { name: 'Help All' })).not.toBeChecked();
+    });
+
+    it('follows a change of the template at the next refresh', async () => {
+      jest.useFakeTimers();
+      try {
+        render(<View initialQueueId="q1" />);
+        await act(async () => { await Promise.resolve(); });
+        expect(await screen.findByRole('switch', { name: 'Help All' })).toBeChecked();
+
+        const tpl = template();
+        tpl.entries[0].enabled = false;
+        templatesMock.getQueueTemplate.mockResolvedValue(tpl);
+        await act(async () => { jest.advanceTimersByTime(5000); });
+
+        expect(screen.getByRole('switch', { name: 'Help All' })).not.toBeChecked();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+});
+
+describe('TemplateChangesNotice styles on the phone', () => {
+  const css = readFileSync(join(__dirname, '..', 'TemplateChangesNotice.css'), 'utf8');
+
+  it('gives the Review button a hit area of at least 44 px and a font of at least 16 px', () => {
+    expect(css).toMatch(/min-height:\s*44px/);
+    expect(css).toMatch(/min-width:\s*44px/);
+    expect(css).toMatch(/font-size:\s*16px/);
+  });
+});
 describe('PhoneQueuesView polling (SC-002)', () => {
   const setVisibility = (state: 'visible' | 'hidden') => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });

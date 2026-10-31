@@ -52,5 +52,12 @@ namespace GameBot.Service.Contracts.Queues {
     /// <c>successAndFailure</c>. The value is <c>none</c> for a queue that never had a level.
     /// </summary>
     public string NotificationLevel { get; set; } = "none";
+
+    /// <summary>
+    /// The operator pause state of a running queue (feature 171): <c>none</c>, <c>pausing</c> or <c>paused</c>.
+    /// The list gives it so a client needs no detail call (feature 173). The field is absent for a queue that does not run.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? OperatorPause { get; set; }
   }
 }

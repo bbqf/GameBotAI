@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-30 (feature 171: live template changes. A running queue can pause between sequences, and the operator can apply template changes to it with no restart. See the domain model section and `docs/live-template-changes.md`; feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
+_Last reviewed: 2026-10-31 (feature 173: the Queues page. The list has icon buttons and an Activity column. A running queue opens on the Edit page, and its editor changes the template only. The list response has operatorPause. See the 173 block of the API surface; feature 171: live template changes. A running queue can pause between sequences, and the operator can apply template changes to it with no restart. See the domain model section and `docs/live-template-changes.md`; feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
 feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
 feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
@@ -1784,6 +1784,18 @@ Feature 171 added, additively (see "Live template changes" above):
 - Log events 1103, 1104 (request and release of the pause), 1134, 1135 (the run loop reaches the gate and leaves it), and
   1136 (an apply, with the list of applied differences).
 - No new persisted file. The pause and the run plan live in memory with the run.
+
+Feature 173 added, additively (see `docs/live-template-changes.md`):
+
+- `operatorPause` (`none`, `pausing`, `paused`) on each item of `GET /api/queues`. The field is present only while the queue
+  runs. An old client that ignores it keeps working. The list route reads it from the run handle, as the detail does.
+- `PUT /api/queues/{id}` works for a running queue. It saves the name, the cycle setting, the idle settings, the resume flag,
+  the notification level, and the failure policy. The queue keeps its emulator. A run reads its settings when it starts, so the
+  saved settings apply at the next start. The old answer `409 queue_running` is gone for this call.
+- `POST /api/queues/{id}/entries` and `DELETE /api/queues/{id}/entries/{entryId}` answer `409 queue_running` for a running
+  queue. A running queue changes only through its template, with the pause, review, and apply steps of feature 171.
+- The web UI no longer calls `POST /api/queues/{id}/live-schedule`. The service keeps the call.
+- No new persisted file.
 
 ## Legacy / removed (don't be misled by old specs)
 

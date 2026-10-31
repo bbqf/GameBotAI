@@ -1,6 +1,6 @@
 # Mobile UI Principles
 
-Last reviewed: 2026-10-30 (features 139, 140, and 171)
+Last reviewed: 2026-10-31 (features 139, 140, 171, and 173)
 
 Each UI feature must state its **phone support level** and follow these rules. Reviewers use the checklist at the end.
 
@@ -48,7 +48,9 @@ The queue detail shows what the queue does now and what it will do next.
 - The "Now" block shows the state, the running sequence (or "Waiting until <time>"), and the last result.
 - The schedule list shows one row for each template entry. Enabled rows with a next run time come first, in time order.
   Enabled rows with no time come next. Disabled rows come last, marked "disabled".
-- Each queue card shows one summary line: the running sequence, else the next run time, else "Stopped".
+- Each queue card shows one summary line. It is the same text as the Activity column of the big screen. The rule checks
+  these in order: "Stopped", "Paused", "Pausing", "Running: <sequence>", "Next run at <time>", "Nothing scheduled", and
+  "Waiting". When the monitor data is missing, the line shows "Running".
 - The data refreshes every 5 s while the page is visible and the connection is up (`usePolling`). The refresh stops when
   the page is hidden or the connection is lost. When it starts again, one refresh runs at once.
 - When a refresh fails, the last data stays on the screen with an "Old data" mark.
@@ -58,6 +60,10 @@ The queue detail shows what the queue does now and what it will do next.
   control is at least 44 px high, and the text wraps with no sideways scroll. The state shows as "Pausing (waiting for the
   running sequence)" or "Paused (between sequences)". The phone view reads the health block with the detail, so it makes no
   extra request. The guide is `docs/live-template-changes.md`.
+- **Review changes** is part of the notice "N changes wait in the template." (feature 173). The notice shows only when the
+  template differs from the running queue. The big screen shows the same notice with the same words.
+- A switch on a running queue changes the template only. It does not pause or apply. The notice shows the waiting change
+  after the switch. The operator pauses, reviews, and applies it.
 
 ## Back navigation on a phone
 

@@ -1,6 +1,6 @@
 # Live template changes
 
-Last reviewed: 2026-10-30 (feature 171)
+Last reviewed: 2026-10-31 (features 171 and 173)
 
 Use this guide to change a queue that runs, with no stop of the run. You pause the queue between two sequences. You
 apply the changes of its template. Then you resume the same run. No schedule changes, unless you select a schedule change.
@@ -23,13 +23,20 @@ apply the changes of its template. Then you resume the same run. No schedule cha
 
 ## Change a running queue
 
-1. Open the Queues page. Find the queue that runs.
-2. Select **Pause**. Wait for "Paused (between sequences)". A long sequence can take some time to end.
-3. Edit the template of the queue and save it. You can do this before step 2 also.
-4. Select **Review changes**. The list shows each difference between the running queue and the template.
-5. Clear the changes that you do not want. A schedule change is not selected at first. Select it only if you want it.
-6. Select **Apply**. All selected changes go in, or none of them.
-7. Select **Resume**. The queue goes on with the same run.
+1. Open the Queues page. Find the queue that runs. Select its **Edit** icon, or its name. The Edit page of a running queue opens.
+2. Edit the template in the editor of the page. Select **Save Template**. The queue does not change, and the run goes on.
+   The editor changes the template only. If the queue has no linked template, link one first. The page tells you.
+3. Read the notice on the page: "N changes wait in the template." The notice shows only when the template differs from the
+   running queue.
+4. Select **Pause**. Wait for "Paused (between sequences)". A long sequence can take some time to end. You can pause before
+   step 2 also.
+5. Select **Review changes**. The list shows each difference between the running queue and the template.
+6. Clear the changes that you do not want. A schedule change is not selected at first. Select it only if you want it.
+7. Select **Apply**. All selected changes go in, or none of them.
+8. Select **Resume**. The queue goes on with the same run.
+
+The settings of the queue (name, cycle, idle pause, resume after restart) are on the same page. You can save them while the
+queue runs. The emulator does not change. The saved settings apply at the next start.
 
 The pause has no time limit. A paused queue waits until you resume or stop it. The page shows how long the queue is paused.
 
@@ -118,8 +125,7 @@ both in force, `pauseKind` is `failurePolicy`, and the first `resume` ends the o
 ## Phone
 
 The pause, review, apply, resume, and upgrade controls work on a phone, in one column, with no sideways scroll. Each control
-is at least 44 px high. You cannot edit a template on a phone. Edit it on a larger screen, then use the phone to pause, review,
-apply, and resume.
+is at least 44 px high. You cannot edit a template on a phone, but you can turn an entry on or off with its switch. On a running queue, a switch changes the template only. The notice "N changes wait in the template." shows the change. Then pause, review, apply, and resume on the phone. The phone and the big screen use the same notice and the same words.
 
 ## Records
 

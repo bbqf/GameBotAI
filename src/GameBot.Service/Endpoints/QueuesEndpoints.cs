@@ -53,9 +53,13 @@ internal static class QueuesEndpoints {
       return Results.Created($"{ApiRoutes.Queues}/{created.Id}", BuildResponse(created, runtime));
     }).WithName("CreateQueue");
 
-    group.MapGet("", async (IQueueRepository repo, IQueueRuntimeStore runtime) => {
+    group.MapGet("", async (IQueueRepository repo, IQueueRuntimeStore runtime, IQueueRunRegistry runs) => {
       var list = await repo.ListAsync().ConfigureAwait(false);
-      var resp = list.Select(q => BuildResponse(q, runtime)).ToList();
+      var resp = list.Select(q => {
+        var item = BuildResponse(q, runtime);
+        if (TryGetLiveRun(q.Id, runtime, runs, out var handle)) item.OperatorPause = OperatorPauseName(handle.OperatorPause);
+        return item;
+      }).ToList();
       return Results.Ok(resp);
     }).WithName("ListQueues");
 
@@ -98,8 +102,8 @@ internal static class QueuesEndpoints {
     group.MapPut("{id}", async (string id, UpdateQueueRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, IOptions<FailureNotificationOptions> notifyOptions, INotificationDispatcher notifications) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
-      if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
-        return Error(409, "queue_running", "Stop the queue before editing.");
+      // Feature 173: a running queue accepts new settings. The run keeps the settings it read at its start,
+      // and the saved settings apply at the next start. The emulator is not part of this request.
       var name = req?.Name?.Trim();
       if (string.IsNullOrWhiteSpace(name)) return Error(400, "invalid_request", "name is required");
       if (req!.EmulatorInstanceIndex is < 0) return Error(400, "invalid_request", "emulatorInstanceIndex must be >= 0");
@@ -214,6 +218,8 @@ internal static class QueuesEndpoints {
     group.MapPost("{id}/entries", async (string id, AddQueueEntryRequest? req, IQueueRepository repo, IQueueRuntimeStore runtime, ISequenceRepository sequences) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
+      if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
+        return Error(409, "queue_running", RunningEntriesMessage);
       var sequenceId = req?.SequenceId?.Trim();
       if (string.IsNullOrWhiteSpace(sequenceId)) return Error(400, "invalid_request", "sequenceId is required");
       var entry = runtime.AddEntry(id, sequenceId);
@@ -255,6 +261,8 @@ internal static class QueuesEndpoints {
     group.MapDelete("{id}/entries/{entryId}", async (string id, string entryId, IQueueRepository repo, IQueueRuntimeStore runtime) => {
       var queue = await repo.GetAsync(id).ConfigureAwait(false);
       if (queue is null) return NotFound();
+      if (runtime.GetStatus(id) == QueueExecutionStatus.Running)
+        return Error(409, "queue_running", RunningEntriesMessage);
       return runtime.RemoveEntry(id, entryId)
         ? Results.NoContent()
         : Error(404, "not_found", "Queue entry not found");
@@ -722,6 +730,9 @@ internal static class QueuesEndpoints {
     return runtime.GetStatus(queueId) == QueueExecutionStatus.Running
       && registry.TryGet(queueId, out handle);
   }
+
+  private const string RunningEntriesMessage =
+    "Stop the queue before changing its entries. Use the template to change a running queue.";
 
   private static string CycleStatus(bool succeeded) => succeeded ? "success" : "failure";
 
