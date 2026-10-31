@@ -200,7 +200,6 @@ test.describe('Queues on a phone', () => {
 
 test.describe('Other areas on a phone', () => {
   const areas: Array<{ area: string; ready: (page: Page) => Promise<void> }> = [
-    { area: 'execution', ready: async (page) => { await expect(page.getByText('Running sessions').first()).toBeVisible(); } },
     { area: 'notifications', ready: async (page) => { await expect(page.getByText('My phone')).toBeVisible(); } },
     { area: 'configuration', ready: async (page) => { await expect(page.getByText('Backend Connection')).toBeVisible(); } },
     { area: 'update', ready: async (page) => { await expect(page.getByText('Installed version:')).toBeVisible(); } }
@@ -227,11 +226,8 @@ test.describe('Other areas on a phone', () => {
     });
   }
 
-  test('does one typical task in each area', async ({ page }) => {
+  test('does one typical task in each visible area', async ({ page }) => {
     await mockApi(page);
-    // See a running session.
-    await page.goto('/?area=execution');
-    await expect(page.getByText('sess-1').first()).toBeVisible();
     // Enter the token.
     await page.goto('/?area=configuration');
     await page.getByLabel('Bearer Token').fill('abc123');

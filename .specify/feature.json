@@ -1,1 +1,3 @@
-{"feature_directory": "specs/172-ci-test-shard-split"}
+{
+  "feature_directory": "specs/173-queues-ui-cleanup"
+}

@@ -248,4 +248,43 @@ public sealed class QueueOperatorPauseEndpointTests {
     health.GetProperty("operatorPause").GetProperty("description").GetString().Should().Contain("Pause when idle");
     health.GetProperty("pauseKind").GetProperty("enum").EnumerateArray().Select(e => e.GetString()).Should().Contain("operator");
   }
+
+  private static async Task<JsonElement> ListItemAsync(HttpClient client, string id) {
+    var resp = await client.GetAsync(new Uri("/api/queues", UriKind.Relative)).ConfigureAwait(true);
+    resp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var list = await BodyAsync(resp).ConfigureAwait(true);
+    return list.EnumerateArray().Single(q => q.GetProperty("id").GetString() == id);
+  }
+
+  [Fact]
+  public async Task ListGivesTheOperatorPauseOfARunningQueue() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var id = await CreateQueueAsync(client).ConfigureAwait(true);
+    var handle = new QueueRunHandle { QueueId = id, Cts = new CancellationTokenSource() };
+
+    await WithLiveRunAsync(app, id, handle, async () => {
+      (await ListItemAsync(client, id).ConfigureAwait(true)).GetProperty("operatorPause").GetString().Should().Be("none");
+
+      await PostAsync(client, id, "pause").ConfigureAwait(true);
+      (await ListItemAsync(client, id).ConfigureAwait(true)).GetProperty("operatorPause").GetString().Should().Be("pausing");
+
+      var wait = handle.WaitAtOperatorGateAsync(Start, CancellationToken.None);
+      (await ListItemAsync(client, id).ConfigureAwait(true)).GetProperty("operatorPause").GetString().Should().Be("paused");
+
+      await PostAsync(client, id, "resume").ConfigureAwait(true);
+      await wait.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+    }).ConfigureAwait(true);
+  }
+
+  [Fact]
+  public async Task ListHasNoOperatorPauseForAStoppedQueue() {
+    using var app = new WebApplicationFactory<Program>();
+    var client = NewClient(app);
+    var id = await CreateQueueAsync(client).ConfigureAwait(true);
+
+    var item = await ListItemAsync(client, id).ConfigureAwait(true);
+
+    item.TryGetProperty("operatorPause", out _).Should().BeFalse();
+  }
 }

@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe('QueuesPage start/stop', () => {
-  it('starts a stopped queue and reflects Running, disabling Edit/Delete', async () => {
+  it('starts a stopped queue and reflects Running, keeping Edit and disabling Delete', async () => {
     listQueuesMock.mockResolvedValueOnce([queue({ status: 'Stopped' })] as any);
     render(<QueuesPage />);
     await screen.findByText('Daily');
@@ -33,13 +33,13 @@ describe('QueuesPage start/stop', () => {
     startQueueMock.mockResolvedValue({} as any);
     listQueuesMock.mockResolvedValueOnce([queue({ status: 'Running' })] as any);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Daily' }));
 
     await waitFor(() => expect(startQueueMock).toHaveBeenCalledWith('q1'));
     await waitFor(() => expect(screen.getByTestId('queue-status')).toHaveTextContent('Running'));
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Daily' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Delete Daily' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Stop Daily' })).toBeInTheDocument();
   });
 
   it('stops a running queue', async () => {
@@ -50,7 +50,7 @@ describe('QueuesPage start/stop', () => {
     stopQueueMock.mockResolvedValue({} as any);
     listQueuesMock.mockResolvedValueOnce([queue({ status: 'Stopped' })] as any);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop Daily' }));
 
     await waitFor(() => expect(stopQueueMock).toHaveBeenCalledWith('q1'));
     await waitFor(() => expect(screen.getByTestId('queue-status')).toHaveTextContent('Stopped'));
@@ -64,7 +64,7 @@ describe('QueuesPage start/stop', () => {
     startQueueMock.mockResolvedValue({} as any);
     listQueuesMock.mockResolvedValueOnce([queue({ status: 'Running' })] as any);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Daily' }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Execution Logs/i));
   });
@@ -76,7 +76,7 @@ describe('QueuesPage start/stop', () => {
 
     startQueueMock.mockRejectedValue(Object.assign(new Error('The queue is already running.'), { status: 409 }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Daily' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('already running'));
   });
@@ -93,7 +93,7 @@ describe('QueuesPage start/stop', () => {
       { status: 409 }
     ));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Daily' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('emulator-5558'));
     expect(screen.getByRole('alert')).toHaveTextContent('PNS Daily 5558');

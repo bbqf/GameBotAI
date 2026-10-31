@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { usePolling } from '../../hooks/usePolling';
 import { getQueueHealth, pauseQueue, resumeQueue, QueueHealthDto, OperatorPauseState } from '../../services/queues';
-import { ReviewTemplateChangesDialog } from './ReviewTemplateChangesDialog';
 import './QueuePauseControls.css';
 
 /** How often the state of the pause is read while the queue runs. */
@@ -18,8 +17,6 @@ export type QueuePauseControlsProps = {
   enabled?: boolean;
   /** Called after a pause, a resume, or a cancel, so that the parent can read its own data again. */
   onChanged?: () => void;
-  /** Shows the "Review changes" button, which opens the review of the differences between the queue and its template. */
-  reviewChanges?: boolean;
   /** Extra controls that belong beside the pause buttons. */
   children?: React.ReactNode;
 };
@@ -39,8 +36,7 @@ const formatSince = (iso: string | null | undefined): string => {
  * "Pausing", and the operator can cancel it. The component shows nothing when the queue does not run. It is not
  * the "Pause when idle" setting of the queue.
  */
-export const QueuePauseControls: React.FC<QueuePauseControlsProps> = ({ queueId, health: healthProp, enabled = true, onChanged, reviewChanges = false, children }) => {
-  const [reviewOpen, setReviewOpen] = useState(false);
+export const QueuePauseControls: React.FC<QueuePauseControlsProps> = ({ queueId, health: healthProp, enabled = true, onChanged, children }) => {
   const controlled = healthProp !== undefined;
   const [health, setHealth] = useState<QueueHealthDto | null>(controlled ? healthProp : null);
   const [state, setState] = useState<OperatorPauseState | null>(controlled && healthProp ? healthProp.operatorPause ?? 'none' : null);
@@ -123,21 +119,8 @@ export const QueuePauseControls: React.FC<QueuePauseControlsProps> = ({ queueId,
       {current === 'paused' && (
         <button type="button" disabled={busy} onClick={() => void onResume()}>Resume</button>
       )}
-      {reviewChanges && !reviewOpen && (
-        <button type="button" onClick={() => setReviewOpen(true)}>Review changes</button>
-      )}
       {children}
       {error && <p className="form-error queue-pause-controls__error" role="alert">{error}</p>}
-      {reviewChanges && reviewOpen && (
-        <div className="queue-pause-controls__review">
-          <ReviewTemplateChangesDialog
-            queueId={queueId}
-            paused={current === 'paused'}
-            onClose={() => setReviewOpen(false)}
-            onApplied={() => onChanged?.()}
-          />
-        </div>
-      )}
     </div>
   );
 };

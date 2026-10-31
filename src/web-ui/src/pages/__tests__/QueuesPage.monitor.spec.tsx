@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 
 describe('QueuesPage monitor-vs-editor routing', () => {
-  it('renders the monitor (not the editor) when the opened queue is Running', async () => {
+  it('renders the monitor with the running editor when the opened queue is Running', async () => {
     listQueuesMock.mockResolvedValue([row({ status: 'Running' })] as any);
     getQueueMock.mockResolvedValue(detail({ status: 'Running' }) as any);
 
@@ -48,7 +48,8 @@ describe('QueuesPage monitor-vs-editor routing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Daily' }));
 
     await screen.findByTestId('queue-monitor-stub');
-    expect(screen.queryByText('Edit Queue')).not.toBeInTheDocument();
+    expect(screen.getByRole('form', { name: 'Edit queue form' })).toBeInTheDocument();
+    expect(screen.getByText('Settings apply at the next start.')).toBeInTheDocument();
   });
 
   it('renders the editor when the opened queue is Stopped', async () => {

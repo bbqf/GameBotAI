@@ -2,7 +2,7 @@
 
 **Feature Branch**: `171-live-template-changes`  
 **Created**: 2026-10-30  
-**Status**: Implemented  
+**Status**: Implemented (iterated by 173)  
 **Input**: User description: "As an operator I want to be able to apply template changes without interrupting the queue run. Explicitly I want to be able to enable/disable individual sequences, change their parameters, adding and removing the sequences. Changing their order of execution is desired, but not required if it increases complexity by a large amount. What is important is that the sequences schedules do not change without a direct instruction to do so. In order to make the changes atomic, we will need to introduce a queue pause in between sequences, i.e. if paused, the queue has to finish a running sequence if any and then pause and wait to be resumed."
 
 ## Clarifications

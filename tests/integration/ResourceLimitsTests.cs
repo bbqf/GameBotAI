@@ -98,6 +98,12 @@ public sealed class ResourceLimitsTests : IDisposable {
       var client = app.CreateClient();
       client.DefaultRequestHeaders.Add("Authorization", "Bearer test-token");
 
+      // The earlier tests of the same process leave garbage. A full collection returns it, so the test
+      // measures the live memory and not the history of the run.
+      GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+      GC.WaitForPendingFinalizers();
+      GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+
       var resp = await client.GetAsync(new Uri("/api/metrics/process", UriKind.Relative)).ConfigureAwait(true);
       resp.EnsureSuccessStatusCode();
       var raw = await resp.Content.ReadAsStringAsync().ConfigureAwait(true);

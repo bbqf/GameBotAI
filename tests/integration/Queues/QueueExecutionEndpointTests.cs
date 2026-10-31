@@ -136,14 +136,16 @@ public sealed class QueueExecutionEndpointTests {
   }
 
   [Fact]
-  public async Task UpdateWhileRunningReturns409() {
+  public async Task UpdateWhileRunningSavesTheSettingsAndTheQueueKeepsRunning() {
     using var app = new WebApplicationFactory<Program>();
     var client = NewClient(app);
     var id = await StartCyclingQueueAsync(client).ConfigureAwait(true);
 
     var resp = await client.PutAsJsonAsync(new Uri($"/api/queues/{id}", UriKind.Relative), new { name = "X", cycleExecution = false }).ConfigureAwait(true);
-    resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
-    (await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).Should().Contain("queue_running");
+    resp.StatusCode.Should().Be(HttpStatusCode.OK);
+    var body = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).RootElement;
+    body.GetProperty("name").GetString().Should().Be("X");
+    body.GetProperty("status").GetString().Should().Be("Running");
 
     await StopAsync(client, id).ConfigureAwait(true);
   }
@@ -160,13 +162,14 @@ public sealed class QueueExecutionEndpointTests {
   }
 
   [Fact]
-  public async Task AddEntryAllowedWhileRunning() {
+  public async Task AddEntryWhileRunningReturns409() {
     using var app = new WebApplicationFactory<Program>();
     var client = NewClient(app);
     var id = await StartCyclingQueueAsync(client).ConfigureAwait(true);
 
     var resp = await client.PostAsJsonAsync(new Uri($"/api/queues/{id}/entries", UriKind.Relative), new { sequenceId = "seq-a" }).ConfigureAwait(true);
-    resp.StatusCode.Should().Be(HttpStatusCode.Created);
+    resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    (await resp.Content.ReadAsStringAsync().ConfigureAwait(true)).Should().Contain("queue_running");
 
     await StopAsync(client, id).ConfigureAwait(true);
   }

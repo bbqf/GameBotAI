@@ -57,6 +57,28 @@ describe('ReviewTemplateChangesDialog', () => {
     expect(screen.getByTestId('review-selected-count')).toHaveTextContent('2 of 3 selected');
   });
 
+  it('explains in one sentence what it compares, what Apply does, and that the queue must be paused first', async () => {
+    getDiffMock.mockResolvedValue(diff([difference()]));
+
+    render(<ReviewTemplateChangesDialog queueId="q1" paused={false} onClose={() => {}} />);
+
+    const explanation = await screen.findByTestId('review-explanation');
+    expect(explanation).toHaveTextContent(
+      'Compare the running queue with its template, then pause the queue and apply the changes that you select.'
+    );
+    expect(explanation.textContent?.split(/[.!?]\s/).filter(Boolean)).toHaveLength(1);
+    expect((explanation.textContent ?? '').split(/\s+/).length).toBeLessThanOrEqual(25);
+  });
+
+  it('shows the explanation once, also while the queue is paused', async () => {
+    getDiffMock.mockResolvedValue(diff([difference()]));
+
+    render(<ReviewTemplateChangesDialog queueId="q1" paused onClose={() => {}} />);
+
+    await screen.findAllByTestId('template-difference');
+    expect(screen.getAllByTestId('review-explanation')).toHaveLength(1);
+  });
+
   it('shows that there is nothing to apply', async () => {
     getDiffMock.mockResolvedValue(diff([]));
 

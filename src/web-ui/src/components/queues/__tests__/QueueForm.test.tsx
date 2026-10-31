@@ -23,6 +23,7 @@ const renderForm = (overrides: Partial<React.ComponentProps<typeof QueueForm>> =
       formError={overrides.formError}
       templateControls={overrides.templateControls}
       gameControls={overrides.gameControls}
+      running={overrides.running}
     />
   );
   return { onChange, onSubmit, onCancel };
@@ -43,6 +44,27 @@ describe('QueueForm', () => {
     expect(emulator).toHaveValue('emu-9');
     expect(emulator).toBeDisabled();
     expect(screen.queryByText(/bound emulator cannot be changed/i)).not.toBeInTheDocument();
+  });
+
+  it('says when the settings apply for a running queue, and keeps the emulator read-only', () => {
+    renderForm({ mode: 'edit', running: true, value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
+    expect(screen.getByText('Settings apply at the next start.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Emulator *')).toBeDisabled();
+    expect(screen.getByLabelText('Cycle execution')).not.toBeDisabled();
+    expect(screen.getByLabelText('Name *')).not.toBeDisabled();
+  });
+
+  it('shows the settings note once, after the Save button', () => {
+    renderForm({ mode: 'edit', running: true, value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
+    const note = screen.getByText('Settings apply at the next start.');
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(screen.getAllByText('Settings apply at the next start.')).toHaveLength(1);
+    expect(save.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows no settings note for a stopped queue or in create mode', () => {
+    renderForm({ mode: 'edit', value: { ...baseValue, name: 'Farm', emulatorSerial: 'emu-9' } });
+    expect(screen.queryByText('Settings apply at the next start.')).not.toBeInTheDocument();
   });
 
   it('renders slots in the new order: emulator → cycle → game → Save → separator → template section', () => {

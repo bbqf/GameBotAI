@@ -198,8 +198,9 @@ Status vocabulary:
 | 168 | Friendly Sequence Parameters | Implemented |
 | 169 | Command Editor Parameter Fields | Implemented |
 | 170 | End a Run at Its Time Limit Without a Failure Status | Implemented |
-| 171 | Apply Template Changes to a Running Queue | Implemented |
+| 171 | Apply Template Changes to a Running Queue | Implemented (iterated by 173) |
 | 172 | Split the Largest CI Test Shard | Implemented |
+| 173 | Clean Up the Queues Page on the Big Screen | Implemented |
 
 ## Numbering notes
 

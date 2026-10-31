@@ -27,6 +27,8 @@ export type QueueDto = {
   linkedTemplateId: string | null;
   linkedGameId: string | null;
   linkedGameName: string | null;
+  /** Pause state of a running queue (feature 171). The list sends it only while the queue runs (feature 173). */
+  operatorPause?: OperatorPauseState;
 };
 
 export type QueueEntryDto = {
