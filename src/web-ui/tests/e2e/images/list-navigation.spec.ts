@@ -41,5 +41,6 @@ test('lists images and opens detail view', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Image Detail' })).toBeVisible();
   await expect(page.getByTestId('selected-image-id')).toHaveText('snow-owl');
-  await expect(page.getByRole('table', { name: /Images table/i })).toBeVisible();
+  // The detail view replaces the list. A button leads back to the list.
+  await expect(page.getByRole('button', { name: /Back to list/ })).toBeVisible();
 });

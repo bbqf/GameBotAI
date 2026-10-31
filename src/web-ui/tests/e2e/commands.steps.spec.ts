@@ -60,27 +60,33 @@ test('command steps support add, reorder, delete and persist order on save', asy
 
   await page.getByLabel('Name *').fill('Playwright Cmd');
 
-  const commandDropdown = page.locator('#command-commands-dropdown');
-  await commandDropdown.selectOption('c1');
-  await page.getByRole('button', { name: 'Add command step' }).click();
+  // Add a key step, then a home screen step. Each step is chosen by its action type.
+  await page.getByLabel('Action type').selectOption('KeyInput');
+  await page.getByLabel('Key identifier *').fill('Enter');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
 
-  await page.getByLabel('Primitive tap image ID').fill('img-home');
-  await page.getByLabel('Primitive confidence (0-1)').fill('0.92');
-  await page.getByLabel('Primitive offset X').fill('3');
-  await page.getByLabel('Primitive offset Y').fill('-2');
-  await page.getByRole('button', { name: 'Add primitive tap step' }).click();
+  await page.getByLabel('Action type').selectOption('GoToHomeScreen');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
 
   const listItems = page.locator('.reorderable-list__item');
   await expect(listItems).toHaveCount(2);
 
-  const primitiveItem = listItems.filter({ hasText: 'Primitive tap: img-home' });
-  await primitiveItem.getByRole('button', { name: 'Move up' }).click();
+  // The list reorders by drag. Drag the home step above the key step with the mouse.
+  const handle = listItems.filter({ hasText: 'Go to home screen' }).getByRole('button', { name: 'Drag to reorder' });
+  const target = await listItems.filter({ hasText: 'Key: Enter' }).boundingBox();
+  const from = await handle.boundingBox();
+  if (!from || !target) throw new Error('The steps are not on screen.');
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 - 8, { steps: 3 });
+  // Move straight up, so the dragged step stays over the list.
+  await page.mouse.move(from.x + from.width / 2, target.y + 2, { steps: 12 });
+  await page.mouse.up();
 
   const finalItems = page.locator('.reorderable-list__item');
   await expect(finalItems).toHaveCount(2);
-  await expect(finalItems.nth(0)).toContainText('Primitive tap: img-home');
-  await expect(finalItems.nth(1)).toContainText('Command: Existing Cmd');
-
+  await expect(finalItems.nth(0)).toContainText('Go to home screen');
+  await expect(finalItems.nth(1)).toContainText('Key: Enter');
   await page.getByRole('button', { name: /^Save$/ }).click();
 
   await expect.poll(() => createPayload).not.toBeUndefined();
@@ -88,19 +94,8 @@ test('command steps support add, reorder, delete and persist order on save', asy
   expect(createPayload).toMatchObject({
     name: 'Playwright Cmd',
     steps: [
-      {
-        type: 'PrimitiveTap',
-        order: 0,
-        primitiveTap: {
-          detectionTarget: {
-            referenceImageId: 'img-home',
-            confidence: 0.92,
-            offsetX: 3,
-            offsetY: -2,
-          }
-        }
-      },
-      { type: 'Command', targetId: 'c1', order: 1 },
+      { type: 'GoToHomeScreen', order: 0 },
+      { type: 'KeyInput', order: 1, keyInput: { key: 'Enter' } },
     ],
   });
 });

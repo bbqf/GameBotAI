@@ -54,6 +54,8 @@ test('authoring items reachable in one click from landing', async ({ page }) => 
 test('configuration inputs editable without authoring content', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Configuration', exact: true }).click();
+  // The Backend Connection section is closed on a wide screen. Open it first.
+  await page.getByText('Backend Connection').click();
   const baseUrl = page.getByLabel('API Base URL');
   const token = page.getByLabel('Bearer Token');
   await baseUrl.fill('http://localhost:5000');
