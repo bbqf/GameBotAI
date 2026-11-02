@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.Versioning;
 using GameBot.Domain.Commands;
 
 namespace GameBot.Domain.Vision;
@@ -8,6 +9,7 @@ namespace GameBot.Domain.Vision;
 /// Compares two frames (feature 174). The result is the mean absolute difference of the R, G, and B bytes,
 /// scaled to 0..1. 0 means the same pixels. 1 means the largest possible change.
 /// </summary>
+[SupportedOSPlatform("windows")]
 public static class FrameDifference {
   /// <summary>
   /// Gives the difference of two frames inside <paramref name="region"/> (the whole frame when null).
