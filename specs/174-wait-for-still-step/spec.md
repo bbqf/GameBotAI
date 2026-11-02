@@ -2,7 +2,7 @@
 
 **Feature Branch**: `174-wait-for-still-step`
 **Created**: 2026-11-02
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "FR-039: A step that waits until the screen has stopped changing (GitHub issue #368). Closes #368."
 
 ## Clarifications

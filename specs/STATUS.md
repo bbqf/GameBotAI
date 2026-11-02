@@ -201,6 +201,7 @@ Status vocabulary:
 | 171 | Apply Template Changes to a Running Queue | Implemented (iterated by 173) |
 | 172 | Split the Largest CI Test Shard | Implemented |
 | 173 | Clean Up the Queues Page on the Big Screen | Implemented |
+| 174 | Wait for Still Step | Implemented |
 
 ## Numbering notes
 

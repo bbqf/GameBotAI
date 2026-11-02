@@ -100,7 +100,7 @@ public sealed class GoHomeAndEnsureEmulatorUnchangedTests {
   public void TheActionTypeListHasNoNewMember() {
     SequenceActionTypes.All.Should().Equal(
       "tap", "swipe", "key", "command", "connect-to-game", "WaitForImage", "ensure-game-running",
-      "go-to-home-screen", "ensure-emulator-running", "reschedule-self", "notify", "quiz-lookup", "quiz-learn");
+      "go-to-home-screen", "ensure-emulator-running", "reschedule-self", "notify", "quiz-lookup", "quiz-learn", "WaitForStill");
   }
 
   [Fact]

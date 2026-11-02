@@ -394,6 +394,12 @@ public sealed class SequenceStepValidationService {
         // feature 142: the lookup step reference and the correct answer.
         ValidateQuizLearnPayload(step, stepLabel, ownPosition, errors);
       }
+      else if (string.Equals(step.Action.Type, ActionTypes.WaitForStill, StringComparison.OrdinalIgnoreCase)) {
+        // feature 174: region, stableMs, maxDiff, and timeoutMs.
+        foreach (var waitError in GameBot.Domain.WaitForStill.WaitForStillPayload.Validate(step.Action)) {
+          errors.Add($"Step '{stepLabel}' WaitForStill {waitError}.");
+        }
+      }
       else if (string.IsNullOrWhiteSpace(step.Action.Type) || !AllowedPrimitiveActionTypes.Contains(step.Action.Type)) {
         errors.Add($"Step '{stepLabel}' action type '{step.Action.Type}' is not a supported primitive action type (expected one of {SequenceActionTypes.SupportedValuesText}).");
       }

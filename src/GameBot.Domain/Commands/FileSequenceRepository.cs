@@ -133,7 +133,8 @@ namespace GameBot.Domain.Commands {
                 ActionTypes.RescheduleSelf,
                 ActionTypes.Notify,
                 ActionTypes.QuizLookup,
-                ActionTypes.QuizLearn
+                ActionTypes.QuizLearn,
+                ActionTypes.WaitForStill
             };
 
       foreach (var step in sequence.Steps) {
@@ -164,6 +165,9 @@ namespace GameBot.Domain.Commands {
 
         // Feature 142: backstop for the quiz steps. The validator gives the 400 first.
         GuardQuizPayload(step);
+
+        // Feature 174: backstop for the WaitForStill step. The validator gives the 400 first.
+        GuardWaitForStillPayload(step);
       }
 
       foreach (var step in sequence.FlowSteps) {
@@ -188,6 +192,19 @@ namespace GameBot.Domain.Commands {
         if (!supportedActionTypes.Contains(actionType)) {
           throw new InvalidOperationException($"Action step '{step.StepId}' references unsupported action type '{actionType}'.");
         }
+      }
+    }
+
+    // Feature 174: a WaitForStill step must have a valid payload.
+    private static void GuardWaitForStillPayload(SequenceStep step) {
+      if (step.Action is null
+          || !string.Equals(step.Action.Type, ActionTypes.WaitForStill, StringComparison.OrdinalIgnoreCase)) {
+        return;
+      }
+
+      var errors = GameBot.Domain.WaitForStill.WaitForStillPayload.Validate(step.Action);
+      if (errors.Count > 0) {
+        throw new InvalidOperationException($"Step '{step.StepId}' {step.Action.Type} {errors[0]}.");
       }
     }
 

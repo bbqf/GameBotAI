@@ -22,6 +22,7 @@ import { LoopBlock } from '../components/sequences/LoopBlock';
 import { IfBlock } from '../components/sequences/IfBlock';
 import { PrimitiveActionFields, summarizePrimitiveAction } from '../components/sequences/PrimitiveActionFields';
 import { QUIZ_LEARN_TYPE, QUIZ_LOOKUP_TYPE, createDefaultQuizAction } from '../components/sequences/QuizActionFields';
+import { createDefaultWaitForStillAction } from '../components/sequences/WaitForStillFields';
 import type { ActionStepEntry, LoopStepEntry, BreakStepEntry, IfStepEntry, StepEntry } from '../types/stepEntry';
 import type { SequenceLinearStep, LoopConfigDto, IfConfigDto, SequencePrimitiveActionPayload, SequenceCommandReference, CommandStepOutcomeExpectedState, CommandOutcomeExpectedState } from '../types/sequenceFlow';
 import { COMMAND_STEP_OUTCOME_STATES } from '../types/sequenceFlow';
@@ -107,6 +108,13 @@ const createDefaultQuizStep = (type: string, stepId: string): SequenceStep => ({
   ...createDefaultStep('', stepId),
   actionType: 'primitive',
   primitiveAction: createDefaultQuizAction(type),
+});
+
+// Feature 174: a new WaitForStill step with the default values. It is an inline action with its own field form.
+const createDefaultWaitForStillStep = (stepId: string): SequenceStep => ({
+  ...createDefaultStep('', stepId),
+  actionType: 'primitive',
+  primitiveAction: createDefaultWaitForStillAction(),
 });
 
 type SequenceFormValue = {
@@ -2187,6 +2195,17 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                   >
                     Add quiz learn step
                   </button>
+                  <button
+                    type="button"
+                    data-testid="add-wait-for-still-button"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultWaitForStillStep(nextGeneratedStepId(prev.steps))] }));
+                      setDirty(true);
+                    }}
+                    disabled={submitting || loading}
+                  >
+                    Add wait for still step
+                  </button>
                 </div>
               </div>
             </div>
@@ -2481,6 +2500,17 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
                       disabled={submitting || loading}
                     >
                       Add quiz learn step
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="add-wait-for-still-button"
+                      onClick={() => {
+                        setForm((prev) => ({ ...prev, steps: [...prev.steps, createDefaultWaitForStillStep(nextGeneratedStepId(prev.steps))] }));
+                        setDirty(true);
+                      }}
+                      disabled={submitting || loading}
+                    >
+                      Add wait for still step
                     </button>
                   </div>
                 </div>

@@ -45,7 +45,7 @@ The 400 response lists all errors, as it does for the other action types.
 | `timeout_elapsed` | `timeoutMs` passes, or no frame can be read. | Succeeded | `not still after <ms> ms; last difference <d>` or `the screen could not be read` |
 | `failed` | The region is fully outside the screen. | Failed | `region is outside the screen (<w>x<h>)` |
 
-A dry run records `skipped_dry_run` and reads no frame. A step-through shows the preview text
+The difference has four decimals. It is `none` when the step compared no frame pair. A step with no readable frame at all gives `the screen could not be read`. A dry run records `skipped_dry_run` and reads no frame. A step-through shows the preview text
 `would wait until the region is still` and reads no frame. A failed capture is skipped: the step clears the previous frame and the stable time, waits one capture interval, and tries again until the deadline, as `WaitForImage` does. A stop signal cancels the wait and passes up as `OperationCanceledException`. The step records no outcome, as `WaitForImage` does.
 
 ## Use of the outcome

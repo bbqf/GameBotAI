@@ -641,8 +641,7 @@ namespace GameBot.Domain.Services {
       if (step.StepType == SequenceStepType.Action
           && actionDispatcher is not null
           && IsServiceLevelAction(step.Action)) {
-        await RecordServiceLevelActionAsync(step, stepKey, appliedDelay, actionDispatcher, result, stepOutcomes, ct).ConfigureAwait(false);
-        return false;
+        return await RecordServiceLevelActionAsync(step, stepKey, appliedDelay, actionDispatcher, result, stepOutcomes, ct).ConfigureAwait(false);
       }
 
       // ── Primitive action dispatch (tap / swipe / key / connect-to-game /
@@ -759,7 +758,8 @@ namespace GameBot.Domain.Services {
       if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "success";
     }
 
-    private static async Task RecordServiceLevelActionAsync(
+    // Returns true when the step failed and the sequence stops (only a WaitForStill step, feature 174).
+    private static async Task<bool> RecordServiceLevelActionAsync(
         SequenceStep step,
         string stepKey,
         int appliedDelay,
@@ -770,6 +770,26 @@ namespace GameBot.Domain.Services {
       // Feature 142: a quiz handler needs the id of its own step. The id is ambient only for the dispatch.
       using var quizStep = IsQuizAction(step.Action) ? GameBot.Domain.Quiz.QuizStepScope.Push(stepKey) : null;
       var dispatch = await actionDispatcher(step.Action!, ct).ConfigureAwait(false);
+      // Feature 174: a WaitForStill step with a region outside the screen gives the outcome "failed". That
+      // fails the step and stops the sequence.
+      if (IsWaitForStillAction(step.Action)
+          && string.Equals(dispatch.Outcome, "failed", StringComparison.OrdinalIgnoreCase)) {
+        var reason = !string.IsNullOrWhiteSpace(dispatch.Message)
+          ? dispatch.Message
+          : $"step '{stepKey}' {step.Action!.Type} failed";
+        result.AddStep(
+            stepKey,
+            appliedDelay,
+            "Failed",
+            conditionType: step.Condition is null ? null : step.Condition.Type,
+            conditionResult: step.Condition is null ? null : "true",
+            actionOutcome: "failed",
+            message: reason);
+        result.Fail(reason);
+        if (!string.IsNullOrWhiteSpace(stepKey)) stepOutcomes[stepKey] = "failed";
+        return true;
+      }
+
       result.AddStep(
           stepKey,
           appliedDelay,
@@ -780,12 +800,16 @@ namespace GameBot.Domain.Services {
           message: dispatch.Message,
           removed: dispatch.Removed);
       // Feature 142: a quiz step records its own outcome (pick_N, unreadable, stored, ...), so a later
-      // commandOutcome condition can read it. Other service-level steps record "success".
+      // commandOutcome condition can read it. Feature 174: a WaitForStill step records still or
+      // timeout_elapsed. Other service-level steps record "success".
       if (!string.IsNullOrWhiteSpace(stepKey)) {
-        stepOutcomes[stepKey] = IsQuizAction(step.Action) && !string.IsNullOrWhiteSpace(dispatch.Outcome)
+        stepOutcomes[stepKey] = (IsQuizAction(step.Action) || IsWaitForStillAction(step.Action))
+            && !string.IsNullOrWhiteSpace(dispatch.Outcome)
           ? dispatch.Outcome
           : "success";
       }
+
+      return false;
     }
 
     /// <summary>
@@ -1006,7 +1030,13 @@ namespace GameBot.Domain.Services {
     internal static bool IsServiceLevelAction(SequenceActionPayload? action) {
       return string.Equals(action?.Type, ActionTypes.RescheduleSelf, StringComparison.OrdinalIgnoreCase)
           || string.Equals(action?.Type, ActionTypes.Notify, StringComparison.OrdinalIgnoreCase)
-          || IsQuizAction(action);
+          || IsQuizAction(action)
+          || IsWaitForStillAction(action);
+    }
+
+    /// <summary>True for a <c>WaitForStill</c> action (feature 174).</summary>
+    public static bool IsWaitForStillAction(SequenceActionPayload? action) {
+      return string.Equals(action?.Type, ActionTypes.WaitForStill, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>True for a <c>quiz-lookup</c> or <c>quiz-learn</c> action (feature 142).</summary>

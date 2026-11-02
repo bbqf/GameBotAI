@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-10-31 (feature 173: the Queues page. The list has icon buttons and an Activity column. A running queue opens on the Edit page, and its editor changes the template only. The list response has operatorPause. See the 173 block of the API surface; feature 171: live template changes. A running queue can pause between sequences, and the operator can apply template changes to it with no restart. See the domain model section and `docs/live-template-changes.md`; feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
+_Last reviewed: 2026-11-02 (feature 174: the `WaitForStill` sequence step waits until the screen stops changing. It ends with `still` or `timeout_elapsed`. See the WaitForStill step section; feature 173: the Queues page. The list has icon buttons and an Activity column. A running queue opens on the Edit page, and its editor changes the template only. The list response has operatorPause. See the 173 block of the API surface; feature 171: live template changes. A running queue can pause between sequences, and the operator can apply template changes to it with no restart. See the domain model section and `docs/live-template-changes.md`; feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
 feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
 feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
@@ -766,7 +766,7 @@ Break is rejected — are published on the OpenAPI `SequenceStep` schema and its
 properties by `SequenceNestingRulesSchemaFilter` (feature 099, issue #178). The accepted
 `primitiveAction.type` values — `SequenceActionTypes.All`: tap, swipe, key, command, connect-to-game,
 WaitForImage, ensure-game-running, go-to-home-screen, ensure-emulator-running, reschedule-self, notify,
-quiz-lookup, quiz-learn,
+quiz-lookup, quiz-learn, WaitForStill,
 matched case-insensitively — are the single list behind the step validator, `ActionPayloadValidationService`
 and the OpenAPI `PrimitiveAction.type` enum. `PrimitiveActionSchemaFilter` describes each type's payload fields
 on `PrimitiveAction.payload`, and an unsupported type is rejected with 400 whose message appends
@@ -1498,6 +1498,35 @@ Neither step taps. The author reads the outcome with a `commandOutcome` conditio
   not change.
 - **Log**: one line for each step with the step id, the outcome, `known` or `guess`, the normalized question, and the
   position. The log never has a secret.
+
+### WaitForStill step (feature 174)
+
+A sequence step of type `WaitForStill` waits until the screen, or a part of it, stops changing. It replaces a fixed
+wait after a pan or a scroll. It is a service-level action (`SequenceRunner.IsServiceLevelAction`). It has no image
+and no command form.
+
+- **Payload** (`WaitForStillPayload`): `region` (optional; `x`, `y`, `width`, `height`; the rules of `PixelRegion`),
+  `stableMs` (integer, 1 or more, default 300), `maxDiff` (number from 0 to 1, default 0.01), `timeoutMs` (integer,
+  1 or more, default 5000). `stableMs` must not be greater than `timeoutMs`. An unknown field is an error. A
+  `{{name}}` reference is not checked at save time.
+- **Compare**: `FrameDifference.Compute` gives the mean absolute R, G, B difference of two frames (0 to 1) in the
+  region. Frames of different sizes give 1. `WaitForStillTracker` holds the stable time. Each frame is compared with
+  the previous frame, not with the first stable frame.
+- **Poll**: `WaitForStillHandler` takes a frame with `ISessionFrameSource.Capture` each `AppConfig.CaptureIntervalMs`
+  and uses `WaitForImageSchedule.NextWait`, so both waits share one schedule. The step cannot see a still time that is
+  shorter than one capture interval. A frame that cannot be read (null, or an exception that is not a stop signal) is
+  skipped: the tracker is reset and the wait goes on, as it does for `WaitForImage`. With no session the handler waits
+  for the time limit. A stop signal passes up as `OperationCanceledException` and records no outcome.
+- **Outcomes**: `still` and `timeout_elapsed` (also when no frame can be read). Both give the step status
+  `Succeeded`. A region fully outside the screen gives the result `failed` (message "region is outside the screen"),
+  which fails the step and stops the sequence. `failed` is not an outcome name of the step. A dry run records
+  `skipped_dry_run`. A step-through shows a preview and reads no frame.
+- **Conditions**: the runner records the outcome as the step state. `StepOutcomeStates.IsExpectedStateAllowed` accepts
+  `still` and `timeout_elapsed`, and `success` matches `still`. The fixed list `StepOutcomeStates.All` does not change.
+- **Log**: the execution log has one entry for the step with the outcome, the time, and the last difference.
+- **Web UI**: the sequence editor has the button "Add wait for still step" and the field form `WaitForStillFields`.
+  The phone support level is desktop-only, the same as the `WaitForImage` form.
+- **Contract**: `specs/174-wait-for-still-step/contracts/wait-for-still-step.md`.
 
 ### Gamepack install (feature 143)
 

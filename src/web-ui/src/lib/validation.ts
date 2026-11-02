@@ -243,9 +243,12 @@ const COMMAND_OUTCOME_STATES = ['success', 'failed', 'skipped', 'break', 'no_bre
 // Feature 142: the outcomes of the quiz steps. A lookup gives pick_N (N from 1). A learn gives stored or a skip.
 const QUIZ_OUTCOME_STATES = ['unreadable', 'service_unavailable', 'stored', 'skipped_no_match', 'skipped_ambiguous'];
 const QUIZ_PICK_OUTCOME = /^pick_[1-9][0-9]*$/i;
+// Feature 174: the two outcomes of a WaitForStill step.
+const WAIT_FOR_STILL_OUTCOME_STATES = ['still', 'timeout_elapsed'];
 const isAllowedExpectedState = (state: string): boolean =>
   COMMAND_OUTCOME_STATES.includes(state)
   || QUIZ_OUTCOME_STATES.includes(state.toLowerCase())
+  || WAIT_FOR_STILL_OUTCOME_STATES.includes(state.toLowerCase())
   || QUIZ_PICK_OUTCOME.test(state);
 
 /**

@@ -39,7 +39,10 @@ public static class StepOutcomeStates {
   /// True when a <c>commandOutcome</c> condition may expect <paramref name="state"/>: one of <see cref="All"/>, or
   /// an outcome of a quiz step (feature 142), for example <c>pick_2</c>.
   /// </summary>
-  public static bool IsExpectedStateAllowed(string? state) => IsAllowed(state) || GameBot.Domain.Quiz.QuizOutcomes.IsQuizOutcome(state);
+  public static bool IsExpectedStateAllowed(string? state) =>
+    IsAllowed(state)
+    || GameBot.Domain.Quiz.QuizOutcomes.IsQuizOutcome(state)
+    || GameBot.Domain.WaitForStill.WaitForStillOutcomes.IsWaitForStillOutcome(state);
 
   /// <summary>
   /// True when a step whose recorded state is <paramref name="actual"/> satisfies a condition that
@@ -51,6 +54,11 @@ public static class StepOutcomeStates {
     // Feature 142: a quiz step that did its work (a pick or a stored answer) also matches success.
     if (string.Equals(expected, Success, StringComparison.OrdinalIgnoreCase)
         && GameBot.Domain.Quiz.QuizOutcomes.IsSuccessful(actual)) {
+      return true;
+    }
+    // Feature 174: a WaitForStill step that ended with still also matches success.
+    if (string.Equals(expected, Success, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(actual, GameBot.Domain.WaitForStill.WaitForStillOutcomes.Still, StringComparison.OrdinalIgnoreCase)) {
       return true;
     }
     return string.Equals(actual, Restarted, StringComparison.OrdinalIgnoreCase)

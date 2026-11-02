@@ -11,12 +11,12 @@ public static class SequenceActionTypes {
   /// <summary>
   /// Every supported type in canonical spelling: the device primitives of <see cref="PrimitiveActionTypes.All"/> in
   /// their order, then the service-level <see cref="ActionTypes.RescheduleSelf"/>, <see cref="ActionTypes.Notify"/>,
-  /// <see cref="ActionTypes.QuizLookup"/>, and <see cref="ActionTypes.QuizLearn"/>.
+  /// <see cref="ActionTypes.QuizLookup"/>, <see cref="ActionTypes.QuizLearn"/>, and <see cref="ActionTypes.WaitForStill"/>.
   /// Callers match against it case-insensitively.
   /// </summary>
   public static IReadOnlyList<string> All { get; } = new ReadOnlyCollection<string>(
     PrimitiveActionTypes.All
-      .Concat(new[] { ActionTypes.RescheduleSelf, ActionTypes.Notify, ActionTypes.QuizLookup, ActionTypes.QuizLearn })
+      .Concat(new[] { ActionTypes.RescheduleSelf, ActionTypes.Notify, ActionTypes.QuizLookup, ActionTypes.QuizLearn, ActionTypes.WaitForStill })
       .ToArray());
 
   /// <summary>
