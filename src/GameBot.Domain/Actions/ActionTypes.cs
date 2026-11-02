@@ -56,4 +56,10 @@ public static class ActionTypes {
   /// step in the quiz answer store. A service-level action.
   /// </summary>
   public const string QuizLearn = "quiz-learn";
+
+  /// <summary>
+  /// Wait-for-still action (feature 174): waits until a part of the screen, or the whole screen, stops changing.
+  /// A service-level action. The outcome is <c>still</c> or <c>timeout_elapsed</c>.
+  /// </summary>
+  public const string WaitForStill = "WaitForStill";
 }

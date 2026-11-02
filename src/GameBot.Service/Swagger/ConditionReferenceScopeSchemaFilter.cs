@@ -41,7 +41,9 @@ internal sealed class ConditionReferenceScopeSchemaFilter : ISchemaFilter {
     + "checked. This asymmetry is inherited from feature 088 and is deliberate.";
 
   internal const string ExpectedStateRule =
-    "expectedState is one of success, failed, skipped, break, no_break or restarted. success/failed/skipped are the "
+    "expectedState is one of success, failed, skipped, break, no_break, restarted, still or timeout_elapsed. "
+    + "still and timeout_elapsed are the two outcomes of a WaitForStill step; a condition on success also matches still. "
+    + "success/failed/skipped are the "
     + "referenced step's own result. restarted is true only for an ensure-game-running step with forceRestart "
     + "true that restarted the game; a condition on success also matches that step. break and no_break ask whether a referenced Break step fired or did "
     + "not, which is how a caller distinguishes those two outcomes; they are only meaningful against a "

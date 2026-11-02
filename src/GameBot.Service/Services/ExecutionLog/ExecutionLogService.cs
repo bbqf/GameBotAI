@@ -752,6 +752,8 @@ internal sealed class ExecutionLogService : IExecutionLogService {
       "scheduled" => "success",
       // feature 129: a restart step stopped and started the game. That is the step working.
       "restarted" => "success",
+      // feature 174: a WaitForStill step ends with still or with the time limit. Both end the wait as designed.
+      "still" or "timeout_elapsed" => "success",
       // feature 137: a notify step with a dedupe key either sent the alert or skipped it on purpose.
       "sent" or "suppressed" => "success",
       "noop" => "skipped",

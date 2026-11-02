@@ -110,7 +110,16 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
         + "height}: where the screen shows the correct answer text). The correct text must reach the similarity limit "
         + "of the lookup for exactly one answer. The outcome is stored, skipped_no_match (no lookup result, or no "
         + "matching answer), skipped_ambiguous (more than one matching answer), or service_unavailable (the store "
-        + "cannot be used). A step with a wrong shape is rejected with 400. Example step: " + QuizLearnExample
+        + "cannot be used). A step with a wrong shape is rejected with 400. Example step: " + QuizLearnExample,
+      [ActionTypes.WaitForStill] =
+        "region, object, optional (default the whole screen): x, y, width, height in capture pixels, all four required, "
+        + "x and y 0 or more, width and height more than 0. stableMs, integer >= 1, optional (default 300): the time that "
+        + "the region must stay the same. maxDiff, number from 0 to 1, optional (default 0.01): the largest mean pixel "
+        + "difference between two captures that counts as the same. timeoutMs, integer >= 1, optional (default 5000): "
+        + "the time limit. stableMs must not be greater than timeoutMs. An unknown field is rejected with 400. "
+        + "The outcome is still (the region stayed the same for stableMs) or timeout_elapsed (timeoutMs passed, or the "
+        + "screen could not be read); both succeed the step. A region fully outside the screen fails the step. "
+        + "A later commandOutcome condition can read the outcome, for example expectedState still."
     };
 
   /// <summary>

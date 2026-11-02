@@ -278,6 +278,8 @@ internal static class GameBotServiceSetup {
       new GameBot.Service.Services.Quiz.QuizLookupResultKeeper(sp.GetService<TimeProvider>()));
     builder.Services.AddSingleton<GameBot.Service.Services.Quiz.QuizLookupHandler>();
     builder.Services.AddSingleton<GameBot.Service.Services.Quiz.QuizLearnHandler>();
+    // Feature 174: the WaitForStill step. It needs the frame source, which only some hosts have (it is optional).
+    builder.Services.AddSingleton<GameBot.Service.Services.WaitForStill.WaitForStillHandler>();
   }
 
   private static void RegisterSequenceAndQueueServices(WebApplicationBuilder builder) {

@@ -35,7 +35,8 @@ public sealed class ActionTypePreviewListTests {
     [ActionTypes.RescheduleSelf] = Mode.Previews,
     [ActionTypes.Notify] = Mode.Previews,
     [ActionTypes.QuizLookup] = Mode.Previews,
-    [ActionTypes.QuizLearn] = Mode.Previews
+    [ActionTypes.QuizLearn] = Mode.Previews,
+    [ActionTypes.WaitForStill] = Mode.Previews
   };
 
   private sealed class StubRepo : ISequenceRepository {

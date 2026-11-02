@@ -3,6 +3,7 @@ import type { SequencePrimitiveActionPayload } from '../../types/sequenceFlow';
 import type { ParameterScopeEntry } from '../parameters/types';
 import { ParameterizableField } from '../parameters/ParameterizableField';
 import { QuizActionFields, isQuizActionType } from './QuizActionFields';
+import { WaitForStillFields, isWaitForStillActionType } from './WaitForStillFields';
 
 /**
  * How one payload slot is edited. Decided once from the value the sequence was loaded with, not
@@ -140,9 +141,11 @@ const GenericPrimitiveActionFields: React.FC<PrimitiveActionFieldsProps> = ({
 
 /**
  * Picks the editor for an inline action. The quiz steps (feature 142) have their own field form with region
- * inputs. Every other inline action uses the generic payload form above.
+ * inputs. The WaitForStill step (feature 174) has its own form with an optional region. Every other inline
+ * action uses the generic payload form above.
  */
-export const PrimitiveActionFields: React.FC<PrimitiveActionFieldsProps> = (props) =>
-  isQuizActionType(props.action.type)
-    ? <QuizActionFields {...props} />
-    : <GenericPrimitiveActionFields {...props} />;
+export const PrimitiveActionFields: React.FC<PrimitiveActionFieldsProps> = (props) => {
+  if (isQuizActionType(props.action.type)) return <QuizActionFields {...props} />;
+  if (isWaitForStillActionType(props.action.type)) return <WaitForStillFields {...props} />;
+  return <GenericPrimitiveActionFields {...props} />;
+};

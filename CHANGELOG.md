@@ -17,6 +17,13 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Wait for Still step (174-wait-for-still-step, #368)
+  - **New step**: a sequence step of type `WaitForStill` waits until the screen, or a part of it, stops changing. Use it after a pan or a scroll, in place of a fixed wait. The step takes a frame each capture interval and compares it with the previous frame (mean absolute R, G, B difference, 0 to 1).
+  - **Fields**: `region` (optional, the whole screen if absent), `stableMs` (default 300), `maxDiff` (default 0.01), and `timeoutMs` (default 5000). `stableMs` must not be greater than `timeoutMs`. The save check rejects a bad value with a 400 and a clear error.
+  - **Outcomes**: `still` (the region stayed the same for `stableMs`) and `timeout_elapsed` (`timeoutMs` passed, or no frame could be read). Both succeed the step. A later `commandOutcome` condition can use `expectedState` `still` or `timeout_elapsed`. A condition on `success` also matches `still`. A region fully outside the screen fails the step.
+  - **Editor**: the sequence editor has the button **Add wait for still step** and a field form with the default values.
+  - **Not changed**: the `WaitForImage` step, the fixed wait, and the existing outcome names.
+  - See `docs/architecture.md` and `specs/174-wait-for-still-step/contracts/wait-for-still-step.md`.
 - Clean-up of the Queues page, and Edit for a running queue (173-queues-ui-cleanup)
   - **Edit a running queue**: **Edit** and the queue name now open the Edit page of a running queue. The page shows the pause controls, the notice of waiting template changes, the live monitor, the settings, and a template editor. The editor changes the linked template only. The run does not change and does not stop. The changes reach the run only when you pause the queue, review the changes, and apply them. A running queue with no linked template shows its entries read-only, and the page tells you to link a template.
   - **Review of template changes**: the **Review changes** button is no longer in the list row. The Edit page shows the notice "N changes wait in the template." with **Review changes**. The notice shows only when the template differs from the running queue. The review explains in one sentence what it compares, what **Apply** does, and that the queue must be paused first. The apply behavior of feature 171 is the same.

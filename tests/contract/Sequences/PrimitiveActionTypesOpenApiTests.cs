@@ -92,7 +92,7 @@ public sealed class PrimitiveActionTypesOpenApiTests {
     var values = EnumValues(Property(PrimitiveActionSchema(document), "type"));
 
     values.Should().Equal(SequenceActionTypes.All);
-    values.Should().HaveCount(13);
+    values.Should().HaveCount(14);
   }
 
   [Fact]
@@ -194,6 +194,7 @@ public sealed class PrimitiveActionTypesOpenApiTests {
   [InlineData("WaitForImage", "detectionTarget", "timeoutMs")]
   [InlineData("ensure-game-running", "forceRestart")]
   [InlineData("go-to-home-screen", "no payload fields")]
+  [InlineData("WaitForStill", "region", "stableMs", "maxDiff", "timeoutMs", "still", "timeout_elapsed")]
   public async Task InputPayloadsNameTheirFields(string type, params string[] fields) {
     ArgumentNullException.ThrowIfNull(fields);
     var section = PayloadSection(await PayloadDescriptionAsync().ConfigureAwait(false), type);

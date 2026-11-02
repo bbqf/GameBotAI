@@ -72,6 +72,9 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
   // so the hand-built test instances keep compiling. _textSendGuard is the guard time limit of the wait.
   private readonly GameBot.Service.Services.Notifications.INotificationDispatcher? _notificationDispatcher;
   private readonly TimeSpan _textSendGuard;
+  // Feature 174: the WaitForStill step. Optional, so the hand-built test instances keep compiling; without a
+  // handler the step waits for nothing and gives the outcome timeout_elapsed.
+  private readonly GameBot.Service.Services.WaitForStill.WaitForStillHandler? _waitForStill;
 
   public SequenceExecutionService(
     SequenceRunner runner,
@@ -101,7 +104,9 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     GameBot.Service.Services.Quiz.QuizLookupResultKeeper? quizKeeper = null,
     GameBot.Service.Services.Ocr.IOcrTextConditionReader? ocrTextReader = null,
     GameBot.Service.Services.Notifications.INotificationDispatcher? notificationDispatcher = null,
-    TimeSpan? textSendGuard = null) {
+    TimeSpan? textSendGuard = null,
+    GameBot.Service.Services.WaitForStill.WaitForStillHandler? waitForStill = null) {
+    _waitForStill = waitForStill;
     _notificationDispatcher = notificationDispatcher;
     _textSendGuard = textSendGuard
       ?? new GameBot.Service.Services.Notifications.NotificationDispatchLimits().SendTimeout
@@ -581,6 +586,30 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
         continue;
       }
 
+      // Feature 174: a WaitForStill step shows its outcome (still, timeout_elapsed, failed), the time, and the
+      // last difference in its own entry. The message of the step holds them.
+      if (SequenceRunner.IsWaitForStillAction(stepById?.Action)) {
+        detailItems.Add(new ExecutionDetailItem(
+          "step",
+          !string.IsNullOrWhiteSpace(step.Message)
+            ? $"WaitForStill step '{stepLabel}' {actionOutcome}: {step.Message}"
+            : $"WaitForStill step '{stepLabel}' {actionOutcome}.",
+          new Dictionary<string, object?> {
+            ["stepOrder"] = stepOrder++,
+            ["stepType"] = stepById!.Action!.Type,
+            ["status"] = step.Status,
+            ["actionOutcome"] = actionOutcome,
+            ["reasonCode"] = actionOutcome,
+            ["message"] = step.Message,
+            ["sequenceId"] = sequenceId,
+            ["sequenceLabel"] = sequenceName,
+            ["stepId"] = stepId,
+            ["stepLabel"] = stepLabel
+          },
+          "normal"));
+        continue;
+      }
+
       var waitDetails = step.WaitForImageDetails;
       var waitConfig = sequenceStep?.WaitForImage;
       var isWaitForImageStep = waitDetails is not null
@@ -968,6 +997,10 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
       return DispatchQuizAsync(action, sequenceId, sessionId, runId, ct);
     }
 
+    if (SequenceRunner.IsWaitForStillAction(action)) {
+      return DispatchWaitForStillAsync(action, sessionId, ct);
+    }
+
     if (string.Equals(action.Type, ActionTypes.ConnectToGame, StringComparison.OrdinalIgnoreCase)) {
       return DispatchConnectToGameAsync(action, ct);
     }
@@ -985,6 +1018,21 @@ internal sealed partial class SequenceExecutionService : ISequenceExecutionServi
     }
 
     return DispatchPrimitiveInputAsync(action, sessionId, ct);
+  }
+
+  /// <summary>
+  /// Routes a <c>WaitForStill</c> step (feature 174) to its handler. A host with no handler, or a session that
+  /// cannot be resolved, gives the outcome <c>timeout_elapsed</c> (no frame can be read). The handler waits for the
+  /// time limit first when it has no session.
+  /// </summary>
+  private Task<ActionDispatchResult> DispatchWaitForStillAsync(SequenceActionPayload action, string? sessionId, CancellationToken ct) {
+    if (_waitForStill is null) {
+      return Task.FromResult(new ActionDispatchResult(
+        GameBot.Domain.WaitForStill.WaitForStillOutcomes.TimeoutElapsed, "the screen could not be read"));
+    }
+
+    var resolvedSession = TryResolveSessionId(sessionId, action.Type, out var resolved, out _) ? resolved : null;
+    return _waitForStill.ExecuteAsync(action, resolvedSession, ct);
   }
 
   /// <summary>

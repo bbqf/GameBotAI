@@ -51,6 +51,11 @@ internal static class StepThroughActionPreview {
         "would store the correct answer of the lookup step in the quiz store (the store is not changed in a step-through)");
     }
 
+    // Feature 174: a WaitForStill step reads no frame in a step-through.
+    if (string.Equals(action.Type, ActionTypes.WaitForStill, StringComparison.OrdinalIgnoreCase)) {
+      return new ActionDispatchResult(SequenceStepper.PreviewOutcome, "would wait until the region is still");
+    }
+
     return new ActionDispatchResult(SequenceStepper.PreviewOutcome, $"would run '{action.Type}'");
   }
 
