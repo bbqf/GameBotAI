@@ -11,5 +11,5 @@ Before you push a branch for a new PR, bump the version in `installer/versioning
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/174-wait-for-still-step/plan.md
+at specs/175-wait-for-image-gone/plan.md
 <!-- SPECKIT END -->
