@@ -16,6 +16,13 @@ All notable changes to this project will be documented in this file.
   - **Fix**: the MSI sets `MSIRMSHUTDOWN=1`. After you choose **Close the applications**, the Restart Manager ends the bot also when it does not answer. The upgrade shows the dialog one time and starts the bot again. The rollback of a failed upgrade (feature 162) is not changed.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
+### Changed
+- "Use default" label in the parameter value form (176-use-default-label)
+  - **Label**: the box that was named "Inherit" is now named "Use default". The accessible name is `Use default <name>`.
+  - **Default value**: each row shows the declared default next to the box, or "No default" when the parameter has none. An empty default shows "(empty)". A choice shows the option label.
+  - **Not changed**: the resolve rules, the saved data, and the API.
+  - **Version**: 1.12.5.
+
 ### Added
 - Wait until an image is gone (175-wait-for-image-gone)
   - **New option**: the sequence `WaitForImage` step takes `until`. The value `present` (the default) ends the wait when the image shows. The value `absent` ends the wait when the image is gone. Use it for a toast or a banner that you must wait out before the next input.

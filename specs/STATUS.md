@@ -203,6 +203,7 @@ Status vocabulary:
 | 173 | Clean Up the Queues Page on the Big Screen | Implemented |
 | 174 | Wait for Still Step | Implemented |
 | 175 | Wait Until an Image Is Gone | Implemented |
+| 176 | Use Default Label | Implemented |
 
 ## Numbering notes
 

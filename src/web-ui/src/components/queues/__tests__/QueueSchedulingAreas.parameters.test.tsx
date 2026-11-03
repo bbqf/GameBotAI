@@ -82,7 +82,7 @@ describe('QueueSchedulingAreas per-entry parameters', () => {
     // Every row starts on "inherit" with its value disabled, so the common case is zero clicks;
     // supplying a value means opting out of inheritance first.
     expect(scope.getByLabelText('Value for sectionRowY')).toBeDisabled();
-    fireEvent.click(scope.getByLabelText('Inherit sectionRowY'));
+    fireEvent.click(scope.getByLabelText('Use default sectionRowY'));
     fireEvent.change(scope.getByLabelText('Value for sectionRowY'), { target: { value: '631' } });
 
     expect(onParameterValuesChange).toHaveBeenCalledWith(

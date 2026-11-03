@@ -2,7 +2,7 @@
 
 **Feature Branch**: `176-use-default-label`
 **Created**: 2026-11-03
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "FR-039: Rename the Inherit box in the parameter value form to Use default" (GitHub issue #356, Closes #356)
 
 ## User Scenarios & Testing *(mandatory)*

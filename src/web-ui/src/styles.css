@@ -214,6 +214,7 @@ pre.json { background: var(--gb-color-surface-alt); border: 1px solid var(--gb-c
 .parameter-declaration-actions { display: flex; gap: var(--gb-space-2); }
 .parameter-declaration-error, .parameter-value-message { color: var(--gb-color-danger); font-weight: 600; margin: 0; }
 .parameter-declaration-hint, .parameter-value-hint, .parameter-binding-help { color: var(--gb-color-muted); margin: 0; font-size: 0.9rem; }
+.parameter-binding-default { color: var(--gb-color-muted); overflow-wrap: anywhere; min-width: 0; }
 .parameter-declarations-phone-notice { color: var(--gb-color-muted); }
 .parameter-form-preview { padding: var(--gb-space-3); border: 1px dashed var(--gb-color-border-strong); border-radius: var(--gb-radius-lg); background: var(--gb-color-surface-alt); position: sticky; top: var(--gb-space-3); }
 .parameter-value-field { display: inline-flex; flex-direction: column; gap: var(--gb-space-2); min-width: 0; max-width: 100%; }
