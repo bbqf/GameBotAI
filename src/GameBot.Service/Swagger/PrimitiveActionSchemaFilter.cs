@@ -48,7 +48,15 @@ internal sealed class PrimitiveActionSchemaFilter : ISchemaFilter {
         + "offsetY (integers, default 0), selectionStrategy (HighestConfidence, the default, or FirstMatch), "
         + "region (object, optional: x, y, width, height in capture pixels, all four required, x and y 0 or more, "
         + "width and height more than 0; the search runs only inside the region; a bad region gives 400). "
-        + "A primitiveTap payload detectionTarget takes the same region.",
+        + "A primitiveTap payload detectionTarget takes the same region. "
+        + "until, string, optional: present (the default) ends the wait when the image shows, with the outcome "
+        + "image_detected. absent ends the wait when the image is gone, with the outcome image_absent. "
+        + "Other values give 400. absentCaptures, integer >= 1, optional (default 2): in absent mode, the number of "
+        + "consecutive captures without the image that end the wait. A capture that sees the image, and a failed "
+        + "capture, set the count to zero. absentCaptures has no effect in present mode. The outcome timeout_elapsed "
+        + "means that timeoutMs passed first. image_unavailable means that no capture source or image was available. "
+        + "Note: absent is also true when the screen changed to something else. A sequence needs its own arrival "
+        + "check after the wait.",
       [ActionTypes.EnsureGameRunning] =
         "forceRestart, boolean, optional (default false). Without it, or with false, the step checks that the run's "
         + "session game is in the foreground and attempts a launch when it is not; the step fails unless the game ends "

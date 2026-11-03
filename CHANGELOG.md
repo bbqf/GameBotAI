@@ -17,6 +17,15 @@ All notable changes to this project will be documented in this file.
   - **Test help**: `scripts/installer/test-files-in-use-dialog.ps1` starts a locking bot on an isolated test copy and counts the dialogs in an installer log.
 
 ### Added
+- Wait until an image is gone (175-wait-for-image-gone)
+  - **New option**: the sequence `WaitForImage` step takes `until`. The value `present` (the default) ends the wait when the image shows. The value `absent` ends the wait when the image is gone. Use it for a toast or a banner that you must wait out before the next input.
+  - **Flicker guard**: `absentCaptures` (a whole number of 1 or more, default 2) sets the number of consecutive captures without the image that end the wait. A capture that sees the image, and a failed capture, set the count to zero. A failed capture is never proof of absence.
+  - **Outcomes**: `image_absent` (the image is gone), `timeout_elapsed` (`timeoutMs` passed first), and `image_unavailable` (no capture source or image). `image_absent` succeeds the step and maps to the log status `success`. `detectionTarget` and `region` work in absent mode.
+  - **Save check**: a bad `until` or `absentCaptures` gives a 400 with a clear error. A step without the options is not changed.
+  - **Editor**: the sequence editor has the fields **Wait until** and **Absent captures** (desktop-only).
+  - **Note**: absent is also true when the screen changed to something else. Add your own arrival check after the wait.
+  - **Version**: the patch version is now 4, so the next build is `1.12.4.<run number>`.
+  - See `docs/architecture.md` and `specs/175-wait-for-image-gone/contracts/wait-for-image-until.md`.
 - Wait for Still step (174-wait-for-still-step, #368)
   - **New step**: a sequence step of type `WaitForStill` waits until the screen, or a part of it, stops changing. Use it after a pan or a scroll, in place of a fixed wait. The step takes a frame each capture interval and compares it with the previous frame (mean absolute R, G, B difference, 0 to 1).
   - **Fields**: `region` (optional, the whole screen if absent), `stableMs` (default 300), `maxDiff` (default 0.01), and `timeoutMs` (default 5000). `stableMs` must not be greater than `timeoutMs`. The save check rejects a bad value with a 400 and a clear error.

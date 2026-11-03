@@ -630,6 +630,8 @@ public sealed class SequenceStepValidationService {
       errors.Add($"Step '{stepLabel}' waitForImage timeoutMs must be greater than or equal to zero.");
     }
 
+    ValidateWaitForImageUntil(parameters, stepLabel, errors);
+
     if (!parameters.TryGetValue("detectionTarget", out var detectionTargetValue)) {
       return;
     }
@@ -641,6 +643,41 @@ public sealed class SequenceStepValidationService {
       errors.Add($"Step '{stepLabel}' waitForImage detectionTarget.referenceImageId must not be empty when detectionTarget is provided.");
     }
   }
+
+  // Feature 175: the options until and absentCaptures of a WaitForImage step. A {{name}} reference is
+  // resolved at run time, so it is not checked here. absentCaptures has no effect in present mode, but it
+  // must still be a valid value.
+  internal static void ValidateWaitForImageUntil(
+      Dictionary<string, object?> parameters,
+      string stepLabel,
+      List<string> errors) {
+    if (parameters.TryGetValue("until", out var untilValue) && !IsJsonNull(untilValue)) {
+      var text = untilValue switch {
+        JsonElement { ValueKind: JsonValueKind.String } element => element.GetString(),
+        string plain => plain,
+        _ => untilValue!.ToString()
+      };
+      if (!IsTemplateReference(text) && !GameBot.Domain.Commands.Execution.WaitForImageUntil.TryParse(text, out _)) {
+        errors.Add($"Step '{stepLabel}' waitForImage until must be 'present' or 'absent'.");
+      }
+    }
+
+    if (parameters.TryGetValue("absentCaptures", out var captureValue) && !IsJsonNull(captureValue)) {
+      var captureText = captureValue is JsonElement { ValueKind: JsonValueKind.String } captureElement
+        ? captureElement.GetString()
+        : captureValue as string;
+      if (!IsTemplateReference(captureText)
+          && (!TryReadInt(captureValue, out var captures) || captures < 1)) {
+        errors.Add($"Step '{stepLabel}' waitForImage absentCaptures must be an integer of 1 or more.");
+      }
+    }
+  }
+
+  private static bool IsJsonNull(object? value) =>
+    value is null || value is JsonElement { ValueKind: JsonValueKind.Null };
+
+  private static bool IsTemplateReference(string? text) =>
+    text is not null && text.Contains("{{", StringComparison.Ordinal);
 
   // B-003: a "command" step must carry a resolved commandId. A bare commandName (or no
   // reference at all) used to be silently accepted and would default the dispatch target to the

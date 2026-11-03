@@ -10,7 +10,7 @@ For the *history* of how the system got here — one folder per feature, point-i
 history; this file is the current-state source of truth. When the two disagree, this file wins and
 the relevant spec should be marked superseded.
 
-_Last reviewed: 2026-11-02 (feature 174: the `WaitForStill` sequence step waits until the screen stops changing. It ends with `still` or `timeout_elapsed`. See the WaitForStill step section; feature 173: the Queues page. The list has icon buttons and an Activity column. A running queue opens on the Edit page, and its editor changes the template only. The list response has operatorPause. See the 173 block of the API surface; feature 171: live template changes. A running queue can pause between sequences, and the operator can apply template changes to it with no restart. See the domain model section and `docs/live-template-changes.md`; feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
+_Last reviewed: 2026-11-03 (feature 175: the `WaitForImage` sequence step has the options `until` and `absentCaptures`. With `until` `absent`, the step ends with `image_absent` when the image is gone. See the WaitForImage until-absent section; feature 174: the `WaitForStill` sequence step waits until the screen stops changing. It ends with `still` or `timeout_elapsed`. See the WaitForStill step section; feature 173: the Queues page. The list has icon buttons and an Activity column. A running queue opens on the Edit page, and its editor changes the template only. The list response has operatorPause. See the 173 block of the API surface; feature 171: live template changes. A running queue can pause between sequences, and the operator can apply template changes to it with no restart. See the domain model section and `docs/live-template-changes.md`; feature 169: the command editor has a "Use a parameter" control on 12 step fields, with a lossless `fieldTemplates` round trip. See the domain model section; feature 168: friendly sequence parameters. A declaration can have a label, help text, and the kind `choice`, `image`, or `number` with a range, unit, and pattern. The value form shows an image picker, readable options, or a number field. See the domain model section; feature 167: the `commandStepOutcome` sequence condition reads the state of one step inside a command; feature 166: `POST /api/sessions` starts the capture loop of a session with a device, each removal of a session (`DELETE /api/sessions/{id}`, the idle sweep) stops it through `SessionRemoved` and `SessionCaptureCleanup`, a `WaitForImage` step starts no detection pass at or after its deadline, and a timeout writes one debug log line;
 feature 165: `ocrText.pattern` and `ocrText.expected` resolve `{{name}}` sequence parameters, with the run reason `invalid_pattern` and the save code `invalid_resolved_pattern`;
 feature 164: the key text of a key input accepts the digits `0` to `9`, the number pad names `NUMPAD_0` to `NUMPAD_9`, and a raw Android key code from 0 to 300, made by `AndroidKeyCodes`; a `KeyInput` step that the device does not accept has the status `not_accepted` with a reason code;
 feature 162: the installer shows the interface and port choice on every interactive run, one resolver sets the binding and the shortcut address, `network.json` is the only saved location, the snapshot rows `GAMEBOT_BIND_HOST` and `GAMEBOT_PORT` show the source;
@@ -1113,6 +1113,22 @@ count, the frame state of the last pass, and the best score (three decimals, or 
 last pass into it. The frame state is `unknown` when no evaluator wrote a pass. With no scope, the
 evaluator writes nothing, so triggers and `imageVisible` conditions do not change. The API response
 does not change.
+
+**WaitForImage until absent (feature 175).** The sequence `WaitForImage` step takes the optional `until`
+(`present`, the default, or `absent`) and `absentCaptures` (a whole number of 1 or more, default 2).
+A step without them runs as before. In absent mode, `SequenceRunner` uses a second loop with the same
+poll schedule and deadline (`WaitForImageSchedule.NextWait`). Each pass runs the image evaluator in
+`Present` mode and reads `ImageDetectionPassScope.Current.LastPass`: an image that is not found on a pass
+with a frame is an absent capture. A pass with no frame, and a pass that wrote nothing, is a failed
+capture and is not proof of absence. `AbsentCaptureCounter` holds the count rule. Only an absent capture
+adds one. A capture that sees the image, and a failed capture, set the count to zero. The step ends with
+`image_absent` when `absentCaptures` consecutive captures lack the image, with `timeout_elapsed` at
+`timeoutMs`, and with `image_unavailable` when no evaluator or no image is available (the step then waits
+to the deadline). `image_absent` records `success` in `stepOutcomes` and maps to the log status
+`success`. A stop signal cancels the wait and records no outcome. The save check rejects a bad `until` or
+`absentCaptures` with a 400, and skips a `{{name}}` reference. Absent is also true when the screen
+changed to something else, so a sequence needs its own arrival check after the wait. The editor has the
+fields "Wait until" and "Absent captures" (desktop-only, as the rest of the `WaitForImage` form).
 
 **Queue gate.** `QueueExecutionService` evaluates the data-only report one time for each firing
 group (the main firing, its before-each-run pass and its every-step pass; a standalone every-step pass

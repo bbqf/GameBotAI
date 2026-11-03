@@ -1117,6 +1117,27 @@ namespace GameBot.Domain.Services {
 
       // Feature 166 (FR-012): the image evaluator writes each pass into this scope, for the timeout log line.
       using var passScope = ImageDetectionPassScope.Push();
+      // Feature 175: an unknown value is a save error, so a bad value here counts as present.
+      var untilAbsent = WaitForImageUntil.TryParse(effectiveConfig.Until, out var parsedAbsent) && parsedAbsent;
+      if (untilAbsent) {
+        var absentNeeded = Math.Max(1, effectiveConfig.AbsentCaptures ?? WaitForImageUntil.DefaultAbsentCaptures);
+        var absentPoll = await PollAbsentConditionAsync(condition, conditionEvaluator, deadline, absentNeeded, ct).ConfigureAwait(false);
+        if (absentPoll.Result == WaitPollResult.Detected) {
+          detail.ExitCondition = "image_absent";
+          return new WaitForImageStepOutcome("image_absent", detail);
+        }
+        if (absentPoll.Result == WaitPollResult.Unavailable) {
+          await WaitUntilDeadlineAsync(deadline, ct).ConfigureAwait(false);
+          detail.ExitCondition = "image_unavailable";
+          detail.ImageLoadStatus = "unavailable";
+          return new WaitForImageStepOutcome("image_unavailable", detail);
+        }
+
+        LogWaitForImageTimeout(sequenceId, stepKey, detectionTarget, absentPoll.PassCount, ImageDetectionPassScope.Current?.LastPass);
+        detail.ExitCondition = "timeout_elapsed";
+        return new WaitForImageStepOutcome("timeout_elapsed", detail);
+      }
+
       var (pollResult, passCount) = await PollImageConditionAsync(condition, conditionEvaluator, deadline, ct).ConfigureAwait(false);
       if (pollResult == WaitPollResult.Detected) {
         detail.ExitCondition = "image_detected";
@@ -1166,6 +1187,56 @@ namespace GameBot.Domain.Services {
         if (next.Stop) break;
         if (next.Wait > TimeSpan.Zero) await Task.Delay(next.Wait, ct).ConfigureAwait(false);
         // Read the clock again: an evaluation starts only before the deadline.
+        if (DateTimeOffset.UtcNow >= deadline) break;
+        isLastPass = next.IsLastWait;
+      }
+      return (WaitPollResult.TimedOut, passCount);
+    }
+
+    /// <summary>
+    /// The poll loop of a <c>WaitForImage</c> step in absent mode (feature 175). It has the same schedule as
+    /// <see cref="PollImageConditionAsync"/>. Each pass runs the evaluator in <c>Present</c> mode and reads
+    /// the pass that the evaluator wrote: an image that is not seen on a good capture is <see cref="PassKind.Absent"/>.
+    /// A pass with no frame, or with no pass written, is <see cref="PassKind.Failed"/> and never counts as absent.
+    /// <see cref="AbsentCaptureCounter"/> holds the count rule. The result <c>Detected</c> means the image is gone.
+    /// </summary>
+    private async Task<(WaitPollResult Result, int PassCount)> PollAbsentConditionAsync(
+        Condition condition,
+        Func<Condition, CancellationToken, Task<bool>> conditionEvaluator,
+        DateTimeOffset deadline,
+        int absentNeeded,
+        CancellationToken ct) {
+      var pollInterval = TimeSpan.FromMilliseconds(Math.Max(1, _config.CaptureIntervalMs));
+      var counter = new AbsentCaptureCounter(absentNeeded);
+      var passCount = 0;
+      var isLastPass = false;
+      while (true) {
+        passCount++;
+        // Clear the last pass, so that a stale pass of an earlier capture is never read for this one.
+        var scope = ImageDetectionPassScope.Current;
+        if (scope is not null) scope.LastPass = null;
+        PassKind kind;
+        try {
+          var seen = await conditionEvaluator(condition, ct).ConfigureAwait(false);
+          kind = seen
+            ? PassKind.Seen
+            : scope?.LastPass is { FrameAvailable: true } ? PassKind.Absent : PassKind.Failed;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+          throw;
+        }
+        catch {
+          return (WaitPollResult.Unavailable, passCount);
+        }
+
+        if (counter.Observe(kind)) {
+          return (WaitPollResult.Detected, passCount);
+        }
+
+        if (isLastPass) break;
+        var next = WaitForImageSchedule.NextWait(deadline - DateTimeOffset.UtcNow, pollInterval);
+        if (next.Stop) break;
+        if (next.Wait > TimeSpan.Zero) await Task.Delay(next.Wait, ct).ConfigureAwait(false);
         if (DateTimeOffset.UtcNow >= deadline) break;
         isLastPass = next.IsLastWait;
       }

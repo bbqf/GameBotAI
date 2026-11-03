@@ -56,7 +56,21 @@ internal static class StepThroughActionPreview {
       return new ActionDispatchResult(SequenceStepper.PreviewOutcome, "would wait until the region is still");
     }
 
+    // Feature 175: a WaitForImage step in absent mode waits until the image is gone. No frame is read.
+    if (string.Equals(action.Type, ActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)) {
+      return new ActionDispatchResult(SequenceStepper.PreviewOutcome, DescribeWaitForImage(action));
+    }
+
     return new ActionDispatchResult(SequenceStepper.PreviewOutcome, $"would run '{action.Type}'");
+  }
+
+  private static string DescribeWaitForImage(SequenceActionPayload action) {
+    var until = action.Parameters.TryGetValue("until", out var value)
+      ? value is System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.String } element ? element.GetString() : value as string
+      : null;
+    return GameBot.Domain.Commands.Execution.WaitForImageUntil.TryParse(until, out var isAbsent) && isAbsent
+      ? "would wait until the image is gone (the screen is not read in a step-through)"
+      : "would wait until the image shows (the screen is not read in a step-through)";
   }
 
   private static string DescribeReschedule(SequenceActionPayload action, ISelfRescheduleCoordinator coordinator, DateTimeOffset localNow) {

@@ -45,6 +45,8 @@ export const formatExitCondition = (exitCondition?: string): string => {
   switch (exitCondition) {
     case 'image_detected':
       return 'Image detected';
+    case 'image_absent':
+      return 'Image gone';
     case 'timeout_elapsed':
       return 'Timeout elapsed';
     case 'image_unavailable':

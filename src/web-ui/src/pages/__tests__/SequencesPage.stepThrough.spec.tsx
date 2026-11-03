@@ -103,6 +103,30 @@ describe('SequencesPage step-through entry', () => {
     expect(screen.getByTestId('step-through-button')).toBeEnabled();
   });
 
+  it('names the absent mode in the step text of a WaitForImage step (feature 175)', async () => {
+    getSequenceMock.mockResolvedValue({
+      id: 'seq-1',
+      name: 'Daily',
+      version: 3,
+      steps: [{
+        stepId: 'step-1',
+        primitiveAction: {
+          type: 'WaitForImage',
+          schemaVersion: 'v1',
+          payload: { detectionTarget: { referenceImageId: 'toast', confidence: 0.8 }, timeoutMs: 6000, until: 'absent' }
+        },
+        condition: null
+      }]
+    } as any);
+    render(<SequencesPage />);
+    await screen.findByText('Daily');
+    fireEvent.click(screen.getByRole('button', { name: 'Daily' }));
+    await screen.findByText('Edit Sequence');
+
+    expect(screen.getByText('Wait until image is gone: toast')).toBeInTheDocument();
+    expect(screen.queryByText('Wait for image: toast')).toBeNull();
+  });
+
   it('closes the panel when the author goes back to the list', async () => {
     render(<SequencesPage />);
     await screen.findByText('Daily');

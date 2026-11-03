@@ -204,6 +204,18 @@ public sealed class PrimitiveActionTypesOpenApiTests {
     }
   }
 
+  [Fact] // feature 175
+  public async Task WaitForImagePayloadDescribesUntilAndAbsentCaptures() {
+    var section = PayloadSection(await PayloadDescriptionAsync().ConfigureAwait(false), "WaitForImage");
+
+    foreach (var expected in new[] {
+      "until", "present", "absent", "image_absent", "image_detected", "absentCaptures", "default 2",
+      "timeout_elapsed", "image_unavailable", "arrival check"
+    }) {
+      section.Should().Contain(expected);
+    }
+  }
+
   [Fact]
   public async Task SequenceCreateExampleShowsRescheduleSelf() {
     var document = await ReadDocumentAsync().ConfigureAwait(false);
