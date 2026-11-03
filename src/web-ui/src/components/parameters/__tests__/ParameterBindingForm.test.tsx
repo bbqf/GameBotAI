@@ -35,9 +35,71 @@ describe('ParameterBindingForm', () => {
   it('renders every declared parameter set to inherit, so the common case needs no interaction', () => {
     render(<Harness />);
 
-    expect(screen.getByLabelText('Inherit adbSerial')).toBeChecked();
-    expect(screen.getByLabelText('Inherit waitMs')).toBeChecked();
+    expect(screen.getByLabelText('Use default adbSerial')).toBeChecked();
+    expect(screen.getByLabelText('Use default waitMs')).toBeChecked();
     expect(screen.getByLabelText('Value for adbSerial')).toBeDisabled();
+  });
+
+  it('shows the label "Use default" and never the word "Inherit"', () => {
+    render(<Harness />);
+
+    expect(screen.getAllByText('Use default').length).toBe(2);
+    expect(screen.queryByText(/Inherit/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Inherit/)).not.toBeInTheDocument();
+  });
+
+  it('shows the declared default next to the box', () => {
+    render(<Harness />);
+
+    const row = screen.getByLabelText('Use default waitMs').closest('label') as HTMLElement;
+    expect(row.querySelector('.parameter-binding-default')).toHaveTextContent('5000');
+  });
+
+  it('shows "No default" for a null default and keeps the box visible', () => {
+    render(<Harness />);
+
+    const row = screen.getByLabelText('Use default adbSerial').closest('label') as HTMLElement;
+    expect(row.querySelector('.parameter-binding-default')).toHaveTextContent('No default');
+  });
+
+  it('shows "No default" for an undefined default, "(empty)" for an empty one, and keeps the name free of the default', () => {
+    const decls: ParameterDeclaration[] = [
+      { name: 'a', type: 'text', required: false },
+      { name: 'b', type: 'text', default: '', required: false },
+      { name: 'c', type: 'text', default: 'hello', required: false },
+    ];
+    render(<ParameterBindingForm declarations={decls} bindings={[]} onChange={() => {}} />);
+
+    const text = (n: string) =>
+      (screen.getByLabelText(`Use default ${n}`).closest('label') as HTMLElement).querySelector(
+        '.parameter-binding-default',
+      );
+    expect(text('a')).toHaveTextContent('No default');
+    expect(text('b')).toHaveTextContent('(empty)');
+    expect(text('c')).toHaveTextContent('hello');
+    expect(screen.getByLabelText('Use default c')).toHaveAttribute('aria-label', 'Use default c');
+  });
+
+  it('shows the option label for a choice default and the id for an image default', () => {
+    const decls: ParameterDeclaration[] = [
+      {
+        name: 'mode',
+        type: 'text',
+        kind: 'choice',
+        default: 'fast',
+        required: false,
+        options: [{ label: 'Fast mode', value: 'fast' }],
+      },
+      { name: 'pic', type: 'text', kind: 'image', default: 'img-1', required: false, allowedImages: ['img-1'] },
+    ];
+    render(<ParameterBindingForm declarations={decls} bindings={[]} onChange={() => {}} />);
+
+    const text = (n: string) =>
+      (screen.getByLabelText(`Use default ${n}`).closest('label') as HTMLElement).querySelector(
+        '.parameter-binding-default',
+      );
+    expect(text('mode')).toHaveTextContent('Fast mode');
+    expect(text('pic')).toHaveTextContent('img-1');
   });
 
   it('shows the declared description and required flag', () => {
@@ -50,7 +112,7 @@ describe('ParameterBindingForm', () => {
   it('lets an explicit value override the inherited one', () => {
     render(<Harness />);
 
-    fireEvent.click(screen.getByLabelText('Inherit adbSerial'));
+    fireEvent.click(screen.getByLabelText('Use default adbSerial'));
     fireEvent.change(screen.getByLabelText('Value for adbSerial'), {
       target: { value: 'emulator-5560' },
     });

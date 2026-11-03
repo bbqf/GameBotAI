@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import type { ParameterBinding, ParameterDeclaration, ParameterScopeEntry } from './types';
-import { displayLabel, originLayerLabel } from './types';
+import { defaultDisplayText, displayLabel, originLayerLabel } from './types';
 import { validateParameterName } from './ParameterDeclarationList';
 import { ParameterValueField } from './fields/ParameterValueField';
 
 export type ParameterBindingFormProps = {
-  /** What the callee declares. Every row starts on "inherit", so the common case is zero clicks. */
+  /** What the callee declares. Every row starts on "Use default", so the common case is zero clicks. */
   declarations: ParameterDeclaration[];
   bindings: ParameterBinding[];
   onChange: (bindings: ParameterBinding[]) => void;
@@ -30,7 +30,7 @@ export type ParameterBindingFormProps = {
    */
   sequenceDeclarations?: readonly ParameterDeclaration[];
   /**
-   * The author's preview (feature 168): every row shows its value field, there is no Inherit control and
+   * The author's preview (feature 168): every row shows its value field, there is no "Use default" box and
    * no effective-value note, and nothing is saved.
    */
   previewMode?: boolean;
@@ -41,7 +41,7 @@ const INHERIT = null;
 /**
  * Renders a callee's parameters as a binding form (feature 078, FR-027/FR-028).
  *
- * Every row defaults to **Inherit**, which is what makes the motivating case free: a queue already
+ * Every row defaults to **Use default**, which is what makes the motivating case free: a queue already
  * supplies its emulator serial, so the operator changes nothing. Switching a row to a value overrides
  * for this call site only.
  */
@@ -120,10 +120,13 @@ export const ParameterBindingForm: React.FC<ParameterBindingFormProps> = ({
                 type="checkbox"
                 checked={inheriting}
                 disabled={disabled}
-                aria-label={`Inherit ${name}`}
+                aria-label={`Use default ${name}`}
                 onChange={(e) => setValue(name, e.target.checked ? INHERIT : '')}
               />
-              <span>Inherit</span>
+              <span>Use default</span>
+              {declaration && (
+                <span className="parameter-binding-default">{defaultDisplayText(declaration)}</span>
+              )}
             </label>
           )}
           {declaration && !adHoc ? (

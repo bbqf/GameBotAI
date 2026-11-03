@@ -51,6 +51,22 @@ export const displayLabel = (declaration: Pick<ParameterDeclaration, 'label' | '
 };
 
 /**
+ * The text that shows the declared default of a parameter next to the "Use default" box.
+ * No default gives "No default". An empty string gives "(empty)". A choice gives the option label.
+ */
+export const defaultDisplayText = (
+  declaration: Pick<ParameterDeclaration, 'default' | 'kind' | 'type' | 'options'>,
+): string => {
+  const value = declaration.default;
+  if (value === null || value === undefined) return 'No default';
+  if (value === '') return '(empty)';
+  if (effectiveKind(declaration) === 'choice') {
+    return declaration.options?.find((o) => o.value === value)?.label ?? value;
+  }
+  return String(value);
+};
+
+/**
  * A value supplied at one call site. `value: null` (or absent) means **inherit** — the row is left
  * alone and the value flows in from the enclosing scope. An empty string is a real, deliberate value.
  */

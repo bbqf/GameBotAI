@@ -10,7 +10,7 @@ export type ParameterFormPreviewProps = {
 
 /**
  * A live preview of the form that a person fills (feature 168). It uses the same form as the real
- * call sites, in preview mode: defaults show, there is no Inherit control, and nothing is saved.
+ * call sites, in preview mode: defaults show, there is no "Use default" box, and nothing is saved.
  */
 export const ParameterFormPreview: React.FC<ParameterFormPreviewProps> = ({ parameters }) => {
   const [typed, setTyped] = useState<ParameterBinding[]>([]);
