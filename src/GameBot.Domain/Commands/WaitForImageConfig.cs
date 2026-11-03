@@ -14,4 +14,20 @@ public sealed class WaitForImageConfig {
   /// Maximum wait duration in milliseconds.
   /// </summary>
   public int TimeoutMs { get; init; } = 1000;
+
+  /// <summary>
+  /// Feature 175: <c>present</c> ends the wait when the image shows. <c>absent</c> ends the wait when the
+  /// image is gone. Null means <c>present</c>. Null is not written to a stored sequence, so a step without
+  /// this option keeps its stored form. See <see cref="Execution.WaitForImageUntil"/>.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public string? Until { get; init; }
+
+  /// <summary>
+  /// Feature 175: the number of consecutive captures without the image that end an <c>absent</c> wait.
+  /// Null means <see cref="Execution.WaitForImageUntil.DefaultAbsentCaptures"/>. It has no effect in
+  /// <c>present</c> mode.
+  /// </summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public int? AbsentCaptures { get; init; }
 }

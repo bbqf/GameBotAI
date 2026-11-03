@@ -2,7 +2,7 @@
 
 **Feature Branch**: `175-wait-for-image-gone`
 **Created**: 2026-11-03
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "FR-040: Wait until an image is gone (GitHub issue #369). Closes #369."
 
 ## Clarifications

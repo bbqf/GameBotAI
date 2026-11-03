@@ -48,6 +48,10 @@ type SequenceStep = {
   waitReferenceImageId: string;
   waitConfidence: string;
   waitTimeoutMs: string;
+  /** Feature 175: what ends the wait. `absent` waits until the image is gone. Default `present`. */
+  waitUntil?: 'present' | 'absent';
+  /** Feature 175: consecutive captures without the image, as typed. Empty means the default (2). */
+  waitAbsentCaptures?: string;
   conditionType: 'none' | 'imageVisible' | 'commandOutcome' | 'commandStepOutcome';
   conditionNegate: boolean;
   imageId: string;
@@ -556,7 +560,18 @@ const linearStepToFormStep = (step: SequenceLinearStep): SequenceStep => {
       const detectionTarget = primitiveAction.payload?.detectionTarget as Record<string, unknown> | undefined;
       const confidence = typeof detectionTarget?.confidence === 'number' ? String(detectionTarget.confidence) : '';
       const timeoutMs = typeof primitiveAction.payload?.timeoutMs === 'number' ? String(primitiveAction.payload.timeoutMs) : '1000';
-      const baseStep = createDefaultWaitStep(step.stepId);
+      // Feature 175: the saved until and absentCaptures fill the two new fields. No value means present.
+      const savedUntil = typeof primitiveAction.payload?.until === 'string' && primitiveAction.payload.until.toLowerCase() === 'absent'
+        ? 'absent' as const
+        : 'present' as const;
+      const savedAbsentCaptures = typeof primitiveAction.payload?.absentCaptures === 'number'
+        ? String(primitiveAction.payload.absentCaptures)
+        : '';
+      const baseStep = {
+        ...createDefaultWaitStep(step.stepId),
+        waitUntil: savedUntil,
+        waitAbsentCaptures: savedAbsentCaptures
+      };
 
       if (step.condition?.type === 'imageVisible') {
         return {
@@ -890,7 +905,14 @@ const toLinearPayloadSteps = (steps: SequenceStep[]): SequenceLinearStep[] => {
           schemaVersion: 'v1',
           payload: {
             timeoutMs: Number(step.waitTimeoutMs),
-            ...(detectionTarget ? { detectionTarget } : {})
+            ...(detectionTarget ? { detectionTarget } : {}),
+            // Feature 175: both fields are left out in present mode, so an old step keeps its saved form.
+            ...(step.waitUntil === 'absent'
+              ? {
+                until: 'absent',
+                ...(step.waitAbsentCaptures?.trim() ? { absentCaptures: Number(step.waitAbsentCaptures) } : {})
+              }
+              : {})
           }
         },
         condition: buildConditionPayload(step)
@@ -1291,6 +1313,49 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
               disabled={submitting || loading}
             />
           </div>
+
+          <div className="sequence-step-condition-field sequence-step-condition-field--expected-state">
+            <label htmlFor={`step-wait-until-${step.id}`}>Wait until</label>
+            <select
+              id={`step-wait-until-${step.id}`}
+              value={step.waitUntil ?? 'present'}
+              onChange={(event) => {
+                const value = event.target.value === 'absent' ? 'absent' : 'present';
+                setForm((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, waitUntil: value } : candidate)
+                }));
+                setDirty(true);
+              }}
+              disabled={submitting || loading}
+            >
+              <option value="present">The image shows</option>
+              <option value="absent">The image is gone</option>
+            </select>
+          </div>
+
+          {step.waitUntil === 'absent' && (
+            <div className="sequence-step-condition-field sequence-step-condition-field--min-similarity">
+              <label htmlFor={`step-wait-absent-captures-${step.id}`}>Absent captures</label>
+              <input
+                id={`step-wait-absent-captures-${step.id}`}
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                placeholder="2"
+                value={step.waitAbsentCaptures ?? ''}
+                onChange={(event) => {
+                  setForm((prev) => ({
+                    ...prev,
+                    steps: prev.steps.map((candidate) => candidate.id === step.id ? { ...candidate, waitAbsentCaptures: event.target.value } : candidate)
+                  }));
+                  setDirty(true);
+                }}
+                disabled={submitting || loading}
+              />
+            </div>
+          )}
         </>
       )}
 
@@ -1739,7 +1804,9 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
       return {
         id: s.id,
         label: s.actionType === 'WaitForImage'
-          ? `Wait for image: ${s.waitReferenceImageId.trim() || 'any image'}`
+          ? (s.waitUntil === 'absent'
+            ? `Wait until image is gone: ${s.waitReferenceImageId.trim() || 'any image'}`
+            : `Wait for image: ${s.waitReferenceImageId.trim() || 'any image'}`)
           : s.actionType === 'reschedule-self'
             ? `Reschedule this sequence (${RESCHEDULE_OPTIONS.find((o) => o.value === (s.rescheduleOption ?? 'OncePerRun'))?.label})`
             : s.actionType === 'primitive' && s.primitiveAction
@@ -1775,6 +1842,16 @@ export const SequencesPage: React.FC<SequencesPageProps> = ({ initialCreate, ini
         if (!Number.isInteger(parsedTimeout) || parsedTimeout < 0) {
           next.steps = 'Wait for image timeout must be a non-negative integer';
           break;
+        }
+
+        // Feature 175: absentCaptures is a whole number of 1 or more. An empty field means the default.
+        const absentCaptures = (step.waitAbsentCaptures ?? '').trim();
+        if (step.waitUntil === 'absent' && absentCaptures !== '') {
+          const parsedCaptures = Number(absentCaptures);
+          if (!Number.isInteger(parsedCaptures) || parsedCaptures < 1) {
+            next.steps = 'Absent captures must be a whole number of 1 or more';
+            break;
+          }
         }
       }
 

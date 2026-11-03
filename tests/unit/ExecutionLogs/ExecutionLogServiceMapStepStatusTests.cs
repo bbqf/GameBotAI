@@ -28,6 +28,11 @@ public sealed class ExecutionLogServiceMapStepStatusTests {
     ExecutionLogService.MapStepStatus("restarted").Should().Be("success");
   }
 
+  [Fact] // Feature 175: a WaitForImage step in absent mode that sees the image gone is the step working.
+  public void MapsImageAbsentOutcomeToSuccess() {
+    ExecutionLogService.MapStepStatus("image_absent").Should().Be("success");
+  }
+
   [Fact] // T021 (US2) — FR-008: no_break is not a failure and so contributes nothing to failure counts.
   public void NoBreakIsNotCountedAsFailure() {
     // Failure counts/health/alerts key on the "failure" node status; no_break must never map to it.

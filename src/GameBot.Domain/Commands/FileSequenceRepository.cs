@@ -168,6 +168,9 @@ namespace GameBot.Domain.Commands {
 
         // Feature 174: backstop for the WaitForStill step. The validator gives the 400 first.
         GuardWaitForStillPayload(step);
+
+        // Feature 175: backstop for the until and absentCaptures options. The validator gives the 400 first.
+        GuardWaitForImageUntil(step);
       }
 
       foreach (var step in sequence.FlowSteps) {
@@ -192,6 +195,20 @@ namespace GameBot.Domain.Commands {
         if (!supportedActionTypes.Contains(actionType)) {
           throw new InvalidOperationException($"Action step '{step.StepId}' references unsupported action type '{actionType}'.");
         }
+      }
+    }
+
+    // Feature 175: a WaitForImage step must have a valid until and absentCaptures. The rule is the one of the validator.
+    private static void GuardWaitForImageUntil(SequenceStep step) {
+      if (step.Action is null
+          || !string.Equals(step.Action.Type, ActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)) {
+        return;
+      }
+
+      var errors = new List<string>();
+      GameBot.Domain.Services.SequenceStepValidationService.ValidateWaitForImageUntil(step.Action.Parameters, step.StepId, errors);
+      if (errors.Count > 0) {
+        throw new InvalidOperationException(errors[0]);
       }
     }
 

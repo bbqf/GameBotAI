@@ -178,6 +178,249 @@ public sealed class SequenceRunnerWaitForImageTests {
     line.Should().Contain("best score none");
   }
 
+  // ---- Feature 175: WaitForImage until absent ----
+
+  private static WaitForImageConfig AbsentConfig(int timeoutMs, int? absentCaptures = null, DetectionTarget? target = null) =>
+    new() {
+      TimeoutMs = timeoutMs,
+      DetectionTarget = target ?? new DetectionTarget("toast", 0.85),
+      Until = "absent",
+      AbsentCaptures = absentCaptures
+    };
+
+  /// <summary>
+  /// A fake evaluator that plays a script of passes, as the image evaluator writes them. After the script
+  /// ends, the last pass repeats.
+  /// </summary>
+  private static Func<GameBot.Domain.Commands.Blocks.Condition, CancellationToken, Task<bool>> Script(
+      List<GameBot.Domain.Commands.Blocks.Condition>? seenConditions, params PassKindScript[] passes) {
+    var index = 0;
+    return (condition, _) => {
+      seenConditions?.Add(condition);
+      var pass = passes[Math.Min(index++, passes.Length - 1)];
+      var scope = GameBot.Domain.Vision.ImageDetectionPassScope.Current;
+      switch (pass) {
+        case PassKindScript.Seen:
+          if (scope is not null) scope.LastPass = new GameBot.Domain.Vision.ImageDetectionPass(true, 0.95);
+          return Task.FromResult(true);
+        case PassKindScript.Absent:
+          if (scope is not null) scope.LastPass = new GameBot.Domain.Vision.ImageDetectionPass(true, 0.1);
+          return Task.FromResult(false);
+        default:
+          if (scope is not null) scope.LastPass = new GameBot.Domain.Vision.ImageDetectionPass(false, null);
+          return Task.FromResult(false);
+      }
+    };
+  }
+
+  private enum PassKindScript { Seen, Absent, NoFrame }
+
+  private static async Task<GameBot.Domain.Services.SequenceExecutionResult> RunAsync(
+      SequenceRunner runner,
+      Func<GameBot.Domain.Commands.Blocks.Condition, CancellationToken, Task<bool>>? evaluator,
+      CancellationToken ct = default) =>
+    await runner.ExecuteAsync("wait-sequence", (_, _) => Task.CompletedTask, conditionEvaluator: evaluator, ct: ct).ConfigureAwait(false);
+
+  [Fact]
+  public async Task AbsentModeEndsWhenImageLeaves() {
+    var runner = CreateRunner(AbsentConfig(2000));
+    var result = await RunAsync(runner, Script(null, PassKindScript.Seen, PassKindScript.Seen, PassKindScript.Absent)).ConfigureAwait(false);
+
+    result.Status.Should().Be("Succeeded");
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_absent");
+  }
+
+  [Fact]
+  public async Task AbsentModeEndsAtOnceWhenImageIsAlreadyAbsent() {
+    var runner = CreateRunner(AbsentConfig(2000));
+    var stopwatch = Stopwatch.StartNew();
+    var result = await RunAsync(runner, Script(null, PassKindScript.Absent)).ConfigureAwait(false);
+    stopwatch.Stop();
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_absent");
+    stopwatch.ElapsedMilliseconds.Should().BeLessThan(1000);
+  }
+
+  [Fact]
+  public async Task AbsentModeEvaluatesInPresentMode() {
+    var seen = new List<GameBot.Domain.Commands.Blocks.Condition>();
+    var runner = CreateRunner(AbsentConfig(2000));
+    await RunAsync(runner, Script(seen, PassKindScript.Absent)).ConfigureAwait(false);
+
+    seen.Should().NotBeEmpty();
+    seen.Should().OnlyContain(c => c.Mode == "Present");
+  }
+
+  [Fact]
+  public async Task AbsentModeTimesOutWhenImageStays() {
+    var runner = CreateRunner(AbsentConfig(80));
+    var result = await RunAsync(runner, Script(null, PassKindScript.Seen)).ConfigureAwait(false);
+
+    result.Status.Should().Be("Succeeded");
+    result.Steps.Should().Contain(step => step.ActionOutcome == "timeout_elapsed");
+  }
+
+  [Fact]
+  public async Task AbsentModeWithoutEvaluatorGivesImageUnavailable() {
+    var runner = CreateRunner(AbsentConfig(40));
+    var result = await RunAsync(runner, null).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_unavailable");
+  }
+
+  [Fact]
+  public async Task AbsentModeWhenEvaluatorThrowsGivesImageUnavailable() {
+    var runner = CreateRunner(AbsentConfig(40));
+    var result = await RunAsync(runner, (_, _) => throw new InvalidOperationException("boom")).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_unavailable");
+  }
+
+  [Fact]
+  public async Task AbsentModeWithoutImageIdIsAPlainDelay() {
+    var runner = CreateRunner(new WaitForImageConfig { TimeoutMs = 30, Until = "absent" });
+    var result = await RunAsync(runner, Script(null, PassKindScript.Absent)).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "delay_elapsed");
+  }
+
+  [Fact]
+  public async Task AbsentModeCancellationRecordsNoOutcome() {
+    using var cts = new CancellationTokenSource();
+    var runner = CreateRunner(AbsentConfig(5000));
+    var evaluator = Script(null, PassKindScript.Seen);
+    var calls = 0;
+    var act = async () => await RunAsync(runner, async (c, t) => {
+      if (++calls == 2) await cts.CancelAsync().ConfigureAwait(false);
+      return await evaluator(c, t).ConfigureAwait(false);
+    }, cts.Token).ConfigureAwait(false);
+
+    await act.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+  }
+
+  [Fact]
+  public async Task AbsentModeRecordsSuccessInStepOutcomes() {
+    var runner = new SequenceRunner(
+      new StubRepo(BuildSequenceWithOutcomeCondition(AbsentConfig(2000))),
+      NullLogger<SequenceRunner>.Instance,
+      new AppConfig { CaptureIntervalMs = 10 });
+    var executed = new List<string>();
+    var result = await runner.ExecuteAsync(
+      "wait-sequence",
+      (commandId, _) => { executed.Add(commandId); return Task.CompletedTask; },
+      conditionEvaluator: Script(null, PassKindScript.Absent),
+      ct: CancellationToken.None).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_absent");
+    executed.Should().ContainSingle().Which.Should().Be("cmd-after-wait");
+  }
+
+  [Fact]
+  public async Task FlickerWithTwoCapturesDoesNotEndTheWait() {
+    // seen, absent, seen, absent, absent: ends only at the last two passes.
+    var runner = CreateRunner(AbsentConfig(2000, 2));
+    var calls = 0;
+    var evaluator = Script(null, PassKindScript.Seen, PassKindScript.Absent, PassKindScript.Seen, PassKindScript.Absent, PassKindScript.Absent);
+    var result = await RunAsync(runner, (c, t) => { calls++; return evaluator(c, t); }).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_absent");
+    calls.Should().Be(5);
+  }
+
+  [Fact]
+  public async Task DefaultNeedsTwoAbsentCaptures() {
+    var runner = CreateRunner(AbsentConfig(2000));
+    var calls = 0;
+    var evaluator = Script(null, PassKindScript.Absent);
+    await RunAsync(runner, (c, t) => { calls++; return evaluator(c, t); }).ConfigureAwait(false);
+
+    calls.Should().Be(2);
+  }
+
+  [Fact]
+  public async Task OneAbsentCaptureEndsAtTheFirstAbsentPass() {
+    var runner = CreateRunner(AbsentConfig(2000, 1));
+    var calls = 0;
+    var evaluator = Script(null, PassKindScript.Seen, PassKindScript.Absent);
+    await RunAsync(runner, (c, t) => { calls++; return evaluator(c, t); }).ConfigureAwait(false);
+
+    calls.Should().Be(2);
+  }
+
+  [Fact]
+  public async Task FailedCaptureResetsTheCount() {
+    // absent, no frame, absent: the count restarts, so the wait times out with absentCaptures 2.
+    var runner = CreateRunner(AbsentConfig(150, 2));
+    var evaluator = Script(null, PassKindScript.Absent, PassKindScript.NoFrame, PassKindScript.Absent, PassKindScript.NoFrame, PassKindScript.Absent, PassKindScript.NoFrame);
+    var result = await RunAsync(runner, evaluator).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "timeout_elapsed");
+  }
+
+  [Fact]
+  public async Task PassWithNoWrittenPassNeverCountsAsAbsent() {
+    var runner = CreateRunner(AbsentConfig(80, 1));
+    var result = await RunAsync(runner, (_, _) => Task.FromResult(false)).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "timeout_elapsed");
+  }
+
+  [Fact]
+  public async Task ShortTimeoutGivesTimeoutElapsedWhenImageNeverLeaves() {
+    var runner = CreateRunner(AbsentConfig(30, 2));
+    var result = await RunAsync(runner, Script(null, PassKindScript.Seen)).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "timeout_elapsed");
+  }
+
+  [Fact]
+  public async Task AbsentModeEndsBeforeTheFixedWaitWhenImageLeaves() {
+    // SC-004 with scaled time: the capture interval is 50 ms and the timeout is 2000 ms. The image leaves
+    // after 100 ms. The step must end long before the timeout. The runner has no injectable clock, so a
+    // scaled real time stands in for the fake clock.
+    var runner = new SequenceRunner(
+      new StubRepo(BuildSequence(AbsentConfig(2000, 2))),
+      NullLogger<SequenceRunner>.Instance,
+      new AppConfig { CaptureIntervalMs = 50 });
+    var clock = Stopwatch.StartNew();
+    var evaluator = new Func<GameBot.Domain.Commands.Blocks.Condition, CancellationToken, Task<bool>>((_, _) => {
+      var gone = clock.ElapsedMilliseconds >= 100;
+      var scope = GameBot.Domain.Vision.ImageDetectionPassScope.Current;
+      if (scope is not null) scope.LastPass = new GameBot.Domain.Vision.ImageDetectionPass(true, gone ? 0.1 : 0.95);
+      return Task.FromResult(!gone);
+    });
+
+    var result = await RunAsync(runner, evaluator).ConfigureAwait(false);
+    clock.Stop();
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_absent");
+    // Gone at 100 ms, plus two captures of 50 ms, plus timer tolerance. Far below the 2000 ms timeout.
+    clock.ElapsedMilliseconds.Should().BeLessThan(1000);
+  }
+
+  [Fact]
+  public async Task RegionOutsideTheImageCountsAsAbsent() {
+    var region = new PixelRegion(0, 0, 10, 10);
+    var target = new DetectionTarget("toast", 0.85, region: region);
+    var seen = new List<GameBot.Domain.Commands.Blocks.Condition>();
+    var runner = CreateRunner(AbsentConfig(2000, 1, target));
+    var result = await RunAsync(runner, Script(seen, PassKindScript.Absent)).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_absent");
+    seen.Should().OnlyContain(c => c.PixelRegion != null && c.PixelRegion.Width == 10);
+  }
+
+  [Fact]
+  public async Task StepWithoutUntilKeepsPresentBehavior() {
+    var invocationCount = 0;
+    var runner = CreateRunner(new WaitForImageConfig { TimeoutMs = 120, DetectionTarget = new DetectionTarget("map-image", 0.85) });
+    var result = await RunAsync(runner, (_, _) => Task.FromResult(++invocationCount >= 2)).ConfigureAwait(false);
+
+    result.Steps.Should().Contain(step => step.ActionOutcome == "image_detected");
+  }
+
+  private static CommandSequence BuildSequenceWithOutcomeCondition(WaitForImageConfig waitConfig) => BuildSequence(waitConfig);
+
   private static string SingleTimeoutLine(CapturingLogger logger) {
     var lines = logger.Entries
       .Where(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Debug && e.Message.Contains("timed out", StringComparison.Ordinal))

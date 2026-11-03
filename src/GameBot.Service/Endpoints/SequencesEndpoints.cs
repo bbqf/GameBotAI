@@ -1480,9 +1480,26 @@ internal static class SequencesEndpoints {
       timeoutMs = parsedTimeout;
     }
 
+    // Feature 175: the save check has already rejected an invalid until or absentCaptures. A value that
+    // is not readable (for example a {{name}} reference) leaves the field null.
+    string? until = null;
+    if (primitiveAction.Payload.TryGetValue("until", out var untilValue)) {
+      until = untilValue is JsonElement { ValueKind: JsonValueKind.String } untilElement
+        ? untilElement.GetString()
+        : untilValue as string;
+    }
+
+    int? absentCaptures = null;
+    if (primitiveAction.Payload.TryGetValue("absentCaptures", out var absentValue)
+        && TryReadInt32(absentValue, out var parsedAbsent)) {
+      absentCaptures = parsedAbsent;
+    }
+
     return new WaitForImageConfig {
       TimeoutMs = timeoutMs,
-      DetectionTarget = MapWaitForImageDetectionTarget(primitiveAction.Payload)
+      DetectionTarget = MapWaitForImageDetectionTarget(primitiveAction.Payload),
+      Until = until,
+      AbsentCaptures = absentCaptures
     };
   }
 

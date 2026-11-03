@@ -116,7 +116,7 @@ export type ExecutionLogWaitForImageDetailAttributesDto = {
   effectiveTimeoutMs?: number;
   referenceImageId?: string;
   confidence?: number;
-  exitCondition?: 'image_detected' | 'timeout_elapsed' | 'image_unavailable';
+  exitCondition?: 'image_detected' | 'image_absent' | 'timeout_elapsed' | 'image_unavailable';
   imageLoadStatus?: string;
 };
 

@@ -202,6 +202,7 @@ Status vocabulary:
 | 172 | Split the Largest CI Test Shard | Implemented |
 | 173 | Clean Up the Queues Page on the Big Screen | Implemented |
 | 174 | Wait for Still Step | Implemented |
+| 175 | Wait Until an Image Is Gone | Implemented |
 
 ## Numbering notes
 

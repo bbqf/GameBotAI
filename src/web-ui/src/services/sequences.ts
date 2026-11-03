@@ -14,6 +14,10 @@ import type {
 export type WaitForImageSequencePayload = {
   timeoutMs?: number;
   detectionTarget?: DetectionTargetDto;
+  /** Feature 175: `present` (default) or `absent`. `absent` ends the wait when the image is gone. */
+  until?: 'present' | 'absent';
+  /** Feature 175: consecutive captures without the image that end an `absent` wait. A whole number of 1 or more. Default 2. */
+  absentCaptures?: number;
 };
 
 export type WaitForImagePrimitiveActionDto = {

@@ -738,7 +738,7 @@ internal sealed class ExecutionLogService : IExecutionLogService {
 
   internal static string MapStepStatus(string? outcome)
     => (outcome ?? string.Empty).ToLowerInvariant() switch {
-      "executed" or "success" or "image_detected" or "true" or "break" => "success",
+      "executed" or "success" or "image_detected" or "image_absent" or "true" or "break" => "success",
       // A while loop whose condition finally goes false, and a count loop that runs every
       // iteration, have both done exactly what they were asked. Without these the runner's own
       // "false"/"Succeeded" loop statuses fell through to the failure default and painted a

@@ -126,6 +126,12 @@ internal sealed record SequenceCommandReferenceContract {
 internal sealed record WaitForImagePayloadContract {
   public DetectionTargetDto? DetectionTarget { get; init; }
   public int? TimeoutMs { get; init; }
+
+  /// <summary>Feature 175: <c>present</c> (default) or <c>absent</c>.</summary>
+  public string? Until { get; init; }
+
+  /// <summary>Feature 175: consecutive captures without the image that end an <c>absent</c> wait. A whole number of 1 or more. Default 2.</summary>
+  public int? AbsentCaptures { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]

@@ -114,7 +114,12 @@ public static class CommandStepResolver {
               context, scope, used, ref error, out var target)) return false;
       if (!TryInt(step, "waitForImage.timeoutMs", step.WaitForImage.TimeoutMs, scope, used, ref error, out var timeout))
         return false;
-      waitForImage = new WaitForImageConfig { DetectionTarget = target, TimeoutMs = timeout ?? step.WaitForImage.TimeoutMs };
+      waitForImage = new WaitForImageConfig {
+        DetectionTarget = target,
+        TimeoutMs = timeout ?? step.WaitForImage.TimeoutMs,
+        Until = step.WaitForImage.Until,
+        AbsentCaptures = step.WaitForImage.AbsentCaptures
+      };
     }
 
     EnsureGameRunningConfig? ensureGame = step.EnsureGameRunning;
