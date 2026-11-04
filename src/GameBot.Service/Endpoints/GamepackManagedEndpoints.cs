@@ -35,7 +35,9 @@ internal static class GamepackManagedEndpoints {
         + "Query takeOver=true takes over user objects of the same type and name, as on the install route. The report then has takenOver, "
         + "takeOverBackupId (not set for a dry run, for a call that replaced nothing, and for a failed call), and, for a dry run, the list takeOvers. "
         + "The option does not change which queues the call stops. If the call fails after the install, the flow gives the user objects back "
-        + "before it rolls the gamepack back (restore step takeover_restore).");
+        + "before it rolls the gamepack back (restore step takeover_restore). "
+        + "Query force=true installs the same version again. Without it, the same version ends the call with no change. "
+        + "With it, the call runs the full flow, and the report has reinstalled and overwritten.");
 
     var catalog = app.MapGroup(ApiRoutes.GamepackCatalog).WithTags("Gamepacks");
     catalog.MapPost("update", CatalogUpdateAsync)
@@ -53,7 +55,8 @@ internal static class GamepackManagedEndpoints {
       .WithDescription(
         "Gets the listed file from the catalog and does the same managed flow as the file route. The catalog failures have the same "
         + "status codes as feature 147. A failure of the catalog leaves the instance as it was. "
-        + "The body field takeOver (default false) works as the query takeOver of the file route. The report has takenOver, takeOverBackupId, and takeOvers.");
+        + "The body field takeOver (default false) works as the query takeOver of the file route. The report has takenOver, takeOverBackupId, and takeOvers. "
+        + "The body field force (default false) works as the query force of the file route.");
 
     return app;
   }
@@ -65,8 +68,9 @@ internal static class GamepackManagedEndpoints {
       bool? dryRun,
       [FromQuery] string[]? templates,
       bool? takeOver,
+      bool? force,
       CancellationToken ct) {
-    var query = ManagedUpdateQuery.From(dryRun, templates, takeOver: takeOver);
+    var query = ManagedUpdateQuery.From(dryRun, templates, takeOver: takeOver, force: force);
     GamepacksEndpoints.InstallRequestParts parts;
     try {
       parts = await GamepacksEndpoints.ReadRequestAsync(http, checker.CurrentPolicy() != SignaturePolicy.Off, ct).ConfigureAwait(false);
@@ -107,7 +111,7 @@ internal static class GamepackManagedEndpoints {
       return CatalogFailed(ex);
     }
 
-    var query = ManagedUpdateQuery.From(request.DryRun, request.Templates, takeOver: request.TakeOver);
+    var query = ManagedUpdateQuery.From(request.DryRun, request.Templates, takeOver: request.TakeOver, force: request.Force);
     var report = await orchestrator.RunAsync(query.ToUpdateRequest(fetched.FileText, fetched.SignatureText), ct).ConfigureAwait(false);
     return ManagedUpdateHttp.ToResult(report);
   }

@@ -205,6 +205,7 @@ Status vocabulary:
 | 175 | Wait Until an Image Is Gone | Implemented |
 | 176 | Use Default Label | Implemented |
 | 177 | Fix Installed WaitForImage | Implemented |
+| 178 | Force Reinstall Gamepack | Implemented |
 
 ## Numbering notes
 

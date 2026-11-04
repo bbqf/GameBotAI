@@ -106,7 +106,7 @@ changes or removes an object that no gamepack owns.
 
 ### GET /api/gamepacks
 
-The route lists the installed gamepacks: `name`, `version`, `changelog`, `requiredApiMajor`, `hasPreviousVersion`, and
+The route lists the installed gamepacks: `name`, `version`, `changelog`, `requiredApiMajor`, `hasPreviousVersion`, `hasReinstallPoint`, and
 `installedAtUtc`. An empty installation gives `[]`.
 
 ### POST /api/gamepacks/{name}/rollback
@@ -450,6 +450,19 @@ The backup file stays after a restore. A second restore of the same backup gives
 
 If a managed call fails after the install worked, the flow gives the user objects back before it rolls the gamepack back. The restore report has the step `takeover_restore`. The failed report has no `takeOverBackupId`.
 
+## Force install
+
+Use the option `force` to install the same name and version again. The install writes every object of the pack from the file. Use it to repair a pack, for example after a feature 177 fix.
+
+- Routes: query `force=true` on `POST /api/gamepacks/install` and `POST /api/gamepacks/update`. Body field `force` on `POST /api/gamepacks/catalog/install` and `POST /api/gamepacks/catalog/update`. The managed update is a mode of the two update routes.
+- `force` has an effect only when the pack is installed with the same version as the file. In all other cases the option is ignored and no error occurs.
+- Without `force`, the routes work as before. The managed update of the same version still does nothing.
+- The response has `reinstalled` (true) and `overwritten`. `overwritten` lists each object (`type`, `name`) whose stored content differs from the file. An equal object is not listed. An object that you deleted by hand is created again and is not listed. The list can be empty.
+- A forced install keeps a reinstall point. It is the live content from before the install. It is separate from the kept previous version. `GET /api/gamepacks` shows `hasReinstallPoint`.
+- `POST /api/gamepacks/{name}/rollback` uses the reinstall point first. It puts back the objects from before the forced install. The version and the previous version do not change. The rollback then deletes the reinstall point. A second rollback goes to the previous version.
+- An install of a different version, and the removal of the record, delete the reinstall point.
+- `dryRun=true` with `force` gives the same result and the same `overwritten` list. It changes no object and makes no reinstall point.
+- A failed forced install changes no object. The error is the same as for a normal install.
 ## Seed templates
 
 A seed template is a starting queue template that a gamepack gives to a new user. The file member `seedTemplates` is a list of
@@ -492,6 +505,6 @@ signature that fails for such a file.
 `<data root>/gamepack-signature.json` holds the signature policy and the trusted keys.
 `<data root>/gamepack-catalog.json` holds the catalog location, the allow insecure flag, and the token.
 `<data root>/gamepacks/registry.json` holds the installed gamepacks and the owner records. `<data root>/gamepacks/previous/<name>.json`
-holds the kept previous version of each gamepack (the name is in lower case). `<data root>/gamepacks/takeover-backups/<id>.json`
+holds the kept previous version of each gamepack (the name is in lower case). `<data root>/gamepacks/reinstall/<name>.json` holds the reinstall point of a forced install (the section "Force install"). `<data root>/gamepacks/takeover-backups/<id>.json`
 holds the old content of the user objects that one install replaced (the section "Take-over"). The service writes each file to a temporary
 file first and then replaces the old file.

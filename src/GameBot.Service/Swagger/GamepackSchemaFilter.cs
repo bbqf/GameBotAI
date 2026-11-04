@@ -75,6 +75,8 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       Describe(schema, "takenOver", "The number of user objects of the same type and name that the install took over (planned for a dry run). 0 when takeOver is off or nothing was taken over. It does not count an update of an object that the gamepack already owned.");
       Describe(schema, "takeOverBackupId", "The id of the take-over backup. Present only for a real install that replaced at least one object. Use it with POST /api/gamepacks/takeover-backups/{backupId}/restore.");
       Describe(schema, "takeOvers", "Present only for a dry run with takeOver=true and no problem. One entry for each object to take over, with identical true when the content of the user object equals the content of the gamepack object.");
+      Describe(schema, "reinstalled", "True when the call was a forced reinstall of the same version (feature 178). Not present for other calls.");
+      Describe(schema, "overwritten", "Present when reinstalled is true, also when empty. The objects whose stored content differs from the file. An equal object, a take-over, and an object deleted by hand are not listed.");
       Describe(schema, "seedTemplatesCreated", "The names of the seed templates that the install created (planned for a dry run). Always present, also when empty (feature 150). A seed is an ordinary queue template with no link to the gamepack.");
       Describe(schema, "seedTemplatesSkipped", "The seed templates that the install did not create (planned for a dry run). Always present, also when empty. Each item has the name and the reason skipped_exists (a template with this name exists).");
       return;
@@ -112,6 +114,13 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       return;
     }
 
+    if (context.Type == typeof(GamepackOverwriteEntryDto)) {
+      schema.Description = "One object that a forced reinstall overwrites with different content (feature 178).";
+      Describe(schema, "type", "sequence, command, or image.");
+      Describe(schema, "name", "The object name. For an image, the id.");
+      return;
+    }
+
     if (context.Type == typeof(GamepackTakeOverRestoreResponse)) {
       schema.Description = "The result of a restore of a take-over backup that worked. The objects have their old content and the owner user. The backup file stays.";
       Describe(schema, "restored", "The number of objects that were put back.");
@@ -144,6 +153,7 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
 
     if (context.Type == typeof(GamepackListItemDto)) {
       schema.Description = "One installed gamepack.";
+      Describe(schema, "hasReinstallPoint", "True when a reinstall point of a forced install is kept. A rollback then puts back the objects from before that install (feature 178).");
       return;
     }
 
@@ -233,6 +243,7 @@ internal sealed class GamepackSchemaFilter : ISchemaFilter {
       Describe(schema, "version", "The version.");
       Describe(schema, "dryRun", "True to check only. No data changes.");
       Describe(schema, "takeOver", "True to take over user objects of the same type and name (default false). The response has takenOver and takeOverBackupId.");
+      Describe(schema, "force", "True to install the same version again (default false). The response has reinstalled and overwritten (feature 178).");
       return true;
     }
 

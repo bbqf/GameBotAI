@@ -116,6 +116,14 @@ internal sealed record ManagedUpdateReportDto {
   /// <summary>The objects to take over. Set for a dry run with the option on and no problem. Empty otherwise.</summary>
   public IReadOnlyList<GamepackTakeOverEntryDto> TakeOvers { get; init; } = Array.Empty<GamepackTakeOverEntryDto>();
 
+  /// <summary>True when the call was a forced reinstall of the same version (feature 178). Not written for other calls.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public bool? Reinstalled { get; init; }
+
+  /// <summary>The objects whose stored content differs from the file (feature 178). Written when <c>reinstalled</c> is true, also when empty.</summary>
+  [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<GamepackOverwriteEntryDto>? Overwritten { get; init; }
+
   /// <summary>The names of the seed templates created (planned for a dry run). Always present (feature 150).</summary>
   public IReadOnlyList<string> SeedTemplatesCreated { get; init; } = Array.Empty<string>();
 
@@ -158,6 +166,8 @@ internal sealed record ManagedUpdateReportDto {
       Removed = report.Removed,
       TakenOver = report.TakenOver,
       TakeOverBackupId = report.TakeOverBackupId,
+      Reinstalled = report.Reinstalled ? true : null,
+      Overwritten = report.Reinstalled ? (report.Overwritten ?? Array.Empty<OverwriteEntry>()).Select(GamepackOverwriteEntryDto.From).ToList() : null,
       TakeOvers = report.TakeOvers.Select(GamepackTakeOverEntryDto.From).ToList(),
       SeedTemplatesCreated = report.SeedTemplatesCreated,
       SeedTemplatesSkipped = report.SeedTemplatesSkipped.Select(GamepackSeedSkipDto.From).ToList(),

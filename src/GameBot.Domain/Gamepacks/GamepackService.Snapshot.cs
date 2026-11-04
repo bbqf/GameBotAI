@@ -11,6 +11,9 @@ public sealed class GamepackInstalledSnapshot {
   /// <summary>The text of the previous-version file, or null when none existed.</summary>
   public string? PreviousFileText { get; init; }
 
+  /// <summary>The text of the reinstall file (feature 178), or null when none existed.</summary>
+  public string? ReinstallFileText { get; init; }
+
   /// <summary>
   /// The live content of the installed version as a gamepack file text, or null when the caller did not ask for it. A managed
   /// rollback asks for it, because its restore cannot call the rollback a second time.
@@ -38,7 +41,7 @@ public sealed partial class GamepackService {
     var live = includeLiveContent
       ? await _applier.CaptureLiveTextAsync(record, registry, ct).ConfigureAwait(false)
       : null;
-    return new GamepackInstalledSnapshot { Record = record, PreviousFileText = _store.ReadPrevious(record.Name), LiveFileText = live };
+    return new GamepackInstalledSnapshot { Record = record, PreviousFileText = _store.ReadPrevious(record.Name), ReinstallFileText = _store.ReadReinstall(record.Name), LiveFileText = live };
   }
 
   /// <summary>
@@ -159,6 +162,7 @@ public sealed partial class GamepackService {
           r.Gamepacks.Remove(GamepackNameRules.Key(name));
         });
         _store.DeletePrevious(name);
+        _store.DeleteReinstall(name);
       }
       catch (Exception ex) when (ex is not OperationCanceledException) {
         failed.Add("registry");
@@ -198,6 +202,7 @@ public sealed partial class GamepackService {
     _store.Update(r => {
       if (r.Gamepacks.TryGetValue(GamepackNameRules.Key(name), out var current)) {
         current.Previous = snapshot.Record.Previous;
+        current.Reinstall = snapshot.Record.Reinstall;
       }
     });
     if (snapshot.PreviousFileText is null) {
@@ -205,6 +210,13 @@ public sealed partial class GamepackService {
     }
     else {
       _store.WritePrevious(name, snapshot.PreviousFileText);
+    }
+
+    if (snapshot.ReinstallFileText is null) {
+      _store.DeleteReinstall(name);
+    }
+    else {
+      _store.WriteReinstall(name, snapshot.ReinstallFileText);
     }
   }
 }

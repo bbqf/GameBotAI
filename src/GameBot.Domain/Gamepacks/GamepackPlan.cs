@@ -64,6 +64,11 @@ public sealed record PlannedRemoval(string Type, string Name, string Id) {
   public string Key => GamepackRegistry.ObjectKey(Type, Name);
 }
 
+/// <summary>One stored object that a forced install overwrites with different content (feature 178).</summary>
+/// <param name="Type">One of <see cref="GamepackObjectTypes"/>.</param>
+/// <param name="Name">The object name. For an image, the id.</param>
+public sealed record OverwriteEntry(string Type, string Name);
+
 /// <summary>What an install or a rollback does.</summary>
 public sealed class GamepackPlan {
   /// <summary>The manifest of the version that the apply installs.</summary>
@@ -86,6 +91,12 @@ public sealed class GamepackPlan {
 
   /// <summary>One entry for each take-over write, with the mark identical or different. The validator sets it.</summary>
   public IReadOnlyList<TakeOverEntry> TakeOvers { get; init; } = Array.Empty<TakeOverEntry>();
+
+  /// <summary>
+  /// The update writes whose stored content differs from the file (feature 178). The validator sets it only for a forced
+  /// reinstall. A take-over, an equal object, and an object deleted by hand are not in the list.
+  /// </summary>
+  public IReadOnlyList<OverwriteEntry> Overwrites { get; init; } = Array.Empty<OverwriteEntry>();
 
   /// <summary>The number of objects that the apply removes.</summary>
   public int Removed => Removals.Count;

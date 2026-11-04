@@ -20,6 +20,18 @@ public enum GamepackPreviousHandling {
   Clear
 }
 
+/// <summary>How the apply treats the reinstall point of a forced install (feature 178).</summary>
+public enum ReinstallPointHandling {
+  /// <summary>Keep the record and the file as they are.</summary>
+  Keep,
+
+  /// <summary>Capture the live content of the installed version as the new reinstall point (a forced reinstall).</summary>
+  Capture,
+
+  /// <summary>Clear the reinstall point (an install of a different version, or a rollback).</summary>
+  Clear
+}
+
 /// <summary>The status of an apply.</summary>
 public enum GamepackApplyStatus {
   /// <summary>All writes worked.</summary>
@@ -129,7 +141,9 @@ public sealed partial class GamepackApplier {
   /// <param name="plan">The plan from the validator.</param>
   /// <param name="previous">How to treat the previous version.</param>
   /// <param name="ct">The cancellation token.</param>
-  public async Task<GamepackApplyOutcome> ApplyAsync(GamepackPlan plan, GamepackPreviousHandling previous, CancellationToken ct = default) {
+  /// <param name="reinstall">How to treat the reinstall point (feature 178). The default keeps it.</param>
+  [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "The new optional argument goes last, so that existing callers keep their call shape.")]
+  public async Task<GamepackApplyOutcome> ApplyAsync(GamepackPlan plan, GamepackPreviousHandling previous, CancellationToken ct = default, ReinstallPointHandling reinstall = ReinstallPointHandling.Keep) {
     ArgumentNullException.ThrowIfNull(plan);
     var packName = plan.Manifest.Name!;
     var packKey = GamepackNameRules.Key(packName);
@@ -137,8 +151,11 @@ public sealed partial class GamepackApplier {
     GamepackRegistry registryBefore;
     bool registryExistedBefore;
     string? previousFileBefore;
+    string? reinstallFileBefore;
     string? capturedText = null;
     PreviousVersion? capturedRecord = null;
+    string? reinstallText = null;
+    PreviousVersion? reinstallRecord = null;
     InstalledGamepack? oldRecord;
     string? backupId = null;
 
@@ -151,6 +168,7 @@ public sealed partial class GamepackApplier {
       registryBefore = _store.Load();
       registryBefore.Gamepacks.TryGetValue(packKey, out oldRecord);
       previousFileBefore = _store.ReadPrevious(packName);
+      reinstallFileBefore = _store.ReadReinstall(packName);
       if (previous == GamepackPreviousHandling.Capture && oldRecord is not null) {
         (capturedText, capturedRecord) = await CaptureLiveAsync(oldRecord, registryBefore, ct).ConfigureAwait(false);
       }
@@ -162,6 +180,11 @@ public sealed partial class GamepackApplier {
 
       foreach (var removal in plan.Removals) {
         undo.Add(await TakeSnapshotAsync(removal.Type, removal.Key, removal.Id, ct).ConfigureAwait(false));
+      }
+
+      // The live content is read before the first object write (feature 178, FR-007). It reuses the undo snapshots.
+      if (reinstall == ReinstallPointHandling.Capture && oldRecord is not null) {
+        (reinstallText, reinstallRecord) = await CaptureLiveAsync(oldRecord, registryBefore, ct, undo).ConfigureAwait(false);
       }
 
       // The backup of the replaced user objects exists before the first object write (feature 149, FR-008).
@@ -177,6 +200,7 @@ public sealed partial class GamepackApplier {
     var touched = new List<Snapshot>();
     var registryTouched = false;
     var previousTouched = false;
+    var reinstallTouched = false;
     var createdSeedIds = new List<string>();
     var createdSeedNames = new List<string>();
     var skippedSeeds = new List<SeedSkip>();
@@ -200,12 +224,14 @@ public sealed partial class GamepackApplier {
 
       previousTouched = true;
       WritePreviousFile(packName, previous, capturedText);
+      reinstallTouched = reinstall != ReinstallPointHandling.Keep;
+      WriteReinstallFile(packName, reinstall, reinstallText);
       registryTouched = true;
       _gate.BeforeWrite(GamepackWriteOperations.Registry, packName);
-      _store.Update(registry => ApplyToRegistry(registry, plan, previous, oldRecord, capturedRecord));
+      _store.Update(registry => ApplyToRegistry(registry, plan, previous, oldRecord, capturedRecord, reinstall, reinstallRecord));
     }
     catch (Exception ex) {
-      var failed = await RestoreAsync(registryTouched, registryBefore, registryExistedBefore, previousTouched, packName, previousFileBefore, touched, createdSeedIds).ConfigureAwait(false);
+      var failed = await RestoreAsync(registryTouched, registryBefore, registryExistedBefore, previousTouched, packName, previousFileBefore, touched, createdSeedIds, reinstallTouched, reinstallFileBefore).ConfigureAwait(false);
       DropTakeOverBackup(backupId, failed.Count == 0);
       return new GamepackApplyOutcome {
         Status = failed.Count == 0 ? GamepackApplyStatus.Failed : GamepackApplyStatus.PartialRestore,
@@ -272,6 +298,19 @@ public sealed partial class GamepackApplier {
       case GamepackPreviousHandling.Clear:
         _gate.BeforeWrite(GamepackWriteOperations.PreviousFile, packName);
         _store.DeletePrevious(packName);
+        break;
+    }
+  }
+
+  private void WriteReinstallFile(string packName, ReinstallPointHandling reinstall, string? reinstallText) {
+    switch (reinstall) {
+      case ReinstallPointHandling.Capture when reinstallText is not null:
+        _gate.BeforeWrite(GamepackWriteOperations.ReinstallFile, packName);
+        _store.WriteReinstall(packName, reinstallText);
+        break;
+      case ReinstallPointHandling.Clear:
+        _gate.BeforeWrite(GamepackWriteOperations.ReinstallFile, packName);
+        _store.DeleteReinstall(packName);
         break;
     }
   }
@@ -373,7 +412,7 @@ public sealed partial class GamepackApplier {
     }
   }
 
-  private void ApplyToRegistry(GamepackRegistry registry, GamepackPlan plan, GamepackPreviousHandling previous, InstalledGamepack? oldRecord, PreviousVersion? captured) {
+  private void ApplyToRegistry(GamepackRegistry registry, GamepackPlan plan, GamepackPreviousHandling previous, InstalledGamepack? oldRecord, PreviousVersion? captured, ReinstallPointHandling reinstall, PreviousVersion? reinstallCaptured) {
     var manifest = plan.Manifest;
     var name = manifest.Name!;
     var packKey = GamepackNameRules.Key(name);
@@ -397,6 +436,11 @@ public sealed partial class GamepackApplier {
         GamepackPreviousHandling.Capture => captured ?? oldRecord?.Previous,
         GamepackPreviousHandling.Keep => oldRecord?.Previous,
         _ => null
+      },
+      Reinstall = reinstall switch {
+        ReinstallPointHandling.Capture => reinstallCaptured ?? oldRecord?.Reinstall,
+        ReinstallPointHandling.Keep => oldRecord?.Reinstall,
+        _ => null
       }
     };
     registry.Gamepacks[packKey] = record;
@@ -415,7 +459,9 @@ public sealed partial class GamepackApplier {
     return text;
   }
 
-  private async Task<(string Text, PreviousVersion Record)> CaptureLiveAsync(InstalledGamepack current, GamepackRegistry registry, CancellationToken ct) {
+  // The optional list "known" holds undo snapshots that the apply has read in the same request. An owned object that has a
+  // snapshot is not read a second time (feature 178, SC-007).
+  private async Task<(string Text, PreviousVersion Record)> CaptureLiveAsync(InstalledGamepack current, GamepackRegistry registry, CancellationToken ct, IReadOnlyList<Snapshot>? known = null) {
     var sequences = new List<CommandSequence>();
     var commands = new List<Command>();
     var images = new List<GamepackImage>();
@@ -424,9 +470,10 @@ public sealed partial class GamepackApplier {
     foreach (var pair in registry.Owners.Where(p => GamepackNameRules.Comparer.Equals(p.Value.Gamepack, current.Name))) {
       var type = GamepackRegistry.TypeOfKey(pair.Key);
       var id = pair.Value.Id;
+      var snapshot = known?.FirstOrDefault(s => s.Matches(type, id));
       switch (type) {
         case GamepackObjectTypes.Sequence: {
-          var sequence = await _sequences.GetAsync(id).ConfigureAwait(false);
+          var sequence = snapshot is not null ? snapshot.Sequence : await _sequences.GetAsync(id).ConfigureAwait(false);
           if (sequence is not null) {
             sequences.Add(sequence);
             objects.Add(new GamepackObjectRef { Type = type, Name = sequence.Name, Id = id });
@@ -436,7 +483,7 @@ public sealed partial class GamepackApplier {
         }
 
         case GamepackObjectTypes.Command: {
-          var command = await _commands.GetAsync(id, ct).ConfigureAwait(false);
+          var command = snapshot is not null ? snapshot.Command : await _commands.GetAsync(id, ct).ConfigureAwait(false);
           if (command is not null) {
             commands.Add(command);
             objects.Add(new GamepackObjectRef { Type = type, Name = command.Name, Id = id });
@@ -446,7 +493,7 @@ public sealed partial class GamepackApplier {
         }
 
         case GamepackObjectTypes.Image: {
-          var image = await ReadImageAsync(id, ct).ConfigureAwait(false);
+          var image = snapshot is not null ? ImageOfSnapshot(snapshot) : await ReadImageAsync(id, ct).ConfigureAwait(false);
           if (image is not null) {
             images.Add(image);
             objects.Add(new GamepackObjectRef { Type = type, Name = id, Id = id });
@@ -478,6 +525,17 @@ public sealed partial class GamepackApplier {
     };
     return (GamepackFileSerializer.Serialize(file), record);
   }
+
+  private static GamepackImage? ImageOfSnapshot(Snapshot snapshot) =>
+    snapshot.Existed && snapshot.ImageBytes is not null
+      ? new GamepackImage {
+        Id = snapshot.Id,
+        ContentType = snapshot.ImageContentType,
+        Filename = snapshot.ImageFilename,
+        DataBase64 = Convert.ToBase64String(snapshot.ImageBytes),
+        Alternates = snapshot.ImageAlternates is { Count: > 0 } ? snapshot.ImageAlternates : null
+      }
+      : null;
 
   // The stored list for the capture: null when the list is empty, so a file without lists stays the same (feature 153).
   private List<string>? StoredAlternates(string id) {
@@ -563,7 +621,9 @@ public sealed partial class GamepackApplier {
       string packName,
       string? previousFileBefore,
       List<Snapshot> touched,
-      List<string>? createdSeedIds = null) {
+      List<string>? createdSeedIds = null,
+      bool reinstallTouched = false,
+      string? reinstallFileBefore = null) {
     var failed = new List<string>();
 
     if (registryTouched) {
@@ -595,6 +655,22 @@ public sealed partial class GamepackApplier {
       catch (Exception ex) {
         failed.Add(RestoreKey("previous", packName, _store.PreviousFilePath(packName)));
         LogRestoreFailed(_logger, "previous-file", ex);
+      }
+    }
+
+    if (reinstallTouched) {
+      try {
+        _gate.BeforeWrite(GamepackWriteOperations.Restore, "reinstall-file");
+        if (reinstallFileBefore is null) {
+          _store.DeleteReinstall(packName);
+        }
+        else {
+          _store.WriteReinstall(packName, reinstallFileBefore);
+        }
+      }
+      catch (Exception ex) {
+        failed.Add(RestoreKey("reinstall", packName, _store.ReinstallFilePath(packName)));
+        LogRestoreFailed(_logger, "reinstall-file", ex);
       }
     }
 

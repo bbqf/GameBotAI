@@ -19,18 +19,23 @@ internal sealed record ManagedUpdateQuery {
   /// <summary>True to take over user objects of the same type and name (feature 149). The default is false. A rollback ignores it.</summary>
   public bool TakeOver { get; init; }
 
+  /// <summary>True to install the same version again (feature 178). The default is false. A rollback ignores it.</summary>
+  public bool Force { get; init; }
+
   /// <summary>Builds the values from the bound route parameters.</summary>
   /// <param name="dryRun">The <c>dryRun</c> value, or null.</param>
   /// <param name="templates">The repeated <c>templates</c> values, or null.</param>
   /// <param name="managed">The <c>managed</c> value, or null.</param>
   /// <param name="takeOver">The <c>takeOver</c> value, or null.</param>
-  internal static ManagedUpdateQuery From(bool? dryRun, IEnumerable<string>? templates, bool? managed = null, bool? takeOver = null) {
+  /// <param name="force">The <c>force</c> value, or null (feature 178).</param>
+  internal static ManagedUpdateQuery From(bool? dryRun, IEnumerable<string>? templates, bool? managed = null, bool? takeOver = null, bool? force = null) {
     var names = templates?.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
     return new ManagedUpdateQuery {
       DryRun = dryRun ?? false,
       Templates = names is { Count: > 0 } ? names : null,
       Managed = managed ?? false,
-      TakeOver = takeOver ?? false
+      TakeOver = takeOver ?? false,
+      Force = force ?? false
     };
   }
 
@@ -43,6 +48,7 @@ internal sealed record ManagedUpdateQuery {
     SignatureText = signatureText,
     DryRun = DryRun,
     TakeOver = TakeOver,
+    Force = Force,
     Templates = Templates
   };
 
@@ -69,6 +75,9 @@ internal sealed record GamepackCatalogUpdateRequest {
 
   /// <summary>True to take over user objects of the same type and name (feature 149). A missing value means false.</summary>
   public bool TakeOver { get; init; }
+
+  /// <summary>True to install the same version again (feature 178). A missing value means false.</summary>
+  public bool Force { get; init; }
 
   /// <summary>The template names that limit the call. Null or empty means all templates.</summary>
   public IReadOnlyList<string>? Templates { get; init; }

@@ -48,8 +48,9 @@ public sealed class GamepackValidator {
   /// <param name="checkApiVersion">True to compare <c>requiredApiMajor</c> with the running API major version. A rollback passes false.</param>
   /// <param name="takeOver">True to take over user objects of the same type and name (feature 149). A rollback passes false.</param>
   /// <param name="seeds">True to check the seed templates and to plan them on a first install (feature 150). A rollback passes false.</param>
+  /// <param name="reinstall">True for a forced reinstall of the same version (feature 178). The plan then lists the objects whose stored content differs from the file. Other callers pass false.</param>
   [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "The new optional flag goes last, so that existing callers keep their call shape.")]
-  public async Task<GamepackValidationResult> ValidateAsync(GamepackFile file, IReadOnlyList<GamepackProblem>? parseProblems = null, CancellationToken ct = default, bool checkApiVersion = true, bool takeOver = false, bool seeds = false) {
+  public async Task<GamepackValidationResult> ValidateAsync(GamepackFile file, IReadOnlyList<GamepackProblem>? parseProblems = null, CancellationToken ct = default, bool checkApiVersion = true, bool takeOver = false, bool seeds = false, bool reinstall = false) {
     ArgumentNullException.ThrowIfNull(file);
     var problems = new List<GamepackProblem>();
     if (parseProblems is not null) {
@@ -89,15 +90,20 @@ public sealed class GamepackValidator {
       return new GamepackValidationResult { Problems = problems };
     }
 
-    var plan = BuildPlan(file, existingSequences, existingCommands, sequenceDecisions, commandDecisions, imageDecisions, decoded, removals);
+    var plan = BuildPlan(file, existingSequences, existingCommands, sequenceDecisions, commandDecisions, imageDecisions, decoded, removals, reinstall);
     if (plan.TakenOver > 0) {
       var entries = await CompareTakeOversAsync(plan, ct).ConfigureAwait(false);
       plan = new GamepackPlan { Manifest = plan.Manifest, Writes = plan.Writes, Removals = plan.Removals, TakeOvers = entries };
     }
 
+    if (reinstall) {
+      var overwrites = await CompareOverwritesAsync(plan, ct).ConfigureAwait(false);
+      plan = new GamepackPlan { Manifest = plan.Manifest, Writes = plan.Writes, Removals = plan.Removals, TakeOvers = plan.TakeOvers, Overwrites = overwrites };
+    }
+
     if (firstInstall) {
       var seedPlan = await BuildSeedPlanAsync(file, plan, existingSequences).ConfigureAwait(false);
-      plan = new GamepackPlan { Manifest = plan.Manifest, Writes = plan.Writes, Removals = plan.Removals, TakeOvers = plan.TakeOvers, Seeds = seedPlan };
+      plan = new GamepackPlan { Manifest = plan.Manifest, Writes = plan.Writes, Removals = plan.Removals, TakeOvers = plan.TakeOvers, Overwrites = plan.Overwrites, Seeds = seedPlan };
     }
 
     return new GamepackValidationResult { Problems = problems, Plan = plan };
@@ -255,6 +261,26 @@ public sealed class GamepackValidator {
       }
 
       entries.Add(new TakeOverEntry(write.Type, write.Name, identical));
+    }
+
+    return entries;
+  }
+
+  // Feature 178: the compare runs on the final plan content. It lists an update write only when the stored content differs.
+  // A take-over write, an equal object, and an object that was deleted by hand (a create write) are not listed.
+  private async Task<List<OverwriteEntry>> CompareOverwritesAsync(GamepackPlan plan, CancellationToken ct) {
+    var entries = new List<OverwriteEntry>();
+    foreach (var write in plan.Writes.Where(w => w.IsUpdate && !w.IsTakeOver)) {
+      var identical = write.Type switch {
+        GamepackObjectTypes.Sequence => write.LiveSequence is not null && GamepackContentComparer.Identical(write.LiveSequence, write.Sequence!),
+        GamepackObjectTypes.Command => write.LiveCommand is not null && GamepackContentComparer.Identical(write.LiveCommand, write.Command!),
+        GamepackObjectTypes.Image => await ImageIsIdenticalAsync(write, ct).ConfigureAwait(false),
+        _ => true
+      };
+
+      if (!identical) {
+        entries.Add(new OverwriteEntry(write.Type, write.Name));
+      }
     }
 
     return entries;
@@ -626,7 +652,8 @@ public sealed class GamepackValidator {
       Dictionary<string, Decision> commandDecisions,
       Dictionary<string, Decision> imageDecisions,
       Dictionary<string, byte[]> decoded,
-      List<PlannedRemoval> removals) {
+      List<PlannedRemoval> removals,
+      bool reinstall) {
     var commandUsed = new HashSet<string>(existingCommands.Select(c => c.Id), StringComparer.OrdinalIgnoreCase);
     var sequenceUsed = new HashSet<string>(existingSequences.Select(s => s.Id), StringComparer.OrdinalIgnoreCase);
 
@@ -641,7 +668,7 @@ public sealed class GamepackValidator {
       }
 
       command.Id = finalId;
-      commandWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Command, Name = command.Name, FinalId = finalId, ExistingId = existingId, IsTakeOver = commandDecisions[command.Name].IsTakeOver, Command = command, LiveCommand = commandDecisions[command.Name].IsTakeOver ? existingCommands.FirstOrDefault(c => string.Equals(c.Id, existingId, StringComparison.OrdinalIgnoreCase)) : null });
+      commandWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Command, Name = command.Name, FinalId = finalId, ExistingId = existingId, IsTakeOver = commandDecisions[command.Name].IsTakeOver, Command = command, LiveCommand = (commandDecisions[command.Name].IsTakeOver || (reinstall && existingId is not null)) ? existingCommands.FirstOrDefault(c => string.Equals(c.Id, existingId, StringComparison.OrdinalIgnoreCase)) : null });
     }
 
     string? Map(string id) => commandIdMap.TryGetValue(id, out var mapped) ? mapped : null;
@@ -657,7 +684,7 @@ public sealed class GamepackValidator {
       GamepackReferences.RewriteCommandIds(sequence, Map);
       // Feature 177: set the WaitForImage configuration now, so the take-over hash covers the final content.
       GamepackWaitForImageMapping.Apply(sequence);
-      sequenceWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Sequence, Name = sequence.Name, FinalId = finalId, ExistingId = existingId, IsTakeOver = sequenceDecisions[sequence.Name].IsTakeOver, Sequence = sequence, LiveSequence = sequenceDecisions[sequence.Name].IsTakeOver ? existingSequences.FirstOrDefault(s => string.Equals(s.Id, existingId, StringComparison.OrdinalIgnoreCase)) : null });
+      sequenceWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Sequence, Name = sequence.Name, FinalId = finalId, ExistingId = existingId, IsTakeOver = sequenceDecisions[sequence.Name].IsTakeOver, Sequence = sequence, LiveSequence = (sequenceDecisions[sequence.Name].IsTakeOver || (reinstall && existingId is not null)) ? existingSequences.FirstOrDefault(s => string.Equals(s.Id, existingId, StringComparison.OrdinalIgnoreCase)) : null });
     }
 
     var imageWrites = new List<PlannedObject>();

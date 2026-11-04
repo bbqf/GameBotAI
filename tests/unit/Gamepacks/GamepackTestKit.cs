@@ -147,6 +147,12 @@ internal sealed class GamepackTestKit : IDisposable {
       ["seedTemplates"] = seedTemplates
     }.Where(p => p.Key != "seedTemplates" || p.Value is not null).ToDictionary(p => p.Key, p => p.Value));
 
+  /// <summary>A small pack named pns with two sequences, one command that uses an image, and one image (feature 178).</summary>
+  public static string ReinstallPack(string version) => Pack("pns", version,
+    sequences: new[] { Seq("s1", "Daily", "c1"), Seq("s2", "Other") },
+    commands: new[] { Cmd("c1", "Tap", imageId: "icon") },
+    images: new[] { Img("icon") });
+
   /// <summary>A seed template with entries. Each entry names a sequence (feature 150).</summary>
   public static object Seed(string name, params object[] entries) => new { name, entries };
 

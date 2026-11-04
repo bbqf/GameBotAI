@@ -9,7 +9,9 @@ public sealed partial class GamepackApplier {
   // ---- backup before the writes ----
 
   private static Snapshot? PreloadedSnapshot(PlannedObject write) {
-    if (!write.IsTakeOver) {
+    // The validator sets the live object for a take-over, and for an update of a forced reinstall (feature 178).
+    // In both cases the snapshot needs no second read.
+    if (!write.IsTakeOver && !write.IsUpdate) {
       return null;
     }
 

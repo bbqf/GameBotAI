@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Install the same gamepack version again (178-force-reinstall-gamepack, #374)
+  - **Option**: `force` on `POST /api/gamepacks/install`, `POST /api/gamepacks/update`, `POST /api/gamepacks/catalog/install`, and `POST /api/gamepacks/catalog/update` (query on the first two, body field on the others). The managed update of the same version then runs the full flow.
+  - **Result**: the response has `reinstalled` and `overwritten`. `overwritten` lists the objects whose stored content differs from the file. A dry run with `force` shows the list and changes nothing.
+  - **Undo**: a forced install keeps a reinstall point. `POST /api/gamepacks/{name}/rollback` uses it first. `GET /api/gamepacks` has `hasReinstallPoint`.
+  - **Not changed**: a call without `force`, the update and downgrade rules, and the web UI.
+  - **Version**: the patch version is now 1.12.7.
 ### Fixed
 - Installed inline WaitForImage ran as a 1 s delay (177-fix-installed-waitforimage, B-039, #373)
   - **Cause**: a gamepack install stored the action payload of a `WaitForImage` step only. The step had no `waitForImage` configuration, and the runner reads only that configuration.

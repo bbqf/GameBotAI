@@ -38,6 +38,12 @@ public sealed class ManagedUpdateRequest {
   /// </summary>
   public bool TakeOver { get; init; }
 
+  /// <summary>
+  /// True to install the same version again (feature 178). The flow then does not end with a no-op for an equal version.
+  /// It applies to an update only. A rollback ignores it.
+  /// </summary>
+  public bool Force { get; init; }
+
   /// <summary>The template names that limit the call. Null or empty means all templates. Names match without case.</summary>
   public IReadOnlyList<string>? Templates { get; init; }
 }

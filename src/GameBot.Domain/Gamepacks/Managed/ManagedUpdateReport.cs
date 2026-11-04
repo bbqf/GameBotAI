@@ -170,6 +170,12 @@ public sealed class ManagedUpdateReport {
   /// <summary>The list of objects to take over. Set for a dry run with the option on and no problem. Empty otherwise.</summary>
   public IReadOnlyList<TakeOverEntry> TakeOvers { get; init; } = Array.Empty<TakeOverEntry>();
 
+  /// <summary>True when the call was a forced reinstall of the same version (feature 178).</summary>
+  public bool Reinstalled { get; init; }
+
+  /// <summary>The objects whose stored content differs from the file (feature 178). Null when <see cref="Reinstalled"/> is false.</summary>
+  public IReadOnlyList<OverwriteEntry>? Overwritten { get; init; }
+
   /// <summary>The names of the seed templates created (planned for a dry run). Always set (feature 150).</summary>
   public IReadOnlyList<string> SeedTemplatesCreated { get; init; } = Array.Empty<string>();
 

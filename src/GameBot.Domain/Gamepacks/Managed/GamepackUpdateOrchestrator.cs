@@ -109,6 +109,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     public int Updated { get; set; }
     public int Removed { get; set; }
     public int TakenOver { get; set; }
+    public bool Reinstalled { get; set; }
+    public IReadOnlyList<OverwriteEntry>? Overwritten { get; set; }
     public IReadOnlyList<string> SeedsCreated { get; set; } = Array.Empty<string>();
     public IReadOnlyList<GameBot.Domain.Gamepacks.Seeds.SeedSkip> SeedsSkipped { get; set; } = Array.Empty<GameBot.Domain.Gamepacks.Seeds.SeedSkip>();
     public IReadOnlyList<TakeOverEntry> TakeOvers { get; set; } = Array.Empty<TakeOverEntry>();
@@ -156,7 +158,7 @@ public sealed partial class GamepackUpdateOrchestrator {
     }
 
     p.FileText = request.FileText;
-    var outcome = await _gamepacks.InstallAsync(request.FileText, new GamepackInstallOptions(DryRun: true, request.TakeOver, request.SignatureText), ct).ConfigureAwait(false);
+    var outcome = await _gamepacks.InstallAsync(request.FileText, new GamepackInstallOptions(DryRun: true, request.TakeOver, request.SignatureText, request.Force), ct).ConfigureAwait(false);
     p.Name = outcome.Name;
     p.Version = outcome.Version;
     p.Signature = outcome.Signature;
@@ -167,6 +169,8 @@ public sealed partial class GamepackUpdateOrchestrator {
         p.Updated = outcome.Updated;
         p.Removed = outcome.Removed;
         p.TakenOver = outcome.TakenOver;
+        p.Reinstalled = outcome.Reinstalled;
+        p.Overwritten = outcome.Overwritten;
         p.SeedsCreated = outcome.SeedTemplatesCreated;
         p.SeedsSkipped = outcome.SeedTemplatesSkipped;
         p.TakeOvers = outcome.TakeOvers ?? Array.Empty<TakeOverEntry>();
@@ -208,14 +212,18 @@ public sealed partial class GamepackUpdateOrchestrator {
     }
 
     p.Name = p.Installed.Record.Name;
-    var previous = p.Installed.Record.Previous;
-    if (previous is null || p.Installed.PreviousFileText is null) {
+    // Feature 178: a reinstall point is a rollback source. It comes before the kept previous version.
+    var reinstall = p.Installed.Record.Reinstall;
+    var fromReinstall = reinstall is not null && p.Installed.ReinstallFileText is not null;
+    var previous = fromReinstall ? reinstall : p.Installed.Record.Previous;
+    var sourceText = fromReinstall ? p.Installed.ReinstallFileText : p.Installed.PreviousFileText;
+    if (previous is null || sourceText is null) {
       p.Reason = ManagedUpdateReasons.NoPreviousVersion;
       return;
     }
 
     p.Version = previous.Version;
-    p.FileText = p.Installed.PreviousFileText;
+    p.FileText = sourceText;
     var parsed = GamepackFileSerializer.Parse(p.FileText);
     if (parsed.File is null) {
       p.Problems.AddRange(parsed.Problems);
@@ -250,6 +258,7 @@ public sealed partial class GamepackUpdateOrchestrator {
 
   private static bool IsSameVersion(ManagedUpdateRequest request, Prepared p) =>
     request.Mode == ManagedUpdateMode.Update
+    && !request.Force
     && p.Installed is not null
     && string.Equals(p.Installed.Record.Version, p.Version, StringComparison.Ordinal);
 
@@ -281,6 +290,8 @@ public sealed partial class GamepackUpdateOrchestrator {
       Updated = p.Updated,
       Removed = p.Removed,
       TakenOver = p.TakenOver,
+      Reinstalled = p.Reinstalled,
+      Overwritten = p.Overwritten,
       TakeOvers = p.TakeOvers,
       SeedTemplatesCreated = p.SeedsCreated,
       SeedTemplatesSkipped = p.SeedsSkipped,
@@ -324,6 +335,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     public int Updated { get; set; }
     public int Removed { get; set; }
     public int TakenOver { get; set; }
+    public bool Reinstalled { get; set; }
+    public IReadOnlyList<OverwriteEntry>? Overwritten { get; set; }
     public string? TakeOverBackupId { get; set; }
     public IReadOnlyList<string> SeedsCreated { get; set; } = Array.Empty<string>();
     public IReadOnlyList<GameBot.Domain.Gamepacks.Seeds.SeedSkip> SeedsSkipped { get; set; } = Array.Empty<GameBot.Domain.Gamepacks.Seeds.SeedSkip>();
@@ -444,7 +457,7 @@ public sealed partial class GamepackUpdateOrchestrator {
       return;
     }
 
-    var installed = await _gamepacks.InstallAsync(p.FileText!, new GamepackInstallOptions(DryRun: false, request.TakeOver, p.SignatureText), ct).ConfigureAwait(false);
+    var installed = await _gamepacks.InstallAsync(p.FileText!, new GamepackInstallOptions(DryRun: false, request.TakeOver, p.SignatureText, request.Force), ct).ConfigureAwait(false);
     if (installed.Status != GamepackInstallStatus.Ok) {
       state.InstallPartial = installed.Status == GamepackInstallStatus.PartialRestore;
       throw new StepException(ManagedUpdateReasons.InstallFailed, "The install failed. " + installed.ErrorMessage);
@@ -455,6 +468,8 @@ public sealed partial class GamepackUpdateOrchestrator {
     state.Updated = installed.Updated;
     state.Removed = installed.Removed;
     state.TakenOver = installed.TakenOver;
+    state.Reinstalled = installed.Reinstalled;
+    state.Overwritten = installed.Overwritten;
     state.TakeOverBackupId = installed.TakeOverBackupId;
     state.SeedsCreated = installed.SeedTemplatesCreated;
     state.SeedsSkipped = installed.SeedTemplatesSkipped;
@@ -518,6 +533,8 @@ public sealed partial class GamepackUpdateOrchestrator {
       Updated = state.Updated,
       Removed = state.Removed,
       TakenOver = state.TakenOver,
+      Reinstalled = state.Reinstalled,
+      Overwritten = state.Overwritten,
       TakeOverBackupId = state.TakeOverBackupId,
       SeedTemplatesCreated = state.SeedsCreated,
       SeedTemplatesSkipped = state.SeedsSkipped,

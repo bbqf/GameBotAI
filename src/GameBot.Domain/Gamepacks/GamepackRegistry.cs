@@ -56,6 +56,12 @@ public sealed class InstalledGamepack {
 
   /// <summary>The kept previous version, or null. At most one is kept.</summary>
   public PreviousVersion? Previous { get; set; }
+
+  /// <summary>
+  /// The reinstall point, or null (feature 178). It holds the live content from before the last forced install of the same
+  /// version. The content is in <c>gamepacks/reinstall/&lt;name&gt;.json</c>. The member is optional, so an old registry file stays valid.
+  /// </summary>
+  public PreviousVersion? Reinstall { get; set; }
 }
 
 /// <summary>The owner record of one object.</summary>
