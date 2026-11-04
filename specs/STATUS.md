@@ -204,6 +204,7 @@ Status vocabulary:
 | 174 | Wait for Still Step | Implemented |
 | 175 | Wait Until an Image Is Gone | Implemented |
 | 176 | Use Default Label | Implemented |
+| 177 | Fix Installed WaitForImage | Implemented |
 
 ## Numbering notes
 

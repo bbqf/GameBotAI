@@ -1180,7 +1180,7 @@ internal static class SequencesEndpoints {
           CommandReference = MapCommandReference(step.CommandReference, step.StepId),
           StepType = SequenceStepType.Action,
           Action = step.PrimitiveAction is not null ? new SequenceActionPayload { Type = step.PrimitiveAction.Type, SchemaVersion = step.PrimitiveAction.SchemaVersion } : null,
-          WaitForImage = MapWaitForImageConfig(step.PrimitiveAction),
+          WaitForImage = MapWaitForImage(step.PrimitiveAction),
           Condition = MapPerStepCondition(step.Condition),
           RequireDispatch = step.RequireDispatch ?? false,
           // Feature 078: normalize an empty list to null so unparametrized steps stay byte-identical.
@@ -1286,7 +1286,7 @@ internal static class SequencesEndpoints {
           CommandReference = MapCommandReference(child.CommandReference, child.StepId),
           StepType = SequenceStepType.Action,
           Action = child.PrimitiveAction is not null ? new SequenceActionPayload { Type = child.PrimitiveAction.Type, SchemaVersion = child.PrimitiveAction.SchemaVersion } : null,
-          WaitForImage = MapWaitForImageConfig(child.PrimitiveAction),
+          WaitForImage = MapWaitForImage(child.PrimitiveAction),
           Condition = MapPerStepCondition(child.Condition),
           RequireDispatch = child.RequireDispatch ?? false
         };
@@ -1469,118 +1469,9 @@ internal static class SequencesEndpoints {
     }
   }
 
-  private static WaitForImageConfig? MapWaitForImageConfig(PrimitiveActionRequest? primitiveAction) {
-    if (primitiveAction is null || !string.Equals(primitiveAction.Type, ActionTypes.WaitForImage, StringComparison.OrdinalIgnoreCase)) {
-      return null;
-    }
-
-    var timeoutMs = 1000;
-    if (primitiveAction.Payload.TryGetValue("timeoutMs", out var timeoutValue)
-        && TryReadInt32(timeoutValue, out var parsedTimeout)) {
-      timeoutMs = parsedTimeout;
-    }
-
-    // Feature 175: the save check has already rejected an invalid until or absentCaptures. A value that
-    // is not readable (for example a {{name}} reference) leaves the field null.
-    string? until = null;
-    if (primitiveAction.Payload.TryGetValue("until", out var untilValue)) {
-      until = untilValue is JsonElement { ValueKind: JsonValueKind.String } untilElement
-        ? untilElement.GetString()
-        : untilValue as string;
-    }
-
-    int? absentCaptures = null;
-    if (primitiveAction.Payload.TryGetValue("absentCaptures", out var absentValue)
-        && TryReadInt32(absentValue, out var parsedAbsent)) {
-      absentCaptures = parsedAbsent;
-    }
-
-    return new WaitForImageConfig {
-      TimeoutMs = timeoutMs,
-      DetectionTarget = MapWaitForImageDetectionTarget(primitiveAction.Payload),
-      Until = until,
-      AbsentCaptures = absentCaptures
-    };
-  }
-
-  private static DetectionTarget? MapWaitForImageDetectionTarget(Dictionary<string, object> payload) {
-    if (!payload.TryGetValue("detectionTarget", out var detectionTargetValue)
-        || detectionTargetValue is not JsonElement detectionTargetElement
-        || detectionTargetElement.ValueKind != JsonValueKind.Object) {
-      return null;
-    }
-
-    if (!detectionTargetElement.TryGetProperty("referenceImageId", out var referenceImageIdElement)
-        || referenceImageIdElement.ValueKind != JsonValueKind.String) {
-      return null;
-    }
-
-    var referenceImageId = referenceImageIdElement.GetString();
-    if (string.IsNullOrWhiteSpace(referenceImageId)) {
-      return null;
-    }
-
-    var confidence = detectionTargetElement.TryGetProperty("confidence", out var confidenceElement)
-                     && confidenceElement.ValueKind == JsonValueKind.Number
-                     && confidenceElement.TryGetDouble(out var parsedConfidence)
-      ? parsedConfidence
-      : 0.8;
-    var offsetX = detectionTargetElement.TryGetProperty("offsetX", out var offsetXElement)
-                  && offsetXElement.ValueKind == JsonValueKind.Number
-                  && offsetXElement.TryGetInt32(out var parsedOffsetX)
-      ? parsedOffsetX
-      : 0;
-    var offsetY = detectionTargetElement.TryGetProperty("offsetY", out var offsetYElement)
-                  && offsetYElement.ValueKind == JsonValueKind.Number
-                  && offsetYElement.TryGetInt32(out var parsedOffsetY)
-      ? parsedOffsetY
-      : 0;
-    var selectionStrategy = detectionTargetElement.TryGetProperty("selectionStrategy", out var selectionStrategyElement)
-                            && selectionStrategyElement.ValueKind == JsonValueKind.String
-                            && string.Equals(selectionStrategyElement.GetString(), nameof(DetectionSelectionStrategy.FirstMatch), StringComparison.OrdinalIgnoreCase)
-      ? DetectionSelectionStrategy.FirstMatch
-      : DetectionSelectionStrategy.HighestConfidence;
-
-    // Feature 130: the request check in TryReadPerStepRequest has already rejected an invalid region.
-    var region = TryReadRegion(detectionTargetElement, out var regionDto, out _) ? PixelRegionDto.ToDomain(regionDto) : null;
-
-    return new DetectionTarget(referenceImageId, confidence, offsetX, offsetY, selectionStrategy, region);
-  }
-
-  /// <summary>
-  /// Reads the optional <c>region</c> of a raw <c>detectionTarget</c> object (feature 130). Returns false and
-  /// sets <paramref name="errors"/> when a field is not a whole number. A missing field stays null, so
-  /// <see cref="PixelRegionDto.Validate"/> can name it. No region gives true and a null result.
-  /// </summary>
-  private static bool TryReadRegion(JsonElement detectionTarget, out PixelRegionDto? region, out IReadOnlyList<string> errors, string prefix = "region") {
-    region = null;
-    errors = Array.Empty<string>();
-    if (detectionTarget.ValueKind != JsonValueKind.Object
-        || !detectionTarget.TryGetProperty("region", out var regionElement)
-        || regionElement.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) {
-      return true;
-    }
-
-    if (regionElement.ValueKind != JsonValueKind.Object) {
-      errors = new[] { $"{prefix} must be an object" };
-      return false;
-    }
-
-    var problems = new List<string>();
-    int? ReadField(string name) {
-      if (!regionElement.TryGetProperty(name, out var field) || field.ValueKind == JsonValueKind.Null) return null;
-      if (field.ValueKind == JsonValueKind.Number && field.TryGetInt32(out var value)) return value;
-      problems.Add($"{prefix}.{name} must be a whole number");
-      return null;
-    }
-
-    region = new PixelRegionDto { X = ReadField("x"), Y = ReadField("y"), Width = ReadField("width"), Height = ReadField("height") };
-    if (problems.Count > 0) {
-      errors = problems;
-      return false;
-    }
-    return true;
-  }
+  // Feature 177: the shared mapper reads the payload. The gamepack install path uses it too.
+  private static WaitForImageConfig? MapWaitForImage(PrimitiveActionRequest? primitiveAction) =>
+    primitiveAction is null ? null : WaitForImageConfigMapper.Map(primitiveAction.Type, (IReadOnlyDictionary<string, object?>)primitiveAction.Payload);
 
   /// <summary>
   /// Checks every region in a sequence request (feature 130): image conditions in step, break, if, and
@@ -1616,10 +1507,11 @@ internal static class SequencesEndpoints {
           && action.Payload.TryGetValue("detectionTarget", out var target)
           && target is JsonElement targetElement) {
         var prefix = $"Step '{label}' {action.Type} payload detectionTarget.region";
-        if (!TryReadRegion(targetElement, out var regionDto, out var readErrors, prefix)) {
+        if (!WaitForImageConfigMapper.TryReadRegion(targetElement, out var fields, out var readErrors, prefix)) {
           errors.AddRange(readErrors);
         }
         else {
+          var regionDto = fields is null ? null : new PixelRegionDto { X = fields.X, Y = fields.Y, Width = fields.Width, Height = fields.Height };
           errors.AddRange(PixelRegionDto.Validate(regionDto, prefix));
         }
       }
@@ -1646,26 +1538,6 @@ internal static class SequencesEndpoints {
           CollectConditionRegionErrors(composite.Children[index], $"{path}.children[{index}]", errors);
         }
         break;
-    }
-  }
-
-  private static bool TryReadInt32(object? value, out int result) {
-    switch (value) {
-      case int intValue:
-        result = intValue;
-        return true;
-      case long longValue when longValue is >= int.MinValue and <= int.MaxValue:
-        result = (int)longValue;
-        return true;
-      case JsonElement element when element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var parsed):
-        result = parsed;
-        return true;
-      case string text when int.TryParse(text, out var parsedText):
-        result = parsedText;
-        return true;
-      default:
-        result = 0;
-        return false;
     }
   }
 
