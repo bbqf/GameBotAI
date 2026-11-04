@@ -70,4 +70,7 @@ internal sealed record GamepackCatalogInstallRequest {
 
   /// <summary>True to take over user objects of the same type and name (feature 149). A missing value means false.</summary>
   public bool TakeOver { get; init; }
+
+  /// <summary>True to install the same version again (feature 178). A missing value means false.</summary>
+  public bool Force { get; init; }
 }

@@ -71,17 +71,14 @@ Expect: after a forced install, the item of the pack has `hasReinstallPoint` as 
 
 ## SC-007 result
 
-The timed test is `GamepackForceReinstallPerfTests` in `C:\src\GameBot\tests\integration\Gamepacks\`. It uses a pack with 200 objects. The limit is a ratio of 1.5 or less.
-
-The test does one warm-up run. Then it does at least 5 runs each of normal and forced install. It compares the medians. The test has the repo trait for performance tests (`Category` = `Performance`). It is a local measure. It runs in CI only if it is stable.
-
-Fill this table after the test runs. Add the same note to the PR text.
+The timed test is `GamepackForceReinstallPerfTests`. It uses a pack with 200 objects, one warm-up run, and 7 runs of each kind.
 
 | Measure | Value |
 |---|---|
-| Normal install, median | not measured yet |
-| Forced install, median | not measured yet |
-| Ratio (forced / normal) | not measured yet |
+| Median of a normal install | 209.8 ms |
+| Median of a forced install | 223.7 ms |
+| Ratio (forced / normal) | 1.07 |
+| Limit | 1.5 |
 
 ## Automated checks
 

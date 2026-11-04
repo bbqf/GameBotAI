@@ -60,7 +60,7 @@ internal sealed class ManagedContractHost : IDisposable {
   public async Task<QueueTemplate> TemplateAsync(string name) =>
     (await Host.Services.GetRequiredService<IQueueTemplateRepository>().FindByNameAsync(name))!;
 
-  private static string Query(bool dryRun, IEnumerable<string>? templates, bool? managed = null, bool takeOver = false) {
+  private static string Query(bool dryRun, IEnumerable<string>? templates, bool? managed = null, bool takeOver = false, bool force = false) {
     var parts = new List<string>();
     if (dryRun) {
       parts.Add("dryRun=true");
@@ -68,6 +68,10 @@ internal sealed class ManagedContractHost : IDisposable {
 
     if (takeOver) {
       parts.Add("takeOver=true");
+    }
+
+    if (force) {
+      parts.Add("force=true");
     }
 
     if (managed == true) {
@@ -78,11 +82,11 @@ internal sealed class ManagedContractHost : IDisposable {
     return parts.Count == 0 ? string.Empty : "?" + string.Join("&", parts);
   }
 
-  public Task<HttpResponseMessage> UpdateAsync(string json, bool dryRun = false, IEnumerable<string>? templates = null, bool takeOver = false) =>
-    Client.PostAsync(new Uri("/api/gamepacks/update" + Query(dryRun, templates, takeOver: takeOver), UriKind.Relative), new StringContent(json, Encoding.UTF8, "application/json"));
+  public Task<HttpResponseMessage> UpdateAsync(string json, bool dryRun = false, IEnumerable<string>? templates = null, bool takeOver = false, bool force = false) =>
+    Client.PostAsync(new Uri("/api/gamepacks/update" + Query(dryRun, templates, takeOver: takeOver, force: force), UriKind.Relative), new StringContent(json, Encoding.UTF8, "application/json"));
 
-  public Task<HttpResponseMessage> CatalogUpdateAsync(string? name, string? version, bool dryRun = false, IEnumerable<string>? templates = null, bool takeOver = false) =>
-    Client.PostAsJsonAsync(new Uri("/api/gamepacks/catalog/update", UriKind.Relative), new { name, version, dryRun, templates, takeOver });
+  public Task<HttpResponseMessage> CatalogUpdateAsync(string? name, string? version, bool dryRun = false, IEnumerable<string>? templates = null, bool takeOver = false, bool force = false) =>
+    Client.PostAsJsonAsync(new Uri("/api/gamepacks/catalog/update", UriKind.Relative), new { name, version, dryRun, templates, takeOver, force });
 
   public Task<HttpResponseMessage> ManagedRollbackAsync(string name, bool dryRun = false, IEnumerable<string>? templates = null) =>
     Client.PostAsync(new Uri($"/api/gamepacks/{name}/rollback" + Query(dryRun, templates, managed: true), UriKind.Relative), content: null);

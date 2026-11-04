@@ -78,6 +78,15 @@ public sealed class GamepackInstallOutcome {
   /// <summary>The signature check result, or null when the service has no checker (feature 146).</summary>
   public SignatureCheckResult? Signature { get; init; }
 
+  /// <summary>True when the request was a forced reinstall of the same version (feature 178). Also true for a dry run.</summary>
+  public bool Reinstalled { get; init; }
+
+  /// <summary>
+  /// The objects whose stored content differs from the file (feature 178). Null when <see cref="Reinstalled"/> is false.
+  /// Can be empty.
+  /// </summary>
+  public IReadOnlyList<OverwriteEntry>? Overwritten { get; init; }
+
   /// <summary>The names of the seed templates created (planned for a dry run). Always set (feature 150).</summary>
   public IReadOnlyList<string> SeedTemplatesCreated { get; init; } = Array.Empty<string>();
 
@@ -176,13 +185,15 @@ public sealed class GamepackRemoveOutcome {
 /// <param name="RequiredApiMajor">The optional API major version.</param>
 /// <param name="HasPreviousVersion">True when a previous version is kept.</param>
 /// <param name="InstalledAtUtc">The time of the install.</param>
+/// <param name="HasReinstallPoint">True when a reinstall point of a forced install is kept (feature 178).</param>
 public sealed record GamepackListItem(
     string Name,
     string Version,
     string Changelog,
     int? RequiredApiMajor,
     bool HasPreviousVersion,
-    DateTimeOffset InstalledAtUtc);
+    DateTimeOffset InstalledAtUtc,
+    bool HasReinstallPoint = false);
 
 /// <summary>
 /// The gamepack service (feature 143): install, dry run, rollback, list, and owner lookup. One gate lets only one
@@ -290,8 +301,14 @@ public sealed partial class GamepackService : IDisposable {
 
     await _gate.WaitAsync(ct).ConfigureAwait(false);
     try {
-      var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct, takeOver: options.TakeOver, seeds: true).ConfigureAwait(false);
       var manifest = parsed.File.Manifest;
+
+      // Feature 178: a forced reinstall needs the force option, an installed record, and the same version in the file.
+      var installed = manifest?.Name is { } packName && GamepackNameRules.IsValid(packName)
+        ? _store.Load().Gamepacks.GetValueOrDefault(GamepackNameRules.Key(packName))
+        : null;
+      var reinstalling = options.Force && installed is not null && string.Equals(installed.Version, manifest?.Version, StringComparison.Ordinal);
+      var check = await _validator.ValidateAsync(parsed.File, parsed.Problems, ct, takeOver: options.TakeOver, seeds: true, reinstall: reinstalling).ConfigureAwait(false);
       if (!check.IsValid || check.Plan is null) {
         // Feature 161: a second check with take-over on, with the same inputs. The check does not write.
         var wouldInstall = false;
@@ -324,6 +341,8 @@ public sealed partial class GamepackService : IDisposable {
           Updated = plan.Updated,
           Removed = plan.Removed,
           TakenOver = plan.TakenOver,
+          Reinstalled = reinstalling,
+          Overwritten = reinstalling ? plan.Overwrites : null,
           TakeOvers = options.TakeOver ? plan.TakeOvers : null,
           SeedTemplatesCreated = plan.Seeds.Items.Where(i => i.Outcome == SeedOutcomes.Create).Select(i => i.Name).ToList(),
           SeedTemplatesSkipped = plan.Seeds.Items.Where(i => i.Outcome == SeedOutcomes.SkipExists).Select(i => new SeedSkip(i.Name, SeedSkipReasons.Exists)).ToList()
@@ -331,11 +350,15 @@ public sealed partial class GamepackService : IDisposable {
       }
 
       var record = _store.Load().Gamepacks.GetValueOrDefault(GamepackNameRules.Key(plan.Manifest.Name!));
-      var previous = record is not null && !string.Equals(record.Version, plan.Manifest.Version, StringComparison.Ordinal)
-        ? GamepackPreviousHandling.Capture
-        : GamepackPreviousHandling.Keep;
+      var differs = record is not null && !string.Equals(record.Version, plan.Manifest.Version, StringComparison.Ordinal);
+      var previous = differs ? GamepackPreviousHandling.Capture : GamepackPreviousHandling.Keep;
 
-      var applied = await _applier.ApplyAsync(plan, previous, ct).ConfigureAwait(false);
+      // A forced reinstall captures a reinstall point. An install of a different version clears the stale point (feature 178).
+      var reinstallPoint = reinstalling
+        ? ReinstallPointHandling.Capture
+        : differs ? ReinstallPointHandling.Clear : ReinstallPointHandling.Keep;
+
+      var applied = await _applier.ApplyAsync(plan, previous, ct, reinstallPoint).ConfigureAwait(false);
       if (applied.Status != GamepackApplyStatus.Applied) {
         return new GamepackInstallOutcome {
           Signature = signature,
@@ -357,6 +380,8 @@ public sealed partial class GamepackService : IDisposable {
         Updated = applied.Updated,
         Removed = applied.Removed,
         TakenOver = applied.TakenOver,
+        Reinstalled = reinstalling,
+        Overwritten = reinstalling ? plan.Overwrites : null,
         TakeOverBackupId = applied.TakeOverBackupId,
         SeedTemplatesCreated = applied.SeedTemplatesCreated,
         SeedTemplatesSkipped = plan.Seeds.Items
@@ -416,8 +441,11 @@ public sealed partial class GamepackService : IDisposable {
         return new GamepackRollbackOutcome { Status = GamepackRollbackStatus.NotFound, Name = name };
       }
 
-      var text = record.Previous is null ? null : _store.ReadPrevious(record.Name);
-      if (record.Previous is null || text is null) {
+      // Feature 178: the reinstall point comes first. A rollback from it keeps the version and the kept previous version.
+      var reinstallText = record.Reinstall is null ? null : _store.ReadReinstall(record.Name);
+      var fromReinstall = reinstallText is not null;
+      var text = fromReinstall ? reinstallText : record.Previous is null ? null : _store.ReadPrevious(record.Name);
+      if (text is null) {
         return new GamepackRollbackOutcome { Status = GamepackRollbackStatus.NoPreviousVersion, Name = record.Name, Version = record.Version };
       }
 
@@ -432,7 +460,8 @@ public sealed partial class GamepackService : IDisposable {
         return new GamepackRollbackOutcome { Status = GamepackRollbackStatus.Refused, Name = record.Name, Version = record.Version, Problems = check.Problems };
       }
 
-      var applied = await _applier.ApplyAsync(check.Plan, GamepackPreviousHandling.Clear, ct).ConfigureAwait(false);
+      var previousHandling = fromReinstall ? GamepackPreviousHandling.Keep : GamepackPreviousHandling.Clear;
+      var applied = await _applier.ApplyAsync(check.Plan, previousHandling, ct, ReinstallPointHandling.Clear).ConfigureAwait(false);
       if (applied.Status != GamepackApplyStatus.Applied) {
         return new GamepackRollbackOutcome {
           Status = applied.Status == GamepackApplyStatus.PartialRestore ? GamepackRollbackStatus.PartialRestore : GamepackRollbackStatus.Failed,
@@ -493,6 +522,15 @@ public sealed partial class GamepackService : IDisposable {
         return new GamepackRemoveOutcome { Status = GamepackRemoveStatus.Failed, Name = record.Name, Version = record.Version, ErrorMessage = ex.Message };
       }
 
+      if (record.Reinstall is not null) {
+        try {
+          _store.DeleteReinstall(record.Name);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException) {
+          LogRemovePreviousFailed(_logger, record.Name, ex);
+        }
+      }
+
       var hadPrevious = record.Previous is not null;
       if (hadPrevious) {
         try {
@@ -538,7 +576,7 @@ public sealed partial class GamepackService : IDisposable {
   public IReadOnlyList<GamepackListItem> List() =>
     _store.Load().Gamepacks.Values
       .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
-      .Select(g => new GamepackListItem(g.Name, g.Version, g.Changelog, g.RequiredApiMajor, g.Previous is not null, g.InstalledAtUtc))
+      .Select(g => new GamepackListItem(g.Name, g.Version, g.Changelog, g.RequiredApiMajor, g.Previous is not null, g.InstalledAtUtc, g.Reinstall is not null))
       .ToList();
 
   /// <summary>Reads the registry once and gives an owner resolver for a whole request.</summary>

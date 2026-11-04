@@ -24,6 +24,7 @@ public sealed class GamepackRegistryStore : IGamepackRegistryStore {
 
   private readonly string _folder;
   private readonly string _previousFolder;
+  private readonly string _reinstallFolder;
   private readonly string _registryPath;
   private readonly object _lock = new();
 
@@ -33,6 +34,7 @@ public sealed class GamepackRegistryStore : IGamepackRegistryStore {
     ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
     _folder = Path.Combine(dataRoot, FolderName);
     _previousFolder = Path.Combine(_folder, "previous");
+    _reinstallFolder = Path.Combine(_folder, "reinstall");
     _registryPath = Path.Combine(_folder, "registry.json");
   }
 
@@ -107,6 +109,44 @@ public sealed class GamepackRegistryStore : IGamepackRegistryStore {
         File.Delete(path);
       }
     }
+  }
+
+  /// <inheritdoc />
+  public string? ReadReinstall(string name) {
+    var path = ReinstallPath(name);
+    lock (_lock) {
+      return File.Exists(path) ? File.ReadAllText(path, Encoding.UTF8) : null;
+    }
+  }
+
+  /// <inheritdoc />
+  public void WriteReinstall(string name, string text) {
+    ArgumentNullException.ThrowIfNull(text);
+    var path = ReinstallPath(name);
+    lock (_lock) {
+      WriteAtomic(path, text, "reinstall", name);
+    }
+  }
+
+  /// <inheritdoc />
+  public void DeleteReinstall(string name) {
+    var path = ReinstallPath(name);
+    lock (_lock) {
+      if (File.Exists(path)) {
+        File.Delete(path);
+      }
+    }
+  }
+
+  /// <inheritdoc />
+  public string? ReinstallFilePath(string name) => GamepackNameRules.IsValid(name) ? Path.GetFullPath(ReinstallPath(name)) : null;
+
+  private string ReinstallPath(string name) {
+    if (!GamepackNameRules.IsValid(name)) {
+      throw new ArgumentException("The gamepack name is not valid.", nameof(name));
+    }
+
+    return Path.Combine(_reinstallFolder, GamepackNameRules.Key(name) + ".json");
   }
 
   private string PreviousPath(string name) {

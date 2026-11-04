@@ -38,4 +38,21 @@ public interface IGamepackRegistryStore {
   /// <summary>Gives the full path of the previous-version file for <paramref name="name"/>, or null when the store has no file or the name is not valid. It has no side effect.</summary>
   /// <param name="name">The gamepack name.</param>
   string? PreviousFilePath(string name) => null;
+
+  /// <summary>Reads the text of the reinstall file (feature 178), or null when the file is missing or the store has none.</summary>
+  /// <param name="name">The gamepack name.</param>
+  string? ReadReinstall(string name) => null;
+
+  /// <summary>Writes the reinstall file with write-to-temp and atomic replace (feature 178). A store without files ignores it.</summary>
+  /// <param name="name">The gamepack name.</param>
+  /// <param name="text">The file text.</param>
+  void WriteReinstall(string name, string text) { }
+
+  /// <summary>Deletes the reinstall file (feature 178). A missing file is not an error.</summary>
+  /// <param name="name">The gamepack name.</param>
+  void DeleteReinstall(string name) { }
+
+  /// <summary>Gives the full path of the reinstall file for <paramref name="name"/>, or null when the store has no file or the name is not valid.</summary>
+  /// <param name="name">The gamepack name.</param>
+  string? ReinstallFilePath(string name) => null;
 }

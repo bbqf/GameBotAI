@@ -66,7 +66,9 @@ internal static class GamepackCatalogEndpoints {
         + "gives 404 entry_not_listed before any download. A failure leaves the instance as it was. "
         + "The body field takeOver (default false) takes over user objects of the same type and name, as the query takeOver does on the manual install route. "
         + "The response has the same summary, wouldInstallWithTakeOver, takeOverResolves, and remedy fields as the manual install route. "
-        + "The response then has takenOver and takeOverBackupId, and the route POST /api/gamepacks/takeover-backups/{backupId}/restore can put the objects back.");
+        + "The response then has takenOver and takeOverBackupId, and the route POST /api/gamepacks/takeover-backups/{backupId}/restore can put the objects back. "
+        + "The body field force (default false) installs the same version again, as the query force does on the manual install route. "
+        + "The response then has reinstalled and overwritten.");
 
     return app;
   }
@@ -109,7 +111,7 @@ internal static class GamepackCatalogEndpoints {
     }
 
     try {
-      var outcome = await service.InstallAsync(request.Name, request.Version, new GamepackInstallOptions(request.DryRun, request.TakeOver), ct).ConfigureAwait(false);
+      var outcome = await service.InstallAsync(request.Name, request.Version, new GamepackInstallOptions(request.DryRun, request.TakeOver, Force: request.Force), ct).ConfigureAwait(false);
       return GamepacksEndpoints.ToInstallResult(outcome, request.DryRun, request.TakeOver);
     }
     catch (CatalogException ex) {

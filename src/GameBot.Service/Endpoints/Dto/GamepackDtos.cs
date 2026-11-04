@@ -175,6 +175,16 @@ internal sealed record GamepackInstallResponse {
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public IReadOnlyList<GamepackTakeOverEntryDto>? TakeOvers { get; init; }
 
+  /// <summary>True when the call was a forced reinstall of the same version (feature 178). Not written for other calls.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public bool? Reinstalled { get; init; }
+
+  /// <summary>
+  /// The objects whose stored content differs from the file (feature 178). Written when <c>reinstalled</c> is true, also when empty.
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public IReadOnlyList<GamepackOverwriteEntryDto>? Overwritten { get; init; }
+
   /// <summary>
   /// The names of the seed templates that the install created (planned for a dry run). It is always present, also when empty (feature 150).
   /// </summary>
@@ -208,6 +218,20 @@ internal sealed record GamepackTakeOverEntryDto {
   internal static GamepackTakeOverEntryDto From(TakeOverEntry entry) {
     ArgumentNullException.ThrowIfNull(entry);
     return new GamepackTakeOverEntryDto { Type = entry.Type, Name = entry.Name, Identical = entry.Identical };
+  }
+}
+
+/// <summary>One object that a forced reinstall overwrites with different content (feature 178).</summary>
+internal sealed record GamepackOverwriteEntryDto {
+  /// <summary><c>sequence</c>, <c>command</c>, or <c>image</c>.</summary>
+  public required string Type { get; init; }
+
+  /// <summary>The object name. For an image, the id.</summary>
+  public required string Name { get; init; }
+
+  internal static GamepackOverwriteEntryDto From(OverwriteEntry entry) {
+    ArgumentNullException.ThrowIfNull(entry);
+    return new GamepackOverwriteEntryDto { Type = entry.Type, Name = entry.Name };
   }
 }
 
@@ -302,4 +326,7 @@ internal sealed record GamepackListItemDto {
 
   /// <summary>The time of the install.</summary>
   public DateTimeOffset InstalledAtUtc { get; init; }
+
+  /// <summary>True when a reinstall point of a forced install is kept (feature 178).</summary>
+  public bool HasReinstallPoint { get; init; }
 }

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `178-force-reinstall-gamepack`  
 **Created**: 2026-11-04  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "GitHub issue #374, FR-041: Install the same gamepack version again (rewrite all objects from the file). Closes #374. URL: https://github.com/bbqf/GameBotAI/issues/374"
 
 ## Clarifications

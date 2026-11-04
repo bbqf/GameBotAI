@@ -40,6 +40,8 @@ internal sealed class ManagedUpdateSchemaFilter : ISchemaFilter {
     ["backupId"] = "The id of the stored backup. Null for a dry run, for the same version, and when the update affects no queue template.",
     ["takenOver"] = "The number of user objects that the call took over (planned for a dry run). 0 when takeOver is off.",
     ["takeOverBackupId"] = "The id of the take-over backup. Not set for a dry run, for a call that replaced nothing, and for a failed call (the flow has put the user objects back). Use it with POST /api/gamepacks/takeover-backups/{backupId}/restore. backupId is a different backup: the queue template backup.",
+    ["reinstalled"] = "True when the call was a forced reinstall of the same version (feature 178). Not present for other calls.",
+    ["overwritten"] = "Present when reinstalled is true, also when empty. The objects whose stored content differs from the file.",
     ["takeOvers"] = "For a dry run with takeOver true and no problem: one entry for each object to take over, with identical. Empty otherwise.",
     ["seedTemplatesCreated"] = "The names of the seed templates created (planned for a dry run). Always present. A managed update of an installed gamepack gives an empty list, because only a first install creates seeds (feature 150).",
     ["seedTemplatesSkipped"] = "The seed templates not created (planned for a dry run). Always present. Each item has the name and the reason skipped_exists.",
@@ -74,6 +76,7 @@ internal sealed class ManagedUpdateSchemaFilter : ISchemaFilter {
     if (context.Type == typeof(GamepackCatalogUpdateRequest)) {
       schema.Description = CatalogRequestDescription;
       Describe(schema, "takeOver", "True to take over user objects of the same type and name (default false).");
+      Describe(schema, "force", "True to install the same version again (default false). The report has reinstalled and overwritten (feature 178).");
       return;
     }
 

@@ -37,6 +37,10 @@ internal static class GamepacksEndpoints {
         + "take-over backup (takeOverBackupId) that the route POST /api/gamepacks/takeover-backups/{backupId}/restore can put back. "
         + "A conflict with an object of another gamepack stays a conflict. With takeOver=true and dryRun=true, the response has the list takeOvers "
         + "(type, name, identical). The count takenOver is always in the response. "
+        + "Query force=true installs the same version again. It has an effect only when the gamepack is installed with the same version as the file. "
+        + "The install then writes every object from the file and keeps a reinstall point. The response has reinstalled=true and the list overwritten "
+        + "(type, name). The list has only the objects whose stored content differs from the file. With dryRun=true the response has the same members, "
+        + "and the call changes no object and makes no reinstall point. The route POST /api/gamepacks/{name}/rollback puts the reinstall point back. "
         + "On a first install the file member seedTemplates creates queue templates whose name is free. The response always has the lists "
         + "seedTemplatesCreated and seedTemplatesSkipped (for a dry run they show what the install would do). "
         + "Status 400 also covers a condition or loop config with a missing, unknown, duplicate, or not-string type member. The message gives the JSON path. "
@@ -124,6 +128,9 @@ internal static class GamepacksEndpoints {
       .WithSummary("Roll a gamepack back to its previous version")
       .WithDescription(
         "Runs the same conflict and reference check as an install on the kept previous content. "
+        + "If the gamepack has a reinstall point from a forced install, the rollback uses it first. "
+        + "It puts back the objects from before the forced install. The version and the kept previous version do not change. "
+        + "The rollback then deletes the reinstall point. "
         + "If the check finds a problem, the rollback is refused and nothing changes. "
         + "Query managed=true runs the managed flow of feature 148: it stops the affected queues, stores a backup, rolls back, "
         + "books disabled entries for sequences that the previous version adds, and restarts the queues that it stopped. "
@@ -151,7 +158,7 @@ internal static class GamepacksEndpoints {
   internal sealed class GamepackInstallRequestBody { }
 
   private static async Task<IResult> InstallAsync(
-      HttpRequest http, GamepackService service, GamepackSignatureChecker checker, bool? dryRun, bool? takeOver, CancellationToken ct) {
+      HttpRequest http, GamepackService service, GamepackSignatureChecker checker, bool? dryRun, bool? takeOver, bool? force, CancellationToken ct) {
     var isDryRun = dryRun ?? false;
     InstallRequestParts parts;
     try {
@@ -172,7 +179,7 @@ internal static class GamepacksEndpoints {
       return ProblemResult(StatusCodes.Status400BadRequest, "missing_gamepack_part", "The multipart request has no gamepack part.");
     }
 
-    var outcome = await service.InstallAsync(parts.Gamepack, new GamepackInstallOptions(isDryRun, takeOver ?? false, parts.Signature), ct).ConfigureAwait(false);
+    var outcome = await service.InstallAsync(parts.Gamepack, new GamepackInstallOptions(isDryRun, takeOver ?? false, parts.Signature, force ?? false), ct).ConfigureAwait(false);
     return ToInstallResult(outcome, isDryRun, takeOver ?? false);
   }
 
@@ -213,7 +220,8 @@ internal static class GamepacksEndpoints {
       Changelog = g.Changelog,
       RequiredApiMajor = g.RequiredApiMajor,
       HasPreviousVersion = g.HasPreviousVersion,
-      InstalledAtUtc = g.InstalledAtUtc
+      InstalledAtUtc = g.InstalledAtUtc,
+      HasReinstallPoint = g.HasReinstallPoint
     }).ToList());
 
   private static async Task<IResult> RollbackAsync(
@@ -270,6 +278,8 @@ internal static class GamepacksEndpoints {
     TakenOver = outcome.TakenOver,
     TakeOverBackupId = outcome.TakeOverBackupId,
     TakeOvers = outcome.TakeOvers?.Select(GamepackTakeOverEntryDto.From).ToList(),
+    Reinstalled = outcome.Reinstalled ? true : null,
+    Overwritten = outcome.Reinstalled ? (outcome.Overwritten ?? Array.Empty<OverwriteEntry>()).Select(GamepackOverwriteEntryDto.From).ToList() : null,
     SeedTemplatesCreated = outcome.SeedTemplatesCreated,
     SeedTemplatesSkipped = outcome.SeedTemplatesSkipped.Select(GamepackSeedSkipDto.From).ToList(),
     Result = outcome.Status == GamepackInstallStatus.SignatureRejected ? "signature_rejected" : null,

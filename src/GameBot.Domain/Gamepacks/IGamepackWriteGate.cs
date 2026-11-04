@@ -14,6 +14,9 @@ public static class GamepackWriteOperations {
   /// <summary>The previous-version file is written or deleted.</summary>
   public const string PreviousFile = "previous-file";
 
+  /// <summary>The reinstall file is written or deleted (feature 178).</summary>
+  public const string ReinstallFile = "reinstall-file";
+
   /// <summary>The registry is written.</summary>
   public const string Registry = "registry";
 
