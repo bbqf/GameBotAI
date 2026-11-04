@@ -655,6 +655,8 @@ public sealed class GamepackValidator {
       var finalId = existingId ?? PickNewId(sequence.Id, sequenceUsed);
       sequence.Id = finalId;
       GamepackReferences.RewriteCommandIds(sequence, Map);
+      // Feature 177: set the WaitForImage configuration now, so the take-over hash covers the final content.
+      GamepackWaitForImageMapping.Apply(sequence);
       sequenceWrites.Add(new PlannedObject { Type = GamepackObjectTypes.Sequence, Name = sequence.Name, FinalId = finalId, ExistingId = existingId, IsTakeOver = sequenceDecisions[sequence.Name].IsTakeOver, Sequence = sequence, LiveSequence = sequenceDecisions[sequence.Name].IsTakeOver ? existingSequences.FirstOrDefault(s => string.Equals(s.Id, existingId, StringComparison.OrdinalIgnoreCase)) : null });
     }
 

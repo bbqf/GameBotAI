@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Installed inline WaitForImage ran as a 1 s delay (177-fix-installed-waitforimage, B-039, #373)
+  - **Cause**: a gamepack install stored the action payload of a `WaitForImage` step only. The step had no `waitForImage` configuration, and the runner reads only that configuration.
+  - **Fix**: the install sets the configuration for each inline `WaitForImage` step at every depth, with the same mapper as the save path (`WaitForImageConfigMapper`). Update the pack to repair a sequence that was installed before.
+  - **Not changed**: the API, the runner, and the install checks.
+  - **Version**: 1.12.6.
+
 - WaitForImage timeout on an image that is on screen (166-fix-waitforimage-timeout, #350)
   - **Cause**: a session from `POST /api/sessions` had no capture loop. The session screen source then had no frame, and each detection pass of a `WaitForImage` step found nothing. The step timed out also when the image was on screen. `POST /api/images/detect` with a `captureId` worked, because it reads a stored capture.
   - **Fix**: `POST /api/sessions` starts the capture loop of a session with a device. `DELETE /api/sessions/{id}` and each other removal of a session (for example the idle sweep) stop the loop. A `WaitForImage` step starts no detection pass at or after its deadline, and its last wait ends 50 ms before the deadline. A timeout writes one debug log line with the pass count, the frame state, and the best score of the last pass.

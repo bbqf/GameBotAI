@@ -2,7 +2,7 @@
 
 **Feature Branch**: `177-fix-installed-waitforimage`  
 **Created**: 2026-11-04  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "Fix B-039: inline WaitForImage steps of installed gamepack sequences run as a 1 s delay with no image. Issue #373. Closes #373."
 
 ## Clarifications
