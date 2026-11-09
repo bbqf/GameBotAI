@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Show the new picture after an image overwrite (182-revalidate-overwritten-image, #377)
+  - **Cause**: `GET /api/images/{id}` had no `Cache-Control` and no `ETag`. The browser kept the old picture after `PUT /api/images/{id}`.
+  - **Fix**: `GET /api/images/{id}` now sends `Cache-Control: no-cache` and a strong `ETag` that depends on the image bytes. A matching `If-None-Match` or `If-Modified-Since` gives 304 with no body. After an overwrite, the old ETag gives 200 with the new bytes.
+  - **Docs**: the OpenAPI document and `docs/architecture.md` state the headers and the 304 answer.
+  - **Not changed**: `PUT /api/images/{id}`, the 404 answer, other endpoints, and the web UI.
+  - **Version**: the patch version is now 1.12.12.
+
 ### Added
 - Report which image of a list matched (181-report-matched-image, #380)
   - **Result**: the `WaitForImage` step result has `matchedImageId` (the id of the image that matched) when the exit condition is `image_detected`. It is omitted when no image matched. `referenceImageId` and `confidence` do not change.

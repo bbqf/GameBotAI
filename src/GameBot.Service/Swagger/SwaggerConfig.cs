@@ -840,6 +840,19 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     }, context);
   }
 
+  // Feature 182: GET /api/images/{id} makes the browser ask the service on each use.
+  private static void ApplyImageCacheHeaderDocs(OpenApiOperation operation) {
+    if (!operation.Responses.TryGetValue("200", out var ok)) return;
+    ok.Headers ??= new Dictionary<string, OpenApiHeader>();
+    ok.Headers["Cache-Control"] = CaptureHeader(
+      "Always 'no-cache'. The client can keep the image, but it must ask the service before each use.", "string");
+    ok.Headers["ETag"] = CaptureHeader(
+      "A strong validator of the image bytes. It changes when the bytes change. Send it back in If-None-Match.", "string");
+    operation.Responses["304"] = new OpenApiResponse {
+      Description = "Not modified. The image did not change (If-None-Match or If-Modified-Since). The answer has no body."
+    };
+  }
+
   private static void ApplyImageExamples(OpenApiOperation operation, string path, string method, OperationFilterContext context) {
     // Feature 097: the alternates routes sit under /api/images/{id}/ too, but carry their own schemas
     // and descriptions; the catch-all image-reference examples below must not overwrite them.
@@ -869,6 +882,7 @@ internal sealed class SwaggerExamplesOperationFilter : IOperationFilter {
     else if (IsMethod(method, HttpMethods.Get) && path.StartsWith(ApiRoutes.Images + "/", StringComparison.OrdinalIgnoreCase)) {
       operation.Summary ??= "Get an image reference";
       SetResponseExample(operation, "200", ImageReferenceResponse(), context, typeof(ImageReferenceSchema));
+      ApplyImageCacheHeaderDocs(operation);
     }
     else if (IsMethod(method, HttpMethods.Post) && IsPath(path, ApiRoutes.ImageDetect)) {
       operation.Summary ??= "Detect reference image matches";

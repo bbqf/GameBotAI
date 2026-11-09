@@ -2,7 +2,7 @@
 
 **Feature Branch**: `182-revalidate-overwritten-image`
 **Created**: 2026-11-09
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Issue #377 (B-040): An overwritten image stays stale in the browser. GET /api/images/{id} has no Cache-Control and no ETag. Closes #377."
 
 ## Clarifications
