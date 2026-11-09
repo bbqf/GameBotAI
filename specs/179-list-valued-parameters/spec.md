@@ -2,7 +2,7 @@
 
 **Feature Branch**: `179-list-valued-parameters`  
 **Created**: 2026-11-09  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "List-valued sequence parameters (select several images or options). Source: GitHub issue #378 (FR-042), https://github.com/bbqf/GameBotAI/issues/378. Closes #378."
 
 ## Clarifications

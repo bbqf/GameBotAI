@@ -80,7 +80,22 @@ public sealed class ParameterDeclaration {
   [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
   public string? Pattern { get; init; }
 
-  /// <summary>The kind in use: <see cref="Kind"/> when set, otherwise the kind that follows from <see cref="Type"/>.</summary>
+  /// <summary>
+  /// When <c>true</c>, the parameter holds an ordered list of unique values (feature 179). Allowed
+  /// only for the kinds <see cref="ParameterInputKind.Image"/> and <see cref="ParameterInputKind.Choice"/>.
+  /// </summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+  public bool Multiple { get; init; }
+
+  /// <summary>Lowest number of items in the list of a multi-value parameter. At least 1 when set.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? MinItems { get; init; }
+
+  /// <summary>Highest number of items in the list of a multi-value parameter. At least 1 when set.</summary>
+  [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+  public int? MaxItems { get; init; }
+
+  /// <summary>The kind in use:<see cref="Kind"/> when set, otherwise the kind that follows from <see cref="Type"/>.</summary>
   [JsonIgnore]
   public ParameterInputKind EffectiveKind =>
       Kind ?? (Type == ParameterValueType.Number ? ParameterInputKind.Number : ParameterInputKind.Text);

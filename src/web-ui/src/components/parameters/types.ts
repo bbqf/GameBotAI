@@ -38,11 +38,33 @@ export type ParameterDeclaration = {
   unit?: string | null;
   /** Technical text with one {value} marker (number kind). */
   pattern?: string | null;
+  /** True when the parameter holds a list of values (image and choice kinds only; feature 179). */
+  multiple?: boolean | null;
+  /** Lowest number of items in the list. Only with `multiple`. */
+  minItems?: number | null;
+  /** Highest number of items in the list. Only with `multiple`. */
+  maxItems?: number | null;
 };
+
+/** The character that joins the items of a list into one text. No item may contain it (feature 179). */
+export const LIST_SEPARATOR = '|';
+
+/** Splits a joined text into its items. An empty text gives no items. */
+export const splitListText = (text: string | null | undefined): string[] =>
+  text ? text.split(LIST_SEPARATOR).filter((item) => item !== '') : [];
+
+/** Joins items into the text that the service keeps in `value` for a list. */
+export const joinListText = (items: readonly string[]): string => items.join(LIST_SEPARATOR);
 
 /** The kind in use: the declared kind, or the kind that follows from the type. */
 export const effectiveKind = (declaration: Pick<ParameterDeclaration, 'kind' | 'type'>): ParameterInputKind =>
   declaration.kind ?? (declaration.type === 'number' ? 'number' : 'text');
+
+/** True when the parameter holds a list: the flag is set and the kind is image or choice. */
+export const isMultiple = (declaration: Pick<ParameterDeclaration, 'multiple' | 'kind' | 'type'>): boolean => {
+  const kind = effectiveKind(declaration);
+  return declaration.multiple === true && (kind === 'image' || kind === 'choice');
+};
 
 /** The text a person sees for a parameter: the label when set, otherwise the technical name. */
 export const displayLabel = (declaration: Pick<ParameterDeclaration, 'label' | 'name'>): string => {
@@ -55,11 +77,19 @@ export const displayLabel = (declaration: Pick<ParameterDeclaration, 'label' | '
  * No default gives "No default". An empty string gives "(empty)". A choice gives the option label.
  */
 export const defaultDisplayText = (
-  declaration: Pick<ParameterDeclaration, 'default' | 'kind' | 'type' | 'options'>,
+  declaration: Pick<ParameterDeclaration, 'default' | 'kind' | 'type' | 'options' | 'multiple'>,
 ): string => {
   const value = declaration.default;
   if (value === null || value === undefined) return 'No default';
   if (value === '') return '(empty)';
+  if (declaration.multiple === true) {
+    const items = splitListText(value);
+    return items
+      .map((item) => (effectiveKind(declaration) === 'choice'
+        ? declaration.options?.find((o) => o.value === item)?.label ?? item
+        : item))
+      .join(', ');
+  }
   if (effectiveKind(declaration) === 'choice') {
     return declaration.options?.find((o) => o.value === value)?.label ?? value;
   }
@@ -73,6 +103,24 @@ export const defaultDisplayText = (
 export type ParameterBinding = {
   name: string;
   value?: string | null;
+  /** The ordered list of a multi-value parameter (feature 179). `value` holds the same items joined by "|". */
+  values?: string[] | null;
+};
+
+/**
+ * Reads a binding as a list. A list binding gives its `values`. For a multi-value parameter, a plain `value`
+ * reads as a list of one item (feature 179). A placeholder `{{name}}` is not an item and gives an empty list.
+ */
+export const readValuesAsList = (
+  declaration: Pick<ParameterDeclaration, 'multiple' | 'kind' | 'type'>,
+  binding: ParameterBinding | undefined,
+): string[] => {
+  if (!binding) return [];
+  if (binding.values != null) return [...binding.values];
+  if (!isMultiple(declaration)) return [];
+  const text = binding.value;
+  if (text == null || text === '' || /^\{\{[^{}]+\}\}$/.test(text)) return [];
+  return [text];
 };
 
 /**

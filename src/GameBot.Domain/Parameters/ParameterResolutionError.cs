@@ -15,6 +15,12 @@ public static class ParameterResolutionReasons {
   /// expression (feature 165). <see cref="ParameterResolutionError.OffendingValue"/> holds the resolved pattern.
   /// </summary>
   public const string InvalidPattern = "invalid_pattern";
+
+  /// <summary>
+  /// A multi-value parameter holds two or more items, but the field takes one value (feature 179).
+  /// <see cref="ParameterResolutionError.OffendingValue"/> holds the number of items.
+  /// </summary>
+  public const string ListInSingleField = "list_in_single_field";
 }
 
 /// <summary>
@@ -47,6 +53,9 @@ public sealed record ParameterResolutionError(
 
     if (Reason == ParameterResolutionReasons.InvalidPattern)
       return $"Step '{stepLabel}': field '{FieldPath}' resolved to the pattern '{OffendingValue}', which is not a valid regular expression. Change the value of '{ParameterName}' or the pattern.";
+
+    if (Reason == ParameterResolutionReasons.ListInSingleField)
+      return $"Step '{stepLabel}': parameter '{ParameterName}' holds {OffendingValue} items, but field '{FieldPath}' takes one value. Select one item, or use a parameter that holds one value.";
 
     var message = $"Step '{stepLabel}': parameter '{ParameterName}' used by field '{FieldPath}' could not be resolved from any scope.";
     if (Reason == ParameterResolutionReasons.Unresolved

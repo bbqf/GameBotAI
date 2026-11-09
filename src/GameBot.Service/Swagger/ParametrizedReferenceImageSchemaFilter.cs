@@ -78,6 +78,13 @@ internal sealed class ParametrizedReferenceImageSchemaFilter : ISchemaFilter {
       Describe(schema, "max", "Highest allowed whole number of a `number` parameter. Optional. Not less than `min`.");
       Describe(schema, "unit", "Unit text next to the number in the value form, for example `ms`. Up to 20 characters. Optional.");
       Describe(schema, "pattern", "Technical text with exactly one `{value}` marker for a `number` parameter. The entered number goes into the marker when the name is resolved. The result is text, so you cannot use it in a numeric field (error `text_parameter_in_numeric_field`).");
+      Describe(schema, "multiple", "Optional. When `true`, the parameter holds an ordered list of unique values. Allowed only for the kinds `image` and `choice`. No allowed image ID and no option value may contain the character `|`. A default may list several items joined by `|`. Other kinds give 400 `invalid_parameter_declaration`.");
+      Describe(schema, "minItems", "Lowest number of items in the list. Optional. Only with `multiple`. 1 or more, not more than `maxItems`, and not more than the number of allowed items. A list with fewer items gives 400 `parameter_list_out_of_limits`.");
+      Describe(schema, "maxItems", "Highest number of items in the list. Optional. Only with `multiple`. 1 or more. A list with more items gives 400 `parameter_list_out_of_limits`.");
+    }
+    else if (context.Type == typeof(ParameterBindingDto)) {
+      Describe(schema, "value", "The text value. For a multi-value parameter, a single `value` reads as a list of one item. A response for a list returns the items joined by `|`. If a request has both `value` and `values`, `values` is used.");
+      Describe(schema, "values", "The ordered list of values of a multi-value parameter. The service removes duplicates and keeps the first occurrence. An empty list means no value, and a required parameter then gives 400 `empty_parameter_list`.");
     }
     else if (context.Type == typeof(TemplateEntrySaveRequest)) {
       Describe(schema, "parameterValues", ParameterValuesDescription);

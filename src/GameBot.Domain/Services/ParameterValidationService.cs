@@ -74,6 +74,12 @@ public static class ParameterValidationCodes {
   /// numeric field (feature 168, FR-026).
   /// </summary>
   public const string TextParameterInNumericField = "text_parameter_in_numeric_field";
+
+  /// <summary>A required multi-value parameter has an empty list (feature 179).</summary>
+  public const string EmptyList = "empty_parameter_list";
+
+  /// <summary>The list of a multi-value parameter has fewer items than its minimum or more than its maximum (feature 179).</summary>
+  public const string ListOutOfLimits = "parameter_list_out_of_limits";
 }
 
 /// <summary>One piece of parameter validation feedback.</summary>
@@ -154,7 +160,7 @@ public static class ParameterValidationService {
           && step.ParameterBindings is { Count: > 0 }) {
         var callee = commandLookup(step.TargetId ?? string.Empty);
         if (callee is not null) {
-          AddBindingValueWarnings(step.ParameterBindings, callee, $"Step {step.Order}", imageExists, warnings);
+          AddBindingValueWarnings(step.ParameterBindings, callee, $"Step {step.Order}", imageExists, warnings, errors: errors);
         }
       }
 
@@ -217,7 +223,7 @@ public static class ParameterValidationService {
             binding.Name));
       }
 
-      AddBindingValueWarnings(step.ParameterBindings, calleeDeclarations, $"Step '{StepLabel(step)}'", imageExists, warnings);
+      AddBindingValueWarnings(step.ParameterBindings, calleeDeclarations, $"Step '{StepLabel(step)}'", imageExists, warnings, errors: errors);
     }
 
     return new ParameterValidationResult(errors, warnings);
@@ -246,6 +252,7 @@ public static class ParameterValidationService {
     var warnings = new List<ParameterValidationIssue>();
 
     var suppliedNames = new HashSet<string>(StringComparer.Ordinal);
+    var emptyListNames = new HashSet<string>(StringComparer.Ordinal);
     foreach (var binding in entry.ParameterValues) {
       var nameError = ParameterNameRules.ValidateName(binding?.Name);
       if (nameError is not null) {
@@ -259,6 +266,7 @@ public static class ParameterValidationService {
       }
 
       suppliedNames.Add(binding!.Name);
+      if (binding.Values is { Count: 0 }) emptyListNames.Add(binding.Name);
     }
 
     // Every name anything under this entry could consume: the sequence's own declarations plus every
@@ -280,12 +288,12 @@ public static class ParameterValidationService {
     // Feature 168: a supplied value that does not fit its declaration is a warning, never an error.
     AddBindingValueWarnings(
         entry.ParameterValues, AllDeclarations(sequence, reachableDeclarations).ToList(),
-        $"Entry {entryIndex}", imageExists, warnings, entryIndex);
+        $"Entry {entryIndex}", imageExists, warnings, entryIndex, errors);
 
     // A required parameter must be satisfiable from this entry, the queue built-ins, or its default.
     foreach (var declaration in AllDeclarations(sequence, reachableDeclarations)) {
       if (!declaration.Required) continue;
-      if (suppliedNames.Contains(declaration.Name)) continue;
+      if (suppliedNames.Contains(declaration.Name) && !emptyListNames.Contains(declaration.Name)) continue;
       if (declaration.Default is not null) continue;
       if (queueSuppliedNames is not null && queueSuppliedNames.Contains(declaration.Name)) continue;
 
@@ -318,7 +326,7 @@ public static class ParameterValidationService {
     ArgumentNullException.ThrowIfNull(queueSuppliedNames);
 
     var supplied = entry.ParameterValues
-        .Where(b => b?.Name is not null && b.Value is not null)
+        .Where(b => b?.Name is not null && b.Value is not null && b.Values is not { Count: 0 })
         .Select(b => b.Name)
         .ToHashSet(StringComparer.Ordinal);
 
@@ -483,10 +491,19 @@ public static class ParameterValidationService {
         var imageId = TemplateSubstitutor.Substitute(sourceText, values);
         if (string.IsNullOrWhiteSpace(imageId)) continue;
 
-        var candidate = new ImageValueCandidate(entryIndex, keys[0], imageId.Trim(), fieldPath);
-        if (_seen.Add(candidate)) _candidates.Add(candidate);
+        var ids = keys.Count == 1 && IsMultiple(keys[0], layers)
+            ? ParameterListRules.Split(imageId)
+            : new[] { imageId };
+        foreach (var id in ids) {
+          if (string.IsNullOrWhiteSpace(id)) continue;
+          var candidate = new ImageValueCandidate(entryIndex, keys[0], id.Trim(), fieldPath);
+          if (_seen.Add(candidate)) _candidates.Add(candidate);
+        }
       }
     }
+
+    private static bool IsMultiple(string name, IReadOnlyList<IEnumerable<ParameterDeclaration>> layers) =>
+        layers.Any(layer => layer.Any(d => d is not null && d.Multiple && string.Equals(d.Name, name, StringComparison.Ordinal)));
 
     private bool TryKnownValue(
         string name,
@@ -567,27 +584,89 @@ public static class ParameterValidationService {
       string where,
       Func<string, bool>? imageExists,
       List<ParameterValidationIssue> warnings,
-      int? entryIndex = null) {
+      int? entryIndex = null,
+      List<ParameterValidationIssue>? errors = null) {
     foreach (var binding in bindings) {
-      if (binding?.Name is null || binding.Value is null) continue;
+      if (binding?.Name is null || (binding.Value is null && binding.Values is null)) continue;
       var declaration = declarations.FirstOrDefault(d => string.Equals(d.Name, binding.Name, StringComparison.Ordinal));
       if (declaration is null) continue;
 
-      var message = ParameterValueRules.Check(declaration, binding.Value);
-      if (message is not null) {
-        warnings.Add(new ParameterValidationIssue(
-            ParameterValidationCodes.InvalidValue, $"{where}: {message}",
-            $"parameterBindings.{binding.Name}", binding.Name, entryIndex));
+      if (declaration.Multiple) {
+        AddListBindingIssues(binding, declaration, where, imageExists, warnings, errors, entryIndex);
         continue;
       }
 
-      if (declaration.EffectiveKind == ParameterInputKind.Image && imageExists is not null
-          && !ParameterNameRules.IsWholePlaceholder(binding.Value) && !imageExists(binding.Value)) {
+      if (binding.Values is { Count: >= 2 }) {
         warnings.Add(new ParameterValidationIssue(
             ParameterValidationCodes.InvalidValue,
-            $"{where}: image '{binding.Value}' of parameter '{binding.Name}' is not stored. Select an image that exists.",
+            $"{where}: parameter '{binding.Name}' holds one value, but the binding has {binding.Values.Count} items. Use a parameter that allows several values, or keep one item.",
             $"parameterBindings.{binding.Name}", binding.Name, entryIndex));
       }
+
+      var single = binding.Value;
+      if (single is null) continue;
+      AddSingleValueIssues(single, binding.Name, declaration, where, imageExists, warnings, entryIndex);
+    }
+  }
+
+  private static void AddSingleValueIssues(
+      string value,
+      string bindingName,
+      ParameterDeclaration declaration,
+      string where,
+      Func<string, bool>? imageExists,
+      List<ParameterValidationIssue> warnings,
+      int? entryIndex) {
+    var message = ParameterValueRules.Check(declaration, value);
+    if (message is not null) {
+      warnings.Add(new ParameterValidationIssue(
+          ParameterValidationCodes.InvalidValue, $"{where}: {message}",
+          $"parameterBindings.{bindingName}", bindingName, entryIndex));
+      return;
+    }
+
+    if (declaration.EffectiveKind == ParameterInputKind.Image && imageExists is not null
+        && !ParameterNameRules.IsWholePlaceholder(value) && !imageExists(value)) {
+      warnings.Add(new ParameterValidationIssue(
+          ParameterValidationCodes.InvalidValue,
+          $"{where}: image '{value}' of parameter '{bindingName}' is not stored. Select an image that exists.",
+          $"parameterBindings.{bindingName}", bindingName, entryIndex));
+    }
+  }
+
+  private static void AddListBindingIssues(
+      ParameterBinding binding,
+      ParameterDeclaration declaration,
+      string where,
+      Func<string, bool>? imageExists,
+      List<ParameterValidationIssue> warnings,
+      List<ParameterValidationIssue>? errors,
+      int? entryIndex) {
+    var items = ParameterListRules.ReadAsList(declaration, binding);
+    if (items is null) return;
+    var field = $"parameterBindings.{binding.Name}";
+
+    if (items.Count == 0) {
+      if (declaration.Required && errors is not null) {
+        errors.Add(new ParameterValidationIssue(
+            ParameterValidationCodes.EmptyList,
+            $"{where}: required parameter '{binding.Name}' has an empty list. Select at least one item.",
+            field, binding.Name, entryIndex));
+      }
+
+      return;
+    }
+
+    // A whole placeholder is not a known item, so the count is not known either.
+    var known = !items.Any(ParameterNameRules.IsWholePlaceholder);
+    var limit = known ? ParameterListRules.CheckLimits(declaration, items.Count) : null;
+    if (limit is not null && errors is not null) {
+      errors.Add(new ParameterValidationIssue(
+          ParameterValidationCodes.ListOutOfLimits, $"{where}: {limit}", field, binding.Name, entryIndex));
+    }
+
+    foreach (var item in items) {
+      AddSingleValueIssues(item, binding.Name, declaration, where, imageExists, warnings, entryIndex);
     }
   }
 

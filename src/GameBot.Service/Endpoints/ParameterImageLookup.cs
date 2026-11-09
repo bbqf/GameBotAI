@@ -32,6 +32,11 @@ internal static class ParameterImageLookup {
     }
 
     foreach (var binding in bindings) {
+      if (binding?.Values is not null) {
+        foreach (var item in binding.Values) candidates.Add(item);
+        continue;
+      }
+
       if (!string.IsNullOrWhiteSpace(binding?.Value) && !ParameterNameRules.IsWholePlaceholder(binding.Value)) {
         candidates.Add(binding.Value);
       }

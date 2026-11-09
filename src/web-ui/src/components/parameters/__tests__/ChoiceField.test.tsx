@@ -65,3 +65,53 @@ describe('ChoiceField', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/Select one of the options/);
   });
 });
+
+describe('ChoiceField in multi-select mode', () => {
+  const MultiHarness: React.FC<{ initial?: string[]; extra?: Partial<ParameterDeclaration> }> = ({ initial = [], extra }) => {
+    const [values, setValues] = useState<string[]>(initial);
+    return (
+      <>
+        <ChoiceField
+          declaration={{ ...declaration(3), multiple: true, ...extra }}
+          value=""
+          onChange={() => undefined}
+          values={values}
+          onChangeValues={setValues}
+          ariaLabel="Value for mode"
+        />
+        <output data-testid="values">{values.join(',')}</output>
+      </>
+    );
+  };
+
+  it('selects several options, shows labels only, and keeps the order', () => {
+    render(<MultiHarness />);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Label 3' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Label 1' }));
+
+    expect(screen.getByTestId('values')).toHaveTextContent('v3,v1');
+    expect(screen.queryByText('v3')).not.toBeInTheDocument();
+  });
+
+  it('deselects an option on the second click, and no option is added two times', () => {
+    render(<MultiHarness initial={['v1']} />);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Label 2' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Label 1' }));
+
+    expect(screen.getByTestId('values')).toHaveTextContent('v2');
+  });
+
+  it('shows the limits as help text', () => {
+    render(<MultiHarness extra={{ minItems: 2 }} />);
+
+    expect(screen.getByText(/0 selected/)).toHaveTextContent('Select at least 2.');
+  });
+
+  it('uses the buttons for a long list too, so the person can select several', () => {
+    render(<MultiHarness extra={{ options: Array.from({ length: 9 }, (_, i) => ({ label: `L${i}`, value: `v${i}` })) }} />);
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(9);
+  });
+});

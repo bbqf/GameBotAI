@@ -41,6 +41,19 @@ public static class ParameterValueRules {
     }
   }
 
+  /// <summary>
+  /// Checks each item of a list with <see cref="Check(ParameterDeclaration, string?)"/>. Returns one
+  /// message for each item that does not fit. The limits are not checked here, see
+  /// <see cref="ParameterListRules.CheckLimits"/> (feature 179).
+  /// </summary>
+  /// <param name="declaration">The declaration of the parameter.</param>
+  /// <param name="values">The items of the list.</param>
+  public static IReadOnlyList<string> CheckList(ParameterDeclaration declaration, IEnumerable<string> values) {
+    ArgumentNullException.ThrowIfNull(declaration);
+    ArgumentNullException.ThrowIfNull(values);
+    return values.Select(v => Check(declaration, v)).Where(m => m is not null).Select(m => m!).ToList();
+  }
+
   private static string? CheckNumber(ParameterDeclaration declaration, string value) {
     var name = declaration.Name;
     if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)) {

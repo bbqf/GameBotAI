@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- List-valued sequence parameters (179-list-valued-parameters, #378)
+  - **Declaration**: a parameter of kind `image` or `choice` can have `multiple`, `minItems`, and `maxItems`. No allowed image ID and no option value may contain `|`.
+  - **Value**: a binding can have `values`, an ordered list of unique items. `value` holds the same items joined by `|`. A plain `value` reads as a list of one item.
+  - **Run**: in a text field, `{{name}}` gives the items joined by `|`. In an image id field or a numeric field, a list of 2 or more items fails the step with the reason `list_in_single_field`.
+  - **Check**: new errors `empty_parameter_list` and `parameter_list_out_of_limits`. A not-allowed item is the warning `invalid_parameter_value`.
+  - **Web UI**: the value form selects several images or options. The parameter editor has "Select several" with a minimum and a maximum.
+  - **Not changed**: single-value parameters, the `text` and `number` kinds, and stored data.
+  - **Version**: the patch version is now 1.12.9.
 - Install the same gamepack version again (178-force-reinstall-gamepack, #374)
   - **Option**: `force` on `POST /api/gamepacks/install`, `POST /api/gamepacks/update`, `POST /api/gamepacks/catalog/install`, and `POST /api/gamepacks/catalog/update` (query on the first two, body field on the others). The managed update of the same version then runs the full flow.
   - **Result**: the response has `reinstalled` and `overwritten`. `overwritten` lists the objects whose stored content differs from the file. A dry run with `force` shows the list and changes nothing.

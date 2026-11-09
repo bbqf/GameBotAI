@@ -206,6 +206,7 @@ Status vocabulary:
 | 176 | Use Default Label | Implemented |
 | 177 | Fix Installed WaitForImage | Implemented |
 | 178 | Force Reinstall Gamepack | Implemented |
+| 179 | List-Valued Sequence Parameters | Implemented |
 
 ## Numbering notes
 
