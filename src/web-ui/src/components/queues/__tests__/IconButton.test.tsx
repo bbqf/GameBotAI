@@ -135,7 +135,7 @@ describe('IconButton styles', () => {
   });
 
   it('puts each hover rule inside a hover media query (mobile principle 6)', () => {
-    const outside = css.replace(/@media \(hover: hover\)\s*\{[\s\S]*?\n\}\n/g, '');
+    const outside = css.replace(/@media \(hover: hover\)\s*\{[\s\S]*?\r?\n\}\r?\n/g, '');
     expect(outside).not.toMatch(/:hover/);
     expect(css).toMatch(/@media \(hover: hover\)/);
   });
