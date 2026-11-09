@@ -46,6 +46,8 @@ public sealed class NotifyStepTargetDeliveryTests {
     private int _sendTextCalls;
     public int SendTextCalls => Volatile.Read(ref _sendTextCalls);
     public bool NeverAnswers { get; init; }
+    public string? LastScopeKey { get; private set; }
+    public string? LastText { get; private set; }
 
     public void Enqueue(QueueNotificationJob job) { }
 
@@ -55,6 +57,8 @@ public sealed class NotifyStepTargetDeliveryTests {
 
     public Task<TextSendOutcome> SendText(string text, string scopeKey, string sequenceId, CancellationToken ct) {
       Interlocked.Increment(ref _sendTextCalls);
+      LastScopeKey = scopeKey;
+      LastText = text;
       return NeverAnswers
         ? new TaskCompletionSource<TextSendOutcome>().Task
         : Task.FromResult(TextSendOutcome.Delivered());
@@ -109,6 +113,19 @@ public sealed class NotifyStepTargetDeliveryTests {
   }
 
   [Fact]
+  public async Task MessageInAQueue_IsSentWithTheQueueNameAsLabel() {
+    await using var harness = new NotificationHarness(targetCount: 1);
+    await harness.Worker.StartAsync(CancellationToken.None);
+    var service = NewService(harness, new FakeNotifier());
+
+    var result = await service.DispatchActionAsync(NotifyAction("Screen is stuck"), "s1", "q1", null, ParameterScope.Empty, null, CancellationToken.None);
+
+    result.Outcome.Should().Be("success");
+    await NotificationHarness.WaitForAsync(() => harness.Channel.Sent.Count >= 1);
+    harness.Channel.Sent.Single().Text.Should().Be("Farm-1 : Screen is stuck");
+  }
+
+  [Fact]
   public async Task TwoTargetsAndADisabledTarget_OnlyEnabledTargetsGetTheMessage() {
     await using var harness = new NotificationHarness(targetCount: 2);
     harness.Targets.Create(new NotificationTarget { Id = "off", Type = "telegram", Name = "Off", Enabled = false });
@@ -123,6 +140,30 @@ public sealed class NotifyStepTargetDeliveryTests {
     result.Message.Should().NotContain("no destination configured");
     harness.Channel.Sent.Select(s => s.TargetId).Should().BeEquivalentTo(new[] { "t0", "t1" });
     notifier.Calls.Should().Be(0);
+  }
+
+  [Fact]
+  public async Task RunWithNoQueue_SendsTheAdhocScopeKeyAndTheUnchangedMessage() {
+    await using var harness = new NotificationHarness(targetCount: 1);
+    var dispatcher = new FakeDispatcher();
+    var service = NewService(harness, new FakeNotifier(), dispatcher);
+
+    await RunStepAsync(service, NotifyAction("Screen is stuck"));
+
+    dispatcher.LastScopeKey.Should().Be(GameBot.Domain.Commands.Notify.NotifyPayload.AdhocScope);
+    dispatcher.LastText.Should().Be("Screen is stuck");
+  }
+
+  [Fact]
+  public async Task RunInAQueue_SendsTheQueueIdAsScopeKeyAndTheUnchangedMessage() {
+    await using var harness = new NotificationHarness(targetCount: 1);
+    var dispatcher = new FakeDispatcher();
+    var service = NewService(harness, new FakeNotifier(), dispatcher);
+
+    await service.DispatchActionAsync(NotifyAction("Hello"), "s1", "q1", null, ParameterScope.Empty, null, CancellationToken.None);
+
+    dispatcher.LastScopeKey.Should().Be("q1");
+    dispatcher.LastText.Should().Be("Hello");
   }
 
   [Fact]

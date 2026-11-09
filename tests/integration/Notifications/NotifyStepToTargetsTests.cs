@@ -65,9 +65,11 @@ public sealed class NotifyStepToTargetsTests {
       .EnsureSuccessStatusCode();
     (await client.PostAsync(new Uri($"/api/queues/{queueId}/start", UriKind.Relative), null)).EnsureSuccessStatusCode();
 
-    await NotificationIntegrationHelpers.WaitForAsync(() => channel.Sent.Count(s => s.Text == message) >= 2, 20000);
+    // Feature 183: the text starts with the name of the queue that runs the step.
+    var expected = "Guarded farm : " + message;
+    await NotificationIntegrationHelpers.WaitForAsync(() => channel.Sent.Count(s => s.Text == expected) >= 2, 20000);
     await Task.Delay(300);
 
-    channel.Sent.Where(s => s.Text == message).Should().HaveCount(2);
+    channel.Sent.Where(s => s.Text == expected).Should().HaveCount(2);
   }
 }

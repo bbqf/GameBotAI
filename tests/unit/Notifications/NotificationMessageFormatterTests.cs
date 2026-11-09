@@ -67,6 +67,33 @@ public sealed class NotificationMessageFormatterTests {
   }
 
   [Fact]
+  public void NotifyText_HasTheQueueNameThenTheText() {
+    NotificationMessageFormatter.FormatNotifyText("Farm A", "q1", "Daily reward ready")
+      .Should().Be("Farm A : Daily reward ready");
+  }
+
+  [Theory]
+  [InlineData(null)]
+  [InlineData("")]
+  [InlineData("  ")]
+  public void NotifyText_ABlankQueueNameUsesTheQueueId(string? name) {
+    NotificationMessageFormatter.FormatNotifyText(name, "q-7", "Daily reward ready")
+      .Should().Be("q-7 : Daily reward ready");
+  }
+
+  [Fact]
+  public void NotifyText_WithTwoLines_PutsTheLabelOnTheFirstLineOnly() {
+    NotificationMessageFormatter.FormatNotifyText("Farm A", "q1", "line one\nline two")
+      .Should().Be("Farm A : line one\nline two");
+  }
+
+  [Fact]
+  public void NotifyText_SpecialCharactersStayAsTheyAre() {
+    NotificationMessageFormatter.FormatNotifyText("my_queue*", "q1", "`code` [c] _a_")
+      .Should().Be("my_queue* : `code` [c] _a_");
+  }
+
+  [Fact]
   public void TheTestMessageIsFixed() {
     NotificationMessageFormatter.TestMessageText.Should().Be("GameBot test message");
   }

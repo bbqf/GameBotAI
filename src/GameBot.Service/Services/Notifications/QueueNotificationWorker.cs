@@ -1,4 +1,5 @@
 using GameBot.Domain.Commands;
+using GameBot.Domain.Commands.Notify;
 using GameBot.Domain.Notifications;
 using GameBot.Domain.Queues;
 using Microsoft.Extensions.Hosting;
@@ -75,7 +76,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
       }
 
       if (work.Text is { } text) {
-        HandleText(text);
+        await HandleTextAsync(text).ConfigureAwait(false);
         return;
       }
 
@@ -160,11 +161,13 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
     });
   }
 
-  // Issue #335: a notify step with no url sends its plain text to all enabled targets. The text has no
-  // prefix. It ignores the queue level, the streaks, and the last-sent state. The worker does not wait
-  // for the sends. It sets the completion exactly one time, also on a fault.
-  private void HandleText(TextSend send) {
+  // Issue #335: a notify step with no url sends its text to all enabled targets. Feature 183: the text
+  // starts with the queue name and " : ". A step that runs outside a queue (scope "adhoc") sends the
+  // plain text. It ignores the queue level, the streaks, and the last-sent state. The worker does not
+  // wait for the sends. It sets the completion exactly one time, also on a fault.
+  private async Task HandleTextAsync(TextSend send) {
     try {
+      var text = await LabelTextAsync(send).ConfigureAwait(false);
       List<NotificationTarget> targets;
       try {
         targets = _targets.List().Where(t => t.Enabled).ToList();
@@ -181,7 +184,7 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
       }
 
       // The worker thread chains here, so the sends for one target keep the order of the steps.
-      var sends = targets.Select(target => ChainSend(target, send.Text, send.ScopeKey, $"notify:{send.SequenceId}")).ToList();
+      var sends = targets.Select(target => ChainSend(target, text, send.ScopeKey, $"notify:{send.SequenceId}")).ToList();
       _ = Task.Run(async () => {
         try {
           var results = await Task.WhenAll(sends).ConfigureAwait(false);
@@ -205,6 +208,22 @@ internal sealed partial class QueueNotificationWorker : BackgroundService {
       Log.SendFaulted(_logger, ex.GetType().Name);
       send.Completion.TrySetResult(TextSendOutcome.Failed(ex.GetType().Name));
     }
+  }
+
+  // Feature 183: adds the queue label. A run outside a queue has no label. A missing queue, a blank
+  // name, or a failed read gives the queue ID as the label, so the message is never dropped.
+  private async Task<string> LabelTextAsync(TextSend send) {
+    if (string.Equals(send.ScopeKey, NotifyPayload.AdhocScope, StringComparison.Ordinal)) return send.Text;
+
+    string? queueName = null;
+    try {
+      queueName = (await _queues.GetAsync(send.ScopeKey).ConfigureAwait(false))?.Name;
+    }
+    catch (Exception ex) {
+      Log.QueueReadFailed(_logger, send.ScopeKey, ex.GetType().Name);
+    }
+
+    return NotificationMessageFormatter.FormatNotifyText(queueName, send.ScopeKey, send.Text);
   }
 
   // The state table of research R-003, for levels Failure and Success+Failure.

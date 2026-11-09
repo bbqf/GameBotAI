@@ -2,8 +2,15 @@
 
 **Feature Branch**: `183-notify-queue-name`
 **Created**: 2026-11-09
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "An improved version of notification is needed for an extended notification. Currently the notification may include additional text, however the message doesn't show which queue the notification is for. I want it to be clear which queue is the notification coming for."
+
+## Clarifications
+
+### Session 2026-11-09
+
+- Q: Which message is in scope? → A: Only the plain-text `notify` step message sent to the notification targets. Queue status messages and device alerts are out of scope.
+- Q: Where does the queue label go? → A: On the same line, before the author text: `Queue name : text`. No symbol is added.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -53,7 +60,7 @@ A `notify` step can run outside a queue, for example in a manual run of a sequen
 - **FR-001**: When a `notify` step runs in a queue, the system MUST add the display name of that queue to the message, before the author text.
 - **FR-002**: If the queue has no display name or a blank name, the system MUST show the queue ID in place of the name.
 - **FR-003**: When a `notify` step runs outside any queue, the system MUST send the author text as it is today, with no queue label.
-- **FR-004**: The queue label MUST use the same style as the other queue messages: the queue name, a space, a colon, a space, then the content.
+- **FR-004**: The queue label MUST use the same style as the other queue messages: the queue name, a space, a colon, a space, then the content. The label is on the same line as the first line of the author text. The system adds no symbol, and it does not change the author text.
 - **FR-005**: The message MUST stay plain text. A special character in the queue name or author text MUST NOT break the message.
 - **FR-006**: The system MUST use the queue name that is valid at the time the step runs.
 - **FR-007**: The system MUST send the message to the same targets as today. The set of targets, the order of messages from one sequence, and the delivery result handling MUST NOT change.
@@ -67,7 +74,7 @@ A `notify` step can run outside a queue, for example in a manual run of a sequen
 
 ## Assumptions
 
-- "Extended notification" means the message of a `notify` step, which carries author-written text. The messages for queue status and device alerts already show the queue name.
+- "Extended notification" means the message of a `notify` step, which carries author-written text (confirmed in clarification). The messages for queue status and device alerts already show the queue name, and they are out of scope.
 - The queue label is always on for a queue run. No setting turns it off. The operator asked for clear source information, and a setting would add scope without a stated need.
 - The label goes before the author text, on the same line, in the style "Queue name : text".
 - No change is needed for the webhook form of the payload, because it already has the queue fields.
